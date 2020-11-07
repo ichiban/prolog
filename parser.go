@@ -97,10 +97,7 @@ func (p *Parser) Clause() (Term, error) {
 		}
 	}
 
-	return &Compound{
-		Functor: Atom(":-"),
-		Args:    args,
-	}, nil
+	return &Compound{Functor: ":-", Args: args}, nil
 }
 
 func (p *Parser) Pred() (Term, error) {
@@ -169,10 +166,7 @@ func (p *Parser) Arg() (Term, error) {
 		}
 	}
 
-	return &Compound{
-		Functor: Atom(a),
-		Args:    args,
-	}, nil
+	return &Compound{Functor: Atom(a), Args: args}, nil
 }
 
 type UnexpectedToken struct {

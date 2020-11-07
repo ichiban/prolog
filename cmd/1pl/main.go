@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	prolog "github.com/ichiban/picoliter"
+	"github.com/ichiban/prolog"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"

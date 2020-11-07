@@ -3,12 +3,24 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	Nop byte = iota
+	Enter
+	Call
+	Exit
+	Const
+	Var
+	Functor
+	Pop
+)
+
 type Engine struct {
-	procedures map[PrincipalFunctor][]Clause
+	procedures map[pFunctor][]clause
 }
 
 func (e *Engine) Compile(s string) error {
@@ -18,14 +30,14 @@ func (e *Engine) Compile(s string) error {
 		return err
 	}
 	for _, t := range ts {
-		c, err := NewClause(t)
-		if err != nil {
+		var c clause
+		if err := c.compile(t); err != nil {
 			return err
 		}
 		if e.procedures == nil {
-			e.procedures = map[PrincipalFunctor][]Clause{}
+			e.procedures = map[pFunctor][]clause{}
 		}
-		e.procedures[c.PrincipalFunctor] = append(e.procedures[c.PrincipalFunctor], *c)
+		e.procedures[c.pFunctor] = append(e.procedures[c.pFunctor], c)
 	}
 	return nil
 }
@@ -36,38 +48,38 @@ func (e *Engine) Query(s string) ([]*Variable, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := NewClause(&Compound{
+	var c clause
+	if err := c.compile(&Compound{
 		Functor: ":-",
-		Args: []Term{
-			Atom("user"),
-			t,
-		},
-	})
-	if err != nil {
+		Args:    []Term{Atom("user"), t},
+	}); err != nil {
 		return nil, err
 	}
 	if e.procedures == nil {
-		e.procedures = map[PrincipalFunctor][]Clause{}
+		e.procedures = map[pFunctor][]clause{}
 	}
-	e.procedures[c.PrincipalFunctor] = []Clause{*c}
-	vars, err := e.arrive(c.PrincipalFunctor, List(), nil)
+	e.procedures[c.pFunctor] = []clause{c}
+	vars, err := e.arrive(c.pFunctor, List(), nil)
 	if err != nil {
 		return nil, err
 	}
 	for i, v := range vars {
+		if v.Ref == nil {
+			continue
+		}
 		vars[i].Ref = v.Ref.Simplify()
 	}
 	return vars, nil
 }
 
-func (e *Engine) arrive(pf PrincipalFunctor, args Term, cont []continuation) ([]*Variable, error) {
+func (e *Engine) arrive(pf pFunctor, args Term, cont []continuation) ([]*Variable, error) {
 	cs := e.procedures[pf]
 	for _, c := range cs {
-		vars := make([]*Variable, len(c.Vars))
-		for i, n := range c.Vars {
+		vars := make([]*Variable, len(c.vars))
+		for i, n := range c.vars {
 			vars[i] = &Variable{Name: n}
 		}
-		if err := e.exec(c.Bytecode, c.XRTable, vars, cont, args); err != nil {
+		if err := e.exec(c.bytecode, c.xrTable, vars, cont, args); err != nil {
 			logrus.WithField("err", err).Debug("failed")
 			continue
 		}
@@ -76,8 +88,8 @@ func (e *Engine) arrive(pf PrincipalFunctor, args Term, cont []continuation) ([]
 	return nil, errors.New("failed")
 }
 
-func (e *Engine) exec(pc Bytecode, xr []xrRecord, vars []*Variable, cont []continuation, args Term) error {
-	astack := Term(Atom("[]"))
+func (e *Engine) exec(pc bytecode, xr []xrRecord, vars []*Variable, cont []continuation, args Term) error {
+	astack := List()
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
 			"pc":     pc,
@@ -91,79 +103,74 @@ func (e *Engine) exec(pc Bytecode, xr []xrRecord, vars []*Variable, cont []conti
 		case Const:
 			log.Debug("const")
 			x := xr[pc[1]].(Term)
-			arest := &Variable{Name: "Arest"}
-			if !args.Unify(Cons(x, arest)) {
+			var arest Variable
+			if !args.Unify(Cons(x, &arest)) {
 				return errors.New("const")
 			}
 			pc = pc[2:]
-			args = arest
+			args = &arest
 		case Var:
 			log.Debug("var")
 			v := vars[pc[1]]
-			arest := &Variable{Name: "Arest"}
-			if !args.Unify(Cons(v, arest)) {
+			var arest Variable
+			if !args.Unify(Cons(v, &arest)) {
 				return errors.New("var")
 			}
 			pc = pc[2:]
-			args = arest
+			args = &arest
 		case Functor:
 			log.Debug("functor")
-			x, ok := xr[pc[1]].(*PrincipalFunctor)
+			x, ok := xr[pc[1]].(*pFunctor)
 			if !ok {
 				return errors.New("not a principal functor")
 			}
-			arg := &Variable{Name: "Arg"}
-			arest := &Variable{Name: "Arest"}
-			if !args.Unify(Cons(arg, arest)) {
+			var arg, arest Variable
+			if !args.Unify(Cons(&arg, &arest)) {
 				return errors.New("functor")
 			}
 			c := Compound{
-				Functor: x.Functor,
-				Args:    make([]Term, x.Arity),
+				Functor: x.functor,
+				Args:    make([]Term, x.arity),
 			}
-			for i := 0; i < x.Arity; i++ {
-				c.Args[i] = &Variable{Name: fmt.Sprintf("Arg%d", i)}
+			for i := 0; i < x.arity; i++ {
+				var arg Variable
+				c.Args[i] = &arg
 			}
-			if !c.Unify(arg) {
+			if !c.Unify(&arg) {
 				return errors.New("not a functor")
 			}
 			pc = pc[2:]
 			args = List(c.Args...)
-			astack = Cons(arest, astack)
+			astack = Cons(&arest, astack)
 		case Pop:
 			log.Debug("pop")
-			if !args.Unify(Atom("[]")) {
+			if !args.Unify(List()) {
 				return errors.New("args is not empty")
 			}
 			pc = pc[1:]
-			a := &Variable{Name: "Args"}
-			arest := &Variable{Name: "Astack"}
-			if !astack.Unify(Cons(a, arest)) {
+			var a, arest Variable
+			if !astack.Unify(Cons(&a, &arest)) {
 				return errors.New("pop")
 			}
-			args = a
-			astack = arest
+			args = &a
+			astack = &arest
 		case Enter:
 			log.Debug("enter")
-			if !args.Unify(Atom("[]")) {
+			if !args.Unify(List()) {
 				return errors.New("args is not empty")
 			}
-			if !astack.Unify(Atom("[]")) {
+			if !astack.Unify(List()) {
 				return errors.New("astack is not empty")
 			}
 			pc = pc[1:]
-			v := Variable{Name: "Args"}
+			var v Variable
 			args = &v
 			astack = &v
 		case Call:
 			log.Debug("call")
-			x := xr[pc[1]].(*PrincipalFunctor)
+			x := xr[pc[1]].(*pFunctor)
 			pc = pc[2:]
-			_, err := e.arrive(*x, astack, append(cont, continuation{
-				pc:   pc,
-				xr:   xr,
-				vars: vars,
-			}))
+			_, err := e.arrive(*x, astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
 			return err
 		case Exit:
 			log.Debug("exit")
@@ -172,9 +179,7 @@ func (e *Engine) exec(pc Bytecode, xr []xrRecord, vars []*Variable, cont []conti
 			}
 			var c continuation
 			c, cont = cont[len(cont)-1], cont[:len(cont)-1]
-			pc = c.pc
-			xr = c.xr
-			vars = c.vars
+			pc, xr, vars = c.pc, c.xr, c.vars
 		default:
 			return fmt.Errorf("unknown(%d)", pc[0])
 		}
@@ -182,26 +187,160 @@ func (e *Engine) exec(pc Bytecode, xr []xrRecord, vars []*Variable, cont []conti
 	return nil
 }
 
+type clause struct {
+	pFunctor
+	xrTable  []xrRecord
+	vars     []string
+	bytecode bytecode
+}
+
+func (c *clause) compile(t Term) error {
+	switch t := t.(type) {
+	case *Compound:
+		if t.Functor == ":-" {
+			return c.compileClause(t.Args[0], t.Args[1:])
+		}
+		return c.compileClause(t, nil)
+	default:
+		return errors.New("")
+	}
+}
+
+func (c *clause) compileClause(head Term, body []Term) error {
+	switch head := head.(type) {
+	case Atom:
+		c.pFunctor = *head.PrincipalFunctor()
+	case *Compound:
+		c.pFunctor = *head.PrincipalFunctor()
+		for _, a := range head.Args {
+			if err := c.compileArg(a); err != nil {
+				return err
+			}
+		}
+	default:
+		return errors.New("not an atom nor compound")
+	}
+	if len(body) != 0 {
+		c.bytecode = append(c.bytecode, Enter)
+	}
+	for _, b := range body {
+		if err := c.compilePred(b.(*Compound)); err != nil {
+			return err
+		}
+	}
+	c.bytecode = append(c.bytecode, Exit)
+	return nil
+}
+
+func (c *clause) compilePred(p *Compound) error {
+	for _, a := range p.Args {
+		if err := c.compileArg(a); err != nil {
+			return err
+		}
+	}
+	c.bytecode = append(c.bytecode, Call, c.xrOffset(&pFunctor{
+		functor: p.Functor,
+		arity:   len(p.Args),
+	}))
+	return nil
+}
+
+func (c *clause) compileArg(a Term) error {
+	switch a := a.(type) {
+	case Atom:
+		c.bytecode = append(c.bytecode, Const, c.xrOffset(a))
+	case Integer:
+		c.bytecode = append(c.bytecode, Const, c.xrOffset(a))
+	case *Variable:
+		c.bytecode = append(c.bytecode, Var, c.varOffset(a))
+	case *Compound:
+		c.bytecode = append(c.bytecode, Functor, c.xrOffset(&pFunctor{functor: a.Functor, arity: len(a.Args)}))
+		for _, n := range a.Args {
+			if err := c.compileArg(n); err != nil {
+				return err
+			}
+		}
+		c.bytecode = append(c.bytecode, Pop)
+	default:
+		return errors.New("unknown")
+	}
+	return nil
+}
+
+func (c *clause) xrOffset(o xrRecord) byte {
+	for i, r := range c.xrTable {
+		if r.Equal(o) {
+			return byte(i)
+		}
+	}
+	c.xrTable = append(c.xrTable, o)
+	return byte(len(c.xrTable) - 1)
+}
+
+func (c *clause) varOffset(o *Variable) byte {
+	for i, v := range c.vars {
+		if v == o.Name {
+			return byte(i)
+		}
+	}
+	c.vars = append(c.vars, o.Name)
+	return byte(len(c.vars) - 1)
+}
+
+type bytecode []byte
+
+func (b bytecode) String() string {
+	ret := make([]string, 0, len(b))
+	for i := 0; i < len(b); i++ {
+		switch b[i] {
+		case Nop:
+			ret = append(ret, "nop")
+		case Const:
+			i++
+			ret = append(ret, fmt.Sprintf("const %d", b[i]))
+		case Var:
+			i++
+			ret = append(ret, fmt.Sprintf("var %d", b[i]))
+		case Functor:
+			i++
+			ret = append(ret, fmt.Sprintf("functor %d", b[i]))
+		case Pop:
+			ret = append(ret, "pop")
+		case Enter:
+			ret = append(ret, "enter")
+		case Call:
+			i++
+			ret = append(ret, fmt.Sprintf("call %d", b[i]))
+		case Exit:
+			ret = append(ret, "exit")
+		default:
+			ret = append(ret, fmt.Sprintf("unknown(%d)", b[i]))
+		}
+	}
+	return strings.Join(ret, "; ")
+}
+
 type xrRecord interface {
 	Equal(xrRecord) bool
 }
 
-type PrincipalFunctor struct {
-	Functor Atom
-	Arity   int
+// Principal Functor
+type pFunctor struct {
+	functor Atom
+	arity   int
 }
 
-func (p *PrincipalFunctor) String() string {
-	return fmt.Sprintf("%s/%d", p.Functor, p.Arity)
+func (p *pFunctor) String() string {
+	return fmt.Sprintf("%s/%d", p.functor, p.arity)
 }
 
-func (p *PrincipalFunctor) Equal(r xrRecord) bool {
-	v, ok := r.(*PrincipalFunctor)
-	return ok && p.Functor == v.Functor && p.Arity == v.Arity
+func (p *pFunctor) Equal(r xrRecord) bool {
+	v, ok := r.(*pFunctor)
+	return ok && p.functor == v.functor && p.arity == v.arity
 }
 
 type continuation struct {
-	pc   Bytecode
+	pc   bytecode
 	xr   []xrRecord
 	vars []*Variable
 }

@@ -10,7 +10,7 @@ import (
 
 func TestClause_Compile(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		var c Clause
+		var c clause
 		assert.NoError(t, c.compile(&Compound{
 			Functor: "append",
 			Args: []Term{
@@ -19,16 +19,13 @@ func TestClause_Compile(t *testing.T) {
 				&Variable{Name: "L"},
 			},
 		}))
-		assert.Equal(t, Clause{
-			PrincipalFunctor: PrincipalFunctor{
-				Functor: "append",
-				Arity:   3,
-			},
-			XRTable: []xrRecord{
+		assert.Equal(t, clause{
+			pFunctor: pFunctor{functor: "append", arity: 3},
+			xrTable: []xrRecord{
 				Atom("nil"),
 			},
-			Vars: []string{"L"},
-			Bytecode: []byte{
+			vars: []string{"L"},
+			bytecode: []byte{
 				Const, 0, // nil
 				Var, 0, // L
 				Var, 0, // L
@@ -38,7 +35,7 @@ func TestClause_Compile(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		var c Clause
+		var c clause
 		assert.NoError(t, c.compile(&Compound{
 			Functor: ":-",
 			Args: []Term{
@@ -73,23 +70,14 @@ func TestClause_Compile(t *testing.T) {
 			},
 		}))
 
-		assert.Equal(t, Clause{
-			PrincipalFunctor: PrincipalFunctor{
-				Functor: "append",
-				Arity:   3,
+		assert.Equal(t, clause{
+			pFunctor: pFunctor{functor: "append", arity: 3},
+			xrTable: []xrRecord{
+				&pFunctor{functor: "cons", arity: 2},
+				&pFunctor{functor: "append", arity: 3},
 			},
-			XRTable: []xrRecord{
-				&PrincipalFunctor{
-					Functor: "cons",
-					Arity:   2,
-				},
-				&PrincipalFunctor{
-					Functor: "append",
-					Arity:   3,
-				},
-			},
-			Vars: []string{"X", "L1", "L2", "L3"},
-			Bytecode: []byte{
+			vars: []string{"X", "L1", "L2", "L3"},
+			bytecode: []byte{
 				Functor, 0, Var, 0, Var, 1, Pop, // cons(X, L1)
 				Var, 2, // L2
 				Functor, 0, Var, 0, Var, 3, Pop, // cons(X, L3)
@@ -107,14 +95,14 @@ func TestEngine_Query(t *testing.T) {
 
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
-	e := Engine{procedures: map[PrincipalFunctor][]Clause{
-		{Functor: "append", Arity: 3}: {
+	e := Engine{procedures: map[pFunctor][]clause{
+		{functor: "append", arity: 3}: {
 			{
-				XRTable: []xrRecord{
+				xrTable: []xrRecord{
 					Atom("nil"),
 				},
-				Vars: []string{"L"},
-				Bytecode: []byte{
+				vars: []string{"L"},
+				bytecode: []byte{
 					Const, 0, // nil
 					Var, 0, // L
 					Var, 0, // L
@@ -122,12 +110,12 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 			{
-				XRTable: []xrRecord{
-					&PrincipalFunctor{Functor: "cons", Arity: 2},
-					&PrincipalFunctor{Functor: "append", Arity: 3},
+				xrTable: []xrRecord{
+					&pFunctor{functor: "cons", arity: 2},
+					&pFunctor{functor: "append", arity: 3},
 				},
-				Vars: []string{"X", "L1", "L2", "L3"},
-				Bytecode: []byte{
+				vars: []string{"X", "L1", "L2", "L3"},
+				bytecode: []byte{
 					Functor, 0, Var, 0, Var, 1, Pop, // cons(X, L1)
 					Var, 2, // L2
 					Functor, 0, Var, 0, Var, 3, Pop, // cons(X, L3)

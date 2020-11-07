@@ -18,11 +18,8 @@ func (a Atom) String() string {
 	return string(a)
 }
 
-func (a Atom) PrincipalFunctor() *PrincipalFunctor {
-	return &PrincipalFunctor{
-		Functor: a,
-		Arity:   0,
-	}
+func (a Atom) PrincipalFunctor() *pFunctor {
+	return &pFunctor{functor: a, arity: 0}
 }
 
 func (a Atom) Equal(t xrRecord) bool {
@@ -77,10 +74,14 @@ type Variable struct {
 }
 
 func (v *Variable) String() string {
-	if v.Ref == nil {
-		return v.Name
+	name := v.Name
+	if name == "" {
+		name = fmt.Sprintf("_%p", v)
 	}
-	return fmt.Sprintf("%s = %s", v.Name, v.Ref)
+	if v.Ref == nil {
+		return name
+	}
+	return fmt.Sprintf("%s = %s", name, v.Ref)
 }
 
 func (v *Variable) Unify(t Term) bool {
@@ -132,11 +133,8 @@ func (c *Compound) String() string {
 	return fmt.Sprintf("%s(%s)", c.Functor, strings.Join(args, ", "))
 }
 
-func (c *Compound) PrincipalFunctor() *PrincipalFunctor {
-	return &PrincipalFunctor{
-		Functor: c.Functor,
-		Arity:   len(c.Args),
-	}
+func (c *Compound) PrincipalFunctor() *pFunctor {
+	return &pFunctor{functor: c.Functor, arity: len(c.Args)}
 }
 
 func (c *Compound) Unify(t Term) bool {
@@ -166,10 +164,7 @@ func (c *Compound) Simplify() Term {
 	for i := range args {
 		args[i] = c.Args[i].Simplify()
 	}
-	return &Compound{
-		Functor: c.Functor,
-		Args:    args,
-	}
+	return &Compound{Functor: c.Functor, Args: args}
 }
 
 func Cons(car, cdr Term) Term {

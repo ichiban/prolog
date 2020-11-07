@@ -1,4 +1,4 @@
-module github.com/ichiban/picoliter
+module github.com/ichiban/prolog
 
 go 1.15
 

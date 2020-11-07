@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"fmt"
 	"unicode"
 	"unicode/utf8"
 )
@@ -16,11 +17,7 @@ type Lexer struct {
 func NewLexer(input string) *Lexer {
 	tokens := make(chan Token)
 
-	l := Lexer{
-		input:  input,
-		tokens: tokens,
-	}
-
+	l := Lexer{input: input, tokens: tokens}
 	go func() {
 		defer close(tokens)
 
@@ -34,8 +31,7 @@ func NewLexer(input string) *Lexer {
 }
 
 func (l *Lexer) Next() Token {
-	t := <-l.tokens
-	return t
+	return <-l.tokens
 }
 
 func (l *Lexer) next() (rune, int) {
@@ -68,6 +64,21 @@ const (
 	TokenSeparator
 )
 
+func (k TokenKind) String() string {
+	switch k {
+	case TokenEOS:
+		return "eos"
+	case TokenAtom:
+		return "atom"
+	case TokenVariable:
+		return "variable"
+	case TokenSeparator:
+		return "separator"
+	default:
+		return fmt.Sprintf("unknown(%d)", k)
+	}
+}
+
 type lexState func(rune, int) lexState
 
 func (l *Lexer) start(r rune, pos int) lexState {
@@ -99,10 +110,7 @@ func (l *Lexer) atom(start int) lexState {
 		default:
 			l.backup()
 			val := l.input[start:pos]
-			l.emit(Token{
-				Kind: TokenAtom,
-				Val:  val,
-			})
+			l.emit(Token{Kind: TokenAtom, Val: val})
 			return l.start
 		}
 	}
@@ -129,10 +137,7 @@ func (l *Lexer) graphic(start int) lexState {
 			if val == "." {
 				kind = TokenSeparator
 			}
-			l.emit(Token{
-				Kind: kind,
-				Val:  val,
-			})
+			l.emit(Token{Kind: kind, Val: val})
 			return l.start
 		}
 	}
@@ -146,10 +151,7 @@ func (l *Lexer) variable(start int) lexState {
 		default:
 			l.backup()
 			val := l.input[start:pos]
-			l.emit(Token{
-				Kind: TokenVariable,
-				Val:  val,
-			})
+			l.emit(Token{Kind: TokenVariable, Val: val})
 			return l.start
 		}
 	}
@@ -160,18 +162,12 @@ func (l *Lexer) separator(start int) lexState {
 		switch r {
 		case '.', ',', ';', '(', ')', '[', ']', '|':
 			val := l.input[start : pos+1]
-			l.emit(Token{
-				Kind: TokenSeparator,
-				Val:  val,
-			})
+			l.emit(Token{Kind: TokenSeparator, Val: val})
 			return l.start
 		default:
 			l.backup()
 			val := l.input[start:pos]
-			l.emit(Token{
-				Kind: TokenSeparator,
-				Val:  val,
-			})
+			l.emit(Token{Kind: TokenSeparator, Val: val})
 			return l.start
 		}
 	}
