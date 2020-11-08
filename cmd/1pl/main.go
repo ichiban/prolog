@@ -58,6 +58,9 @@ func main() {
 			log.WithField("err", err).Error("failed to query")
 		}
 		for _, v := range vars {
+			if v.Ref == nil {
+				continue
+			}
 			fmt.Fprintf(t, "%s\n", v)
 		}
 	}

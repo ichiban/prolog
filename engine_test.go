@@ -20,8 +20,8 @@ func TestClause_Compile(t *testing.T) {
 			},
 		}))
 		assert.Equal(t, clause{
-			pFunctor: pFunctor{functor: "append", arity: 3},
-			xrTable: []xrRecord{
+			name: "append/3",
+			xrTable: []Term{
 				Atom("nil"),
 			},
 			vars: []string{"L"},
@@ -71,10 +71,16 @@ func TestClause_Compile(t *testing.T) {
 		}))
 
 		assert.Equal(t, clause{
-			pFunctor: pFunctor{functor: "append", arity: 3},
-			xrTable: []xrRecord{
-				&pFunctor{functor: "cons", arity: 2},
-				&pFunctor{functor: "append", arity: 3},
+			name: "append/3",
+			xrTable: []Term{
+				&Compound{
+					Functor: "/",
+					Args:    []Term{Atom("cons"), Integer(2)},
+				},
+				&Compound{
+					Functor: "/",
+					Args:    []Term{Atom("append"), Integer(3)},
+				},
 			},
 			vars: []string{"X", "L1", "L2", "L3"},
 			bytecode: []byte{
@@ -95,10 +101,10 @@ func TestEngine_Query(t *testing.T) {
 
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
-	e := Engine{procedures: map[pFunctor][]clause{
-		{functor: "append", arity: 3}: {
+	e := Engine{procedures: map[string][]clause{
+		"append/3": {
 			{
-				xrTable: []xrRecord{
+				xrTable: []Term{
 					Atom("nil"),
 				},
 				vars: []string{"L"},
@@ -110,9 +116,15 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 			{
-				xrTable: []xrRecord{
-					&pFunctor{functor: "cons", arity: 2},
-					&pFunctor{functor: "append", arity: 3},
+				xrTable: []Term{
+					&Compound{
+						Functor: "/",
+						Args:    []Term{Atom("cons"), Integer(2)},
+					},
+					&Compound{
+						Functor: "/",
+						Args:    []Term{Atom("append"), Integer(3)},
+					},
 				},
 				vars: []string{"X", "L1", "L2", "L3"},
 				bytecode: []byte{
