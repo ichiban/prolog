@@ -24,8 +24,8 @@ type Engine struct {
 }
 
 func (e *Engine) Compile(s string) error {
-	p := NewParser(s)
-	ts, err := p.Clauses()
+	p := NewParser(s, DefaultOperators)
+	ts, err := p.Program()
 	if err != nil {
 		return err
 	}
@@ -43,8 +43,8 @@ func (e *Engine) Compile(s string) error {
 }
 
 func (e *Engine) Query(s string) ([]*Variable, error) {
-	p := NewParser(s)
-	t, err := p.Clause()
+	p := NewParser(s, DefaultOperators)
+	t, err := p.clause()
 	if err != nil {
 		return nil, err
 	}

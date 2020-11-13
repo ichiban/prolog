@@ -137,3 +137,11 @@ func TestCompound_Unify(t *testing.T) {
 		assert.Equal(t, Atom("bar"), v.Ref)
 	})
 }
+
+func TestCompound_String(t *testing.T) {
+	c := Compound{
+		Functor: "/",
+		Args:    []Term{Atom("append"), Integer(3)},
+	}
+	assert.Equal(t, "append/3", c.String())
+}

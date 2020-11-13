@@ -1,17 +1,47 @@
 package prolog
 
 import (
+	"errors"
 	"fmt"
+	"sort"
 )
 
-type Parser struct {
-	lexer   *Lexer
-	current Token
+var DefaultOperators = Operators{
+	{Precedence: 1200, Type: XFX, Name: `:-`},
+	{Precedence: 1200, Type: FX, Name: `:-`},
+	{Precedence: 1200, Type: FX, Name: `?-`},
+	{Precedence: 1100, Type: XFY, Name: `;`},
+	{Precedence: 1000, Type: XFY, Name: `,`},
+	{Precedence: 700, Type: XFX, Name: `<`},
+	{Precedence: 700, Type: XFX, Name: `=`},
+	{Precedence: 700, Type: XFX, Name: `=..`},
+	{Precedence: 700, Type: XFX, Name: `=<`},
+	{Precedence: 700, Type: XFX, Name: `=\=`},
+	{Precedence: 700, Type: XFX, Name: `>`},
+	{Precedence: 700, Type: XFX, Name: `>=`},
+	{Precedence: 500, Type: YFX, Name: `+`},
+	{Precedence: 500, Type: YFX, Name: `-`},
+	{Precedence: 400, Type: YFX, Name: `*`},
+	{Precedence: 400, Type: YFX, Name: `/`},
+	{Precedence: 200, Type: FY, Name: `+`},
+	{Precedence: 200, Type: FY, Name: `-`},
+	{Precedence: 100, Type: YFX, Name: `.`},
 }
 
-func NewParser(input string) *Parser {
+func init() {
+	sort.Sort(DefaultOperators)
+}
+
+type Parser struct {
+	lexer     *Lexer
+	current   Token
+	operators Operators
+}
+
+func NewParser(input string, operators Operators) *Parser {
 	p := Parser{
-		lexer: NewLexer(input),
+		lexer:     NewLexer(input),
+		operators: operators,
 	}
 	p.current = p.lexer.Next()
 	return &p
@@ -51,14 +81,14 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	return p.current.Val, nil
 }
 
-func (p *Parser) Clauses() ([]Term, error) {
+func (p *Parser) Program() ([]Term, error) {
 	var ret []Term
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {
 			return ret, nil
 		}
 
-		c, err := p.Clause()
+		c, err := p.clause()
 		if err != nil {
 			return nil, err
 		}
@@ -66,74 +96,99 @@ func (p *Parser) Clauses() ([]Term, error) {
 	}
 }
 
-func (p *Parser) Clause() (Term, error) {
-	h, err := p.Pred()
+func (p *Parser) clause() (Term, error) {
+	t, err := p.Term()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := p.accept(TokenAtom, ":-"); err != nil {
-		if _, err := p.accept(TokenSeparator, "."); err != nil {
-			return nil, err
-		}
-
-		return h, nil
+	if _, err := p.accept(TokenSeparator, "."); err != nil {
+		return nil, err
 	}
 
-	args := []Term{h}
-	for {
-		b, err := p.Pred()
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, b)
-
-		sep, err := p.accept(TokenSeparator, ",", ".")
-		if err != nil {
-			return nil, err
-		}
-		if sep == "." {
-			break
-		}
-	}
-
-	return &Compound{Functor: ":-", Args: args}, nil
+	return t, nil
 }
 
-func (p *Parser) Pred() (Term, error) {
-	a, err := p.accept(TokenAtom)
+func (p *Parser) Term() (Term, error) {
+	if _, err := p.accept(TokenSeparator, "("); err == nil {
+		t, err := p.Term()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.accept(TokenSeparator, ")"); err != nil {
+			return nil, err
+		}
+		return t, nil
+	}
+
+	return p.expr(1200)
+}
+
+// based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
+func (p *Parser) expr(max int) (Term, error) {
+	if t, err := p.prefixUnary(max); err == nil {
+		return t, nil
+	}
+
+	lhs, err := p.expr0()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := p.accept(TokenSeparator, "("); err != nil {
-		return nil, err
-	}
-
-	var args []Term
+loop:
 	for {
-		t, err := p.Arg()
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, t)
+		for _, op := range p.operators.AtMost(max) {
+			if _, err := p.accept(TokenAtom, op.Name); err != nil {
+				continue
+			}
 
-		sep, err := p.accept(TokenSeparator, ",", ")")
-		if err != nil {
-			return nil, err
+			l, r := op.leftRight()
+			if l > max {
+				break loop
+			}
+
+			rhs, err := p.expr(r)
+			if err != nil {
+				return nil, err
+			}
+
+			lhs = &Compound{
+				Functor: Atom(op.Name),
+				Args:    []Term{lhs, rhs},
+			}
 		}
-		if sep == ")" {
-			break
-		}
+		break
 	}
 
-	return &Compound{
-		Functor: Atom(a),
-		Args:    args,
-	}, nil
+	return lhs, nil
 }
 
-func (p *Parser) Arg() (Term, error) {
+func (p *Parser) prefixUnary(max int) (Term, error) {
+	for _, op := range p.operators.AtMost(max) {
+		l, r := op.leftRight()
+		if l >= 0 {
+			continue
+		}
+
+		if _, err := p.accept(TokenAtom, op.Name); err != nil {
+			continue
+		}
+
+		x, err := p.expr(r)
+		if err != nil {
+			return nil, err
+		}
+
+		return &Compound{
+			Functor: Atom(op.Name),
+			Args:    []Term{x},
+		}, nil
+	}
+
+	return nil, errors.New("not unary")
+}
+
+func (p *Parser) expr0() (Term, error) {
 	a, err := p.accept(TokenAtom)
 	if err != nil {
 		v, err := p.accept(TokenVariable)
@@ -151,7 +206,7 @@ func (p *Parser) Arg() (Term, error) {
 
 	var args []Term
 	for {
-		t, err := p.Arg()
+		t, err := p.Term()
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +223,68 @@ func (p *Parser) Arg() (Term, error) {
 
 	return &Compound{Functor: Atom(a), Args: args}, nil
 }
+
+type Operators []Operator
+
+func (os Operators) Len() int {
+	return len(os)
+}
+
+func (os Operators) Less(i, j int) bool {
+	return os[i].Precedence > os[j].Precedence
+}
+
+func (os Operators) Swap(i, j int) {
+	os[i], os[j] = os[j], os[i]
+}
+
+func (os Operators) AtMost(p int) Operators {
+	i := sort.Search(len(os), func(i int) bool { return os[i].Precedence <= p })
+	if i == len(os) {
+		return nil // not found
+	}
+	return os[i:]
+}
+
+type Operator struct {
+	Precedence int // 1 ~ 1200
+	Type       OperatorType
+	Name       string
+}
+
+func (o *Operator) leftRight() (int, int) {
+	switch o.Type {
+	case XF:
+		return o.Precedence - 1, -1
+	case YF:
+		return o.Precedence, -1
+	case XFX:
+		return o.Precedence - 1, o.Precedence - 1
+	case XFY:
+		return o.Precedence - 1, o.Precedence
+	case YFX:
+		return o.Precedence, o.Precedence - 1
+	case FX:
+		return -1, o.Precedence - 1
+	case FY:
+		return -1, o.Precedence
+	default:
+		return -1, -1
+	}
+}
+
+type OperatorType byte
+
+const (
+	NAO OperatorType = iota // not an operator
+	XF
+	YF
+	XFX
+	XFY
+	YFX
+	FX
+	FY
+)
 
 type UnexpectedToken struct {
 	ExpectedKind TokenKind

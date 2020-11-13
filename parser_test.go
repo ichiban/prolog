@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParser_Clauses(t *testing.T) {
+func TestParser_Program(t *testing.T) {
 	p := NewParser(`
 append(nil,L,L).
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
-`)
-	cs, err := p.Clauses()
+`, DefaultOperators)
+	cs, err := p.Program()
 	if err != nil {
 		t.Error(err)
 	}
@@ -59,4 +59,26 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			},
 		},
 	}, cs)
+}
+
+func TestParser_Term(t *testing.T) {
+	p := NewParser(`a + b * c`, Operators{
+		{Precedence: 500, Type: YFX, Name: `+`},
+		{Precedence: 400, Type: YFX, Name: `*`},
+	})
+	term, err := p.Term()
+	assert.NoError(t, err)
+	assert.Equal(t, term, &Compound{
+		Functor: "+",
+		Args: []Term{
+			Atom("a"),
+			&Compound{
+				Functor: "*",
+				Args: []Term{
+					Atom("b"),
+					Atom("c"),
+				},
+			},
+		},
+	})
 }

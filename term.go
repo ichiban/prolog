@@ -92,10 +92,6 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
-	if c.Functor == "/" && len(c.Args) == 2 { // principal functor
-		return fmt.Sprintf("%s/%s", c.Args[0], c.Args[1])
-	}
-
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		t := Term(c)
 		var (
@@ -115,6 +111,35 @@ func (c *Compound) String() string {
 			break
 		}
 		return fmt.Sprintf("[%s%s]", strings.Join(elems, ", "), rest)
+	}
+
+	switch len(c.Args) {
+	case 1:
+		for _, op := range DefaultOperators {
+			if op.Name != string(c.Functor) {
+				continue
+			}
+			switch op.Type {
+			case XF, YF:
+				return fmt.Sprintf("%s%s", c.Args[0], c.Functor)
+			case FX, FY:
+				return fmt.Sprintf("%s%s", c.Functor, c.Args[0])
+			default:
+				continue
+			}
+		}
+	case 2:
+		for _, op := range DefaultOperators {
+			if op.Name != string(c.Functor) {
+				continue
+			}
+			switch op.Type {
+			case XFX, XFY, YFX:
+				return fmt.Sprintf("%s%s%s", c.Args[0], c.Functor, c.Args[1])
+			default:
+				continue
+			}
+		}
 	}
 
 	args := make([]string, len(c.Args))
