@@ -9,92 +9,151 @@ import (
 )
 
 const (
-	Nop byte = iota
-	Enter
-	Call
-	Exit
-	Const
-	Var
-	Functor
-	Pop
+	nop byte = iota
+	opEnter
+	opCall
+	opExit
+	opConst
+	opVar
+	opFunctor
+	opPop
 )
 
 type Engine struct {
-	procedures map[string][]clause
+	procedures map[string]procedure
+}
+
+type procedure interface {
+	Call(*Engine, Term, []continuation) (bool, error)
 }
 
 func (e *Engine) Compile(s string) error {
-	p := NewParser(s, DefaultOperators)
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+
+	p := NewParser(s, defaultOperators)
 	ts, err := p.Program()
 	if err != nil {
 		return err
 	}
 	for _, t := range ts {
-		var c clause
-		if err := c.compile(t); err != nil {
-			return err
+		var name string
+		switch t := t.(type) {
+		case Atom:
+			name = fmt.Sprintf("%s/0", t)
+		case *Compound:
+			name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
+		default:
+			return errors.New("not a Clause")
 		}
-		if e.procedures == nil {
-			e.procedures = map[string][]clause{}
+
+		if name == ":-/1" {
+			// TODO: directive
 		}
-		e.procedures[c.name] = append(e.procedures[c.name], c)
+
+		p, ok := e.procedures[name]
+		if !ok {
+			p = clauses{}
+		}
+
+		switch p := p.(type) {
+		case clauses:
+			var c clause
+			if err := c.compile(t); err != nil {
+				return err
+			}
+
+			e.procedures[name] = append(p, c)
+		default:
+			return errors.New("builtin")
+		}
 	}
 	return nil
 }
 
-func (e *Engine) Query(s string) ([]*Variable, error) {
-	p := NewParser(s, DefaultOperators)
-	t, err := p.clause()
+func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
+	t, err := NewParser(s, defaultOperators).Clause()
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	var c clause
-	if err := c.compile(&Compound{
-		Functor: ":-",
-		Args:    []Term{Atom("user"), t},
-	}); err != nil {
-		return nil, err
+
+	var vars []*Variable
+	variables(&vars, t)
+
+	var name string
+	var args Term
+	switch f := t.(type) {
+	case Atom:
+		name = fmt.Sprintf("%s/0", f)
+		args = List()
+	case *Compound:
+		name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
+		args = List(f.Args...)
+	default:
+		return false, errors.New("not callable")
 	}
-	if e.procedures == nil {
-		e.procedures = map[string][]clause{}
+
+	p, ok := e.procedures[name]
+	if !ok {
+		return false, fmt.Errorf("unknown procedure: %s", name)
 	}
-	e.procedures[c.name] = []clause{c}
-	vars, err := e.arrive(c.name, List(), nil)
+
+	ok, err = p.Call(e, args, nil)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	for i, v := range vars {
-		if v.Ref == nil {
-			continue
-		}
-		vars[i].Ref = v.Ref.Simplify()
+	if !ok {
+		return false, nil
 	}
-	return vars, nil
+
+	for _, v := range vars {
+		v.Ref = v.Ref.Simplify()
+	}
+
+	return cb(vars), nil
 }
 
-func (e *Engine) arrive(name string, args Term, cont []continuation) ([]*Variable, error) {
+func (e *Engine) Register0(name string, p func() (bool, error)) {
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+	e.procedures[fmt.Sprintf("%s/0", name)] = predicate0(p)
+}
+
+func (e *Engine) Register1(name string, p func(Term) (bool, error)) {
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+	e.procedures[fmt.Sprintf("%s/1", name)] = predicate1(p)
+}
+
+func (e *Engine) Register2(name string, p func(Term, Term) (bool, error)) {
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+	e.procedures[fmt.Sprintf("%s/2", name)] = predicate2(p)
+}
+
+func (e *Engine) Register3(name string, p func(Term, Term, Term) (bool, error)) {
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+	e.procedures[fmt.Sprintf("%s/3", name)] = predicate3(p)
+}
+
+func (e *Engine) arrive(name string, args Term, cont []continuation) (bool, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"name": name,
 		"args": args,
 		"cont": cont,
 	})
 	log.Debug("arrive")
-	cs := e.procedures[name]
-	for _, c := range cs {
-		vars := make([]*Variable, len(c.vars))
-		for i, n := range c.vars {
-			vars[i] = &Variable{Name: n}
-		}
-		if err := e.exec(c.bytecode, c.xrTable, vars, cont, args); err != nil {
-			log.WithField("err", err).Debug("failed")
-			continue
-		}
-		return vars, nil
-	}
-	return nil, errors.New("failed")
+	p := e.procedures[name]
+	return p.Call(e, args, cont)
 }
 
-func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuation, args Term) error {
+func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuation, args Term) (bool, error) {
 	astack := List()
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
@@ -106,102 +165,119 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			"astack": astack,
 		})
 		switch pc[0] {
-		case Const:
+		case opConst:
 			log.Debug("const")
 			x := xr[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(x, &arest)) {
-				return errors.New("const")
+				return false, nil
 			}
 			pc = pc[2:]
 			args = &arest
-		case Var:
+		case opVar:
 			log.Debug("var")
 			v := vars[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(v, &arest)) {
-				return errors.New("var")
+				return false, nil
 			}
 			pc = pc[2:]
 			args = &arest
-		case Functor:
+		case opFunctor:
 			log.Debug("functor")
 			x := xr[pc[1]]
 			var arg, arest Variable
 			if !args.Unify(Cons(&arg, &arest)) {
-				return errors.New("functor")
+				return false, nil
 			}
 			var fatom, farity Variable
 			if !x.Unify(&Compound{
 				Functor: "/",
 				Args:    []Term{&fatom, &farity},
 			}) {
-				return errors.New("functor")
+				return false, nil
 			}
-			ok, err := PFunctor(&arg, &fatom, &farity)
+			ok, err := Functor(&arg, &fatom, &farity)
 			if err != nil {
-				return err
+				return false, err
 			}
 			if !ok {
-				return errors.New("functor")
+				return false, nil
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = PUniv(&arg, Cons(&fatom, args))
+			ok, err = Univ(&arg, Cons(&fatom, args))
 			if err != nil {
-				return err
+				return false, err
 			}
 			if !ok {
-				return errors.New("functor")
+				return false, nil
 			}
 			astack = Cons(&arest, astack)
-		case Pop:
+		case opPop:
 			log.Debug("pop")
 			if !args.Unify(List()) {
-				return errors.New("args is not empty")
+				return false, nil
 			}
 			pc = pc[1:]
 			var a, arest Variable
 			if !astack.Unify(Cons(&a, &arest)) {
-				return errors.New("pop")
+				return false, nil
 			}
 			args = &a
 			astack = &arest
-		case Enter:
+		case opEnter:
 			log.Debug("enter")
 			if !args.Unify(List()) {
-				return errors.New("args is not empty")
+				return false, nil
 			}
 			if !astack.Unify(List()) {
-				return errors.New("astack is not empty")
+				return false, nil
 			}
 			pc = pc[1:]
 			var v Variable
 			args = &v
 			astack = &v
-		case Call:
+		case opCall:
 			log.Debug("call")
 			x := xr[pc[1]]
 			pc = pc[2:]
-			_, err := e.arrive(x.String(), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
-			return err
-		case Exit:
+			return e.arrive(x.String(), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
+		case opExit:
 			log.Debug("exit")
 			if len(cont) == 0 {
-				return nil
+				return true, nil
 			}
 			var c continuation
 			c, cont = cont[len(cont)-1], cont[:len(cont)-1]
 			pc, xr, vars = c.pc, c.xr, c.vars
 		default:
-			return fmt.Errorf("unknown(%d)", pc[0])
+			return false, fmt.Errorf("unknown(%d)", pc[0])
 		}
 	}
-	return nil
+	return false, errors.New("non-exit end of bytecode")
+}
+
+type clauses []clause
+
+func (cs clauses) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+	for _, c := range cs {
+		vars := make([]*Variable, len(c.vars))
+		for i, n := range c.vars {
+			vars[i] = &Variable{Name: n}
+		}
+		ok, err := e.exec(c.bytecode, c.xrTable, vars, cont, args)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 type clause struct {
-	name     string
 	xrTable  []Term
 	vars     []string
 	bytecode bytecode
@@ -211,7 +287,7 @@ func (c *clause) compile(t Term) error {
 	switch t := t.(type) {
 	case *Compound:
 		if t.Functor == ":-" {
-			return c.compileClause(t.Args[0], t.Args[1:])
+			return c.compileClause(t.Args[0], t.Args[1])
 		}
 		return c.compileClause(t, nil)
 	default:
@@ -219,12 +295,10 @@ func (c *clause) compile(t Term) error {
 	}
 }
 
-func (c *clause) compileClause(head Term, body []Term) error {
+func (c *clause) compileClause(head Term, body Term) error {
 	switch head := head.(type) {
 	case Atom:
-		c.name = fmt.Sprintf("%s/0", head)
 	case *Compound:
-		c.name = fmt.Sprintf("%s/%d", head.Functor, len(head.Args))
 		for _, a := range head.Args {
 			if err := c.compileArg(a); err != nil {
 				return err
@@ -233,41 +307,50 @@ func (c *clause) compileClause(head Term, body []Term) error {
 	default:
 		return errors.New("not an atom nor compound")
 	}
-	if len(body) != 0 {
-		c.bytecode = append(c.bytecode, Enter)
-	}
-	for _, b := range body {
-		if err := c.compilePred(b.(*Compound)); err != nil {
+	if body != nil {
+		c.bytecode = append(c.bytecode, opEnter)
+		if err := c.compilePred(body); err != nil {
 			return err
 		}
 	}
-	c.bytecode = append(c.bytecode, Exit)
+	c.bytecode = append(c.bytecode, opExit)
 	return nil
 }
 
-func (c *clause) compilePred(p *Compound) error {
-	for _, a := range p.Args {
-		if err := c.compileArg(a); err != nil {
-			return err
+func (c *clause) compilePred(p Term) error {
+	switch p := p.(type) {
+	case Atom:
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(&Compound{
+			Functor: "/",
+			Args:    []Term{p, Integer(0)},
+		}))
+		return nil
+	case *Compound:
+		for _, a := range p.Args {
+			if err := c.compileArg(a); err != nil {
+				return err
+			}
 		}
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(&Compound{
+			Functor: "/",
+			Args:    []Term{p.Functor, Integer(len(p.Args))},
+		}))
+		return nil
+	default:
+		return errors.New("not a predicate")
 	}
-	c.bytecode = append(c.bytecode, Call, c.xrOffset(&Compound{
-		Functor: "/",
-		Args:    []Term{p.Functor, Integer(len(p.Args))},
-	}))
-	return nil
 }
 
 func (c *clause) compileArg(a Term) error {
 	switch a := a.(type) {
 	case Atom:
-		c.bytecode = append(c.bytecode, Const, c.xrOffset(a))
+		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
 	case Integer:
-		c.bytecode = append(c.bytecode, Const, c.xrOffset(a))
+		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
 	case *Variable:
-		c.bytecode = append(c.bytecode, Var, c.varOffset(a))
+		c.bytecode = append(c.bytecode, opVar, c.varOffset(a))
 	case *Compound:
-		c.bytecode = append(c.bytecode, Functor, c.xrOffset(&Compound{
+		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(&Compound{
 			Functor: "/",
 			Args:    []Term{a.Functor, Integer(len(a.Args))},
 		}))
@@ -276,7 +359,7 @@ func (c *clause) compileArg(a Term) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, Pop)
+		c.bytecode = append(c.bytecode, opPop)
 	default:
 		return errors.New("unknown")
 	}
@@ -309,25 +392,25 @@ func (b bytecode) String() string {
 	ret := make([]string, 0, len(b))
 	for i := 0; i < len(b); i++ {
 		switch b[i] {
-		case Nop:
+		case nop:
 			ret = append(ret, "nop")
-		case Const:
+		case opConst:
 			i++
 			ret = append(ret, fmt.Sprintf("const %d", b[i]))
-		case Var:
+		case opVar:
 			i++
 			ret = append(ret, fmt.Sprintf("var %d", b[i]))
-		case Functor:
+		case opFunctor:
 			i++
 			ret = append(ret, fmt.Sprintf("functor %d", b[i]))
-		case Pop:
+		case opPop:
 			ret = append(ret, "pop")
-		case Enter:
+		case opEnter:
 			ret = append(ret, "enter")
-		case Call:
+		case opCall:
 			i++
 			ret = append(ret, fmt.Sprintf("call %d", b[i]))
-		case Exit:
+		case opExit:
 			ret = append(ret, "exit")
 		default:
 			ret = append(ret, fmt.Sprintf("unknown(%d)", b[i]))
@@ -340,4 +423,82 @@ type continuation struct {
 	pc   bytecode
 	xr   []Term
 	vars []*Variable
+}
+
+type predicate0 func() (bool, error)
+
+func (p predicate0) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+	if !args.Unify(List()) {
+		return false, errors.New("wrong number of arguments")
+	}
+	ok, err := p()
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+}
+
+type predicate1 func(Term) (bool, error)
+
+func (p predicate1) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+	var v1 Variable
+	if !args.Unify(List(&v1)) {
+		return false, errors.New("wrong number of arguments")
+	}
+	t, err := p(&v1)
+	if err != nil {
+		return false, err
+	}
+	if !t {
+		return false, nil
+	}
+	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+}
+
+type predicate2 func(Term, Term) (bool, error)
+
+func (p predicate2) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+	var v1, v2 Variable
+	if !args.Unify(List(&v1, &v2)) {
+		return false, errors.New("wrong number of arguments")
+	}
+	ok, err := p(&v1, &v2)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+}
+
+type predicate3 func(Term, Term, Term) (bool, error)
+
+func (p predicate3) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+	var v1, v2, v3 Variable
+	if !args.Unify(List(&v1, &v2)) {
+		return false, errors.New("wrong number of arguments")
+	}
+	ok, err := p(&v1, &v2, &v3)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+}
+
+func variables(vs *[]*Variable, t Term) {
+	switch t := t.(type) {
+	case *Variable:
+		*vs = append(*vs, t)
+	case *Compound:
+		for _, a := range t.Args {
+			variables(vs, a)
+		}
+	}
 }

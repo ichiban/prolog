@@ -19,6 +19,12 @@ func main() {
 	log := logrus.WithFields(nil)
 
 	var e prolog.Engine
+	e.Register0("true", func() (b bool, err error) {
+		return true, nil
+	})
+	e.Register0("false", func() (b bool, err error) {
+		return false, nil
+	})
 	for _, a := range pflag.Args() {
 		log := log.WithField("file", a)
 
@@ -53,15 +59,19 @@ func main() {
 			}
 			log.WithField("err", err).Error("failed to read line")
 		}
-		vars, err := e.Query(line)
+		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
+			for _, v := range vars {
+				if v.Ref == nil {
+					continue
+				}
+				fmt.Fprintf(t, "%s\n", v)
+			}
+			return true
+		})
 		if err != nil {
 			log.WithField("err", err).Error("failed to query")
+			continue
 		}
-		for _, v := range vars {
-			if v.Ref == nil {
-				continue
-			}
-			fmt.Fprintf(t, "%s\n", v)
-		}
+		fmt.Fprintf(t, "%t\n", ok)
 	}
 }

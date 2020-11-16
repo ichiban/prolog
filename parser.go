@@ -6,39 +6,35 @@ import (
 	"sort"
 )
 
-var DefaultOperators = Operators{
-	{Precedence: 1200, Type: XFX, Name: `:-`},
-	{Precedence: 1200, Type: FX, Name: `:-`},
-	{Precedence: 1200, Type: FX, Name: `?-`},
-	{Precedence: 1100, Type: XFY, Name: `;`},
-	{Precedence: 1000, Type: XFY, Name: `,`},
-	{Precedence: 700, Type: XFX, Name: `<`},
-	{Precedence: 700, Type: XFX, Name: `=`},
-	{Precedence: 700, Type: XFX, Name: `=..`},
-	{Precedence: 700, Type: XFX, Name: `=<`},
-	{Precedence: 700, Type: XFX, Name: `=\=`},
-	{Precedence: 700, Type: XFX, Name: `>`},
-	{Precedence: 700, Type: XFX, Name: `>=`},
-	{Precedence: 500, Type: YFX, Name: `+`},
-	{Precedence: 500, Type: YFX, Name: `-`},
-	{Precedence: 400, Type: YFX, Name: `*`},
-	{Precedence: 400, Type: YFX, Name: `/`},
-	{Precedence: 200, Type: FY, Name: `+`},
-	{Precedence: 200, Type: FY, Name: `-`},
-	{Precedence: 100, Type: YFX, Name: `.`},
-}
-
-func init() {
-	sort.Sort(DefaultOperators)
+var defaultOperators = operators{
+	{Precedence: 1200, Type: xfx, Name: `:-`},
+	{Precedence: 1200, Type: fx, Name: `:-`},
+	{Precedence: 1200, Type: fx, Name: `?-`},
+	{Precedence: 1100, Type: xfy, Name: `;`},
+	{Precedence: 1000, Type: xfy, Name: `,`},
+	{Precedence: 700, Type: xfx, Name: `<`},
+	{Precedence: 700, Type: xfx, Name: `=`},
+	{Precedence: 700, Type: xfx, Name: `=..`},
+	{Precedence: 700, Type: xfx, Name: `=<`},
+	{Precedence: 700, Type: xfx, Name: `=\=`},
+	{Precedence: 700, Type: xfx, Name: `>`},
+	{Precedence: 700, Type: xfx, Name: `>=`},
+	{Precedence: 500, Type: yfx, Name: `+`},
+	{Precedence: 500, Type: yfx, Name: `-`},
+	{Precedence: 400, Type: yfx, Name: `*`},
+	{Precedence: 400, Type: yfx, Name: `/`},
+	{Precedence: 200, Type: fy, Name: `+`},
+	{Precedence: 200, Type: fy, Name: `-`},
+	{Precedence: 100, Type: yfx, Name: `.`},
 }
 
 type Parser struct {
 	lexer     *Lexer
 	current   Token
-	operators Operators
+	operators operators
 }
 
-func NewParser(input string, operators Operators) *Parser {
+func NewParser(input string, operators operators) *Parser {
 	p := Parser{
 		lexer:     NewLexer(input),
 		operators: operators,
@@ -58,7 +54,7 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 
 func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	if p.current.Kind != k {
-		return "", &UnexpectedToken{
+		return "", &unexpectedToken{
 			ExpectedKind: k,
 			ExpectedVals: vals,
 			Actual:       p.current,
@@ -71,7 +67,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 				return v, nil
 			}
 		}
-		return "", &UnexpectedToken{
+		return "", &unexpectedToken{
 			ExpectedKind: k,
 			ExpectedVals: vals,
 			Actual:       p.current,
@@ -88,7 +84,7 @@ func (p *Parser) Program() ([]Term, error) {
 			return ret, nil
 		}
 
-		c, err := p.clause()
+		c, err := p.Clause()
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +92,7 @@ func (p *Parser) Program() ([]Term, error) {
 	}
 }
 
-func (p *Parser) clause() (Term, error) {
+func (p *Parser) Clause() (Term, error) {
 	t, err := p.Term()
 	if err != nil {
 		return nil, err
@@ -143,6 +139,9 @@ loop:
 			}
 
 			l, r := op.leftRight()
+			if l < 0 {
+				continue
+			}
 			if l > max {
 				break loop
 			}
@@ -224,21 +223,21 @@ func (p *Parser) expr0() (Term, error) {
 	return &Compound{Functor: Atom(a), Args: args}, nil
 }
 
-type Operators []Operator
+type operators []operator
 
-func (os Operators) Len() int {
+func (os operators) Len() int {
 	return len(os)
 }
 
-func (os Operators) Less(i, j int) bool {
+func (os operators) Less(i, j int) bool {
 	return os[i].Precedence > os[j].Precedence
 }
 
-func (os Operators) Swap(i, j int) {
+func (os operators) Swap(i, j int) {
 	os[i], os[j] = os[j], os[i]
 }
 
-func (os Operators) AtMost(p int) Operators {
+func (os operators) AtMost(p int) operators {
 	i := sort.Search(len(os), func(i int) bool { return os[i].Precedence <= p })
 	if i == len(os) {
 		return nil // not found
@@ -246,52 +245,52 @@ func (os Operators) AtMost(p int) Operators {
 	return os[i:]
 }
 
-type Operator struct {
+type operator struct {
 	Precedence int // 1 ~ 1200
-	Type       OperatorType
+	Type       operatorType
 	Name       string
 }
 
-func (o *Operator) leftRight() (int, int) {
+func (o *operator) leftRight() (int, int) {
 	switch o.Type {
-	case XF:
+	case xf:
 		return o.Precedence - 1, -1
-	case YF:
+	case yf:
 		return o.Precedence, -1
-	case XFX:
+	case xfx:
 		return o.Precedence - 1, o.Precedence - 1
-	case XFY:
+	case xfy:
 		return o.Precedence - 1, o.Precedence
-	case YFX:
+	case yfx:
 		return o.Precedence, o.Precedence - 1
-	case FX:
+	case fx:
 		return -1, o.Precedence - 1
-	case FY:
+	case fy:
 		return -1, o.Precedence
 	default:
 		return -1, -1
 	}
 }
 
-type OperatorType byte
+type operatorType byte
 
 const (
-	NAO OperatorType = iota // not an operator
-	XF
-	YF
-	XFX
-	XFY
-	YFX
-	FX
-	FY
+	nao operatorType = iota // not an operator
+	xf
+	yf
+	xfx
+	xfy
+	yfx
+	fx
+	fy
 )
 
-type UnexpectedToken struct {
+type unexpectedToken struct {
 	ExpectedKind TokenKind
 	ExpectedVals []string
 	Actual       Token
 }
 
-func (e *UnexpectedToken) Error() string {
+func (e *unexpectedToken) Error() string {
 	return fmt.Sprintf("expected: <%s %s>, actual: %s", e.ExpectedKind, e.ExpectedVals, e.Actual)
 }
