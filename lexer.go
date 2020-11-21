@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -55,11 +56,12 @@ type Token struct {
 	Val  string
 }
 
-type TokenKind int
+type TokenKind byte
 
 const (
 	TokenEOS TokenKind = iota
 	TokenAtom
+	TokenInteger
 	TokenVariable
 	TokenSeparator
 )
@@ -70,6 +72,8 @@ func (k TokenKind) String() string {
 		return "eos"
 	case TokenAtom:
 		return "atom"
+	case TokenInteger:
+		return "integer"
 	case TokenVariable:
 		return "variable"
 	case TokenSeparator:
@@ -82,93 +86,178 @@ func (k TokenKind) String() string {
 type lexState func(rune, int) lexState
 
 func (l *Lexer) start(r rune, pos int) lexState {
-	switch {
-	case r == utf8.RuneError:
-		return nil
-	case unicode.IsSpace(r):
+	switch r {
+	case '.':
+		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 		return l.start
-	case unicode.IsLower(r):
-		l.backup()
-		return l.atom(pos)
-	case isGraphic(r):
-		l.backup()
-		return l.graphic(pos)
-	case unicode.IsUpper(r), r == '_':
-		l.backup()
-		return l.variable(pos)
 	default:
 		l.backup()
-		return l.separator(pos)
+		return l.term(l.start)
 	}
 }
 
-func (l *Lexer) atom(start int) lexState {
+func (l *Lexer) term(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case r == utf8.RuneError:
+			return nil
+		case unicode.IsSpace(r):
+			return l.term(ctx)
+		case unicode.IsLower(r):
+			l.backup()
+			return l.atom(pos, ctx)
+		case isGraphic(r):
+			l.backup()
+			return l.graphic(pos, ctx)
+		case unicode.IsNumber(r):
+			l.backup()
+			return l.integer(pos, ctx)
+		case unicode.IsUpper(r), r == '_':
+			l.backup()
+			return l.variable(pos, ctx)
+		case r == '!', r == ',', r == ';':
+			l.emit(Token{Kind: TokenAtom, Val: string(r)})
+			return ctx
+		case r == '[':
+			return l.list(pos, ctx)
+		case r == '(':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.paren(ctx))
+		default:
+			l.backup()
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) paren(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case ')':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return ctx
+		default:
+			l.backup()
+			return l.term(l.paren(ctx))
+		}
+	}
+}
+
+func (l *Lexer) args(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case ')':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return ctx
+		case ',':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.args(ctx))
+		default:
+			panic(fmt.Sprintf("unknown: %s", string(r)))
+		}
+	}
+}
+
+func (l *Lexer) elems(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case ']':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return ctx
+		case ',':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.elems(ctx))
+		case '|':
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.elems(ctx))
+		default:
+			panic(fmt.Sprintf("unknown: %s", string(r)))
+		}
+	}
+}
+
+func (l *Lexer) atom(start int, ctx lexState) lexState {
 	return func(r rune, pos int) lexState {
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			return l.atom(start)
+			return l.atom(start, ctx)
+		case r == '(':
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.args(ctx))
 		default:
 			l.backup()
 			val := l.input[start:pos]
 			l.emit(Token{Kind: TokenAtom, Val: val})
-			return l.start
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integer(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case unicode.IsNumber(r):
+			return l.integer(start, ctx)
+		default:
+			l.backup()
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenInteger, Val: val})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) variable(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
+			return l.variable(start, ctx)
+		default:
+			l.backup()
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenVariable, Val: val})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) graphic(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		// TODO: comments
+		case isGraphic(r):
+			return l.graphic(start, ctx)
+		case r == '(':
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
+			return l.term(l.args(ctx))
+		default:
+			l.backup()
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenAtom, Val: val})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) list(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case ']':
+			val := l.input[start : pos+1]
+			l.emit(Token{Kind: TokenAtom, Val: val})
+			return ctx
+		default:
+			l.emit(Token{Kind: TokenSeparator, Val: "["})
+			l.backup()
+			return l.term(l.elems(ctx))
 		}
 	}
 }
 
 func isGraphic(r rune) bool {
-	for _, o := range `#$&*+-./:<=>?^~\!` {
-		if r == o {
-			return true
-		}
-	}
-	return false
-}
-
-func (l *Lexer) graphic(start int) lexState {
-	return func(r rune, pos int) lexState {
-		switch {
-		case isGraphic(r):
-			return l.graphic(start)
-		default:
-			l.backup()
-			val := l.input[start:pos]
-			kind := TokenAtom
-			if val == "." {
-				kind = TokenSeparator
-			}
-			l.emit(Token{Kind: kind, Val: val})
-			return l.start
-		}
-	}
-}
-
-func (l *Lexer) variable(start int) lexState {
-	return func(r rune, pos int) lexState {
-		switch {
-		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			return l.variable(start)
-		default:
-			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenVariable, Val: val})
-			return l.start
-		}
-	}
-}
-
-func (l *Lexer) separator(start int) lexState {
-	return func(r rune, pos int) lexState {
-		switch r {
-		case '.', ',', ';', '(', ')', '[', ']', '|':
-			val := l.input[start : pos+1]
-			l.emit(Token{Kind: TokenSeparator, Val: val})
-			return l.start
-		default:
-			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenSeparator, Val: val})
-			return l.start
-		}
-	}
+	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
 }

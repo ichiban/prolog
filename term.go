@@ -8,6 +8,7 @@ import (
 
 type Term interface {
 	fmt.Stringer
+	TermString(operators) string
 	Unify(Term) bool
 	Simplify() Term
 }
@@ -15,6 +16,10 @@ type Term interface {
 type Atom string
 
 func (a Atom) String() string {
+	return a.TermString(nil)
+}
+
+func (a Atom) TermString(operators) string {
 	return string(a)
 }
 
@@ -36,6 +41,10 @@ func (a Atom) Simplify() Term {
 type Integer int64
 
 func (i Integer) String() string {
+	return i.TermString(nil)
+}
+
+func (i Integer) TermString(operators) string {
 	return strconv.FormatInt(int64(i), 10)
 }
 
@@ -60,6 +69,10 @@ type Variable struct {
 }
 
 func (v *Variable) String() string {
+	return v.TermString(nil)
+}
+
+func (v *Variable) TermString(os operators) string {
 	name := v.Name
 	if name == "" {
 		name = fmt.Sprintf("_%p", v)
@@ -67,7 +80,7 @@ func (v *Variable) String() string {
 	if v.Ref == nil {
 		return name
 	}
-	return fmt.Sprintf("%s = %s", name, v.Ref)
+	return fmt.Sprintf("%s = %s", name, v.Ref.TermString(os))
 }
 
 func (v *Variable) Unify(t Term) bool {
@@ -91,6 +104,10 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
+	return c.TermString(nil)
+}
+
+func (c *Compound) TermString(os operators) string {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		t := Term(c)
 		var (
@@ -99,14 +116,14 @@ func (c *Compound) String() string {
 		)
 		for {
 			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-				elems = append(elems, l.Args[0].String())
+				elems = append(elems, l.Args[0].TermString(os))
 				t = l.Args[1]
 				continue
 			}
 			if a, ok := t.(Atom); ok && a == "[]" {
 				break
 			}
-			rest = "|" + t.String()
+			rest = "|" + t.TermString(os)
 			break
 		}
 		return fmt.Sprintf("[%s%s]", strings.Join(elems, ", "), rest)
@@ -114,34 +131,34 @@ func (c *Compound) String() string {
 
 	switch len(c.Args) {
 	case 1:
-		for _, op := range defaultOperators {
-			if op.Name != string(c.Functor) {
+		for _, o := range os {
+			if o.Name != c.Functor {
 				continue
 			}
-			switch op.Type {
-			case xf, yf:
-				return fmt.Sprintf("%s%s", c.Args[0], c.Functor)
-			case fx, fy:
-				return fmt.Sprintf("%s%s", c.Functor, c.Args[0])
+			switch o.Type {
+			case `xf`, `yf`:
+				return fmt.Sprintf("%s%s", c.Args[0].TermString(os), c.Functor.TermString(os))
+			case `fx`, `fy`:
+				return fmt.Sprintf("%s%s", c.Functor.TermString(os), c.Args[0].TermString(os))
 			}
 		}
 	case 2:
-		for _, op := range defaultOperators {
-			if op.Name != string(c.Functor) {
+		for _, o := range os {
+			if o.Name != c.Functor {
 				continue
 			}
-			switch op.Type {
-			case xfx, xfy, yfx:
-				return fmt.Sprintf("%s%s%s", c.Args[0], c.Functor, c.Args[1])
+			switch o.Type {
+			case `xfx`, `xfy`, `yfx`:
+				return fmt.Sprintf("%s%s%s", c.Args[0].TermString(os), c.Functor.TermString(os), c.Args[1].TermString(os))
 			}
 		}
 	}
 
 	args := make([]string, len(c.Args))
 	for i, arg := range c.Args {
-		args[i] = arg.String()
+		args[i] = arg.TermString(os)
 	}
-	return fmt.Sprintf("%s(%s)", c.Functor, strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", c.Functor.TermString(os), strings.Join(args, ", "))
 }
 
 func (c *Compound) Unify(t Term) bool {
@@ -187,4 +204,16 @@ func List(ts ...Term) Term {
 		l = Cons(ts[i], l)
 	}
 	return l
+}
+
+func Resolve(t Term) Term {
+	for t != nil {
+		switch v := t.(type) {
+		case Atom, Integer, *Compound:
+			return v
+		case *Variable:
+			t = v.Ref
+		}
+	}
+	return nil
 }

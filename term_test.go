@@ -143,5 +143,7 @@ func TestCompound_String(t *testing.T) {
 		Functor: "/",
 		Args:    []Term{Atom("append"), Integer(3)},
 	}
-	assert.Equal(t, "append/3", c.String())
+	assert.Equal(t, "append/3", c.TermString(operators{
+		{Precedence: 400, Type: `yfx`, Name: `/`},
+	}))
 }

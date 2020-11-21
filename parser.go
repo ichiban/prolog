@@ -4,29 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 )
-
-var defaultOperators = operators{
-	{Precedence: 1200, Type: xfx, Name: `:-`},
-	{Precedence: 1200, Type: fx, Name: `:-`},
-	{Precedence: 1200, Type: fx, Name: `?-`},
-	{Precedence: 1100, Type: xfy, Name: `;`},
-	{Precedence: 1000, Type: xfy, Name: `,`},
-	{Precedence: 700, Type: xfx, Name: `<`},
-	{Precedence: 700, Type: xfx, Name: `=`},
-	{Precedence: 700, Type: xfx, Name: `=..`},
-	{Precedence: 700, Type: xfx, Name: `=<`},
-	{Precedence: 700, Type: xfx, Name: `=\=`},
-	{Precedence: 700, Type: xfx, Name: `>`},
-	{Precedence: 700, Type: xfx, Name: `>=`},
-	{Precedence: 500, Type: yfx, Name: `+`},
-	{Precedence: 500, Type: yfx, Name: `-`},
-	{Precedence: 400, Type: yfx, Name: `*`},
-	{Precedence: 400, Type: yfx, Name: `/`},
-	{Precedence: 200, Type: fy, Name: `+`},
-	{Precedence: 200, Type: fy, Name: `-`},
-	{Precedence: 100, Type: yfx, Name: `.`},
-}
 
 type Parser struct {
 	lexer     *Lexer
@@ -50,6 +29,26 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 	}
 	p.current = p.lexer.Next()
 	return v, nil
+}
+
+func (p *Parser) acceptOp(min int) (*operator, error) {
+	for _, op := range p.operators {
+		// we don't consume the current token here since the following check might tell it's not the operator we're looking for.
+		if _, err := p.expect(TokenAtom, string(op.Name)); err != nil {
+			continue
+		}
+
+		l, _ := op.bindingPowers()
+		if l < min {
+			continue
+		}
+
+		// checks are ok. consume the current token.
+		p.current = p.lexer.Next()
+
+		return &op, nil
+	}
+	return nil, errors.New("no op")
 }
 
 func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
@@ -99,7 +98,7 @@ func (p *Parser) Clause() (Term, error) {
 	}
 
 	if _, err := p.accept(TokenSeparator, "."); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("clause: %w", err)
 	}
 
 	return t, nil
@@ -109,20 +108,20 @@ func (p *Parser) Term() (Term, error) {
 	if _, err := p.accept(TokenSeparator, "("); err == nil {
 		t, err := p.Term()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("term: %w", err)
 		}
 		if _, err := p.accept(TokenSeparator, ")"); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("term: %w", err)
 		}
 		return t, nil
 	}
 
-	return p.expr(1200)
+	return p.expr(1)
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(max int) (Term, error) {
-	if t, err := p.prefixUnary(max); err == nil {
+func (p *Parser) expr(min int) (Term, error) {
+	if t, err := p.prefixUnary(); err == nil {
 		return t, nil
 	}
 
@@ -131,45 +130,35 @@ func (p *Parser) expr(max int) (Term, error) {
 		return nil, err
 	}
 
-loop:
 	for {
-		for _, op := range p.operators.AtMost(max) {
-			if _, err := p.accept(TokenAtom, op.Name); err != nil {
-				continue
-			}
-
-			l, r := op.leftRight()
-			if l < 0 {
-				continue
-			}
-			if l > max {
-				break loop
-			}
-
-			rhs, err := p.expr(r)
-			if err != nil {
-				return nil, err
-			}
-
-			lhs = &Compound{
-				Functor: Atom(op.Name),
-				Args:    []Term{lhs, rhs},
-			}
+		op, err := p.acceptOp(min)
+		if err != nil {
+			break
 		}
-		break
+
+		_, r := op.bindingPowers()
+		rhs, err := p.expr(r)
+		if err != nil {
+			return nil, err
+		}
+
+		lhs = &Compound{
+			Functor: op.Name,
+			Args:    []Term{lhs, rhs},
+		}
 	}
 
 	return lhs, nil
 }
 
-func (p *Parser) prefixUnary(max int) (Term, error) {
-	for _, op := range p.operators.AtMost(max) {
-		l, r := op.leftRight()
-		if l >= 0 {
+func (p *Parser) prefixUnary() (Term, error) {
+	for _, op := range p.operators {
+		l, r := op.bindingPowers()
+		if l != 0 {
 			continue
 		}
 
-		if _, err := p.accept(TokenAtom, op.Name); err != nil {
+		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -179,7 +168,7 @@ func (p *Parser) prefixUnary(max int) (Term, error) {
 		}
 
 		return &Compound{
-			Functor: Atom(op.Name),
+			Functor: op.Name,
 			Args:    []Term{x},
 		}, nil
 	}
@@ -190,9 +179,15 @@ func (p *Parser) prefixUnary(max int) (Term, error) {
 func (p *Parser) expr0() (Term, error) {
 	a, err := p.accept(TokenAtom)
 	if err != nil {
+		i, err := p.accept(TokenInteger)
+		if err == nil {
+			n, _ := strconv.Atoi(i)
+			return Integer(n), nil
+		}
+
 		v, err := p.accept(TokenVariable)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("expr0: %w", err)
 		}
 		return &Variable{
 			Name: v,
@@ -213,7 +208,7 @@ func (p *Parser) expr0() (Term, error) {
 
 		sep, err := p.accept(TokenSeparator, ",", ")")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("expr0: %w", err)
 		}
 		if sep == ")" {
 			break
@@ -237,8 +232,8 @@ func (os operators) Swap(i, j int) {
 	os[i], os[j] = os[j], os[i]
 }
 
-func (os operators) AtMost(p int) operators {
-	i := sort.Search(len(os), func(i int) bool { return os[i].Precedence <= p })
+func (os operators) atMost(p int) operators {
+	i := sort.Search(len(os), func(i int) bool { return int(os[i].Precedence) <= p })
 	if i == len(os) {
 		return nil // not found
 	}
@@ -246,44 +241,32 @@ func (os operators) AtMost(p int) operators {
 }
 
 type operator struct {
-	Precedence int // 1 ~ 1200
-	Type       operatorType
-	Name       string
+	Precedence Integer // 1 ~ 1200
+	Type       Atom
+	Name       Atom
 }
 
-func (o *operator) leftRight() (int, int) {
+func (o *operator) bindingPowers() (int, int) {
+	bp := 1201 - int(o.Precedence) // 1 ~ 1200
 	switch o.Type {
-	case xf:
-		return o.Precedence - 1, -1
-	case yf:
-		return o.Precedence, -1
-	case xfx:
-		return o.Precedence - 1, o.Precedence - 1
-	case xfy:
-		return o.Precedence - 1, o.Precedence
-	case yfx:
-		return o.Precedence, o.Precedence - 1
-	case fx:
-		return -1, o.Precedence - 1
-	case fy:
-		return -1, o.Precedence
+	case "xf":
+		return bp + 1, 0
+	case "yf":
+		return bp, -1
+	case "xfx":
+		return bp + 1, bp + 1
+	case "xfy":
+		return bp + 1, bp
+	case "yfx":
+		return bp, bp + 1
+	case "fx":
+		return 0, bp + 1
+	case "fy":
+		return 0, bp
 	default:
-		return -1, -1
+		return 0, 0
 	}
 }
-
-type operatorType byte
-
-const (
-	nao operatorType = iota // not an operator
-	xf
-	yf
-	xfx
-	xfy
-	yfx
-	fx
-	fy
-)
 
 type unexpectedToken struct {
 	ExpectedKind TokenKind

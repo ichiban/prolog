@@ -3,7 +3,12 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"sort"
 )
+
+func Unify(t1, t2 Term) (bool, error) {
+	return t1.Unify(t2), nil
+}
 
 func Functor(term, name, arity Term) (bool, error) {
 	var v *Variable
@@ -125,4 +130,65 @@ func Univ(term, list Term) (bool, error) {
 		l = Cons(c.Args[i], l)
 	}
 	return list.Unify(Cons(c.Functor, l)), nil
+}
+
+func Op(e *Engine) func(precedence, typ, name Term) (bool, error) {
+	return func(precedence, typ, name Term) (bool, error) {
+		p, ok := Resolve(precedence).(Integer)
+		if !ok {
+			return false, fmt.Errorf("invalid precedence: %s", precedence)
+		}
+
+		t, ok := Resolve(typ).(Atom)
+		if !ok {
+			return false, fmt.Errorf("invalid type: %s", typ)
+		}
+
+		n, ok := Resolve(name).(Atom)
+		if !ok {
+			return false, fmt.Errorf("invalid name: %s", name)
+		}
+
+		// already defined?
+		for i, o := range e.operators {
+			if o.Type != t || o.Name != n {
+				continue
+			}
+
+			// remove it first so that we can insert it again in the right position
+			copy(e.operators[i:], e.operators[i+1:])
+			e.operators[len(e.operators)-1] = operator{}
+			e.operators = e.operators[:len(e.operators)-1]
+
+			// or keep it removed.
+			if p == 0 {
+				return true, nil
+			}
+		}
+
+		// insert
+		i := sort.Search(len(e.operators), func(i int) bool {
+			return e.operators[i].Precedence >= p
+		})
+		e.operators = append(e.operators, operator{})
+		copy(e.operators[i+1:], e.operators[i:])
+		e.operators[i] = operator{
+			Precedence: p,
+			Type:       t,
+			Name:       n,
+		}
+
+		return true, nil
+	}
+}
+
+func CurrentOp(e *Engine) func(precedence, typ, name Term) (bool, error) {
+	return func(precedence, typ, name Term) (bool, error) {
+		for _, op := range e.operators {
+			if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
 }
