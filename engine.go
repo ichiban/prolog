@@ -31,6 +31,7 @@ func NewEngine() (*Engine, error) {
 	e.Register3("functor", Functor)
 	e.Register3("op", Op(&e))
 	e.Register3("current_op", CurrentOp(&e))
+	e.Register1("assertz", Assertz(&e))
 	err := e.Load(`
 :-(op(1200, xfx, :-)).
 :-(op(1200, xfx, -->)).
@@ -93,56 +94,12 @@ func (e *Engine) Load(s string) error {
 		return err
 	}
 	for _, t := range ts {
-		var name string
-		switch t := t.(type) {
-		case Atom:
-			name = fmt.Sprintf("%s/0", t)
-		case *Compound:
-			type pf struct {
-				functor Atom
-				arity   int
-			}
-			switch (pf{functor: t.Functor, arity: len(t.Args)}) {
-			case pf{functor: ":-", arity: 2}:
-				switch h := t.Args[0].(type) {
-				case Atom:
-					name = fmt.Sprintf("%s/0", h)
-				case *Compound:
-					name = fmt.Sprintf("%s/%d", h.Functor, len(h.Args))
-				default:
-					return errors.New("not a clause")
-				}
-			case pf{functor: ":-", arity: 1}:
-				ok, err := e.call(t.Args[0])
-				if err != nil {
-					return err
-				}
-				if !ok {
-					return errors.New("directive failed")
-				}
-				continue
-			default:
-				name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
-			}
-		default:
-			return errors.New("not a clause")
+		ok, err := Assertz(e)(t)
+		if err != nil {
+			return err
 		}
-
-		p, ok := e.procedures[name]
 		if !ok {
-			p = clauses{}
-		}
-
-		switch p := p.(type) {
-		case clauses:
-			var c clause
-			if err := c.compile(t); err != nil {
-				return err
-			}
-
-			e.procedures[name] = append(p, c)
-		default:
-			return errors.New("builtin")
+			return errors.New("failed")
 		}
 	}
 	return nil
@@ -171,6 +128,9 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 	}
 
 	for _, v := range vars {
+		if v.Ref == nil {
+			continue
+		}
 		v.Ref = v.Ref.Simplify()
 	}
 
@@ -380,7 +340,7 @@ func (c *clause) compile(t Term) error {
 		}
 		return c.compileClause(t, nil)
 	default:
-		return errors.New("")
+		return fmt.Errorf("not a compound: %s", t)
 	}
 }
 

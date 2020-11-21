@@ -192,3 +192,53 @@ func CurrentOp(e *Engine) func(precedence, typ, name Term) (bool, error) {
 		return false, nil
 	}
 }
+
+func Assertz(e *Engine) func(t Term) (bool, error) {
+	return func(t Term) (bool, error) {
+		t = Resolve(t)
+		var name string
+		switch t := t.(type) {
+		case Atom:
+			name = fmt.Sprintf("%s/0", t)
+		case *Compound:
+			type pf struct {
+				functor Atom
+				arity   int
+			}
+			switch (pf{functor: t.Functor, arity: len(t.Args)}) {
+			case pf{functor: ":-", arity: 2}:
+				switch h := t.Args[0].(type) {
+				case Atom:
+					name = fmt.Sprintf("%s/0", h)
+				case *Compound:
+					name = fmt.Sprintf("%s/%d", h.Functor, len(h.Args))
+				default:
+					return false, fmt.Errorf("not a clause: %s", t.Args[0])
+				}
+			case pf{functor: ":-", arity: 1}: // directive
+				return e.call(t.Args[0])
+			default:
+				name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
+			}
+		default:
+			return false, fmt.Errorf("not a clause: %s", t)
+		}
+
+		p, ok := e.procedures[name]
+		if !ok {
+			p = clauses{}
+		}
+
+		cs, ok := p.(clauses)
+		if !ok {
+			return false, errors.New("builtin")
+		}
+		var c clause
+		if err := c.compile(t); err != nil {
+			return false, err
+		}
+
+		e.procedures[name] = append(cs, c)
+		return true, nil
+	}
+}

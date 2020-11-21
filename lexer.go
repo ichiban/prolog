@@ -153,7 +153,7 @@ func (l *Lexer) args(ctx lexState) lexState {
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.args(ctx))
 		default:
-			panic(fmt.Sprintf("unknown: %s", string(r)))
+			return l.term(l.args(ctx))
 		}
 	}
 }
@@ -171,7 +171,7 @@ func (l *Lexer) elems(ctx lexState) lexState {
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.elems(ctx))
 		default:
-			panic(fmt.Sprintf("unknown: %s", string(r)))
+			return l.term(l.elems(ctx))
 		}
 	}
 }
