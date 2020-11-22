@@ -304,17 +304,22 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			return e.arrive(x.TermString(e.operators), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
 		case opCallVar:
 			log.Debug("call var")
-			var name string
+			var (
+				name string
+				args Term
+			)
 			switch f := Resolve(vars[pc[1]]).(type) {
 			case Atom:
 				name = fmt.Sprintf("%s/0", f)
+				args = List()
 			case *Compound:
 				name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
+				args = List(f.Args...)
 			default:
 				return false, errors.New("not callable")
 			}
 			pc = pc[2:]
-			return e.arrive(name, astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
+			return e.arrive(name, args, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
 		case opExit:
 			log.Debug("exit")
 			if len(cont) == 0 {
@@ -531,7 +536,7 @@ type predicate1 func(Term) (bool, error)
 func (p predicate1) Call(e *Engine, args Term, cont []continuation) (bool, error) {
 	var v1 Variable
 	if !args.Unify(List(&v1)) {
-		return false, errors.New("wrong number of arguments")
+		return false, fmt.Errorf("wrong number of arguments: %s", args)
 	}
 	t, err := p(&v1)
 	if err != nil {
@@ -580,6 +585,11 @@ func (p predicate3) Call(e *Engine, args Term, cont []continuation) (bool, error
 func variables(vs *[]*Variable, t Term) {
 	switch t := t.(type) {
 	case *Variable:
+		for _, v := range *vs {
+			if v.Name == t.Name {
+				return
+			}
+		}
 		*vs = append(*vs, t)
 	case *Compound:
 		for _, a := range t.Args {
