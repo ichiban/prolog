@@ -30,9 +30,9 @@ func NewEngine() (*Engine, error) {
 	e.Register2("=", Unify)
 	e.Register2("=..", Univ)
 	e.Register3("functor", Functor)
-	e.Register3("op", Op(&e))
-	e.Register3("current_op", CurrentOp(&e))
-	e.Register1("assertz", Assertz(&e))
+	e.Register3("op", e.Op)
+	e.Register3("current_op", e.CurrentOp)
+	e.Register1("assertz", e.Assertz)
 	err := e.Load(`
 :-(op(1200, xfx, :-)).
 :-(op(1200, xfx, -->)).
@@ -105,7 +105,7 @@ func (e *Engine) Load(s string) error {
 			return err
 		}
 
-		ok, err := Assertz(e)(t)
+		ok, err := e.Assertz(t)
 		if err != nil {
 			return err
 		}

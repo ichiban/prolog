@@ -132,113 +132,107 @@ func Univ(term, list Term) (bool, error) {
 	return list.Unify(Cons(c.Functor, l)), nil
 }
 
-func Op(e *Engine) func(precedence, typ, name Term) (bool, error) {
-	return func(precedence, typ, name Term) (bool, error) {
-		p, ok := Resolve(precedence).(Integer)
-		if !ok {
-			return false, fmt.Errorf("invalid precedence: %s", precedence)
-		}
-
-		t, ok := Resolve(typ).(Atom)
-		if !ok {
-			return false, fmt.Errorf("invalid type: %s", typ)
-		}
-
-		n, ok := Resolve(name).(Atom)
-		if !ok {
-			return false, fmt.Errorf("invalid name: %s", name)
-		}
-
-		// already defined?
-		for i, o := range e.operators {
-			if o.Type != t || o.Name != n {
-				continue
-			}
-
-			// remove it first so that we can insert it again in the right position
-			copy(e.operators[i:], e.operators[i+1:])
-			e.operators[len(e.operators)-1] = operator{}
-			e.operators = e.operators[:len(e.operators)-1]
-
-			// or keep it removed.
-			if p == 0 {
-				return true, nil
-			}
-		}
-
-		// insert
-		i := sort.Search(len(e.operators), func(i int) bool {
-			return e.operators[i].Precedence >= p
-		})
-		e.operators = append(e.operators, operator{})
-		copy(e.operators[i+1:], e.operators[i:])
-		e.operators[i] = operator{
-			Precedence: p,
-			Type:       t,
-			Name:       n,
-		}
-
-		return true, nil
+func (e *Engine) Op(precedence, typ, name Term) (bool, error) {
+	p, ok := Resolve(precedence).(Integer)
+	if !ok {
+		return false, fmt.Errorf("invalid precedence: %s", precedence)
 	}
+
+	t, ok := Resolve(typ).(Atom)
+	if !ok {
+		return false, fmt.Errorf("invalid type: %s", typ)
+	}
+
+	n, ok := Resolve(name).(Atom)
+	if !ok {
+		return false, fmt.Errorf("invalid name: %s", name)
+	}
+
+	// already defined?
+	for i, o := range e.operators {
+		if o.Type != t || o.Name != n {
+			continue
+		}
+
+		// remove it first so that we can insert it again in the right position
+		copy(e.operators[i:], e.operators[i+1:])
+		e.operators[len(e.operators)-1] = operator{}
+		e.operators = e.operators[:len(e.operators)-1]
+
+		// or keep it removed.
+		if p == 0 {
+			return true, nil
+		}
+	}
+
+	// insert
+	i := sort.Search(len(e.operators), func(i int) bool {
+		return e.operators[i].Precedence >= p
+	})
+	e.operators = append(e.operators, operator{})
+	copy(e.operators[i+1:], e.operators[i:])
+	e.operators[i] = operator{
+		Precedence: p,
+		Type:       t,
+		Name:       n,
+	}
+
+	return true, nil
 }
 
-func CurrentOp(e *Engine) func(precedence, typ, name Term) (bool, error) {
-	return func(precedence, typ, name Term) (bool, error) {
-		for _, op := range e.operators {
-			if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
-				return true, nil
-			}
+func (e *Engine) CurrentOp(precedence, typ, name Term) (bool, error) {
+	for _, op := range e.operators {
+		if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
+			return true, nil
 		}
-		return false, nil
 	}
+	return false, nil
 }
 
-func Assertz(e *Engine) func(t Term) (bool, error) {
-	return func(t Term) (bool, error) {
-		t = Resolve(t)
-		var name string
-		switch t := t.(type) {
-		case Atom:
-			name = fmt.Sprintf("%s/0", t)
-		case *Compound:
-			type pf struct {
-				functor Atom
-				arity   int
-			}
-			switch (pf{functor: t.Functor, arity: len(t.Args)}) {
-			case pf{functor: ":-", arity: 2}:
-				switch h := t.Args[0].(type) {
-				case Atom:
-					name = fmt.Sprintf("%s/0", h)
-				case *Compound:
-					name = fmt.Sprintf("%s/%d", h.Functor, len(h.Args))
-				default:
-					return false, fmt.Errorf("not a clause: %s", t.Args[0])
-				}
-			case pf{functor: ":-", arity: 1}: // directive
-				return e.call(t.Args[0])
+func (e *Engine) Assertz(t Term) (bool, error) {
+	t = Resolve(t)
+	var name string
+	switch t := t.(type) {
+	case Atom:
+		name = fmt.Sprintf("%s/0", t)
+	case *Compound:
+		type pf struct {
+			functor Atom
+			arity   int
+		}
+		switch (pf{functor: t.Functor, arity: len(t.Args)}) {
+		case pf{functor: ":-", arity: 2}:
+			switch h := t.Args[0].(type) {
+			case Atom:
+				name = fmt.Sprintf("%s/0", h)
+			case *Compound:
+				name = fmt.Sprintf("%s/%d", h.Functor, len(h.Args))
 			default:
-				name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
+				return false, fmt.Errorf("not a clause: %s", t.Args[0])
 			}
+		case pf{functor: ":-", arity: 1}: // directive
+			return e.call(t.Args[0])
 		default:
-			return false, fmt.Errorf("not a clause: %s", t)
+			name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
 		}
-
-		p, ok := e.procedures[name]
-		if !ok {
-			p = clauses{}
-		}
-
-		cs, ok := p.(clauses)
-		if !ok {
-			return false, errors.New("builtin")
-		}
-		var c clause
-		if err := c.compile(t); err != nil {
-			return false, err
-		}
-
-		e.procedures[name] = append(cs, c)
-		return true, nil
+	default:
+		return false, fmt.Errorf("not a clause: %s", t)
 	}
+
+	p, ok := e.procedures[name]
+	if !ok {
+		p = clauses{}
+	}
+
+	cs, ok := p.(clauses)
+	if !ok {
+		return false, errors.New("builtin")
+	}
+	var c clause
+	if err := c.compile(t); err != nil {
+		return false, err
+	}
+
+	e.procedures[name] = append(cs, c)
+	return true, nil
 }
