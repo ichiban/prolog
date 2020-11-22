@@ -67,8 +67,15 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("comma", func(t *testing.T) {
-		l := NewLexer("p(x,,), q((,)).")
+		l := NewLexer(",(x, y), p(x,,), q((,)).")
 
+		assert.Equal(t, Token{Kind: TokenAtom, Val: ","}, l.Next())
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "("}, l.Next())
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "x"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, l.Next())
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "y"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ")"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenAtom, Val: ","}, l.Next())
 		assert.Equal(t, Token{Kind: TokenAtom, Val: "p"}, l.Next())
 		assert.Equal(t, Token{Kind: TokenSeparator, Val: "("}, l.Next())
 		assert.Equal(t, Token{Kind: TokenAtom, Val: "x"}, l.Next())

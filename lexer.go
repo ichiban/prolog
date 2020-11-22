@@ -115,9 +115,11 @@ func (l *Lexer) term(ctx lexState) lexState {
 		case unicode.IsUpper(r), r == '_':
 			l.backup()
 			return l.variable(pos, ctx)
-		case r == '!', r == ',', r == ';':
+		case r == '!':
 			l.emit(Token{Kind: TokenAtom, Val: string(r)})
 			return ctx
+		case r == ',', r == ';':
+			return l.graphic(pos, ctx)
 		case r == '[':
 			return l.list(pos, ctx)
 		case r == '(':
