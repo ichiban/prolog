@@ -33,18 +33,14 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 
 func (p *Parser) acceptOp(min int) (*operator, error) {
 	for _, op := range *p.operators {
-		// we don't consume the current token here since the following check might tell it's not the operator we're looking for.
-		if _, err := p.expect(TokenAtom, string(op.Name)); err != nil {
-			continue
-		}
-
 		l, _ := op.bindingPowers()
 		if l < min {
 			continue
 		}
 
-		// checks are ok. consume the current token.
-		p.current = p.lexer.Next()
+		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
+			continue
+		}
 
 		return &op, nil
 	}
