@@ -12,6 +12,7 @@ const (
 	nop byte = iota
 	opEnter
 	opCall
+	opCallVar // extended for predicates like P, Q :- P, Q.
 	opExit
 	opConst
 	opVar
@@ -75,6 +76,11 @@ func NewEngine() (*Engine, error) {
 :-(op(200, fy, -)).
 :-(op(100, xfx, @)).
 :-(op(50, xfx, :)).
+
+P, Q :- P, Q.
+
+P; Q :- P.
+P; Q :- Q.
 `)
 	return &e, err
 }
@@ -88,12 +94,17 @@ func (e *Engine) Load(s string) error {
 		e.procedures = map[string]procedure{}
 	}
 
-	p := NewParser(s, e.operators)
-	ts, err := p.Program()
-	if err != nil {
-		return err
-	}
-	for _, t := range ts {
+	p := NewParser(s, &e.operators)
+	for {
+		if _, err := p.accept(TokenEOS); err == nil {
+			return nil
+		}
+
+		t, err := p.Clause()
+		if err != nil {
+			return err
+		}
+
 		ok, err := Assertz(e)(t)
 		if err != nil {
 			return err
@@ -102,7 +113,6 @@ func (e *Engine) Load(s string) error {
 			return errors.New("failed")
 		}
 	}
-	return nil
 }
 
 func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
@@ -110,7 +120,7 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 		cb = func([]*Variable) bool { return true }
 	}
 
-	t, err := NewParser(s, e.operators).Clause()
+	t, err := NewParser(s, &e.operators).Clause()
 	if err != nil {
 		return false, err
 	}
@@ -292,6 +302,19 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			x := xr[pc[1]]
 			pc = pc[2:]
 			return e.arrive(x.TermString(e.operators), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
+		case opCallVar:
+			log.Debug("call var")
+			var name string
+			switch f := Resolve(vars[pc[1]]).(type) {
+			case Atom:
+				name = fmt.Sprintf("%s/0", f)
+			case *Compound:
+				name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
+			default:
+				return false, errors.New("not callable")
+			}
+			pc = pc[2:]
+			return e.arrive(name, astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
 		case opExit:
 			log.Debug("exit")
 			if len(cont) == 0 {
@@ -360,7 +383,7 @@ func (c *clause) compileClause(head Term, body Term) error {
 		c.bytecode = append(c.bytecode, opEnter)
 		for {
 			p, ok := body.(*Compound)
-			if ok || p.Functor != "," || len(p.Args) != 2 {
+			if !ok || p.Functor != "," || len(p.Args) != 2 {
 				break
 			}
 			if err := c.compilePred(p.Args[0]); err != nil {
@@ -394,6 +417,9 @@ func (c *clause) compilePred(p Term) error {
 			Functor: "/",
 			Args:    []Term{p.Functor, Integer(len(p.Args))},
 		}))
+		return nil
+	case *Variable:
+		c.bytecode = append(c.bytecode, opCallVar, c.varOffset(p))
 		return nil
 	default:
 		return errors.New("not a predicate")

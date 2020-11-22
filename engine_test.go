@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewEngine(t *testing.T) {
+	e, err := NewEngine()
+	assert.NoError(t, err)
+	assert.NotNil(t, e)
+}
+
 func TestEngine_Load(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
 		var e Engine
@@ -59,6 +65,31 @@ func TestEngine_Load(t *testing.T) {
 				},
 			},
 		}, e.procedures["append/3"])
+	})
+
+	t.Run("conjunction", func(t *testing.T) {
+		e := Engine{
+			operators: operators{
+				{Precedence: 1200, Type: `xfx`, Name: `:-`},
+				{Precedence: 1000, Type: `xfy`, Name: `,`},
+			},
+		}
+		assert.NoError(t, e.Load(`P, Q :- P, Q.`))
+		assert.Equal(t, clauses{
+			{
+				xrTable: nil,
+				vars:    []string{"P", "Q"},
+				bytecode: []byte{
+					opVar, 0, // P
+					opVar, 1, // Q
+					opEnter,
+					opCallVar, 0, // call P
+					opCallVar, 1, // call Q
+					// no recursive call for ,/2
+					opExit,
+				},
+			},
+		}, e.procedures[",/2"])
 	})
 }
 

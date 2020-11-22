@@ -10,10 +10,10 @@ import (
 type Parser struct {
 	lexer     *Lexer
 	current   Token
-	operators operators
+	operators *operators
 }
 
-func NewParser(input string, operators operators) *Parser {
+func NewParser(input string, operators *operators) *Parser {
 	p := Parser{
 		lexer:     NewLexer(input),
 		operators: operators,
@@ -32,7 +32,7 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) acceptOp(min int) (*operator, error) {
-	for _, op := range p.operators {
+	for _, op := range *p.operators {
 		// we don't consume the current token here since the following check might tell it's not the operator we're looking for.
 		if _, err := p.expect(TokenAtom, string(op.Name)); err != nil {
 			continue
@@ -45,6 +45,22 @@ func (p *Parser) acceptOp(min int) (*operator, error) {
 
 		// checks are ok. consume the current token.
 		p.current = p.lexer.Next()
+
+		return &op, nil
+	}
+	return nil, errors.New("no op")
+}
+
+func (p *Parser) acceptPrefix() (*operator, error) {
+	for _, op := range *p.operators {
+		l, _ := op.bindingPowers()
+		if l != 0 {
+			continue
+		}
+
+		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
+			continue
+		}
 
 		return &op, nil
 	}
@@ -74,21 +90,6 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	}
 
 	return p.current.Val, nil
-}
-
-func (p *Parser) Program() ([]Term, error) {
-	var ret []Term
-	for {
-		if _, err := p.accept(TokenEOS); err == nil {
-			return ret, nil
-		}
-
-		c, err := p.Clause()
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, c)
-	}
 }
 
 func (p *Parser) Clause() (Term, error) {
@@ -121,11 +122,7 @@ func (p *Parser) Term() (Term, error) {
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 func (p *Parser) expr(min int) (Term, error) {
-	if t, err := p.prefixUnary(); err == nil {
-		return t, nil
-	}
-
-	lhs, err := p.expr0()
+	lhs, err := p.lhs()
 	if err != nil {
 		return nil, err
 	}
@@ -151,32 +148,32 @@ func (p *Parser) expr(min int) (Term, error) {
 	return lhs, nil
 }
 
-func (p *Parser) prefixUnary() (Term, error) {
-	for _, op := range p.operators {
-		l, r := op.bindingPowers()
-		if l != 0 {
-			continue
-		}
-
-		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
-			continue
-		}
-
-		x, err := p.expr(r)
+func (p *Parser) lhs() (Term, error) {
+	if _, err := p.accept(TokenSeparator, "("); err == nil {
+		lhs, err := p.expr(1)
 		if err != nil {
 			return nil, err
 		}
 
+		if _, err := p.accept(TokenSeparator, ")"); err != nil {
+			return nil, err
+		}
+
+		return lhs, nil
+	}
+
+	if op, err := p.acceptPrefix(); err == nil {
+		_, r := op.bindingPowers()
+		rhs, err := p.expr(r)
+		if err != nil {
+			return nil, err
+		}
 		return &Compound{
 			Functor: op.Name,
-			Args:    []Term{x},
+			Args:    []Term{rhs},
 		}, nil
 	}
 
-	return nil, errors.New("not unary")
-}
-
-func (p *Parser) expr0() (Term, error) {
 	a, err := p.accept(TokenAtom)
 	if err != nil {
 		i, err := p.accept(TokenInteger)
@@ -187,7 +184,7 @@ func (p *Parser) expr0() (Term, error) {
 
 		v, err := p.accept(TokenVariable)
 		if err != nil {
-			return nil, fmt.Errorf("expr0: %w", err)
+			return nil, fmt.Errorf("lhs: %w", err)
 		}
 		return &Variable{
 			Name: v,
@@ -208,7 +205,7 @@ func (p *Parser) expr0() (Term, error) {
 
 		sep, err := p.accept(TokenSeparator, ",", ")")
 		if err != nil {
-			return nil, fmt.Errorf("expr0: %w", err)
+			return nil, fmt.Errorf("lhs: %w", err)
 		}
 		if sep == ")" {
 			break
