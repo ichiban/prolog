@@ -307,22 +307,9 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			return e.arrive(x.TermString(e.operators), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
 		case opCallVar:
 			log.Debug("call var")
-			var (
-				name string
-				args Term
-			)
-			switch f := Resolve(vars[pc[1]]).(type) {
-			case Atom:
-				name = fmt.Sprintf("%s/0", f)
-				args = List()
-			case *Compound:
-				name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
-				args = List(f.Args...)
-			default:
-				return false, errors.New("not callable")
-			}
+			t := Resolve(vars[pc[1]])
 			pc = pc[2:]
-			return e.arrive(name, args, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
+			return e.call(t)
 		case opExit:
 			log.Debug("exit")
 			if len(cont) == 0 {
