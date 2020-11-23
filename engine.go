@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	nop byte = iota
+	opVoid byte = iota
 	opEnter
 	opCall
 	opCallVar // extended for predicates like P, Q :- P, Q.
@@ -224,6 +224,9 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			"astack": astack,
 		})
 		switch pc[0] {
+		case opVoid:
+			log.Debug("void")
+			pc = pc[1:]
 		case opConst:
 			log.Debug("const")
 			x := xr[pc[1]]
@@ -482,8 +485,8 @@ func (b bytecode) String() string {
 	ret := make([]string, 0, len(b))
 	for i := 0; i < len(b); i++ {
 		switch b[i] {
-		case nop:
-			ret = append(ret, "nop")
+		case opVoid:
+			ret = append(ret, "void")
 		case opConst:
 			i++
 			ret = append(ret, fmt.Sprintf("const %d", b[i]))
