@@ -20,6 +20,7 @@ func TestEngine_Load(t *testing.T) {
 		assert.NoError(t, e.Load(`append(nil, L, L).`))
 		assert.Equal(t, clauses{
 			{
+				name: "append/3",
 				xrTable: []Term{
 					Atom("nil"),
 				},
@@ -44,6 +45,7 @@ func TestEngine_Load(t *testing.T) {
 		assert.NoError(t, e.Load(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
 		assert.Equal(t, clauses{
 			{
+				name: "append/3",
 				xrTable: []Term{
 					&Compound{
 						Functor: "/",
@@ -77,6 +79,7 @@ func TestEngine_Load(t *testing.T) {
 		assert.NoError(t, e.Load(`P, Q :- P, Q.`))
 		assert.Equal(t, clauses{
 			{
+				name:    ",/2",
 				xrTable: nil,
 				vars:    []string{"P", "Q"},
 				bytecode: []byte{
@@ -95,6 +98,11 @@ func TestEngine_Load(t *testing.T) {
 
 func TestEngine_Query(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors:      true,
+		DisableQuote:     true,
+		DisableTimestamp: true,
+	})
 
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
@@ -104,7 +112,20 @@ func TestEngine_Query(t *testing.T) {
 			{Precedence: 400, Type: `yfx`, Name: `/`},
 		},
 		procedures: map[string]procedure{
-			"append/3": &clauses{
+			",/2": clauses{
+				{
+					vars: []string{"P", "Q"},
+					bytecode: []byte{
+						opVar, 0,
+						opVar, 1,
+						opEnter,
+						opCallVar, 0,
+						opCallVar, 1,
+						opExit,
+					},
+				},
+			},
+			"append/3": clauses{
 				{
 					xrTable: []Term{
 						Atom("nil"),
@@ -143,7 +164,7 @@ func TestEngine_Query(t *testing.T) {
 	}
 
 	t.Run("fact", func(t *testing.T) {
-		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {
+		ok, err := e.Query(`append(X, Y, Z).`, func(vars Assignment) bool {
 			assert.Len(t, vars, 3)
 			assert.Equal(t, &Variable{Name: "X", Ref: Atom("nil")}, vars[0])
 			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{Name: "L"}}, vars[1]) // TODO: it should be Y = Z
@@ -155,7 +176,7 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars []*Variable) bool {
+		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars Assignment) bool {
 			assert.Len(t, vars, 1)
 			assert.Equal(t, &Variable{
 				Name: "X",
@@ -180,5 +201,81 @@ func TestEngine_Query(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
+
+	t.Run("conjunction", func(t *testing.T) {
+		e := Engine{
+			operators: operators{
+				{Precedence: 1200, Type: `xfx`, Name: `:-`},
+				{Precedence: 1000, Type: `xfy`, Name: `,`},
+			},
+			procedures: map[string]procedure{
+				",/2": clauses{
+					{
+						name:    ",/2",
+						xrTable: nil,
+						vars:    []string{"P", "Q"},
+						bytecode: []byte{
+							opVar, 0, // P
+							opVar, 1, // Q
+							opEnter,
+							opCallVar, 0, // call P
+							opCallVar, 1, // call Q
+							// no recursive call for ,/2
+							opExit,
+						},
+					},
+				},
+				"foo/1": clauses{
+					{
+						name: "foo/1",
+						xrTable: []Term{
+							Atom("a"),
+						},
+						bytecode: []byte{
+							opConst, 0, // a
+							opExit,
+						},
+					},
+					{
+						name: "foo/1",
+						xrTable: []Term{
+							Atom("b"),
+						},
+						bytecode: []byte{
+							opConst, 0, // b
+							opExit,
+						},
+					},
+				},
+				"bar/1": clauses{
+					{
+						name: "bar/1",
+						xrTable: []Term{
+							Atom("a"),
+						},
+						bytecode: []byte{
+							opConst, 0, // a
+							opExit,
+						},
+					},
+					{
+						name: "bar/1",
+						xrTable: []Term{
+							Atom("b"),
+						},
+						bytecode: []byte{
+							opConst, 0, // b
+							opExit,
+						},
+					},
+				},
+			},
+		}
+		ok, err := e.Query("foo(X), bar(Y).", func(Assignment) bool {
+			return false
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
 	})
 }

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/ichiban/prolog"
 
@@ -16,13 +18,30 @@ import (
 var Version = "1pl/0.1"
 
 func main() {
+	var verbose, debug bool
+	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
+	pflag.BoolVarP(&debug, "debug", "d", false, `debug`)
 	pflag.Parse()
+
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors:      true,
+		DisableQuote:     true,
+		DisableTimestamp: true,
+	})
+	switch {
+	case verbose:
+		logrus.SetLevel(logrus.InfoLevel)
+	case debug:
+		logrus.SetLevel(logrus.DebugLevel)
+	default:
+		logrus.SetLevel(logrus.WarnLevel)
+	}
 
 	log := logrus.WithFields(nil)
 
 	oldState, err := terminal.MakeRaw(0)
 	if err != nil {
-		log.WithField("err", err).Panic("failed to enter raw mode")
+		log.WithError(err).Panic("failed to enter raw mode")
 	}
 	defer func() {
 		_ = terminal.Restore(0, oldState)
@@ -37,14 +56,11 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	e.Register0("true", func() (b bool, err error) {
-		return true, nil
-	})
-	e.Register0("false", func() (b bool, err error) {
-		return false, nil
-	})
-	e.Register1("version", func(term prolog.Term) (b bool, err error) {
-		return term.Unify(prolog.Atom(Version)), nil
+	e.Register1("version", func(term prolog.Term, k func() (bool, error)) (bool, error) {
+		if !term.Unify(prolog.Atom(Version)) {
+			return false, nil
+		}
+		return k()
 	})
 
 	for _, a := range pflag.Args() {
@@ -52,13 +68,15 @@ func main() {
 
 		b, err := ioutil.ReadFile(a)
 		if err != nil {
-			log.WithField("err", err).Panic("failed to read")
+			log.WithError(err).Panic("failed to read")
 		}
 
 		if err := e.Load(string(b)); err != nil {
-			log.WithField("err", err).Panic("failed to compile")
+			log.WithError(err).Panic("failed to compile")
 		}
 	}
+
+	keys := bufio.NewReader(os.Stdin)
 
 	for {
 		line, err := t.ReadLine()
@@ -66,19 +84,33 @@ func main() {
 			if err == io.EOF {
 				break
 			}
-			log.WithField("err", err).Error("failed to read line")
+			log.WithError(err).Error("failed to read line")
 		}
-		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
-			for _, v := range vars {
+		ok, err := e.Query(line, func(vars prolog.Assignment) bool {
+			ls := make([]string, len(vars))
+			for i, v := range vars {
 				if v.Ref == nil {
 					continue
 				}
-				fmt.Fprintf(t, "%s\n", e.StringTerm(v))
+				ls[i] = e.StringTerm(v)
 			}
-			return true
+			fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
+
+			r, _, err := keys.ReadRune()
+			if err != nil {
+				log.WithError(err).Error("failed to query")
+				return false
+			}
+			if r != ';' {
+				r = '.'
+			}
+
+			fmt.Fprintf(t, "%s\n", string(r))
+
+			return r == '.'
 		})
 		if err != nil {
-			log.WithField("err", err).Error("failed to query")
+			log.WithError(err).Error("failed to query")
 			continue
 		}
 		fmt.Fprintf(t, "%t\n", ok)

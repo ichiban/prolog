@@ -6,16 +6,22 @@ import (
 	"sort"
 )
 
-func Unify(t1, t2 Term) (bool, error) {
-	return t1.Unify(t2), nil
+func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
+	if !t1.Unify(t2) {
+		return false, nil
+	}
+	return k()
 }
 
-func Functor(term, name, arity Term) (bool, error) {
+func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	var v *Variable
 	for v == nil {
 		switch t := term.(type) {
 		case Atom:
-			return t.Unify(name) && Integer(0).Unify(arity), nil
+			if !t.Unify(name) || !Integer(0).Unify(arity) {
+				return false, nil
+			}
+			return k()
 		case *Variable:
 			if t.Ref == nil {
 				v = t
@@ -23,7 +29,10 @@ func Functor(term, name, arity Term) (bool, error) {
 			}
 			term = t.Ref
 		case *Compound:
-			return t.Functor.Unify(name) && Integer(len(t.Args)).Unify(arity), nil
+			if !t.Functor.Unify(name) || !Integer(len(t.Args)).Unify(arity) {
+				return false, nil
+			}
+			return k()
 		default:
 			return false, nil
 		}
@@ -60,7 +69,10 @@ func Functor(term, name, arity Term) (bool, error) {
 	}
 
 	if *a == 0 {
-		return v.Unify(*a), nil
+		if !v.Unify(*a) {
+			return false, nil
+		}
+		return k()
 	}
 
 	vars := make([]Term, *a)
@@ -69,13 +81,16 @@ func Functor(term, name, arity Term) (bool, error) {
 		vars[i] = &v
 	}
 
-	return v.Unify(&Compound{
+	if !v.Unify(&Compound{
 		Functor: *n,
 		Args:    vars,
-	}), nil
+	}) {
+		return false, nil
+	}
+	return k()
 }
 
-func Univ(term, list Term) (bool, error) {
+func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 	var c *Compound
 	for c == nil {
 		switch t := term.(type) {
@@ -112,10 +127,13 @@ func Univ(term, list Term) (bool, error) {
 					list = cdr.Ref
 				}
 
-				return term.Unify(&Compound{
+				if !term.Unify(&Compound{
 					Functor: *f,
 					Args:    args,
-				}), nil
+				}) {
+					return false, nil
+				}
+				return k()
 			}
 			term = t.Ref
 		case *Compound:
@@ -125,14 +143,17 @@ func Univ(term, list Term) (bool, error) {
 		}
 	}
 
-	l := Term(Atom("[]"))
+	l := List()
 	for i := len(c.Args) - 1; i >= 0; i-- {
 		l = Cons(c.Args[i], l)
 	}
-	return list.Unify(Cons(c.Functor, l)), nil
+	if !list.Unify(Cons(c.Functor, l)) {
+		return false, nil
+	}
+	return k()
 }
 
-func (e *Engine) Op(precedence, typ, name Term) (bool, error) {
+func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
 	p, ok := Resolve(precedence).(Integer)
 	if !ok {
 		return false, fmt.Errorf("invalid precedence: %s", precedence)
@@ -161,7 +182,7 @@ func (e *Engine) Op(precedence, typ, name Term) (bool, error) {
 
 		// or keep it removed.
 		if p == 0 {
-			return true, nil
+			return k()
 		}
 	}
 
@@ -177,19 +198,29 @@ func (e *Engine) Op(precedence, typ, name Term) (bool, error) {
 		Name:       n,
 	}
 
-	return true, nil
+	return k()
 }
 
-func (e *Engine) CurrentOp(precedence, typ, name Term) (bool, error) {
+func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
+	a := NewAssignment(precedence, typ, name)
+
 	for _, op := range e.operators {
 		if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
-			return true, nil
+			ok, err := k()
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
 		}
+		a.Reset()
 	}
+
 	return false, nil
 }
 
-func (e *Engine) Assertz(t Term) (bool, error) {
+func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 	t = Resolve(t)
 	var name string
 	switch t := t.(type) {
@@ -228,11 +259,13 @@ func (e *Engine) Assertz(t Term) (bool, error) {
 	if !ok {
 		return false, errors.New("builtin")
 	}
-	var c clause
+	c := clause{
+		name: name,
+	}
 	if err := c.compile(t); err != nil {
 		return false, err
 	}
 
 	e.procedures[name] = append(cs, c)
-	return true, nil
+	return k()
 }

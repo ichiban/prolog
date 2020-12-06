@@ -3,6 +3,7 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -81,12 +82,15 @@ P, Q :- P, Q.
 
 P; Q :- P.
 P; Q :- Q.
+
+true.
+false :- a = b.
 `)
 	return &e, err
 }
 
 type procedure interface {
-	Call(*Engine, Term, []continuation) (bool, error)
+	Call(*Engine, Term, func() (bool, error)) (bool, error)
 }
 
 func (e *Engine) Load(s string) error {
@@ -105,19 +109,17 @@ func (e *Engine) Load(s string) error {
 			return err
 		}
 
-		ok, err := e.Assertz(t)
-		if err != nil {
+		if _, err := e.Assertz(t, func() (bool, error) {
+			return true, nil
+		}); err != nil {
 			return err
-		}
-		if !ok {
-			return errors.New("failed")
 		}
 	}
 }
 
-func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
+func (e *Engine) Query(s string, cb func(Assignment) bool) (bool, error) {
 	if cb == nil {
-		cb = func([]*Variable) bool { return true }
+		cb = func(Assignment) bool { return true }
 	}
 
 	t, err := NewParser(s, &e.operators).Clause()
@@ -125,26 +127,28 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 		return false, err
 	}
 
-	var vars []*Variable
-	variables(&vars, t)
+	a := NewAssignment(t)
 
-	ok, err := e.call(t)
-	if err != nil {
-		return false, err
-	}
-
-	if !ok {
-		return false, nil
-	}
-
-	for _, v := range vars {
-		if v.Ref == nil {
-			continue
+	e.Register0("callback", func(k func() (bool, error)) (bool, error) {
+		for _, v := range a {
+			if v.Ref == nil {
+				continue
+			}
+			v.Ref = v.Ref.Simplify()
 		}
-		v.Ref = v.Ref.Simplify()
-	}
+		if !cb(a) {
+			return false, nil
+		}
+		return k()
+	})
 
-	return cb(vars), nil
+	return e.call(&Compound{
+		Functor: ",",
+		Args: []Term{
+			t,
+			Atom("callback"),
+		},
+	})
 }
 
 func (e *Engine) StringTerm(t Term) string {
@@ -165,61 +169,58 @@ func (e *Engine) call(t Term) (bool, error) {
 		return false, errors.New("not callable")
 	}
 
-	p, ok := e.procedures[name]
-	if !ok {
-		return false, fmt.Errorf("unknown procedure: %s", name)
-	}
-
-	return p.Call(e, args, nil)
+	return e.arrive(name, args, func() (bool, error) {
+		return true, nil
+	})
 }
 
-func (e *Engine) Register0(name string, p func() (bool, error)) {
+func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
 	e.procedures[fmt.Sprintf("%s/0", name)] = predicate0(p)
 }
 
-func (e *Engine) Register1(name string, p func(Term) (bool, error)) {
+func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
 	e.procedures[fmt.Sprintf("%s/1", name)] = predicate1(p)
 }
 
-func (e *Engine) Register2(name string, p func(Term, Term) (bool, error)) {
+func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
 	e.procedures[fmt.Sprintf("%s/2", name)] = predicate2(p)
 }
 
-func (e *Engine) Register3(name string, p func(Term, Term, Term) (bool, error)) {
+func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
 	e.procedures[fmt.Sprintf("%s/3", name)] = predicate3(p)
 }
 
-func (e *Engine) arrive(name string, args Term, cont []continuation) (bool, error) {
-	log := logrus.WithFields(logrus.Fields{
+func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
+	logrus.WithFields(logrus.Fields{
 		"name": name,
 		"args": args,
-		"cont": cont,
-	})
-	log.Debug("arrive")
+	}).Debug("arrive")
 	p := e.procedures[name]
-	return p.Call(e, args, cont)
+	if p == nil {
+		return false, fmt.Errorf("unknown procedure: %s", name)
+	}
+	return p.Call(e, args, k)
 }
 
-func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuation, args Term) (bool, error) {
+func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args Term) (bool, error) {
 	astack := List()
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
 			"pc":     pc,
 			"xr":     xr,
 			"vars":   vars,
-			"cont":   cont,
 			"args":   args,
 			"astack": astack,
 		})
@@ -259,7 +260,9 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			}) {
 				return false, nil
 			}
-			ok, err := Functor(&arg, &fatom, &farity)
+			ok, err := Functor(&arg, &fatom, &farity, func() (bool, error) {
+				return true, nil
+			})
 			if err != nil {
 				return false, err
 			}
@@ -268,7 +271,9 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Univ(&arg, Cons(&fatom, args))
+			ok, err = Univ(&arg, Cons(&fatom, args), func() (bool, error) {
+				return true, nil
+			})
 			if err != nil {
 				return false, err
 			}
@@ -304,20 +309,31 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 			log.Debug("call")
 			x := xr[pc[1]]
 			pc = pc[2:]
-			return e.arrive(x.TermString(e.operators), astack, append(cont, continuation{pc: pc, xr: xr, vars: vars}))
+			return e.arrive(x.TermString(e.operators), astack, func() (bool, error) {
+				return e.exec(pc, xr, vars, k, args)
+			})
 		case opCallVar:
 			log.Debug("call var")
 			t := Resolve(vars[pc[1]])
 			pc = pc[2:]
-			return e.call(t)
+			var name string
+			var args Term
+			switch f := t.(type) {
+			case Atom:
+				name = fmt.Sprintf("%s/0", f)
+				args = List()
+			case *Compound:
+				name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
+				args = List(f.Args...)
+			default:
+				return false, errors.New("not callable")
+			}
+			return e.arrive(name, args, func() (bool, error) {
+				return e.exec(pc, xr, vars, k, args)
+			})
 		case opExit:
 			log.Debug("exit")
-			if len(cont) == 0 {
-				return true, nil
-			}
-			var c continuation
-			c, cont = cont[len(cont)-1], cont[:len(cont)-1]
-			pc, xr, vars = c.pc, c.xr, c.vars
+			return k()
 		default:
 			return false, fmt.Errorf("unknown(%d)", pc[0])
 		}
@@ -327,24 +343,53 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, cont []continuat
 
 type clauses []clause
 
-func (cs clauses) Call(e *Engine, args Term, cont []continuation) (bool, error) {
-	for _, c := range cs {
+func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+	if len(cs) == 0 {
+		return false, nil
+	}
+
+	a := NewAssignment(args)
+
+	log := logrus.WithFields(logrus.Fields{
+		"id":   rand.Intn(256),
+		"name": cs[0].name,
+		"args": args,
+	})
+
+	for i, c := range cs {
+		log = log.WithField("index", i)
+
+		switch i {
+		case 0:
+			log.Info("call")
+		default:
+			log.Info("redo")
+		}
+
 		vars := make([]*Variable, len(c.vars))
 		for i, n := range c.vars {
 			vars[i] = &Variable{Name: n}
 		}
-		ok, err := e.exec(c.bytecode, c.xrTable, vars, cont, args)
+
+		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args)
 		if err != nil {
+			log.Info("exception")
 			return false, err
 		}
 		if ok {
+			log.Info("exit")
 			return true, nil
 		}
+
+		a.Reset()
 	}
+
+	log.Info("fail")
 	return false, nil
 }
 
 type clause struct {
+	name     string
 	xrTable  []Term
 	vars     []string
 	bytecode bytecode
@@ -352,6 +397,8 @@ type clause struct {
 
 func (c *clause) compile(t Term) error {
 	switch t := t.(type) {
+	case Atom:
+		return c.compileClause(t, nil)
 	case *Compound:
 		if t.Functor == ":-" {
 			return c.compileClause(t.Args[0], t.Args[1])
@@ -490,6 +537,9 @@ func (b bytecode) String() string {
 		case opCall:
 			i++
 			ret = append(ret, fmt.Sprintf("call %d", b[i]))
+		case opCallVar:
+			i++
+			ret = append(ret, fmt.Sprintf("call var %d", b[i]))
 		case opExit:
 			ret = append(ret, "exit")
 		default:
@@ -499,91 +549,89 @@ func (b bytecode) String() string {
 	return strings.Join(ret, "; ")
 }
 
-type continuation struct {
-	pc   bytecode
-	xr   []Term
-	vars []*Variable
-}
+type predicate0 func(func() (bool, error)) (bool, error)
 
-type predicate0 func() (bool, error)
-
-func (p predicate0) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+func (p predicate0) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	if !args.Unify(List()) {
 		return false, errors.New("wrong number of arguments")
 	}
-	ok, err := p()
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		return false, nil
-	}
-	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+
+	return p(func() (bool, error) {
+		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+	})
 }
 
-type predicate1 func(Term) (bool, error)
+type predicate1 func(Term, func() (bool, error)) (bool, error)
 
-func (p predicate1) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+func (p predicate1) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1 Variable
 	if !args.Unify(List(&v1)) {
 		return false, fmt.Errorf("wrong number of arguments: %s", args)
 	}
-	t, err := p(&v1)
-	if err != nil {
-		return false, err
-	}
-	if !t {
-		return false, nil
-	}
-	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+
+	return p(&v1, func() (bool, error) {
+		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+	})
 }
 
-type predicate2 func(Term, Term) (bool, error)
+type predicate2 func(Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate2) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+func (p predicate2) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2 Variable
 	if !args.Unify(List(&v1, &v2)) {
 		return false, errors.New("wrong number of arguments")
 	}
-	ok, err := p(&v1, &v2)
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		return false, nil
-	}
-	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+
+	return p(&v1, &v2, func() (bool, error) {
+		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+	})
 }
 
-type predicate3 func(Term, Term, Term) (bool, error)
+type predicate3 func(Term, Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate3) Call(e *Engine, args Term, cont []continuation) (bool, error) {
+func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2, v3 Variable
 	if !args.Unify(List(&v1, &v2, &v3)) {
 		return false, errors.New("wrong number of arguments")
 	}
-	ok, err := p(&v1, &v2, &v3)
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		return false, nil
-	}
-	return e.exec([]byte{opExit}, nil, nil, cont, &Variable{})
+
+	return p(&v1, &v2, &v3, func() (bool, error) {
+		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+	})
 }
 
-func variables(vs *[]*Variable, t Term) {
+type Assignment []*Variable
+
+func NewAssignment(ts ...Term) Assignment {
+	var a Assignment
+	for _, t := range ts {
+		a.Add(t)
+	}
+	return a
+}
+
+func (a *Assignment) Add(t Term) {
 	switch t := t.(type) {
 	case *Variable:
-		for _, v := range *vs {
-			if v.Name == t.Name {
+		if t.Ref != nil {
+			a.Add(t.Ref)
+			return
+		}
+		for _, v := range *a {
+			if v == t {
 				return
 			}
 		}
-		*vs = append(*vs, t)
+		*a = append(*a, t)
 	case *Compound:
-		for _, a := range t.Args {
-			variables(vs, a)
+		for _, arg := range t.Args {
+			a.Add(arg)
 		}
+	}
+}
+
+func (a Assignment) Reset() {
+	for _, v := range a {
+		v.Ref = nil
 	}
 }
