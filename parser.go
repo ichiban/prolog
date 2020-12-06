@@ -11,6 +11,7 @@ type Parser struct {
 	lexer     *Lexer
 	current   Token
 	operators *operators
+	vars      []*Variable
 }
 
 func NewParser(input string, operators *operators) *Parser {
@@ -89,6 +90,10 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) Clause() (Term, error) {
+	for i := range p.vars {
+		p.vars[i] = nil
+	}
+	p.vars = p.vars[:0]
 	t, err := p.Term()
 	if err != nil {
 		return nil, err
@@ -182,9 +187,16 @@ func (p *Parser) lhs() (Term, error) {
 		if err != nil {
 			return nil, fmt.Errorf("lhs: %w", err)
 		}
-		return &Variable{
+		for _, e := range p.vars {
+			if e.Name == v {
+				return e, nil
+			}
+		}
+		n := &Variable{
 			Name: v,
-		}, nil
+		}
+		p.vars = append(p.vars, n)
+		return n, nil
 	}
 
 	if _, err := p.accept(TokenSeparator, "("); err != nil {
