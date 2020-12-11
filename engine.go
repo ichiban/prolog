@@ -3,7 +3,6 @@ package prolog
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -109,9 +108,7 @@ func (e *Engine) Load(s string) error {
 			return err
 		}
 
-		if _, err := e.Assertz(t, func() (bool, error) {
-			return true, nil
-		}); err != nil {
+		if _, err := e.Assertz(t, done); err != nil {
 			return err
 		}
 	}
@@ -129,49 +126,28 @@ func (e *Engine) Query(s string, cb func(Assignment) bool) (bool, error) {
 
 	a := NewAssignment(t)
 
-	e.Register0("callback", func(k func() (bool, error)) (bool, error) {
-		for _, v := range a {
-			if v.Ref == nil {
-				continue
-			}
-			v.Ref = v.Ref.Simplify()
-		}
-		if !cb(a) {
-			return false, nil
-		}
-		return k()
-	})
+	name, args, err := nameArgs(t)
+	if err != nil {
+		return false, err
+	}
 
-	return e.call(&Compound{
-		Functor: ",",
-		Args: []Term{
-			t,
-			Atom("callback"),
-		},
+	return e.arrive(name, args, func() (bool, error) {
+		if len(a) == 0 {
+			return true, nil
+		}
+		simp := make(Assignment, len(a))
+		for i, v := range a {
+			simp[i] = &Variable{
+				Name: v.Name,
+				Ref:  v.Simplify(),
+			}
+		}
+		return cb(simp), nil
 	})
 }
 
 func (e *Engine) StringTerm(t Term) string {
 	return t.TermString(e.operators)
-}
-
-func (e *Engine) call(t Term) (bool, error) {
-	var name string
-	var args Term
-	switch f := t.(type) {
-	case Atom:
-		name = fmt.Sprintf("%s/0", f)
-		args = List()
-	case *Compound:
-		name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
-		args = List(f.Args...)
-	default:
-		return false, errors.New("not callable")
-	}
-
-	return e.arrive(name, args, func() (bool, error) {
-		return true, nil
-	})
 }
 
 func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
@@ -214,8 +190,7 @@ func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, e
 	return p.Call(e, args, k)
 }
 
-func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args Term) (bool, error) {
-	astack := List()
+func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args, astack Term) (bool, error) {
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
 			"pc":     pc,
@@ -260,9 +235,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			}) {
 				return false, nil
 			}
-			ok, err := Functor(&arg, &fatom, &farity, func() (bool, error) {
-				return true, nil
-			})
+			ok, err := Functor(&arg, &fatom, &farity, done)
 			if err != nil {
 				return false, err
 			}
@@ -271,9 +244,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Univ(&arg, Cons(&fatom, args), func() (bool, error) {
-				return true, nil
-			})
+			ok, err = Univ(&arg, Cons(&fatom, args), done)
 			if err != nil {
 				return false, err
 			}
@@ -308,28 +279,24 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 		case opCall:
 			log.Debug("call")
 			x := xr[pc[1]]
+			if !args.Unify(List()) {
+				return false, nil
+			}
 			pc = pc[2:]
 			return e.arrive(x.TermString(e.operators), astack, func() (bool, error) {
-				return e.exec(pc, xr, vars, k, args)
+				var v Variable
+				return e.exec(pc, xr, vars, k, &v, &v)
 			})
 		case opCallVar:
 			log.Debug("call var")
-			t := Resolve(vars[pc[1]])
-			pc = pc[2:]
-			var name string
-			var args Term
-			switch f := t.(type) {
-			case Atom:
-				name = fmt.Sprintf("%s/0", f)
-				args = List()
-			case *Compound:
-				name = fmt.Sprintf("%s/%d", f.Functor, len(f.Args))
-				args = List(f.Args...)
-			default:
-				return false, errors.New("not callable")
+			name, args, err := nameArgs(vars[pc[1]])
+			if err != nil {
+				return false, err
 			}
+			pc = pc[2:]
 			return e.arrive(name, args, func() (bool, error) {
-				return e.exec(pc, xr, vars, k, args)
+				var v Variable
+				return e.exec(pc, xr, vars, k, &v, &v)
 			})
 		case opExit:
 			log.Debug("exit")
@@ -351,13 +318,12 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 	a := NewAssignment(args)
 
 	log := logrus.WithFields(logrus.Fields{
-		"id":   rand.Intn(256),
 		"name": cs[0].name,
 		"args": args,
 	})
 
 	for i, c := range cs {
-		log = log.WithField("index", i)
+		log = log.WithField("choice", i)
 
 		switch i {
 		case 0:
@@ -367,11 +333,11 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 		}
 
 		vars := make([]*Variable, len(c.vars))
-		for i, n := range c.vars {
-			vars[i] = &Variable{Name: n}
+		for i := range c.vars {
+			vars[i] = &Variable{}
 		}
 
-		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args)
+		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args, List())
 		if err != nil {
 			log.Info("exception")
 			return false, err
@@ -396,7 +362,7 @@ type clause struct {
 }
 
 func (c *clause) compile(t Term) error {
-	switch t := t.(type) {
+	switch t := Resolve(t).(type) {
 	case Atom:
 		return c.compileClause(t, nil)
 	case *Compound:
@@ -557,7 +523,7 @@ func (p predicate0) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	}
 
 	return p(func() (bool, error) {
-		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
@@ -570,7 +536,7 @@ func (p predicate1) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	}
 
 	return p(&v1, func() (bool, error) {
-		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
@@ -583,7 +549,7 @@ func (p predicate2) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	}
 
 	return p(&v1, &v2, func() (bool, error) {
-		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
@@ -596,7 +562,7 @@ func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	}
 
 	return p(&v1, &v2, &v3, func() (bool, error) {
-		return e.exec([]byte{opExit}, nil, nil, k, &Variable{})
+		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
@@ -631,7 +597,12 @@ func (a *Assignment) Add(t Term) {
 }
 
 func (a Assignment) Reset() {
+	logrus.WithField("vars", a).Debug("reset")
 	for _, v := range a {
 		v.Ref = nil
 	}
+}
+
+func done() (bool, error) {
+	return true, nil
 }

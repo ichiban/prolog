@@ -221,33 +221,27 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 }
 
 func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
-	t = Resolve(t)
-	var name string
-	switch t := t.(type) {
-	case Atom:
-		name = fmt.Sprintf("%s/0", t)
-	case *Compound:
-		type pf struct {
-			functor Atom
-			arity   int
+	name, args, err := nameArgs(t)
+	if err != nil {
+		return false, err
+	}
+
+	switch name {
+	case ":-/1": // directive
+		var d Variable
+		args.Unify(Cons(&d, &Variable{}))
+		name, args, err := nameArgs(&d)
+		if err != nil {
+			return false, err
 		}
-		switch (pf{functor: t.Functor, arity: len(t.Args)}) {
-		case pf{functor: ":-", arity: 2}:
-			switch h := t.Args[0].(type) {
-			case Atom:
-				name = fmt.Sprintf("%s/0", h)
-			case *Compound:
-				name = fmt.Sprintf("%s/%d", h.Functor, len(h.Args))
-			default:
-				return false, fmt.Errorf("not a clause: %s", t.Args[0])
-			}
-		case pf{functor: ":-", arity: 1}: // directive
-			return e.call(t.Args[0])
-		default:
-			name = fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
+		return e.arrive(name, args, k)
+	case ":-/2":
+		var h Variable
+		args.Unify(Cons(&h, &Variable{}))
+		name, args, err = nameArgs(&h)
+		if err != nil {
+			return false, err
 		}
-	default:
-		return false, fmt.Errorf("not a clause: %s", t)
 	}
 
 	p, ok := e.procedures[name]

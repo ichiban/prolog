@@ -1,9 +1,12 @@
 package prolog
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Term interface {
@@ -88,6 +91,7 @@ func (v *Variable) Unify(t Term) bool {
 		return v.Ref.Unify(t)
 	}
 	v.Ref = t
+	logrus.WithField("var", v).Debug("assign")
 	return true
 }
 
@@ -104,7 +108,7 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
-	return c.TermString(nil)
+	return c.TermString([]operator{{Precedence: 400, Type: "yfx", Name: "/"}}) // for principal functors
 }
 
 func (c *Compound) TermString(os operators) string {
@@ -216,4 +220,15 @@ func Resolve(t Term) Term {
 		}
 	}
 	return nil
+}
+
+func nameArgs(t Term) (string, Term, error) {
+	switch f := Resolve(t).(type) {
+	case Atom:
+		return fmt.Sprintf("%s/0", f), List(), nil
+	case *Compound:
+		return fmt.Sprintf("%s/%d", f.Functor, len(f.Args)), List(f.Args...), nil
+	default:
+		return "", nil, errors.New("not callable")
+	}
 }
