@@ -114,9 +114,9 @@ func (e *Engine) Load(s string) error {
 	}
 }
 
-func (e *Engine) Query(s string, cb func(Assignment) bool) (bool, error) {
+func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 	if cb == nil {
-		cb = func(Assignment) bool { return true }
+		cb = func([]*Variable) bool { return true }
 	}
 
 	t, err := NewParser(s, &e.operators).Clause()
@@ -124,7 +124,7 @@ func (e *Engine) Query(s string, cb func(Assignment) bool) (bool, error) {
 		return false, err
 	}
 
-	a := NewAssignment(t)
+	a := newAssignment(t)
 
 	name, args, err := nameArgs(t)
 	if err != nil {
@@ -135,11 +135,11 @@ func (e *Engine) Query(s string, cb func(Assignment) bool) (bool, error) {
 		if len(a) == 0 {
 			return true, nil
 		}
-		simp := make(Assignment, len(a))
+		simp := make([]*Variable, len(a))
 		for i, v := range a {
 			simp[i] = &Variable{
 				Name: v.Name,
-				Ref:  v.Simplify(),
+				Ref:  Simplify(v),
 			}
 		}
 		return cb(simp), nil
@@ -315,7 +315,7 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 		return false, nil
 	}
 
-	a := NewAssignment(args)
+	a := newAssignment(args)
 
 	log := logrus.WithFields(logrus.Fields{
 		"name": cs[0].name,
@@ -347,7 +347,7 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 			return true, nil
 		}
 
-		a.Reset()
+		a.reset()
 	}
 
 	log.Info("fail")
@@ -566,21 +566,21 @@ func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	})
 }
 
-type Assignment []*Variable
+type assignment []*Variable
 
-func NewAssignment(ts ...Term) Assignment {
-	var a Assignment
+func newAssignment(ts ...Term) assignment {
+	var a assignment
 	for _, t := range ts {
-		a.Add(t)
+		a.add(t)
 	}
 	return a
 }
 
-func (a *Assignment) Add(t Term) {
+func (a *assignment) add(t Term) {
 	switch t := t.(type) {
 	case *Variable:
 		if t.Ref != nil {
-			a.Add(t.Ref)
+			a.add(t.Ref)
 			return
 		}
 		for _, v := range *a {
@@ -591,12 +591,12 @@ func (a *Assignment) Add(t Term) {
 		*a = append(*a, t)
 	case *Compound:
 		for _, arg := range t.Args {
-			a.Add(arg)
+			a.add(arg)
 		}
 	}
 }
 
-func (a Assignment) Reset() {
+func (a assignment) reset() {
 	logrus.WithField("vars", a).Debug("reset")
 	for _, v := range a {
 		v.Ref = nil

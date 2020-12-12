@@ -164,11 +164,11 @@ func TestEngine_Query(t *testing.T) {
 	}
 
 	t.Run("fact", func(t *testing.T) {
-		ok, err := e.Query(`append(X, Y, Z).`, func(vars Assignment) bool {
+		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {
 			assert.Len(t, vars, 3)
 			assert.Equal(t, &Variable{Name: "X", Ref: Atom("nil")}, vars[0])
-			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{Name: "L"}}, vars[1]) // TODO: it should be Y = Z
-			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{Name: "L"}}, vars[2])
+			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{}}, vars[1]) // TODO: it should be Y = Z
+			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{}}, vars[2])
 			return true
 		})
 		assert.NoError(t, err)
@@ -176,7 +176,7 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars Assignment) bool {
+		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars []*Variable) bool {
 			assert.Len(t, vars, 1)
 			assert.Equal(t, &Variable{
 				Name: "X",
@@ -272,7 +272,7 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 		}
-		ok, err := e.Query("foo(X), bar(Y).", func(Assignment) bool {
+		ok, err := e.Query("foo(X), bar(Y).", func([]*Variable) bool {
 			return false
 		})
 		assert.NoError(t, err)

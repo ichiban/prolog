@@ -52,6 +52,8 @@ func main() {
 
 	logrus.SetOutput(t)
 
+	halt := false
+
 	e, err := prolog.NewEngine()
 	if err != nil {
 		log.Panic(err)
@@ -60,6 +62,10 @@ func main() {
 		if !term.Unify(prolog.Atom(Version)) {
 			return false, nil
 		}
+		return k()
+	})
+	e.Register0("halt", func(k func() (bool, error)) (bool, error) {
+		halt = true
 		return k()
 	})
 
@@ -78,7 +84,7 @@ func main() {
 
 	keys := bufio.NewReader(os.Stdin)
 
-	for {
+	for !halt {
 		line, err := t.ReadLine()
 		if err != nil {
 			if err == io.EOF {
@@ -86,7 +92,7 @@ func main() {
 			}
 			log.WithError(err).Error("failed to read line")
 		}
-		ok, err := e.Query(line, func(vars prolog.Assignment) bool {
+		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
 			ls := make([]string, len(vars))
 			for i, v := range vars {
 				if v.Ref == nil {

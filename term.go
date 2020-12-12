@@ -10,10 +10,8 @@ import (
 )
 
 type Term interface {
-	fmt.Stringer
 	TermString(operators) string
 	Unify(Term) bool
-	Simplify() Term
 }
 
 type Atom string
@@ -37,10 +35,6 @@ func (a Atom) Unify(t Term) bool {
 	}
 }
 
-func (a Atom) Simplify() Term {
-	return a
-}
-
 type Integer int64
 
 func (i Integer) String() string {
@@ -60,10 +54,6 @@ func (i Integer) Unify(t Term) bool {
 	default:
 		return false
 	}
-}
-
-func (i Integer) Simplify() Term {
-	return i
 }
 
 type Variable struct {
@@ -93,13 +83,6 @@ func (v *Variable) Unify(t Term) bool {
 	v.Ref = t
 	logrus.WithField("var", v).Debug("assign")
 	return true
-}
-
-func (v *Variable) Simplify() Term {
-	if v.Ref == nil {
-		return v
-	}
-	return v.Ref.Simplify()
 }
 
 type Compound struct {
@@ -187,14 +170,6 @@ func (c *Compound) Unify(t Term) bool {
 	}
 }
 
-func (c *Compound) Simplify() Term {
-	args := make([]Term, len(c.Args))
-	for i := range args {
-		args[i] = c.Args[i].Simplify()
-	}
-	return &Compound{Functor: c.Functor, Args: args}
-}
-
 func Cons(car, cdr Term) Term {
 	return &Compound{
 		Functor: ".",
@@ -208,6 +183,24 @@ func List(ts ...Term) Term {
 		l = Cons(ts[i], l)
 	}
 	return l
+}
+
+func Simplify(t Term) Term {
+	switch t := t.(type) {
+	case *Variable:
+		if t.Ref == nil {
+			return t
+		}
+		return Simplify(t.Ref)
+	case *Compound:
+		args := make([]Term, len(t.Args))
+		for i := range args {
+			args[i] = Simplify(t.Args[i])
+		}
+		return &Compound{Functor: t.Functor, Args: args}
+	default:
+		return t
+	}
 }
 
 func Resolve(t Term) Term {

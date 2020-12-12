@@ -3,7 +3,6 @@ package prolog
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 )
 
@@ -224,26 +223,6 @@ func (p *Parser) lhs() (Term, error) {
 }
 
 type operators []operator
-
-func (os operators) Len() int {
-	return len(os)
-}
-
-func (os operators) Less(i, j int) bool {
-	return os[i].Precedence > os[j].Precedence
-}
-
-func (os operators) Swap(i, j int) {
-	os[i], os[j] = os[j], os[i]
-}
-
-func (os operators) atMost(p int) operators {
-	i := sort.Search(len(os), func(i int) bool { return int(os[i].Precedence) <= p })
-	if i == len(os) {
-		return nil // not found
-	}
-	return os[i:]
-}
 
 type operator struct {
 	Precedence Integer // 1 ~ 1200

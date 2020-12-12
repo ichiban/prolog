@@ -202,7 +202,7 @@ func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, e
 }
 
 func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
-	a := NewAssignment(precedence, typ, name)
+	a := newAssignment(precedence, typ, name)
 
 	for _, op := range e.operators {
 		if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
@@ -214,7 +214,7 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 				return true, nil
 			}
 		}
-		a.Reset()
+		a.reset()
 	}
 
 	return false, nil
@@ -238,7 +238,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 	case ":-/2":
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}))
-		name, args, err = nameArgs(&h)
+		name, _, err = nameArgs(&h)
 		if err != nil {
 			return false, err
 		}
