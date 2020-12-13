@@ -93,4 +93,10 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
 		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
 	})
+
+	t.Run("single line comment", func(t *testing.T) {
+		l := NewLexer("% comment\n")
+		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
+		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
+	})
 }

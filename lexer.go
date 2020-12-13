@@ -85,7 +85,7 @@ func (k TokenKind) String() string {
 
 type lexState func(rune, int) lexState
 
-func (l *Lexer) start(r rune, pos int) lexState {
+func (l *Lexer) start(r rune, _ int) lexState {
 	switch r {
 	case '.':
 		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -125,9 +125,10 @@ func (l *Lexer) term(ctx lexState) lexState {
 		case r == '(':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.paren(ctx))
+		case r == '%':
+			return l.singleLineComment(ctx)
 		default:
-			l.backup()
-			return ctx
+			return nil
 		}
 	}
 }
@@ -228,7 +229,6 @@ func (l *Lexer) variable(start int, ctx lexState) lexState {
 func (l *Lexer) graphic(start int, ctx lexState) lexState {
 	return func(r rune, pos int) lexState {
 		switch {
-		// TODO: comments
 		case isGraphic(r):
 			return l.graphic(start, ctx)
 		case r == '(':
@@ -256,6 +256,17 @@ func (l *Lexer) list(start int, ctx lexState) lexState {
 			l.emit(Token{Kind: TokenSeparator, Val: "["})
 			l.backup()
 			return l.term(l.elems(ctx))
+		}
+	}
+}
+
+func (l *Lexer) singleLineComment(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '\n':
+			return ctx
+		default:
+			return l.singleLineComment(ctx)
 		}
 	}
 }

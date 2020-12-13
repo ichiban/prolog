@@ -35,6 +35,7 @@ func NewEngine() (*Engine, error) {
 	e.Register3("op", e.Op)
 	e.Register3("current_op", e.CurrentOp)
 	err := e.Load(`
+% operators
 :-(op(1200, xfx, :-)).
 :-(op(1200, xfx, -->)).
 :-(op(1200, fx, :-)).
@@ -78,11 +79,14 @@ func NewEngine() (*Engine, error) {
 :-(op(100, xfx, @)).
 :-(op(50, xfx, :)).
 
+% conjunction
 P, Q :- P, Q.
 
+% disjunction
 P; Q :- P.
 P; Q :- Q.
 
+% true/false
 true.
 false :- a = b.
 `)
