@@ -6,6 +6,19 @@ import (
 	"sort"
 )
 
+var errCut = errors.New("cut")
+
+func Cut(k func() (bool, error)) (bool, error) {
+	ok, err := k()
+	if err != nil {
+		if errors.Is(err, errCut) {
+			return ok, err
+		}
+		return false, err
+	}
+	return ok, errCut
+}
+
 func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
 	if !t1.Unify(t2) {
 		return false, nil
@@ -208,6 +221,9 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 		if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
 			ok, err := k()
 			if err != nil {
+				if errors.Is(err, errCut) {
+					return ok, err
+				}
 				return false, err
 			}
 			if ok {
@@ -234,7 +250,11 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		return e.arrive(name, args, k)
+		ok, err := e.arrive(name, args, k)
+		if err != nil {
+			return false, err
+		}
+		return ok, nil
 	case ":-/2":
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}))

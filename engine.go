@@ -27,12 +27,13 @@ type Engine struct {
 
 func NewEngine() (*Engine, error) {
 	var e Engine
+	e.Register0("!", Cut)
+	e.Register1("assertz", e.Assertz)
 	e.Register2("=", Unify)
 	e.Register2("=..", Univ)
 	e.Register3("functor", Functor)
 	e.Register3("op", e.Op)
 	e.Register3("current_op", e.CurrentOp)
-	e.Register1("assertz", e.Assertz)
 	err := e.Load(`
 :-(op(1200, xfx, :-)).
 :-(op(1200, xfx, -->)).
@@ -131,7 +132,7 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 		return false, err
 	}
 
-	return e.arrive(name, args, func() (bool, error) {
+	ok, err := e.arrive(name, args, func() (bool, error) {
 		if len(a) == 0 {
 			return true, nil
 		}
@@ -144,6 +145,13 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 		}
 		return cb(simp), nil
 	})
+	if err != nil {
+		if errors.Is(err, errCut) {
+			return ok, nil
+		}
+		return false, err
+	}
+	return ok, nil
 }
 
 func (e *Engine) StringTerm(t Term) string {
@@ -339,6 +347,10 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 
 		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args, List())
 		if err != nil {
+			if errors.Is(err, errCut) {
+				log.Info("cut")
+				return ok, err
+			}
 			log.Info("exception")
 			return false, err
 		}
