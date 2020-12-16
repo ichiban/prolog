@@ -35,6 +35,10 @@ func NewEngine() (*Engine, error) {
 	e.Register3("op", e.Op)
 	e.Register3("current_op", e.CurrentOp)
 	err := e.Load(`
+/*
+ *  bootstrap script
+ */
+
 % operators
 :-(op(1200, xfx, :-)).
 :-(op(1200, xfx, -->)).

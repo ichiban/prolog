@@ -22,7 +22,7 @@ func NewLexer(input string) *Lexer {
 	go func() {
 		defer close(tokens)
 
-		s := l.start
+		s := l.program
 		for s != nil {
 			s = s(l.next())
 		}
@@ -85,14 +85,14 @@ func (k TokenKind) String() string {
 
 type lexState func(rune, int) lexState
 
-func (l *Lexer) start(r rune, _ int) lexState {
+func (l *Lexer) program(r rune, pos int) lexState {
 	switch r {
 	case '.':
 		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
-		return l.start
+		return l.program
 	default:
 		l.backup()
-		return l.term(l.start)
+		return l.term(l.program)
 	}
 }
 
@@ -103,6 +103,11 @@ func (l *Lexer) term(ctx lexState) lexState {
 			return nil
 		case unicode.IsSpace(r):
 			return l.term(ctx)
+		case r == '%':
+			return l.singleLineComment(l.term(ctx))
+		case r == '/':
+			l.backup()
+			return l.multiLineComment(pos, l.term(ctx), ctx)
 		case unicode.IsLower(r):
 			l.backup()
 			return l.atom(pos, ctx)
@@ -125,8 +130,6 @@ func (l *Lexer) term(ctx lexState) lexState {
 		case r == '(':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.paren(ctx))
-		case r == '%':
-			return l.singleLineComment(ctx)
 		default:
 			return nil
 		}
@@ -267,6 +270,55 @@ func (l *Lexer) singleLineComment(ctx lexState) lexState {
 			return ctx
 		default:
 			return l.singleLineComment(ctx)
+		}
+	}
+}
+
+func (l *Lexer) multiLineComment(start int, ctx, elseCtx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '/':
+			return l.multiLineCommentBegin(start, ctx, elseCtx)
+		default:
+			l.backup()
+			return l.graphic(start, elseCtx)
+		}
+	}
+}
+
+func (l *Lexer) multiLineCommentBegin(start int, ctx, elseCtx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case r == '*':
+			return l.multiLineCommentBody(ctx)
+		case isGraphic(r):
+			return l.graphic(start, elseCtx)
+		default:
+			l.emit(Token{Kind: TokenAtom, Val: "/"})
+			l.backup()
+			return elseCtx
+		}
+	}
+}
+
+func (l *Lexer) multiLineCommentBody(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '*':
+			return l.multiLineCommentEnd(ctx)
+		default:
+			return l.multiLineCommentBody(ctx)
+		}
+	}
+}
+
+func (l *Lexer) multiLineCommentEnd(ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '/':
+			return ctx
+		default:
+			return l.multiLineCommentBody(ctx)
 		}
 	}
 }
