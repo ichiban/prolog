@@ -1,7 +1,6 @@
 package prolog
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -217,15 +216,4 @@ func Resolve(t Term) Term {
 		}
 	}
 	return nil
-}
-
-func nameArgs(t Term) (string, Term, error) {
-	switch f := Resolve(t).(type) {
-	case Atom:
-		return fmt.Sprintf("%s/0", f), List(), nil
-	case *Compound:
-		return fmt.Sprintf("%s/%d", f.Functor, len(f.Args)), List(f.Args...), nil
-	default:
-		return "", nil, errors.New("not callable")
-	}
 }

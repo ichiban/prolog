@@ -6,6 +6,14 @@ import (
 	"sort"
 )
 
+func (e *Engine) Call(t Term, k func() (bool, error)) (bool, error) {
+	name, args, err := nameArgs(t)
+	if err != nil {
+		return false, err
+	}
+	return e.arrive(name, args, k)
+}
+
 var errCut = errors.New("cut")
 
 func Cut(k func() (bool, error)) (bool, error) {
@@ -282,4 +290,15 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 
 	e.procedures[name] = append(cs, c)
 	return k()
+}
+
+func nameArgs(t Term) (string, Term, error) {
+	switch f := Resolve(t).(type) {
+	case Atom:
+		return fmt.Sprintf("%s/0", f), List(), nil
+	case *Compound:
+		return fmt.Sprintf("%s/%d", f.Functor, len(f.Args)), List(f.Args...), nil
+	default:
+		return "", nil, errors.New("not callable")
+	}
 }

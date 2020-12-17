@@ -92,13 +92,13 @@ func main() {
 			}
 			log.WithError(err).Error("failed to read line")
 		}
-		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
+		ok, err := e.Query(line, func(vars []prolog.Variable) bool {
 			ls := make([]string, len(vars))
 			for i, v := range vars {
 				if v.Ref == nil {
 					continue
 				}
-				ls[i] = e.StringTerm(v)
+				ls[i] = e.StringTerm(&v)
 			}
 			fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
 

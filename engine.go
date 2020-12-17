@@ -12,7 +12,6 @@ const (
 	opVoid byte = iota
 	opEnter
 	opCall
-	opCallVar // extended for predicates like P, Q :- P, Q.
 	opExit
 	opConst
 	opVar
@@ -28,6 +27,7 @@ type Engine struct {
 func NewEngine() (*Engine, error) {
 	var e Engine
 	e.Register0("!", Cut)
+	e.Register1("call", e.Call)
 	e.Register1("assertz", e.Assertz)
 	e.Register2("=", Unify)
 	e.Register2("=..", Univ)
@@ -84,11 +84,11 @@ func NewEngine() (*Engine, error) {
 :-(op(50, xfx, :)).
 
 % conjunction
-P, Q :- P, Q.
+P, Q :- call(P), call(Q).
 
 % disjunction
-P; Q :- P.
-P; Q :- Q.
+P; Q :- call(P).
+P; Q :- call(Q).
 
 % true/false
 true.
@@ -123,9 +123,9 @@ func (e *Engine) Load(s string) error {
 	}
 }
 
-func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
+func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
 	if cb == nil {
-		cb = func([]*Variable) bool { return true }
+		cb = func([]Variable) bool { return true }
 	}
 
 	t, err := NewParser(s, &e.operators).Clause()
@@ -135,18 +135,13 @@ func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 
 	a := newAssignment(t)
 
-	name, args, err := nameArgs(t)
-	if err != nil {
-		return false, err
-	}
-
-	ok, err := e.arrive(name, args, func() (bool, error) {
+	ok, err := e.Call(t, func() (bool, error) {
 		if len(a) == 0 {
 			return true, nil
 		}
-		simp := make([]*Variable, len(a))
+		simp := make([]Variable, len(a))
 		for i, v := range a {
-			simp[i] = &Variable{
+			simp[i] = Variable{
 				Name: v.Name,
 				Ref:  Simplify(v),
 			}
@@ -303,17 +298,6 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 				var v Variable
 				return e.exec(pc, xr, vars, k, &v, &v)
 			})
-		case opCallVar:
-			log.Debug("call var")
-			name, args, err := nameArgs(vars[pc[1]])
-			if err != nil {
-				return false, err
-			}
-			pc = pc[2:]
-			return e.arrive(name, args, func() (bool, error) {
-				var v Variable
-				return e.exec(pc, xr, vars, k, &v, &v)
-			})
 		case opExit:
 			log.Debug("exit")
 			return k()
@@ -446,9 +430,6 @@ func (c *clause) compilePred(p Term) error {
 			Args:    []Term{p.Functor, Integer(len(p.Args))},
 		}))
 		return nil
-	case *Variable:
-		c.bytecode = append(c.bytecode, opCallVar, c.varOffset(p))
-		return nil
 	default:
 		return errors.New("not a predicate")
 	}
@@ -523,9 +504,6 @@ func (b bytecode) String() string {
 		case opCall:
 			i++
 			ret = append(ret, fmt.Sprintf("call %d", b[i]))
-		case opCallVar:
-			i++
-			ret = append(ret, fmt.Sprintf("call var %d", b[i]))
 		case opExit:
 			ret = append(ret, "exit")
 		default:
