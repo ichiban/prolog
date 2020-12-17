@@ -131,4 +131,10 @@ func TestParser_Term(t *testing.T) {
 		})
 	})
 
+	t.Run("list", func(t *testing.T) {
+		p := NewParser(`[a, b, c|X]`, &operators{})
+		term, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
+	})
 }

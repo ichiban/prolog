@@ -178,7 +178,11 @@ func Cons(car, cdr Term) Term {
 }
 
 func List(ts ...Term) Term {
-	l := Term(Atom("[]"))
+	return ListRest(Atom("[]"), ts...)
+}
+
+func ListRest(rest Term, ts ...Term) Term {
+	l := rest
 	for i := len(ts) - 1; i >= 0; i-- {
 		l = Cons(ts[i], l)
 	}

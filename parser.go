@@ -162,6 +162,37 @@ func (p *Parser) lhs() (Term, error) {
 		return lhs, nil
 	}
 
+	if _, err := p.accept(TokenSeparator, "["); err == nil {
+		var es []Term
+		for {
+			e, err := p.Term()
+			if err != nil {
+				return nil, err
+			}
+			es = append(es, e)
+
+			s, err := p.accept(TokenSeparator, ",", "|", "]")
+			if err != nil {
+				return nil, err
+			}
+			switch s {
+			case "|":
+				rest, err := p.Term()
+				if err != nil {
+					return nil, err
+				}
+
+				if _, err := p.accept(TokenSeparator, "]"); err != nil {
+					return nil, err
+				}
+
+				return ListRest(rest, es...), nil
+			case "]":
+				return List(es...), nil
+			}
+		}
+	}
+
 	if op, err := p.acceptPrefix(); err == nil {
 		_, r := op.bindingPowers()
 		rhs, err := p.expr(r)
@@ -174,18 +205,12 @@ func (p *Parser) lhs() (Term, error) {
 		}, nil
 	}
 
-	a, err := p.accept(TokenAtom)
-	if err != nil {
-		i, err := p.accept(TokenInteger)
-		if err == nil {
-			n, _ := strconv.Atoi(i)
-			return Integer(n), nil
-		}
+	if i, err := p.accept(TokenInteger); err == nil {
+		n, _ := strconv.Atoi(i)
+		return Integer(n), nil
+	}
 
-		v, err := p.accept(TokenVariable)
-		if err != nil {
-			return nil, fmt.Errorf("lhs: %w", err)
-		}
+	if v, err := p.accept(TokenVariable); err == nil {
 		for _, e := range p.vars {
 			if e.Name == v {
 				return e, nil
@@ -196,6 +221,11 @@ func (p *Parser) lhs() (Term, error) {
 		}
 		p.vars = append(p.vars, n)
 		return n, nil
+	}
+
+	a, err := p.accept(TokenAtom)
+	if err != nil {
+		return nil, err
 	}
 
 	if _, err := p.accept(TokenSeparator, "("); err != nil {
