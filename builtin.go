@@ -34,6 +34,34 @@ func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
+func TypeVar(t Term, k func() (bool, error)) (bool, error) {
+	if t := Resolve(t); t != nil {
+		return false, nil
+	}
+	return k()
+}
+
+func TypeAtom(t Term, k func() (bool, error)) (bool, error) {
+	if _, ok := Resolve(t).(Atom); !ok {
+		return false, nil
+	}
+	return k()
+}
+
+func TypeInteger(t Term, k func() (bool, error)) (bool, error) {
+	if _, ok := Resolve(t).(Integer); !ok {
+		return false, nil
+	}
+	return k()
+}
+
+func TypeCompound(t Term, k func() (bool, error)) (bool, error) {
+	if _, ok := Resolve(t).(*Compound); !ok {
+		return false, nil
+	}
+	return k()
+}
+
 func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	var v *Variable
 	for v == nil {

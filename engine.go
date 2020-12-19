@@ -29,6 +29,10 @@ func NewEngine() (*Engine, error) {
 	e.Register0("!", Cut)
 	e.Register1("call", e.Call)
 	e.Register1("assertz", e.Assertz)
+	e.Register1("var", TypeVar)
+	e.Register1("atom", TypeAtom)
+	e.Register1("integer", TypeInteger)
+	e.Register1("compound", TypeCompound)
 	e.Register2("=", Unify)
 	e.Register2("=..", Univ)
 	e.Register3("functor", Functor)
@@ -101,6 +105,12 @@ false :- a = b.
 
 % not unifiable
 X \= Y :- \+(X = Y).
+
+% type testing
+atomic(X) :- atom(X).
+atomic(X) :- integer(X).
+nonvar(X) :- \+var(X).
+number(X) :- integer(X).
 `)
 	return &e, err
 }

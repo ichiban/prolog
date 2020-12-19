@@ -190,10 +190,9 @@ func ListRest(rest Term, ts ...Term) Term {
 
 func Simplify(t Term) Term {
 	switch t := t.(type) {
+	case nil:
+		return nil
 	case *Variable:
-		if t.Ref == nil {
-			return t
-		}
 		return Simplify(t.Ref)
 	case *Compound:
 		args := make([]Term, len(t.Args))
