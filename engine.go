@@ -47,6 +47,7 @@ func NewEngine() (*Engine, error) {
 :-(op(1100, xfy, ;)).
 :-(op(1050, xfy, ->)).
 :-(op(1000, xfy, ,)).
+:-(op(900, fy, \+)).
 :-(op(700, xfx, =)).
 :-(op(700, xfx, \=)).
 :-(op(700, xfx, ==)).
@@ -93,6 +94,13 @@ P; Q :- call(Q).
 % true/false
 true.
 false :- a = b.
+
+% not
+\+P :- call(P), !, false.
+\+P :- true.
+
+% not unifiable
+X \= Y :- \+(X = Y).
 `)
 	return &e, err
 }
@@ -136,15 +144,19 @@ func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
 	a := newAssignment(t)
 
 	ok, err := e.Call(t, func() (bool, error) {
-		if len(a) == 0 {
-			return true, nil
-		}
-		simp := make([]Variable, len(a))
-		for i, v := range a {
-			simp[i] = Variable{
+		simp := make([]Variable, 0, len(a))
+		for _, v := range a {
+			v := Variable{
 				Name: v.Name,
-				Ref:  Simplify(v),
+				Ref:  Simplify(v.Ref),
 			}
+			if v.Ref == nil {
+				continue
+			}
+			simp = append(simp, v)
+		}
+		if len(simp) == 0 {
+			return true, nil
 		}
 		return cb(simp), nil
 	})
