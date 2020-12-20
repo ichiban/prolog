@@ -139,6 +139,46 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
+func Arg(arg, term, value Term, k func() (bool, error)) (bool, error) {
+	c, ok := Resolve(term).(*Compound)
+	if !ok {
+		return false, errors.New("term should be compound")
+	}
+
+	n, ok := Resolve(arg).(Integer)
+	if !ok {
+		a := newAssignment(arg, term, value)
+		for i, t := range c.Args {
+			if arg.Unify(Integer(i+1)) && value.Unify(t) {
+				ok, err := k()
+				if err != nil {
+					if errors.Is(err, errCut) {
+						return ok, err
+					}
+					return false, err
+				}
+				if ok {
+					return true, nil
+				}
+			}
+			a.reset()
+		}
+		return false, nil
+	}
+	if n == 0 || int(n) >= len(c.Args) {
+		return false, nil
+	}
+	if n < 0 {
+		return false, errors.New("arg shouldn't be negative")
+	}
+
+	if !c.Args[int(n)-1].Unify(value) {
+		return false, nil
+	}
+
+	return k()
+}
+
 func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 	var c *Compound
 	for c == nil {

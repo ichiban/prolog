@@ -35,6 +35,7 @@ func NewEngine() (*Engine, error) {
 	e.Register1("compound", TypeCompound)
 	e.Register2("=", Unify)
 	e.Register2("=..", Univ)
+	e.Register3("arg", Arg)
 	e.Register3("functor", Functor)
 	e.Register3("op", e.Op)
 	e.Register3("current_op", e.CurrentOp)
