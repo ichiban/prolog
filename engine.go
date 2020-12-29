@@ -102,9 +102,10 @@ P; Q :- call(Q).
 true.
 false :- a = b.
 
-% not
+% logic and control
 \+P :- call(P), !, false.
 \+P :- true.
+once(P) :- call(P), !.
 
 % not unifiable
 X \= Y :- \+(X = Y).
