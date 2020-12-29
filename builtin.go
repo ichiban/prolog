@@ -242,6 +242,10 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
+func CopyTerm(in, out Term, k func() (bool, error)) (bool, error) {
+	return Unify(in.Copy(), out, k)
+}
+
 func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
 	p, ok := Resolve(precedence).(Integer)
 	if !ok {

@@ -43,6 +43,11 @@ func TestAtom_Unify(t *testing.T) {
 	})
 }
 
+func TestAtom_Copy(t *testing.T) {
+	unit := Atom("foo")
+	assert.Equal(t, unit, unit.Copy())
+}
+
 func TestInteger_Unify(t *testing.T) {
 	unit := Integer(1)
 
@@ -77,6 +82,11 @@ func TestInteger_Unify(t *testing.T) {
 			Args:    []Term{Atom("foo")},
 		}))
 	})
+}
+
+func TestInteger_Copy(t *testing.T) {
+	unit := Integer(1)
+	assert.Equal(t, unit, unit.Copy())
 }
 
 func TestCompound_Unify(t *testing.T) {
