@@ -27,6 +27,7 @@ type Engine struct {
 func NewEngine() (*Engine, error) {
 	var e Engine
 	e.Register0("!", Cut)
+	e.Register0("repeat", Repeat)
 	e.Register1("call", e.Call)
 	e.Register1("assertz", e.Assertz)
 	e.Register1("var", TypeVar)
@@ -166,9 +167,6 @@ func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
 				continue
 			}
 			simp = append(simp, v)
-		}
-		if len(simp) == 0 {
-			return true, nil
 		}
 		return cb(simp), nil
 	})

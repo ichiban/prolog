@@ -374,3 +374,18 @@ func nameArgs(t Term) (string, Term, error) {
 		return "", nil, errors.New("not callable")
 	}
 }
+
+func Repeat(k func() (bool, error)) (bool, error) {
+	for {
+		ok, err := k()
+		if err != nil {
+			if errors.Is(err, errCut) {
+				return ok, err
+			}
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+}

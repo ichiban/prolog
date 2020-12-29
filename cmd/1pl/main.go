@@ -92,15 +92,20 @@ func main() {
 			}
 			log.WithError(err).Error("failed to read line")
 		}
+
 		ok, err := e.Query(line, func(vars []prolog.Variable) bool {
-			ls := make([]string, len(vars))
-			for i, v := range vars {
+			ls := make([]string, 0, len(vars))
+			for _, v := range vars {
 				if v.Ref == nil {
 					continue
 				}
-				ls[i] = e.StringTerm(&v)
+				ls = append(ls, e.StringTerm(&v))
 			}
-			fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
+			if len(ls) == 0 {
+				fmt.Fprintf(t, "%t ", true)
+			} else {
+				fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
+			}
 
 			r, _, err := keys.ReadRune()
 			if err != nil {
@@ -119,6 +124,8 @@ func main() {
 			log.WithError(err).Error("failed to query")
 			continue
 		}
-		fmt.Fprintf(t, "%t\n", ok)
+		if !ok {
+			fmt.Fprintf(t, "%t.\n", false)
+		}
 	}
 }
