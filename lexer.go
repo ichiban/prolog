@@ -159,6 +159,7 @@ func (l *Lexer) args(ctx lexState) lexState {
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.args(ctx))
 		default:
+			l.backup()
 			return l.term(l.args(ctx))
 		}
 	}

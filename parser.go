@@ -106,17 +106,6 @@ func (p *Parser) Clause() (Term, error) {
 }
 
 func (p *Parser) Term() (Term, error) {
-	if _, err := p.accept(TokenSeparator, "("); err == nil {
-		t, err := p.Term()
-		if err != nil {
-			return nil, fmt.Errorf("term: %w", err)
-		}
-		if _, err := p.accept(TokenSeparator, ")"); err != nil {
-			return nil, fmt.Errorf("term: %w", err)
-		}
-		return t, nil
-	}
-
 	return p.expr(1)
 }
 

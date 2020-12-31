@@ -97,6 +97,74 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			},
 		}, c)
 	})
+
+	t.Run("qualifier", func(t *testing.T) {
+		p := NewParser(`bagof(C, A^foo(A, B, C), Cs).`, &operators{
+			{Precedence: 1000, Type: `xfy`, Name: `,`},
+			{Precedence: 200, Type: `xfy`, Name: `^`},
+		})
+
+		c, err := p.Clause()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "bagof",
+			Args: []Term{
+				&Variable{Name: "C"},
+				&Compound{
+					Functor: "^",
+					Args: []Term{
+						&Variable{Name: "A"},
+						&Compound{
+							Functor: "foo",
+							Args: []Term{
+								&Variable{Name: "A"},
+								&Variable{Name: "B"},
+								&Variable{Name: "C"},
+							},
+						},
+					},
+				},
+				&Variable{Name: "Cs"},
+			},
+		}, c)
+	})
+
+	t.Run("multiple qualifiers", func(t *testing.T) {
+		p := NewParser(`bagof(C, (A, B)^foo(A, B, C), Cs).`, &operators{
+			{Precedence: 1000, Type: `xfy`, Name: `,`},
+			{Precedence: 200, Type: `xfy`, Name: `^`},
+		})
+
+		c, err := p.Clause()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "bagof",
+			Args: []Term{
+				&Variable{Name: "C"},
+				&Compound{
+					Functor: "^",
+					Args: []Term{
+						&Compound{
+							Functor: ",",
+							Args: []Term{
+								&Variable{Name: "A"},
+								&Variable{Name: "B"},
+							},
+						},
+						&Compound{
+							Functor: "foo",
+							Args: []Term{
+								&Variable{Name: "A"},
+								&Variable{Name: "B"},
+								&Variable{Name: "C"},
+							},
+						},
+					},
+				},
+				&Variable{Name: "Cs"},
+			},
+		}, c)
+	})
 }
 
 func TestParser_Term(t *testing.T) {

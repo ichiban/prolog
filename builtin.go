@@ -389,3 +389,83 @@ func Repeat(k func() (bool, error)) (bool, error) {
 		}
 	}
 }
+
+func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+	var qualifier, body Variable
+	if goal.Unify(&Compound{
+		Functor: "^",
+		Args:    []Term{&qualifier, &body},
+	}) {
+		goal = body.Ref
+	}
+
+	a := newAssignment(goal)
+
+	freeVariables := newAssignment(template, &qualifier)
+	groupingVariables := make(assignment, 0, len(a))
+	for _, v := range a {
+		if freeVariables.contains(v) {
+			continue
+		}
+		groupingVariables = append(groupingVariables, v)
+	}
+
+	type solution struct {
+		snapshots []Term // snapshot of grouping variable values
+		bag       []Term
+	}
+
+	var solutions []solution
+	_, err := e.Call(goal, func() (bool, error) {
+		snapshots := make([]Term, len(groupingVariables))
+		for i, v := range groupingVariables {
+			snapshots[i] = v.Ref
+		}
+
+	solutions:
+		for i, s := range solutions {
+			for i := range groupingVariables {
+				if Compare(s.snapshots[i], snapshots[i]) != 0 {
+					continue solutions
+				}
+			}
+			solutions[i].bag = append(s.bag, template.Copy())
+			return false, nil // ask for more solutions
+		}
+
+		solutions = append(solutions, solution{
+			snapshots: snapshots,
+			bag:       []Term{template.Copy()},
+		})
+		return false, nil // ask for more solutions
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if len(solutions) == 0 {
+		return false, nil
+	}
+
+	b := newAssignment(bag)
+	for _, s := range solutions {
+		// revert to snapshot
+		for i, v := range groupingVariables {
+			v.Ref = s.snapshots[i]
+		}
+
+		if bag.Unify(List(s.bag...)) {
+			ok, err := k()
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return ok, nil
+			}
+		}
+
+		b.reset()
+	}
+
+	return false, nil
+}

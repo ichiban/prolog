@@ -38,6 +38,7 @@ func NewEngine() (*Engine, error) {
 	e.Register2("=..", Univ)
 	e.Register2("copy_term", CopyTerm)
 	e.Register3("arg", Arg)
+	e.Register3("bagof", e.BagOf)
 	e.Register3("functor", Functor)
 	e.Register3("op", e.Op)
 	e.Register3("current_op", e.CurrentOp)
@@ -622,6 +623,15 @@ func (a assignment) reset() {
 	for _, v := range a {
 		v.Ref = nil
 	}
+}
+
+func (a assignment) contains(v *Variable) bool {
+	for _, e := range a {
+		if e == v {
+			return true
+		}
+	}
+	return false
 }
 
 func done() (bool, error) {

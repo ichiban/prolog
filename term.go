@@ -245,3 +245,59 @@ func Resolve(t Term) Term {
 	}
 	return nil
 }
+
+func Compare(a, b Term) int {
+	switch a := a.(type) {
+	case *Variable:
+		switch b := b.(type) {
+		case *Variable:
+			return strings.Compare(fmt.Sprintf("%p", a), fmt.Sprintf("%p", b))
+		default:
+			return -1
+		}
+	case Integer:
+		switch b := b.(type) {
+		case *Variable:
+			return 1
+		case Integer:
+			return int(a - b)
+		default:
+			return -1
+		}
+	case Atom:
+		switch b := b.(type) {
+		case *Variable, Integer:
+			return 1
+		case Atom:
+			return strings.Compare(string(a), string(b))
+		default:
+			return -1
+		}
+	case *Compound:
+		switch b := b.(type) {
+		case *Compound:
+			d := len(a.Args) - len(b.Args)
+			if d != 0 {
+				return d
+			}
+
+			d = strings.Compare(string(a.Functor), string(b.Functor))
+			if d != 0 {
+				return d
+			}
+
+			for i := range a.Args {
+				d = Compare(a.Args[i], b.Args[i])
+				if d != 0 {
+					return d
+				}
+			}
+
+			return 0
+		default:
+			return 1
+		}
+	default:
+		return 1
+	}
+}
