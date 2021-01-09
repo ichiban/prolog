@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 func (e *Engine) Call(t Term, k func() (bool, error)) (bool, error) {
@@ -425,7 +426,11 @@ func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, 
 	solutions:
 		for i, s := range solutions {
 			for i := range groupingVariables {
-				if Compare(s.snapshots[i], snapshots[i]) != 0 {
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], done)
+				if err != nil {
+					return false, err
+				}
+				if !ok {
 					continue solutions
 				}
 			}
@@ -468,4 +473,103 @@ func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, 
 	}
 
 	return false, nil
+}
+
+func Compare(order, term1, term2 Term, k func() (bool, error)) (bool, error) {
+	switch a := term1.(type) {
+	case *Variable:
+		switch b := term2.(type) {
+		case *Variable:
+			d := strings.Compare(fmt.Sprintf("%p", a), fmt.Sprintf("%p", b))
+			switch {
+			case d < 0:
+				return Unify(Atom("<"), order, k)
+			case d == 0:
+				return Unify(Atom("="), order, k)
+			case d > 0:
+				return Unify(Atom(">"), order, k)
+			default:
+				return false, errors.New("unreachable")
+			}
+		default:
+			return Unify(Atom("<"), order, k)
+		}
+	case Integer:
+		switch b := term2.(type) {
+		case *Variable:
+			return Unify(Atom(">"), order, k)
+		case Integer:
+			d := a - b
+			switch {
+			case d < 0:
+				return Unify(Atom("<"), order, k)
+			case d == 0:
+				return Unify(Atom("="), order, k)
+			case d > 0:
+				return Unify(Atom(">"), order, k)
+			default:
+				return false, errors.New("unreachable")
+			}
+		default:
+			return Unify(Atom("<"), order, k)
+		}
+	case Atom:
+		switch b := term2.(type) {
+		case *Variable, Integer:
+			return Unify(Atom(">"), order, k)
+		case Atom:
+			d := strings.Compare(string(a), string(b))
+			switch {
+			case d < 0:
+				return Unify(Atom("<"), order, k)
+			case d == 0:
+				return Unify(Atom("="), order, k)
+			case d > 0:
+				return Unify(Atom(">"), order, k)
+			default:
+				return false, errors.New("unreachable")
+			}
+		default:
+			return Unify(Atom("<"), order, k)
+		}
+	case *Compound:
+		switch b := term2.(type) {
+		case *Compound:
+			d := len(a.Args) - len(b.Args)
+			switch {
+			case d < 0:
+				return Unify(Atom("<"), order, k)
+			case d > 0:
+				return Unify(Atom(">"), order, k)
+			}
+
+			d = strings.Compare(string(a.Functor), string(b.Functor))
+			switch {
+			case d < 0:
+				return Unify(Atom("<"), order, k)
+			case d > 0:
+				return Unify(Atom(">"), order, k)
+			}
+
+			for i := range a.Args {
+				var o Variable
+				ok, err := Compare(&o, a.Args[i], b.Args[i], done)
+				if err != nil {
+					return false, err
+				}
+				if !ok {
+					return false, nil
+				}
+				if !o.Unify(Atom("=")) {
+					return Unify(&o, order, k)
+				}
+			}
+
+			return Unify(Atom("="), order, k)
+		default:
+			return Unify(Atom(">"), order, k)
+		}
+	default:
+		return Unify(Atom(">"), order, k)
+	}
 }

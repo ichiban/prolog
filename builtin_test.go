@@ -122,3 +122,122 @@ foo(c, c, g).
 		}, vars[0])
 	})
 }
+
+func TestCompare(t *testing.T) {
+	var vs [2]Variable
+	ok, err := Compare(Atom("<"), &vs[0], &vs[1], done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("="), &vs[0], &vs[0], done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &vs[1], &vs[0], done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Variable{}, Integer(0), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Variable{}, Atom(""), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Variable{}, &Compound{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), Integer(0), &Variable{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), Integer(0), Integer(1), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("="), Integer(0), Integer(0), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), Integer(1), Integer(0), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), Integer(0), Atom(""), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), Integer(0), &Compound{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), Atom(""), &Variable{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), Atom(""), Integer(0), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), Atom("a"), Atom("b"), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("="), Atom("a"), Atom("a"), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), Atom("b"), Atom("a"), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), Atom(""), &Compound{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{}, &Variable{}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{}, Integer(0), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{}, Atom(""), done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Compound{Functor: "a"}, &Compound{Functor: "b"}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("="), &Compound{Functor: "a"}, &Compound{Functor: "a"}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{Functor: "b"}, &Compound{Functor: "a"}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f"}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("="), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Compound{Functor: "f"}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("b")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = Compare(Atom("<"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("b")}}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}

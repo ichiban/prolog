@@ -41,6 +41,7 @@ func NewEngine() (*Engine, error) {
 	e.Register3("bagof", e.BagOf)
 	e.Register3("functor", Functor)
 	e.Register3("op", e.Op)
+	e.Register3("compare", Compare)
 	e.Register3("current_op", e.CurrentOp)
 	err := e.Load(`
 /*
@@ -110,12 +111,6 @@ once(P) :- call(P), !.
 
 % not unifiable
 X \= Y :- \+(X = Y).
-
-% type testing
-atomic(X) :- atom(X).
-atomic(X) :- integer(X).
-nonvar(X) :- \+var(X).
-number(X) :- integer(X).
 `)
 	return &e, err
 }
