@@ -137,6 +137,12 @@ func TestCompare(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
+	vs[0].Ref = Atom("b")
+	vs[1].Ref = Atom("a")
+	ok, err = Compare(Atom(">"), &vs[0], &vs[1], done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
 	ok, err = Compare(Atom("<"), &Variable{}, Integer(0), done)
 	assert.NoError(t, err)
 	assert.True(t, ok)

@@ -111,6 +111,16 @@ once(P) :- call(P), !.
 
 % not unifiable
 X \= Y :- \+(X = Y).
+
+% term comparison
+X == Y :- compare(=, X, Y).
+X \== Y :- \+(X == Y).
+X @< Y :- compare(<, X, Y).
+X @=< Y :- compare(=, X, Y).
+X @=< Y :- compare(<, X, Y).
+X @> Y :- compare(>, X, Y).
+X @>= Y :- compare(>, X, Y).
+X @>= Y :- compare(=, X, Y).
 `)
 	return &e, err
 }

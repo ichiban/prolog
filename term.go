@@ -240,6 +240,9 @@ func Resolve(t Term) Term {
 		case Atom, Integer, *Compound:
 			return v
 		case *Variable:
+			if v.Ref == nil {
+				return v
+			}
 			t = v.Ref
 		}
 	}

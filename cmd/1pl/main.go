@@ -96,7 +96,7 @@ func main() {
 		ok, err := e.Query(line, func(vars []prolog.Variable) bool {
 			ls := make([]string, 0, len(vars))
 			for _, v := range vars {
-				if prolog.Resolve(v.Ref) == nil {
+				if _, ok := prolog.Resolve(v.Ref).(*prolog.Variable); ok {
 					continue
 				}
 				ls = append(ls, e.StringTerm(&v))
