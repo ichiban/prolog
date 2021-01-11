@@ -105,6 +105,11 @@ true.
 false :- a = b.
 fail :- false.
 
+% if then else
+If -> Then; Else :- call(If), !, call(Then).
+If -> Then; Else :- !, call(Else).
+If -> Then :- call(If), !, call(Then).
+
 % logic and control
 \+P :- call(P), !, false.
 \+P :- true.
