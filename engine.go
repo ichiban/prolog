@@ -103,6 +103,7 @@ P; Q :- call(Q).
 % true/false
 true.
 false :- a = b.
+fail :- false.
 
 % logic and control
 \+P :- call(P), !, false.
