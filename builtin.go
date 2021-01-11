@@ -545,3 +545,29 @@ func compare(a, b Term) int64 {
 		return 1
 	}
 }
+
+type Exception struct {
+	Term
+}
+
+func (e *Exception) Error() string {
+	return e.String()
+}
+
+func Throw(t Term, _ func() (bool, error)) (bool, error) {
+	return false, &Exception{Term: Resolve(t).Copy()}
+}
+
+func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
+	ok, err := e.Call(goal, done)
+	if err != nil {
+		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term) {
+			return e.Call(recover, k)
+		}
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return k()
+}

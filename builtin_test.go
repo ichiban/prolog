@@ -247,3 +247,48 @@ func TestCompare(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
+
+func TestThrow(t *testing.T) {
+	ok, err := Throw(Atom("a"), done)
+	assert.Equal(t, &Exception{Term: Atom("a")}, err)
+	assert.False(t, ok)
+}
+
+func TestEngine_Catch(t *testing.T) {
+	e, err := NewEngine()
+	assert.NoError(t, err)
+
+	t.Run("match", func(t *testing.T) {
+		var v Variable
+		ok, err := e.Catch(&Compound{
+			Functor: "throw",
+			Args:    []Term{Atom("a")},
+		}, &v, &Compound{
+			Functor: "=",
+			Args:    []Term{&v, Atom("a")},
+		}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("not match", func(t *testing.T) {
+		ok, err := e.Catch(&Compound{
+			Functor: "throw",
+			Args:    []Term{Atom("a")},
+		}, Atom("b"), Atom("fail"), done)
+		assert.Equal(t, &Exception{Term: Atom("a")}, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("true", func(t *testing.T) {
+		ok, err := e.Catch(Atom("true"), Atom("b"), Atom("fail"), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("false", func(t *testing.T) {
+		ok, err := e.Catch(Atom("fail"), Atom("b"), Atom("fail"), done)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+}

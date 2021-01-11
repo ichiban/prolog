@@ -7,6 +7,7 @@ import (
 )
 
 type Term interface {
+	fmt.Stringer
 	TermString(operators) string
 	Unify(Term) bool
 	Copy() Term
