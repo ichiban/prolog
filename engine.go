@@ -130,6 +130,8 @@ X @=< Y :- compare(<, X, Y).
 X @> Y :- compare(>, X, Y).
 X @>= Y :- compare(>, X, Y).
 X @>= Y :- compare(=, X, Y).
+
+nonvar(X) :- \+var(X).
 `)
 	return &e, err
 }
