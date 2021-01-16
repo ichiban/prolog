@@ -36,6 +36,7 @@ func NewEngine() (*Engine, error) {
 	e.Register1("compound", TypeCompound)
 	e.Register1("throw", Throw)
 	e.Register2("=", Unify)
+	e.Register2("unify_with_occurs_check", UnifyWithOccursCheck)
 	e.Register2("=..", Univ)
 	e.Register2("copy_term", CopyTerm)
 	e.Register3("arg", Arg)
@@ -159,9 +160,9 @@ func (e *Engine) Load(s string) error {
 	}
 }
 
-func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
+func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
 	if cb == nil {
-		cb = func([]Variable) bool { return true }
+		cb = func([]*Variable) bool { return true }
 	}
 
 	t, err := NewParser(s, &e.operators).Clause()
@@ -172,18 +173,7 @@ func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
 	a := newAssignment(t)
 
 	ok, err := e.Call(t, func() (bool, error) {
-		simp := make([]Variable, 0, len(a))
-		for _, v := range a {
-			v := Variable{
-				Name: v.Name,
-				Ref:  Simplify(v.Ref),
-			}
-			if v.Ref == nil {
-				continue
-			}
-			simp = append(simp, v)
-		}
-		return cb(simp), nil
+		return cb(a), nil
 	})
 	if err != nil {
 		if errors.Is(err, errCut) {
@@ -195,7 +185,8 @@ func (e *Engine) Query(s string, cb func([]Variable) bool) (bool, error) {
 }
 
 func (e *Engine) StringTerm(t Term) string {
-	return t.TermString(e.operators)
+	var stop []*Variable
+	return t.TermString(e.operators, &stop)
 }
 
 func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
@@ -255,7 +246,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			log.Debug("const")
 			x := xr[pc[1]]
 			var arest Variable
-			if !args.Unify(Cons(x, &arest)) {
+			if !args.Unify(Cons(x, &arest), false) {
 				return false, nil
 			}
 			pc = pc[2:]
@@ -264,7 +255,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			log.Debug("var")
 			v := vars[pc[1]]
 			var arest Variable
-			if !args.Unify(Cons(v, &arest)) {
+			if !args.Unify(Cons(v, &arest), false) {
 				return false, nil
 			}
 			pc = pc[2:]
@@ -273,14 +264,14 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			log.Debug("functor")
 			x := xr[pc[1]]
 			var arg, arest Variable
-			if !args.Unify(Cons(&arg, &arest)) {
+			if !args.Unify(Cons(&arg, &arest), false) {
 				return false, nil
 			}
 			var fatom, farity Variable
 			if !x.Unify(&Compound{
 				Functor: "/",
 				Args:    []Term{&fatom, &farity},
-			}) {
+			}, false) {
 				return false, nil
 			}
 			ok, err := Functor(&arg, &fatom, &farity, done)
@@ -302,22 +293,22 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			astack = Cons(&arest, astack)
 		case opPop:
 			log.Debug("pop")
-			if !args.Unify(List()) {
+			if !args.Unify(List(), false) {
 				return false, nil
 			}
 			pc = pc[1:]
 			var a, arest Variable
-			if !astack.Unify(Cons(&a, &arest)) {
+			if !astack.Unify(Cons(&a, &arest), false) {
 				return false, nil
 			}
 			args = &a
 			astack = &arest
 		case opEnter:
 			log.Debug("enter")
-			if !args.Unify(List()) {
+			if !args.Unify(List(), false) {
 				return false, nil
 			}
-			if !astack.Unify(List()) {
+			if !astack.Unify(List(), false) {
 				return false, nil
 			}
 			pc = pc[1:]
@@ -327,11 +318,12 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 		case opCall:
 			log.Debug("call")
 			x := xr[pc[1]]
-			if !args.Unify(List()) {
+			if !args.Unify(List(), false) {
 				return false, nil
 			}
 			pc = pc[2:]
-			return e.arrive(x.TermString(e.operators), astack, func() (bool, error) {
+			var stop []*Variable
+			return e.arrive(x.TermString(e.operators, &stop), astack, func() (bool, error) {
 				var v Variable
 				return e.exec(pc, xr, vars, k, &v, &v)
 			})
@@ -499,7 +491,7 @@ func (c *clause) compileArg(a Term) error {
 
 func (c *clause) xrOffset(o Term) byte {
 	for i, r := range c.xrTable {
-		if r.Unify(o) {
+		if r.Unify(o, false) {
 			return byte(i)
 		}
 	}
@@ -553,7 +545,7 @@ func (b bytecode) String() string {
 type predicate0 func(func() (bool, error)) (bool, error)
 
 func (p predicate0) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
-	if !args.Unify(List()) {
+	if !args.Unify(List(), false) {
 		return false, errors.New("wrong number of arguments")
 	}
 
@@ -566,7 +558,7 @@ type predicate1 func(Term, func() (bool, error)) (bool, error)
 
 func (p predicate1) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1 Variable
-	if !args.Unify(List(&v1)) {
+	if !args.Unify(List(&v1), false) {
 		return false, fmt.Errorf("wrong number of arguments: %s", args)
 	}
 
@@ -579,7 +571,7 @@ type predicate2 func(Term, Term, func() (bool, error)) (bool, error)
 
 func (p predicate2) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2 Variable
-	if !args.Unify(List(&v1, &v2)) {
+	if !args.Unify(List(&v1, &v2), false) {
 		return false, errors.New("wrong number of arguments")
 	}
 
@@ -592,7 +584,7 @@ type predicate3 func(Term, Term, Term, func() (bool, error)) (bool, error)
 
 func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2, v3 Variable
-	if !args.Unify(List(&v1, &v2, &v3)) {
+	if !args.Unify(List(&v1, &v2, &v3), false) {
 		return false, errors.New("wrong number of arguments")
 	}
 

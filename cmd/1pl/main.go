@@ -59,7 +59,7 @@ func main() {
 		log.Panic(err)
 	}
 	e.Register1("version", func(term prolog.Term, k func() (bool, error)) (bool, error) {
-		if !term.Unify(prolog.Atom(Version)) {
+		if !term.Unify(prolog.Atom(Version), false) {
 			return false, nil
 		}
 		return k()
@@ -93,13 +93,13 @@ func main() {
 			log.WithError(err).Error("failed to read line")
 		}
 
-		ok, err := e.Query(line, func(vars []prolog.Variable) bool {
+		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
 			ls := make([]string, 0, len(vars))
 			for _, v := range vars {
-				if _, ok := prolog.Resolve(v.Ref).(*prolog.Variable); ok {
+				if _, ok := prolog.Resolve(v).(*prolog.Variable); ok {
 					continue
 				}
-				ls = append(ls, e.StringTerm(&v))
+				ls = append(ls, e.StringTerm(v))
 			}
 			if len(ls) == 0 {
 				fmt.Fprintf(t, "%t ", true)

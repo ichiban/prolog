@@ -29,7 +29,18 @@ func Cut(k func() (bool, error)) (bool, error) {
 }
 
 func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
-	if !t1.Unify(t2) {
+	a := newAssignment(t1, t2)
+	if !t1.Unify(t2, false) {
+		a.reset()
+		return false, nil
+	}
+	return k()
+}
+
+func UnifyWithOccursCheck(t1, t2 Term, k func() (bool, error)) (bool, error) {
+	a := newAssignment(t1, t2)
+	if !t1.Unify(t2, true) {
+		a.reset()
 		return false, nil
 	}
 	return k()
@@ -68,7 +79,7 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	for v == nil {
 		switch t := term.(type) {
 		case Atom:
-			if !t.Unify(name) || !Integer(0).Unify(arity) {
+			if !t.Unify(name, false) || !Integer(0).Unify(arity, false) {
 				return false, nil
 			}
 			return k()
@@ -79,7 +90,7 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 			}
 			term = t.Ref
 		case *Compound:
-			if !t.Functor.Unify(name) || !Integer(len(t.Args)).Unify(arity) {
+			if !t.Functor.Unify(name, false) || !Integer(len(t.Args)).Unify(arity, false) {
 				return false, nil
 			}
 			return k()
@@ -119,7 +130,7 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	}
 
 	if *a == 0 {
-		if !v.Unify(*a) {
+		if !v.Unify(*a, false) {
 			return false, nil
 		}
 		return k()
@@ -134,7 +145,7 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 	if !v.Unify(&Compound{
 		Functor: *n,
 		Args:    vars,
-	}) {
+	}, false) {
 		return false, nil
 	}
 	return k()
@@ -150,7 +161,7 @@ func Arg(arg, term, value Term, k func() (bool, error)) (bool, error) {
 	if !ok {
 		a := newAssignment(arg, term, value)
 		for i, t := range c.Args {
-			if arg.Unify(Integer(i+1)) && value.Unify(t) {
+			if arg.Unify(Integer(i+1), false) && value.Unify(t, false) {
 				ok, err := k()
 				if err != nil {
 					if errors.Is(err, errCut) {
@@ -173,7 +184,7 @@ func Arg(arg, term, value Term, k func() (bool, error)) (bool, error) {
 		return false, errors.New("arg shouldn't be negative")
 	}
 
-	if !c.Args[int(n)-1].Unify(value) {
+	if !c.Args[int(n)-1].Unify(value, false) {
 		return false, nil
 	}
 
@@ -187,7 +198,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 		case *Variable:
 			if t.Ref == nil {
 				var car, cdr Variable
-				if !list.Unify(Cons(&car, &cdr)) {
+				if !list.Unify(Cons(&car, &cdr), false) {
 					return false, errors.New("invalid argument")
 				}
 				var f *Atom
@@ -210,7 +221,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 				var args []Term
 				for list != Atom("[]") {
 					var car, cdr Variable
-					if !list.Unify(Cons(&car, &cdr)) {
+					if !list.Unify(Cons(&car, &cdr), false) {
 						return false, errors.New("invalid argument")
 					}
 					args = append(args, car.Ref)
@@ -220,7 +231,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 				if !term.Unify(&Compound{
 					Functor: *f,
 					Args:    args,
-				}) {
+				}, false) {
 					return false, nil
 				}
 				return k()
@@ -237,7 +248,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 	for i := len(c.Args) - 1; i >= 0; i-- {
 		l = Cons(c.Args[i], l)
 	}
-	if !list.Unify(Cons(c.Functor, l)) {
+	if !list.Unify(Cons(c.Functor, l), false) {
 		return false, nil
 	}
 	return k()
@@ -299,7 +310,7 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 	a := newAssignment(precedence, typ, name)
 
 	for _, op := range e.operators {
-		if op.Precedence.Unify(precedence) && op.Type.Unify(typ) && op.Name.Unify(name) {
+		if op.Precedence.Unify(precedence, false) && op.Type.Unify(typ, false) && op.Name.Unify(name, false) {
 			ok, err := k()
 			if err != nil {
 				if errors.Is(err, errCut) {
@@ -326,7 +337,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 	switch name {
 	case ":-/1": // directive
 		var d Variable
-		args.Unify(Cons(&d, &Variable{}))
+		args.Unify(Cons(&d, &Variable{}), false)
 		name, args, err := nameArgs(&d)
 		if err != nil {
 			return false, err
@@ -338,7 +349,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 		return ok, nil
 	case ":-/2":
 		var h Variable
-		args.Unify(Cons(&h, &Variable{}))
+		args.Unify(Cons(&h, &Variable{}), false)
 		name, _, err = nameArgs(&h)
 		if err != nil {
 			return false, err
@@ -396,7 +407,7 @@ func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, 
 	if goal.Unify(&Compound{
 		Functor: "^",
 		Args:    []Term{&qualifier, &body},
-	}) {
+	}, false) {
 		goal = body.Ref
 	}
 
@@ -459,7 +470,7 @@ func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, 
 			v.Ref = s.snapshots[i]
 		}
 
-		if bag.Unify(List(s.bag...)) {
+		if bag.Unify(List(s.bag...), false) {
 			ok, err := k()
 			if err != nil {
 				return false, err
@@ -561,7 +572,7 @@ func Throw(t Term, _ func() (bool, error)) (bool, error) {
 func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
 	ok, err := e.Call(goal, done)
 	if err != nil {
-		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term) {
+		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
 			return e.Call(recover, k)
 		}
 		return false, err

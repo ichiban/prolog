@@ -125,11 +125,11 @@ func TestEngine_Query(t *testing.T) {
 	}
 
 	t.Run("fact", func(t *testing.T) {
-		ok, err := e.Query(`append(X, Y, Z).`, func(vars []Variable) bool {
+		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {
 			assert.Len(t, vars, 3)
-			assert.Equal(t, Variable{Name: "X", Ref: Atom("nil")}, vars[0])
-			assert.Equal(t, Variable{Name: "Y", Ref: &Variable{}}, vars[1]) // TODO: it should be Y = Z
-			assert.Equal(t, Variable{Name: "Z", Ref: &Variable{}}, vars[2])
+			assert.Equal(t, &Variable{Name: "X", Ref: Atom("nil")}, vars[0])
+			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{}}, vars[1]) // TODO: it should be Y = Z
+			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{Ref: &Variable{}}}, vars[2])
 			return true
 		})
 		assert.NoError(t, err)
@@ -137,21 +137,43 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars []Variable) bool {
+		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars []*Variable) bool {
 			assert.Len(t, vars, 1)
-			assert.Equal(t, Variable{
+			assert.Equal(t, &Variable{
 				Name: "X",
-				Ref: &Compound{
-					Functor: "cons",
-					Args: []Term{
-						Atom("a"),
-						&Compound{
-							Functor: "cons",
-							Args: []Term{
-								Atom("b"),
-								&Compound{
-									Functor: "cons",
-									Args:    []Term{Atom("c"), Atom("nil")},
+				Ref: &Variable{
+					Ref: &Compound{
+						Functor: "cons",
+						Args: []Term{
+							&Variable{
+								Ref: &Variable{
+									Ref: Atom("a"),
+								},
+							},
+							&Variable{
+								Ref: &Variable{
+									Ref: &Variable{
+										Ref: &Compound{
+											Functor: "cons",
+											Args: []Term{
+												&Variable{
+													Ref: &Variable{
+														Ref: Atom("b"),
+													},
+												},
+												&Variable{
+													Ref: &Variable{
+														Ref: &Variable{
+															Ref: &Compound{
+																Functor: "cons",
+																Args:    []Term{Atom("c"), Atom("nil")},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 							},
 						},

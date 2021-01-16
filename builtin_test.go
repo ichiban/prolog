@@ -53,73 +53,120 @@ foo(c, c, g).
 `))
 
 	t.Run("without qualifier", func(t *testing.T) {
-		var vars [][]Variable
-		ok, err := e.Query(`bagof(C, foo(A, B, C), Cs).`, func(vs []Variable) bool {
-			vars = append(vars, vs)
+		var c int
+		ok, err := e.Query(`bagof(C, foo(A, B, C), Cs).`, func(vs []*Variable) bool {
+			switch c {
+			case 0:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A", Ref: Atom("a")},
+					{Name: "B", Ref: Atom("b")},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("c")}},
+							&Variable{Ref: &Variable{Ref: Atom("d")}},
+						),
+					}},
+				}, vs)
+			case 1:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A", Ref: Atom("b")},
+					{Name: "B", Ref: Atom("c")},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("e")}},
+							&Variable{Ref: &Variable{Ref: Atom("f")}},
+						),
+					}},
+				}, vs)
+			case 2:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A", Ref: Atom("c")},
+					{Name: "B", Ref: Atom("c")},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("g")}},
+						),
+					}},
+				}, vs)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
 			return false
 		})
 		assert.NoError(t, err)
 		assert.False(t, ok)
-
-		assert.Len(t, vars, 3)
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "A", Ref: Atom("a")},
-			{Name: "B", Ref: Atom("b")},
-			{Name: "Cs", Ref: List(Atom("c"), Atom("d"))},
-		}, vars[0])
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "A", Ref: Atom("b")},
-			{Name: "B", Ref: Atom("c")},
-			{Name: "Cs", Ref: List(Atom("e"), Atom("f"))},
-		}, vars[1])
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "A", Ref: Atom("c")},
-			{Name: "B", Ref: Atom("c")},
-			{Name: "Cs", Ref: List(Atom("g"))},
-		}, vars[2])
 	})
 
 	t.Run("with qualifier", func(t *testing.T) {
-		var vars [][]Variable
-		ok, err := e.Query(`bagof(C, A^foo(A, B, C), Cs).`, func(vs []Variable) bool {
-			vars = append(vars, vs)
+		var c int
+		ok, err := e.Query(`bagof(C, A^foo(A, B, C), Cs).`, func(vs []*Variable) bool {
+			switch c {
+			case 0:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A", Ref: &Variable{}},
+					{Name: "B", Ref: Atom("b")},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("c")}},
+							&Variable{Ref: &Variable{Ref: Atom("d")}},
+						),
+					}},
+				}, vs)
+			case 1:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A", Ref: &Variable{}},
+					{Name: "B", Ref: Atom("c")},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("e")}},
+							&Variable{Ref: &Variable{Ref: Atom("f")}},
+							&Variable{Ref: &Variable{Ref: Atom("g")}},
+						),
+					}},
+				}, vs)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
 			return false
 		})
 		assert.NoError(t, err)
 		assert.False(t, ok)
-
-		assert.Len(t, vars, 2)
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "A", Ref: &Variable{}},
-			{Name: "B", Ref: Atom("b")},
-			{Name: "Cs", Ref: List(Atom("c"), Atom("d"))},
-		}, vars[0])
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "A", Ref: &Variable{}},
-			{Name: "B", Ref: Atom("c")},
-			{Name: "Cs", Ref: List(Atom("e"), Atom("f"), Atom("g"))},
-		}, vars[1])
 	})
 
 	t.Run("with multiple qualifiers", func(t *testing.T) {
-		var vars [][]Variable
-		ok, err := e.Query(`bagof(C, (A, B)^foo(A, B, C), Cs).`, func(vs []Variable) bool {
-			vars = append(vars, vs)
+		var c int
+		ok, err := e.Query(`bagof(C, (A, B)^foo(A, B, C), Cs).`, func(vs []*Variable) bool {
+			switch c {
+			case 0:
+				assert.Equal(t, []*Variable{
+					{Name: "C", Ref: &Variable{}},
+					{Name: "A"},
+					{Name: "B"},
+					{Name: "Cs", Ref: &Variable{
+						Ref: List(
+							&Variable{Ref: &Variable{Ref: Atom("c")}},
+							&Variable{Ref: &Variable{Ref: Atom("d")}},
+							&Variable{Ref: &Variable{Ref: Atom("e")}},
+							&Variable{Ref: &Variable{Ref: Atom("f")}},
+							&Variable{Ref: &Variable{Ref: Atom("g")}},
+						),
+					}},
+				}, vs)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
 			return false
 		})
 		assert.NoError(t, err)
 		assert.False(t, ok)
-
-		assert.Len(t, vars, 1)
-		assert.Equal(t, []Variable{
-			{Name: "C", Ref: &Variable{}},
-			{Name: "Cs", Ref: List(Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"))},
-		}, vars[0])
 	})
 }
 
@@ -291,4 +338,14 @@ func TestEngine_Catch(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
+}
+
+func TestUnifyWithOccursCheck(t *testing.T) {
+	v := Variable{Name: "X"}
+	ok, err := UnifyWithOccursCheck(&v, &Compound{
+		Functor: "f",
+		Args:    []Term{&v},
+	}, done)
+	assert.NoError(t, err)
+	assert.False(t, ok)
 }

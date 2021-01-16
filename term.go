@@ -8,27 +8,27 @@ import (
 
 type Term interface {
 	fmt.Stringer
-	TermString(operators) string
-	Unify(Term) bool
+	TermString(operators, *[]*Variable) string
+	Unify(Term, bool) bool
 	Copy() Term
 }
 
 type Atom string
 
 func (a Atom) String() string {
-	return a.TermString(nil)
+	return a.TermString(nil, nil)
 }
 
-func (a Atom) TermString(operators) string {
+func (a Atom) TermString(operators, *[]*Variable) string {
 	return string(a)
 }
 
-func (a Atom) Unify(t Term) bool {
+func (a Atom) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case Atom:
 		return a == t
 	case *Variable:
-		return t.Unify(a)
+		return t.Unify(a, occursCheck)
 	default:
 		return false
 	}
@@ -41,19 +41,19 @@ func (a Atom) Copy() Term {
 type Integer int64
 
 func (i Integer) String() string {
-	return i.TermString(nil)
+	return i.TermString(nil, nil)
 }
 
-func (i Integer) TermString(operators) string {
+func (i Integer) TermString(operators, *[]*Variable) string {
 	return strconv.FormatInt(int64(i), 10)
 }
 
-func (i Integer) Unify(t Term) bool {
+func (i Integer) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case Integer:
 		return i == t
 	case *Variable:
-		return t.Unify(i)
+		return t.Unify(i, occursCheck)
 	default:
 		return false
 	}
@@ -69,23 +69,38 @@ type Variable struct {
 }
 
 func (v *Variable) String() string {
-	return v.TermString(nil)
+	var stop []*Variable
+	return v.TermString(nil, &stop)
 }
 
-func (v *Variable) TermString(os operators) string {
+func (v *Variable) TermString(os operators, stop *[]*Variable) string {
 	name := v.Name
 	if name == "" {
+		if v.Ref != nil {
+			return v.Ref.TermString(os, stop)
+		}
 		name = fmt.Sprintf("_%p", v)
 	}
 	if v.Ref == nil {
 		return name
 	}
-	return fmt.Sprintf("%s = %s", name, v.Ref.TermString(os))
+	if stop != nil {
+		for _, s := range *stop {
+			if v == s {
+				return name
+			}
+		}
+	}
+	*stop = append(*stop, v)
+	return fmt.Sprintf("%s = %s", name, v.Ref.TermString(os, stop))
 }
 
-func (v *Variable) Unify(t Term) bool {
+func (v *Variable) Unify(t Term, occursCheck bool) bool {
+	if occursCheck && Contains(t, v) {
+		return false
+	}
 	if v.Ref != nil {
-		return v.Ref.Unify(t)
+		return v.Ref.Unify(t, occursCheck)
 	}
 	if w, ok := t.(*Variable); ok && w.Ref == nil {
 		t = &Variable{}
@@ -108,10 +123,13 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
-	return c.TermString([]operator{{Precedence: 400, Type: "yfx", Name: "/"}}) // for principal functors
+	var stop []*Variable
+	return c.TermString([]operator{
+		{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
+	}, &stop)
 }
 
-func (c *Compound) TermString(os operators) string {
+func (c *Compound) TermString(os operators, stop *[]*Variable) string {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		t := Term(c)
 		var (
@@ -120,14 +138,14 @@ func (c *Compound) TermString(os operators) string {
 		)
 		for {
 			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-				elems = append(elems, l.Args[0].TermString(os))
+				elems = append(elems, l.Args[0].TermString(os, stop))
 				t = l.Args[1]
 				continue
 			}
 			if a, ok := t.(Atom); ok && a == "[]" {
 				break
 			}
-			rest = "|" + t.TermString(os)
+			rest = "|" + t.TermString(os, stop)
 			break
 		}
 		return fmt.Sprintf("[%s%s]", strings.Join(elems, ", "), rest)
@@ -141,9 +159,9 @@ func (c *Compound) TermString(os operators) string {
 			}
 			switch o.Type {
 			case `xf`, `yf`:
-				return fmt.Sprintf("%s%s", c.Args[0].TermString(os), c.Functor.TermString(os))
+				return fmt.Sprintf("%s%s", c.Args[0].TermString(os, stop), c.Functor.TermString(os, stop))
 			case `fx`, `fy`:
-				return fmt.Sprintf("%s%s", c.Functor.TermString(os), c.Args[0].TermString(os))
+				return fmt.Sprintf("%s%s", c.Functor.TermString(os, stop), c.Args[0].TermString(os, stop))
 			}
 		}
 	case 2:
@@ -153,19 +171,19 @@ func (c *Compound) TermString(os operators) string {
 			}
 			switch o.Type {
 			case `xfx`, `xfy`, `yfx`:
-				return fmt.Sprintf("%s%s%s", c.Args[0].TermString(os), c.Functor.TermString(os), c.Args[1].TermString(os))
+				return fmt.Sprintf("%s%s%s", c.Args[0].TermString(os, stop), c.Functor.TermString(os, stop), c.Args[1].TermString(os, stop))
 			}
 		}
 	}
 
 	args := make([]string, len(c.Args))
 	for i, arg := range c.Args {
-		args[i] = arg.TermString(os)
+		args[i] = arg.TermString(os, stop)
 	}
-	return fmt.Sprintf("%s(%s)", c.Functor.TermString(os), strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", c.Functor.TermString(os, stop), strings.Join(args, ", "))
 }
 
-func (c *Compound) Unify(t Term) bool {
+func (c *Compound) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case *Compound:
 		if c.Functor != t.Functor {
@@ -175,13 +193,13 @@ func (c *Compound) Unify(t Term) bool {
 			return false
 		}
 		for i := range c.Args {
-			if !c.Args[i].Unify(t.Args[i]) {
+			if !c.Args[i].Unify(t.Args[i], occursCheck) {
 				return false
 			}
 		}
 		return true
 	case *Variable:
-		return t.Unify(c)
+		return t.Unify(c, occursCheck)
 	default:
 		return false
 	}
@@ -217,25 +235,8 @@ func ListRest(rest Term, ts ...Term) Term {
 	return l
 }
 
-func Simplify(t Term) Term {
-	switch t := t.(type) {
-	case *Variable:
-		if t.Ref == nil {
-			return t
-		}
-		return Simplify(t.Ref)
-	case *Compound:
-		args := make([]Term, len(t.Args))
-		for i := range args {
-			args[i] = Simplify(t.Args[i])
-		}
-		return &Compound{Functor: t.Functor, Args: args}
-	default:
-		return t
-	}
-}
-
 func Resolve(t Term) Term {
+	var stop []*Variable
 	for t != nil {
 		switch v := t.(type) {
 		case Atom, Integer, *Compound:
@@ -244,8 +245,39 @@ func Resolve(t Term) Term {
 			if v.Ref == nil {
 				return v
 			}
+			for _, s := range stop {
+				if v == s {
+					return v
+				}
+			}
+			stop = append(stop, v)
 			t = v.Ref
 		}
 	}
 	return nil
+}
+
+func Contains(t, s Term) bool {
+	switch t := t.(type) {
+	case *Variable:
+		if t == s {
+			return true
+		}
+		if t.Ref == nil {
+			return false
+		}
+		return Contains(t.Ref, s)
+	case *Compound:
+		if s, ok := s.(Atom); ok && t.Functor == s {
+			return true
+		}
+		for _, a := range t.Args {
+			if Contains(a, s) {
+				return true
+			}
+		}
+		return false
+	default:
+		return t == s
+	}
 }
