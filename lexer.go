@@ -60,9 +60,10 @@ type TokenKind byte
 
 const (
 	TokenEOS TokenKind = iota
-	TokenAtom
-	TokenInteger
 	TokenVariable
+	TokenFloat
+	TokenInteger
+	TokenAtom
 	TokenSeparator
 )
 
@@ -70,12 +71,14 @@ func (k TokenKind) String() string {
 	switch k {
 	case TokenEOS:
 		return "eos"
-	case TokenAtom:
-		return "atom"
-	case TokenInteger:
-		return "integer"
 	case TokenVariable:
 		return "variable"
+	case TokenFloat:
+		return "float"
+	case TokenInteger:
+		return "integer"
+	case TokenAtom:
+		return "atom"
 	case TokenSeparator:
 		return "separator"
 	default:
@@ -202,11 +205,42 @@ func (l *Lexer) atom(start int, ctx lexState) lexState {
 	}
 }
 
+func (l *Lexer) decimal(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case unicode.IsNumber(r):
+			return l.float(start, ctx)
+		default:
+			l.backup()
+			val := l.input[start : pos-1]
+			l.emit(Token{Kind: TokenInteger, Val: val})
+			l.emit(Token{Kind: TokenSeparator, Val: "."})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) float(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case unicode.IsNumber(r):
+			return l.float(start, ctx)
+		default:
+			l.backup()
+			val := l.input[start:pos]
+			l.emit(Token{Kind: TokenFloat, Val: val})
+			return ctx
+		}
+	}
+}
+
 func (l *Lexer) integer(start int, ctx lexState) lexState {
 	return func(r rune, pos int) lexState {
 		switch {
 		case unicode.IsNumber(r):
 			return l.integer(start, ctx)
+		case r == '.':
+			return l.decimal(start, ctx)
 		default:
 			l.backup()
 			val := l.input[start:pos]

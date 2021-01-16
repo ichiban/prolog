@@ -205,4 +205,5 @@ func TestParser_Term(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
 	})
+
 }

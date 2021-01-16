@@ -194,6 +194,11 @@ func (p *Parser) lhs() (Term, error) {
 		}, nil
 	}
 
+	if f, err := p.accept(TokenFloat); err == nil {
+		n, _ := strconv.ParseFloat(f, 64)
+		return Float(n), nil
+	}
+
 	if i, err := p.accept(TokenInteger); err == nil {
 		n, _ := strconv.Atoi(i)
 		return Integer(n), nil

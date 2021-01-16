@@ -13,56 +13,6 @@ type Term interface {
 	Copy() Term
 }
 
-type Atom string
-
-func (a Atom) String() string {
-	return a.TermString(nil, nil)
-}
-
-func (a Atom) TermString(operators, *[]*Variable) string {
-	return string(a)
-}
-
-func (a Atom) Unify(t Term, occursCheck bool) bool {
-	switch t := t.(type) {
-	case Atom:
-		return a == t
-	case *Variable:
-		return t.Unify(a, occursCheck)
-	default:
-		return false
-	}
-}
-
-func (a Atom) Copy() Term {
-	return a
-}
-
-type Integer int64
-
-func (i Integer) String() string {
-	return i.TermString(nil, nil)
-}
-
-func (i Integer) TermString(operators, *[]*Variable) string {
-	return strconv.FormatInt(int64(i), 10)
-}
-
-func (i Integer) Unify(t Term, occursCheck bool) bool {
-	switch t := t.(type) {
-	case Integer:
-		return i == t
-	case *Variable:
-		return t.Unify(i, occursCheck)
-	default:
-		return false
-	}
-}
-
-func (i Integer) Copy() Term {
-	return i
-}
-
 type Variable struct {
 	Name string
 	Ref  Term
@@ -115,6 +65,81 @@ func (v *Variable) Copy() Term {
 		return &Variable{}
 	}
 	return &Variable{Ref: v.Ref.Copy()}
+}
+
+type Float float64
+
+func (f Float) String() string {
+	return f.TermString(nil, nil)
+}
+
+func (f Float) TermString(operators, *[]*Variable) string {
+	return strconv.FormatFloat(float64(f), 'f', -1, 64)
+}
+
+func (f Float) Unify(t Term, occursCheck bool) bool {
+	switch t := t.(type) {
+	case Float:
+		return f == t
+	case *Variable:
+		return t.Unify(f, occursCheck)
+	default:
+		return false
+	}
+}
+
+func (f Float) Copy() Term {
+	return f
+}
+
+type Integer int64
+
+func (i Integer) String() string {
+	return i.TermString(nil, nil)
+}
+
+func (i Integer) TermString(operators, *[]*Variable) string {
+	return strconv.FormatInt(int64(i), 10)
+}
+
+func (i Integer) Unify(t Term, occursCheck bool) bool {
+	switch t := t.(type) {
+	case Integer:
+		return i == t
+	case *Variable:
+		return t.Unify(i, occursCheck)
+	default:
+		return false
+	}
+}
+
+func (i Integer) Copy() Term {
+	return i
+}
+
+type Atom string
+
+func (a Atom) String() string {
+	return a.TermString(nil, nil)
+}
+
+func (a Atom) TermString(operators, *[]*Variable) string {
+	return string(a)
+}
+
+func (a Atom) Unify(t Term, occursCheck bool) bool {
+	switch t := t.(type) {
+	case Atom:
+		return a == t
+	case *Variable:
+		return t.Unify(a, occursCheck)
+	default:
+		return false
+	}
+}
+
+func (a Atom) Copy() Term {
+	return a
 }
 
 type Compound struct {
@@ -239,7 +264,7 @@ func Resolve(t Term) Term {
 	var stop []*Variable
 	for t != nil {
 		switch v := t.(type) {
-		case Atom, Integer, *Compound:
+		case Float, Integer, Atom, *Compound:
 			return v
 		case *Variable:
 			if v.Ref == nil {

@@ -53,8 +53,8 @@ func TypeVar(t Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
-func TypeAtom(t Term, k func() (bool, error)) (bool, error) {
-	if _, ok := Resolve(t).(Atom); !ok {
+func TypeFloat(t Term, k func() (bool, error)) (bool, error) {
+	if _, ok := Resolve(t).(Float); !ok {
 		return false, nil
 	}
 	return k()
@@ -62,6 +62,13 @@ func TypeAtom(t Term, k func() (bool, error)) (bool, error) {
 
 func TypeInteger(t Term, k func() (bool, error)) (bool, error) {
 	if _, ok := Resolve(t).(Integer); !ok {
+		return false, nil
+	}
+	return k()
+}
+
+func TypeAtom(t Term, k func() (bool, error)) (bool, error) {
+	if _, ok := Resolve(t).(Atom); !ok {
 		return false, nil
 	}
 	return k()
@@ -510,10 +517,31 @@ func compare(a, b Term) int64 {
 		default:
 			return -1
 		}
+	case Float:
+		switch b := b.(type) {
+		case *Variable:
+			return 1
+		case Float:
+			return int64(a - b)
+		case Integer:
+			d := int64(a - Float(b))
+			if d == 0 {
+				return -1
+			}
+			return d
+		default:
+			return -1
+		}
 	case Integer:
 		switch b := b.(type) {
 		case *Variable:
 			return 1
+		case Float:
+			d := int64(Float(a) - b)
+			if d == 0 {
+				return 1
+			}
+			return d
 		case Integer:
 			return int64(a - b)
 		default:
@@ -521,7 +549,7 @@ func compare(a, b Term) int64 {
 		}
 	case Atom:
 		switch b := b.(type) {
-		case *Variable, Integer:
+		case *Variable, Float, Integer:
 			return 1
 		case Atom:
 			return int64(strings.Compare(string(a), string(b)))
