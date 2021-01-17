@@ -342,7 +342,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 	}
 
 	switch name {
-	case ":-/1": // directive
+	case "(:-)/1": // directive
 		var d Variable
 		args.Unify(Cons(&d, &Variable{}), false)
 		name, args, err := nameArgs(&d)
@@ -354,7 +354,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 		return ok, nil
-	case ":-/2":
+	case "(:-)/2":
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}), false)
 		name, _, err = nameArgs(&h)
@@ -386,9 +386,9 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 func nameArgs(t Term) (string, Term, error) {
 	switch f := Resolve(t).(type) {
 	case Atom:
-		return fmt.Sprintf("%s/0", f), List(), nil
+		return PrincipalFunctor(f, 0).String(), List(), nil
 	case *Compound:
-		return fmt.Sprintf("%s/%d", f.Functor, len(f.Args)), List(f.Args...), nil
+		return PrincipalFunctor(f.Functor, Integer(len(f.Args))).String(), List(f.Args...), nil
 	default:
 		return "", nil, errors.New("not callable")
 	}
@@ -609,4 +609,30 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (boo
 		return false, nil
 	}
 	return k()
+}
+
+func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
+	a := newAssignment(pf)
+	for key := range e.procedures {
+		p := NewParser(key, &operators{
+			{Precedence: 400, Type: "yfx", Name: "/"},
+		})
+		t, err := p.Term()
+		if err != nil {
+			return false, err
+		}
+
+		if pf.Unify(t, false) {
+			ok, err := k()
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
+		}
+
+		a.reset()
+	}
+	return false, nil
 }

@@ -206,4 +206,18 @@ func TestParser_Term(t *testing.T) {
 		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
+	t.Run("principal functor", func(t *testing.T) {
+		p := NewParser(`(==)/2`, &operators{
+			{Precedence: 400, Type: "yfx", Name: "/"},
+		})
+		term, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("=="),
+				Integer(2),
+			},
+		}, term)
+	})
 }

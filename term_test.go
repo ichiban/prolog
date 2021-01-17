@@ -149,14 +149,27 @@ func TestCompound_Unify(t *testing.T) {
 }
 
 func TestCompound_String(t *testing.T) {
-	c := Compound{
-		Functor: "/",
-		Args:    []Term{Atom("append"), Integer(3)},
-	}
-	var stop []*Variable
-	assert.Equal(t, "append/3", c.TermString(operators{
-		{Precedence: 400, Type: `yfx`, Name: `/`},
-	}, &stop))
+	t.Run("no parenthesises", func(t *testing.T) {
+		c := Compound{
+			Functor: "/",
+			Args:    []Term{Atom("append"), Integer(3)},
+		}
+		var stop []*Variable
+		assert.Equal(t, "append/3", c.TermString(operators{
+			{Precedence: 400, Type: `yfx`, Name: `/`},
+		}, &stop))
+	})
+
+	t.Run("parenthesises", func(t *testing.T) {
+		c := Compound{
+			Functor: "/",
+			Args:    []Term{Atom("=="), Integer(2)},
+		}
+		var stop []*Variable
+		assert.Equal(t, "(==)/2", c.TermString(operators{
+			{Precedence: 400, Type: `yfx`, Name: `/`},
+		}, &stop))
+	})
 }
 
 func TestContains(t *testing.T) {

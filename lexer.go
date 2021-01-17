@@ -361,3 +361,7 @@ func (l *Lexer) multiLineCommentEnd(ctx lexState) lexState {
 func isGraphic(r rune) bool {
 	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
 }
+
+func isExtendedGraphic(r rune) bool {
+	return strings.ContainsRune(",;", r) || isGraphic(r)
+}

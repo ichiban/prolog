@@ -184,9 +184,19 @@ func (c *Compound) TermString(os operators, stop *[]*Variable) string {
 			}
 			switch o.Type {
 			case `xf`, `yf`:
-				return fmt.Sprintf("%s%s", c.Args[0].TermString(os, stop), c.Functor.TermString(os, stop))
+				l := []rune(c.Args[0].TermString(os, stop))
+				f := []rune(c.Functor.TermString(os, stop))
+				if isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) {
+					return fmt.Sprintf("(%s)%s", string(l), string(f))
+				}
+				return fmt.Sprintf("%s%s", string(l), string(f))
 			case `fx`, `fy`:
-				return fmt.Sprintf("%s%s", c.Functor.TermString(os, stop), c.Args[0].TermString(os, stop))
+				f := []rune(c.Functor.TermString(os, stop))
+				r := []rune(c.Args[0].TermString(os, stop))
+				if isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]) {
+					return fmt.Sprintf("%s(%s)", string(f), string(r))
+				}
+				return fmt.Sprintf("%s%s", string(f), string(r))
 			}
 		}
 	case 2:
@@ -196,7 +206,19 @@ func (c *Compound) TermString(os operators, stop *[]*Variable) string {
 			}
 			switch o.Type {
 			case `xfx`, `xfy`, `yfx`:
-				return fmt.Sprintf("%s%s%s", c.Args[0].TermString(os, stop), c.Functor.TermString(os, stop), c.Args[1].TermString(os, stop))
+				l := []rune(c.Args[0].TermString(os, stop))
+				f := []rune(c.Functor.TermString(os, stop))
+				r := []rune(c.Args[1].TermString(os, stop))
+				switch {
+				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) && isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
+					return fmt.Sprintf("(%s)%s(%s)", string(l), string(f), string(r))
+				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]):
+					return fmt.Sprintf("(%s)%s%s", string(l), string(f), string(r))
+				case isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
+					return fmt.Sprintf("%s%s(%s)", string(l), string(f), string(r))
+				default:
+					return fmt.Sprintf("%s%s%s", string(l), string(f), string(r))
+				}
 			}
 		}
 	}
@@ -238,6 +260,13 @@ func (c *Compound) Copy() Term {
 	return &Compound{
 		Functor: c.Functor,
 		Args:    args,
+	}
+}
+
+func PrincipalFunctor(name Atom, arity Integer) Term {
+	return &Compound{
+		Functor: "/",
+		Args:    []Term{name, arity},
 	}
 }
 

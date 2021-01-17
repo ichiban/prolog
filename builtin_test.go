@@ -349,3 +349,27 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestEngine_CurrentPredicate(t *testing.T) {
+	e := Engine{procedures: map[string]procedure{
+		"(=)/2": nil,
+	}}
+
+	var v Variable
+	ok, err := e.CurrentPredicate(&v, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, &Compound{
+		Functor: "/",
+		Args: []Term{
+			Atom("="),
+			Integer(2),
+		},
+	}, v.Ref)
+
+	ok, err = e.CurrentPredicate(&v, func() (bool, error) {
+		return false, nil
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}

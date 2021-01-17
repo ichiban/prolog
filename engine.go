@@ -29,6 +29,7 @@ func NewEngine() (*Engine, error) {
 	e.Register0("!", Cut)
 	e.Register0("repeat", Repeat)
 	e.Register1("call", e.Call)
+	e.Register1("current_predicate", e.CurrentPredicate)
 	e.Register1("assertz", e.Assertz)
 	e.Register1("var", TypeVar)
 	e.Register1("float", TypeFloat)
@@ -201,28 +202,28 @@ func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, erro
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
-	e.procedures[fmt.Sprintf("%s/0", name)] = predicate0(p)
+	e.procedures[PrincipalFunctor(Atom(name), 0).String()] = predicate0(p)
 }
 
 func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
-	e.procedures[fmt.Sprintf("%s/1", name)] = predicate1(p)
+	e.procedures[PrincipalFunctor(Atom(name), 1).String()] = predicate1(p)
 }
 
 func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
-	e.procedures[fmt.Sprintf("%s/2", name)] = predicate2(p)
+	e.procedures[PrincipalFunctor(Atom(name), 2).String()] = predicate2(p)
 }
 
 func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
-	e.procedures[fmt.Sprintf("%s/3", name)] = predicate3(p)
+	e.procedures[PrincipalFunctor(Atom(name), 3).String()] = predicate3(p)
 }
 
 func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
