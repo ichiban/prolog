@@ -336,6 +336,18 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 }
 
 func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
+	return e.assert(t, k, func(cs clauses, c clause) clauses {
+		return append(cs, c)
+	})
+}
+
+func (e *Engine) Asserta(t Term, k func() (bool, error)) (bool, error) {
+	return e.assert(t, k, func(cs clauses, c clause) clauses {
+		return append(clauses{c}, cs...)
+	})
+}
+
+func (e *Engine) assert(t Term, k func() (bool, error), merge func(clauses, clause) clauses) (bool, error) {
 	name, args, err := nameArgs(t)
 	if err != nil {
 		return false, err
@@ -363,6 +375,9 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 		}
 	}
 
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
 	p, ok := e.procedures[name]
 	if !ok {
 		p = clauses{}
@@ -379,7 +394,7 @@ func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
 		return false, err
 	}
 
-	e.procedures[name] = append(cs, c)
+	e.procedures[name] = merge(cs, c)
 	return k()
 }
 

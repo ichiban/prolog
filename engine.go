@@ -31,6 +31,7 @@ func NewEngine() (*Engine, error) {
 	e.Register1("call", e.Call)
 	e.Register1("current_predicate", e.CurrentPredicate)
 	e.Register1("assertz", e.Assertz)
+	e.Register1("asserta", e.Asserta)
 	e.Register1("var", TypeVar)
 	e.Register1("float", TypeFloat)
 	e.Register1("integer", TypeInteger)
@@ -148,10 +149,6 @@ type procedure interface {
 }
 
 func (e *Engine) Load(s string) error {
-	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
-	}
-
 	p := NewParser(s, &e.operators)
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {

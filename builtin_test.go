@@ -373,3 +373,71 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestEngine_Assertz(t *testing.T) {
+	var e Engine
+
+	ok, err := e.Assertz(&Compound{
+		Functor: "foo",
+		Args:    []Term{Atom("a")},
+	}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = e.Assertz(&Compound{
+		Functor: "foo",
+		Args:    []Term{Atom("b")},
+	}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	var c int
+	ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
+		switch c {
+		case 0:
+			assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
+		case 1:
+			assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		c++
+		return false
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestEngine_Asserta(t *testing.T) {
+	var e Engine
+
+	ok, err := e.Asserta(&Compound{
+		Functor: "foo",
+		Args:    []Term{Atom("a")},
+	}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = e.Asserta(&Compound{
+		Functor: "foo",
+		Args:    []Term{Atom("b")},
+	}, done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	var c int
+	ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
+		switch c {
+		case 0:
+			assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
+		case 1:
+			assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		c++
+		return false
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}
