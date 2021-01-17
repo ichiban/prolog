@@ -136,6 +136,8 @@ nonvar(X) :- \+var(X).
 
 number(X) :- float(X).
 number(X) :- integer(X).
+
+atomic(X) :- nonvar(X), \+compound(X).
 `)
 	return &e, err
 }
