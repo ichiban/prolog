@@ -133,6 +133,9 @@ X @>= Y :- compare(>, X, Y).
 X @>= Y :- compare(=, X, Y).
 
 nonvar(X) :- \+var(X).
+
+number(X) :- float(X).
+number(X) :- integer(X).
 `)
 	return &e, err
 }
