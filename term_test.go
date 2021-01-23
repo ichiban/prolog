@@ -198,3 +198,21 @@ func TestVariable_TermString(t *testing.T) {
 	var stop []*Variable
 	assert.Equal(t, "X = f(X)", v.TermString(nil, &stop))
 }
+
+func TestRulify(t *testing.T) {
+	assert.Equal(t, &Compound{
+		Functor: ":-",
+		Args:    []Term{Atom("a"), Atom("true")},
+	}, Rulify(Atom("a")))
+	assert.Equal(t, &Compound{
+		Functor: ":-",
+		Args:    []Term{Atom("a"), Atom("true")},
+	}, Rulify(&Variable{Ref: Atom("a")}))
+	assert.Equal(t, &Compound{
+		Functor: ":-",
+		Args:    []Term{Atom("a"), Atom("b")},
+	}, Rulify(&Compound{
+		Functor: ":-",
+		Args:    []Term{Atom("a"), Atom("b")},
+	}))
+}

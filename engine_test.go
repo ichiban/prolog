@@ -21,6 +21,14 @@ func TestEngine_Load(t *testing.T) {
 		assert.Equal(t, clauses{
 			{
 				name: "append/3",
+				raw: &Compound{
+					Functor: "append",
+					Args: []Term{
+						Atom("nil"),
+						&Variable{Name: "L"},
+						&Variable{Name: "L"},
+					},
+				},
 				xrTable: []Term{
 					Atom("nil"),
 				},
@@ -46,6 +54,39 @@ func TestEngine_Load(t *testing.T) {
 		assert.Equal(t, clauses{
 			{
 				name: "append/3",
+				raw: &Compound{
+					Functor: ":-",
+					Args: []Term{
+						&Compound{
+							Functor: "append",
+							Args: []Term{
+								&Compound{
+									Functor: "cons",
+									Args: []Term{
+										&Variable{Name: "X"},
+										&Variable{Name: "L1"},
+									},
+								},
+								&Variable{Name: "L2"},
+								&Compound{
+									Functor: "cons",
+									Args: []Term{
+										&Variable{Name: "X"},
+										&Variable{Name: "L3"},
+									},
+								},
+							},
+						},
+						&Compound{
+							Functor: "append",
+							Args: []Term{
+								&Variable{Name: "L1"},
+								&Variable{Name: "L2"},
+								&Variable{Name: "L3"},
+							},
+						},
+					},
+				},
 				xrTable: []Term{
 					&Compound{
 						Functor: "/",

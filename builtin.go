@@ -387,9 +387,7 @@ func (e *Engine) assert(t Term, k func() (bool, error), merge func(clauses, clau
 	if !ok {
 		return false, errors.New("builtin")
 	}
-	c := clause{
-		name: name,
-	}
+	c := clause{name: name}
 	if err := c.compile(t); err != nil {
 		return false, err
 	}
@@ -649,5 +647,55 @@ func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error)
 
 		a.reset()
 	}
+	return false, nil
+}
+
+func (e *Engine) Retract(t Term, k func() (bool, error)) (bool, error) {
+	t = Rulify(t)
+
+	h := t.(*Compound).Args[0]
+	name, _, err := nameArgs(h)
+	if err != nil {
+		return false, err
+	}
+
+	p, ok := e.procedures[name]
+	if !ok {
+		return false, nil
+	}
+
+	cs, ok := p.(clauses)
+	if !ok {
+		return false, errors.New("not retractable")
+	}
+
+	updated := make(clauses, 0, len(cs))
+	defer func() { e.procedures[name] = updated }()
+
+	for i, c := range cs {
+		raw := Rulify(c.raw)
+		a := newAssignment(raw, t)
+
+		if !t.Unify(raw, false) {
+			updated = append(updated, c)
+			a.reset()
+			continue
+		}
+
+		ok, err := k()
+		if err != nil {
+			updated = append(updated, cs[i+1:]...)
+			a.reset()
+			return false, err
+		}
+		if ok {
+			updated = append(updated, cs[i+1:]...)
+			a.reset()
+			return true, nil
+		}
+
+		a.reset()
+	}
+
 	return false, nil
 }

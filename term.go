@@ -335,3 +335,11 @@ func Contains(t, s Term) bool {
 		return t == s
 	}
 }
+
+func Rulify(t Term) Term {
+	t = Resolve(t)
+	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
+		return t
+	}
+	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
+}

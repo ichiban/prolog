@@ -441,3 +441,132 @@ func TestEngine_Asserta(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestEngine_Retract(t *testing.T) {
+	t.Run("retract the first one", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		assert.NoError(t, e.Load("foo(a)."))
+		assert.NoError(t, e.Load("foo(b)."))
+		assert.NoError(t, e.Load("foo(c)."))
+		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
+			return true
+		})
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		c := 0
+		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
+			switch c {
+			case 0:
+				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("b")}}, vars)
+			case 1:
+				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
+			return false
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("retract the specific one", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		assert.NoError(t, e.Load("foo(a)."))
+		assert.NoError(t, e.Load("foo(b)."))
+		assert.NoError(t, e.Load("foo(c)."))
+		ok, err := e.Query("retract(foo(b)).", func([]*Variable) bool {
+			return true
+		})
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		c := 0
+		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
+			switch c {
+			case 0:
+				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("a")}}, vars)
+			case 1:
+				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
+			return false
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("retract all", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		assert.NoError(t, e.Load("foo(a)."))
+		assert.NoError(t, e.Load("foo(b)."))
+		assert.NoError(t, e.Load("foo(c)."))
+		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
+			return false
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+
+		ok, err = e.Query("foo(X).", func([]*Variable) bool {
+			assert.Fail(t, "unreachable")
+			return true
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("variable", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		assert.NoError(t, e.Load("foo(a)."))
+		assert.NoError(t, e.Load("foo(b)."))
+		assert.NoError(t, e.Load("foo(c)."))
+		_, err = e.Query("retract(X).", func([]*Variable) bool {
+			return false
+		})
+		assert.Error(t, err)
+	})
+
+	t.Run("no clause matches", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
+			return true
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("builtin", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		_, err = e.Query("retract(call(X)).", func([]*Variable) bool {
+			return true
+		})
+		assert.Error(t, err)
+	})
+
+	t.Run("exception in continuation", func(t *testing.T) {
+		e, err := NewEngine()
+		assert.NoError(t, err)
+		assert.NoError(t, e.Load("foo(a)."))
+		_, err = e.Query("retract(foo(X)), throw(e).", func([]*Variable) bool {
+			return false
+		})
+		assert.Error(t, err)
+
+		// removed
+		ok, err := e.Query("foo(a).", func([]*Variable) bool {
+			assert.Fail(t, "unreachable")
+			return true
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+}

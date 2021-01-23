@@ -32,6 +32,7 @@ func NewEngine() (*Engine, error) {
 	e.Register1("current_predicate", e.CurrentPredicate)
 	e.Register1("assertz", e.Assertz)
 	e.Register1("asserta", e.Asserta)
+	e.Register1("retract", e.Retract)
 	e.Register1("var", TypeVar)
 	e.Register1("float", TypeFloat)
 	e.Register1("integer", TypeInteger)
@@ -395,12 +396,14 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 
 type clause struct {
 	name     string
+	raw      Term
 	xrTable  []Term
 	vars     []string
 	bytecode bytecode
 }
 
 func (c *clause) compile(t Term) error {
+	c.raw = t
 	switch t := Resolve(t).(type) {
 	case Atom:
 		return c.compileClause(t, nil)
