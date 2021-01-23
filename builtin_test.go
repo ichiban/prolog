@@ -570,3 +570,22 @@ func TestEngine_Retract(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestEngine_Abolish(t *testing.T) {
+	e, err := NewEngine()
+	assert.NoError(t, err)
+	assert.NoError(t, e.Load("foo(a)."))
+	assert.NoError(t, e.Load("foo(b)."))
+	assert.NoError(t, e.Load("foo(c)."))
+	ok, err := e.Query("abolish(foo/1).", func([]*Variable) bool {
+		return true
+	})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	_, err = e.Query("foo(X).", func([]*Variable) bool {
+		assert.Fail(t, "unreachable")
+		return true
+	})
+	assert.Error(t, err)
+}

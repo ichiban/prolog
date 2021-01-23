@@ -699,3 +699,8 @@ func (e *Engine) Retract(t Term, k func() (bool, error)) (bool, error) {
 
 	return false, nil
 }
+
+func (e *Engine) Abolish(t Term, k func() (bool, error)) (bool, error) {
+	delete(e.procedures, t.String())
+	return k()
+}

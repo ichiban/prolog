@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+var defaultOperators = []operator{
+	{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
+}
+
 type Term interface {
 	fmt.Stringer
 	TermString(operators, *[]*Variable) string
@@ -20,7 +24,7 @@ type Variable struct {
 
 func (v *Variable) String() string {
 	var stop []*Variable
-	return v.TermString(nil, &stop)
+	return v.TermString(defaultOperators, &stop)
 }
 
 func (v *Variable) TermString(os operators, stop *[]*Variable) string {
@@ -149,9 +153,7 @@ type Compound struct {
 
 func (c *Compound) String() string {
 	var stop []*Variable
-	return c.TermString([]operator{
-		{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
-	}, &stop)
+	return c.TermString(defaultOperators, &stop)
 }
 
 func (c *Compound) TermString(os operators, stop *[]*Variable) string {

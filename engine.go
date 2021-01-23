@@ -33,6 +33,7 @@ func NewEngine() (*Engine, error) {
 	e.Register1("assertz", e.Assertz)
 	e.Register1("asserta", e.Asserta)
 	e.Register1("retract", e.Retract)
+	e.Register1("abolish", e.Abolish)
 	e.Register1("var", TypeVar)
 	e.Register1("float", TypeFloat)
 	e.Register1("integer", TypeInteger)
