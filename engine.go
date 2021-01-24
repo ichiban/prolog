@@ -142,6 +142,8 @@ number(X) :- float(X).
 number(X) :- integer(X).
 
 atomic(X) :- nonvar(X), \+compound(X).
+
+findall(Term, Goal, List) :- bagof(Term, _^Goal, List); List = [].
 `)
 	return &e, err
 }
