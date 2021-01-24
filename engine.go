@@ -46,6 +46,7 @@ func NewEngine() (*Engine, error) {
 	e.Register2("copy_term", CopyTerm)
 	e.Register3("arg", Arg)
 	e.Register3("bagof", e.BagOf)
+	e.Register3("setof", e.SetOf)
 	e.Register3("catch", e.Catch)
 	e.Register3("functor", Functor)
 	e.Register3("op", e.Op)

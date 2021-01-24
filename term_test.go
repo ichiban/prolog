@@ -216,3 +216,10 @@ func TestRulify(t *testing.T) {
 		Args:    []Term{Atom("a"), Atom("b")},
 	}))
 }
+
+func TestSet(t *testing.T) {
+	assert.Equal(t, List(), Set())
+	assert.Equal(t, List(Atom("a")), Set(Atom("a")))
+	assert.Equal(t, List(Atom("a")), Set(Atom("a"), Atom("a"), Atom("a")))
+	assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), Set(Atom("c"), Atom("b"), Atom("a")))
+}

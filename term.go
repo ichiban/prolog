@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -289,6 +290,29 @@ func ListRest(rest Term, ts ...Term) Term {
 		l = Cons(ts[i], l)
 	}
 	return l
+}
+
+func Set(ts ...Term) Term {
+	if len(ts) < 2 {
+		return List(ts...)
+	}
+	us := make([]Term, len(ts))
+	copy(us, ts)
+	sort.Slice(us, func(i, j int) bool {
+		return compare(us[i], us[j]) < 0
+	})
+	n := 1
+	for _, u := range us[1:] {
+		if compare(us[n-1], u) == 0 {
+			continue
+		}
+		us[n] = u
+		n++
+	}
+	for i := range us[n:] {
+		us[n+i] = nil
+	}
+	return List(us[:n]...)
 }
 
 func Resolve(t Term) Term {

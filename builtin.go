@@ -423,6 +423,14 @@ func Repeat(k func() (bool, error)) (bool, error) {
 }
 
 func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+	return e.collectionOf(template, goal, bag, k, List)
+}
+
+func (e *Engine) SetOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+	return e.collectionOf(template, goal, bag, k, Set)
+}
+
+func (e *Engine) collectionOf(template, goal, collection Term, k func() (bool, error), agg func(...Term) Term) (bool, error) {
 	var qualifier, body Variable
 	if goal.Unify(&Compound{
 		Functor: "^",
@@ -483,14 +491,14 @@ func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, 
 		return false, nil
 	}
 
-	b := newAssignment(bag)
+	b := newAssignment(collection)
 	for _, s := range solutions {
 		// revert to snapshot
 		for i, v := range groupingVariables {
 			v.Ref = s.snapshots[i]
 		}
 
-		if bag.Unify(List(s.bag...), false) {
+		if collection.Unify(agg(s.bag...), false) {
 			ok, err := k()
 			if err != nil {
 				return false, err
