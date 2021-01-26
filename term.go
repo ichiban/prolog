@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -319,7 +320,7 @@ func Resolve(t Term) Term {
 	var stop []*Variable
 	for t != nil {
 		switch v := t.(type) {
-		case Float, Integer, Atom, *Compound:
+		case Float, Integer, Atom, *Compound, Stream:
 			return v
 		case *Variable:
 			if v.Ref == nil {
@@ -368,4 +369,28 @@ func Rulify(t Term) Term {
 		return t
 	}
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
+}
+
+type Stream struct {
+	io.ReadWriteCloser
+}
+
+func (s Stream) String() string {
+	return s.TermString(nil, nil)
+}
+
+func (s Stream) TermString(operators, *[]*Variable) string {
+	return fmt.Sprintf("<stream>(%p)", s.ReadWriteCloser)
+}
+
+func (s Stream) Unify(t Term, _ bool) bool {
+	o, ok := t.(Stream)
+	if !ok {
+		return false
+	}
+	return s.ReadWriteCloser == o.ReadWriteCloser
+}
+
+func (s Stream) Copy() Term {
+	return s
 }

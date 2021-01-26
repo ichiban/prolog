@@ -54,7 +54,7 @@ func main() {
 
 	halt := false
 
-	e, err := prolog.NewEngine()
+	e, err := prolog.NewEngine(os.Stdin, t)
 	if err != nil {
 		log.Panic(err)
 	}

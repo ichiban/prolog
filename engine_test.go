@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewEngine(t *testing.T) {
-	e, err := NewEngine()
+	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, e)
 }

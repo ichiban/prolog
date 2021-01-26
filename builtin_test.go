@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestRepeat(t *testing.T) {
 }
 
 func TestBagOf(t *testing.T) {
-	e, err := NewEngine()
+	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, e.Load(`
 foo(a, b, c).
@@ -171,7 +172,7 @@ foo(c, c, g).
 }
 
 func TestSetOf(t *testing.T) {
-	e, err := NewEngine()
+	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, e.Load(`
 foo(a, b, c).
@@ -434,7 +435,7 @@ func TestThrow(t *testing.T) {
 }
 
 func TestEngine_Catch(t *testing.T) {
-	e, err := NewEngine()
+	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
 
 	t.Run("match", func(t *testing.T) {
@@ -576,7 +577,7 @@ func TestEngine_Asserta(t *testing.T) {
 
 func TestEngine_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Load("foo(a)."))
 		assert.NoError(t, e.Load("foo(b)."))
@@ -605,7 +606,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Load("foo(a)."))
 		assert.NoError(t, e.Load("foo(b)."))
@@ -634,7 +635,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("retract all", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Load("foo(a)."))
 		assert.NoError(t, e.Load("foo(b)."))
@@ -654,7 +655,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("variable", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Load("foo(a)."))
 		assert.NoError(t, e.Load("foo(b)."))
@@ -666,7 +667,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("no clause matches", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
 			return true
@@ -676,7 +677,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("builtin", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		_, err = e.Query("retract(call(X)).", func([]*Variable) bool {
 			return true
@@ -685,7 +686,7 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("exception in continuation", func(t *testing.T) {
-		e, err := NewEngine()
+		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Load("foo(a)."))
 		_, err = e.Query("retract(foo(X)), throw(e).", func([]*Variable) bool {
@@ -704,7 +705,7 @@ func TestEngine_Retract(t *testing.T) {
 }
 
 func TestEngine_Abolish(t *testing.T) {
-	e, err := NewEngine()
+	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
 	assert.NoError(t, e.Load("foo(a)."))
 	assert.NoError(t, e.Load("foo(b)."))
@@ -720,4 +721,18 @@ func TestEngine_Abolish(t *testing.T) {
 		return true
 	})
 	assert.Error(t, err)
+}
+
+func TestEngine_CurrentInput(t *testing.T) {
+	var buf bytes.Buffer
+	e, err := NewEngine(&buf, &buf)
+	assert.NoError(t, err)
+	_, err = e.Query("current_input(X).", func(vars []*Variable) bool {
+		assert.Equal(t, &Variable{
+			Name: "X",
+			Ref:  &Variable{Ref: Stream{ReadWriteCloser: &input{Reader: &buf}}},
+		}, vars[0])
+		return true
+	})
+	assert.NoError(t, err)
 }

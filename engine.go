@@ -3,6 +3,8 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -20,12 +22,28 @@ const (
 )
 
 type Engine struct {
-	operators  operators
-	procedures map[string]procedure
+	operators     operators
+	procedures    map[string]procedure
+	streams       map[string]io.ReadWriteCloser
+	input, output io.ReadWriteCloser
 }
 
-func NewEngine() (*Engine, error) {
-	var e Engine
+func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
+	input, output := input{Reader: in}, output{Writer: out}
+	if input.Reader == nil {
+		input.Reader = os.Stdin
+	}
+	if output.Writer == nil {
+		output.Writer = os.Stdout
+	}
+	e := Engine{
+		streams: map[string]io.ReadWriteCloser{
+			"user_input":  &input,
+			"user_output": &output,
+		},
+		input:  &input,
+		output: &output,
+	}
 	e.Register0("!", Cut)
 	e.Register0("repeat", Repeat)
 	e.Register1("call", e.Call)
@@ -52,6 +70,7 @@ func NewEngine() (*Engine, error) {
 	e.Register3("op", e.Op)
 	e.Register3("compare", Compare)
 	e.Register3("current_op", e.CurrentOp)
+	e.Register1("current_input", e.CurrentInput)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -172,7 +191,7 @@ func (e *Engine) Load(s string) error {
 	}
 }
 
-func (e *Engine) Query(s string, cb func([]*Variable) bool) (bool, error) {
+func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 	if cb == nil {
 		cb = func([]*Variable) bool { return true }
 	}
@@ -655,4 +674,46 @@ func (a assignment) contains(v *Variable) bool {
 
 func done() (bool, error) {
 	return true, nil
+}
+
+type input struct {
+	io.Reader
+}
+
+func (i *input) Write(p []byte) (int, error) {
+	w, ok := i.Reader.(io.Writer)
+	if !ok {
+		return 0, errors.New("not a writer")
+	}
+	return w.Write(p)
+}
+
+func (i *input) Close() error {
+	c, ok := i.Reader.(io.Closer)
+	if !ok {
+		return errors.New("not a closer")
+
+	}
+	return c.Close()
+}
+
+type output struct {
+	io.Writer
+}
+
+func (o *output) Read(p []byte) (int, error) {
+	r, ok := o.Writer.(io.Reader)
+	if !ok {
+		return 0, errors.New("not a reader")
+	}
+	return r.Read(p)
+}
+
+func (o *output) Close() error {
+	c, ok := o.Writer.(io.Closer)
+	if !ok {
+		return errors.New("not a closer")
+
+	}
+	return c.Close()
 }
