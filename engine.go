@@ -71,6 +71,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("compare", Compare)
 	e.Register3("current_op", e.CurrentOp)
 	e.Register1("current_input", e.CurrentInput)
+	e.Register1("current_output", e.CurrentOutput)
 	err := e.Load(`
 /*
  *  bootstrap script

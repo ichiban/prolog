@@ -725,12 +725,26 @@ func TestEngine_Abolish(t *testing.T) {
 
 func TestEngine_CurrentInput(t *testing.T) {
 	var buf bytes.Buffer
-	e, err := NewEngine(&buf, &buf)
+	e, err := NewEngine(&buf, nil)
 	assert.NoError(t, err)
 	_, err = e.Query("current_input(X).", func(vars []*Variable) bool {
 		assert.Equal(t, &Variable{
 			Name: "X",
 			Ref:  &Variable{Ref: Stream{ReadWriteCloser: &input{Reader: &buf}}},
+		}, vars[0])
+		return true
+	})
+	assert.NoError(t, err)
+}
+
+func TestEngine_CurrentOutput(t *testing.T) {
+	var buf bytes.Buffer
+	e, err := NewEngine(nil, &buf)
+	assert.NoError(t, err)
+	_, err = e.Query("current_output(X).", func(vars []*Variable) bool {
+		assert.Equal(t, &Variable{
+			Name: "X",
+			Ref:  &Variable{Ref: Stream{ReadWriteCloser: &output{Writer: &buf}}},
 		}, vars[0])
 		return true
 	})

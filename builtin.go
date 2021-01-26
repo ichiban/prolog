@@ -716,3 +716,7 @@ func (e *Engine) Abolish(t Term, k func() (bool, error)) (bool, error) {
 func (e *Engine) CurrentInput(stream Term, k func() (bool, error)) (bool, error) {
 	return Unify(stream, Stream{ReadWriteCloser: e.input}, k)
 }
+
+func (e *Engine) CurrentOutput(stream Term, k func() (bool, error)) (bool, error) {
+	return Unify(stream, Stream{ReadWriteCloser: e.output}, k)
+}
