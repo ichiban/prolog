@@ -739,3 +739,22 @@ func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
 
 	return k()
 }
+
+func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		stream, ok = e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+	e.output = s
+
+	return k()
+}

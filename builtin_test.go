@@ -791,3 +791,43 @@ func TestEngine_SetInput(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestEngine_SetOutput(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		var e Engine
+		s := Stream{ReadWriteCloser: os.Stdout}
+		ok, err := e.SetOutput(&Variable{Ref: s}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, s, e.output)
+	})
+
+	t.Run("atom defined as a stream global variable", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: os.Stdout}
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"x": s,
+			},
+		}
+		ok, err := e.SetOutput(&Variable{Ref: Atom("x")}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, s, e.output)
+	})
+
+	t.Run("atom defined as a non-stream global variable", func(t *testing.T) {
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"x": Integer(1),
+			},
+		}
+		_, err := e.SetOutput(&Variable{Ref: Atom("x")}, done)
+		assert.Error(t, err)
+	})
+
+	t.Run("atom not defined as a global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetOutput(&Variable{Ref: Atom("x")}, done)
+		assert.Error(t, err)
+	})
+}
