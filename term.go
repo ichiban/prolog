@@ -383,12 +383,15 @@ func (s Stream) TermString(operators, *[]*Variable) string {
 	return fmt.Sprintf("<stream>(%p)", s.ReadWriteCloser)
 }
 
-func (s Stream) Unify(t Term, _ bool) bool {
-	o, ok := t.(Stream)
-	if !ok {
+func (s Stream) Unify(t Term, occursCheck bool) bool {
+	switch t := t.(type) {
+	case Stream:
+		return s.ReadWriteCloser == t.ReadWriteCloser
+	case *Variable:
+		return t.Unify(s, occursCheck)
+	default:
 		return false
 	}
-	return s.ReadWriteCloser == o.ReadWriteCloser
 }
 
 func (s Stream) Copy() Term {

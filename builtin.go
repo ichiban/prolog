@@ -714,9 +714,28 @@ func (e *Engine) Abolish(t Term, k func() (bool, error)) (bool, error) {
 }
 
 func (e *Engine) CurrentInput(stream Term, k func() (bool, error)) (bool, error) {
-	return Unify(stream, Stream{ReadWriteCloser: e.input}, k)
+	return Unify(stream, e.input, k)
 }
 
 func (e *Engine) CurrentOutput(stream Term, k func() (bool, error)) (bool, error) {
-	return Unify(stream, Stream{ReadWriteCloser: e.output}, k)
+	return Unify(stream, e.output, k)
+}
+
+func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		stream, ok = e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+	e.input = s
+
+	return k()
 }

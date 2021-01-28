@@ -24,25 +24,25 @@ const (
 type Engine struct {
 	operators     operators
 	procedures    map[string]procedure
-	streams       map[string]io.ReadWriteCloser
-	input, output io.ReadWriteCloser
+	globalVars    map[Atom]Term
+	input, output Stream
 }
 
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
-	input, output := input{Reader: in}, output{Writer: out}
-	if input.Reader == nil {
-		input.Reader = os.Stdin
+	if in == nil {
+		in = os.Stdin
 	}
-	if output.Writer == nil {
-		output.Writer = os.Stdout
+	if out == nil {
+		out = os.Stdout
 	}
+	input, output := Stream{ReadWriteCloser: &input{Reader: in}}, Stream{ReadWriteCloser: &output{Writer: out}}
 	e := Engine{
-		streams: map[string]io.ReadWriteCloser{
-			"user_input":  &input,
-			"user_output": &output,
+		globalVars: map[Atom]Term{
+			"user_input":  input,
+			"user_output": output,
 		},
-		input:  &input,
-		output: &output,
+		input:  input,
+		output: output,
 	}
 	e.Register0("!", Cut)
 	e.Register0("repeat", Repeat)
@@ -72,6 +72,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("current_op", e.CurrentOp)
 	e.Register1("current_input", e.CurrentInput)
 	e.Register1("current_output", e.CurrentOutput)
+	e.Register1("set_input", e.SetInput)
 	err := e.Load(`
 /*
  *  bootstrap script

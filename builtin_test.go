@@ -3,6 +3,7 @@ package prolog
 import (
 	"bytes"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -749,4 +750,44 @@ func TestEngine_CurrentOutput(t *testing.T) {
 		return true
 	})
 	assert.NoError(t, err)
+}
+
+func TestEngine_SetInput(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		var e Engine
+		s := Stream{ReadWriteCloser: os.Stdin}
+		ok, err := e.SetInput(&Variable{Ref: s}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, s, e.input)
+	})
+
+	t.Run("atom defined as a stream global variable", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: os.Stdin}
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"x": s,
+			},
+		}
+		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, s, e.input)
+	})
+
+	t.Run("atom defined as a non-stream global variable", func(t *testing.T) {
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"x": Integer(1),
+			},
+		}
+		_, err := e.SetInput(&Variable{Ref: Atom("x")}, done)
+		assert.Error(t, err)
+	})
+
+	t.Run("atom not defined as a global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetInput(&Variable{Ref: Atom("x")}, done)
+		assert.Error(t, err)
+	})
 }
