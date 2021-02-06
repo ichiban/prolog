@@ -3,6 +3,7 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -757,4 +758,78 @@ func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
 	e.output = s
 
 	return k()
+}
+
+func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, error)) (bool, error) {
+	filename, mode, options = Resolve(filename), Resolve(mode), Resolve(options)
+
+	n, ok := filename.(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	var (
+		flag int
+		perm os.FileMode
+	)
+	switch mode {
+	case Atom("read"):
+		flag = os.O_RDONLY
+	case Atom("write"):
+		flag = os.O_CREATE | os.O_WRONLY
+		perm = 0644
+	case Atom("append"):
+		flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
+		perm = 0644
+	default:
+		return false, errors.New("unknown mode")
+	}
+
+	var alias Atom
+	if err := Each(options, func(option Term) error {
+		var arg Variable
+		switch {
+		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("text")}}, false):
+			// TODO: don't know what to do.
+		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("binary")}}, false):
+			// TODO: don't know what to do.
+		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("true")}}, false):
+			// TODO: don't know what to do.
+		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("false")}}, false):
+			// TODO: don't know what to do.
+		case option.Unify(&Compound{Functor: "alias", Args: []Term{&arg}}, false):
+			n, ok := Resolve(arg.Ref).(Atom)
+			if !ok {
+				return errors.New("not an atom")
+			}
+			alias = n
+		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, false):
+			// TODO:
+		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}}, false):
+			// TODO:
+		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("reset")}}, false):
+			// TODO:
+		default:
+			return errors.New("unknown option")
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	f, err := os.OpenFile(string(n), flag, perm)
+	if err != nil {
+		return false, err
+	}
+
+	s := Stream{ReadWriteCloser: f}
+
+	if alias != "" {
+		if e.globalVars == nil {
+			e.globalVars = map[Atom]Term{}
+		}
+		e.globalVars[alias] = s
+	}
+
+	return Unify(stream, s, k)
 }

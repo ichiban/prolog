@@ -105,4 +105,87 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
 		assert.Equal(t, Token{Kind: TokenEOS}, l.Next())
 	})
+
+	t.Run("quoted atom", func(t *testing.T) {
+		t.Run("no escape", func(t *testing.T) {
+			l := NewLexer(`'abc'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "abc"}, l.Next())
+		})
+
+		t.Run("double single quotes", func(t *testing.T) {
+			l := NewLexer(`'dont''t panic'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "dont't panic"}, l.Next())
+		})
+
+		t.Run("backslash at the very end of the line", func(t *testing.T) {
+			l := NewLexer(`'this is \
+an atom'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "this is an atom"}, l.Next())
+		})
+
+		t.Run("alert", func(t *testing.T) {
+			l := NewLexer(`'\a'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\a"}, l.Next())
+		})
+
+		t.Run("backspace", func(t *testing.T) {
+			l := NewLexer(`'\b'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\b"}, l.Next())
+		})
+
+		t.Run("formfeed", func(t *testing.T) {
+			l := NewLexer(`'\f'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\f"}, l.Next())
+		})
+
+		t.Run("newline", func(t *testing.T) {
+			l := NewLexer(`'\n'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\n"}, l.Next())
+		})
+
+		t.Run("return", func(t *testing.T) {
+			l := NewLexer(`'\r'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\r"}, l.Next())
+		})
+
+		t.Run("tab", func(t *testing.T) {
+			l := NewLexer(`'\t'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\t"}, l.Next())
+		})
+
+		t.Run("vertical tab", func(t *testing.T) {
+			l := NewLexer(`'\v'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "\v"}, l.Next())
+		})
+
+		t.Run("hex code", func(t *testing.T) {
+			l := NewLexer(`'\x23\'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "#"}, l.Next())
+		})
+
+		t.Run("oct code", func(t *testing.T) {
+			l := NewLexer(`'\43\'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "#"}, l.Next())
+		})
+
+		t.Run("backslash", func(t *testing.T) {
+			l := NewLexer(`'\\'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: `\`}, l.Next())
+		})
+
+		t.Run("single quote", func(t *testing.T) {
+			l := NewLexer(`'\''`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: `'`}, l.Next())
+		})
+
+		t.Run("double quote", func(t *testing.T) {
+			l := NewLexer(`'\"'`)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: `"`}, l.Next())
+		})
+
+		t.Run("backquote", func(t *testing.T) {
+			l := NewLexer("'\\`'")
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "`"}, l.Next())
+		})
+	})
 }

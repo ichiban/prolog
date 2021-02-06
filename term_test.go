@@ -6,6 +6,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestAtom_String(t *testing.T) {
+	assert.Equal(t, `abc`, Atom("abc").String())
+	assert.Equal(t, `'\a'`, Atom("\a").String())
+	assert.Equal(t, `'\b'`, Atom("\b").String())
+	assert.Equal(t, `'\f'`, Atom("\f").String())
+	assert.Equal(t, `'\n'`, Atom("\n").String())
+	assert.Equal(t, `'\r'`, Atom("\r").String())
+	assert.Equal(t, `'\t'`, Atom("\t").String())
+	assert.Equal(t, `'\v'`, Atom("\v").String())
+	assert.Equal(t, `'\x0\'`, Atom("\x00").String())
+	assert.Equal(t, `'\\\a'`, Atom("\\\a").String()) // '\' by itself doesn't require quotation.
+	assert.Equal(t, `'\''`, Atom("'").String())
+	assert.Equal(t, `'\"'`, Atom("\"").String())
+	assert.Equal(t, "'\\`'", Atom("`").String())
+}
+
 func TestAtom_Unify(t *testing.T) {
 	unit := Atom("foo")
 

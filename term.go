@@ -1,8 +1,10 @@
 package prolog
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,8 +131,48 @@ func (a Atom) String() string {
 	return a.TermString(nil, nil)
 }
 
+var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\]+|\[])\z`)
+var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
+
 func (a Atom) TermString(operators, *[]*Variable) string {
-	return string(a)
+	if unquotedAtomPattern.MatchString(string(a)) {
+		return string(a)
+	}
+
+	s := quotedAtomEscapePattern.ReplaceAllStringFunc(string(a), func(s string) string {
+		switch s {
+		case "\a":
+			return `\a`
+		case "\b":
+			return `\b`
+		case "\f":
+			return `\f`
+		case "\n":
+			return `\n`
+		case "\r":
+			return `\r`
+		case "\t":
+			return `\t`
+		case "\v":
+			return `\v`
+		case `\`:
+			return `\\`
+		case `'`:
+			return `\'`
+		case `"`:
+			return `\"`
+		case "`":
+			return "\\`"
+		default:
+			var ret []string
+			for _, r := range s {
+				ret = append(ret, fmt.Sprintf(`\x%x\`, r))
+			}
+			return strings.Join(ret, "")
+		}
+	})
+
+	return fmt.Sprintf("'%s'", s)
 }
 
 func (a Atom) Unify(t Term, occursCheck bool) bool {
@@ -314,6 +356,28 @@ func Set(ts ...Term) Term {
 		us[n+i] = nil
 	}
 	return List(us[:n]...)
+}
+
+func Each(list Term, f func(elem Term) error) error {
+	for {
+		switch l := list.(type) {
+		case Atom:
+			if l != Atom("[]") {
+				return errors.New("invalid list")
+			}
+			return nil
+		case *Compound:
+			if l.Functor != "." || len(l.Args) != 2 {
+				return errors.New("invalid list")
+			}
+			if err := f(l.Args[0]); err != nil {
+				return err
+			}
+			list = l.Args[1]
+		default:
+			return errors.New("invalid list")
+		}
+	}
 }
 
 func Resolve(t Term) Term {

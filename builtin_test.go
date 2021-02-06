@@ -3,7 +3,10 @@ package prolog
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -828,6 +831,148 @@ func TestEngine_SetOutput(t *testing.T) {
 	t.Run("atom not defined as a global variable", func(t *testing.T) {
 		var e Engine
 		_, err := e.SetOutput(&Variable{Ref: Atom("x")}, done)
+		assert.Error(t, err)
+	})
+}
+
+func TestEngine_Open(t *testing.T) {
+	var e Engine
+
+	t.Run("read", func(t *testing.T) {
+		f, err := ioutil.TempFile("", "open_test_read")
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, os.Remove(f.Name()))
+		}()
+
+		_, err = fmt.Fprintf(f, "test\n")
+		assert.NoError(t, err)
+
+		assert.NoError(t, f.Close())
+
+		var v Variable
+		ok, err := e.Open(Atom(f.Name()), Atom("read"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{Atom("input")},
+		}), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		s, ok := v.Ref.(Stream)
+		assert.True(t, ok)
+
+		assert.Equal(t, e.globalVars["input"], s)
+
+		b, err := ioutil.ReadAll(s)
+		assert.NoError(t, err)
+		assert.Equal(t, "test\n", string(b))
+	})
+
+	t.Run("write", func(t *testing.T) {
+		n := filepath.Join(os.TempDir(), "open_test_write")
+		defer func() {
+			assert.NoError(t, os.Remove(n))
+		}()
+
+		var v Variable
+		ok, err := e.Open(Atom(n), Atom("write"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{Atom("output")},
+		}), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		s, ok := v.Ref.(Stream)
+		assert.True(t, ok)
+
+		assert.Equal(t, e.globalVars["output"], s)
+
+		_, err = fmt.Fprintf(s, "test\n")
+		assert.NoError(t, err)
+
+		f, err := os.Open(n)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, f.Close())
+		}()
+
+		b, err := ioutil.ReadAll(f)
+		assert.NoError(t, err)
+		assert.Equal(t, "test\n", string(b))
+	})
+
+	t.Run("append", func(t *testing.T) {
+		f, err := ioutil.TempFile("", "open_test_append")
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, os.Remove(f.Name()))
+		}()
+
+		_, err = fmt.Fprintf(f, "test\n")
+		assert.NoError(t, err)
+
+		assert.NoError(t, f.Close())
+
+		var v Variable
+		ok, err := e.Open(Atom(f.Name()), Atom("append"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{Atom("append")},
+		}), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		s, ok := v.Ref.(Stream)
+		assert.True(t, ok)
+
+		assert.Equal(t, e.globalVars["append"], s)
+
+		_, err = fmt.Fprintf(s, "test\n")
+		assert.NoError(t, err)
+
+		f, err = os.Open(f.Name())
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, f.Close())
+		}()
+
+		b, err := ioutil.ReadAll(f)
+		assert.NoError(t, err)
+		assert.Equal(t, "test\ntest\n", string(b))
+	})
+
+	t.Run("invalid file name", func(t *testing.T) {
+		var v Variable
+		_, err := e.Open(&Variable{}, Atom("read"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{Atom("input")},
+		}), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid mode", func(t *testing.T) {
+		var v Variable
+		_, err := e.Open(Atom("/dev/null"), Atom("invalid"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{Atom("input")},
+		}), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid alias", func(t *testing.T) {
+		var v Variable
+		_, err := e.Open(Atom("/dev/null"), Atom("read"), &v, List(&Compound{
+			Functor: "alias",
+			Args:    []Term{&Variable{}},
+		}), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown option", func(t *testing.T) {
+		var v Variable
+		_, err := e.Open(Atom("/dev/null"), Atom("read"), &v, List(&Compound{
+			Functor: "unknown",
+			Args:    []Term{Atom("option")},
+		}), done)
 		assert.Error(t, err)
 	})
 }

@@ -2,6 +2,8 @@ package prolog
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -114,6 +116,8 @@ func (l *Lexer) term(ctx lexState) lexState {
 		case unicode.IsLower(r):
 			l.backup()
 			return l.atom(pos, ctx)
+		case r == '\'':
+			return l.quotedAtom(pos, ctx)
 		case isGraphic(r):
 			l.backup()
 			return l.graphic(pos, ctx)
@@ -201,6 +205,106 @@ func (l *Lexer) atom(start int, ctx lexState) lexState {
 			val := l.input[start:pos]
 			l.emit(Token{Kind: TokenAtom, Val: val})
 			return ctx
+		}
+	}
+}
+
+func (l *Lexer) quotedAtom(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '\'':
+			return l.quotedAtomQuote(start, ctx)
+		case '\\':
+			return l.quotedAtomSlash(start, ctx)
+		default:
+			return l.quotedAtom(start, ctx)
+		}
+	}
+}
+
+var quotedAtomCodePattern = regexp.MustCompile("''|\\\\\n|\\\\a|\\\\b|\\\\f|\\\\n|\\\\r|\\\\t|\\\\v|\\\\x?\\d+\\\\|\\\\\\\\|\\\\'|\\\\\"|\\\\`")
+
+func (l *Lexer) quotedAtomQuote(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch r {
+		case '\'':
+			return l.quotedAtom(start, ctx)
+		default:
+			l.backup()
+			val := l.input[start+1 : pos-1]
+			val = quotedAtomCodePattern.ReplaceAllStringFunc(val, func(s string) string {
+				switch {
+				case s == `''`:
+					return `'`
+				case s == "\\\n":
+					return ""
+				case s == `\a`:
+					return "\a"
+				case s == `\b`:
+					return "\b"
+				case s == `\f`:
+					return "\f"
+				case s == `\n`:
+					return "\n"
+				case s == `\r`:
+					return "\r"
+				case s == `\t`:
+					return "\t"
+				case s == `\v`:
+					return "\v"
+				case strings.HasSuffix(s, `\`):
+					switch {
+					case s == `\\`:
+						return `\`
+					case strings.HasPrefix(s, `\x`):
+						i, err := strconv.ParseInt(s[2:len(s)-1], 16, 4*8) // rune is up to 4 bytes
+						if err != nil {
+							return s
+						}
+						return string(rune(i))
+					default:
+						i, err := strconv.ParseInt(s[1:len(s)-1], 8, 4*8) // rune is up to 4 bytes
+						if err != nil {
+							return s
+						}
+						return string(rune(i))
+					}
+				case s == `\'`:
+					return `'`
+				case s == `\"`:
+					return `"`
+				case s == "\\`":
+					return "`"
+				default:
+					return s
+				}
+			})
+			l.emit(Token{Kind: TokenAtom, Val: val})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) quotedAtomSlash(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case r == 'x' || unicode.IsNumber(r):
+			return l.quotedAtomSlashCode(start, ctx)
+		default:
+			return l.quotedAtom(start, ctx)
+		}
+	}
+}
+
+func (l *Lexer) quotedAtomSlashCode(start int, ctx lexState) lexState {
+	return func(r rune, pos int) lexState {
+		switch {
+		case unicode.IsNumber(r):
+			return l.quotedAtomSlashCode(start, ctx)
+		case r == '\\':
+			return l.quotedAtom(start, ctx)
+		default:
+			return nil
 		}
 	}
 }
