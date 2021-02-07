@@ -172,6 +172,8 @@ findall(Term, Goal, List) :- bagof(Term, _^Goal, List), !.
 findall(Term, Goal, []).
 
 open(Filename, Mode, Stream) :- open(Filename, Mode, Stream, []).
+
+close(Stream) :- close(Stream, []).
 `)
 	return &e, err
 }
