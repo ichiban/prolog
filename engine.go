@@ -175,6 +175,8 @@ findall(Term, Goal, []).
 open(Filename, Mode, Stream) :- open(Filename, Mode, Stream, []).
 
 close(Stream) :- close(Stream, []).
+
+flush_output :- current_output(S), flush_output(S).
 `)
 	return &e, err
 }
