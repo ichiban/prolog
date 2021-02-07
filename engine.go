@@ -75,6 +75,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register1("set_input", e.SetInput)
 	e.Register1("set_output", e.SetOutput)
 	e.Register4("open", e.Open)
+	e.Register2("close", e.Close)
 	err := e.Load(`
 /*
  *  bootstrap script

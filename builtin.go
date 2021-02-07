@@ -833,3 +833,41 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 
 	return Unify(stream, s, k)
 }
+
+func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, error) {
+	stream, options = Resolve(stream), Resolve(options)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	var force bool
+	if err := Each(options, func(option Term) error {
+		switch {
+		case option.Unify(&Compound{Functor: "force", Args: []Term{Atom("false")}}, false):
+			force = false
+		case option.Unify(&Compound{Functor: "force", Args: []Term{Atom("true")}}, false):
+			force = true
+		default:
+			return errors.New("unknown option")
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	if err := s.Close(); err != nil && !force {
+		return false, err
+	}
+
+	return k()
+}

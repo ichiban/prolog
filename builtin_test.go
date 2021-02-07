@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -975,4 +977,143 @@ func TestEngine_Open(t *testing.T) {
 		}), done)
 		assert.Error(t, err)
 	})
+}
+
+func TestEngine_Close(t *testing.T) {
+	t.Run("without options", func(t *testing.T) {
+		t.Run("ok", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(nil).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(), done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("ng", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(errors.New("")).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			_, err := e.Close(Stream{ReadWriteCloser: &m}, List(), done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("force false", func(t *testing.T) {
+		t.Run("ok", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(nil).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+				Functor: "force",
+				Args:    []Term{Atom("false")},
+			}), done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("ng", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(errors.New("")).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			_, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+				Functor: "force",
+				Args:    []Term{Atom("false")},
+			}), done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("force true", func(t *testing.T) {
+		t.Run("ok", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(nil).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+				Functor: "force",
+				Args:    []Term{Atom("true")},
+			}), done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("ng", func(t *testing.T) {
+			var m mockReadWriteCloser
+			m.On("Close").Return(errors.New("")).Once()
+			defer m.AssertExpectations(t)
+
+			var e Engine
+			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+				Functor: "force",
+				Args:    []Term{Atom("true")},
+			}), done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		var m mockReadWriteCloser
+		m.On("Close").Return(nil).Once()
+		defer m.AssertExpectations(t)
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": Stream{ReadWriteCloser: &m},
+			},
+		}
+		ok, err := e.Close(Atom("foo"), List(), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.Close(Atom("foo"), List(), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+		_, err := e.Close(&Variable{}, List(), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown option", func(t *testing.T) {
+		var e Engine
+		_, err := e.Close(Stream{}, List(&Compound{
+			Functor: "unknown",
+			Args:    []Term{Atom("option")},
+		}), done)
+		assert.Error(t, err)
+	})
+}
+
+type mockReadWriteCloser struct {
+	mock.Mock
+}
+
+func (m *mockReadWriteCloser) Read(p []byte) (n int, err error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *mockReadWriteCloser) Write(p []byte) (n int, err error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *mockReadWriteCloser) Close() error {
+	args := m.Called()
+	return args.Error(0)
 }
