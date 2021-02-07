@@ -1117,3 +1117,81 @@ func (m *mockReadWriteCloser) Close() error {
 	args := m.Called()
 	return args.Error(0)
 }
+
+func TestEngine_FlushOutput(t *testing.T) {
+	t.Run("non flusher", func(t *testing.T) {
+		var m mockReadWriteCloser
+		defer m.AssertExpectations(t)
+
+		var e Engine
+		ok, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("flusher", func(t *testing.T) {
+		t.Run("ok", func(t *testing.T) {
+			var m struct {
+				mockReadWriteCloser
+				mockFlusher
+			}
+			m.mockFlusher.On("Flush").Return(nil).Once()
+			defer m.mockReadWriteCloser.AssertExpectations(t)
+			defer m.mockFlusher.AssertExpectations(t)
+
+			var e Engine
+			ok, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("ng", func(t *testing.T) {
+			var m struct {
+				mockReadWriteCloser
+				mockFlusher
+			}
+			m.mockFlusher.On("Flush").Return(errors.New("")).Once()
+			defer m.mockReadWriteCloser.AssertExpectations(t)
+			defer m.mockFlusher.AssertExpectations(t)
+
+			var e Engine
+			_, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		var m mockReadWriteCloser
+		defer m.AssertExpectations(t)
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": Stream{ReadWriteCloser: &m},
+			},
+		}
+		ok, err := e.FlushOutput(Atom("foo"), done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.FlushOutput(Atom("foo"), done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+		_, err := e.FlushOutput(&Variable{}, done)
+		assert.Error(t, err)
+	})
+}
+
+type mockFlusher struct {
+	mock.Mock
+}
+
+func (m *mockFlusher) Flush() error {
+	args := m.Called()
+	return args.Error(0)
+}

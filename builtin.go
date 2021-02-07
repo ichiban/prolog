@@ -871,3 +871,32 @@ func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, erro
 
 	return k()
 }
+
+func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	if f, ok := s.ReadWriteCloser.(Flusher); ok {
+		if err := f.Flush(); err != nil {
+			return false, err
+		}
+	}
+
+	return k()
+}
+
+type Flusher interface {
+	Flush() error
+}
