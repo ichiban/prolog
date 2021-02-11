@@ -1380,3 +1380,45 @@ func (m *mockTerm) Copy() Term {
 	args := m.Called()
 	return args.Get(0).(Term)
 }
+
+func TestCharCode(t *testing.T) {
+	t.Run("ascii", func(t *testing.T) {
+		ok, err := CharCode(Atom("a"), Integer(97), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("emoji", func(t *testing.T) {
+		ok, err := CharCode(Atom("😀"), Integer(128512), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("query char", func(t *testing.T) {
+		var v Variable
+		ok, err := CharCode(&v, Integer(128512), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, Atom("😀"), v.Ref)
+	})
+
+	t.Run("query code", func(t *testing.T) {
+		var v Variable
+		ok, err := CharCode(Atom("😀"), &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, Integer(128512), v.Ref)
+	})
+
+	t.Run("not a character", func(t *testing.T) {
+		var v Variable
+		_, err := CharCode(Atom("abc"), &v, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a code", func(t *testing.T) {
+		var v Variable
+		_, err := CharCode(&v, Float(1.0), Done)
+		assert.Error(t, err)
+	})
+}

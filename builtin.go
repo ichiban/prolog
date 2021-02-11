@@ -946,3 +946,23 @@ func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (
 
 	return k()
 }
+
+func CharCode(char, code Term, k func() (bool, error)) (bool, error) {
+	char, code = Resolve(char), Resolve(code)
+
+	if c, ok := char.(Atom); ok {
+		rs := []rune(c)
+		if len(rs) != 1 {
+			return false, errors.New("not a character")
+		}
+
+		return Unify(code, Integer(rs[0]), k)
+	}
+
+	c, ok := code.(Integer)
+	if !ok {
+		return false, errors.New("not a code")
+	}
+
+	return Unify(char, Atom(rune(c)), k)
+}

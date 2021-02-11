@@ -79,6 +79,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("close", e.Close)
 	e.Register1("flush_output", e.FlushOutput)
 	e.Register3("write_term", e.WriteTerm)
+	e.Register2("char_code", CharCode)
 	err := e.Load(`
 /*
  *  bootstrap script
