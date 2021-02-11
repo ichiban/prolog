@@ -1422,3 +1422,84 @@ func TestCharCode(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestEngine_PutByte(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		var io mockReadWriteCloser
+		io.On("Write", []byte{97}).Return(1, nil).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{ReadWriteCloser: &io}
+
+		var e Engine
+		ok, err := e.PutByte(s, Integer(97), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("ng", func(t *testing.T) {
+		var io mockReadWriteCloser
+		io.On("Write", []byte{97}).Return(0, errors.New("")).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{ReadWriteCloser: &io}
+
+		var e Engine
+		_, err := e.PutByte(s, Integer(97), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		var io mockReadWriteCloser
+		io.On("Write", []byte{97}).Return(1, nil).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{ReadWriteCloser: &io}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": s,
+			},
+		}
+		ok, err := e.PutByte(Atom("foo"), Integer(97), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.PutByte(Atom("foo"), Integer(97), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a stream", func(t *testing.T) {
+		var e Engine
+		_, err := e.PutByte(&Variable{}, Integer(97), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a byte", func(t *testing.T) {
+		var io mockReadWriteCloser
+		defer io.AssertExpectations(t)
+
+		s := Stream{ReadWriteCloser: &io}
+
+		t.Run("not an integer", func(t *testing.T) {
+			var e Engine
+			_, err := e.PutByte(s, Atom("a"), Done)
+			assert.Error(t, err)
+		})
+
+		t.Run("negative", func(t *testing.T) {
+			var e Engine
+			_, err := e.PutByte(s, Integer(-1), Done)
+			assert.Error(t, err)
+		})
+
+		t.Run("more than 255", func(t *testing.T) {
+			var e Engine
+			_, err := e.PutByte(s, Integer(256), Done)
+			assert.Error(t, err)
+		})
+	})
+}

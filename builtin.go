@@ -966,3 +966,32 @@ func CharCode(char, code Term, k func() (bool, error)) (bool, error) {
 
 	return Unify(char, Atom(rune(c)), k)
 }
+
+func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+	stream, byt = Resolve(stream), Resolve(byt)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	b, ok := byt.(Integer)
+	if !ok || 0 > b || 255 < b {
+		return false, errors.New("not a byte")
+	}
+
+	_, err := s.Write([]byte{byte(b)})
+	if err != nil {
+		return false, err
+	}
+
+	return k()
+}
