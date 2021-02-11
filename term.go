@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -10,13 +11,9 @@ import (
 	"strings"
 )
 
-var defaultOperators = []operator{
-	{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
-}
-
 type Term interface {
 	fmt.Stringer
-	TermString(operators, *[]*Variable) string
+	WriteTerm(io.Writer, WriteTermOptions) error
 	Unify(Term, bool) bool
 	Copy() Term
 }
@@ -27,30 +24,18 @@ type Variable struct {
 }
 
 func (v *Variable) String() string {
-	var stop []*Variable
-	return v.TermString(defaultOperators, &stop)
+	var buf bytes.Buffer
+	_ = v.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
-func (v *Variable) TermString(os operators, stop *[]*Variable) string {
-	name := v.Name
-	if name == "" {
-		if v.Ref != nil {
-			return v.Ref.TermString(os, stop)
-		}
-		name = fmt.Sprintf("_%p", v)
+func (v *Variable) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	if v.Name == "" {
+		_, err := fmt.Fprintf(w, "_%p", v)
+		return err
 	}
-	if v.Ref == nil {
-		return name
-	}
-	if stop != nil {
-		for _, s := range *stop {
-			if v == s {
-				return name
-			}
-		}
-	}
-	*stop = append(*stop, v)
-	return fmt.Sprintf("%s = %s", name, v.Ref.TermString(os, stop))
+	_, err := fmt.Fprint(w, v.Name)
+	return err
 }
 
 func (v *Variable) Unify(t Term, occursCheck bool) bool {
@@ -78,11 +63,14 @@ func (v *Variable) Copy() Term {
 type Float float64
 
 func (f Float) String() string {
-	return f.TermString(nil, nil)
+	var buf bytes.Buffer
+	_ = f.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
-func (f Float) TermString(operators, *[]*Variable) string {
-	return strconv.FormatFloat(float64(f), 'f', -1, 64)
+func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	_, err := fmt.Fprint(w, strconv.FormatFloat(float64(f), 'f', -1, 64))
+	return err
 }
 
 func (f Float) Unify(t Term, occursCheck bool) bool {
@@ -103,11 +91,14 @@ func (f Float) Copy() Term {
 type Integer int64
 
 func (i Integer) String() string {
-	return i.TermString(nil, nil)
+	var buf bytes.Buffer
+	_ = i.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
-func (i Integer) TermString(operators, *[]*Variable) string {
-	return strconv.FormatInt(int64(i), 10)
+func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
+	return err
 }
 
 func (i Integer) Unify(t Term, occursCheck bool) bool {
@@ -128,15 +119,18 @@ func (i Integer) Copy() Term {
 type Atom string
 
 func (a Atom) String() string {
-	return a.TermString(nil, nil)
+	var buf bytes.Buffer
+	_ = a.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
 var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\]+|\[])\z`)
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
-func (a Atom) TermString(operators, *[]*Variable) string {
-	if unquotedAtomPattern.MatchString(string(a)) {
-		return string(a)
+func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
+	if !opts.quoted || unquotedAtomPattern.MatchString(string(a)) {
+		_, err := fmt.Fprint(w, string(a))
+		return err
 	}
 
 	s := quotedAtomEscapePattern.ReplaceAllStringFunc(string(a), func(s string) string {
@@ -172,7 +166,8 @@ func (a Atom) TermString(operators, *[]*Variable) string {
 		}
 	})
 
-	return fmt.Sprintf("'%s'", s)
+	_, err := fmt.Fprintf(w, "'%s'", s)
+	return err
 }
 
 func (a Atom) Unify(t Term, occursCheck bool) bool {
@@ -196,84 +191,166 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
-	var stop []*Variable
-	return c.TermString(defaultOperators, &stop)
+	var buf bytes.Buffer
+	_ = c.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
-func (c *Compound) TermString(os operators, stop *[]*Variable) string {
+func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	if c.Functor == "." && len(c.Args) == 2 { // list
-		t := Term(c)
-		var (
-			elems []string
-			rest  string
-		)
+		if _, err := fmt.Fprint(w, "["); err != nil {
+			return err
+		}
+		if err := c.Args[0].WriteTerm(w, opts); err != nil {
+			return err
+		}
+		t := c.Args[1]
 		for {
 			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-				elems = append(elems, l.Args[0].TermString(os, stop))
+				if _, err := fmt.Fprint(w, ", "); err != nil {
+					return err
+				}
+				if err := l.Args[0].WriteTerm(w, opts); err != nil {
+					return err
+				}
 				t = l.Args[1]
 				continue
 			}
 			if a, ok := t.(Atom); ok && a == "[]" {
 				break
 			}
-			rest = "|" + t.TermString(os, stop)
+			if _, err := fmt.Fprint(w, "|"); err != nil {
+				return err
+			}
+			if err := t.WriteTerm(w, opts); err != nil {
+				return err
+			}
 			break
 		}
-		return fmt.Sprintf("[%s%s]", strings.Join(elems, ", "), rest)
+		_, err := fmt.Fprint(w, "]")
+		return err
 	}
 
 	switch len(c.Args) {
 	case 1:
-		for _, o := range os {
+		for _, o := range opts.ops {
 			if o.Name != c.Functor {
 				continue
 			}
 			switch o.Type {
 			case `xf`, `yf`:
-				l := []rune(c.Args[0].TermString(os, stop))
-				f := []rune(c.Functor.TermString(os, stop))
+				var lb, fb bytes.Buffer
+				if err := c.Args[0].WriteTerm(&lb, opts); err != nil {
+					return err
+				}
+				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+					return err
+				}
+
+				l := []rune(lb.String())
+				f := []rune(fb.String())
 				if isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) {
-					return fmt.Sprintf("(%s)%s", string(l), string(f))
+					_, err := fmt.Fprintf(w, "(%s)%s", string(l), string(f))
+					return err
 				}
-				return fmt.Sprintf("%s%s", string(l), string(f))
+				_, err := fmt.Fprintf(w, "%s%s", string(l), string(f))
+				return err
 			case `fx`, `fy`:
-				f := []rune(c.Functor.TermString(os, stop))
-				r := []rune(c.Args[0].TermString(os, stop))
-				if isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]) {
-					return fmt.Sprintf("%s(%s)", string(f), string(r))
+				var fb, rb bytes.Buffer
+				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+					return err
 				}
-				return fmt.Sprintf("%s%s", string(f), string(r))
+				if err := c.Args[0].WriteTerm(&rb, opts); err != nil {
+					return err
+				}
+
+				f := []rune(fb.String())
+				r := []rune(rb.String())
+				if isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]) {
+					_, err := fmt.Fprintf(w, "%s(%s)", string(f), string(r))
+					return err
+				}
+				_, err := fmt.Fprintf(w, "%s%s", string(f), string(r))
+				return err
 			}
 		}
 	case 2:
-		for _, o := range os {
+		for _, o := range opts.ops {
 			if o.Name != c.Functor {
 				continue
 			}
 			switch o.Type {
 			case `xfx`, `xfy`, `yfx`:
-				l := []rune(c.Args[0].TermString(os, stop))
-				f := []rune(c.Functor.TermString(os, stop))
-				r := []rune(c.Args[1].TermString(os, stop))
+				var lb, fb, rb bytes.Buffer
+				if err := c.Args[0].WriteTerm(&lb, opts); err != nil {
+					return err
+				}
+				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+					return err
+				}
+				if err := c.Args[1].WriteTerm(&rb, opts); err != nil {
+					return err
+				}
+
+				l := []rune(lb.String())
+				f := []rune(fb.String())
+				r := []rune(rb.String())
 				switch {
 				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) && isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
-					return fmt.Sprintf("(%s)%s(%s)", string(l), string(f), string(r))
+					_, err := fmt.Fprintf(w, "(%s)%s(%s)", string(l), string(f), string(r))
+					return err
 				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]):
-					return fmt.Sprintf("(%s)%s%s", string(l), string(f), string(r))
+					_, err := fmt.Fprintf(w, "(%s)%s%s", string(l), string(f), string(r))
+					return err
 				case isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
-					return fmt.Sprintf("%s%s(%s)", string(l), string(f), string(r))
+					_, err := fmt.Fprintf(w, "%s%s(%s)", string(l), string(f), string(r))
+					return err
 				default:
-					return fmt.Sprintf("%s%s%s", string(l), string(f), string(r))
+					_, err := fmt.Fprintf(w, "%s%s%s", string(l), string(f), string(r))
+					return err
 				}
 			}
 		}
 	}
 
-	args := make([]string, len(c.Args))
-	for i, arg := range c.Args {
-		args[i] = arg.TermString(os, stop)
+	if opts.numberVars && c.Functor == Atom("$VAR") && len(c.Args) == 1 {
+		switch arg := Resolve(c.Args[0]).(type) {
+		case Integer:
+			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			ls := []rune(letters)
+			var buf strings.Builder
+			for n := int(arg); n > 0; n = n / len(ls) {
+				m := n % len(ls)
+				if _, err := buf.WriteRune(ls[m-1]); err != nil {
+					return err
+				}
+			}
+			_, err := fmt.Fprint(w, buf.String())
+			return err
+		default:
+			return errors.New("not an integer")
+		}
 	}
-	return fmt.Sprintf("%s(%s)", c.Functor.TermString(os, stop), strings.Join(args, ", "))
+
+	if err := c.Functor.WriteTerm(w, opts); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(w, "("); err != nil {
+		return err
+	}
+	if err := c.Args[0].WriteTerm(w, opts); err != nil {
+		return err
+	}
+	for _, arg := range c.Args[1:] {
+		if _, err := fmt.Fprint(w, ", "); err != nil {
+			return err
+		}
+		if err := arg.WriteTerm(w, opts); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprint(w, ")")
+	return err
 }
 
 func (c *Compound) Unify(t Term, occursCheck bool) bool {
@@ -360,7 +437,7 @@ func Set(ts ...Term) Term {
 
 func Each(list Term, f func(elem Term) error) error {
 	for {
-		switch l := list.(type) {
+		switch l := Resolve(list).(type) {
 		case Atom:
 			if l != Atom("[]") {
 				return errors.New("invalid list")
@@ -384,8 +461,6 @@ func Resolve(t Term) Term {
 	var stop []*Variable
 	for t != nil {
 		switch v := t.(type) {
-		case Float, Integer, Atom, *Compound, Stream:
-			return v
 		case *Variable:
 			if v.Ref == nil {
 				return v
@@ -397,6 +472,8 @@ func Resolve(t Term) Term {
 			}
 			stop = append(stop, v)
 			t = v.Ref
+		default:
+			return v
 		}
 	}
 	return nil
@@ -440,11 +517,14 @@ type Stream struct {
 }
 
 func (s Stream) String() string {
-	return s.TermString(nil, nil)
+	var buf bytes.Buffer
+	_ = s.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
 }
 
-func (s Stream) TermString(operators, *[]*Variable) string {
-	return fmt.Sprintf("<stream>(%p)", s.ReadWriteCloser)
+func (s Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	_, err := fmt.Fprintf(w, "<stream>(%p)", s.ReadWriteCloser)
+	return err
 }
 
 func (s Stream) Unify(t Term, occursCheck bool) bool {
@@ -460,4 +540,18 @@ func (s Stream) Unify(t Term, occursCheck bool) bool {
 
 func (s Stream) Copy() Term {
 	return s
+}
+
+type WriteTermOptions struct {
+	quoted     bool
+	ops        operators
+	numberVars bool
+}
+
+var defaultWriteTermOptions = WriteTermOptions{
+	quoted: true,
+	ops: []operator{
+		{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
+	},
+	numberVars: false,
 }

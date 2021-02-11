@@ -96,10 +96,12 @@ func main() {
 		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
 			ls := make([]string, 0, len(vars))
 			for _, v := range vars {
-				if _, ok := prolog.Resolve(v).(*prolog.Variable); ok {
+				t := prolog.Resolve(v)
+				if _, ok := t.(*prolog.Variable); ok {
 					continue
 				}
-				ls = append(ls, e.StringTerm(v))
+
+				ls = append(ls, fmt.Sprintf("%s = %s", v.Name, e.TermString(t)))
 			}
 			if len(ls) == 0 {
 				fmt.Fprintf(t, "%t ", true)

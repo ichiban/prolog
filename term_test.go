@@ -1,10 +1,27 @@
 package prolog
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestVariable_WriteTerm(t *testing.T) {
+	t.Run("named", func(t *testing.T) {
+		v := Variable{Name: "X", Ref: Integer(1)}
+		var buf bytes.Buffer
+		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}))
+		assert.Equal(t, "X", buf.String())
+	})
+
+	t.Run("unnamed", func(t *testing.T) {
+		v := Variable{Ref: Integer(1)}
+		var buf bytes.Buffer
+		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}))
+		assert.Regexp(t, `\A_0x[[:xdigit:]]+\z`, buf.String())
+	})
+}
 
 func TestAtom_String(t *testing.T) {
 	assert.Equal(t, `abc`, Atom("abc").String())
@@ -20,6 +37,36 @@ func TestAtom_String(t *testing.T) {
 	assert.Equal(t, `'\''`, Atom("'").String())
 	assert.Equal(t, `'\"'`, Atom("\"").String())
 	assert.Equal(t, "'\\`'", Atom("`").String())
+}
+
+func TestAtom_WriteTerm(t *testing.T) {
+	t.Run("not quoted", func(t *testing.T) {
+		t.Run("no need to quote", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{quoted: false}))
+			assert.Equal(t, `a`, buf.String())
+		})
+
+		t.Run("need to quote", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{quoted: false}))
+			assert.Equal(t, "\a\b\f\n\r\t\v\x00\\'\"`", buf.String())
+		})
+	})
+
+	t.Run("quoted", func(t *testing.T) {
+		t.Run("no need to quote", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{quoted: true}))
+			assert.Equal(t, `a`, buf.String())
+		})
+
+		t.Run("need to quote", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{quoted: true}))
+			assert.Equal(t, "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'", buf.String())
+		})
+	})
 }
 
 func TestAtom_Unify(t *testing.T) {
@@ -170,10 +217,7 @@ func TestCompound_String(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("append"), Integer(3)},
 		}
-		var stop []*Variable
-		assert.Equal(t, "append/3", c.TermString(operators{
-			{Precedence: 400, Type: `yfx`, Name: `/`},
-		}, &stop))
+		assert.Equal(t, "append/3", c.String())
 	})
 
 	t.Run("parenthesises", func(t *testing.T) {
@@ -181,10 +225,63 @@ func TestCompound_String(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("=="), Integer(2)},
 		}
-		var stop []*Variable
-		assert.Equal(t, "(==)/2", c.TermString(operators{
-			{Precedence: 400, Type: `yfx`, Name: `/`},
-		}, &stop))
+		assert.Equal(t, "(==)/2", c.String())
+	})
+}
+
+func TestCompound_WriteTerm(t *testing.T) {
+	t.Run("ignore_ops", func(t *testing.T) {
+		c := Compound{
+			Functor: "+",
+			Args: []Term{
+				Integer(2),
+				&Compound{
+					Functor: "-",
+					Args:    []Term{Integer(2)},
+				},
+			},
+		}
+
+		t.Run("false", func(t *testing.T) {
+			ops := operators{
+				{Precedence: 500, Type: "yfx", Name: "+"},
+				{Precedence: 200, Type: "fy", Name: "-"},
+			}
+
+			var buf bytes.Buffer
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{ops: ops}))
+			assert.Equal(t, "2+(-2)", buf.String())
+		})
+
+		t.Run("true", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{ops: nil}))
+			assert.Equal(t, "+(2, -(2))", buf.String())
+		})
+	})
+
+	t.Run("numbervars", func(t *testing.T) {
+		c := Compound{
+			Functor: "f",
+			Args: []Term{
+				&Compound{Functor: "$VAR", Args: []Term{Integer(1)}},
+				&Compound{Functor: "$VAR", Args: []Term{Integer(2)}},
+				&Compound{Functor: "$VAR", Args: []Term{Integer(3)}},
+				&Compound{Functor: "$VAR", Args: []Term{Integer(27)}},
+			},
+		}
+
+		t.Run("false", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{numberVars: false}))
+			assert.Equal(t, "f($VAR(1), $VAR(2), $VAR(3), $VAR(27))", buf.String())
+		})
+
+		t.Run("true", func(t *testing.T) {
+			var buf bytes.Buffer
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{numberVars: true}))
+			assert.Equal(t, "f(A, B, C, AA)", buf.String())
+		})
 	})
 }
 
@@ -195,24 +292,6 @@ func TestContains(t *testing.T) {
 	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a")))
 	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a")))
 	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a")))
-}
-
-func TestVariable_TermString(t *testing.T) {
-	v := Variable{
-		Name: "X",
-		Ref: &Variable{
-			Ref: &Variable{
-				Ref: &Compound{
-					Functor: "f",
-					Args:    []Term{nil},
-				},
-			},
-		},
-	}
-	v.Ref.(*Variable).Ref.(*Variable).Ref.(*Compound).Args[0] = &v
-
-	var stop []*Variable
-	assert.Equal(t, "X = f(X)", v.TermString(nil, &stop))
 }
 
 func TestRulify(t *testing.T) {

@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -77,6 +78,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register4("open", e.Open)
 	e.Register2("close", e.Close)
 	e.Register1("flush_output", e.FlushOutput)
+	e.Register3("write_term", e.WriteTerm)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -197,7 +199,7 @@ func (e *Engine) Load(s string) error {
 			return err
 		}
 
-		if _, err := e.Assertz(t, done); err != nil {
+		if _, err := e.Assertz(t, Done); err != nil {
 			return err
 		}
 	}
@@ -227,9 +229,10 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 	return ok, nil
 }
 
-func (e *Engine) StringTerm(t Term) string {
-	var stop []*Variable
-	return t.TermString(e.operators, &stop)
+func (e *Engine) TermString(t Term) string {
+	var buf bytes.Buffer
+	_ = t.WriteTerm(&buf, WriteTermOptions{quoted: true, ops: e.operators})
+	return buf.String()
 }
 
 func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
@@ -324,7 +327,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			}, false) {
 				return false, nil
 			}
-			ok, err := Functor(&arg, &fatom, &farity, done)
+			ok, err := Functor(&arg, &fatom, &farity, Done)
 			if err != nil {
 				return false, err
 			}
@@ -333,7 +336,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Univ(&arg, Cons(&fatom, args), done)
+			ok, err = Univ(&arg, Cons(&fatom, args), Done)
 			if err != nil {
 				return false, err
 			}
@@ -372,8 +375,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 				return false, nil
 			}
 			pc = pc[2:]
-			var stop []*Variable
-			return e.arrive(x.TermString(e.operators, &stop), astack, func() (bool, error) {
+			return e.arrive(x.String(), astack, func() (bool, error) {
 				var v Variable
 				return e.exec(pc, xr, vars, k, &v, &v)
 			})
@@ -704,7 +706,7 @@ func (a assignment) contains(v *Variable) bool {
 	return false
 }
 
-func done() (bool, error) {
+func Done() (bool, error) {
 	return true, nil
 }
 

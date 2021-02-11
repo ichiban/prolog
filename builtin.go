@@ -466,7 +466,7 @@ func (e *Engine) collectionOf(template, goal, collection Term, k func() (bool, e
 	solutions:
 		for i, s := range solutions {
 			for i := range groupingVariables {
-				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], done)
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Done)
 				if err != nil {
 					return false, err
 				}
@@ -620,7 +620,7 @@ func Throw(t Term, _ func() (bool, error)) (bool, error) {
 }
 
 func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
-	ok, err := e.Call(goal, done)
+	ok, err := e.Call(goal, Done)
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
 			return e.Call(recover, k)
@@ -899,4 +899,50 @@ func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) 
 
 type Flusher interface {
 	Flush() error
+}
+
+func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+	stream, term, options = Resolve(stream), Resolve(term), Resolve(options)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	opts := WriteTermOptions{ops: e.operators}
+	if err := Each(options, func(option Term) error {
+		switch {
+		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("false")}}, false):
+			opts.quoted = false
+		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("true")}}, false):
+			opts.quoted = true
+		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("false")}}, false):
+			opts.ops = e.operators
+		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("true")}}, false):
+			opts.ops = nil
+		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("false")}}, false):
+			opts.numberVars = false
+		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("true")}}, false):
+			opts.numberVars = true
+		default:
+			return errors.New("unknown option")
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	if err := term.WriteTerm(s, opts); err != nil {
+		return false, err
+	}
+
+	return k()
 }
