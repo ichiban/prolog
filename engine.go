@@ -199,6 +199,8 @@ nl(Stream) :- write_term(Stream, '\n', []).
 nl :- current_output(S), nl(S).
 
 put_char(Stream, Char) :- write_term(Stream, Char, []).
+
+put_char(Char) :- current_output(S), put_char(S, Char).
 `)
 	return &e, err
 }
