@@ -197,6 +197,8 @@ writeq(Term) :- current_output(S), writeq(S, Term).
 nl(Stream) :- write_term(Stream, '\n', []).
 
 nl :- current_output(S), nl(S).
+
+put_char(Stream, Char) :- write_term(Stream, Char, []).
 `)
 	return &e, err
 }
