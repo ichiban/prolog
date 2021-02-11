@@ -204,6 +204,8 @@ put_char(Stream, Char) :- write_term(Stream, Char, []).
 put_char(Char) :- current_output(S), put_char(S, Char).
 
 put_code(Stream, Code) :- char_code(C, Code), put_char(Stream, C).
+
+put_code(Code) :- current_output(S), put_code(S, Code).
 `)
 	return &e, err
 }
