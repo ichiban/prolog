@@ -189,6 +189,8 @@ write(Term) :- current_output(S), write(S, Term).
 write_canonical(Stream, Term) :- write_term(Stream, Term, [quoted(true), ignore_ops(true)]).
 
 write_canonical(Term) :- current_output(S), write_canonical(S, Term).
+
+writeq(Stream, Term) :- write_term(Stream, Term, [quoted(true), numbervars(true)]).
 `)
 	return &e, err
 }
