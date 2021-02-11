@@ -183,6 +183,8 @@ flush_output :- current_output(S), flush_output(S).
 write_term(Term, Options) :- current_output(S), write_term(S, Term, Options).
 
 write(Stream, Term) :- write_term(Stream, Term, [numbervars(true)]).
+
+write(Term) :- current_output(S), write(S, Term).
 `)
 	return &e, err
 }
