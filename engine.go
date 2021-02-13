@@ -210,6 +210,8 @@ put_code(Stream, Code) :- char_code(C, Code), put_char(Stream, C).
 put_code(Code) :- current_output(S), put_code(S, Code).
 
 put_byte(Byte) :- current_output(S), put_byte(S, Byte).
+
+read_term(Term, Options) :- current_input(S), read_term(S, Term, Options).
 `)
 	return &e, err
 }
