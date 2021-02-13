@@ -636,7 +636,7 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (boo
 func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
 	a := newAssignment(pf)
 	for key := range e.procedures {
-		p := NewParser(key, &operators{
+		p := NewParser(strings.NewReader(key), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
 		})
 		t, err := p.Term()
@@ -994,4 +994,73 @@ func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error)
 	}
 
 	return k()
+}
+
+func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+	stream, options = Resolve(stream), Resolve(options)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	var opts ReadTermOptions
+	if err := Each(options, func(option Term) error {
+		var v Variable
+		switch {
+		case option.Unify(&Compound{Functor: "singletons", Args: []Term{&v}}, false):
+			opts.singletons = &v
+		case option.Unify(&Compound{Functor: "variables", Args: []Term{&v}}, false):
+			opts.variables = &v
+		case option.Unify(&Compound{Functor: "variable_names", Args: []Term{&v}}, false):
+			opts.variableNames = &v
+		default:
+			return errors.New("unknown option")
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	p := NewParser(s, &e.operators)
+
+	t, err := p.Clause()
+	if err != nil {
+		return false, err
+	}
+
+	var singletons, variables, variableNames []Term
+	for _, vc := range p.vars {
+		if vc.count == 1 {
+			singletons = append(singletons, vc.variable)
+		}
+		variables = append(variables, vc.variable)
+		variableNames = append(variableNames, &Compound{
+			Functor: "=",
+			Args:    []Term{Atom(vc.variable.Name), vc.variable},
+		})
+		vc.variable.Name = ""
+	}
+
+	if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
+		return false, nil
+	}
+
+	if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
+		return false, nil
+	}
+
+	if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
+		return false, nil
+	}
+
+	return Unify(term, t, k)
 }

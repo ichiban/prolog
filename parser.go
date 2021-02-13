@@ -3,6 +3,7 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 )
 
@@ -10,10 +11,15 @@ type Parser struct {
 	lexer     *Lexer
 	current   Token
 	operators *operators
-	vars      []*Variable
+	vars      []variableWithCount
 }
 
-func NewParser(input string, operators *operators) *Parser {
+type variableWithCount struct {
+	variable *Variable
+	count    int
+}
+
+func NewParser(input io.Reader, operators *operators) *Parser {
 	p := Parser{
 		lexer:     NewLexer(input),
 		operators: operators,
@@ -89,10 +95,12 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) Clause() (Term, error) {
+	// reset vars
 	for i := range p.vars {
-		p.vars[i] = nil
+		p.vars[i] = variableWithCount{}
 	}
 	p.vars = p.vars[:0]
+
 	t, err := p.Term()
 	if err != nil {
 		return nil, err
@@ -205,15 +213,14 @@ func (p *Parser) lhs() (Term, error) {
 	}
 
 	if v, err := p.accept(TokenVariable); err == nil {
-		for _, e := range p.vars {
-			if e.Name == v {
-				return e, nil
+		for i, e := range p.vars {
+			if e.variable.Name == v {
+				p.vars[i].count++
+				return e.variable, nil
 			}
 		}
-		n := &Variable{
-			Name: v,
-		}
-		p.vars = append(p.vars, n)
+		n := &Variable{Name: v}
+		p.vars = append(p.vars, variableWithCount{variable: n, count: 1})
 		return n, nil
 	}
 

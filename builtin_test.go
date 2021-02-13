@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -1502,4 +1503,155 @@ func TestEngine_PutByte(t *testing.T) {
 			assert.Error(t, err)
 		})
 	})
+}
+
+func TestEngine_ReadTerm(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}, &v, List(), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Atom("foo"), v.Ref)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": s,
+			},
+		}
+
+		var v Variable
+		ok, err := e.ReadTerm(Atom("foo"), &v, List(), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Atom("foo"), v.Ref)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		_, err := e.ReadTerm(Atom("foo"), &v, List(), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		_, err := e.ReadTerm(&Variable{}, &v, List(), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("singletons", func(t *testing.T) {
+		var e Engine
+
+		var term, singletons Variable
+		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+			Functor: "singletons",
+			Args:    []Term{&singletons},
+		}), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, &Compound{
+			Functor: "f",
+			Args: []Term{
+				&Variable{},
+				&Variable{},
+				&Variable{},
+			},
+		}, term.Ref)
+
+		assert.Equal(t, &Variable{Ref: List(&Variable{})}, singletons.Ref)
+	})
+
+	t.Run("variables", func(t *testing.T) {
+		var e Engine
+
+		var term, variables Variable
+		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+			Functor: "variables",
+			Args:    []Term{&variables},
+		}), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, &Compound{
+			Functor: "f",
+			Args: []Term{
+				&Variable{},
+				&Variable{},
+				&Variable{},
+			},
+		}, term.Ref)
+
+		assert.Equal(t, &Variable{Ref: List(&Variable{}, &Variable{})}, variables.Ref)
+	})
+
+	t.Run("variable_names", func(t *testing.T) {
+		var e Engine
+
+		var term, variableNames Variable
+		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+			Functor: "variable_names",
+			Args:    []Term{&variableNames},
+		}), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, &Compound{
+			Functor: "f",
+			Args: []Term{
+				&Variable{},
+				&Variable{},
+				&Variable{},
+			},
+		}, term.Ref)
+
+		assert.Equal(t, &Variable{Ref: List(
+			&Compound{
+				Functor: "=",
+				Args:    []Term{Atom("X"), &Variable{}},
+			},
+			&Compound{
+				Functor: "=",
+				Args:    []Term{Atom("Y"), &Variable{}},
+			},
+		)}, variableNames.Ref)
+	})
+
+	t.Run("unknown option", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		_, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}, &v, List(&Compound{
+			Functor: "unknown",
+			Args:    []Term{Atom("option")},
+		}), Done)
+		assert.Error(t, err)
+	})
+}
+
+type stringRWC struct {
+	*strings.Reader
+}
+
+func (s stringRWC) Read(p []byte) (n int, err error) {
+	return s.Reader.Read(p)
+}
+
+func (s stringRWC) Write(p []byte) (n int, err error) {
+	return 0, errors.New("")
+}
+
+func (s stringRWC) Close() error {
+	return errors.New("")
 }

@@ -81,6 +81,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("write_term", e.WriteTerm)
 	e.Register2("char_code", CharCode)
 	e.Register2("put_byte", e.PutByte)
+	e.Register3("read_term", e.ReadTerm)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -218,7 +219,7 @@ type procedure interface {
 }
 
 func (e *Engine) Load(s string) error {
-	p := NewParser(s, &e.operators)
+	p := NewParser(strings.NewReader(s), &e.operators)
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {
 			return nil
@@ -240,7 +241,7 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 		cb = func([]*Variable) bool { return true }
 	}
 
-	t, err := NewParser(s, &e.operators).Clause()
+	t, err := NewParser(strings.NewReader(s), &e.operators).Clause()
 	if err != nil {
 		return false, err
 	}

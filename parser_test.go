@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,9 +9,9 @@ import (
 
 func TestParser_Clause(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		p := NewParser(`
+		p := NewParser(strings.NewReader(`
 append(nil,L,L).
-`, &operators{})
+`), &operators{})
 		c, err := p.Clause()
 		assert.NoError(t, err)
 
@@ -26,9 +27,9 @@ append(nil,L,L).
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		p := NewParser(`
+		p := NewParser(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
-`, &operators{
+`), &operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
 		})
 		c, err := p.Clause()
@@ -70,7 +71,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		p := NewParser(`P, Q :- P, Q.`, &operators{
+		p := NewParser(strings.NewReader(`P, Q :- P, Q.`), &operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
 		})
@@ -99,7 +100,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("qualifier", func(t *testing.T) {
-		p := NewParser(`bagof(C, A^foo(A, B, C), Cs).`, &operators{
+		p := NewParser(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`), &operators{
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
 			{Precedence: 200, Type: `xfy`, Name: `^`},
 		})
@@ -130,7 +131,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("multiple qualifiers", func(t *testing.T) {
-		p := NewParser(`bagof(C, (A, B)^foo(A, B, C), Cs).`, &operators{
+		p := NewParser(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`), &operators{
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
 			{Precedence: 200, Type: `xfy`, Name: `^`},
 		})
@@ -169,7 +170,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 func TestParser_Term(t *testing.T) {
 	t.Run("expression", func(t *testing.T) {
-		p := NewParser(`a + b * c * d + e`, &operators{
+		p := NewParser(strings.NewReader(`a + b * c * d + e`), &operators{
 			{Precedence: 500, Type: `yfx`, Name: `+`},
 			{Precedence: 400, Type: `yfx`, Name: `*`},
 		})
@@ -200,14 +201,14 @@ func TestParser_Term(t *testing.T) {
 	})
 
 	t.Run("list", func(t *testing.T) {
-		p := NewParser(`[a, b, c|X]`, &operators{})
+		p := NewParser(strings.NewReader(`[a, b, c|X]`), &operators{})
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
 	t.Run("principal functor", func(t *testing.T) {
-		p := NewParser(`(==)/2`, &operators{
+		p := NewParser(strings.NewReader(`(==)/2`), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
 		})
 		term, err := p.Term()

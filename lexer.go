@@ -1,8 +1,9 @@
 package prolog
 
 import (
+	"bufio"
 	"fmt"
-	"regexp"
+	"io"
 	"strconv"
 	"strings"
 	"unicode"
@@ -10,17 +11,17 @@ import (
 )
 
 type Lexer struct {
-	input  string
+	input  *bufio.Reader
 	tokens chan Token
 
 	pos   int
 	width int
 }
 
-func NewLexer(input string) *Lexer {
+func NewLexer(input io.Reader) *Lexer {
 	tokens := make(chan Token)
 
-	l := Lexer{input: input, tokens: tokens}
+	l := Lexer{input: bufio.NewReader(input), tokens: tokens}
 	go func() {
 		defer close(tokens)
 
@@ -37,15 +38,15 @@ func (l *Lexer) Next() Token {
 	return <-l.tokens
 }
 
-func (l *Lexer) next() (rune, int) {
-	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
+func (l *Lexer) next() rune {
+	r, w, _ := l.input.ReadRune()
 	l.width = w
-	pos := l.pos
 	l.pos += l.width
-	return r, pos
+	return r
 }
 
 func (l *Lexer) backup() {
+	_ = l.input.UnreadRune()
 	l.pos -= l.width
 }
 
@@ -88,9 +89,9 @@ func (k TokenKind) String() string {
 	}
 }
 
-type lexState func(rune, int) lexState
+type lexState func(rune) lexState
 
-func (l *Lexer) program(r rune, pos int) lexState {
+func (l *Lexer) program(r rune) lexState {
 	switch r {
 	case '.':
 		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -102,7 +103,7 @@ func (l *Lexer) program(r rune, pos int) lexState {
 }
 
 func (l *Lexer) term(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch {
 		case r == utf8.RuneError:
 			return nil
@@ -112,28 +113,38 @@ func (l *Lexer) term(ctx lexState) lexState {
 			return l.singleLineComment(l.term(ctx))
 		case r == '/':
 			l.backup()
-			return l.multiLineComment(pos, l.term(ctx), ctx)
+			var b strings.Builder
+			return l.multiLineComment(&b, l.term(ctx), ctx)
 		case unicode.IsLower(r):
 			l.backup()
-			return l.atom(pos, ctx)
+			var b strings.Builder
+			return l.atom(&b, ctx)
 		case r == '\'':
-			return l.quotedAtom(pos, ctx)
+			var b strings.Builder
+			return l.quotedAtom(&b, ctx)
 		case isGraphic(r):
 			l.backup()
-			return l.graphic(pos, ctx)
+			var b strings.Builder
+			return l.graphic(&b, ctx)
 		case unicode.IsNumber(r):
 			l.backup()
-			return l.integer(pos, ctx)
+			var b strings.Builder
+			return l.integer(&b, ctx)
 		case unicode.IsUpper(r), r == '_':
 			l.backup()
-			return l.variable(pos, ctx)
+			var b strings.Builder
+			return l.variable(&b, ctx)
 		case r == '!':
 			l.emit(Token{Kind: TokenAtom, Val: string(r)})
 			return ctx
 		case r == ',', r == ';':
-			return l.graphic(pos, ctx)
+			var b strings.Builder
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.graphic(&b, ctx)
 		case r == '[':
-			return l.list(pos, ctx)
+			return l.list(ctx)
 		case r == '(':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.paren(ctx))
@@ -144,7 +155,7 @@ func (l *Lexer) term(ctx lexState) lexState {
 }
 
 func (l *Lexer) paren(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -157,7 +168,7 @@ func (l *Lexer) paren(ctx lexState) lexState {
 }
 
 func (l *Lexer) args(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -173,7 +184,7 @@ func (l *Lexer) args(ctx lexState) lexState {
 }
 
 func (l *Lexer) elems(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case ']':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -190,209 +201,251 @@ func (l *Lexer) elems(ctx lexState) lexState {
 	}
 }
 
-func (l *Lexer) atom(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) atom(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			return l.atom(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.atom(b, ctx)
 		case r == '(':
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.args(ctx))
 		default:
 			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) quotedAtom(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) quotedAtom(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '\'':
-			return l.quotedAtomQuote(start, ctx)
+			return l.quotedAtomQuote(b, ctx)
 		case '\\':
-			return l.quotedAtomSlash(start, ctx)
+			return l.quotedAtomSlash(b, ctx)
 		default:
-			return l.quotedAtom(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
 		}
 	}
 }
 
-var quotedAtomCodePattern = regexp.MustCompile("''|\\\\\n|\\\\a|\\\\b|\\\\f|\\\\n|\\\\r|\\\\t|\\\\v|\\\\x?\\d+\\\\|\\\\\\\\|\\\\'|\\\\\"|\\\\`")
-
-func (l *Lexer) quotedAtomQuote(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) quotedAtomQuote(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '\'':
-			return l.quotedAtom(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
 		default:
 			l.backup()
-			val := l.input[start+1 : pos-1]
-			val = quotedAtomCodePattern.ReplaceAllStringFunc(val, func(s string) string {
-				switch {
-				case s == `''`:
-					return `'`
-				case s == "\\\n":
-					return ""
-				case s == `\a`:
-					return "\a"
-				case s == `\b`:
-					return "\b"
-				case s == `\f`:
-					return "\f"
-				case s == `\n`:
-					return "\n"
-				case s == `\r`:
-					return "\r"
-				case s == `\t`:
-					return "\t"
-				case s == `\v`:
-					return "\v"
-				case strings.HasSuffix(s, `\`):
-					switch {
-					case s == `\\`:
-						return `\`
-					case strings.HasPrefix(s, `\x`):
-						i, err := strconv.ParseInt(s[2:len(s)-1], 16, 4*8) // rune is up to 4 bytes
-						if err != nil {
-							return s
-						}
-						return string(rune(i))
-					default:
-						i, err := strconv.ParseInt(s[1:len(s)-1], 8, 4*8) // rune is up to 4 bytes
-						if err != nil {
-							return s
-						}
-						return string(rune(i))
-					}
-				case s == `\'`:
-					return `'`
-				case s == `\"`:
-					return `"`
-				case s == "\\`":
-					return "`"
-				default:
-					return s
-				}
-			})
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) quotedAtomSlash(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) quotedAtomSlash(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
-		case r == 'x' || unicode.IsNumber(r):
-			return l.quotedAtomSlashCode(start, ctx)
-		default:
-			return l.quotedAtom(start, ctx)
-		}
-	}
-}
-
-func (l *Lexer) quotedAtomSlashCode(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
-		switch {
+		case r == '\n':
+			return l.quotedAtom(b, ctx)
+		case r == 'x':
+			var val strings.Builder
+			return l.quotedAtomSlashCode(b, ctx, 16, &val)
 		case unicode.IsNumber(r):
-			return l.quotedAtomSlashCode(start, ctx)
+			var val strings.Builder
+			if _, err := val.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.quotedAtomSlashCode(b, ctx, 8, &val)
+		case r == 'a':
+			if _, err := b.WriteRune('\a'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 'b':
+			if _, err := b.WriteRune('\b'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 'f':
+			if _, err := b.WriteRune('\f'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 'n':
+			if _, err := b.WriteRune('\n'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 'r':
+			if _, err := b.WriteRune('\r'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 't':
+			if _, err := b.WriteRune('\t'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == 'v':
+			if _, err := b.WriteRune('\v'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
 		case r == '\\':
-			return l.quotedAtom(start, ctx)
+			if _, err := b.WriteRune('\\'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == '\'':
+			if _, err := b.WriteRune('\''); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == '"':
+			if _, err := b.WriteRune('"'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		case r == '`':
+			if _, err := b.WriteRune('`'); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
 		default:
 			return nil
 		}
 	}
 }
 
-func (l *Lexer) decimal(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) quotedAtomSlashCode(b *strings.Builder, ctx lexState, base int, val *strings.Builder) lexState {
+	return func(r rune) lexState {
 		switch {
 		case unicode.IsNumber(r):
-			return l.float(start, ctx)
+			if _, err := val.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.quotedAtomSlashCode(b, ctx, base, val)
+		case r == '\\':
+			i, err := strconv.ParseInt(val.String(), base, 4*8) // rune is up to 4 bytes
+			if err != nil {
+				return nil
+			}
+			if _, err := b.WriteRune(rune(i)); err != nil {
+				return nil
+			}
+			return l.quotedAtom(b, ctx)
+		default:
+			return nil
+		}
+	}
+}
+
+func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		switch {
+		case unicode.IsNumber(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.float(b, ctx)
 		default:
 			l.backup()
-			val := l.input[start : pos-1]
-			l.emit(Token{Kind: TokenInteger, Val: val})
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
 			l.emit(Token{Kind: TokenSeparator, Val: "."})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) float(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case unicode.IsNumber(r):
-			return l.float(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.float(b, ctx)
 		default:
 			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenFloat, Val: val})
+			l.emit(Token{Kind: TokenFloat, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) integer(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case unicode.IsNumber(r):
-			return l.integer(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integer(b, ctx)
 		case r == '.':
-			return l.decimal(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.decimal(b, ctx)
 		default:
 			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenInteger, Val: val})
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) variable(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) variable(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			return l.variable(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.variable(b, ctx)
 		default:
 			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenVariable, Val: val})
+			l.emit(Token{Kind: TokenVariable, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) graphic(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) graphic(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case isGraphic(r):
-			return l.graphic(start, ctx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.graphic(b, ctx)
 		case r == '(':
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.args(ctx))
 		default:
 			l.backup()
-			val := l.input[start:pos]
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
 			return ctx
 		}
 	}
 }
 
-func (l *Lexer) list(start int, ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) list(ctx lexState) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case ']':
-			val := l.input[start : pos+1]
-			l.emit(Token{Kind: TokenAtom, Val: val})
+			l.emit(Token{Kind: TokenAtom, Val: "[]"})
 			return ctx
 		default:
 			l.emit(Token{Kind: TokenSeparator, Val: "["})
@@ -403,7 +456,7 @@ func (l *Lexer) list(start int, ctx lexState) lexState {
 }
 
 func (l *Lexer) singleLineComment(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '\n':
 			return ctx
@@ -413,25 +466,31 @@ func (l *Lexer) singleLineComment(ctx lexState) lexState {
 	}
 }
 
-func (l *Lexer) multiLineComment(start int, ctx, elseCtx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) multiLineComment(b *strings.Builder, ctx, elseCtx lexState) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '/':
-			return l.multiLineCommentBegin(start, ctx, elseCtx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.multiLineCommentBegin(b, ctx, elseCtx)
 		default:
 			l.backup()
-			return l.graphic(start, elseCtx)
+			return l.graphic(b, elseCtx)
 		}
 	}
 }
 
-func (l *Lexer) multiLineCommentBegin(start int, ctx, elseCtx lexState) lexState {
-	return func(r rune, pos int) lexState {
+func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx, elseCtx lexState) lexState {
+	return func(r rune) lexState {
 		switch {
 		case r == '*':
 			return l.multiLineCommentBody(ctx)
 		case isGraphic(r):
-			return l.graphic(start, elseCtx)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.graphic(b, elseCtx)
 		default:
 			l.emit(Token{Kind: TokenAtom, Val: "/"})
 			l.backup()
@@ -441,7 +500,7 @@ func (l *Lexer) multiLineCommentBegin(start int, ctx, elseCtx lexState) lexState
 }
 
 func (l *Lexer) multiLineCommentBody(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '*':
 			return l.multiLineCommentEnd(ctx)
@@ -452,7 +511,7 @@ func (l *Lexer) multiLineCommentBody(ctx lexState) lexState {
 }
 
 func (l *Lexer) multiLineCommentEnd(ctx lexState) lexState {
-	return func(r rune, pos int) lexState {
+	return func(r rune) lexState {
 		switch r {
 		case '/':
 			return ctx

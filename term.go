@@ -555,3 +555,9 @@ var defaultWriteTermOptions = WriteTermOptions{
 	},
 	numberVars: false,
 }
+
+type ReadTermOptions struct {
+	singletons    *Variable
+	variables     *Variable
+	variableNames *Variable
+}
