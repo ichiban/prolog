@@ -27,6 +27,7 @@ type Engine struct {
 	procedures    map[string]procedure
 	globalVars    map[Atom]Term
 	input, output Stream
+	AtHalt        func()
 }
 
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
@@ -83,7 +84,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("put_byte", e.PutByte)
 	e.Register3("read_term", e.ReadTerm)
 	e.Register2("get_byte", e.GetByte)
-	e.Register1("halt", Halt)
+	e.Register1("halt", e.Halt)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -220,6 +221,8 @@ read(Stream, Term) :- read_term(Stream, Term, []).
 read(Term) :- current_input(S), read(S, Term).
 
 get_byte(Byte) :- current_input(S), get_byte(S, Byte).
+
+halt :- halt(0).
 `)
 	return &e, err
 }

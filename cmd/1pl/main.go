@@ -52,20 +52,17 @@ func main() {
 
 	logrus.SetOutput(t)
 
-	halt := false
-
 	e, err := prolog.NewEngine(os.Stdin, t)
 	if err != nil {
 		log.Panic(err)
+	}
+	e.AtHalt = func() {
+		_ = terminal.Restore(0, oldState)
 	}
 	e.Register1("version", func(term prolog.Term, k func() (bool, error)) (bool, error) {
 		if !term.Unify(prolog.Atom(Version), false) {
 			return false, nil
 		}
-		return k()
-	})
-	e.Register0("halt", func(k func() (bool, error)) (bool, error) {
-		halt = true
 		return k()
 	})
 
@@ -83,8 +80,7 @@ func main() {
 	}
 
 	keys := bufio.NewReader(os.Stdin)
-
-	for !halt {
+	for {
 		line, err := t.ReadLine()
 		if err != nil {
 			if err == io.EOF {

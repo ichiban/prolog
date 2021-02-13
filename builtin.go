@@ -1094,10 +1094,14 @@ func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error)
 	}
 }
 
-func Halt(n Term, k func() (bool, error)) (bool, error) {
+func (e *Engine) Halt(n Term, k func() (bool, error)) (bool, error) {
 	code, ok := Resolve(n).(Integer)
 	if !ok {
 		return false, errors.New("not an integer")
+	}
+
+	if f := e.AtHalt; f != nil {
+		f()
 	}
 
 	os.Exit(int(code))
