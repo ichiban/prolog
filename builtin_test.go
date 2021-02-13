@@ -1655,3 +1655,78 @@ func (s stringRWC) Write(p []byte) (n int, err error) {
 func (s stringRWC) Close() error {
 	return errors.New("")
 }
+
+func TestEngine_GetByte(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("a")}}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.GetByte(s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(97), v.Ref)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("a")}}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": s,
+			},
+		}
+
+		var v Variable
+		ok, err := e.GetByte(Atom("foo"), &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(97), v.Ref)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		_, err := e.GetByte(Atom("foo"), &v, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+
+		var v Variable
+		_, err := e.GetByte(&Variable{}, &v, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("eof", func(t *testing.T) {
+		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("")}}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.GetByte(s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(-1), v.Ref)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		var m mockReadWriteCloser
+		m.On("Read", make([]byte, 1)).Return(0, errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
+
+		s := Stream{ReadWriteCloser: &m}
+
+		var e Engine
+
+		var v Variable
+		_, err := e.GetByte(s, &v, Done)
+		assert.Error(t, err)
+	})
+}

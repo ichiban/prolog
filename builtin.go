@@ -3,6 +3,7 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -1063,4 +1064,32 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 	}
 
 	return Unify(term, t, k)
+}
+
+func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	b := make([]byte, 1)
+	_, err := s.Read(b)
+	switch err {
+	case nil:
+		return Unify(byt, Integer(b[0]), k)
+	case io.EOF:
+		return Unify(byt, Integer(-1), k)
+	default:
+		return false, err
+	}
 }
