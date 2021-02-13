@@ -92,6 +92,9 @@ func main() {
 		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
 			ls := make([]string, 0, len(vars))
 			for _, v := range vars {
+				if v.Name == "" {
+					continue
+				}
 				t := prolog.Resolve(v)
 				if _, ok := t.(*prolog.Variable); ok {
 					continue

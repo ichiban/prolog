@@ -213,6 +213,9 @@ func (p *Parser) lhs() (Term, error) {
 	}
 
 	if v, err := p.accept(TokenVariable); err == nil {
+		if v == "_" {
+			return &Variable{}, nil
+		}
 		for i, e := range p.vars {
 			if e.variable.Name == v {
 				p.vars[i].count++
