@@ -217,6 +217,8 @@ read_term(Term, Options) :- current_input(S), read_term(S, Term, Options).
 read(Stream, Term) :- read_term(Stream, Term, []).
 
 read(Term) :- current_input(S), read(S, Term).
+
+get_byte(Byte) :- current_input(S), get_byte(S, Byte).
 `)
 	return &e, err
 }
