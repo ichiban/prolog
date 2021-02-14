@@ -89,6 +89,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("atom_length", AtomLength)
 	e.Register3("atom_concat", AtomConcat)
 	e.Register5("sub_atom", SubAtom)
+	e.Register2("atom_chars", AtomChars)
 	err := e.Load(`
 /*
  *  bootstrap script

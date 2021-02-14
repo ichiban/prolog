@@ -1211,3 +1211,28 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() (bool, error)) 
 
 	return false, nil
 }
+
+func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
+	a, ok := Resolve(atom).(Atom)
+	if !ok {
+		var sb strings.Builder
+		if err := Each(Resolve(chars), func(elem Term) error {
+			e, ok := Resolve(elem).(Atom)
+			if !ok {
+				return errors.New("not an atom")
+			}
+			_, err := sb.WriteString(string(e))
+			return err
+		}); err != nil {
+			return false, err
+		}
+		return Unify(atom, Atom(sb.String()), k)
+	}
+
+	rs := []rune(a)
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Atom(r)
+	}
+	return Unify(chars, List(cs...), k)
+}

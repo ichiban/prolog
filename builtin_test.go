@@ -1838,3 +1838,20 @@ func TestSubAtom(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestAtomChars(t *testing.T) {
+	var chars Variable
+	ok, err := AtomChars(Atom("foo"), &chars, Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, List(Atom("f"), Atom("o"), Atom("o")), chars.Ref)
+
+	var atom Variable
+	ok, err = AtomChars(&atom, List(Atom("f"), Atom("o"), Atom("o")), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, Atom("foo"), atom.Ref)
+
+	_, err = AtomChars(&Variable{}, List(Integer(0)), Done)
+	assert.Error(t, err)
+}
