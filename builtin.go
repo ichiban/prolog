@@ -1146,3 +1146,37 @@ func AtomLength(atom, integer Term, k func() (bool, error)) (bool, error) {
 
 	return Unify(integer, Integer(len([]rune(a))), k)
 }
+
+func AtomConcat(atom1, atom2, atom3 Term, k func() (bool, error)) (bool, error) {
+	if a1, ok := Resolve(atom1).(Atom); ok {
+		if a2, ok := Resolve(atom2).(Atom); ok {
+			return Unify(a1+a2, atom3, k)
+		}
+	}
+
+	a3, ok := Resolve(atom3).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	pattern := Compound{
+		Args: []Term{atom1, atom2},
+	}
+	a := newAssignment(atom1, atom2)
+	for i := range a3 {
+		ok, err := Unify(&pattern, &Compound{
+			Args: []Term{a3[:i], a3[i:]},
+		}, k)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return ok, nil
+		}
+		a.reset()
+	}
+
+	return Unify(&pattern, &Compound{
+		Args: []Term{a3, Atom("")},
+	}, k)
+}

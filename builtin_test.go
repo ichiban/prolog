@@ -1776,3 +1776,34 @@ func TestAtomLength(t *testing.T) {
 	_, err = AtomLength(&Variable{}, Integer(0), Done)
 	assert.Error(t, err)
 }
+
+func TestAtomConcat(t *testing.T) {
+	ok, err := AtomConcat(Atom("foo"), Atom("bar"), Atom("foobar"), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	var c int
+	var v1, v2 Variable
+	ok, err = AtomConcat(&v1, &v2, Atom("foo"), func() (bool, error) {
+		switch c {
+		case 0:
+			assert.Equal(t, Atom(""), v1.Ref)
+			assert.Equal(t, Atom("foo"), v2.Ref)
+		case 1:
+			assert.Equal(t, Atom("f"), v1.Ref)
+			assert.Equal(t, Atom("oo"), v2.Ref)
+		case 2:
+			assert.Equal(t, Atom("fo"), v1.Ref)
+			assert.Equal(t, Atom("o"), v2.Ref)
+		case 3:
+			assert.Equal(t, Atom("foo"), v1.Ref)
+			assert.Equal(t, Atom(""), v2.Ref)
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		c++
+		return false, nil
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}
