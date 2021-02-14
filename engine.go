@@ -598,9 +598,11 @@ func (c *clause) xrOffset(o Term) byte {
 }
 
 func (c *clause) varOffset(o *Variable) byte {
-	for i, v := range c.vars {
-		if v == o.Name {
-			return byte(i)
+	if o.Name != "" {
+		for i, v := range c.vars {
+			if v == o.Name {
+				return byte(i)
+			}
 		}
 	}
 	c.vars = append(c.vars, o.Name)
