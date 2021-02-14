@@ -88,6 +88,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("clause", e.Clause)
 	e.Register2("atom_length", AtomLength)
 	e.Register3("atom_concat", AtomConcat)
+	e.Register5("sub_atom", SubAtom)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -315,6 +316,13 @@ func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() (b
 		e.procedures = map[string]procedure{}
 	}
 	e.procedures[PrincipalFunctor(Atom(name), 4).String()] = predicate4(p)
+}
+
+func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)) {
+	if e.procedures == nil {
+		e.procedures = map[string]procedure{}
+	}
+	e.procedures[PrincipalFunctor(Atom(name), 5).String()] = predicate5(p)
 }
 
 func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
@@ -705,6 +713,19 @@ func (p predicate4) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 	}
 
 	return p(&v1, &v2, &v3, &v4, func() (bool, error) {
+		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+	})
+}
+
+type predicate5 func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)
+
+func (p predicate5) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+	var v1, v2, v3, v4, v5 Variable
+	if !args.Unify(List(&v1, &v2, &v3, &v4, &v5), false) {
+		return false, errors.New("wrong number of arguments")
+	}
+
+	return p(&v1, &v2, &v3, &v4, &v5, func() (bool, error) {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }

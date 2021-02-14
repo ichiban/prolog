@@ -1807,3 +1807,34 @@ func TestAtomConcat(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestSubAtom(t *testing.T) {
+	var c int
+	var before, length, after Variable
+	ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), &before, &length, &after, Atom("ATGA"), func() (bool, error) {
+		switch c {
+		case 0:
+			assert.Equal(t, Integer(1), before.Ref)
+			assert.Equal(t, Integer(4), length.Ref)
+			assert.Equal(t, Integer(14), after.Ref)
+		case 1:
+			assert.Equal(t, Integer(4), before.Ref)
+			assert.Equal(t, Integer(4), length.Ref)
+			assert.Equal(t, Integer(11), after.Ref)
+		case 2:
+			assert.Equal(t, Integer(9), before.Ref)
+			assert.Equal(t, Integer(4), length.Ref)
+			assert.Equal(t, Integer(6), after.Ref)
+		case 3:
+			assert.Equal(t, Integer(14), before.Ref)
+			assert.Equal(t, Integer(4), length.Ref)
+			assert.Equal(t, Integer(1), after.Ref)
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		c++
+		return false, nil
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}

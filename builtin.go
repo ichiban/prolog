@@ -1180,3 +1180,34 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() (bool, error)) (bool, error) 
 		Args: []Term{a3, Atom("")},
 	}, k)
 }
+
+func SubAtom(atom, before, length, after, subAtom Term, k func() (bool, error)) (bool, error) {
+	whole, ok := Resolve(atom).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	a := newAssignment(before, length, after, subAtom)
+
+	pattern := Compound{
+		Args: []Term{before, length, after, subAtom},
+	}
+
+	rs := []rune(whole)
+	for i := 0; i < len(rs); i++ {
+		for j := i; j < len(rs); j++ {
+			ok, err := Unify(&pattern, &Compound{
+				Args: []Term{Integer(i), Integer(j - i), Integer(len(rs) - j), Atom(rs[i:j])},
+			}, k)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
+			a.reset()
+		}
+	}
+
+	return false, nil
+}
