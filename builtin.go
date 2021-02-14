@@ -1137,3 +1137,12 @@ func (e *Engine) Clause(head, body Term, k func() (bool, error)) (bool, error) {
 
 	return false, nil
 }
+
+func AtomLength(atom, integer Term, k func() (bool, error)) (bool, error) {
+	a, ok := Resolve(atom).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	return Unify(integer, Integer(len([]rune(a))), k)
+}

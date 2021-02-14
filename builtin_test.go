@@ -1763,3 +1763,16 @@ func TestEngine_Clause(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestAtomLength(t *testing.T) {
+	ok, err := AtomLength(Atom("abc"), Integer(3), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = AtomLength(Atom("😀"), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	_, err = AtomLength(&Variable{}, Integer(0), Done)
+	assert.Error(t, err)
+}
