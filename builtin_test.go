@@ -1730,3 +1730,36 @@ func TestEngine_GetByte(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestEngine_Clause(t *testing.T) {
+	e, err := NewEngine(nil, nil)
+	assert.NoError(t, err)
+	assert.NoError(t, e.Load("green(X) :- moldy(X)."))
+	assert.NoError(t, e.Load("green(kermit)."))
+
+	var c int
+
+	var what, body Variable
+	ok, err := e.Clause(&Compound{
+		Functor: "green",
+		Args:    []Term{&what},
+	}, &body, func() (bool, error) {
+		switch c {
+		case 0:
+			assert.Equal(t, &Variable{}, what.Ref)
+			assert.Equal(t, &Compound{
+				Functor: "moldy",
+				Args:    []Term{&Variable{Ref: &Variable{}}},
+			}, body.Ref)
+		case 1:
+			assert.Equal(t, Atom("kermit"), what.Ref)
+			assert.Equal(t, Atom("true"), body.Ref)
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		c++
+		return false, nil
+	})
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}

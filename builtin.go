@@ -1108,3 +1108,32 @@ func (e *Engine) Halt(n Term, k func() (bool, error)) (bool, error) {
 
 	return k()
 }
+
+func (e *Engine) Clause(head, body Term, k func() (bool, error)) (bool, error) {
+	head, body = Resolve(head), Resolve(body)
+	a := newAssignment(head, body)
+	pattern := &Compound{
+		Functor: ":-",
+		Args:    []Term{head, body},
+	}
+
+	for _, p := range e.procedures {
+		cs, ok := p.(clauses)
+		if !ok {
+			continue
+		}
+
+		for _, c := range cs {
+			ok, err := Unify(pattern, Rulify(c.raw), k)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
+			a.reset()
+		}
+	}
+
+	return false, nil
+}

@@ -85,6 +85,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("read_term", e.ReadTerm)
 	e.Register2("get_byte", e.GetByte)
 	e.Register1("halt", e.Halt)
+	e.Register2("clause", e.Clause)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -487,13 +488,14 @@ type clause struct {
 	name     string
 	raw      Term
 	xrTable  []Term
-	vars     []string
+	vars     []*Variable
 	bytecode bytecode
 }
 
 func (c *clause) compile(t Term) error {
+	t = Resolve(t)
 	c.raw = t
-	switch t := Resolve(t).(type) {
+	switch t := t.(type) {
 	case Atom:
 		return c.compileClause(t, nil)
 	case *Compound:
@@ -598,14 +600,13 @@ func (c *clause) xrOffset(o Term) byte {
 }
 
 func (c *clause) varOffset(o *Variable) byte {
-	if o.Name != "" {
-		for i, v := range c.vars {
-			if v == o.Name {
-				return byte(i)
-			}
+	for i, v := range c.vars {
+		if v == o {
+			return byte(i)
 		}
 	}
-	c.vars = append(c.vars, o.Name)
+	o.Name = ""
+	c.vars = append(c.vars, o)
 	return byte(len(c.vars) - 1)
 }
 

@@ -25,14 +25,14 @@ func TestEngine_Load(t *testing.T) {
 					Functor: "append",
 					Args: []Term{
 						Atom("nil"),
-						&Variable{Name: "L"},
-						&Variable{Name: "L"},
+						&Variable{},
+						&Variable{},
 					},
 				},
 				xrTable: []Term{
 					Atom("nil"),
 				},
-				vars: []string{"L"},
+				vars: []*Variable{{}},
 				bytecode: []byte{
 					opConst, 0, // nil
 					opVar, 0, // L
@@ -63,16 +63,16 @@ func TestEngine_Load(t *testing.T) {
 								&Compound{
 									Functor: "cons",
 									Args: []Term{
-										&Variable{Name: "X"},
-										&Variable{Name: "L1"},
+										&Variable{},
+										&Variable{},
 									},
 								},
-								&Variable{Name: "L2"},
+								&Variable{},
 								&Compound{
 									Functor: "cons",
 									Args: []Term{
-										&Variable{Name: "X"},
-										&Variable{Name: "L3"},
+										&Variable{},
+										&Variable{},
 									},
 								},
 							},
@@ -80,9 +80,9 @@ func TestEngine_Load(t *testing.T) {
 						&Compound{
 							Functor: "append",
 							Args: []Term{
-								&Variable{Name: "L1"},
-								&Variable{Name: "L2"},
-								&Variable{Name: "L3"},
+								&Variable{},
+								&Variable{},
+								&Variable{},
 							},
 						},
 					},
@@ -97,7 +97,7 @@ func TestEngine_Load(t *testing.T) {
 						Args:    []Term{Atom("append"), Integer(3)},
 					},
 				},
-				vars: []string{"X", "L1", "L2", "L3"},
+				vars: []*Variable{{}, {}, {}, {}},
 				bytecode: []byte{
 					opFunctor, 0, opVar, 0, opVar, 1, opPop, // cons(X, L1)
 					opVar, 2, // L2
@@ -132,7 +132,7 @@ func TestEngine_Query(t *testing.T) {
 					xrTable: []Term{
 						Atom("nil"),
 					},
-					vars: []string{"L"},
+					vars: []*Variable{{}},
 					bytecode: []byte{
 						opConst, 0, // nil
 						opVar, 0, // L
@@ -151,7 +151,7 @@ func TestEngine_Query(t *testing.T) {
 							Args:    []Term{Atom("append"), Integer(3)},
 						},
 					},
-					vars: []string{"X", "L1", "L2", "L3"},
+					vars: []*Variable{{}, {}, {}, {}},
 					bytecode: []byte{
 						opFunctor, 0, opVar, 0, opVar, 1, opPop, // cons(X, L1)
 						opVar, 2, // L2
