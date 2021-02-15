@@ -169,8 +169,8 @@ func TestEngine_Query(t *testing.T) {
 		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {
 			assert.Len(t, vars, 3)
 			assert.Equal(t, &Variable{Name: "X", Ref: Atom("nil")}, vars[0])
-			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{}}, vars[1]) // TODO: it should be Y = Z
-			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{Ref: &Variable{}}}, vars[2])
+			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{Ref: &Variable{}}}, vars[1]) // TODO: it should be Y = Z
+			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{}}, vars[2])
 			return true
 		})
 		assert.NoError(t, err)
@@ -187,9 +187,7 @@ func TestEngine_Query(t *testing.T) {
 						Functor: "cons",
 						Args: []Term{
 							&Variable{
-								Ref: &Variable{
-									Ref: Atom("a"),
-								},
+								Ref: Atom("a"),
 							},
 							&Variable{
 								Ref: &Variable{
@@ -198,17 +196,13 @@ func TestEngine_Query(t *testing.T) {
 											Functor: "cons",
 											Args: []Term{
 												&Variable{
-													Ref: &Variable{
-														Ref: Atom("b"),
-													},
+													Ref: Atom("b"),
 												},
 												&Variable{
 													Ref: &Variable{
-														Ref: &Variable{
-															Ref: &Compound{
-																Functor: "cons",
-																Args:    []Term{Atom("c"), Atom("nil")},
-															},
+														Ref: &Compound{
+															Functor: "cons",
+															Args:    []Term{Atom("c"), Atom("nil")},
 														},
 													},
 												},

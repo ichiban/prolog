@@ -228,6 +228,13 @@ read(Term) :- current_input(S), read(S, Term).
 get_byte(Byte) :- current_input(S), get_byte(S, Byte).
 
 halt :- halt(0).
+
+atom_codes(Atom, []) :- atom_chars(Atom, []), !.
+atom_codes(Atom, [Code|Codes]) :-
+  sub_atom(Atom, 0, 1, _, Char),
+  sub_atom(Atom, 1, _, 0, Chars),
+  char_code(Char, Code),
+  atom_codes(Chars, Codes).
 `)
 	return &e, err
 }
@@ -329,7 +336,7 @@ func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, fun
 func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
 	logrus.WithFields(logrus.Fields{
 		"name": name,
-		"args": args,
+		"args": loggableTerm{term: args},
 	}).Debug("arrive")
 	p := e.procedures[name]
 	if p == nil {
@@ -338,21 +345,54 @@ func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, e
 	return p.Call(e, args, k)
 }
 
+type loggableTerm struct {
+	term Term
+}
+
+func (l loggableTerm) String() string {
+	if l.term == nil {
+		return "nil"
+	}
+
+	opts := defaultWriteTermOptions
+	opts.debug = true
+
+	var buf bytes.Buffer
+	_ = l.term.WriteTerm(&buf, opts)
+	return buf.String()
+}
+
+type loggableVars struct {
+	vars []*Variable
+}
+
+func (l loggableVars) String() string {
+	opts := defaultWriteTermOptions
+	opts.debug = true
+
+	ret := make([]string, len(l.vars))
+	for i, v := range l.vars {
+		var buf bytes.Buffer
+		_ = v.WriteTerm(&buf, opts)
+		ret[i] = buf.String()
+	}
+	return fmt.Sprint(ret)
+}
+
 func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args, astack Term) (bool, error) {
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
-			"pc":     pc,
 			"xr":     xr,
-			"vars":   vars,
-			"args":   args,
-			"astack": astack,
+			"vars":   loggableVars{vars: vars},
+			"args":   loggableTerm{term: args},
+			"astack": loggableTerm{term: astack},
 		})
 		switch pc[0] {
 		case opVoid:
 			log.Debug("void")
 			pc = pc[1:]
 		case opConst:
-			log.Debug("const")
+			log.Debugf("const %d", pc[1])
 			x := xr[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(x, &arest), false) {
@@ -361,7 +401,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			pc = pc[2:]
 			args = &arest
 		case opVar:
-			log.Debug("var")
+			log.Debugf("var %d", pc[1])
 			v := vars[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(v, &arest), false) {
@@ -370,7 +410,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			pc = pc[2:]
 			args = &arest
 		case opFunctor:
-			log.Debug("functor")
+			log.Debugf("functor %d", pc[1])
 			x := xr[pc[1]]
 			var arg, arest Variable
 			if !args.Unify(Cons(&arg, &arest), false) {
@@ -425,7 +465,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 			args = &v
 			astack = &v
 		case opCall:
-			log.Debug("call")
+			log.Debugf("call %d", pc[1])
 			x := xr[pc[1]]
 			if !args.Unify(List(), false) {
 				return false, nil
@@ -762,7 +802,7 @@ func (a *assignment) add(t Term) {
 }
 
 func (a assignment) reset() {
-	logrus.WithField("vars", a).Debug("reset")
+	logrus.WithField("vars", loggableVars{vars: a}).Debug("reset")
 	for _, v := range a {
 		v.Ref = nil
 	}

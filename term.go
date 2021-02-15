@@ -29,7 +29,15 @@ func (v *Variable) String() string {
 	return buf.String()
 }
 
-func (v *Variable) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (v *Variable) WriteTerm(w io.Writer, opts WriteTermOptions) error {
+	if opts.debug && v.Ref != nil {
+		if v.Name != "" {
+			if _, err := fmt.Fprintf(w, "%s = ", v.Name); err != nil {
+				return err
+			}
+		}
+		return v.Ref.WriteTerm(w, opts)
+	}
 	if v.Name == "" {
 		_, err := fmt.Fprintf(w, "_%p", v)
 		return err
@@ -39,6 +47,7 @@ func (v *Variable) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 }
 
 func (v *Variable) Unify(t Term, occursCheck bool) bool {
+	t = Resolve(t)
 	if occursCheck && Contains(t, v) {
 		return false
 	}
@@ -201,19 +210,19 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 		if _, err := fmt.Fprint(w, "["); err != nil {
 			return err
 		}
-		if err := c.Args[0].WriteTerm(w, opts); err != nil {
+		if err := Resolve(c.Args[0]).WriteTerm(w, opts); err != nil {
 			return err
 		}
-		t := c.Args[1]
+		t := Resolve(c.Args[1])
 		for {
 			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
 				if _, err := fmt.Fprint(w, ", "); err != nil {
 					return err
 				}
-				if err := l.Args[0].WriteTerm(w, opts); err != nil {
+				if err := Resolve(l.Args[0]).WriteTerm(w, opts); err != nil {
 					return err
 				}
-				t = l.Args[1]
+				t = Resolve(l.Args[1])
 				continue
 			}
 			if a, ok := t.(Atom); ok && a == "[]" {
@@ -240,7 +249,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			switch o.Type {
 			case `xf`, `yf`:
 				var lb, fb bytes.Buffer
-				if err := c.Args[0].WriteTerm(&lb, opts); err != nil {
+				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
 					return err
 				}
 				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
@@ -260,7 +269,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
 					return err
 				}
-				if err := c.Args[0].WriteTerm(&rb, opts); err != nil {
+				if err := Resolve(c.Args[0]).WriteTerm(&rb, opts); err != nil {
 					return err
 				}
 
@@ -282,13 +291,13 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			switch o.Type {
 			case `xfx`, `xfy`, `yfx`:
 				var lb, fb, rb bytes.Buffer
-				if err := c.Args[0].WriteTerm(&lb, opts); err != nil {
+				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
 					return err
 				}
 				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
 					return err
 				}
-				if err := c.Args[1].WriteTerm(&rb, opts); err != nil {
+				if err := Resolve(c.Args[1]).WriteTerm(&rb, opts); err != nil {
 					return err
 				}
 
@@ -338,7 +347,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	if _, err := fmt.Fprint(w, "("); err != nil {
 		return err
 	}
-	if err := c.Args[0].WriteTerm(w, opts); err != nil {
+	if err := Resolve(c.Args[0]).WriteTerm(w, opts); err != nil {
 		return err
 	}
 	for _, arg := range c.Args[1:] {
@@ -546,6 +555,7 @@ type WriteTermOptions struct {
 	quoted     bool
 	ops        operators
 	numberVars bool
+	debug      bool
 }
 
 var defaultWriteTermOptions = WriteTermOptions{

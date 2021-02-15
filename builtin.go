@@ -1194,8 +1194,8 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() (bool, error)) 
 	}
 
 	rs := []rune(whole)
-	for i := 0; i < len(rs); i++ {
-		for j := i; j < len(rs); j++ {
+	for i := 0; i <= len(rs); i++ {
+		for j := i; j <= len(rs); j++ {
 			ok, err := Unify(&pattern, &Compound{
 				Args: []Term{Integer(i), Integer(j - i), Integer(len(rs) - j), Atom(rs[i:j])},
 			}, k)

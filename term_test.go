@@ -7,6 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestVariable_Unify(t *testing.T) {
+	var v1, v2 Variable
+	assert.True(t, v1.Unify(&v2, false))
+	assert.True(t, v1.Unify(Atom("foo"), false))
+	assert.Equal(t, &Variable{Ref: Atom("foo")}, v1.Ref)
+	assert.Equal(t, &Variable{Ref: Atom("foo")}, v2.Ref)
+
+	var v3, v4 Variable
+	assert.True(t, v3.Unify(&v4, false))
+	assert.True(t, v4.Unify(Atom("bar"), false))
+	assert.Equal(t, &Variable{Ref: Atom("bar")}, v3.Ref)
+	assert.Equal(t, &Variable{Ref: Atom("bar")}, v4.Ref)
+}
+
 func TestVariable_WriteTerm(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
 		v := Variable{Name: "X", Ref: Integer(1)}
