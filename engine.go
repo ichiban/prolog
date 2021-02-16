@@ -90,6 +90,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("atom_concat", AtomConcat)
 	e.Register5("sub_atom", SubAtom)
 	e.Register2("atom_chars", AtomChars)
+	e.Register2("number_chars", NumberChars)
 	err := e.Load(`
 /*
  *  bootstrap script

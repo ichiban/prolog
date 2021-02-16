@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -1235,4 +1236,36 @@ func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
 		cs[i] = Atom(r)
 	}
 	return Unify(chars, List(cs...), k)
+}
+
+func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
+	switch n := Resolve(num).(type) {
+	case *Variable:
+		var atom Variable
+		if _, err := AtomChars(&atom, chars, Done); err != nil {
+			return false, err
+		}
+
+		a := Resolve(&atom).(Atom)
+		p := NewParser(strings.NewReader(string(a)), &operators{})
+		t, err := p.Term()
+		if err != nil {
+			return false, err
+		}
+
+		switch t := t.(type) {
+		case Integer, Float:
+			return Unify(n, t, k)
+		default:
+			return false, errors.New("not a number")
+		}
+	case Integer, Float:
+		var buf bytes.Buffer
+		if err := n.WriteTerm(&buf, WriteTermOptions{}); err != nil {
+			return false, err
+		}
+		return AtomChars(Atom(buf.String()), chars, k)
+	default:
+		return false, errors.New("not a number")
+	}
 }

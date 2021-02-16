@@ -1865,3 +1865,36 @@ func TestAtomChars(t *testing.T) {
 	_, err = AtomChars(&Variable{}, List(Integer(0)), Done)
 	assert.Error(t, err)
 }
+
+func TestNumberChars(t *testing.T) {
+	t.Run("number to chars", func(t *testing.T) {
+		var chars Variable
+		ok, err := NumberChars(Float(23.4), &chars, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), chars.Ref)
+	})
+
+	t.Run("chars to number", func(t *testing.T) {
+		var num Variable
+		ok, err := NumberChars(&num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, Float(23.4), num.Ref)
+	})
+
+	t.Run("not chars", func(t *testing.T) {
+		_, err := NumberChars(&Variable{}, List(Integer(1), Integer(2), Integer(3)), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not number chars", func(t *testing.T) {
+		_, err := NumberChars(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := NumberChars(Atom("abc"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+}
