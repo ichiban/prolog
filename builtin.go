@@ -1238,16 +1238,58 @@ func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
 	return Unify(chars, List(cs...), k)
 }
 
+func AtomCodes(atom, codes Term, k func() (bool, error)) (bool, error) {
+	a, ok := Resolve(atom).(Atom)
+	if !ok {
+		var sb strings.Builder
+		if err := Each(Resolve(codes), func(elem Term) error {
+			e, ok := Resolve(elem).(Integer)
+			if !ok {
+				return errors.New("not an atom")
+			}
+			_, err := sb.WriteRune(rune(e))
+			return err
+		}); err != nil {
+			return false, err
+		}
+		return Unify(atom, Atom(sb.String()), k)
+	}
+
+	rs := []rune(a)
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Integer(r)
+	}
+	return Unify(codes, List(cs...), k)
+}
+
 func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 	switch n := Resolve(num).(type) {
-	case *Variable:
-		var atom Variable
-		if _, err := AtomChars(&atom, chars, Done); err != nil {
+	case Integer, Float:
+		var buf bytes.Buffer
+		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
+			return false, err
+		}
+		rs := []rune(buf.String())
+		cs := make([]Term, len(rs))
+		for i, r := range rs {
+			cs[i] = Atom(r)
+		}
+		return Unify(chars, List(cs...), k)
+	default:
+		var sb strings.Builder
+		if err := Each(Resolve(chars), func(elem Term) error {
+			e, ok := Resolve(elem).(Atom)
+			if !ok {
+				return errors.New("not an atom")
+			}
+			_, err := sb.WriteString(string(e))
+			return err
+		}); err != nil {
 			return false, err
 		}
 
-		a := Resolve(&atom).(Atom)
-		p := NewParser(strings.NewReader(string(a)), &operators{})
+		p := NewParser(strings.NewReader(sb.String()), &operators{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1255,17 +1297,50 @@ func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 
 		switch t := t.(type) {
 		case Integer, Float:
-			return Unify(n, t, k)
+			return Unify(num, t, k)
 		default:
 			return false, errors.New("not a number")
 		}
+	}
+}
+
+func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
+	switch n := Resolve(num).(type) {
 	case Integer, Float:
 		var buf bytes.Buffer
-		if err := n.WriteTerm(&buf, WriteTermOptions{}); err != nil {
+		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
 			return false, err
 		}
-		return AtomChars(Atom(buf.String()), chars, k)
+		rs := []rune(buf.String())
+		cs := make([]Term, len(rs))
+		for i, r := range rs {
+			cs[i] = Integer(r)
+		}
+		return Unify(chars, List(cs...), k)
 	default:
-		return false, errors.New("not a number")
+		var sb strings.Builder
+		if err := Each(Resolve(chars), func(elem Term) error {
+			e, ok := Resolve(elem).(Integer)
+			if !ok {
+				return errors.New("not an integer")
+			}
+			_, err := sb.WriteRune(rune(e))
+			return err
+		}); err != nil {
+			return false, err
+		}
+
+		p := NewParser(strings.NewReader(sb.String()), &operators{})
+		t, err := p.Term()
+		if err != nil {
+			return false, err
+		}
+
+		switch t := t.(type) {
+		case Integer, Float:
+			return Unify(num, t, k)
+		default:
+			return false, errors.New("not a number")
+		}
 	}
 }

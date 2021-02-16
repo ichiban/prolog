@@ -1862,7 +1862,24 @@ func TestAtomChars(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, Atom("foo"), atom.Ref)
 
-	_, err = AtomChars(&Variable{}, List(Integer(0)), Done)
+	_, err = AtomChars(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done)
+	assert.Error(t, err)
+}
+
+func TestAtomCodes(t *testing.T) {
+	var codes Variable
+	ok, err := AtomCodes(Atom("foo"), &codes, Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, List(Integer(102), Integer(111), Integer(111)), codes.Ref)
+
+	var atom Variable
+	ok, err = AtomCodes(&atom, List(Integer(102), Integer(111), Integer(111)), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, Atom("foo"), atom.Ref)
+
+	_, err = AtomCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
 	assert.Error(t, err)
 }
 
@@ -1895,6 +1912,39 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := NumberChars(Atom("abc"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+}
+
+func TestNumberCodes(t *testing.T) {
+	t.Run("number to codes", func(t *testing.T) {
+		var codes Variable
+		ok, err := NumberCodes(Float(23.4), &codes, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), codes.Ref)
+	})
+
+	t.Run("codes to number", func(t *testing.T) {
+		var num Variable
+		ok, err := NumberCodes(&num, List(Integer(50), Integer(51), Integer(46), Integer(52)), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, Float(23.4), num.Ref)
+	})
+
+	t.Run("not codes", func(t *testing.T) {
+		_, err := NumberCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not number codes", func(t *testing.T) {
+		_, err := NumberCodes(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := NumberCodes(Atom("abc"), &Variable{}, Done)
 		assert.Error(t, err)
 	})
 }

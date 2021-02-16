@@ -90,7 +90,9 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("atom_concat", AtomConcat)
 	e.Register5("sub_atom", SubAtom)
 	e.Register2("atom_chars", AtomChars)
+	e.Register2("atom_codes", AtomCodes)
 	e.Register2("number_chars", NumberChars)
+	e.Register2("number_codes", NumberCodes)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -229,13 +231,6 @@ read(Term) :- current_input(S), read(S, Term).
 get_byte(Byte) :- current_input(S), get_byte(S, Byte).
 
 halt :- halt(0).
-
-atom_codes(Atom, []) :- atom_chars(Atom, []), !.
-atom_codes(Atom, [Code|Codes]) :-
-  sub_atom(Atom, 0, 1, _, Char),
-  sub_atom(Atom, 1, _, 0, Chars),
-  char_code(Char, Code),
-  atom_codes(Chars, Codes).
 `)
 	return &e, err
 }
