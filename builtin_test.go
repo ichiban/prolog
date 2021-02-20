@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1945,6 +1946,381 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := NumberCodes(Atom("abc"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+}
+
+func TestFunctionSet_Is(t *testing.T) {
+	t.Run("addition", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "+", Args: []Term{Integer(1), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Integer(1), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("subtraction", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "-", Args: []Term{Integer(3), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Integer(3), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("multiplication", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(6), &Compound{Functor: "*", Args: []Term{Integer(3), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Integer(3), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("floating-point division", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("integer division", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: "//", Args: []Term{Integer(4), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Integer(4), Float(2)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Float(4), Integer(2)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("remainder", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "rem", Args: []Term{Integer(-21), Integer(4)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Integer(-21), Float(4)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Float(-21), Integer(4)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("mod", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "mod", Args: []Term{Integer(-21), Integer(4)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Integer(-21), Float(4)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Float(-21), Integer(4)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("exponential", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("sign reversal", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(-2), &Compound{Functor: "-", Args: []Term{Integer(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(-2), &Compound{Functor: "-", Args: []Term{Float(2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("absolute value", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Integer(-2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Float(-2)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("arctangent", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Float(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("ceiling", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Float(0.9)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("cosine", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Float(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("natural antilogarithm", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Float(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("square root", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Float(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("sign", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(math.MaxInt64)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Integer(0), &Compound{Functor: "sign", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(-1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(math.MinInt64)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(math.MaxFloat64)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sign", Args: []Term{Float(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-math.MaxFloat64)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		var v Variable
+		ok, err = DefaultFunctionSet.Is(&v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.True(t, math.IsNaN(float64(v.Ref.(Float))))
+	})
+
+	t.Run("float", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Float(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("floor", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Float(1.1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("natural logarithm", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Float(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("sine", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Float(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("truncate", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Float(1.1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("round", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Float(1.1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("bit-shift right", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: ">>", Args: []Term{Integer(4), Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Integer(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Integer(4), Float(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Float(1)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("bit-shift left", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(8), &Compound{Functor: "<<", Args: []Term{Integer(4), Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Integer(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Integer(4), Float(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Float(1)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("bitwise and", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "/\\", Args: []Term{Integer(5), Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Integer(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Integer(5), Float(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Float(1)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("bitwise or", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(5), &Compound{Functor: "\\/", Args: []Term{Integer(4), Integer(1)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Integer(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Integer(4), Float(1)}}, Done)
+		assert.Error(t, err)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Float(1)}}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("bitwise complement", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "\\", Args: []Term{Integer(0)}}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\", Args: []Term{Float(0)}}, Done)
 		assert.Error(t, err)
 	})
 }

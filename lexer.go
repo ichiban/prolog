@@ -360,8 +360,9 @@ func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
 			}
 			return l.float(b, ctx)
 		default:
+			s := b.String()
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			l.emit(Token{Kind: TokenInteger, Val: s[:len(s)-1]})
 			l.emit(Token{Kind: TokenSeparator, Val: "."})
 			return ctx
 		}

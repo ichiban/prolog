@@ -93,6 +93,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("atom_codes", AtomCodes)
 	e.Register2("number_chars", NumberChars)
 	e.Register2("number_codes", NumberCodes)
+	e.Register2("is", DefaultFunctionSet.Is)
 	err := e.Load(`
 /*
  *  bootstrap script

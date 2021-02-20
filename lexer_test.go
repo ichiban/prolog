@@ -189,4 +189,14 @@ an atom'`))
 			assert.Equal(t, Token{Kind: TokenAtom, Val: "`"}, l.Next())
 		})
 	})
+
+	t.Run("integer then period", func(t *testing.T) {
+		l := NewLexer(strings.NewReader("X is 1 + 2."))
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "is"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenInteger, Val: "1"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "+"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenInteger, Val: "2"}, l.Next())
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "."}, l.Next())
+	})
 }

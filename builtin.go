@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -1341,6 +1342,213 @@ func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
 			return Unify(num, t, k)
 		default:
 			return false, errors.New("not a number")
+		}
+	}
+}
+
+type FunctionSet struct {
+	Unary  map[Atom]func(x Term) (Term, error)
+	Binary map[Atom]func(x, y Term) (Term, error)
+}
+
+func (fs FunctionSet) Is(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+	v, err := fs.eval(rhs)
+	if err != nil {
+		return false, err
+	}
+	return Unify(lhs, v, k)
+}
+
+func (fs FunctionSet) eval(t Term) (Term, error) {
+	c, ok := Resolve(t).(*Compound)
+	if !ok {
+		return t, nil
+	}
+
+	switch len(c.Args) {
+	case 1:
+		f, ok := fs.Unary[c.Functor]
+		if !ok {
+			return nil, fmt.Errorf("unknown unary function %s", c.Functor)
+		}
+		x, err := fs.eval(c.Args[0])
+		if err != nil {
+			return nil, err
+		}
+		return f(x)
+	case 2:
+		f, ok := fs.Binary[c.Functor]
+		if !ok {
+			return nil, fmt.Errorf("unknown binary function %s", c.Functor)
+		}
+		x, err := fs.eval(c.Args[0])
+		if err != nil {
+			return nil, err
+		}
+		y, err := fs.eval(c.Args[1])
+		if err != nil {
+			return nil, err
+		}
+		return f(x, y)
+	default:
+		return nil, fmt.Errorf("invalid arity %s/%d", c.Functor, len(c.Args))
+	}
+}
+
+var DefaultFunctionSet = FunctionSet{
+	Unary: map[Atom]func(Term) (Term, error){
+		"-":        unaryNumber(func(i int64) int64 { return -1 * i }, func(n float64) float64 { return -1 * n }),
+		"abs":      unaryFloat(math.Abs),
+		"atan":     unaryFloat(math.Atan),
+		"ceiling":  unaryFloat(math.Ceil),
+		"cos":      unaryFloat(math.Cos),
+		"exp":      unaryFloat(math.Exp),
+		"sqrt":     unaryFloat(math.Sqrt),
+		"sign":     unaryNumber(sgn, sgnf),
+		"float":    unaryFloat(func(n float64) float64 { return n }),
+		"floor":    unaryFloat(math.Floor),
+		"log":      unaryFloat(math.Log),
+		"sin":      unaryFloat(math.Sin),
+		"truncate": unaryFloat(math.Trunc),
+		"round":    unaryFloat(math.Round),
+		"\\":       unaryInteger(func(i int64) int64 { return ^i }),
+	},
+	Binary: map[Atom]func(Term, Term) (Term, error){
+		"+":   binaryNumber(func(i, j int64) int64 { return i + j }, func(n, m float64) float64 { return n + m }),
+		"-":   binaryNumber(func(i, j int64) int64 { return i - j }, func(n, m float64) float64 { return n - m }),
+		"*":   binaryNumber(func(i, j int64) int64 { return i * j }, func(n, m float64) float64 { return n * m }),
+		"/":   binaryFloat(func(n float64, m float64) float64 { return n / m }),
+		"//":  binaryInteger(func(i, j int64) int64 { return i / j }),
+		"rem": binaryInteger(func(i, j int64) int64 { return i % j }),
+		"mod": binaryInteger(func(i, j int64) int64 { return (i%j + j) % j }),
+		"**":  binaryFloat(math.Pow),
+		">>":  binaryInteger(func(i, j int64) int64 { return i >> j }),
+		"<<":  binaryInteger(func(i, j int64) int64 { return i << j }),
+		"/\\": binaryInteger(func(i, j int64) int64 { return i & j }),
+		"\\/": binaryInteger(func(i, j int64) int64 { return i | j }),
+	},
+}
+
+func sgn(i int64) int64 {
+	return i>>63 | int64(uint64(-i)>>63)
+}
+
+func sgnf(f float64) float64 {
+	switch {
+	case f < 0:
+		return -1
+	case f == 0:
+		return 0
+	case f > 0:
+		return 1
+	default: // NaN
+		return f
+	}
+}
+
+func unaryInteger(f func(i int64) int64) func(Term) (Term, error) {
+	return func(x Term) (Term, error) {
+		i, ok := Resolve(x).(Integer)
+		if !ok {
+			return nil, errors.New("not an integer")
+		}
+
+		return Integer(f(int64(i))), nil
+	}
+}
+
+func binaryInteger(f func(i, j int64) int64) func(Term, Term) (Term, error) {
+	return func(x, y Term) (Term, error) {
+		i, ok := Resolve(x).(Integer)
+		if !ok {
+			return nil, errors.New("not an integer")
+		}
+
+		j, ok := Resolve(y).(Integer)
+		if !ok {
+			return nil, errors.New("not an integer")
+		}
+
+		return Integer(f(int64(i), int64(j))), nil
+	}
+}
+
+func unaryFloat(f func(n float64) float64) func(Term) (Term, error) {
+	return func(x Term) (Term, error) {
+		switch x := Resolve(x).(type) {
+		case Integer:
+			return Float(f(float64(x))), nil
+		case Float:
+			return Float(f(float64(x))), nil
+		default:
+			return nil, errors.New("not a number")
+		}
+	}
+}
+
+func binaryFloat(f func(n float64, m float64) float64) func(Term, Term) (Term, error) {
+	return func(x, y Term) (Term, error) {
+		switch x := Resolve(x).(type) {
+		case Integer:
+			switch y := Resolve(y).(type) {
+			case Integer:
+				return Float(f(float64(x), float64(y))), nil
+			case Float:
+				return Float(f(float64(x), float64(y))), nil
+			default:
+				return nil, errors.New("not a number")
+			}
+		case Float:
+			switch y := Resolve(y).(type) {
+			case Integer:
+				return Float(f(float64(x), float64(y))), nil
+			case Float:
+				return Float(f(float64(x), float64(y))), nil
+			default:
+				return nil, errors.New("not a number")
+			}
+		default:
+			return nil, errors.New("not a number")
+		}
+	}
+}
+
+func unaryNumber(fi func(i int64) int64, ff func(n float64) float64) func(Term) (Term, error) {
+	return func(x Term) (Term, error) {
+		switch x := Resolve(x).(type) {
+		case Integer:
+			return Integer(fi(int64(x))), nil
+		case Float:
+			return Float(ff(float64(x))), nil
+		default:
+			return nil, errors.New("not a number")
+		}
+	}
+}
+
+func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func(Term, Term) (Term, error) {
+	return func(x, y Term) (Term, error) {
+		switch x := Resolve(x).(type) {
+		case Integer:
+			switch y := Resolve(y).(type) {
+			case Integer:
+				return Integer(fi(int64(x), int64(y))), nil
+			case Float:
+				return Float(ff(float64(x), float64(y))), nil
+			default:
+				return nil, errors.New("not a number")
+			}
+		case Float:
+			switch y := Resolve(y).(type) {
+			case Integer:
+				return Float(ff(float64(x), float64(y))), nil
+			case Float:
+				return Float(ff(float64(x), float64(y))), nil
+			default:
+				return nil, errors.New("not a number")
+			}
+		default:
+			return nil, errors.New("not a number")
 		}
 	}
 }
