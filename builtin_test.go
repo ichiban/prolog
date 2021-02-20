@@ -2324,3 +2324,21 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestFunctionSet_Equal(t *testing.T) {
+	ok, err := DefaultFunctionSet.Equal(Integer(1), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.Equal(Float(1), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.Equal(Integer(1), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.Equal(Float(1), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}

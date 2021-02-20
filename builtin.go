@@ -1359,39 +1359,102 @@ func (fs FunctionSet) Is(lhs, rhs Term, k func() (bool, error)) (bool, error) {
 	return Unify(lhs, v, k)
 }
 
-func (fs FunctionSet) eval(t Term) (Term, error) {
-	c, ok := Resolve(t).(*Compound)
-	if !ok {
-		return t, nil
+func (fs FunctionSet) Equal(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
+		return i == j
+	}, func(f Float, g Float) bool {
+		return f == g
+	})
+}
+
+func (fs FunctionSet) compare(lhs, rhs Term, k func() (bool, error), pi func(Integer, Integer) bool, pf func(Float, Float) bool) (bool, error) {
+	l, err := fs.eval(lhs)
+	if err != nil {
+		return false, err
 	}
 
-	switch len(c.Args) {
-	case 1:
-		f, ok := fs.Unary[c.Functor]
-		if !ok {
-			return nil, fmt.Errorf("unknown unary function %s", c.Functor)
+	r, err := fs.eval(rhs)
+	if err != nil {
+		return false, err
+	}
+
+	switch l := l.(type) {
+	case Integer:
+		switch r := r.(type) {
+		case Integer:
+			if pi(l, r) {
+				return k()
+			} else {
+				return false, nil
+			}
+		case Float:
+			if pf(Float(l), r) {
+				return k()
+			} else {
+				return false, nil
+			}
+		default:
+			return false, errors.New("not a number")
 		}
-		x, err := fs.eval(c.Args[0])
-		if err != nil {
-			return nil, err
+	case Float:
+		switch r := r.(type) {
+		case Integer:
+			if pf(l, Float(r)) {
+				return k()
+			} else {
+				return false, nil
+			}
+		case Float:
+			if pf(l, r) {
+				return k()
+			} else {
+				return false, nil
+			}
+		default:
+			return false, errors.New("not a number")
 		}
-		return f(x)
-	case 2:
-		f, ok := fs.Binary[c.Functor]
-		if !ok {
-			return nil, fmt.Errorf("unknown binary function %s", c.Functor)
-		}
-		x, err := fs.eval(c.Args[0])
-		if err != nil {
-			return nil, err
-		}
-		y, err := fs.eval(c.Args[1])
-		if err != nil {
-			return nil, err
-		}
-		return f(x, y)
 	default:
-		return nil, fmt.Errorf("invalid arity %s/%d", c.Functor, len(c.Args))
+		return false, errors.New("not a number")
+	}
+}
+
+func (fs FunctionSet) eval(t Term) (Term, error) {
+	switch t := Resolve(t).(type) {
+	case Atom:
+		return t, nil // TODO: constants?
+	case Integer, Float:
+		return t, nil
+	case *Compound:
+		switch len(t.Args) {
+		case 1:
+			f, ok := fs.Unary[t.Functor]
+			if !ok {
+				return nil, fmt.Errorf("unknown unary function %s", t.Functor)
+			}
+			x, err := fs.eval(t.Args[0])
+			if err != nil {
+				return nil, err
+			}
+			return f(x)
+		case 2:
+			f, ok := fs.Binary[t.Functor]
+			if !ok {
+				return nil, fmt.Errorf("unknown binary function %s", t.Functor)
+			}
+			x, err := fs.eval(t.Args[0])
+			if err != nil {
+				return nil, err
+			}
+			y, err := fs.eval(t.Args[1])
+			if err != nil {
+				return nil, err
+			}
+			return f(x, y)
+		default:
+			return nil, fmt.Errorf("invalid arity %s/%d", t.Functor, len(t.Args))
+		}
+	default:
+		return nil, errors.New("failed to evaluate")
 	}
 }
 
