@@ -98,6 +98,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("=\\=", DefaultFunctionSet.NotEqual)
 	e.Register2("<", DefaultFunctionSet.LessThan)
 	e.Register2(">", DefaultFunctionSet.GreaterThan)
+	e.Register2("=<", DefaultFunctionSet.LessThanOrEqual)
 	err := e.Load(`
 /*
  *  bootstrap script
