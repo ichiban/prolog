@@ -1399,6 +1399,14 @@ func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() (bool, error)) (bo
 	})
 }
 
+func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
+		return i >= j
+	}, func(f Float, g Float) bool {
+		return f >= g
+	})
+}
+
 func (fs FunctionSet) compare(lhs, rhs Term, k func() (bool, error), pi func(Integer, Integer) bool, pf func(Float, Float) bool) (bool, error) {
 	l, err := fs.eval(lhs)
 	if err != nil {

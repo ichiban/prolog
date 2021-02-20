@@ -2396,3 +2396,21 @@ func TestFunctionSet_LessThanOrEqual(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
+
+func TestFunctionSet_GreaterThanOrEqual(t *testing.T) {
+	ok, err := DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
