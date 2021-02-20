@@ -95,6 +95,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("number_codes", NumberCodes)
 	e.Register2("is", DefaultFunctionSet.Is)
 	e.Register2("=:=", DefaultFunctionSet.Equal)
+	e.Register2("=\\=", DefaultFunctionSet.NotEqual)
 	err := e.Load(`
 /*
  *  bootstrap script

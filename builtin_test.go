@@ -2342,3 +2342,21 @@ func TestFunctionSet_Equal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
+
+func TestFunctionSet_NotEqual(t *testing.T) {
+	ok, err := DefaultFunctionSet.NotEqual(Integer(1), Integer(2), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.NotEqual(Float(1), Integer(2), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.NotEqual(Integer(1), Float(2), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.NotEqual(Float(1), Float(2), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
