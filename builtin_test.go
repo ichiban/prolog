@@ -2360,3 +2360,21 @@ func TestFunctionSet_LessThan(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
+
+func TestFunctionSet_GreaterThan(t *testing.T) {
+	ok, err := DefaultFunctionSet.GreaterThan(Integer(2), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Integer(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThan(Integer(2), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Float(1), Done)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
