@@ -738,7 +738,16 @@ func TestEngine_CurrentInput(t *testing.T) {
 	_, err = e.Query("current_input(X).", func(vars []*Variable) bool {
 		assert.Equal(t, &Variable{
 			Name: "X",
-			Ref:  &Variable{Ref: Stream{ReadWriteCloser: &input{Reader: &buf}}},
+			Ref: &Variable{Ref: &Stream{
+				Reader:      &buf,
+				Mode:        "read",
+				Alias:       "user_input",
+				Position:    0,
+				EndOfStream: "not",
+				EofAction:   "error",
+				Reposition:  "false",
+				Type:        "text",
+			}},
 		}, vars[0])
 		return true
 	})
@@ -752,7 +761,16 @@ func TestEngine_CurrentOutput(t *testing.T) {
 	_, err = e.Query("current_output(X).", func(vars []*Variable) bool {
 		assert.Equal(t, &Variable{
 			Name: "X",
-			Ref:  &Variable{Ref: Stream{ReadWriteCloser: &output{Writer: &buf}}},
+			Ref: &Variable{Ref: &Stream{
+				Writer:      &buf,
+				Mode:        "write",
+				Alias:       "user_output",
+				Position:    0,
+				EndOfStream: "not",
+				EofAction:   "error",
+				Reposition:  "false",
+				Type:        "text",
+			}},
 		}, vars[0])
 		return true
 	})
@@ -762,24 +780,24 @@ func TestEngine_CurrentOutput(t *testing.T) {
 func TestEngine_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
-		s := Stream{ReadWriteCloser: os.Stdin}
-		ok, err := e.SetInput(&Variable{Ref: s}, Done)
+		s := Stream{Reader: os.Stdin}
+		ok, err := e.SetInput(&Variable{Ref: &s}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, e.input)
+		assert.Equal(t, &s, e.input)
 	})
 
 	t.Run("atom defined as a stream global variable", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: os.Stdin}
+		s := Stream{Reader: os.Stdin}
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"x": s,
+				"x": &s,
 			},
 		}
 		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, e.input)
+		assert.Equal(t, &s, e.input)
 	})
 
 	t.Run("atom defined as a non-stream global variable", func(t *testing.T) {
@@ -802,24 +820,24 @@ func TestEngine_SetInput(t *testing.T) {
 func TestEngine_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
-		s := Stream{ReadWriteCloser: os.Stdout}
-		ok, err := e.SetOutput(&Variable{Ref: s}, Done)
+		s := Stream{Writer: os.Stdout}
+		ok, err := e.SetOutput(&Variable{Ref: &s}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, e.output)
+		assert.Equal(t, &s, e.output)
 	})
 
 	t.Run("atom defined as a stream global variable", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: os.Stdout}
+		s := Stream{Writer: os.Stdout}
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"x": s,
+				"x": &s,
 			},
 		}
 		ok, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, e.output)
+		assert.Equal(t, &s, e.output)
 	})
 
 	t.Run("atom defined as a non-stream global variable", func(t *testing.T) {
@@ -862,7 +880,7 @@ func TestEngine_Open(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		s, ok := v.Ref.(Stream)
+		s, ok := v.Ref.(*Stream)
 		assert.True(t, ok)
 
 		assert.Equal(t, e.globalVars["input"], s)
@@ -886,7 +904,7 @@ func TestEngine_Open(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		s, ok := v.Ref.(Stream)
+		s, ok := v.Ref.(*Stream)
 		assert.True(t, ok)
 
 		assert.Equal(t, e.globalVars["output"], s)
@@ -925,7 +943,7 @@ func TestEngine_Open(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		s, ok := v.Ref.(Stream)
+		s, ok := v.Ref.(*Stream)
 		assert.True(t, ok)
 
 		assert.Equal(t, e.globalVars["append"], s)
@@ -984,35 +1002,35 @@ func TestEngine_Open(t *testing.T) {
 func TestEngine_Close(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(), Done)
+			ok, err := e.Close(&Stream{Closer: &m}, List(), Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.Close(Stream{ReadWriteCloser: &m}, List(), Done)
+			_, err := e.Close(&Stream{Closer: &m}, List(), Done)
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("force false", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
 			}), Done)
@@ -1021,12 +1039,12 @@ func TestEngine_Close(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+			_, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
 			}), Done)
@@ -1036,12 +1054,12 @@ func TestEngine_Close(t *testing.T) {
 
 	t.Run("force true", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
 			}), Done)
@@ -1050,12 +1068,12 @@ func TestEngine_Close(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			var m mockReadWriteCloser
+			var m mockCloser
 			m.On("Close").Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(Stream{ReadWriteCloser: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
 			}), Done)
@@ -1065,13 +1083,13 @@ func TestEngine_Close(t *testing.T) {
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		var m mockReadWriteCloser
+		var m mockCloser
 		m.On("Close").Return(nil).Once()
 		defer m.AssertExpectations(t)
 
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"foo": Stream{ReadWriteCloser: &m},
+				"foo": &Stream{Closer: &m},
 			},
 		}
 		ok, err := e.Close(Atom("foo"), List(), Done)
@@ -1093,7 +1111,7 @@ func TestEngine_Close(t *testing.T) {
 
 	t.Run("unknown option", func(t *testing.T) {
 		var e Engine
-		_, err := e.Close(Stream{}, List(&Compound{
+		_, err := e.Close(&Stream{}, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), Done)
@@ -1101,32 +1119,40 @@ func TestEngine_Close(t *testing.T) {
 	})
 }
 
-type mockReadWriteCloser struct {
+type mockReader struct {
 	mock.Mock
 }
 
-func (m *mockReadWriteCloser) Read(p []byte) (n int, err error) {
+func (m *mockReader) Read(p []byte) (n int, err error) {
 	args := m.Called(p)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *mockReadWriteCloser) Write(p []byte) (n int, err error) {
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(p []byte) (n int, err error) {
 	args := m.Called(p)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *mockReadWriteCloser) Close() error {
+type mockCloser struct {
+	mock.Mock
+}
+
+func (m *mockCloser) Close() error {
 	args := m.Called()
 	return args.Error(0)
 }
 
 func TestEngine_FlushOutput(t *testing.T) {
 	t.Run("non flusher", func(t *testing.T) {
-		var m mockReadWriteCloser
+		var m mockWriter
 		defer m.AssertExpectations(t)
 
 		var e Engine
-		ok, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, Done)
+		ok, err := e.FlushOutput(&Stream{Writer: &m}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1134,41 +1160,41 @@ func TestEngine_FlushOutput(t *testing.T) {
 	t.Run("flusher", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m struct {
-				mockReadWriteCloser
+				mockWriter
 				mockFlusher
 			}
 			m.mockFlusher.On("Flush").Return(nil).Once()
-			defer m.mockReadWriteCloser.AssertExpectations(t)
+			defer m.mockWriter.AssertExpectations(t)
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, Done)
+			ok, err := e.FlushOutput(&Stream{Writer: &m}, Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("ng", func(t *testing.T) {
 			var m struct {
-				mockReadWriteCloser
+				mockWriter
 				mockFlusher
 			}
 			m.mockFlusher.On("Flush").Return(errors.New("")).Once()
-			defer m.mockReadWriteCloser.AssertExpectations(t)
+			defer m.mockWriter.AssertExpectations(t)
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.FlushOutput(Stream{ReadWriteCloser: &m}, Done)
+			_, err := e.FlushOutput(&Stream{Writer: &m}, Done)
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		var m mockReadWriteCloser
+		var m mockWriter
 		defer m.AssertExpectations(t)
 
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"foo": Stream{ReadWriteCloser: &m},
+				"foo": &Stream{Writer: &m},
 			},
 		}
 		ok, err := e.FlushOutput(Atom("foo"), Done)
@@ -1199,10 +1225,10 @@ func (m *mockFlusher) Flush() error {
 }
 
 func TestEngine_WriteTerm(t *testing.T) {
-	var io mockReadWriteCloser
+	var io mockWriter
 	defer io.AssertExpectations(t)
 
-	s := Stream{ReadWriteCloser: &io}
+	s := Stream{Writer: &io}
 
 	ops := operators{
 		{Precedence: 500, Type: "yfx", Name: "+"},
@@ -1212,27 +1238,27 @@ func TestEngine_WriteTerm(t *testing.T) {
 	e := Engine{
 		operators: ops,
 		globalVars: map[Atom]Term{
-			"foo": s,
+			"foo": &s,
 		},
 	}
 
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(), Done)
+			ok, err := e.WriteTerm(&s, &m, List(), Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("ng", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: ops}).Return(errors.New("")).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
-			_, err := e.WriteTerm(s, &m, List(), Done)
+			_, err := e.WriteTerm(&s, &m, List(), Done)
 			assert.Error(t, err)
 		})
 	})
@@ -1240,10 +1266,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{quoted: false, ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{quoted: false, ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "quoted",
 				Args:    []Term{Atom("false")},
 			}), Done)
@@ -1253,10 +1279,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{quoted: true, ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{quoted: true, ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "quoted",
 				Args:    []Term{Atom("true")},
 			}), Done)
@@ -1268,10 +1294,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "ignore_ops",
 				Args:    []Term{Atom("false")},
 			}), Done)
@@ -1281,10 +1307,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: nil}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: nil}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "ignore_ops",
 				Args:    []Term{Atom("true")},
 			}), Done)
@@ -1296,10 +1322,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: ops, numberVars: false}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: ops, numberVars: false}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "numbervars",
 				Args:    []Term{Atom("false")},
 			}), Done)
@@ -1309,10 +1335,10 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s, WriteTermOptions{ops: ops, numberVars: true}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{ops: ops, numberVars: true}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(s, &m, List(&Compound{
+			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "numbervars",
 				Args:    []Term{Atom("true")},
 			}), Done)
@@ -1325,7 +1351,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 		var m mockTerm
 		defer m.AssertExpectations(t)
 
-		_, err := e.WriteTerm(s, &m, List(&Compound{
+		_, err := e.WriteTerm(&s, &m, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), Done)
@@ -1334,7 +1360,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 	t.Run("valid global variable", func(t *testing.T) {
 		var m mockTerm
-		m.On("WriteTerm", s, WriteTermOptions{ops: ops}).Return(nil).Once()
+		m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
 		defer m.AssertExpectations(t)
 
 		ok, err := e.WriteTerm(Atom("foo"), &m, List(), Done)
@@ -1427,40 +1453,40 @@ func TestCharCode(t *testing.T) {
 
 func TestEngine_PutByte(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		var io mockReadWriteCloser
+		var io mockWriter
 		io.On("Write", []byte{97}).Return(1, nil).Once()
 		defer io.AssertExpectations(t)
 
-		s := Stream{ReadWriteCloser: &io}
+		s := Stream{Writer: &io}
 
 		var e Engine
-		ok, err := e.PutByte(s, Integer(97), Done)
+		ok, err := e.PutByte(&s, Integer(97), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		var io mockReadWriteCloser
+		var io mockWriter
 		io.On("Write", []byte{97}).Return(0, errors.New("")).Once()
 		defer io.AssertExpectations(t)
 
-		s := Stream{ReadWriteCloser: &io}
+		s := Stream{Writer: &io}
 
 		var e Engine
-		_, err := e.PutByte(s, Integer(97), Done)
+		_, err := e.PutByte(&s, Integer(97), Done)
 		assert.Error(t, err)
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		var io mockReadWriteCloser
+		var io mockWriter
 		io.On("Write", []byte{97}).Return(1, nil).Once()
 		defer io.AssertExpectations(t)
 
-		s := Stream{ReadWriteCloser: &io}
+		s := Stream{Writer: &io}
 
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"foo": s,
+				"foo": &s,
 			},
 		}
 		ok, err := e.PutByte(Atom("foo"), Integer(97), Done)
@@ -1481,26 +1507,26 @@ func TestEngine_PutByte(t *testing.T) {
 	})
 
 	t.Run("not a byte", func(t *testing.T) {
-		var io mockReadWriteCloser
+		var io mockWriter
 		defer io.AssertExpectations(t)
 
-		s := Stream{ReadWriteCloser: &io}
+		s := Stream{Writer: &io}
 
 		t.Run("not an integer", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(s, Atom("a"), Done)
+			_, err := e.PutByte(&s, Atom("a"), Done)
 			assert.Error(t, err)
 		})
 
 		t.Run("negative", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(s, Integer(-1), Done)
+			_, err := e.PutByte(&s, Integer(-1), Done)
 			assert.Error(t, err)
 		})
 
 		t.Run("more than 255", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(s, Integer(256), Done)
+			_, err := e.PutByte(&s, Integer(256), Done)
 			assert.Error(t, err)
 		})
 	})
@@ -1511,7 +1537,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}, &v, List(), Done)
+		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("foo.")}, &v, List(), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1519,11 +1545,11 @@ func TestEngine_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}
+		s := Stream{Reader: strings.NewReader("foo.")}
 
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"foo": s,
+				"foo": &s,
 			},
 		}
 
@@ -1555,7 +1581,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, singletons Variable
-		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
 			Functor: "singletons",
 			Args:    []Term{&singletons},
 		}), Done)
@@ -1578,7 +1604,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variables Variable
-		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
 			Functor: "variables",
 			Args:    []Term{&variables},
 		}), Done)
@@ -1601,7 +1627,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variableNames Variable
-		ok, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("f(X, X, Y).")}}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
 			Functor: "variable_names",
 			Args:    []Term{&variableNames},
 		}), Done)
@@ -1633,7 +1659,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.ReadTerm(Stream{ReadWriteCloser: stringRWC{strings.NewReader("foo.")}}, &v, List(&Compound{
+		_, err := e.ReadTerm(&Stream{Reader: strings.NewReader("foo.")}, &v, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), Done)
@@ -1641,30 +1667,14 @@ func TestEngine_ReadTerm(t *testing.T) {
 	})
 }
 
-type stringRWC struct {
-	*strings.Reader
-}
-
-func (s stringRWC) Read(p []byte) (n int, err error) {
-	return s.Reader.Read(p)
-}
-
-func (s stringRWC) Write(p []byte) (n int, err error) {
-	return 0, errors.New("")
-}
-
-func (s stringRWC) Close() error {
-	return errors.New("")
-}
-
 func TestEngine_GetByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("a")}}
+		s := Stream{Reader: strings.NewReader("a")}
 
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetByte(s, &v, Done)
+		ok, err := e.GetByte(&s, &v, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1672,11 +1682,11 @@ func TestEngine_GetByte(t *testing.T) {
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("a")}}
+		s := Stream{Reader: strings.NewReader("a")}
 
 		e := Engine{
 			globalVars: map[Atom]Term{
-				"foo": s,
+				"foo": &s,
 			},
 		}
 
@@ -1705,12 +1715,12 @@ func TestEngine_GetByte(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s := Stream{ReadWriteCloser: stringRWC{Reader: strings.NewReader("")}}
+		s := Stream{Reader: strings.NewReader("")}
 
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetByte(s, &v, Done)
+		ok, err := e.GetByte(&s, &v, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1718,16 +1728,16 @@ func TestEngine_GetByte(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		var m mockReadWriteCloser
+		var m mockReader
 		m.On("Read", make([]byte, 1)).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := Stream{ReadWriteCloser: &m}
+		s := Stream{Reader: &m}
 
 		var e Engine
 
 		var v Variable
-		_, err := e.GetByte(s, &v, Done)
+		_, err := e.GetByte(&s, &v, Done)
 		assert.Error(t, err)
 	})
 }
@@ -2413,4 +2423,134 @@ func TestFunctionSet_GreaterThanOrEqual(t *testing.T) {
 	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Float(1), Done)
 	assert.NoError(t, err)
 	assert.True(t, ok)
+}
+
+func TestEngine_StreamProperty(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		var e Engine
+		var v Variable
+		c := 0
+		ok, err := e.StreamProperty(&Stream{
+			FileName:    "/dev/null",
+			Mode:        "write",
+			Alias:       "null",
+			Position:    0,
+			EndOfStream: "not",
+			EofAction:   "error",
+			Reposition:  "false",
+			Type:        "text",
+		}, &v, func() (b bool, err error) {
+			switch c {
+			case 0:
+				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom("/dev/null")}}, v.Ref)
+			case 1:
+				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
+			case 2:
+				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
+			case 3:
+				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
+			case 4:
+				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("not")}}, v.Ref)
+			case 5:
+				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
+			case 6:
+				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("false")}}, v.Ref)
+			case 7:
+				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
+			return false, nil
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("global variable", func(t *testing.T) {
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"null": &Stream{
+					FileName:    "/dev/null",
+					Mode:        "write",
+					Alias:       "null",
+					Position:    0,
+					EndOfStream: "not",
+					EofAction:   "error",
+					Reposition:  "false",
+					Type:        "text",
+				},
+			},
+		}
+		var v Variable
+		c := 0
+		ok, err := e.StreamProperty(Atom("null"), &v, func() (b bool, err error) {
+			switch c {
+			case 0:
+				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom("/dev/null")}}, v.Ref)
+			case 1:
+				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
+			case 2:
+				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
+			case 3:
+				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
+			case 4:
+				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("not")}}, v.Ref)
+			case 5:
+				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
+			case 6:
+				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("false")}}, v.Ref)
+			case 7:
+				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
+			return false, nil
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.StreamProperty(Atom("null"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+		_, err := e.StreamProperty(&Variable{}, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown property", func(t *testing.T) {
+		var e Engine
+		ok, err := e.StreamProperty(&Stream{}, &Compound{
+			Functor: "unknown",
+			Args:    []Term{Atom("property")},
+		}, Done)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("correct property value", func(t *testing.T) {
+		var e Engine
+		ok, err := e.StreamProperty(&Stream{Mode: "read"}, &Compound{
+			Functor: "mode",
+			Args:    []Term{Atom("read")},
+		}, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("incorrect property value", func(t *testing.T) {
+		var e Engine
+		ok, err := e.StreamProperty(&Stream{Mode: "read"}, &Compound{
+			Functor: "mode",
+			Args:    []Term{Atom("foo")},
+		}, Done)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
 }

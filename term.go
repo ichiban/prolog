@@ -522,24 +522,54 @@ func Rulify(t Term) Term {
 }
 
 type Stream struct {
-	io.ReadWriteCloser
+	io.Reader
+	io.Writer
+	io.Closer
+
+	FileName    Atom
+	Mode        Atom
+	Alias       Atom
+	Position    Integer
+	EndOfStream Atom
+	EofAction   Atom
+	Reposition  Atom
+	Type        Atom
 }
 
-func (s Stream) String() string {
+func (s *Stream) Read(p []byte) (int, error) {
+	n, err := s.Reader.Read(p)
+	s.Position += Integer(n)
+	switch err {
+	case nil:
+		return n, nil
+	case io.EOF:
+		switch s.EndOfStream {
+		case "not":
+			s.EndOfStream = "at"
+		case "at":
+			s.EndOfStream = "past"
+		}
+		return n, io.EOF
+	default:
+		return n, err
+	}
+}
+
+func (s *Stream) String() string {
 	var buf bytes.Buffer
 	_ = s.WriteTerm(&buf, defaultWriteTermOptions)
 	return buf.String()
 }
 
-func (s Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
-	_, err := fmt.Fprintf(w, "<stream>(%p)", s.ReadWriteCloser)
+func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
 	return err
 }
 
-func (s Stream) Unify(t Term, occursCheck bool) bool {
+func (s *Stream) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
-	case Stream:
-		return s.ReadWriteCloser == t.ReadWriteCloser
+	case *Stream:
+		return s == t
 	case *Variable:
 		return t.Unify(s, occursCheck)
 	default:
@@ -547,7 +577,7 @@ func (s Stream) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
-func (s Stream) Copy() Term {
+func (s *Stream) Copy() Term {
 	return s
 }
 

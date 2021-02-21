@@ -26,7 +26,7 @@ type Engine struct {
 	operators     operators
 	procedures    map[string]procedure
 	globalVars    map[Atom]Term
-	input, output Stream
+	input, output *Stream
 	AtHalt        func()
 }
 
@@ -37,14 +37,31 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	if out == nil {
 		out = os.Stdout
 	}
-	input, output := Stream{ReadWriteCloser: &input{Reader: in}}, Stream{ReadWriteCloser: &output{Writer: out}}
+	input := Stream{
+		Reader:      in,
+		Mode:        "read",
+		Alias:       "user_input",
+		EndOfStream: "not",
+		EofAction:   "error",
+		Reposition:  "false",
+		Type:        "text",
+	}
+	output := Stream{
+		Writer:      out,
+		Mode:        "write",
+		Alias:       "user_output",
+		EndOfStream: "not",
+		EofAction:   "error",
+		Reposition:  "false",
+		Type:        "text",
+	}
 	e := Engine{
 		globalVars: map[Atom]Term{
-			"user_input":  input,
-			"user_output": output,
+			"user_input":  &input,
+			"user_output": &output,
 		},
-		input:  input,
-		output: output,
+		input:  &input,
+		output: &output,
 	}
 	e.Register0("!", Cut)
 	e.Register0("repeat", Repeat)
@@ -100,6 +117,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2(">", DefaultFunctionSet.GreaterThan)
 	e.Register2("=<", DefaultFunctionSet.LessThanOrEqual)
 	e.Register2(">=", DefaultFunctionSet.GreaterThanOrEqual)
+	e.Register2("stream_property", e.StreamProperty)
 	err := e.Load(`
 /*
  *  bootstrap script

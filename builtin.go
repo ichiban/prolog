@@ -735,7 +735,7 @@ func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
 		}
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -754,7 +754,7 @@ func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
 		}
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -788,18 +788,23 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 		return false, errors.New("unknown mode")
 	}
 
-	var alias Atom
+	var (
+		typ        = Atom("text")
+		reposition = Atom("false")
+		alias      Atom
+		eofAction  = Atom("error")
+	)
 	if err := Each(options, func(option Term) error {
 		var arg Variable
 		switch {
 		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("text")}}, false):
-			// TODO: don't know what to do.
+			typ = "text"
 		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("binary")}}, false):
-			// TODO: don't know what to do.
+			typ = "binary"
 		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("true")}}, false):
-			// TODO: don't know what to do.
+			reposition = "true"
 		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("false")}}, false):
-			// TODO: don't know what to do.
+			reposition = "false"
 		case option.Unify(&Compound{Functor: "alias", Args: []Term{&arg}}, false):
 			n, ok := Resolve(arg.Ref).(Atom)
 			if !ok {
@@ -807,11 +812,11 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 			}
 			alias = n
 		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, false):
-			// TODO:
+			eofAction = "error"
 		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}}, false):
-			// TODO:
+			eofAction = "eof_code"
 		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("reset")}}, false):
-			// TODO:
+			eofAction = "reset"
 		default:
 			return errors.New("unknown option")
 		}
@@ -825,16 +830,32 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 		return false, err
 	}
 
-	s := Stream{ReadWriteCloser: f}
+	s := Stream{
+		Closer:      f,
+		FileName:    n,
+		Mode:        mode.(Atom),
+		Alias:       alias,
+		Position:    0,
+		EndOfStream: "not",
+		EofAction:   eofAction,
+		Reposition:  reposition,
+		Type:        typ,
+	}
+	switch mode {
+	case Atom("read"):
+		s.Reader = f
+	case Atom("write"), Atom("append"):
+		s.Writer = f
+	}
 
 	if alias != "" {
 		if e.globalVars == nil {
 			e.globalVars = map[Atom]Term{}
 		}
-		e.globalVars[alias] = s
+		e.globalVars[alias] = &s
 	}
 
-	return Unify(stream, s, k)
+	return Unify(stream, &s, k)
 }
 
 func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, error) {
@@ -848,7 +869,7 @@ func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, erro
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -886,12 +907,12 @@ func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) 
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
 
-	if f, ok := s.ReadWriteCloser.(Flusher); ok {
+	if f, ok := s.Writer.(Flusher); ok {
 		if err := f.Flush(); err != nil {
 			return false, err
 		}
@@ -915,7 +936,7 @@ func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -981,7 +1002,7 @@ func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error)
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -1010,7 +1031,7 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -1079,7 +1100,7 @@ func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error)
 		stream = v
 	}
 
-	s, ok := stream.(Stream)
+	s, ok := stream.(*Stream)
 	if !ok {
 		return false, errors.New("not a stream")
 	}
@@ -1654,4 +1675,44 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 			return nil, errors.New("not a number")
 		}
 	}
+}
+
+func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(*Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	a := newAssignment(property)
+	for _, p := range []Term{
+		&Compound{Functor: "file_name", Args: []Term{s.FileName}},
+		&Compound{Functor: "mode", Args: []Term{s.Mode}},
+		&Compound{Functor: "alias", Args: []Term{s.Alias}},
+		&Compound{Functor: "position", Args: []Term{s.Position}},
+		&Compound{Functor: "end_of_stream", Args: []Term{s.EndOfStream}},
+		&Compound{Functor: "eof_action", Args: []Term{s.EofAction}},
+		&Compound{Functor: "reposition", Args: []Term{s.Reposition}},
+		&Compound{Functor: "type", Args: []Term{s.Type}},
+	} {
+		ok, err := Unify(property, p, k)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+		a.reset()
+	}
+
+	return false, nil
 }
