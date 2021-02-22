@@ -3,39 +3,37 @@ package prolog
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 type Lexer struct {
 	input  *bufio.Reader
-	tokens chan Token
-
-	pos   int
-	width int
+	state  lexState
+	tokens []Token
+	pos    int
+	width  int
 }
 
-func NewLexer(input io.Reader) *Lexer {
-	tokens := make(chan Token)
-
-	l := Lexer{input: bufio.NewReader(input), tokens: tokens}
-	go func() {
-		defer close(tokens)
-
-		s := l.program
-		for s != nil {
-			s = s(l.next())
-		}
-	}()
-
+func NewLexer(input *bufio.Reader) *Lexer {
+	l := Lexer{input: input}
+	l.state = l.program
 	return &l
 }
 
 func (l *Lexer) Next() Token {
-	return <-l.tokens
+	for l.state != nil && len(l.tokens) == 0 {
+		l.state = l.state(l.next())
+	}
+
+	if len(l.tokens) > 0 {
+		var t Token
+		t, l.tokens = l.tokens[0], l.tokens[1:]
+		return t
+	}
+
+	return Token{}
 }
 
 func (l *Lexer) next() rune {
@@ -51,7 +49,7 @@ func (l *Lexer) backup() {
 }
 
 func (l *Lexer) emit(t Token) {
-	l.tokens <- t
+	l.tokens = append(l.tokens, t)
 }
 
 type Token struct {
@@ -105,8 +103,6 @@ func (l *Lexer) program(r rune) lexState {
 func (l *Lexer) term(ctx lexState) lexState {
 	return func(r rune) lexState {
 		switch {
-		case r == utf8.RuneError:
-			return nil
 		case unicode.IsSpace(r):
 			return l.term(ctx)
 		case r == '%':

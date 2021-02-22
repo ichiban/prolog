@@ -526,33 +526,15 @@ type Stream struct {
 	io.Writer
 	io.Closer
 
-	FileName    Atom
-	Mode        Atom
-	Alias       Atom
-	Position    Integer
-	EndOfStream Atom
-	EofAction   Atom
-	Reposition  Atom
-	Type        Atom
-}
-
-func (s *Stream) Read(p []byte) (int, error) {
-	n, err := s.Reader.Read(p)
-	s.Position += Integer(n)
-	switch err {
-	case nil:
-		return n, nil
-	case io.EOF:
-		switch s.EndOfStream {
-		case "not":
-			s.EndOfStream = "at"
-		case "at":
-			s.EndOfStream = "past"
-		}
-		return n, io.EOF
-	default:
-		return n, err
-	}
+	// properties
+	// FileName: file name can be retrieved from os.File.
+	Mode  Atom
+	Alias Atom
+	// Position: position can be inferred from os.File.
+	// EndOfStream: os.File backed streams can detect its position.
+	EofAction Atom
+	// Reposition: os.File backed streams can be repositioned.
+	Type Atom
 }
 
 func (s *Stream) String() string {

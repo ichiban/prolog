@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -739,14 +740,11 @@ func TestEngine_CurrentInput(t *testing.T) {
 		assert.Equal(t, &Variable{
 			Name: "X",
 			Ref: &Variable{Ref: &Stream{
-				Reader:      &buf,
-				Mode:        "read",
-				Alias:       "user_input",
-				Position:    0,
-				EndOfStream: "not",
-				EofAction:   "error",
-				Reposition:  "false",
-				Type:        "text",
+				Reader:    &buf,
+				Mode:      "read",
+				Alias:     "user_input",
+				EofAction: "error",
+				Type:      "text",
 			}},
 		}, vars[0])
 		return true
@@ -762,14 +760,11 @@ func TestEngine_CurrentOutput(t *testing.T) {
 		assert.Equal(t, &Variable{
 			Name: "X",
 			Ref: &Variable{Ref: &Stream{
-				Writer:      &buf,
-				Mode:        "write",
-				Alias:       "user_output",
-				Position:    0,
-				EndOfStream: "not",
-				EofAction:   "error",
-				Reposition:  "false",
-				Type:        "text",
+				Writer:    &buf,
+				Mode:      "write",
+				Alias:     "user_output",
+				EofAction: "error",
+				Type:      "text",
 			}},
 		}, vars[0])
 		return true
@@ -1537,7 +1532,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("foo.")}, &v, List(), Done)
+		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}, &v, List(), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1545,7 +1540,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("valid global variable", func(t *testing.T) {
-		s := Stream{Reader: strings.NewReader("foo.")}
+		s := Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}
 
 		e := Engine{
 			globalVars: map[Atom]Term{
@@ -1581,7 +1576,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, singletons Variable
-		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "singletons",
 			Args:    []Term{&singletons},
 		}), Done)
@@ -1604,7 +1599,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variables Variable
-		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variables",
 			Args:    []Term{&variables},
 		}), Done)
@@ -1627,7 +1622,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variableNames Variable
-		ok, err := e.ReadTerm(&Stream{Reader: strings.NewReader("f(X, X, Y).")}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variable_names",
 			Args:    []Term{&variableNames},
 		}), Done)
@@ -1664,6 +1659,34 @@ func TestEngine_ReadTerm(t *testing.T) {
 			Args:    []Term{Atom("option")},
 		}), Done)
 		assert.Error(t, err)
+	})
+
+	t.Run("multiple reads", func(t *testing.T) {
+		var e Engine
+
+		s := Stream{Reader: bufio.NewReader(strings.NewReader(`
+foo(a).
+foo(b).
+foo(c).
+`))}
+
+		var v Variable
+		ok, err := e.ReadTerm(&s, &v, List(), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("a")}}, v.Ref)
+
+		v.Ref = nil
+		ok, err = e.ReadTerm(&s, &v, List(), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("b")}}, v.Ref)
+
+		v.Ref = nil
+		ok, err = e.ReadTerm(&s, &v, List(), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("c")}}, v.Ref)
 	})
 }
 
@@ -2426,37 +2449,40 @@ func TestFunctionSet_GreaterThanOrEqual(t *testing.T) {
 }
 
 func TestEngine_StreamProperty(t *testing.T) {
+	f, err := ioutil.TempFile("", "")
+	assert.NoError(t, err)
+
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
 		var v Variable
 		c := 0
 		ok, err := e.StreamProperty(&Stream{
-			FileName:    "/dev/null",
-			Mode:        "write",
-			Alias:       "null",
-			Position:    0,
-			EndOfStream: "not",
-			EofAction:   "error",
-			Reposition:  "false",
-			Type:        "text",
+			Reader:    bufio.NewReader(f),
+			Closer:    f,
+			Mode:      "read",
+			Alias:     "null",
+			EofAction: "error",
+			Type:      "text",
 		}, &v, func() (b bool, err error) {
 			switch c {
 			case 0:
-				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom("/dev/null")}}, v.Ref)
+				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("read")}}, v.Ref)
 			case 1:
-				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
-			case 2:
 				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
-			case 3:
-				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
-			case 4:
-				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("not")}}, v.Ref)
-			case 5:
+			case 2:
 				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
-			case 6:
-				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("false")}}, v.Ref)
-			case 7:
+			case 3:
 				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
+			case 4:
+				assert.Equal(t, &Compound{Functor: "buffer", Args: []Term{Atom("true")}}, v.Ref)
+			case 5:
+				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}}, v.Ref)
+			case 6:
+				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
+			case 7:
+				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}}, v.Ref)
+			case 8:
+				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("true")}}, v.Ref)
 			default:
 				assert.Fail(t, "unreachable")
 			}
@@ -2471,14 +2497,12 @@ func TestEngine_StreamProperty(t *testing.T) {
 		e := Engine{
 			globalVars: map[Atom]Term{
 				"null": &Stream{
-					FileName:    "/dev/null",
-					Mode:        "write",
-					Alias:       "null",
-					Position:    0,
-					EndOfStream: "not",
-					EofAction:   "error",
-					Reposition:  "false",
-					Type:        "text",
+					Writer:    bufio.NewWriter(f),
+					Closer:    f,
+					Mode:      "write",
+					Alias:     "null",
+					EofAction: "error",
+					Type:      "text",
 				},
 			},
 		}
@@ -2487,21 +2511,23 @@ func TestEngine_StreamProperty(t *testing.T) {
 		ok, err := e.StreamProperty(Atom("null"), &v, func() (b bool, err error) {
 			switch c {
 			case 0:
-				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom("/dev/null")}}, v.Ref)
-			case 1:
 				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
-			case 2:
+			case 1:
 				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
-			case 3:
-				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
-			case 4:
-				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("not")}}, v.Ref)
-			case 5:
+			case 2:
 				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
-			case 6:
-				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("false")}}, v.Ref)
-			case 7:
+			case 3:
 				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
+			case 4:
+				assert.Equal(t, &Compound{Functor: "buffer", Args: []Term{Atom("true")}}, v.Ref)
+			case 5:
+				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}}, v.Ref)
+			case 6:
+				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
+			case 7:
+				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}}, v.Ref)
+			case 8:
+				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("true")}}, v.Ref)
 			default:
 				assert.Fail(t, "unreachable")
 			}

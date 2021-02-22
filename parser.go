@@ -1,15 +1,15 @@
 package prolog
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 )
 
 type Parser struct {
 	lexer     *Lexer
-	current   Token
+	current   *Token
 	operators *operators
 	vars      []variableWithCount
 }
@@ -19,12 +19,11 @@ type variableWithCount struct {
 	count    int
 }
 
-func NewParser(input io.Reader, operators *operators) *Parser {
+func NewParser(input *bufio.Reader, operators *operators) *Parser {
 	p := Parser{
 		lexer:     NewLexer(input),
 		operators: operators,
 	}
-	p.current = p.lexer.Next()
 	return &p
 }
 
@@ -33,7 +32,7 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p.current = p.lexer.Next()
+	p.current = nil
 	return v, nil
 }
 
@@ -70,11 +69,16 @@ func (p *Parser) acceptPrefix() (*operator, error) {
 }
 
 func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
+	if p.current == nil {
+		t := p.lexer.Next()
+		p.current = &t
+	}
+
 	if p.current.Kind != k {
 		return "", &unexpectedToken{
 			ExpectedKind: k,
 			ExpectedVals: vals,
-			Actual:       p.current,
+			Actual:       *p.current,
 		}
 	}
 
@@ -87,7 +91,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 		return "", &unexpectedToken{
 			ExpectedKind: k,
 			ExpectedVals: vals,
-			Actual:       p.current,
+			Actual:       *p.current,
 		}
 	}
 

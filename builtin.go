@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -639,7 +640,7 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (boo
 func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
 	a := newAssignment(pf)
 	for key := range e.procedures {
-		p := NewParser(strings.NewReader(key), &operators{
+		p := NewParser(bufio.NewReader(strings.NewReader(key)), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
 		})
 		t, err := p.Term()
@@ -772,12 +773,19 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 	}
 
 	var (
-		flag int
-		perm os.FileMode
+		flag   int
+		perm   os.FileMode
+		buffer bool
+
+		typ       = Atom("text")
+		alias     Atom
+		eofAction = Atom("error")
 	)
+
 	switch mode {
 	case Atom("read"):
 		flag = os.O_RDONLY
+		buffer = true
 	case Atom("write"):
 		flag = os.O_CREATE | os.O_WRONLY
 		perm = 0644
@@ -788,12 +796,6 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 		return false, errors.New("unknown mode")
 	}
 
-	var (
-		typ        = Atom("text")
-		reposition = Atom("false")
-		alias      Atom
-		eofAction  = Atom("error")
-	)
 	if err := Each(options, func(option Term) error {
 		var arg Variable
 		switch {
@@ -802,9 +804,9 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("binary")}}, false):
 			typ = "binary"
 		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("true")}}, false):
-			reposition = "true"
+			// TODO: don't know what to do.
 		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("false")}}, false):
-			reposition = "false"
+			// TODO: don't know what to do.
 		case option.Unify(&Compound{Functor: "alias", Args: []Term{&arg}}, false):
 			n, ok := Resolve(arg.Ref).(Atom)
 			if !ok {
@@ -817,6 +819,10 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 			eofAction = "eof_code"
 		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("reset")}}, false):
 			eofAction = "reset"
+		case option.Unify(&Compound{Functor: "buffer", Args: []Term{Atom("true")}}, false):
+			buffer = true
+		case option.Unify(&Compound{Functor: "buffer", Args: []Term{Atom("false")}}, false):
+			buffer = false
 		default:
 			return errors.New("unknown option")
 		}
@@ -831,21 +837,23 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 	}
 
 	s := Stream{
-		Closer:      f,
-		FileName:    n,
-		Mode:        mode.(Atom),
-		Alias:       alias,
-		Position:    0,
-		EndOfStream: "not",
-		EofAction:   eofAction,
-		Reposition:  reposition,
-		Type:        typ,
+		Closer:    f,
+		Mode:      mode.(Atom),
+		Alias:     alias,
+		EofAction: eofAction,
+		Type:      typ,
 	}
 	switch mode {
 	case Atom("read"):
 		s.Reader = f
+		if buffer {
+			s.Reader = bufio.NewReader(s.Reader)
+		}
 	case Atom("write"), Atom("append"):
 		s.Writer = f
+		if buffer {
+			s.Writer = bufio.NewWriter(s.Writer)
+		}
 	}
 
 	if alias != "" {
@@ -912,17 +920,17 @@ func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) 
 		return false, errors.New("not a stream")
 	}
 
-	if f, ok := s.Writer.(Flusher); ok {
+	type flusher interface {
+		Flush() error
+	}
+
+	if f, ok := s.Writer.(flusher); ok {
 		if err := f.Flush(); err != nil {
 			return false, err
 		}
 	}
 
 	return k()
-}
-
-type Flusher interface {
-	Flush() error
 }
 
 func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
@@ -1054,7 +1062,12 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 		return false, err
 	}
 
-	p := NewParser(s, &e.operators)
+	br, ok := s.Reader.(*bufio.Reader)
+	if !ok {
+		return false, errors.New("not a buffered stream")
+	}
+
+	p := NewParser(br, &e.operators)
 
 	t, err := p.Clause()
 	if err != nil {
@@ -1311,7 +1324,7 @@ func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(strings.NewReader(sb.String()), &operators{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1352,7 +1365,7 @@ func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(strings.NewReader(sb.String()), &operators{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1693,17 +1706,61 @@ func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (
 		return false, errors.New("not a stream")
 	}
 
-	a := newAssignment(property)
-	for _, p := range []Term{
-		&Compound{Functor: "file_name", Args: []Term{s.FileName}},
+	properties := []Term{
 		&Compound{Functor: "mode", Args: []Term{s.Mode}},
 		&Compound{Functor: "alias", Args: []Term{s.Alias}},
-		&Compound{Functor: "position", Args: []Term{s.Position}},
-		&Compound{Functor: "end_of_stream", Args: []Term{s.EndOfStream}},
 		&Compound{Functor: "eof_action", Args: []Term{s.EofAction}},
-		&Compound{Functor: "reposition", Args: []Term{s.Reposition}},
 		&Compound{Functor: "type", Args: []Term{s.Type}},
-	} {
+	}
+
+	if s.Reader != nil {
+		if _, ok := s.Reader.(*bufio.Reader); ok {
+			properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
+		} else {
+			properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
+		}
+	}
+
+	if s.Writer != nil {
+		if _, ok := s.Writer.(*bufio.Writer); ok {
+			properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
+		} else {
+			properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
+		}
+	}
+
+	if f, ok := s.Closer.(*os.File); ok {
+		pos, err := f.Seek(0, 1)
+		if err != nil {
+			return false, err
+		}
+
+		fi, err := f.Stat()
+		if err != nil {
+			return false, err
+		}
+		if br, ok := s.Reader.(*bufio.Reader); ok {
+			pos -= int64(br.Buffered())
+		}
+
+		eos := "not"
+		switch {
+		case pos == fi.Size():
+			eos = "at"
+		case pos > fi.Size():
+			eos = "past"
+		}
+
+		properties = append(properties,
+			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+			&Compound{Functor: "reposition", Args: []Term{Atom("true")}},
+		)
+	}
+
+	a := newAssignment(property)
+	for _, p := range properties {
 		ok, err := Unify(property, p, k)
 		if err != nil {
 			return false, err

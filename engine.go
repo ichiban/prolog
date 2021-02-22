@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -38,22 +39,18 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 		out = os.Stdout
 	}
 	input := Stream{
-		Reader:      in,
-		Mode:        "read",
-		Alias:       "user_input",
-		EndOfStream: "not",
-		EofAction:   "error",
-		Reposition:  "false",
-		Type:        "text",
+		Reader:    in,
+		Mode:      "read",
+		Alias:     "user_input",
+		EofAction: "error",
+		Type:      "text",
 	}
 	output := Stream{
-		Writer:      out,
-		Mode:        "write",
-		Alias:       "user_output",
-		EndOfStream: "not",
-		EofAction:   "error",
-		Reposition:  "false",
-		Type:        "text",
+		Writer:    out,
+		Mode:      "write",
+		Alias:     "user_output",
+		EofAction: "error",
+		Type:      "text",
 	}
 	e := Engine{
 		globalVars: map[Atom]Term{
@@ -256,6 +253,9 @@ read(Term) :- current_input(S), read(S, Term).
 get_byte(Byte) :- current_input(S), get_byte(S, Byte).
 
 halt :- halt(0).
+
+at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(at)).
+at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(past)).
 `)
 	return &e, err
 }
@@ -265,7 +265,7 @@ type procedure interface {
 }
 
 func (e *Engine) Load(s string) error {
-	p := NewParser(strings.NewReader(s), &e.operators)
+	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators)
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {
 			return nil
@@ -287,7 +287,7 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 		cb = func([]*Variable) bool { return true }
 	}
 
-	t, err := NewParser(strings.NewReader(s), &e.operators).Clause()
+	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators).Clause()
 	if err != nil {
 		return false, err
 	}
