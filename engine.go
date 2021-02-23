@@ -256,6 +256,8 @@ halt :- halt(0).
 
 at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(at)).
 at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(past)).
+
+at_end_of_stream :- current_input(S), at_end_of_stream(S).
 `)
 	return &e, err
 }
