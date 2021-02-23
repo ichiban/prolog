@@ -1980,3 +1980,36 @@ func (e *Engine) CharConversion(char1, char2 Term, k func() (bool, error)) (bool
 
 	return k()
 }
+
+func (e *Engine) CurrentCharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+	if c1, ok := Resolve(char1).(Atom); ok {
+		r := []rune(c1)
+		if len(r) != 1 {
+			return false, errors.New("not a char")
+		}
+		if r, ok := e.charConversions[r[0]]; ok {
+			return Unify(char2, Atom(r), k)
+		}
+		return Unify(char2, c1, k)
+	}
+
+	a := newAssignment(char1, char2)
+	pattern := Compound{Args: []Term{char1, char2}}
+	for r := rune(0); r <= 0x00ff; r++ {
+		cr, ok := e.charConversions[r]
+		if !ok {
+			cr = r
+		}
+
+		ok, err := Unify(&pattern, &Compound{Args: []Term{Atom(r), Atom(cr)}}, k)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+
+		a.reset()
+	}
+	return false, nil
+}

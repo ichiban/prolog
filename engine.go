@@ -115,6 +115,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("stream_property", e.StreamProperty)
 	e.Register2("set_stream_position", e.SetStreamPosition)
 	e.Register2("char_conversion", e.CharConversion)
+	e.Register2("current_char_conversion", e.CurrentCharConversion)
 	err := e.Load(`
 /*
  *  bootstrap script

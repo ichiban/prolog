@@ -2951,3 +2951,57 @@ func TestEngine_CharConversion(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestEngine_CurrentCharConversion(t *testing.T) {
+	t.Run("specified", func(t *testing.T) {
+		t.Run("ok", func(t *testing.T) {
+			t.Run("as is", func(t *testing.T) {
+				var e Engine
+				ok, err := e.CurrentCharConversion(Atom("a"), Atom("a"), Done)
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("converted", func(t *testing.T) {
+				e := Engine{
+					charConversions: map[rune]rune{
+						'a': 'b',
+					},
+				}
+				ok, err := e.CurrentCharConversion(Atom("a"), Atom("b"), Done)
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+		})
+
+		t.Run("not a char", func(t *testing.T) {
+			var e Engine
+			_, err := e.CurrentCharConversion(Atom("abc"), &Variable{}, Done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("not specified", func(t *testing.T) {
+		var e Engine
+
+		var x, y Variable
+		var r rune
+		ok, err := e.CurrentCharConversion(&x, &y, func() (bool, error) {
+			x, ok := x.Ref.(Atom)
+			assert.True(t, ok)
+			assert.Len(t, []rune(x), 1)
+
+			y, ok := y.Ref.(Atom)
+			assert.True(t, ok)
+			assert.Len(t, []rune(y), 1)
+
+			assert.Equal(t, r, []rune(x)[0])
+			assert.Equal(t, r, []rune(y)[0])
+			r++
+			return false, nil
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+		assert.Equal(t, rune(256), r)
+	})
+}
