@@ -19,9 +19,9 @@ type variableWithCount struct {
 	count    int
 }
 
-func NewParser(input *bufio.Reader, operators *operators) *Parser {
+func NewParser(input *bufio.Reader, operators *operators, charConversions map[rune]rune) *Parser {
 	p := Parser{
-		lexer:     NewLexer(input),
+		lexer:     NewLexer(input, charConversions),
 		operators: operators,
 	}
 	return &p

@@ -23,11 +23,12 @@ const (
 )
 
 type Engine struct {
-	operators     operators
-	procedures    map[string]procedure
-	globalVars    map[Atom]Term
-	input, output *Stream
-	AtHalt        func()
+	operators       operators
+	procedures      map[string]procedure
+	globalVars      map[Atom]Term
+	input, output   *Stream
+	AtHalt          func()
+	charConversions map[rune]rune
 }
 
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
@@ -113,6 +114,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2(">=", DefaultFunctionSet.GreaterThanOrEqual)
 	e.Register2("stream_property", e.StreamProperty)
 	e.Register2("set_stream_position", e.SetStreamPosition)
+	e.Register2("char_conversion", e.CharConversion)
 	err := e.Load(`
 /*
  *  bootstrap script
@@ -277,7 +279,7 @@ type procedure interface {
 }
 
 func (e *Engine) Load(s string) error {
-	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators)
+	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, e.charConversions)
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {
 			return nil
@@ -299,7 +301,7 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 		cb = func([]*Variable) bool { return true }
 	}
 
-	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators).Clause()
+	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, e.charConversions).Clause()
 	if err != nil {
 		return false, err
 	}

@@ -9,15 +9,16 @@ import (
 )
 
 type Lexer struct {
-	input  *bufio.Reader
-	state  lexState
-	tokens []Token
-	pos    int
-	width  int
+	input           *bufio.Reader
+	charConversions map[rune]rune
+	state           lexState
+	tokens          []Token
+	pos             int
+	width           int
 }
 
-func NewLexer(input *bufio.Reader) *Lexer {
-	l := Lexer{input: input}
+func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
+	l := Lexer{input: input, charConversions: charConversions}
 	l.state = l.program
 	return &l
 }
@@ -87,9 +88,17 @@ func (k TokenKind) String() string {
 	}
 }
 
+func (l *Lexer) conv(r rune) rune {
+	if r, ok := l.charConversions[r]; ok {
+		return r
+	}
+	return r
+}
+
 type lexState func(rune) lexState
 
 func (l *Lexer) program(r rune) lexState {
+	r = l.conv(r)
 	switch r {
 	case '.':
 		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -102,6 +111,7 @@ func (l *Lexer) program(r rune) lexState {
 
 func (l *Lexer) term(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsSpace(r):
 			return l.term(ctx)
@@ -152,6 +162,7 @@ func (l *Lexer) term(ctx lexState) lexState {
 
 func (l *Lexer) paren(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -165,6 +176,7 @@ func (l *Lexer) paren(ctx lexState) lexState {
 
 func (l *Lexer) args(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -181,6 +193,7 @@ func (l *Lexer) args(ctx lexState) lexState {
 
 func (l *Lexer) elems(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case ']':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
@@ -199,6 +212,7 @@ func (l *Lexer) elems(ctx lexState) lexState {
 
 func (l *Lexer) atom(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
 			if _, err := b.WriteRune(r); err != nil {
@@ -349,6 +363,7 @@ func (l *Lexer) quotedAtomSlashCode(b *strings.Builder, ctx lexState, base int, 
 
 func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
 			if _, err := b.WriteRune(r); err != nil {
@@ -367,6 +382,7 @@ func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
 
 func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
 			if _, err := b.WriteRune(r); err != nil {
@@ -383,6 +399,7 @@ func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
 
 func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
 			if _, err := b.WriteRune(r); err != nil {
@@ -404,6 +421,7 @@ func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
 
 func (l *Lexer) variable(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
 			if _, err := b.WriteRune(r); err != nil {
@@ -420,6 +438,7 @@ func (l *Lexer) variable(b *strings.Builder, ctx lexState) lexState {
 
 func (l *Lexer) graphic(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case isGraphic(r):
 			if _, err := b.WriteRune(r); err != nil {
@@ -440,6 +459,7 @@ func (l *Lexer) graphic(b *strings.Builder, ctx lexState) lexState {
 
 func (l *Lexer) list(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case ']':
 			l.emit(Token{Kind: TokenAtom, Val: "[]"})
@@ -454,6 +474,7 @@ func (l *Lexer) list(ctx lexState) lexState {
 
 func (l *Lexer) singleLineComment(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case '\n':
 			return ctx
@@ -465,6 +486,7 @@ func (l *Lexer) singleLineComment(ctx lexState) lexState {
 
 func (l *Lexer) multiLineComment(b *strings.Builder, ctx, elseCtx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case '/':
 			if _, err := b.WriteRune(r); err != nil {
@@ -480,6 +502,7 @@ func (l *Lexer) multiLineComment(b *strings.Builder, ctx, elseCtx lexState) lexS
 
 func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx, elseCtx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch {
 		case r == '*':
 			return l.multiLineCommentBody(ctx)
@@ -498,6 +521,7 @@ func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx, elseCtx lexState)
 
 func (l *Lexer) multiLineCommentBody(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case '*':
 			return l.multiLineCommentEnd(ctx)
@@ -509,6 +533,7 @@ func (l *Lexer) multiLineCommentBody(ctx lexState) lexState {
 
 func (l *Lexer) multiLineCommentEnd(ctx lexState) lexState {
 	return func(r rune) lexState {
+		r = l.conv(r)
 		switch r {
 		case '/':
 			return ctx

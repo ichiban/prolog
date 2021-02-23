@@ -642,7 +642,7 @@ func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error)
 	for key := range e.procedures {
 		p := NewParser(bufio.NewReader(strings.NewReader(key)), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
-		})
+		}, e.charConversions)
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1097,7 +1097,7 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 		return false, errors.New("not a buffered stream")
 	}
 
-	p := NewParser(br, &e.operators)
+	p := NewParser(br, &e.operators, e.charConversions)
 
 	t, err := p.Clause()
 	if err != nil {
@@ -1465,7 +1465,7 @@ func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1506,7 +1506,7 @@ func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1948,6 +1948,35 @@ func (e *Engine) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bo
 	if br, ok := s.Reader.(*bufio.Reader); ok {
 		br.Reset(f)
 	}
+
+	return k()
+}
+
+func (e *Engine) CharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+	c1, ok := Resolve(char1).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	r1 := []rune(c1)
+	if len(r1) != 1 {
+		return false, errors.New("not a char")
+	}
+
+	c2, ok := Resolve(char2).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	r2 := []rune(c2)
+	if len(r2) != 1 {
+		return false, errors.New("not a char")
+	}
+
+	if e.charConversions == nil {
+		e.charConversions = map[rune]rune{}
+	}
+	e.charConversions[r1[0]] = r2[0]
 
 	return k()
 }

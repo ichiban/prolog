@@ -2924,3 +2924,30 @@ func TestEngine_StreamProperty(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestEngine_CharConversion(t *testing.T) {
+	t.Run("chars", func(t *testing.T) {
+		var e Engine
+		ok, err := e.CharConversion(Atom("a"), Atom("b"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, 'b', e.charConversions['a'])
+	})
+
+	t.Run("non atom", func(t *testing.T) {
+		var e Engine
+		_, err := e.CharConversion(&Variable{}, Atom("b"), Done)
+		assert.Error(t, err)
+		_, err = e.CharConversion(Atom("a"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non char", func(t *testing.T) {
+		var e Engine
+		_, err := e.CharConversion(Atom("abc"), Atom("b"), Done)
+		assert.Error(t, err)
+		_, err = e.CharConversion(Atom("a"), Atom("abc"), Done)
+		assert.Error(t, err)
+	})
+}

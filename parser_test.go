@@ -12,7 +12,7 @@ func TestParser_Clause(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(nil,L,L).
-`)), &operators{})
+`)), &operators{}, map[rune]rune{})
 		c, err := p.Clause()
 		assert.NoError(t, err)
 
@@ -32,7 +32,7 @@ append(nil,L,L).
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 `)), &operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
-		})
+		}, map[rune]rune{})
 		c, err := p.Clause()
 		assert.NoError(t, err)
 
@@ -75,7 +75,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
-		})
+		}, map[rune]rune{})
 
 		c, err := p.Clause()
 		assert.NoError(t, err)
@@ -104,7 +104,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &operators{
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
 			{Precedence: 200, Type: `xfy`, Name: `^`},
-		})
+		}, map[rune]rune{})
 
 		c, err := p.Clause()
 		assert.NoError(t, err)
@@ -135,7 +135,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &operators{
 			{Precedence: 1000, Type: `xfy`, Name: `,`},
 			{Precedence: 200, Type: `xfy`, Name: `^`},
-		})
+		}, map[rune]rune{})
 
 		c, err := p.Clause()
 		assert.NoError(t, err)
@@ -174,7 +174,7 @@ func TestParser_Term(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e`)), &operators{
 			{Precedence: 500, Type: `yfx`, Name: `+`},
 			{Precedence: 400, Type: `yfx`, Name: `*`},
-		})
+		}, map[rune]rune{})
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, term, &Compound{
@@ -202,7 +202,7 @@ func TestParser_Term(t *testing.T) {
 	})
 
 	t.Run("list", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X]`)), &operators{})
+		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X]`)), &operators{}, map[rune]rune{})
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
@@ -211,7 +211,7 @@ func TestParser_Term(t *testing.T) {
 	t.Run("principal functor", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2`)), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
-		})
+		}, map[rune]rune{})
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
