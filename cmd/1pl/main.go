@@ -52,7 +52,7 @@ func main() {
 
 	logrus.SetOutput(t)
 
-	e, err := prolog.NewEngine(os.Stdin, t)
+	e, err := prolog.NewEngine(bufio.NewReader(os.Stdin), t)
 	if err != nil {
 		log.Panic(err)
 	}

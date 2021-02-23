@@ -1527,6 +1527,75 @@ func TestEngine_PutByte(t *testing.T) {
 	})
 }
 
+func TestEngine_PutCode(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		var io mockWriter
+		io.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{Writer: &io}
+
+		var e Engine
+		ok, err := e.PutCode(&s, Integer('😀'), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("ng", func(t *testing.T) {
+		var io mockWriter
+		io.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(0, errors.New("")).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{Writer: &io}
+
+		var e Engine
+		_, err := e.PutCode(&s, Integer('😀'), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		var io mockWriter
+		io.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
+		defer io.AssertExpectations(t)
+
+		s := Stream{Writer: &io}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": &s,
+			},
+		}
+		ok, err := e.PutCode(Atom("foo"), Integer('😀'), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+		_, err := e.PutCode(Atom("foo"), Integer('😀'), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a stream", func(t *testing.T) {
+		var e Engine
+		_, err := e.PutCode(&Variable{}, Integer('😀'), Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("not a code", func(t *testing.T) {
+		var io mockWriter
+		defer io.AssertExpectations(t)
+
+		s := Stream{Writer: &io}
+
+		t.Run("not an integer", func(t *testing.T) {
+			var e Engine
+			_, err := e.PutCode(&s, Atom("a"), Done)
+			assert.Error(t, err)
+		})
+	})
+}
+
 func TestEngine_ReadTerm(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
@@ -1761,6 +1830,95 @@ func TestEngine_GetByte(t *testing.T) {
 
 		var v Variable
 		_, err := e.GetByte(&s, &v, Done)
+		assert.Error(t, err)
+	})
+}
+
+func TestEngine_GetCode(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀"))}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.GetCode(&s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(0x1f600), v.Ref)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀"))}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": &s,
+			},
+		}
+
+		var v Variable
+		ok, err := e.GetCode(Atom("foo"), &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(0x1f600), v.Ref)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.GetCode(Atom("foo"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.GetCode(&Variable{}, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non input stream", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.GetCode(&Stream{}, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non buffered stream", func(t *testing.T) {
+		s := Stream{Reader: strings.NewReader("")}
+
+		var e Engine
+
+		_, err := e.GetCode(&s, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("eof", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader(""))}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.GetCode(&s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(-1), v.Ref)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
+
+		s := Stream{Reader: bufio.NewReader(&m)}
+
+		var e Engine
+
+		var v Variable
+		_, err := e.GetCode(&s, &v, Done)
 		assert.Error(t, err)
 	})
 }

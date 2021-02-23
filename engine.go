@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -32,12 +31,6 @@ type Engine struct {
 }
 
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
-	if in == nil {
-		in = os.Stdin
-	}
-	if out == nil {
-		out = os.Stdout
-	}
 	input := Stream{
 		Reader:    in,
 		Mode:      "read",
@@ -96,8 +89,10 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register3("write_term", e.WriteTerm)
 	e.Register2("char_code", CharCode)
 	e.Register2("put_byte", e.PutByte)
+	e.Register2("put_code", e.PutCode)
 	e.Register3("read_term", e.ReadTerm)
 	e.Register2("get_byte", e.GetByte)
+	e.Register2("get_code", e.GetCode)
 	e.Register1("halt", e.Halt)
 	e.Register2("clause", e.Clause)
 	e.Register2("atom_length", AtomLength)
@@ -234,15 +229,13 @@ nl(Stream) :- write_term(Stream, '\n', []).
 
 nl :- current_output(S), nl(S).
 
-put_char(Stream, Char) :- write_term(Stream, Char, []).
-
-put_char(Char) :- current_output(S), put_char(S, Char).
-
-put_code(Stream, Code) :- char_code(C, Code), put_char(Stream, C).
+put_byte(Byte) :- current_output(S), put_byte(S, Byte).
 
 put_code(Code) :- current_output(S), put_code(S, Code).
 
-put_byte(Byte) :- current_output(S), put_byte(S, Byte).
+put_char(Stream, Char) :- char_code(Char, Code), put_code(Stream, Code).
+
+put_char(Char) :- current_output(S), put_char(S, Char).
 
 read_term(Term, Options) :- current_input(S), read_term(S, Term, Options).
 
