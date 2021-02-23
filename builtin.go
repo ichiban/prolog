@@ -1196,6 +1196,42 @@ func (e *Engine) GetCode(stream, code Term, k func() (bool, error)) (bool, error
 	}
 }
 
+func (e *Engine) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(*Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	if s.Reader == nil {
+		return false, errors.New("not an input stream")
+	}
+
+	br, ok := s.Reader.(*bufio.Reader)
+	if !ok {
+		return false, errors.New("not a buffered stream")
+	}
+
+	b, err := br.Peek(1)
+	switch err {
+	case nil:
+		return Unify(byt, Integer(b[0]), k)
+	case io.EOF:
+		return Unify(byt, Integer(-1), k)
+	default:
+		return false, err
+	}
+}
+
 func (e *Engine) Halt(n Term, k func() (bool, error)) (bool, error) {
 	code, ok := Resolve(n).(Integer)
 	if !ok {
