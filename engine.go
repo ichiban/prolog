@@ -112,6 +112,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("=<", DefaultFunctionSet.LessThanOrEqual)
 	e.Register2(">=", DefaultFunctionSet.GreaterThanOrEqual)
 	e.Register2("stream_property", e.StreamProperty)
+	e.Register2("set_stream_position", e.SetStreamPosition)
 	err := e.Load(`
 /*
  *  bootstrap script

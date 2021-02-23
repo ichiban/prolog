@@ -1875,13 +1875,13 @@ func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (
 		if err != nil {
 			return false, err
 		}
+		if br, ok := s.Reader.(*bufio.Reader); ok {
+			pos -= int64(br.Buffered())
+		}
 
 		fi, err := f.Stat()
 		if err != nil {
 			return false, err
-		}
-		if br, ok := s.Reader.(*bufio.Reader); ok {
-			pos -= int64(br.Buffered())
 		}
 
 		eos := "not"
@@ -1913,4 +1913,41 @@ func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (
 	}
 
 	return false, nil
+}
+
+func (e *Engine) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bool, error) {
+	stream = Resolve(stream)
+
+	if a, ok := stream.(Atom); ok {
+		v, ok := e.globalVars[a]
+		if !ok {
+			return false, errors.New("unknown global variable")
+		}
+		stream = v
+	}
+
+	s, ok := stream.(*Stream)
+	if !ok {
+		return false, errors.New("not a stream")
+	}
+
+	p, ok := Resolve(pos).(Integer)
+	if !ok {
+		return false, errors.New("not an integer")
+	}
+
+	f, ok := s.Closer.(*os.File)
+	if !ok {
+		return false, errors.New("not a repositionable stream")
+	}
+
+	if _, err := f.Seek(int64(p), 0); err != nil {
+		return false, err
+	}
+
+	if br, ok := s.Reader.(*bufio.Reader); ok {
+		br.Reset(f)
+	}
+
+	return k()
 }
