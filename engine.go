@@ -94,6 +94,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("get_byte", e.GetByte)
 	e.Register2("get_code", e.GetCode)
 	e.Register2("peek_byte", e.PeekByte)
+	e.Register2("peek_code", e.PeekCode)
 	e.Register1("halt", e.Halt)
 	e.Register2("clause", e.Clause)
 	e.Register2("atom_length", AtomLength)

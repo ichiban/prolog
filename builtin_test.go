@@ -2016,6 +2016,99 @@ func TestEngine_PeekByte(t *testing.T) {
 	})
 }
 
+func TestEngine_PeekCode(t *testing.T) {
+	t.Run("stream", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀❗"))}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.PeekCode(&s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(0x1f600), v.Ref)
+
+		ok, err = e.PeekCode(&s, &v, Done) // '😀' again
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("valid global variable", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀❗"))}
+
+		e := Engine{
+			globalVars: map[Atom]Term{
+				"foo": &s,
+			},
+		}
+
+		var v Variable
+		ok, err := e.PeekCode(Atom("foo"), &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(0x1f600), v.Ref)
+	})
+
+	t.Run("unknown global variable", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.PeekCode(Atom("foo"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non stream", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.PeekCode(&Variable{}, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non input stream", func(t *testing.T) {
+		var e Engine
+
+		_, err := e.PeekCode(&Stream{}, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("non buffered stream", func(t *testing.T) {
+		s := Stream{Reader: strings.NewReader("")}
+
+		var e Engine
+
+		_, err := e.PeekCode(&s, &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("eof", func(t *testing.T) {
+		s := Stream{Reader: bufio.NewReader(strings.NewReader(""))}
+
+		var e Engine
+
+		var v Variable
+		ok, err := e.PeekCode(&s, &v, Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, Integer(-1), v.Ref)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
+
+		s := Stream{Reader: bufio.NewReader(&m)}
+
+		var e Engine
+
+		var v Variable
+		_, err := e.PeekCode(&s, &v, Done)
+		assert.Error(t, err)
+	})
+}
+
 func TestEngine_Clause(t *testing.T) {
 	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
