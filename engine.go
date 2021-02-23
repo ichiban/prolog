@@ -255,6 +255,8 @@ get_char(Char) :- current_input(S), get_char(S, Char).
 
 peek_byte(Byte) :- current_input(S), peek_byte(S, Byte).
 
+peek_code(Code) :- current_input(S), peek_code(S, Code).
+
 halt :- halt(0).
 
 at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(at)).
