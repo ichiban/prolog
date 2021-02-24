@@ -42,6 +42,19 @@ const (
 	unknownWarning
 )
 
+func (u unknownAction) String() string {
+	switch u {
+	case unknownError:
+		return "error"
+	case unknownFail:
+		return "fail"
+	case unknownWarning:
+		return "warning"
+	default:
+		return fmt.Sprintf("unknown(%d)", u)
+	}
+}
+
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	input := Stream{
 		Reader:    in,
@@ -128,6 +141,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("char_conversion", e.CharConversion)
 	e.Register2("current_char_conversion", e.CurrentCharConversion)
 	e.Register2("set_prolog_flag", e.SetPrologFlag)
+	e.Register2("current_prolog_flag", e.CurrentPrologFlag)
 	err := e.Load(`
 /*
  *  bootstrap script

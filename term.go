@@ -127,6 +127,13 @@ func (i Integer) Copy() Term {
 
 type Atom string
 
+func OnOff(b bool) Atom {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
 func (a Atom) String() string {
 	var buf bytes.Buffer
 	_ = a.WriteTerm(&buf, defaultWriteTermOptions)

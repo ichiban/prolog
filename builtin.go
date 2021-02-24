@@ -2078,3 +2078,31 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, 
 		return false, errors.New("unknown flag")
 	}
 }
+
+func (e *Engine) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+	flag, value = Resolve(flag), Resolve(value)
+
+	pattern := Compound{Args: []Term{flag, value}}
+
+	a := newAssignment(flag, value)
+	for _, f := range []Term{
+		&Compound{Args: []Term{Atom("bounded"), Atom("true")}},
+		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
+		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
+		&Compound{Args: []Term{Atom("integer_rounding_function"), Atom("toward_zero")}},
+		&Compound{Args: []Term{Atom("char_conversion"), OnOff(e.charConvEnabled)}},
+		&Compound{Args: []Term{Atom("debug"), OnOff(e.debug)}},
+		&Compound{Args: []Term{Atom("max_arity"), Atom("unbounded")}},
+		&Compound{Args: []Term{Atom("unknown"), Atom(e.unknown.String())}},
+	} {
+		ok, err := Unify(&pattern, f, k)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+		a.reset()
+	}
+	return false, nil
+}

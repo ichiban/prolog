@@ -3147,3 +3147,81 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestEngine_CurrentPrologFlag(t *testing.T) {
+	var e Engine
+
+	t.Run("specified", func(t *testing.T) {
+		ok, err := e.CurrentPrologFlag(Atom("bounded"), Atom("true"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("max_integer"), Integer(math.MaxInt64), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("min_integer"), Integer(math.MinInt64), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("integer_rounding_function"), Atom("toward_zero"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("char_conversion"), Atom("off"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("debug"), Atom("off"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("max_arity"), Atom("unbounded"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = e.CurrentPrologFlag(Atom("unknown"), Atom("error"), Done)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("not specified", func(t *testing.T) {
+		var flag, value Variable
+		var c int
+		ok, err := e.CurrentPrologFlag(&flag, &value, func() (bool, error) {
+			switch c {
+			case 0:
+				assert.Equal(t, Atom("bounded"), flag.Ref)
+				assert.Equal(t, Atom("true"), value.Ref)
+			case 1:
+				assert.Equal(t, Atom("max_integer"), flag.Ref)
+				assert.Equal(t, Integer(math.MaxInt64), value.Ref)
+			case 2:
+				assert.Equal(t, Atom("min_integer"), flag.Ref)
+				assert.Equal(t, Integer(math.MinInt64), value.Ref)
+			case 3:
+				assert.Equal(t, Atom("integer_rounding_function"), flag.Ref)
+				assert.Equal(t, Atom("toward_zero"), value.Ref)
+			case 4:
+				assert.Equal(t, Atom("char_conversion"), flag.Ref)
+				assert.Equal(t, Atom("off"), value.Ref)
+			case 5:
+				assert.Equal(t, Atom("debug"), flag.Ref)
+				assert.Equal(t, Atom("off"), value.Ref)
+			case 6:
+				assert.Equal(t, Atom("max_arity"), flag.Ref)
+				assert.Equal(t, Atom("unbounded"), value.Ref)
+			case 7:
+				assert.Equal(t, Atom("unknown"), flag.Ref)
+				assert.Equal(t, Atom(e.unknown.String()), value.Ref)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			c++
+			return false, nil
+		})
+		assert.NoError(t, err)
+		assert.False(t, ok)
+		assert.Equal(t, 8, c)
+	})
+}
