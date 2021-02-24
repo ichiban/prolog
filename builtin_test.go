@@ -3005,3 +3005,145 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 		assert.Equal(t, rune(256), r)
 	})
 }
+
+func TestEngine_SetPrologFlag(t *testing.T) {
+	t.Run("bounded", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("bounded"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("max_integer", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("max_integer"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("min_integer", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("min_integer"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("integer_rounding_function", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("integer_rounding_function"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("char_conversion", func(t *testing.T) {
+		t.Run("on", func(t *testing.T) {
+			var e Engine
+			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("on"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.True(t, e.charConvEnabled)
+		})
+
+		t.Run("off", func(t *testing.T) {
+			e := Engine{charConvEnabled: true}
+			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("off"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.False(t, e.charConvEnabled)
+		})
+
+		t.Run("non atom", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("char_conversion"), Integer(0), Done)
+			assert.Error(t, err)
+		})
+
+		t.Run("invalid value", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("char_conversion"), Atom("foo"), Done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("debug", func(t *testing.T) {
+		t.Run("on", func(t *testing.T) {
+			var e Engine
+			ok, err := e.SetPrologFlag(Atom("debug"), Atom("on"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.True(t, e.debug)
+		})
+
+		t.Run("off", func(t *testing.T) {
+			e := Engine{debug: true}
+			ok, err := e.SetPrologFlag(Atom("debug"), Atom("off"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.False(t, e.debug)
+		})
+
+		t.Run("non atom", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("debug"), Integer(0), Done)
+			assert.Error(t, err)
+		})
+
+		t.Run("invalid value", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("debug"), Atom("foo"), Done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("max_arity", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("max_arity"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown", func(t *testing.T) {
+		t.Run("error", func(t *testing.T) {
+			e := Engine{unknown: unknownFail}
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("error"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, unknownError, e.unknown)
+		})
+
+		t.Run("warning", func(t *testing.T) {
+			var e Engine
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("warning"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, unknownWarning, e.unknown)
+		})
+
+		t.Run("fail", func(t *testing.T) {
+			var e Engine
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("fail"), Done)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, unknownFail, e.unknown)
+		})
+
+		t.Run("non atom", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("unknown"), Integer(0), Done)
+			assert.Error(t, err)
+		})
+
+		t.Run("invalid value", func(t *testing.T) {
+			var e Engine
+			_, err := e.SetPrologFlag(Atom("unknown"), Atom("foo"), Done)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("non atom flag", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Integer(0), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+
+	t.Run("unknown flag", func(t *testing.T) {
+		var e Engine
+		_, err := e.SetPrologFlag(Atom("foobar"), &Variable{}, Done)
+		assert.Error(t, err)
+	})
+}

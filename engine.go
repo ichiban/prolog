@@ -29,7 +29,18 @@ type Engine struct {
 	input, output   *Stream
 	AtHalt          func()
 	charConversions map[rune]rune
+	charConvEnabled bool
+	debug           bool
+	unknown         unknownAction
 }
+
+type unknownAction int
+
+const (
+	unknownError unknownAction = iota
+	unknownFail
+	unknownWarning
+)
 
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	input := Stream{
@@ -116,6 +127,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("set_stream_position", e.SetStreamPosition)
 	e.Register2("char_conversion", e.CharConversion)
 	e.Register2("current_char_conversion", e.CurrentCharConversion)
+	e.Register2("set_prolog_flag", e.SetPrologFlag)
 	err := e.Load(`
 /*
  *  bootstrap script

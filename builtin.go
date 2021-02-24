@@ -1976,8 +1976,11 @@ func (e *Engine) CharConversion(char1, char2 Term, k func() (bool, error)) (bool
 	if e.charConversions == nil {
 		e.charConversions = map[rune]rune{}
 	}
+	if r1[0] == r2[0] {
+		delete(e.charConversions, r1[0])
+		return k()
+	}
 	e.charConversions[r1[0]] = r2[0]
-
 	return k()
 }
 
@@ -2012,4 +2015,66 @@ func (e *Engine) CurrentCharConversion(char1, char2 Term, k func() (bool, error)
 		a.reset()
 	}
 	return false, nil
+}
+
+func (e *Engine) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+	f, ok := Resolve(flag).(Atom)
+	if !ok {
+		return false, errors.New("not an atom")
+	}
+
+	switch f {
+	case "bounded", "max_integer", "min_integer", "integer_rounding_function", "max_arity":
+		return false, errors.New("unchangeable flag")
+	case "char_conversion":
+		a, ok := Resolve(value).(Atom)
+		if !ok {
+			return false, errors.New("not an atom")
+		}
+		switch a {
+		case "on":
+			e.charConvEnabled = true
+			return k()
+		case "off":
+			e.charConvEnabled = false
+			return k()
+		default:
+			return false, errors.New("unknown value")
+		}
+	case "debug":
+		a, ok := Resolve(value).(Atom)
+		if !ok {
+			return false, errors.New("not an atom")
+		}
+		switch a {
+		case "on":
+			e.debug = true
+			return k()
+		case "off":
+			e.debug = false
+			return k()
+		default:
+			return false, errors.New("unknown value")
+		}
+	case "unknown":
+		a, ok := Resolve(value).(Atom)
+		if !ok {
+			return false, errors.New("not an atom")
+		}
+		switch a {
+		case "error":
+			e.unknown = unknownError
+			return k()
+		case "warning":
+			e.unknown = unknownWarning
+			return k()
+		case "fail":
+			e.unknown = unknownFail
+			return k()
+		default:
+			return false, errors.New("unknown value")
+		}
+	default:
+		return false, errors.New("unknown flag")
+	}
 }

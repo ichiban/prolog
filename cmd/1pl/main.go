@@ -103,7 +103,8 @@ func main() {
 				ls = append(ls, fmt.Sprintf("%s = %s", v.Name, e.TermString(t)))
 			}
 			if len(ls) == 0 {
-				fmt.Fprintf(t, "%t ", true)
+				fmt.Fprintf(t, "%t.\n", true)
+				return true
 			} else {
 				fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
 			}
