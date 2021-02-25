@@ -410,7 +410,17 @@ func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, e
 	}).Debug("arrive")
 	p := e.procedures[name]
 	if p == nil {
-		return false, fmt.Errorf("unknown procedure: %s", name)
+		switch e.unknown {
+		case unknownError:
+			return false, fmt.Errorf("unknown procedure: %s", name)
+		case unknownWarning:
+			logrus.WithField("procedure", name).Warn("unknown procedure")
+			fallthrough
+		case unknownFail:
+			return false, nil
+		default:
+			return false, fmt.Errorf("unknown unknown: %s", e.unknown)
+		}
 	}
 	return p.Call(e, args, k)
 }
