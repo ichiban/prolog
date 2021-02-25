@@ -25,7 +25,7 @@ const (
 type Engine struct {
 	operators       operators
 	procedures      map[string]procedure
-	globalVars      map[Atom]Term
+	streams         map[Atom]*Stream
 	input, output   *Stream
 	AtHalt          func()
 	charConversions map[rune]rune
@@ -71,7 +71,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 		Type:      "text",
 	}
 	e := Engine{
-		globalVars: map[Atom]Term{
+		streams: map[Atom]*Stream{
 			"user_input":  &input,
 			"user_output": &output,
 		},

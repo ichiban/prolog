@@ -727,40 +727,20 @@ func (e *Engine) CurrentOutput(stream Term, k func() (bool, error)) (bool, error
 }
 
 func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		stream, ok = e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 	e.input = s
-
 	return k()
 }
 
 func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		stream, ok = e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 	e.output = s
-
 	return k()
 }
 
@@ -857,33 +837,23 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 	}
 
 	if alias != "" {
-		if e.globalVars == nil {
-			e.globalVars = map[Atom]Term{}
+		if e.streams == nil {
+			e.streams = map[Atom]*Stream{}
 		}
-		e.globalVars[alias] = &s
+		e.streams[alias] = &s
 	}
 
 	return Unify(stream, &s, k)
 }
 
 func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, error) {
-	stream, options = Resolve(stream), Resolve(options)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	var force bool
-	if err := Each(options, func(option Term) error {
+	if err := Each(Resolve(options), func(option Term) error {
 		switch {
 		case option.Unify(&Compound{Functor: "force", Args: []Term{Atom("false")}}, false):
 			force = false
@@ -905,19 +875,9 @@ func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, erro
 }
 
 func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	type flusher interface {
@@ -934,23 +894,13 @@ func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) 
 }
 
 func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
-	stream, term, options = Resolve(stream), Resolve(term), Resolve(options)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	opts := WriteTermOptions{ops: e.operators}
-	if err := Each(options, func(option Term) error {
+	if err := Each(Resolve(options), func(option Term) error {
 		switch {
 		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("false")}}, false):
 			opts.quoted = false
@@ -972,7 +922,7 @@ func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (
 		return false, err
 	}
 
-	if err := term.WriteTerm(s, opts); err != nil {
+	if err := Resolve(term).WriteTerm(s, opts); err != nil {
 		return false, err
 	}
 
@@ -1000,28 +950,17 @@ func CharCode(char, code Term, k func() (bool, error)) (bool, error) {
 }
 
 func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error) {
-	stream, byt = Resolve(stream), Resolve(byt)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
-	}
-
-	b, ok := byt.(Integer)
+	b, ok := Resolve(byt).(Integer)
 	if !ok || 0 > b || 255 < b {
 		return false, errors.New("not a byte")
 	}
 
-	_, err := s.Write([]byte{byte(b)})
-	if err != nil {
+	if _, err := s.Write([]byte{byte(b)}); err != nil {
 		return false, err
 	}
 
@@ -1029,29 +968,17 @@ func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error)
 }
 
 func (e *Engine) PutCode(stream, code Term, k func() (bool, error)) (bool, error) {
-	stream, code = Resolve(stream), Resolve(code)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
-	}
-
-	c, ok := code.(Integer)
+	c, ok := Resolve(code).(Integer)
 	if !ok {
 		return false, errors.New("not an integer")
 	}
 
-	r := rune(c)
-	_, err := s.Write([]byte(string(r)))
-	if err != nil {
+	if _, err := s.Write([]byte(string(rune(c)))); err != nil {
 		return false, err
 	}
 
@@ -1059,23 +986,13 @@ func (e *Engine) PutCode(stream, code Term, k func() (bool, error)) (bool, error
 }
 
 func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
-	stream, options = Resolve(stream), Resolve(options)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	var opts ReadTermOptions
-	if err := Each(options, func(option Term) error {
+	if err := Each(Resolve(options), func(option Term) error {
 		var v Variable
 		switch {
 		case option.Unify(&Compound{Functor: "singletons", Args: []Term{&v}}, false):
@@ -1133,23 +1050,13 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 }
 
 func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	b := make([]byte, 1)
-	_, err := s.Read(b)
+	_, err = s.Read(b)
 	switch err {
 	case nil:
 		return Unify(byt, Integer(b[0]), k)
@@ -1161,19 +1068,9 @@ func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error)
 }
 
 func (e *Engine) GetCode(stream, code Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	if s.Reader == nil {
@@ -1197,19 +1094,9 @@ func (e *Engine) GetCode(stream, code Term, k func() (bool, error)) (bool, error
 }
 
 func (e *Engine) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	if s.Reader == nil {
@@ -1233,19 +1120,9 @@ func (e *Engine) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error
 }
 
 func (e *Engine) PeekCode(stream, code Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	if s.Reader == nil {
@@ -1832,19 +1709,9 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 }
 
 func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	properties := []Term{
@@ -1916,19 +1783,9 @@ func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (
 }
 
 func (e *Engine) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bool, error) {
-	stream = Resolve(stream)
-
-	if a, ok := stream.(Atom); ok {
-		v, ok := e.globalVars[a]
-		if !ok {
-			return false, errors.New("unknown global variable")
-		}
-		stream = v
-	}
-
-	s, ok := stream.(*Stream)
-	if !ok {
-		return false, errors.New("not a stream")
+	s, err := e.stream(stream)
+	if err != nil {
+		return false, err
 	}
 
 	p, ok := Resolve(pos).(Integer)
@@ -2105,4 +1962,19 @@ func (e *Engine) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bo
 		a.reset()
 	}
 	return false, nil
+}
+
+func (e *Engine) stream(streamOrAtom Term) (*Stream, error) {
+	switch s := Resolve(streamOrAtom).(type) {
+	case Atom:
+		v, ok := e.streams[s]
+		if !ok {
+			return nil, errors.New("unknown stream alias")
+		}
+		return v, nil
+	case *Stream:
+		return s, nil
+	default:
+		return nil, errors.New("not a stream")
+	}
 }
