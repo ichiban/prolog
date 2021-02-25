@@ -306,7 +306,11 @@ type procedure interface {
 }
 
 func (e *Engine) Load(s string) error {
-	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, e.charConversions)
+	var conv map[rune]rune
+	if e.charConvEnabled {
+		conv = e.charConversions
+	}
+	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv)
 	for {
 		if _, err := p.accept(TokenEOS); err == nil {
 			return nil
@@ -328,7 +332,11 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 		cb = func([]*Variable) bool { return true }
 	}
 
-	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, e.charConversions).Clause()
+	var conv map[rune]rune
+	if e.charConvEnabled {
+		conv = e.charConversions
+	}
+	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv).Clause()
 	if err != nil {
 		return false, err
 	}

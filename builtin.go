@@ -638,11 +638,16 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (boo
 }
 
 func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
+	var conv map[rune]rune
+	if e.charConvEnabled {
+		conv = e.charConversions
+	}
+
 	a := newAssignment(pf)
 	for key := range e.procedures {
 		p := NewParser(bufio.NewReader(strings.NewReader(key)), &operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
-		}, e.charConversions)
+		}, conv)
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1014,7 +1019,11 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 		return false, errors.New("not a buffered stream")
 	}
 
-	p := NewParser(br, &e.operators, e.charConversions)
+	var conv map[rune]rune
+	if e.charConvEnabled {
+		conv = e.charConversions
+	}
+	p := NewParser(br, &e.operators, conv)
 
 	t, err := p.Clause()
 	if err != nil {
