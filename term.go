@@ -30,7 +30,7 @@ func (v *Variable) String() string {
 }
 
 func (v *Variable) WriteTerm(w io.Writer, opts WriteTermOptions) error {
-	if opts.debug && v.Ref != nil {
+	if opts.Deep && v.Ref != nil {
 		if v.Name != "" {
 			if _, err := fmt.Fprintf(w, "%s = ", v.Name); err != nil {
 				return err
@@ -144,7 +144,7 @@ var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
 func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
-	if !opts.quoted || unquotedAtomPattern.MatchString(string(a)) {
+	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
 		_, err := fmt.Fprint(w, string(a))
 		return err
 	}
@@ -249,7 +249,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 
 	switch len(c.Args) {
 	case 1:
-		for _, o := range opts.ops {
+		for _, o := range opts.Ops {
 			if o.Name != c.Functor {
 				continue
 			}
@@ -291,7 +291,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			}
 		}
 	case 2:
-		for _, o := range opts.ops {
+		for _, o := range opts.Ops {
 			if o.Name != c.Functor {
 				continue
 			}
@@ -329,7 +329,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 		}
 	}
 
-	if opts.numberVars && c.Functor == Atom("$VAR") && len(c.Args) == 1 {
+	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
 		switch arg := Resolve(c.Args[0]).(type) {
 		case Integer:
 			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -455,7 +455,7 @@ func Each(list Term, f func(elem Term) error) error {
 	for {
 		switch l := Resolve(list).(type) {
 		case Atom:
-			if l != Atom("[]") {
+			if l != "[]" {
 				return errors.New("invalid list")
 			}
 			return nil
@@ -571,21 +571,21 @@ func (s *Stream) Copy() Term {
 }
 
 type WriteTermOptions struct {
-	quoted     bool
-	ops        operators
-	numberVars bool
-	debug      bool
+	Quoted     bool
+	Ops        Operators
+	NumberVars bool
+	Deep       bool
 }
 
 var defaultWriteTermOptions = WriteTermOptions{
-	quoted: true,
-	ops: []operator{
+	Quoted: true,
+	Ops: []Operator{
 		{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
 	},
-	numberVars: false,
+	NumberVars: false,
 }
 
-type ReadTermOptions struct {
+type readTermOptions struct {
 	singletons    *Variable
 	variables     *Variable
 	variableNames *Variable

@@ -294,7 +294,7 @@ func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, e
 
 		// remove it first so that we can insert it again in the right position
 		copy(e.operators[i:], e.operators[i+1:])
-		e.operators[len(e.operators)-1] = operator{}
+		e.operators[len(e.operators)-1] = Operator{}
 		e.operators = e.operators[:len(e.operators)-1]
 
 		// or keep it removed.
@@ -307,9 +307,9 @@ func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, e
 	i := sort.Search(len(e.operators), func(i int) bool {
 		return e.operators[i].Precedence >= p
 	})
-	e.operators = append(e.operators, operator{})
+	e.operators = append(e.operators, Operator{})
 	copy(e.operators[i+1:], e.operators[i:])
-	e.operators[i] = operator{
+	e.operators[i] = Operator{
 		Precedence: p,
 		Type:       t,
 		Name:       n,
@@ -645,7 +645,7 @@ func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error)
 
 	a := newAssignment(pf)
 	for key := range e.procedures {
-		p := NewParser(bufio.NewReader(strings.NewReader(key)), &operators{
+		p := NewParser(bufio.NewReader(strings.NewReader(key)), &Operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
 		}, conv)
 		t, err := p.Term()
@@ -904,21 +904,21 @@ func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (
 		return false, err
 	}
 
-	opts := WriteTermOptions{ops: e.operators}
+	opts := WriteTermOptions{Ops: e.operators}
 	if err := Each(Resolve(options), func(option Term) error {
 		switch {
 		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("false")}}, false):
-			opts.quoted = false
+			opts.Quoted = false
 		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("true")}}, false):
-			opts.quoted = true
+			opts.Quoted = true
 		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("false")}}, false):
-			opts.ops = e.operators
+			opts.Ops = e.operators
 		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("true")}}, false):
-			opts.ops = nil
+			opts.Ops = nil
 		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("false")}}, false):
-			opts.numberVars = false
+			opts.NumberVars = false
 		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("true")}}, false):
-			opts.numberVars = true
+			opts.NumberVars = true
 		default:
 			return errors.New("unknown option")
 		}
@@ -996,7 +996,7 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 		return false, err
 	}
 
-	var opts ReadTermOptions
+	var opts readTermOptions
 	if err := Each(Resolve(options), func(option Term) error {
 		var v Variable
 		switch {
@@ -1351,7 +1351,7 @@ func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{}, map[rune]rune{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err
@@ -1392,7 +1392,7 @@ func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
 			return false, err
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &operators{}, map[rune]rune{})
+		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
 			return false, err

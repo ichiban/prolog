@@ -57,13 +57,13 @@ func TestAtom_WriteTerm(t *testing.T) {
 	t.Run("not quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{quoted: false}))
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: false}))
 			assert.Equal(t, `a`, buf.String())
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{quoted: false}))
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: false}))
 			assert.Equal(t, "\a\b\f\n\r\t\v\x00\\'\"`", buf.String())
 		})
 	})
@@ -71,13 +71,13 @@ func TestAtom_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{quoted: true}))
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: true}))
 			assert.Equal(t, `a`, buf.String())
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{quoted: true}))
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: true}))
 			assert.Equal(t, "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'", buf.String())
 		})
 	})
@@ -257,19 +257,19 @@ func TestCompound_WriteTerm(t *testing.T) {
 		}
 
 		t.Run("false", func(t *testing.T) {
-			ops := operators{
+			ops := Operators{
 				{Precedence: 500, Type: "yfx", Name: "+"},
 				{Precedence: 200, Type: "fy", Name: "-"},
 			}
 
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{ops: ops}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: ops}))
 			assert.Equal(t, "2+(-2)", buf.String())
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{ops: nil}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: nil}))
 			assert.Equal(t, "+(2, -(2))", buf.String())
 		})
 	})
@@ -287,13 +287,13 @@ func TestCompound_WriteTerm(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{numberVars: false}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: false}))
 			assert.Equal(t, "f($VAR(1), $VAR(2), $VAR(3), $VAR(27))", buf.String())
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{numberVars: true}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: true}))
 			assert.Equal(t, "f(A, B, C, AA)", buf.String())
 		})
 	})

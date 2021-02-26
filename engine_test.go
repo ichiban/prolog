@@ -45,7 +45,7 @@ func TestEngine_Load(t *testing.T) {
 
 	t.Run("rule", func(t *testing.T) {
 		e := Engine{
-			operators: operators{
+			operators: Operators{
 				{Precedence: 1200, Type: `xfx`, Name: `:-`},
 				{Precedence: 400, Type: `yfx`, Name: `/`},
 			},
@@ -122,7 +122,7 @@ func TestEngine_Query(t *testing.T) {
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
 	e := Engine{
-		operators: operators{
+		operators: Operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
 			{Precedence: 400, Type: `yfx`, Name: `/`},
 		},

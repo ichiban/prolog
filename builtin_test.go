@@ -1205,7 +1205,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 	s := Stream{Writer: &w}
 
-	ops := operators{
+	ops := Operators{
 		{Precedence: 500, Type: "yfx", Name: "+"},
 		{Precedence: 200, Type: "fy", Name: "-"},
 	}
@@ -1220,7 +1220,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(), Done)
@@ -1230,7 +1230,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("ng", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(errors.New("")).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			_, err := e.WriteTerm(&s, &m, List(), Done)
@@ -1241,7 +1241,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{quoted: false, ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Quoted: false, Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1254,7 +1254,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{quoted: true, ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Quoted: true, Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1269,7 +1269,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1282,7 +1282,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: nil}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: nil}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1297,7 +1297,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: ops, numberVars: false}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops, NumberVars: false}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1310,7 +1310,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{ops: ops, numberVars: true}).Return(nil).Once()
+			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops, NumberVars: true}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -1335,7 +1335,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 	t.Run("valid stream alias", func(t *testing.T) {
 		var m mockTerm
-		m.On("WriteTerm", &s, WriteTermOptions{ops: ops}).Return(nil).Once()
+		m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
 		defer m.AssertExpectations(t)
 
 		ok, err := e.WriteTerm(Atom("foo"), &m, List(), Done)

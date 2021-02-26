@@ -23,7 +23,7 @@ const (
 )
 
 type Engine struct {
-	operators       operators
+	operators       Operators
 	procedures      map[string]procedure
 	streams         map[Atom]*Stream
 	input, output   *Stream
@@ -357,7 +357,7 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 
 func (e *Engine) TermString(t Term) string {
 	var buf bytes.Buffer
-	_ = t.WriteTerm(&buf, WriteTermOptions{quoted: true, ops: e.operators})
+	_ = t.WriteTerm(&buf, WriteTermOptions{Quoted: true, Ops: e.operators})
 	return buf.String()
 }
 
@@ -435,7 +435,7 @@ func (l loggableTerm) String() string {
 	}
 
 	opts := defaultWriteTermOptions
-	opts.debug = true
+	opts.Deep = true
 
 	var buf bytes.Buffer
 	_ = l.term.WriteTerm(&buf, opts)
@@ -448,7 +448,7 @@ type loggableVars struct {
 
 func (l loggableVars) String() string {
 	opts := defaultWriteTermOptions
-	opts.debug = true
+	opts.Deep = true
 
 	ret := make([]string, len(l.vars))
 	for i, v := range l.vars {
@@ -899,46 +899,4 @@ func (a assignment) contains(v *Variable) bool {
 
 func Done() (bool, error) {
 	return true, nil
-}
-
-type input struct {
-	io.Reader
-}
-
-func (i *input) Write(p []byte) (int, error) {
-	w, ok := i.Reader.(io.Writer)
-	if !ok {
-		return 0, errors.New("not a writer")
-	}
-	return w.Write(p)
-}
-
-func (i *input) Close() error {
-	c, ok := i.Reader.(io.Closer)
-	if !ok {
-		return errors.New("not a closer")
-
-	}
-	return c.Close()
-}
-
-type output struct {
-	io.Writer
-}
-
-func (o *output) Read(p []byte) (int, error) {
-	r, ok := o.Writer.(io.Reader)
-	if !ok {
-		return 0, errors.New("not a reader")
-	}
-	return r.Read(p)
-}
-
-func (o *output) Close() error {
-	c, ok := o.Writer.(io.Closer)
-	if !ok {
-		return errors.New("not a closer")
-
-	}
-	return c.Close()
 }

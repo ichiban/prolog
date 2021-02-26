@@ -10,7 +10,7 @@ import (
 type Parser struct {
 	lexer     *Lexer
 	current   *Token
-	operators *operators
+	operators *Operators
 	vars      []variableWithCount
 }
 
@@ -19,7 +19,7 @@ type variableWithCount struct {
 	count    int
 }
 
-func NewParser(input *bufio.Reader, operators *operators, charConversions map[rune]rune) *Parser {
+func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune) *Parser {
 	p := Parser{
 		lexer:     NewLexer(input, charConversions),
 		operators: operators,
@@ -36,7 +36,7 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
-func (p *Parser) acceptOp(min int) (*operator, error) {
+func (p *Parser) acceptOp(min int) (*Operator, error) {
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l < min {
@@ -52,7 +52,7 @@ func (p *Parser) acceptOp(min int) (*operator, error) {
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) acceptPrefix() (*operator, error) {
+func (p *Parser) acceptPrefix() (*Operator, error) {
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l != 0 {
@@ -260,15 +260,15 @@ func (p *Parser) lhs() (Term, error) {
 	return &Compound{Functor: Atom(a), Args: args}, nil
 }
 
-type operators []operator
+type Operators []Operator
 
-type operator struct {
+type Operator struct {
 	Precedence Integer // 1 ~ 1200
 	Type       Atom
 	Name       Atom
 }
 
-func (o *operator) bindingPowers() (int, int) {
+func (o *Operator) bindingPowers() (int, int) {
 	bp := 1201 - int(o.Precedence) // 1 ~ 1200
 	switch o.Type {
 	case "xf":

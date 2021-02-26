@@ -106,7 +106,7 @@ func main() {
 				fmt.Fprintf(t, "%t.\n", true)
 				return true
 			} else {
-				fmt.Fprint(t, fmt.Sprintf("%s ", strings.Join(ls, ",\n")))
+				fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
 			}
 
 			r, _, err := keys.ReadRune()
