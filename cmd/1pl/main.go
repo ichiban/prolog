@@ -43,9 +43,10 @@ func main() {
 	if err != nil {
 		log.WithError(err).Panic("failed to enter raw mode")
 	}
-	defer func() {
+	restore := func() {
 		_ = terminal.Restore(0, oldState)
-	}()
+	}
+	defer restore()
 
 	t := terminal.NewTerminal(os.Stdin, "?- ")
 	defer fmt.Printf("\r\n")
@@ -56,9 +57,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	e.AtHalt = func() {
-		_ = terminal.Restore(0, oldState)
-	}
+	e.BeforeHalt = append(e.BeforeHalt, restore)
 	e.Register1("version", func(term prolog.Term, k func() (bool, error)) (bool, error) {
 		if !term.Unify(prolog.Atom(Version), false) {
 			return false, nil
@@ -74,7 +73,7 @@ func main() {
 			log.WithError(err).Panic("failed to read")
 		}
 
-		if err := e.Load(string(b)); err != nil {
+		if err := e.Exec(string(b)); err != nil {
 			log.WithError(err).Panic("failed to compile")
 		}
 	}
@@ -95,16 +94,14 @@ func main() {
 				if v.Name == "" {
 					continue
 				}
-				t := prolog.Resolve(v)
-				if _, ok := t.(*prolog.Variable); ok {
+				if _, ok := prolog.Resolve(v).(*prolog.Variable); ok {
 					continue
 				}
 
-				ls = append(ls, fmt.Sprintf("%s = %s", v.Name, e.TermString(t)))
+				ls = append(ls, e.Describe(v))
 			}
 			if len(ls) == 0 {
-				fmt.Fprintf(t, "%t.\n", true)
-				return true
+				fmt.Fprintf(t, "%t ", true)
 			} else {
 				fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
 			}

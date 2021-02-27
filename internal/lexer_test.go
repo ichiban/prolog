@@ -1,4 +1,4 @@
-package prolog
+package internal
 
 import (
 	"bufio"

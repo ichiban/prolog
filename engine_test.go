@@ -14,10 +14,10 @@ func TestNewEngine(t *testing.T) {
 	assert.NotNil(t, e)
 }
 
-func TestEngine_Load(t *testing.T) {
+func TestEngine_Exec(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
 		var e Engine
-		assert.NoError(t, e.Load(`append(nil, L, L).`))
+		assert.NoError(t, e.Exec(`append(nil, L, L).`))
 		assert.Equal(t, clauses{
 			{
 				name: "append/3",
@@ -44,13 +44,13 @@ func TestEngine_Load(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		e := Engine{
+		e := Engine{EngineState{
 			operators: Operators{
 				{Precedence: 1200, Type: `xfx`, Name: `:-`},
 				{Precedence: 400, Type: `yfx`, Name: `/`},
 			},
-		}
-		assert.NoError(t, e.Load(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
+		}}
+		assert.NoError(t, e.Exec(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
 		assert.Equal(t, clauses{
 			{
 				name: "append/3",
@@ -121,7 +121,7 @@ func TestEngine_Query(t *testing.T) {
 
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
-	e := Engine{
+	e := Engine{EngineState{
 		operators: Operators{
 			{Precedence: 1200, Type: `xfx`, Name: `:-`},
 			{Precedence: 400, Type: `yfx`, Name: `/`},
@@ -163,7 +163,7 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 		},
-	}
+	}}
 
 	t.Run("fact", func(t *testing.T) {
 		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {

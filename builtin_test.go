@@ -44,18 +44,12 @@ func TestRepeat(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.False(t, ok)
-
-	ok, err = Repeat(func() (bool, error) {
-		return true, errCut
-	})
-	assert.True(t, errors.Is(err, errCut))
-	assert.True(t, ok)
 }
 
 func TestBagOf(t *testing.T) {
 	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, e.Load(`
+	assert.NoError(t, e.Exec(`
 foo(a, b, c).
 foo(a, b, d).
 foo(b, c, e).
@@ -184,7 +178,7 @@ foo(c, c, g).
 func TestSetOf(t *testing.T) {
 	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, e.Load(`
+	assert.NoError(t, e.Exec(`
 foo(a, b, c).
 foo(a, b, d).
 foo(a, b, c).
@@ -494,9 +488,9 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 }
 
 func TestEngine_CurrentPredicate(t *testing.T) {
-	e := Engine{procedures: map[string]procedure{
+	e := Engine{EngineState{procedures: map[string]procedure{
 		"(=)/2": nil,
-	}}
+	}}}
 
 	var v Variable
 	ok, err := e.CurrentPredicate(&v, Done)
@@ -589,9 +583,9 @@ func TestEngine_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
-		assert.NoError(t, e.Load("foo(a)."))
-		assert.NoError(t, e.Load("foo(b)."))
-		assert.NoError(t, e.Load("foo(c)."))
+		assert.NoError(t, e.Exec("foo(a)."))
+		assert.NoError(t, e.Exec("foo(b)."))
+		assert.NoError(t, e.Exec("foo(c)."))
 		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
 			return true
 		})
@@ -618,9 +612,9 @@ func TestEngine_Retract(t *testing.T) {
 	t.Run("retract the specific one", func(t *testing.T) {
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
-		assert.NoError(t, e.Load("foo(a)."))
-		assert.NoError(t, e.Load("foo(b)."))
-		assert.NoError(t, e.Load("foo(c)."))
+		assert.NoError(t, e.Exec("foo(a)."))
+		assert.NoError(t, e.Exec("foo(b)."))
+		assert.NoError(t, e.Exec("foo(c)."))
 		ok, err := e.Query("retract(foo(b)).", func([]*Variable) bool {
 			return true
 		})
@@ -647,9 +641,9 @@ func TestEngine_Retract(t *testing.T) {
 	t.Run("retract all", func(t *testing.T) {
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
-		assert.NoError(t, e.Load("foo(a)."))
-		assert.NoError(t, e.Load("foo(b)."))
-		assert.NoError(t, e.Load("foo(c)."))
+		assert.NoError(t, e.Exec("foo(a)."))
+		assert.NoError(t, e.Exec("foo(b)."))
+		assert.NoError(t, e.Exec("foo(c)."))
 		ok, err := e.Query("retract(foo(X)).", func([]*Variable) bool {
 			return false
 		})
@@ -667,9 +661,9 @@ func TestEngine_Retract(t *testing.T) {
 	t.Run("variable", func(t *testing.T) {
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
-		assert.NoError(t, e.Load("foo(a)."))
-		assert.NoError(t, e.Load("foo(b)."))
-		assert.NoError(t, e.Load("foo(c)."))
+		assert.NoError(t, e.Exec("foo(a)."))
+		assert.NoError(t, e.Exec("foo(b)."))
+		assert.NoError(t, e.Exec("foo(c)."))
 		_, err = e.Query("retract(X).", func([]*Variable) bool {
 			return false
 		})
@@ -698,7 +692,7 @@ func TestEngine_Retract(t *testing.T) {
 	t.Run("exception in continuation", func(t *testing.T) {
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
-		assert.NoError(t, e.Load("foo(a)."))
+		assert.NoError(t, e.Exec("foo(a)."))
 		_, err = e.Query("retract(foo(X)), throw(e).", func([]*Variable) bool {
 			return false
 		})
@@ -717,9 +711,9 @@ func TestEngine_Retract(t *testing.T) {
 func TestEngine_Abolish(t *testing.T) {
 	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, e.Load("foo(a)."))
-	assert.NoError(t, e.Load("foo(b)."))
-	assert.NoError(t, e.Load("foo(c)."))
+	assert.NoError(t, e.Exec("foo(a)."))
+	assert.NoError(t, e.Exec("foo(b)."))
+	assert.NoError(t, e.Exec("foo(c)."))
 
 	ok, err := e.Abolish(&Compound{
 		Functor: "/",
@@ -741,10 +735,10 @@ func TestEngine_CurrentInput(t *testing.T) {
 			Name: "X",
 			Ref: &Variable{Ref: &Stream{
 				Reader:    &buf,
-				Mode:      "read",
-				Alias:     "user_input",
-				EofAction: "error",
-				Type:      "text",
+				mode:      "read",
+				alias:     "user_input",
+				eofAction: "error",
+				typ:       "text",
 			}},
 		}, vars[0])
 		return true
@@ -761,10 +755,10 @@ func TestEngine_CurrentOutput(t *testing.T) {
 			Name: "X",
 			Ref: &Variable{Ref: &Stream{
 				Writer:    &buf,
-				Mode:      "write",
-				Alias:     "user_output",
-				EofAction: "error",
-				Type:      "text",
+				mode:      "write",
+				alias:     "user_output",
+				eofAction: "error",
+				typ:       "text",
 			}},
 		}, vars[0])
 		return true
@@ -784,11 +778,11 @@ func TestEngine_SetInput(t *testing.T) {
 
 	t.Run("atom defined as a stream alias", func(t *testing.T) {
 		s := Stream{Reader: os.Stdin}
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"x": &s,
 			},
-		}
+		}}
 		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -814,11 +808,11 @@ func TestEngine_SetOutput(t *testing.T) {
 
 	t.Run("atom defined as a stream alias", func(t *testing.T) {
 		s := Stream{Writer: os.Stdout}
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"x": &s,
 			},
-		}
+		}}
 		ok, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1062,11 +1056,11 @@ func TestEngine_Close(t *testing.T) {
 		m.On("Close").Return(nil).Once()
 		defer m.AssertExpectations(t)
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": {Closer: &m},
 			},
-		}
+		}}
 		ok, err := e.Close(Atom("foo"), List(), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1167,11 +1161,11 @@ func TestEngine_FlushOutput(t *testing.T) {
 		var m mockWriter
 		defer m.AssertExpectations(t)
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": {Writer: &m},
 			},
-		}
+		}}
 		ok, err := e.FlushOutput(Atom("foo"), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1210,12 +1204,12 @@ func TestEngine_WriteTerm(t *testing.T) {
 		{Precedence: 200, Type: "fy", Name: "-"},
 	}
 
-	e := Engine{
+	e := Engine{EngineState{
 		operators: ops,
 		streams: map[Atom]*Stream{
 			"foo": &s,
 		},
-	}
+	}}
 
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
@@ -1459,11 +1453,11 @@ func TestEngine_PutByte(t *testing.T) {
 
 		s := Stream{Writer: &w}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 		ok, err := e.PutByte(Atom("foo"), Integer(97), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1540,11 +1534,11 @@ func TestEngine_PutCode(t *testing.T) {
 
 		s := Stream{Writer: &w}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 		ok, err := e.PutCode(Atom("foo"), Integer('😀'), Done)
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1591,11 +1585,11 @@ func TestEngine_ReadTerm(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 
 		var v Variable
 		ok, err := e.ReadTerm(Atom("foo"), &v, List(), Done)
@@ -1756,11 +1750,11 @@ func TestEngine_GetByte(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{Reader: strings.NewReader("a")}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 
 		var v Variable
 		ok, err := e.GetByte(Atom("foo"), &v, Done)
@@ -1831,11 +1825,11 @@ func TestEngine_GetCode(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀"))}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 
 		var v Variable
 		ok, err := e.GetCode(Atom("foo"), &v, Done)
@@ -1924,11 +1918,11 @@ func TestEngine_PeekByte(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{Reader: bufio.NewReader(strings.NewReader("abc"))}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 
 		var v Variable
 		ok, err := e.PeekByte(Atom("foo"), &v, Done)
@@ -2017,11 +2011,11 @@ func TestEngine_PeekCode(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀❗"))}
 
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"foo": &s,
 			},
-		}
+		}}
 
 		var v Variable
 		ok, err := e.PeekCode(Atom("foo"), &v, Done)
@@ -2092,8 +2086,8 @@ func TestEngine_PeekCode(t *testing.T) {
 func TestEngine_Clause(t *testing.T) {
 	e, err := NewEngine(nil, nil)
 	assert.NoError(t, err)
-	assert.NoError(t, e.Load("green(X) :- moldy(X)."))
-	assert.NoError(t, e.Load("green(kermit)."))
+	assert.NoError(t, e.Exec("green(X) :- moldy(X)."))
+	assert.NoError(t, e.Exec("green(kermit)."))
 
 	var c int
 
@@ -2783,10 +2777,10 @@ func TestEngine_StreamProperty(t *testing.T) {
 		ok, err := e.StreamProperty(&Stream{
 			Reader:    bufio.NewReader(f),
 			Closer:    f,
-			Mode:      "read",
-			Alias:     "null",
-			EofAction: "error",
-			Type:      "text",
+			mode:      "read",
+			alias:     "null",
+			eofAction: "error",
+			typ:       "text",
 		}, &v, func() (b bool, err error) {
 			switch c {
 			case 0:
@@ -2818,18 +2812,18 @@ func TestEngine_StreamProperty(t *testing.T) {
 	})
 
 	t.Run("stream alias", func(t *testing.T) {
-		e := Engine{
+		e := Engine{EngineState{
 			streams: map[Atom]*Stream{
 				"null": {
 					Writer:    bufio.NewWriter(f),
 					Closer:    f,
-					Mode:      "write",
-					Alias:     "null",
-					EofAction: "error",
-					Type:      "text",
+					mode:      "write",
+					alias:     "null",
+					eofAction: "error",
+					typ:       "text",
 				},
 			},
-		}
+		}}
 		var v Variable
 		c := 0
 		ok, err := e.StreamProperty(Atom("null"), &v, func() (b bool, err error) {
@@ -2886,7 +2880,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 
 	t.Run("correct property value", func(t *testing.T) {
 		var e Engine
-		ok, err := e.StreamProperty(&Stream{Mode: "read"}, &Compound{
+		ok, err := e.StreamProperty(&Stream{mode: "read"}, &Compound{
 			Functor: "mode",
 			Args:    []Term{Atom("read")},
 		}, Done)
@@ -2896,7 +2890,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 
 	t.Run("incorrect property value", func(t *testing.T) {
 		var e Engine
-		ok, err := e.StreamProperty(&Stream{Mode: "read"}, &Compound{
+		ok, err := e.StreamProperty(&Stream{mode: "read"}, &Compound{
 			Functor: "mode",
 			Args:    []Term{Atom("foo")},
 		}, Done)
@@ -2943,11 +2937,11 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 			})
 
 			t.Run("converted", func(t *testing.T) {
-				e := Engine{
+				e := Engine{EngineState{
 					charConversions: map[rune]rune{
 						'a': 'b',
 					},
-				}
+				}}
 				ok, err := e.CurrentCharConversion(Atom("a"), Atom("b"), Done)
 				assert.NoError(t, err)
 				assert.True(t, ok)
@@ -3021,7 +3015,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 		})
 
 		t.Run("off", func(t *testing.T) {
-			e := Engine{charConvEnabled: true}
+			e := Engine{EngineState{charConvEnabled: true}}
 			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("off"), Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -3051,7 +3045,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 		})
 
 		t.Run("off", func(t *testing.T) {
-			e := Engine{debug: true}
+			e := Engine{EngineState{debug: true}}
 			ok, err := e.SetPrologFlag(Atom("debug"), Atom("off"), Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -3079,7 +3073,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
-			e := Engine{unknown: unknownFail}
+			e := Engine{EngineState{unknown: unknownFail}}
 			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("error"), Done)
 			assert.NoError(t, err)
 			assert.True(t, ok)

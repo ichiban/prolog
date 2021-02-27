@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ichiban/prolog/internal"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,61 +24,37 @@ const (
 	opPop
 )
 
+// Engine is a Prolog interpreter. The zero value for Engine is a valid interpreter without any builtin predicates.
 type Engine struct {
-	operators       Operators
-	procedures      map[string]procedure
-	streams         map[Atom]*Stream
-	input, output   *Stream
-	AtHalt          func()
-	charConversions map[rune]rune
-	charConvEnabled bool
-	debug           bool
-	unknown         unknownAction
+	EngineState
 }
 
-type unknownAction int
-
-const (
-	unknownError unknownAction = iota
-	unknownFail
-	unknownWarning
-)
-
-func (u unknownAction) String() string {
-	switch u {
-	case unknownError:
-		return "error"
-	case unknownFail:
-		return "fail"
-	case unknownWarning:
-		return "warning"
-	default:
-		return fmt.Sprintf("unknown(%d)", u)
-	}
-}
-
+// NewEngine creates an Engine with user_input, user_output and builtin predicates. It is encouraged user_input to be
+// *bufio.Reader since it enables a wide range of input operations.
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	input := Stream{
 		Reader:    in,
-		Mode:      "read",
-		Alias:     "user_input",
-		EofAction: "error",
-		Type:      "text",
+		mode:      "read",
+		alias:     "user_input",
+		eofAction: "error",
+		typ:       "text",
 	}
 	output := Stream{
 		Writer:    out,
-		Mode:      "write",
-		Alias:     "user_output",
-		EofAction: "error",
-		Type:      "text",
+		mode:      "write",
+		alias:     "user_output",
+		eofAction: "error",
+		typ:       "text",
 	}
 	e := Engine{
-		streams: map[Atom]*Stream{
-			"user_input":  &input,
-			"user_output": &output,
+		EngineState: EngineState{
+			streams: map[Atom]*Stream{
+				"user_input":  &input,
+				"user_output": &output,
+			},
+			input:  &input,
+			output: &output,
 		},
-		input:  &input,
-		output: &output,
 	}
 	e.Register0("!", Cut)
 	e.Register0("repeat", Repeat)
@@ -142,7 +120,7 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("current_char_conversion", e.CurrentCharConversion)
 	e.Register2("set_prolog_flag", e.SetPrologFlag)
 	e.Register2("current_prolog_flag", e.CurrentPrologFlag)
-	err := e.Load(`
+	err := e.Exec(`
 /*
  *  bootstrap script
  */
@@ -301,18 +279,15 @@ at_end_of_stream :- current_input(S), at_end_of_stream(S).
 	return &e, err
 }
 
-type procedure interface {
-	Call(*Engine, Term, func() (bool, error)) (bool, error)
-}
-
-func (e *Engine) Load(s string) error {
+// Exec executes a prolog program.
+func (e *Engine) Exec(s string) error {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
 	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv)
 	for {
-		if _, err := p.accept(TokenEOS); err == nil {
+		if _, err := p.accept(internal.TokenEOS); err == nil {
 			return nil
 		}
 
@@ -327,6 +302,15 @@ func (e *Engine) Load(s string) error {
 	}
 }
 
+// Describe stringifies the given variable in the format of 'V = f(a, b)'.
+func (e *Engine) Describe(v *Variable) string {
+	var buf bytes.Buffer
+	_ = v.WriteTerm(&buf, WriteTermOptions{Quoted: true, Ops: e.operators, Descriptive: true})
+	return buf.String()
+}
+
+// Query executes a prolog query and calls the callback function for each solution. Returning true from the callback
+// halts the iteration.
 func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 	if cb == nil {
 		cb = func([]*Variable) bool { return true }
@@ -343,24 +327,12 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 
 	a := newAssignment(t)
 
-	ok, err := e.Call(t, func() (bool, error) {
+	return e.Call(t, func() (bool, error) {
 		return cb(a), nil
 	})
-	if err != nil {
-		if errors.Is(err, errCut) {
-			return ok, nil
-		}
-		return false, err
-	}
-	return ok, nil
 }
 
-func (e *Engine) TermString(t Term) string {
-	var buf bytes.Buffer
-	_ = t.WriteTerm(&buf, WriteTermOptions{Quoted: true, Ops: e.operators})
-	return buf.String()
-}
-
+// Register0 registers a predicate of arity 0.
 func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -368,6 +340,7 @@ func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, erro
 	e.procedures[PrincipalFunctor(Atom(name), 0).String()] = predicate0(p)
 }
 
+// Register1 registers a predicate of arity 1.
 func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -375,6 +348,7 @@ func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool
 	e.procedures[PrincipalFunctor(Atom(name), 1).String()] = predicate1(p)
 }
 
+// Register2 registers a predicate of arity 2.
 func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -382,6 +356,7 @@ func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error))
 	e.procedures[PrincipalFunctor(Atom(name), 2).String()] = predicate2(p)
 }
 
+// Register3 registers a predicate of arity 3.
 func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -389,6 +364,7 @@ func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, e
 	e.procedures[PrincipalFunctor(Atom(name), 3).String()] = predicate3(p)
 }
 
+// Register4 registers a predicate of arity 4.
 func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -396,6 +372,7 @@ func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() (b
 	e.procedures[PrincipalFunctor(Atom(name), 4).String()] = predicate4(p)
 }
 
+// Register5 registers a predicate of arity 5.
 func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
@@ -403,7 +380,47 @@ func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, fun
 	e.procedures[PrincipalFunctor(Atom(name), 5).String()] = predicate5(p)
 }
 
-func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
+// EngineState is an internal state of Engine, a subject to many builtin predicates.
+type EngineState struct {
+	// BeforeHalt is a hook which gets triggered right before halt/0 or halt/1.
+	BeforeHalt []func()
+
+	operators       Operators
+	procedures      map[string]procedure
+	streams         map[Atom]*Stream
+	input, output   *Stream
+	charConversions map[rune]rune
+	charConvEnabled bool
+	debug           bool
+	unknown         unknownAction
+}
+
+type unknownAction int
+
+const (
+	unknownError unknownAction = iota
+	unknownFail
+	unknownWarning
+)
+
+func (u unknownAction) String() string {
+	switch u {
+	case unknownError:
+		return "error"
+	case unknownFail:
+		return "fail"
+	case unknownWarning:
+		return "warning"
+	default:
+		return fmt.Sprintf("unknown(%d)", u)
+	}
+}
+
+type procedure interface {
+	Call(*EngineState, Term, func() (bool, error)) (bool, error)
+}
+
+func (e *EngineState) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
 	logrus.WithFields(logrus.Fields{
 		"name": name,
 		"args": loggableTerm{term: args},
@@ -422,7 +439,11 @@ func (e *Engine) arrive(name string, args Term, k func() (bool, error)) (bool, e
 			return false, fmt.Errorf("unknown unknown: %s", e.unknown)
 		}
 	}
-	return p.Call(e, args, k)
+	ok, err := p.Call(e, args, k)
+	if errors.Is(err, errCut) {
+		return true, nil
+	}
+	return ok, err
 }
 
 type loggableTerm struct {
@@ -435,7 +456,7 @@ func (l loggableTerm) String() string {
 	}
 
 	opts := defaultWriteTermOptions
-	opts.Deep = true
+	opts.Descriptive = true
 
 	var buf bytes.Buffer
 	_ = l.term.WriteTerm(&buf, opts)
@@ -448,7 +469,7 @@ type loggableVars struct {
 
 func (l loggableVars) String() string {
 	opts := defaultWriteTermOptions
-	opts.Deep = true
+	opts.Descriptive = true
 
 	ret := make([]string, len(l.vars))
 	for i, v := range l.vars {
@@ -459,7 +480,7 @@ func (l loggableVars) String() string {
 	return fmt.Sprint(ret)
 }
 
-func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args, astack Term) (bool, error) {
+func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args, astack Term) (bool, error) {
 	for len(pc) != 0 {
 		log := logrus.WithFields(logrus.Fields{
 			"xr":     xr,
@@ -567,7 +588,7 @@ func (e *Engine) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, 
 
 type clauses []clause
 
-func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (cs clauses) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	if len(cs) == 0 {
 		return false, nil
 	}
@@ -596,10 +617,6 @@ func (cs clauses) Call(e *Engine, args Term, k func() (bool, error)) (bool, erro
 
 		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args, List())
 		if err != nil {
-			if errors.Is(err, errCut) {
-				log.Info("cut")
-				return ok, err
-			}
 			log.Info("exception")
 			return false, err
 		}
@@ -776,7 +793,7 @@ func (b bytecode) String() string {
 
 type predicate0 func(func() (bool, error)) (bool, error)
 
-func (p predicate0) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate0) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	if !args.Unify(List(), false) {
 		return false, errors.New("wrong number of arguments")
 	}
@@ -788,7 +805,7 @@ func (p predicate0) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 
 type predicate1 func(Term, func() (bool, error)) (bool, error)
 
-func (p predicate1) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate1) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	var v1 Variable
 	if !args.Unify(List(&v1), false) {
 		return false, fmt.Errorf("wrong number of arguments: %s", args)
@@ -801,7 +818,7 @@ func (p predicate1) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 
 type predicate2 func(Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate2) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate2) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2 Variable
 	if !args.Unify(List(&v1, &v2), false) {
 		return false, errors.New("wrong number of arguments")
@@ -814,7 +831,7 @@ func (p predicate2) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 
 type predicate3 func(Term, Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate3) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2, v3 Variable
 	if !args.Unify(List(&v1, &v2, &v3), false) {
 		return false, errors.New("wrong number of arguments")
@@ -827,7 +844,7 @@ func (p predicate3) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 
 type predicate4 func(Term, Term, Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate4) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate4) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2, v3, v4 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4), false) {
 		return false, errors.New("wrong number of arguments")
@@ -840,7 +857,7 @@ func (p predicate4) Call(e *Engine, args Term, k func() (bool, error)) (bool, er
 
 type predicate5 func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)
 
-func (p predicate5) Call(e *Engine, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate5) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
 	var v1, v2, v3, v4, v5 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4, &v5), false) {
 		return false, errors.New("wrong number of arguments")
@@ -897,6 +914,7 @@ func (a assignment) contains(v *Variable) bool {
 	return false
 }
 
+// Done terminates a continuation chain.
 func Done() (bool, error) {
 	return true, nil
 }

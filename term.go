@@ -9,8 +9,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ichiban/prolog/internal"
 )
 
+// Term is a prolog term.
 type Term interface {
 	fmt.Stringer
 	WriteTerm(io.Writer, WriteTermOptions) error
@@ -18,6 +21,7 @@ type Term interface {
 	Copy() Term
 }
 
+// Variable is a prolog variable.
 type Variable struct {
 	Name string
 	Ref  Term
@@ -29,8 +33,9 @@ func (v *Variable) String() string {
 	return buf.String()
 }
 
+// WriteTerm writes the variable into w.
 func (v *Variable) WriteTerm(w io.Writer, opts WriteTermOptions) error {
-	if opts.Deep && v.Ref != nil {
+	if opts.Descriptive && v.Ref != nil {
 		if v.Name != "" {
 			if _, err := fmt.Fprintf(w, "%s = ", v.Name); err != nil {
 				return err
@@ -46,6 +51,7 @@ func (v *Variable) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	return err
 }
 
+// Unify unifies the variable with t.
 func (v *Variable) Unify(t Term, occursCheck bool) bool {
 	t = Resolve(t)
 	if occursCheck && Contains(t, v) {
@@ -62,6 +68,7 @@ func (v *Variable) Unify(t Term, occursCheck bool) bool {
 	return true
 }
 
+// Copy returns a fresh variable with a copy of Ref.
 func (v *Variable) Copy() Term {
 	if v.Ref == nil {
 		return &Variable{}
@@ -69,6 +76,7 @@ func (v *Variable) Copy() Term {
 	return &Variable{Ref: v.Ref.Copy()}
 }
 
+// Float is a prolog floating-point number.
 type Float float64
 
 func (f Float) String() string {
@@ -77,11 +85,13 @@ func (f Float) String() string {
 	return buf.String()
 }
 
+// WriteTerm writes the float into w.
 func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 	_, err := fmt.Fprint(w, strconv.FormatFloat(float64(f), 'f', -1, 64))
 	return err
 }
 
+// Unify unifies the float with t.
 func (f Float) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case Float:
@@ -93,10 +103,12 @@ func (f Float) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
+// Copy simply returns the float.
 func (f Float) Copy() Term {
 	return f
 }
 
+// Integer is a prolog integer.
 type Integer int64
 
 func (i Integer) String() string {
@@ -105,11 +117,13 @@ func (i Integer) String() string {
 	return buf.String()
 }
 
+// WriteTerm writes the integer into w.
 func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
 	return err
 }
 
+// Unify unifies the integer with t.
 func (i Integer) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case Integer:
@@ -121,18 +135,13 @@ func (i Integer) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
+// Copy simply returns the integer.
 func (i Integer) Copy() Term {
 	return i
 }
 
+// Atom is a prolog atom.
 type Atom string
-
-func OnOff(b bool) Atom {
-	if b {
-		return "on"
-	}
-	return "off"
-}
 
 func (a Atom) String() string {
 	var buf bytes.Buffer
@@ -143,6 +152,7 @@ func (a Atom) String() string {
 var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\]+|\[])\z`)
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
+// WriteTerm writes the atom into w.
 func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
 		_, err := fmt.Fprint(w, string(a))
@@ -186,6 +196,7 @@ func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	return err
 }
 
+// Unify unifies the atom with t.
 func (a Atom) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case Atom:
@@ -197,10 +208,12 @@ func (a Atom) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
+// Copy simply returns the atom.
 func (a Atom) Copy() Term {
 	return a
 }
 
+// Compound is a prolog compound.
 type Compound struct {
 	Functor Atom
 	Args    []Term
@@ -212,6 +225,7 @@ func (c *Compound) String() string {
 	return buf.String()
 }
 
+// WriteTerm writes the compound into w.
 func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		if _, err := fmt.Fprint(w, "["); err != nil {
@@ -265,7 +279,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 
 				l := []rune(lb.String())
 				f := []rune(fb.String())
-				if isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) {
+				if internal.IsExtendedGraphic(l[len(l)-1]) && internal.IsExtendedGraphic(f[0]) {
 					_, err := fmt.Fprintf(w, "(%s)%s", string(l), string(f))
 					return err
 				}
@@ -282,7 +296,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 
 				f := []rune(fb.String())
 				r := []rune(rb.String())
-				if isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]) {
+				if internal.IsExtendedGraphic(f[len(f)-1]) && internal.IsExtendedGraphic(r[0]) {
 					_, err := fmt.Fprintf(w, "%s(%s)", string(f), string(r))
 					return err
 				}
@@ -312,13 +326,13 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 				f := []rune(fb.String())
 				r := []rune(rb.String())
 				switch {
-				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]) && isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
+				case internal.IsExtendedGraphic(l[len(l)-1]) && internal.IsExtendedGraphic(f[0]) && internal.IsExtendedGraphic(f[len(f)-1]) && internal.IsExtendedGraphic(r[0]):
 					_, err := fmt.Fprintf(w, "(%s)%s(%s)", string(l), string(f), string(r))
 					return err
-				case isExtendedGraphic(l[len(l)-1]) && isExtendedGraphic(f[0]):
+				case internal.IsExtendedGraphic(l[len(l)-1]) && internal.IsExtendedGraphic(f[0]):
 					_, err := fmt.Fprintf(w, "(%s)%s%s", string(l), string(f), string(r))
 					return err
-				case isExtendedGraphic(f[len(f)-1]) && isExtendedGraphic(r[0]):
+				case internal.IsExtendedGraphic(f[len(f)-1]) && internal.IsExtendedGraphic(r[0]):
 					_, err := fmt.Fprintf(w, "%s%s(%s)", string(l), string(f), string(r))
 					return err
 				default:
@@ -369,6 +383,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	return err
 }
 
+// Unify unifies the compound with t.
 func (c *Compound) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case *Compound:
@@ -391,6 +406,7 @@ func (c *Compound) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
+// Copy returns a fresh compound with copies of arguments.
 func (c *Compound) Copy() Term {
 	args := make([]Term, len(c.Args))
 	for i, a := range c.Args {
@@ -402,6 +418,7 @@ func (c *Compound) Copy() Term {
 	}
 }
 
+// PrincipalFunctor returns a compound of name/arity.
 func PrincipalFunctor(name Atom, arity Integer) Term {
 	return &Compound{
 		Functor: "/",
@@ -409,6 +426,7 @@ func PrincipalFunctor(name Atom, arity Integer) Term {
 	}
 }
 
+// Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
 	return &Compound{
 		Functor: ".",
@@ -416,10 +434,12 @@ func Cons(car, cdr Term) Term {
 	}
 }
 
+// List returns a list of ts.
 func List(ts ...Term) Term {
 	return ListRest(Atom("[]"), ts...)
 }
 
+// ListRest returns a list of ts prepended by rest.
 func ListRest(rest Term, ts ...Term) Term {
 	l := rest
 	for i := len(ts) - 1; i >= 0; i-- {
@@ -428,6 +448,7 @@ func ListRest(rest Term, ts ...Term) Term {
 	return l
 }
 
+// Set returns a list of ts which elements are unique.
 func Set(ts ...Term) Term {
 	if len(ts) < 2 {
 		return List(ts...)
@@ -451,6 +472,7 @@ func Set(ts ...Term) Term {
 	return List(us[:n]...)
 }
 
+// Each iterates over list.
 func Each(list Term, f func(elem Term) error) error {
 	for {
 		switch l := Resolve(list).(type) {
@@ -473,6 +495,7 @@ func Each(list Term, f func(elem Term) error) error {
 	}
 }
 
+// Resolve follows the variable chain and returns the first non-variable term or the last free variable.
 func Resolve(t Term) Term {
 	var stop []*Variable
 	for t != nil {
@@ -495,6 +518,7 @@ func Resolve(t Term) Term {
 	return nil
 }
 
+// Contains checks if t contains s.
 func Contains(t, s Term) bool {
 	switch t := t.(type) {
 	case *Variable:
@@ -520,6 +544,7 @@ func Contains(t, s Term) bool {
 	}
 }
 
+// Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
 func Rulify(t Term) Term {
 	t = Resolve(t)
 	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
@@ -528,20 +553,16 @@ func Rulify(t Term) Term {
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
+// Stream is a prolog stream.
 type Stream struct {
 	io.Reader
 	io.Writer
 	io.Closer
 
-	// properties
-	// FileName: file name can be retrieved from os.File.
-	Mode  Atom
-	Alias Atom
-	// Position: position can be inferred from os.File.
-	// EndOfStream: os.File backed streams can detect its position.
-	EofAction Atom
-	// Reposition: os.File backed streams can be repositioned.
-	Type Atom
+	mode      Atom
+	alias     Atom
+	eofAction Atom
+	typ       Atom
 }
 
 func (s *Stream) String() string {
@@ -550,11 +571,13 @@ func (s *Stream) String() string {
 	return buf.String()
 }
 
+// WriteTerm writes the stream into w.
 func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
 	return err
 }
 
+// Unify unifies the stream with t.
 func (s *Stream) Unify(t Term, occursCheck bool) bool {
 	switch t := t.(type) {
 	case *Stream:
@@ -566,15 +589,17 @@ func (s *Stream) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
+// Copy simply returns the stream.
 func (s *Stream) Copy() Term {
 	return s
 }
 
+// WriteTermOptions describes options to write terms.
 type WriteTermOptions struct {
-	Quoted     bool
-	Ops        Operators
-	NumberVars bool
-	Deep       bool
+	Quoted      bool
+	Ops         Operators
+	NumberVars  bool
+	Descriptive bool
 }
 
 var defaultWriteTermOptions = WriteTermOptions{

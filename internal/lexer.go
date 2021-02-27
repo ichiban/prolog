@@ -1,4 +1,4 @@
-package prolog
+package internal
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 	"unicode"
 )
 
+// Lexer turns bytes into tokens.
 type Lexer struct {
 	input           *bufio.Reader
 	charConversions map[rune]rune
@@ -17,12 +18,14 @@ type Lexer struct {
 	width           int
 }
 
+// NewLexer create a lexer with an input and char conversions.
 func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
 	l := Lexer{input: input, charConversions: charConversions}
 	l.state = l.program
 	return &l
 }
 
+// Next returns the next token.
 func (l *Lexer) Next() Token {
 	for l.state != nil && len(l.tokens) == 0 {
 		l.state = l.state(l.next())
@@ -53,19 +56,32 @@ func (l *Lexer) emit(t Token) {
 	l.tokens = append(l.tokens, t)
 }
 
+// Token is a smallest meaningful unit of prolog program.
 type Token struct {
 	Kind TokenKind
 	Val  string
 }
 
+// TokenKind is a type of Token.
 type TokenKind byte
 
 const (
+	// TokenEOS represents an end of token stream.
 	TokenEOS TokenKind = iota
+
+	// TokenVariable represents a variable token.
 	TokenVariable
+
+	// TokenFloat represents a floating-point token.
 	TokenFloat
+
+	// TokenInteger represents an integer token.
 	TokenInteger
+
+	// TokenAtom represents an atom token.
 	TokenAtom
+
+	// TokenSeparator represents a separator, merely syntactical token.
 	TokenSeparator
 )
 
@@ -547,6 +563,6 @@ func isGraphic(r rune) bool {
 	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
 }
 
-func isExtendedGraphic(r rune) bool {
+func IsExtendedGraphic(r rune) bool {
 	return strings.ContainsRune(",;", r) || isGraphic(r)
 }

@@ -5,29 +5,33 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/ichiban/prolog/internal"
 )
 
+// Parser turns bytes into Term.
 type Parser struct {
-	lexer     *Lexer
-	current   *Token
+	lexer     *internal.Lexer
+	current   *internal.Token
 	operators *Operators
 	vars      []variableWithCount
 }
 
 type variableWithCount struct {
 	variable *Variable
-	count    int
+	Count    int
 }
 
+// NewParser creates a Parser.
 func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune) *Parser {
 	p := Parser{
-		lexer:     NewLexer(input, charConversions),
+		lexer:     internal.NewLexer(input, charConversions),
 		operators: operators,
 	}
 	return &p
 }
 
-func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
+func (p *Parser) accept(k internal.TokenKind, vals ...string) (string, error) {
 	v, err := p.expect(k, vals...)
 	if err != nil {
 		return "", err
@@ -43,7 +47,7 @@ func (p *Parser) acceptOp(min int) (*Operator, error) {
 			continue
 		}
 
-		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
+		if _, err := p.accept(internal.TokenAtom, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -59,7 +63,7 @@ func (p *Parser) acceptPrefix() (*Operator, error) {
 			continue
 		}
 
-		if _, err := p.accept(TokenAtom, string(op.Name)); err != nil {
+		if _, err := p.accept(internal.TokenAtom, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -68,7 +72,7 @@ func (p *Parser) acceptPrefix() (*Operator, error) {
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
+func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
 		t := p.lexer.Next()
 		p.current = &t
@@ -98,6 +102,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	return p.current.Val, nil
 }
 
+// Clause parses a clause, term followed by a full stop.
 func (p *Parser) Clause() (Term, error) {
 	// reset vars
 	for i := range p.vars {
@@ -110,13 +115,14 @@ func (p *Parser) Clause() (Term, error) {
 		return nil, err
 	}
 
-	if _, err := p.accept(TokenSeparator, "."); err != nil {
+	if _, err := p.accept(internal.TokenSeparator, "."); err != nil {
 		return nil, fmt.Errorf("clause: %w", err)
 	}
 
 	return t, nil
 }
 
+// Term parses a term.
 func (p *Parser) Term() (Term, error) {
 	return p.expr(1)
 }
@@ -150,20 +156,20 @@ func (p *Parser) expr(min int) (Term, error) {
 }
 
 func (p *Parser) lhs() (Term, error) {
-	if _, err := p.accept(TokenSeparator, "("); err == nil {
+	if _, err := p.accept(internal.TokenSeparator, "("); err == nil {
 		lhs, err := p.expr(1)
 		if err != nil {
 			return nil, err
 		}
 
-		if _, err := p.accept(TokenSeparator, ")"); err != nil {
+		if _, err := p.accept(internal.TokenSeparator, ")"); err != nil {
 			return nil, err
 		}
 
 		return lhs, nil
 	}
 
-	if _, err := p.accept(TokenSeparator, "["); err == nil {
+	if _, err := p.accept(internal.TokenSeparator, "["); err == nil {
 		var es []Term
 		for {
 			e, err := p.Term()
@@ -172,7 +178,7 @@ func (p *Parser) lhs() (Term, error) {
 			}
 			es = append(es, e)
 
-			s, err := p.accept(TokenSeparator, ",", "|", "]")
+			s, err := p.accept(internal.TokenSeparator, ",", "|", "]")
 			if err != nil {
 				return nil, err
 			}
@@ -183,7 +189,7 @@ func (p *Parser) lhs() (Term, error) {
 					return nil, err
 				}
 
-				if _, err := p.accept(TokenSeparator, "]"); err != nil {
+				if _, err := p.accept(internal.TokenSeparator, "]"); err != nil {
 					return nil, err
 				}
 
@@ -206,37 +212,37 @@ func (p *Parser) lhs() (Term, error) {
 		}, nil
 	}
 
-	if f, err := p.accept(TokenFloat); err == nil {
+	if f, err := p.accept(internal.TokenFloat); err == nil {
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
 	}
 
-	if i, err := p.accept(TokenInteger); err == nil {
+	if i, err := p.accept(internal.TokenInteger); err == nil {
 		n, _ := strconv.Atoi(i)
 		return Integer(n), nil
 	}
 
-	if v, err := p.accept(TokenVariable); err == nil {
+	if v, err := p.accept(internal.TokenVariable); err == nil {
 		if v == "_" {
 			return &Variable{}, nil
 		}
 		for i, e := range p.vars {
 			if e.variable.Name == v {
-				p.vars[i].count++
+				p.vars[i].Count++
 				return e.variable, nil
 			}
 		}
 		n := &Variable{Name: v}
-		p.vars = append(p.vars, variableWithCount{variable: n, count: 1})
+		p.vars = append(p.vars, variableWithCount{variable: n, Count: 1})
 		return n, nil
 	}
 
-	a, err := p.accept(TokenAtom)
+	a, err := p.accept(internal.TokenAtom)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := p.accept(TokenSeparator, "("); err != nil {
+	if _, err := p.accept(internal.TokenSeparator, "("); err != nil {
 		return Atom(a), nil
 	}
 
@@ -248,7 +254,7 @@ func (p *Parser) lhs() (Term, error) {
 		}
 		args = append(args, t)
 
-		sep, err := p.accept(TokenSeparator, ",", ")")
+		sep, err := p.accept(internal.TokenSeparator, ",", ")")
 		if err != nil {
 			return nil, fmt.Errorf("lhs: %w", err)
 		}
@@ -260,8 +266,10 @@ func (p *Parser) lhs() (Term, error) {
 	return &Compound{Functor: Atom(a), Args: args}, nil
 }
 
+// Operators are a list of operators sorted in a descending order of precedence.
 type Operators []Operator
 
+// Operator is an operator definition.
 type Operator struct {
 	Precedence Integer // 1 ~ 1200
 	Type       Atom
@@ -291,9 +299,9 @@ func (o *Operator) bindingPowers() (int, int) {
 }
 
 type unexpectedToken struct {
-	ExpectedKind TokenKind
+	ExpectedKind internal.TokenKind
 	ExpectedVals []string
-	Actual       Token
+	Actual       internal.Token
 }
 
 func (e *unexpectedToken) Error() string {

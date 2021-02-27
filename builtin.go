@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-func (e *Engine) Call(t Term, k func() (bool, error)) (bool, error) {
-	name, args, err := nameArgs(t)
+func (e *EngineState) Call(goal Term, k func() (bool, error)) (bool, error) {
+	name, args, err := nameArgs(goal)
 	if err != nil {
 		return false, err
 	}
@@ -23,14 +23,10 @@ func (e *Engine) Call(t Term, k func() (bool, error)) (bool, error) {
 var errCut = errors.New("cut")
 
 func Cut(k func() (bool, error)) (bool, error) {
-	ok, err := k()
-	if err != nil {
-		if errors.Is(err, errCut) {
-			return ok, err
-		}
+	if _, err := k(); err != nil {
 		return false, err
 	}
-	return ok, errCut
+	return false, errCut
 }
 
 func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
@@ -176,9 +172,6 @@ func Arg(arg, term, value Term, k func() (bool, error)) (bool, error) {
 			if arg.Unify(Integer(i+1), false) && value.Unify(t, false) {
 				ok, err := k()
 				if err != nil {
-					if errors.Is(err, errCut) {
-						return ok, err
-					}
 					return false, err
 				}
 				if ok {
@@ -270,7 +263,7 @@ func CopyTerm(in, out Term, k func() (bool, error)) (bool, error) {
 	return Unify(in.Copy(), out, k)
 }
 
-func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Op(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
 	p, ok := Resolve(precedence).(Integer)
 	if !ok {
 		return false, fmt.Errorf("invalid precedence: %s", precedence)
@@ -318,16 +311,13 @@ func (e *Engine) Op(precedence, typ, name Term, k func() (bool, error)) (bool, e
 	return k()
 }
 
-func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
 	a := newAssignment(precedence, typ, name)
 
 	for _, op := range e.operators {
 		if op.Precedence.Unify(precedence, false) && op.Type.Unify(typ, false) && op.Name.Unify(name, false) {
 			ok, err := k()
 			if err != nil {
-				if errors.Is(err, errCut) {
-					return ok, err
-				}
 				return false, err
 			}
 			if ok {
@@ -340,19 +330,19 @@ func (e *Engine) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (
 	return false, nil
 }
 
-func (e *Engine) Assertz(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Assertz(t Term, k func() (bool, error)) (bool, error) {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(cs, c)
 	})
 }
 
-func (e *Engine) Asserta(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Asserta(t Term, k func() (bool, error)) (bool, error) {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(clauses{c}, cs...)
 	})
 }
 
-func (e *Engine) assert(t Term, k func() (bool, error), merge func(clauses, clause) clauses) (bool, error) {
+func (e *EngineState) assert(t Term, k func() (bool, error), merge func(clauses, clause) clauses) (bool, error) {
 	name, args, err := nameArgs(t)
 	if err != nil {
 		return false, err
@@ -416,9 +406,6 @@ func Repeat(k func() (bool, error)) (bool, error) {
 	for {
 		ok, err := k()
 		if err != nil {
-			if errors.Is(err, errCut) {
-				return ok, err
-			}
 			return false, err
 		}
 		if ok {
@@ -427,15 +414,15 @@ func Repeat(k func() (bool, error)) (bool, error) {
 	}
 }
 
-func (e *Engine) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
 	return e.collectionOf(template, goal, bag, k, List)
 }
 
-func (e *Engine) SetOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
 	return e.collectionOf(template, goal, bag, k, Set)
 }
 
-func (e *Engine) collectionOf(template, goal, collection Term, k func() (bool, error), agg func(...Term) Term) (bool, error) {
+func (e *EngineState) collectionOf(template, goal, collection Term, k func() (bool, error), agg func(...Term) Term) (bool, error) {
 	var qualifier, body Variable
 	if goal.Unify(&Compound{
 		Functor: "^",
@@ -623,7 +610,7 @@ func Throw(t Term, _ func() (bool, error)) (bool, error) {
 	return false, &Exception{Term: Resolve(t).Copy()}
 }
 
-func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
 	ok, err := e.Call(goal, Done)
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
@@ -637,7 +624,7 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() (bool, error)) (boo
 	return k()
 }
 
-func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
@@ -668,7 +655,7 @@ func (e *Engine) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error)
 	return false, nil
 }
 
-func (e *Engine) Retract(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Retract(t Term, k func() (bool, error)) (bool, error) {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
@@ -718,20 +705,20 @@ func (e *Engine) Retract(t Term, k func() (bool, error)) (bool, error) {
 	return false, nil
 }
 
-func (e *Engine) Abolish(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Abolish(t Term, k func() (bool, error)) (bool, error) {
 	delete(e.procedures, t.String())
 	return k()
 }
 
-func (e *Engine) CurrentInput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentInput(stream Term, k func() (bool, error)) (bool, error) {
 	return Unify(stream, e.input, k)
 }
 
-func (e *Engine) CurrentOutput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentOutput(stream Term, k func() (bool, error)) (bool, error) {
 	return Unify(stream, e.output, k)
 }
 
-func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetInput(stream Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -740,7 +727,7 @@ func (e *Engine) SetInput(stream Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
-func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -749,7 +736,7 @@ func (e *Engine) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
-func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Open(filename, mode, stream, options Term, k func() (bool, error)) (bool, error) {
 	filename, mode, options = Resolve(filename), Resolve(mode), Resolve(options)
 
 	n, ok := filename.(Atom)
@@ -823,10 +810,10 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 
 	s := Stream{
 		Closer:    f,
-		Mode:      mode.(Atom),
-		Alias:     alias,
-		EofAction: eofAction,
-		Type:      typ,
+		mode:      mode.(Atom),
+		alias:     alias,
+		eofAction: eofAction,
+		typ:       typ,
 	}
 	switch mode {
 	case Atom("read"):
@@ -851,7 +838,7 @@ func (e *Engine) Open(filename, mode, stream, options Term, k func() (bool, erro
 	return Unify(stream, &s, k)
 }
 
-func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Close(stream, options Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -879,7 +866,7 @@ func (e *Engine) Close(stream, options Term, k func() (bool, error)) (bool, erro
 	return k()
 }
 
-func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) FlushOutput(stream Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -898,7 +885,7 @@ func (e *Engine) FlushOutput(stream Term, k func() (bool, error)) (bool, error) 
 	return k()
 }
 
-func (e *Engine) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -954,7 +941,7 @@ func CharCode(char, code Term, k func() (bool, error)) (bool, error) {
 	return Unify(char, Atom(rune(c)), k)
 }
 
-func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PutByte(stream, byt Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -972,7 +959,7 @@ func (e *Engine) PutByte(stream, byt Term, k func() (bool, error)) (bool, error)
 	return k()
 }
 
-func (e *Engine) PutCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PutCode(stream, code Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -990,7 +977,7 @@ func (e *Engine) PutCode(stream, code Term, k func() (bool, error)) (bool, error
 	return k()
 }
 
-func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) ReadTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1032,7 +1019,7 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 
 	var singletons, variables, variableNames []Term
 	for _, vc := range p.vars {
-		if vc.count == 1 {
+		if vc.Count == 1 {
 			singletons = append(singletons, vc.variable)
 		}
 		variables = append(variables, vc.variable)
@@ -1058,7 +1045,7 @@ func (e *Engine) ReadTerm(stream, term, options Term, k func() (bool, error)) (b
 	return Unify(term, t, k)
 }
 
-func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) GetByte(stream, byt Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1076,7 +1063,7 @@ func (e *Engine) GetByte(stream, byt Term, k func() (bool, error)) (bool, error)
 	}
 }
 
-func (e *Engine) GetCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) GetCode(stream, code Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1102,7 +1089,7 @@ func (e *Engine) GetCode(stream, code Term, k func() (bool, error)) (bool, error
 	}
 }
 
-func (e *Engine) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1128,7 +1115,7 @@ func (e *Engine) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error
 	}
 }
 
-func (e *Engine) PeekCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PeekCode(stream, code Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1157,13 +1144,13 @@ func (e *Engine) PeekCode(stream, code Term, k func() (bool, error)) (bool, erro
 	}
 }
 
-func (e *Engine) Halt(n Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Halt(n Term, k func() (bool, error)) (bool, error) {
 	code, ok := Resolve(n).(Integer)
 	if !ok {
 		return false, errors.New("not an integer")
 	}
 
-	if f := e.AtHalt; f != nil {
+	for _, f := range e.BeforeHalt {
 		f()
 	}
 
@@ -1172,7 +1159,7 @@ func (e *Engine) Halt(n Term, k func() (bool, error)) (bool, error) {
 	return k()
 }
 
-func (e *Engine) Clause(head, body Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Clause(head, body Term, k func() (bool, error)) (bool, error) {
 	head, body = Resolve(head), Resolve(body)
 	a := newAssignment(head, body)
 	pattern := &Compound{
@@ -1483,34 +1470,30 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() (bool, error), pi func(Int
 	case Integer:
 		switch r := r.(type) {
 		case Integer:
-			if pi(l, r) {
-				return k()
-			} else {
+			if !pi(l, r) {
 				return false, nil
 			}
+			return k()
 		case Float:
-			if pf(Float(l), r) {
-				return k()
-			} else {
+			if !pf(Float(l), r) {
 				return false, nil
 			}
+			return k()
 		default:
 			return false, errors.New("not a number")
 		}
 	case Float:
 		switch r := r.(type) {
 		case Integer:
-			if pf(l, Float(r)) {
-				return k()
-			} else {
+			if !pf(l, Float(r)) {
 				return false, nil
 			}
+			return k()
 		case Float:
-			if pf(l, r) {
-				return k()
-			} else {
+			if !pf(l, r) {
 				return false, nil
 			}
+			return k()
 		default:
 			return false, errors.New("not a number")
 		}
@@ -1717,17 +1700,17 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 	}
 }
 
-func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) StreamProperty(stream, property Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
 	}
 
 	properties := []Term{
-		&Compound{Functor: "mode", Args: []Term{s.Mode}},
-		&Compound{Functor: "alias", Args: []Term{s.Alias}},
-		&Compound{Functor: "eof_action", Args: []Term{s.EofAction}},
-		&Compound{Functor: "type", Args: []Term{s.Type}},
+		&Compound{Functor: "mode", Args: []Term{s.mode}},
+		&Compound{Functor: "alias", Args: []Term{s.alias}},
+		&Compound{Functor: "eof_action", Args: []Term{s.eofAction}},
+		&Compound{Functor: "type", Args: []Term{s.typ}},
 	}
 
 	if s.Reader != nil {
@@ -1791,7 +1774,7 @@ func (e *Engine) StreamProperty(stream, property Term, k func() (bool, error)) (
 	return false, nil
 }
 
-func (e *Engine) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bool, error) {
 	s, err := e.stream(stream)
 	if err != nil {
 		return false, err
@@ -1818,7 +1801,7 @@ func (e *Engine) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bo
 	return k()
 }
 
-func (e *Engine) CharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
 	c1, ok := Resolve(char1).(Atom)
 	if !ok {
 		return false, errors.New("not an atom")
@@ -1850,7 +1833,7 @@ func (e *Engine) CharConversion(char1, char2 Term, k func() (bool, error)) (bool
 	return k()
 }
 
-func (e *Engine) CurrentCharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentCharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
 	if c1, ok := Resolve(char1).(Atom); ok {
 		r := []rune(c1)
 		if len(r) != 1 {
@@ -1883,7 +1866,7 @@ func (e *Engine) CurrentCharConversion(char1, char2 Term, k func() (bool, error)
 	return false, nil
 }
 
-func (e *Engine) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
 	f, ok := Resolve(flag).(Atom)
 	if !ok {
 		return false, errors.New("not an atom")
@@ -1945,7 +1928,7 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, 
 	}
 }
 
-func (e *Engine) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
 	flag, value = Resolve(flag), Resolve(value)
 
 	pattern := Compound{Args: []Term{flag, value}}
@@ -1956,8 +1939,8 @@ func (e *Engine) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bo
 		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
 		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
 		&Compound{Args: []Term{Atom("integer_rounding_function"), Atom("toward_zero")}},
-		&Compound{Args: []Term{Atom("char_conversion"), OnOff(e.charConvEnabled)}},
-		&Compound{Args: []Term{Atom("debug"), OnOff(e.debug)}},
+		&Compound{Args: []Term{Atom("char_conversion"), onOff(e.charConvEnabled)}},
+		&Compound{Args: []Term{Atom("debug"), onOff(e.debug)}},
 		&Compound{Args: []Term{Atom("max_arity"), Atom("unbounded")}},
 		&Compound{Args: []Term{Atom("unknown"), Atom(e.unknown.String())}},
 	} {
@@ -1973,7 +1956,14 @@ func (e *Engine) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bo
 	return false, nil
 }
 
-func (e *Engine) stream(streamOrAtom Term) (*Stream, error) {
+func onOff(b bool) Atom {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
+func (e *EngineState) stream(streamOrAtom Term) (*Stream, error) {
 	switch s := Resolve(streamOrAtom).(type) {
 	case Atom:
 		v, ok := e.streams[s]
