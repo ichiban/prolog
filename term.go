@@ -375,7 +375,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 		if _, err := fmt.Fprint(w, ", "); err != nil {
 			return err
 		}
-		if err := arg.WriteTerm(w, opts); err != nil {
+		if err := Resolve(arg).WriteTerm(w, opts); err != nil {
 			return err
 		}
 	}

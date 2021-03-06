@@ -21,10 +21,7 @@ import (
 func TestCopyTerm(t *testing.T) {
 	in := &Variable{Ref: Atom("a")}
 	out := &Variable{}
-	k := func() (bool, error) {
-		return true, nil
-	}
-	ok, err := CopyTerm(in, out, k)
+	ok, err := CopyTerm(in, out, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, Atom("a"), out.Ref)
@@ -32,16 +29,16 @@ func TestCopyTerm(t *testing.T) {
 
 func TestRepeat(t *testing.T) {
 	c := 3
-	ok, err := Repeat(func() (bool, error) {
+	ok, err := Repeat(func() Promise {
 		c--
-		return c == 0, nil
-	})
+		return Bool(c == 0)
+	}).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Repeat(func() (bool, error) {
-		return false, errors.New("")
-	})
+	ok, err = Repeat(func() Promise {
+		return Error(errors.New(""))
+	}).Force()
 	assert.Error(t, err)
 	assert.False(t, ok)
 }
@@ -309,131 +306,131 @@ foo(c, c, g).
 
 func TestCompare(t *testing.T) {
 	var vs [2]Variable
-	ok, err := Compare(Atom("<"), &vs[0], &vs[1], Done)
+	ok, err := Compare(Atom("<"), &vs[0], &vs[1], Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("="), &vs[0], &vs[0], Done)
+	ok, err = Compare(Atom("="), &vs[0], &vs[0], Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &vs[1], &vs[0], Done)
+	ok, err = Compare(Atom(">"), &vs[1], &vs[0], Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
 	vs[0].Ref = Atom("b")
 	vs[1].Ref = Atom("a")
-	ok, err = Compare(Atom(">"), &vs[0], &vs[1], Done)
+	ok, err = Compare(Atom(">"), &vs[0], &vs[1], Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Variable{}, Integer(0), Done)
+	ok, err = Compare(Atom("<"), &Variable{}, Integer(0), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Variable{}, Atom(""), Done)
+	ok, err = Compare(Atom("<"), &Variable{}, Atom(""), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Variable{}, &Compound{}, Done)
+	ok, err = Compare(Atom("<"), &Variable{}, &Compound{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), Integer(0), &Variable{}, Done)
+	ok, err = Compare(Atom(">"), Integer(0), &Variable{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), Integer(0), Integer(1), Done)
+	ok, err = Compare(Atom("<"), Integer(0), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("="), Integer(0), Integer(0), Done)
+	ok, err = Compare(Atom("="), Integer(0), Integer(0), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), Integer(1), Integer(0), Done)
+	ok, err = Compare(Atom(">"), Integer(1), Integer(0), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), Integer(0), Atom(""), Done)
+	ok, err = Compare(Atom("<"), Integer(0), Atom(""), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), Integer(0), &Compound{}, Done)
+	ok, err = Compare(Atom("<"), Integer(0), &Compound{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), Atom(""), &Variable{}, Done)
+	ok, err = Compare(Atom(">"), Atom(""), &Variable{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), Atom(""), Integer(0), Done)
+	ok, err = Compare(Atom(">"), Atom(""), Integer(0), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), Atom("a"), Atom("b"), Done)
+	ok, err = Compare(Atom("<"), Atom("a"), Atom("b"), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("="), Atom("a"), Atom("a"), Done)
+	ok, err = Compare(Atom("="), Atom("a"), Atom("a"), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), Atom("b"), Atom("a"), Done)
+	ok, err = Compare(Atom(">"), Atom("b"), Atom("a"), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), Atom(""), &Compound{}, Done)
+	ok, err = Compare(Atom("<"), Atom(""), &Compound{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{}, &Variable{}, Done)
+	ok, err = Compare(Atom(">"), &Compound{}, &Variable{}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{}, Integer(0), Done)
+	ok, err = Compare(Atom(">"), &Compound{}, Integer(0), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{}, Atom(""), Done)
+	ok, err = Compare(Atom(">"), &Compound{}, Atom(""), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Compound{Functor: "a"}, &Compound{Functor: "b"}, Done)
+	ok, err = Compare(Atom("<"), &Compound{Functor: "a"}, &Compound{Functor: "b"}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("="), &Compound{Functor: "a"}, &Compound{Functor: "a"}, Done)
+	ok, err = Compare(Atom("="), &Compound{Functor: "a"}, &Compound{Functor: "a"}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{Functor: "b"}, &Compound{Functor: "a"}, Done)
+	ok, err = Compare(Atom(">"), &Compound{Functor: "b"}, &Compound{Functor: "a"}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f"}, Done)
+	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f"}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("="), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done)
+	ok, err = Compare(Atom("="), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Compound{Functor: "f"}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done)
+	ok, err = Compare(Atom("<"), &Compound{Functor: "f"}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("b")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done)
+	ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("b")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Compare(Atom("<"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("b")}}, Done)
+	ok, err = Compare(Atom("<"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("b")}}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestThrow(t *testing.T) {
-	ok, err := Throw(Atom("a"), Done)
+	ok, err := Throw(Atom("a"), Done).Force()
 	assert.Equal(t, &Exception{Term: Atom("a")}, err)
 	assert.False(t, ok)
 }
@@ -450,7 +447,7 @@ func TestEngine_Catch(t *testing.T) {
 		}, &v, &Compound{
 			Functor: "=",
 			Args:    []Term{&v, Atom("a")},
-		}, Done)
+		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -459,19 +456,19 @@ func TestEngine_Catch(t *testing.T) {
 		ok, err := e.Catch(&Compound{
 			Functor: "throw",
 			Args:    []Term{Atom("a")},
-		}, Atom("b"), Atom("fail"), Done)
+		}, Atom("b"), Atom("fail"), Done).Force()
 		assert.Equal(t, &Exception{Term: Atom("a")}, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("true", func(t *testing.T) {
-		ok, err := e.Catch(Atom("true"), Atom("b"), Atom("fail"), Done)
+		ok, err := e.Catch(Atom("true"), Atom("b"), Atom("fail"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("false", func(t *testing.T) {
-		ok, err := e.Catch(Atom("fail"), Atom("b"), Atom("fail"), Done)
+		ok, err := e.Catch(Atom("fail"), Atom("b"), Atom("fail"), Done).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -482,7 +479,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 	ok, err := UnifyWithOccursCheck(&v, &Compound{
 		Functor: "f",
 		Args:    []Term{&v},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
@@ -493,7 +490,7 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 	}}}
 
 	var v Variable
-	ok, err := e.CurrentPredicate(&v, Done)
+	ok, err := e.CurrentPredicate(&v, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, &Compound{
@@ -504,9 +501,9 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 		},
 	}, v.Ref)
 
-	ok, err = e.CurrentPredicate(&v, func() (bool, error) {
-		return false, nil
-	})
+	ok, err = e.CurrentPredicate(&v, func() Promise {
+		return Bool(false)
+	}).Force()
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
@@ -517,14 +514,14 @@ func TestEngine_Assertz(t *testing.T) {
 	ok, err := e.Assertz(&Compound{
 		Functor: "foo",
 		Args:    []Term{Atom("a")},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
 	ok, err = e.Assertz(&Compound{
 		Functor: "foo",
 		Args:    []Term{Atom("b")},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
@@ -551,14 +548,14 @@ func TestEngine_Asserta(t *testing.T) {
 	ok, err := e.Asserta(&Compound{
 		Functor: "foo",
 		Args:    []Term{Atom("a")},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
 	ok, err = e.Asserta(&Compound{
 		Functor: "foo",
 		Args:    []Term{Atom("b")},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
@@ -718,7 +715,7 @@ func TestEngine_Abolish(t *testing.T) {
 	ok, err := e.Abolish(&Compound{
 		Functor: "/",
 		Args:    []Term{Atom("foo"), Integer(1)},
-	}, Done)
+	}, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
@@ -770,7 +767,7 @@ func TestEngine_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
 		s := Stream{Reader: os.Stdin}
-		ok, err := e.SetInput(&Variable{Ref: &s}, Done)
+		ok, err := e.SetInput(&Variable{Ref: &s}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, e.input)
@@ -783,7 +780,7 @@ func TestEngine_SetInput(t *testing.T) {
 				"x": &s,
 			},
 		}}
-		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, Done)
+		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, e.input)
@@ -791,7 +788,7 @@ func TestEngine_SetInput(t *testing.T) {
 
 	t.Run("atom not defined as a stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetInput(&Variable{Ref: Atom("x")}, Done)
+		_, err := e.SetInput(&Variable{Ref: Atom("x")}, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -800,7 +797,7 @@ func TestEngine_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
 		s := Stream{Writer: os.Stdout}
-		ok, err := e.SetOutput(&Variable{Ref: &s}, Done)
+		ok, err := e.SetOutput(&Variable{Ref: &s}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, e.output)
@@ -813,7 +810,7 @@ func TestEngine_SetOutput(t *testing.T) {
 				"x": &s,
 			},
 		}}
-		ok, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done)
+		ok, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, e.output)
@@ -821,7 +818,7 @@ func TestEngine_SetOutput(t *testing.T) {
 
 	t.Run("atom not defined as a stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done)
+		_, err := e.SetOutput(&Variable{Ref: Atom("x")}, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -845,7 +842,7 @@ func TestEngine_Open(t *testing.T) {
 		ok, err := e.Open(Atom(f.Name()), Atom("read"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("input")},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -869,7 +866,7 @@ func TestEngine_Open(t *testing.T) {
 		ok, err := e.Open(Atom(n), Atom("write"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("output")},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -908,7 +905,7 @@ func TestEngine_Open(t *testing.T) {
 		ok, err := e.Open(Atom(f.Name()), Atom("append"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("append")},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -936,7 +933,7 @@ func TestEngine_Open(t *testing.T) {
 		_, err := e.Open(&Variable{}, Atom("read"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("input")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -945,7 +942,7 @@ func TestEngine_Open(t *testing.T) {
 		_, err := e.Open(Atom("/dev/null"), Atom("invalid"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("input")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -954,7 +951,7 @@ func TestEngine_Open(t *testing.T) {
 		_, err := e.Open(Atom("/dev/null"), Atom("read"), &v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{&Variable{}},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -963,7 +960,7 @@ func TestEngine_Open(t *testing.T) {
 		_, err := e.Open(Atom("/dev/null"), Atom("read"), &v, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -976,7 +973,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(&Stream{Closer: &m}, List(), Done)
+			ok, err := e.Close(&Stream{Closer: &m}, List(), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -987,7 +984,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.Close(&Stream{Closer: &m}, List(), Done)
+			_, err := e.Close(&Stream{Closer: &m}, List(), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1002,7 +999,7 @@ func TestEngine_Close(t *testing.T) {
 			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1016,7 +1013,7 @@ func TestEngine_Close(t *testing.T) {
 			_, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
-			}), Done)
+			}), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1031,7 +1028,7 @@ func TestEngine_Close(t *testing.T) {
 			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1045,7 +1042,7 @@ func TestEngine_Close(t *testing.T) {
 			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1061,20 +1058,20 @@ func TestEngine_Close(t *testing.T) {
 				"foo": {Closer: &m},
 			},
 		}}
-		ok, err := e.Close(Atom("foo"), List(), Done)
+		ok, err := e.Close(Atom("foo"), List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.Close(Atom("foo"), List(), Done)
+		_, err := e.Close(Atom("foo"), List(), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
-		_, err := e.Close(&Variable{}, List(), Done)
+		_, err := e.Close(&Variable{}, List(), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1083,7 +1080,7 @@ func TestEngine_Close(t *testing.T) {
 		_, err := e.Close(&Stream{}, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1121,7 +1118,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 		defer m.AssertExpectations(t)
 
 		var e Engine
-		ok, err := e.FlushOutput(&Stream{Writer: &m}, Done)
+		ok, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1137,7 +1134,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.FlushOutput(&Stream{Writer: &m}, Done)
+			ok, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1152,7 +1149,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.FlushOutput(&Stream{Writer: &m}, Done)
+			_, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1166,20 +1163,20 @@ func TestEngine_FlushOutput(t *testing.T) {
 				"foo": {Writer: &m},
 			},
 		}}
-		ok, err := e.FlushOutput(Atom("foo"), Done)
+		ok, err := e.FlushOutput(Atom("foo"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.FlushOutput(Atom("foo"), Done)
+		_, err := e.FlushOutput(Atom("foo"), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
-		_, err := e.FlushOutput(&Variable{}, Done)
+		_, err := e.FlushOutput(&Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1217,7 +1214,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := e.WriteTerm(&s, &m, List(), Done)
+			ok, err := e.WriteTerm(&s, &m, List(), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1227,7 +1224,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
-			_, err := e.WriteTerm(&s, &m, List(), Done)
+			_, err := e.WriteTerm(&s, &m, List(), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1241,7 +1238,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "quoted",
 				Args:    []Term{Atom("false")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1254,7 +1251,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "quoted",
 				Args:    []Term{Atom("true")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1269,7 +1266,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "ignore_ops",
 				Args:    []Term{Atom("false")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1282,7 +1279,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "ignore_ops",
 				Args:    []Term{Atom("true")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1297,7 +1294,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "numbervars",
 				Args:    []Term{Atom("false")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1310,7 +1307,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
 				Functor: "numbervars",
 				Args:    []Term{Atom("true")},
-			}), Done)
+			}), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -1323,7 +1320,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 		_, err := e.WriteTerm(&s, &m, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1332,7 +1329,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 		m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
 		defer m.AssertExpectations(t)
 
-		ok, err := e.WriteTerm(Atom("foo"), &m, List(), Done)
+		ok, err := e.WriteTerm(Atom("foo"), &m, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1341,7 +1338,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 		var m mockTerm
 		defer m.AssertExpectations(t)
 
-		_, err := e.WriteTerm(Atom("bar"), &m, List(), Done)
+		_, err := e.WriteTerm(Atom("bar"), &m, List(), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1349,7 +1346,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 		var m mockTerm
 		defer m.AssertExpectations(t)
 
-		_, err := e.WriteTerm(&Variable{}, &m, List(), Done)
+		_, err := e.WriteTerm(&Variable{}, &m, List(), Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1380,20 +1377,20 @@ func (m *mockTerm) Copy() Term {
 
 func TestCharCode(t *testing.T) {
 	t.Run("ascii", func(t *testing.T) {
-		ok, err := CharCode(Atom("a"), Integer(97), Done)
+		ok, err := CharCode(Atom("a"), Integer(97), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("emoji", func(t *testing.T) {
-		ok, err := CharCode(Atom("😀"), Integer(128512), Done)
+		ok, err := CharCode(Atom("😀"), Integer(128512), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("query char", func(t *testing.T) {
 		var v Variable
-		ok, err := CharCode(&v, Integer(128512), Done)
+		ok, err := CharCode(&v, Integer(128512), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, Atom("😀"), v.Ref)
@@ -1401,7 +1398,7 @@ func TestCharCode(t *testing.T) {
 
 	t.Run("query code", func(t *testing.T) {
 		var v Variable
-		ok, err := CharCode(Atom("😀"), &v, Done)
+		ok, err := CharCode(Atom("😀"), &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, Integer(128512), v.Ref)
@@ -1409,13 +1406,13 @@ func TestCharCode(t *testing.T) {
 
 	t.Run("not a character", func(t *testing.T) {
 		var v Variable
-		_, err := CharCode(Atom("abc"), &v, Done)
+		_, err := CharCode(Atom("abc"), &v, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not a code", func(t *testing.T) {
 		var v Variable
-		_, err := CharCode(&v, Float(1.0), Done)
+		_, err := CharCode(&v, Float(1.0), Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1429,7 +1426,7 @@ func TestEngine_PutByte(t *testing.T) {
 		s := Stream{Writer: &w}
 
 		var e Engine
-		ok, err := e.PutByte(&s, Integer(97), Done)
+		ok, err := e.PutByte(&s, Integer(97), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1442,7 +1439,7 @@ func TestEngine_PutByte(t *testing.T) {
 		s := Stream{Writer: &w}
 
 		var e Engine
-		_, err := e.PutByte(&s, Integer(97), Done)
+		_, err := e.PutByte(&s, Integer(97), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1458,20 +1455,20 @@ func TestEngine_PutByte(t *testing.T) {
 				"foo": &s,
 			},
 		}}
-		ok, err := e.PutByte(Atom("foo"), Integer(97), Done)
+		ok, err := e.PutByte(Atom("foo"), Integer(97), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.PutByte(Atom("foo"), Integer(97), Done)
+		_, err := e.PutByte(Atom("foo"), Integer(97), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not a stream", func(t *testing.T) {
 		var e Engine
-		_, err := e.PutByte(&Variable{}, Integer(97), Done)
+		_, err := e.PutByte(&Variable{}, Integer(97), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1483,19 +1480,19 @@ func TestEngine_PutByte(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(&s, Atom("a"), Done)
+			_, err := e.PutByte(&s, Atom("a"), Done).Force()
 			assert.Error(t, err)
 		})
 
 		t.Run("negative", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(&s, Integer(-1), Done)
+			_, err := e.PutByte(&s, Integer(-1), Done).Force()
 			assert.Error(t, err)
 		})
 
 		t.Run("more than 255", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutByte(&s, Integer(256), Done)
+			_, err := e.PutByte(&s, Integer(256), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1510,7 +1507,7 @@ func TestEngine_PutCode(t *testing.T) {
 		s := Stream{Writer: &w}
 
 		var e Engine
-		ok, err := e.PutCode(&s, Integer('😀'), Done)
+		ok, err := e.PutCode(&s, Integer('😀'), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1523,7 +1520,7 @@ func TestEngine_PutCode(t *testing.T) {
 		s := Stream{Writer: &w}
 
 		var e Engine
-		_, err := e.PutCode(&s, Integer('😀'), Done)
+		_, err := e.PutCode(&s, Integer('😀'), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1539,20 +1536,20 @@ func TestEngine_PutCode(t *testing.T) {
 				"foo": &s,
 			},
 		}}
-		ok, err := e.PutCode(Atom("foo"), Integer('😀'), Done)
+		ok, err := e.PutCode(Atom("foo"), Integer('😀'), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.PutCode(Atom("foo"), Integer('😀'), Done)
+		_, err := e.PutCode(Atom("foo"), Integer('😀'), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not a stream", func(t *testing.T) {
 		var e Engine
-		_, err := e.PutCode(&Variable{}, Integer('😀'), Done)
+		_, err := e.PutCode(&Variable{}, Integer('😀'), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1564,7 +1561,7 @@ func TestEngine_PutCode(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			var e Engine
-			_, err := e.PutCode(&s, Atom("a"), Done)
+			_, err := e.PutCode(&s, Atom("a"), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -1575,7 +1572,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}, &v, List(), Done)
+		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}, &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1592,7 +1589,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		}}
 
 		var v Variable
-		ok, err := e.ReadTerm(Atom("foo"), &v, List(), Done)
+		ok, err := e.ReadTerm(Atom("foo"), &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1603,7 +1600,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.ReadTerm(Atom("foo"), &v, List(), Done)
+		_, err := e.ReadTerm(Atom("foo"), &v, List(), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1611,7 +1608,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.ReadTerm(&Variable{}, &v, List(), Done)
+		_, err := e.ReadTerm(&Variable{}, &v, List(), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1622,7 +1619,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "singletons",
 			Args:    []Term{&singletons},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1645,7 +1642,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variables",
 			Args:    []Term{&variables},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1668,7 +1665,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variable_names",
 			Args:    []Term{&variableNames},
-		}), Done)
+		}), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1700,7 +1697,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		_, err := e.ReadTerm(&Stream{Reader: strings.NewReader("foo.")}, &v, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
-		}), Done)
+		}), Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1714,19 +1711,19 @@ foo(c).
 `))}
 
 		var v Variable
-		ok, err := e.ReadTerm(&s, &v, List(), Done)
+		ok, err := e.ReadTerm(&s, &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("a")}}, v.Ref)
 
 		v.Ref = nil
-		ok, err = e.ReadTerm(&s, &v, List(), Done)
+		ok, err = e.ReadTerm(&s, &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("b")}}, v.Ref)
 
 		v.Ref = nil
-		ok, err = e.ReadTerm(&s, &v, List(), Done)
+		ok, err = e.ReadTerm(&s, &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("c")}}, v.Ref)
@@ -1740,7 +1737,7 @@ func TestEngine_GetByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetByte(&s, &v, Done)
+		ok, err := e.GetByte(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1757,7 +1754,7 @@ func TestEngine_GetByte(t *testing.T) {
 		}}
 
 		var v Variable
-		ok, err := e.GetByte(Atom("foo"), &v, Done)
+		ok, err := e.GetByte(Atom("foo"), &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1768,7 +1765,7 @@ func TestEngine_GetByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.GetByte(Atom("foo"), &v, Done)
+		_, err := e.GetByte(Atom("foo"), &v, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1776,7 +1773,7 @@ func TestEngine_GetByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.GetByte(&Variable{}, &v, Done)
+		_, err := e.GetByte(&Variable{}, &v, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1786,7 +1783,7 @@ func TestEngine_GetByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetByte(&s, &v, Done)
+		ok, err := e.GetByte(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1803,7 +1800,7 @@ func TestEngine_GetByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.GetByte(&s, &v, Done)
+		_, err := e.GetByte(&s, &v, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1815,7 +1812,7 @@ func TestEngine_GetCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetCode(&s, &v, Done)
+		ok, err := e.GetCode(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1832,7 +1829,7 @@ func TestEngine_GetCode(t *testing.T) {
 		}}
 
 		var v Variable
-		ok, err := e.GetCode(Atom("foo"), &v, Done)
+		ok, err := e.GetCode(Atom("foo"), &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1842,21 +1839,21 @@ func TestEngine_GetCode(t *testing.T) {
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.GetCode(Atom("foo"), &Variable{}, Done)
+		_, err := e.GetCode(Atom("foo"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.GetCode(&Variable{}, &Variable{}, Done)
+		_, err := e.GetCode(&Variable{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non input stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.GetCode(&Stream{}, &Variable{}, Done)
+		_, err := e.GetCode(&Stream{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1865,7 +1862,7 @@ func TestEngine_GetCode(t *testing.T) {
 
 		var e Engine
 
-		_, err := e.GetCode(&s, &Variable{}, Done)
+		_, err := e.GetCode(&s, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1875,7 +1872,7 @@ func TestEngine_GetCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.GetCode(&s, &v, Done)
+		ok, err := e.GetCode(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1892,7 +1889,7 @@ func TestEngine_GetCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.GetCode(&s, &v, Done)
+		_, err := e.GetCode(&s, &v, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1904,13 +1901,13 @@ func TestEngine_PeekByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.PeekByte(&s, &v, Done)
+		ok, err := e.PeekByte(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		assert.Equal(t, Integer(97), v.Ref)
 
-		ok, err = e.PeekByte(&s, &v, Done) // 'a' again
+		ok, err = e.PeekByte(&s, &v, Done).Force() // 'a' again
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1925,7 +1922,7 @@ func TestEngine_PeekByte(t *testing.T) {
 		}}
 
 		var v Variable
-		ok, err := e.PeekByte(Atom("foo"), &v, Done)
+		ok, err := e.PeekByte(Atom("foo"), &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1935,21 +1932,21 @@ func TestEngine_PeekByte(t *testing.T) {
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekByte(Atom("foo"), &Variable{}, Done)
+		_, err := e.PeekByte(Atom("foo"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekByte(&Variable{}, &Variable{}, Done)
+		_, err := e.PeekByte(&Variable{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non input stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekByte(&Stream{}, &Variable{}, Done)
+		_, err := e.PeekByte(&Stream{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1958,7 +1955,7 @@ func TestEngine_PeekByte(t *testing.T) {
 
 		var e Engine
 
-		_, err := e.PeekByte(&s, &Variable{}, Done)
+		_, err := e.PeekByte(&s, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -1968,7 +1965,7 @@ func TestEngine_PeekByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.PeekByte(&s, &v, Done)
+		ok, err := e.PeekByte(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1985,7 +1982,7 @@ func TestEngine_PeekByte(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.PeekByte(&s, &v, Done)
+		_, err := e.PeekByte(&s, &v, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -1997,13 +1994,13 @@ func TestEngine_PeekCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.PeekCode(&s, &v, Done)
+		ok, err := e.PeekCode(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		assert.Equal(t, Integer(0x1f600), v.Ref)
 
-		ok, err = e.PeekCode(&s, &v, Done) // '😀' again
+		ok, err = e.PeekCode(&s, &v, Done).Force() // '😀' again
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2018,7 +2015,7 @@ func TestEngine_PeekCode(t *testing.T) {
 		}}
 
 		var v Variable
-		ok, err := e.PeekCode(Atom("foo"), &v, Done)
+		ok, err := e.PeekCode(Atom("foo"), &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -2028,21 +2025,21 @@ func TestEngine_PeekCode(t *testing.T) {
 	t.Run("unknown stream alis", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekCode(Atom("foo"), &Variable{}, Done)
+		_, err := e.PeekCode(Atom("foo"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekCode(&Variable{}, &Variable{}, Done)
+		_, err := e.PeekCode(&Variable{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non input stream", func(t *testing.T) {
 		var e Engine
 
-		_, err := e.PeekCode(&Stream{}, &Variable{}, Done)
+		_, err := e.PeekCode(&Stream{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -2051,7 +2048,7 @@ func TestEngine_PeekCode(t *testing.T) {
 
 		var e Engine
 
-		_, err := e.PeekCode(&s, &Variable{}, Done)
+		_, err := e.PeekCode(&s, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -2061,7 +2058,7 @@ func TestEngine_PeekCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.PeekCode(&s, &v, Done)
+		ok, err := e.PeekCode(&s, &v, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -2078,7 +2075,7 @@ func TestEngine_PeekCode(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		_, err := e.PeekCode(&s, &v, Done)
+		_, err := e.PeekCode(&s, &v, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -2095,7 +2092,7 @@ func TestEngine_Clause(t *testing.T) {
 	ok, err := e.Clause(&Compound{
 		Functor: "green",
 		Args:    []Term{&what},
-	}, &body, func() (bool, error) {
+	}, &body, func() Promise {
 		switch c {
 		case 0:
 			assert.Equal(t, &Variable{}, what.Ref)
@@ -2110,33 +2107,33 @@ func TestEngine_Clause(t *testing.T) {
 			assert.Fail(t, "unreachable")
 		}
 		c++
-		return false, nil
-	})
+		return Bool(false)
+	}).Force()
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
 
 func TestAtomLength(t *testing.T) {
-	ok, err := AtomLength(Atom("abc"), Integer(3), Done)
+	ok, err := AtomLength(Atom("abc"), Integer(3), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = AtomLength(Atom("😀"), Integer(1), Done)
+	ok, err = AtomLength(Atom("😀"), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	_, err = AtomLength(&Variable{}, Integer(0), Done)
+	_, err = AtomLength(&Variable{}, Integer(0), Done).Force()
 	assert.Error(t, err)
 }
 
 func TestAtomConcat(t *testing.T) {
-	ok, err := AtomConcat(Atom("foo"), Atom("bar"), Atom("foobar"), Done)
+	ok, err := AtomConcat(Atom("foo"), Atom("bar"), Atom("foobar"), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
 	var c int
 	var v1, v2 Variable
-	ok, err = AtomConcat(&v1, &v2, Atom("foo"), func() (bool, error) {
+	ok, err = AtomConcat(&v1, &v2, Atom("foo"), func() Promise {
 		switch c {
 		case 0:
 			assert.Equal(t, Atom(""), v1.Ref)
@@ -2154,8 +2151,8 @@ func TestAtomConcat(t *testing.T) {
 			assert.Fail(t, "unreachable")
 		}
 		c++
-		return false, nil
-	})
+		return Bool(false)
+	}).Force()
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
@@ -2164,7 +2161,7 @@ func TestSubAtom(t *testing.T) {
 	t.Run("multiple solutions", func(t *testing.T) {
 		var c int
 		var before, length, after Variable
-		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), &before, &length, &after, Atom("ATGA"), func() (bool, error) {
+		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), &before, &length, &after, Atom("ATGA"), func() Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(1), before.Ref)
@@ -2186,15 +2183,15 @@ func TestSubAtom(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return false, nil
-		})
+			return Bool(false)
+		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("get the first char", func(t *testing.T) {
 		var char Variable
-		ok, err := SubAtom(Atom("a"), Integer(0), Integer(1), &Variable{}, &char, Done)
+		ok, err := SubAtom(Atom("a"), Integer(0), Integer(1), &Variable{}, &char, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, Atom("a"), char.Ref)
@@ -2203,42 +2200,42 @@ func TestSubAtom(t *testing.T) {
 
 func TestAtomChars(t *testing.T) {
 	var chars Variable
-	ok, err := AtomChars(Atom("foo"), &chars, Done)
+	ok, err := AtomChars(Atom("foo"), &chars, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, List(Atom("f"), Atom("o"), Atom("o")), chars.Ref)
 
 	var atom Variable
-	ok, err = AtomChars(&atom, List(Atom("f"), Atom("o"), Atom("o")), Done)
+	ok, err = AtomChars(&atom, List(Atom("f"), Atom("o"), Atom("o")), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, Atom("foo"), atom.Ref)
 
-	_, err = AtomChars(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done)
+	_, err = AtomChars(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done).Force()
 	assert.Error(t, err)
 }
 
 func TestAtomCodes(t *testing.T) {
 	var codes Variable
-	ok, err := AtomCodes(Atom("foo"), &codes, Done)
+	ok, err := AtomCodes(Atom("foo"), &codes, Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, List(Integer(102), Integer(111), Integer(111)), codes.Ref)
 
 	var atom Variable
-	ok, err = AtomCodes(&atom, List(Integer(102), Integer(111), Integer(111)), Done)
+	ok, err = AtomCodes(&atom, List(Integer(102), Integer(111), Integer(111)), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, Atom("foo"), atom.Ref)
 
-	_, err = AtomCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
+	_, err = AtomCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done).Force()
 	assert.Error(t, err)
 }
 
 func TestNumberChars(t *testing.T) {
 	t.Run("number to chars", func(t *testing.T) {
 		var chars Variable
-		ok, err := NumberChars(Float(23.4), &chars, Done)
+		ok, err := NumberChars(Float(23.4), &chars, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), chars.Ref)
@@ -2246,24 +2243,24 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("chars to number", func(t *testing.T) {
 		var num Variable
-		ok, err := NumberChars(&num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Done)
+		ok, err := NumberChars(&num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, Float(23.4), num.Ref)
 	})
 
 	t.Run("not chars", func(t *testing.T) {
-		_, err := NumberChars(&Variable{}, List(Integer(1), Integer(2), Integer(3)), Done)
+		_, err := NumberChars(&Variable{}, List(Integer(1), Integer(2), Integer(3)), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not number chars", func(t *testing.T) {
-		_, err := NumberChars(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
+		_, err := NumberChars(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not a number", func(t *testing.T) {
-		_, err := NumberChars(Atom("abc"), &Variable{}, Done)
+		_, err := NumberChars(Atom("abc"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -2271,7 +2268,7 @@ func TestNumberChars(t *testing.T) {
 func TestNumberCodes(t *testing.T) {
 	t.Run("number to codes", func(t *testing.T) {
 		var codes Variable
-		ok, err := NumberCodes(Float(23.4), &codes, Done)
+		ok, err := NumberCodes(Float(23.4), &codes, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), codes.Ref)
@@ -2279,489 +2276,489 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("codes to number", func(t *testing.T) {
 		var num Variable
-		ok, err := NumberCodes(&num, List(Integer(50), Integer(51), Integer(46), Integer(52)), Done)
+		ok, err := NumberCodes(&num, List(Integer(50), Integer(51), Integer(46), Integer(52)), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, Float(23.4), num.Ref)
 	})
 
 	t.Run("not codes", func(t *testing.T) {
-		_, err := NumberCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done)
+		_, err := NumberCodes(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not number codes", func(t *testing.T) {
-		_, err := NumberCodes(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done)
+		_, err := NumberCodes(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("not a number", func(t *testing.T) {
-		_, err := NumberCodes(Atom("abc"), &Variable{}, Done)
+		_, err := NumberCodes(Atom("abc"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 }
 
 func TestFunctionSet_Is(t *testing.T) {
 	t.Run("addition", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "+", Args: []Term{Integer(1), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "+", Args: []Term{Integer(1), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Integer(1), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Integer(1), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Integer(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("subtraction", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "-", Args: []Term{Integer(3), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "-", Args: []Term{Integer(3), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Integer(3), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Integer(3), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Integer(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("multiplication", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(6), &Compound{Functor: "*", Args: []Term{Integer(3), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(6), &Compound{Functor: "*", Args: []Term{Integer(3), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Integer(3), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Integer(3), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Integer(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("floating-point division", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Integer(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("integer division", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: "//", Args: []Term{Integer(4), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: "//", Args: []Term{Integer(4), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Integer(4), Float(2)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Integer(4), Float(2)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Float(4), Integer(2)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Float(4), Integer(2)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("remainder", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "rem", Args: []Term{Integer(-21), Integer(4)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "rem", Args: []Term{Integer(-21), Integer(4)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Integer(-21), Float(4)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Integer(-21), Float(4)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Float(-21), Integer(4)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Float(-21), Integer(4)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("mod", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "mod", Args: []Term{Integer(-21), Integer(4)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(3), &Compound{Functor: "mod", Args: []Term{Integer(-21), Integer(4)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Integer(-21), Float(4)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Integer(-21), Float(4)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Float(-21), Integer(4)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Float(-21), Integer(4)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("exponential", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Integer(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sign reversal", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(-2), &Compound{Functor: "-", Args: []Term{Integer(2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(-2), &Compound{Functor: "-", Args: []Term{Integer(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(-2), &Compound{Functor: "-", Args: []Term{Float(2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(-2), &Compound{Functor: "-", Args: []Term{Float(2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("absolute value", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Integer(-2)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Integer(-2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Float(-2)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Float(-2)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("arctangent", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Integer(0)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Float(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Float(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("ceiling", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Float(0.9)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Float(0.9)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("cosine", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Integer(0)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Float(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Float(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("natural antilogarithm", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Integer(0)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Float(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Float(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("square root", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Float(1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Float(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sign", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(math.MaxInt64)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(math.MaxInt64)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Integer(0), &Compound{Functor: "sign", Args: []Term{Integer(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Integer(0), &Compound{Functor: "sign", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(-1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(-1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(math.MinInt64)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(math.MinInt64)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(math.MaxFloat64)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(math.MaxFloat64)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sign", Args: []Term{Float(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sign", Args: []Term{Float(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-math.MaxFloat64)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-math.MaxFloat64)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		var v Variable
-		ok, err = DefaultFunctionSet.Is(&v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, Done)
+		ok, err = DefaultFunctionSet.Is(&v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.True(t, math.IsNaN(float64(v.Ref.(Float))))
 	})
 
 	t.Run("float", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Float(1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Float(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("floor", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Float(1.1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Float(1.1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("natural logarithm", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Float(1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "log", Args: []Term{Float(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sine", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Integer(0)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Float(0)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Float(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("truncate", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Float(1.1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Float(1.1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("round", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Float(1.1)}}, Done)
+		ok, err = DefaultFunctionSet.Is(Float(1), &Compound{Functor: "round", Args: []Term{Float(1.1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("bit-shift right", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: ">>", Args: []Term{Integer(4), Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(2), &Compound{Functor: ">>", Args: []Term{Integer(4), Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Integer(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Integer(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Integer(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Integer(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("bit-shift left", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(8), &Compound{Functor: "<<", Args: []Term{Integer(4), Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(8), &Compound{Functor: "<<", Args: []Term{Integer(4), Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Integer(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Integer(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Integer(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Integer(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("bitwise and", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "/\\", Args: []Term{Integer(5), Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(1), &Compound{Functor: "/\\", Args: []Term{Integer(5), Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Integer(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Integer(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Integer(5), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Integer(5), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("bitwise or", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(5), &Compound{Functor: "\\/", Args: []Term{Integer(4), Integer(1)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(5), &Compound{Functor: "\\/", Args: []Term{Integer(4), Integer(1)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Integer(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Integer(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Integer(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Integer(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Float(1)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Float(1)}}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("bitwise complement", func(t *testing.T) {
-		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "\\", Args: []Term{Integer(0)}}, Done)
+		ok, err := DefaultFunctionSet.Is(Integer(-1), &Compound{Functor: "\\", Args: []Term{Integer(0)}}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\", Args: []Term{Float(0)}}, Done)
+		_, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\", Args: []Term{Float(0)}}, Done).Force()
 		assert.Error(t, err)
 	})
 }
 
 func TestFunctionSet_Equal(t *testing.T) {
-	ok, err := DefaultFunctionSet.Equal(Integer(1), Integer(1), Done)
+	ok, err := DefaultFunctionSet.Equal(Integer(1), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.Equal(Float(1), Integer(1), Done)
+	ok, err = DefaultFunctionSet.Equal(Float(1), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.Equal(Integer(1), Float(1), Done)
+	ok, err = DefaultFunctionSet.Equal(Integer(1), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.Equal(Float(1), Float(1), Done)
+	ok, err = DefaultFunctionSet.Equal(Float(1), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_LessThan(t *testing.T) {
-	ok, err := DefaultFunctionSet.LessThan(Integer(1), Integer(2), Done)
+	ok, err := DefaultFunctionSet.LessThan(Integer(1), Integer(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(Float(1), Integer(2), Done)
+	ok, err = DefaultFunctionSet.LessThan(Float(1), Integer(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(Integer(1), Float(2), Done)
+	ok, err = DefaultFunctionSet.LessThan(Integer(1), Float(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(Float(1), Float(2), Done)
+	ok, err = DefaultFunctionSet.LessThan(Float(1), Float(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_GreaterThan(t *testing.T) {
-	ok, err := DefaultFunctionSet.GreaterThan(Integer(2), Integer(1), Done)
+	ok, err := DefaultFunctionSet.GreaterThan(Integer(2), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Integer(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(Integer(2), Float(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThan(Integer(2), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Float(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThan(Float(2), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_LessThanOrEqual(t *testing.T) {
-	ok, err := DefaultFunctionSet.LessThanOrEqual(Integer(1), Integer(2), Done)
+	ok, err := DefaultFunctionSet.LessThanOrEqual(Integer(1), Integer(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(Float(1), Integer(2), Done)
+	ok, err = DefaultFunctionSet.LessThanOrEqual(Float(1), Integer(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(Integer(1), Float(2), Done)
+	ok, err = DefaultFunctionSet.LessThanOrEqual(Integer(1), Float(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(Float(1), Float(2), Done)
+	ok, err = DefaultFunctionSet.LessThanOrEqual(Float(1), Float(2), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_GreaterThanOrEqual(t *testing.T) {
-	ok, err := DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Integer(1), Done)
+	ok, err := DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Integer(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Integer(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Float(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Integer(2), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Float(1), Done)
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(Float(2), Float(1), Done).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
@@ -2781,7 +2778,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 			alias:     "null",
 			eofAction: "error",
 			typ:       "text",
-		}, &v, func() (b bool, err error) {
+		}, &v, func() Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("read")}}, v.Ref)
@@ -2805,8 +2802,8 @@ func TestEngine_StreamProperty(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return false, nil
-		})
+			return Bool(false)
+		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -2826,7 +2823,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 		}}
 		var v Variable
 		c := 0
-		ok, err := e.StreamProperty(Atom("null"), &v, func() (b bool, err error) {
+		ok, err := e.StreamProperty(Atom("null"), &v, func() Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
@@ -2850,21 +2847,21 @@ func TestEngine_StreamProperty(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return false, nil
-		})
+			return Bool(false)
+		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
 		var e Engine
-		_, err := e.StreamProperty(Atom("null"), &Variable{}, Done)
+		_, err := e.StreamProperty(Atom("null"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non stream", func(t *testing.T) {
 		var e Engine
-		_, err := e.StreamProperty(&Variable{}, &Variable{}, Done)
+		_, err := e.StreamProperty(&Variable{}, &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
@@ -2873,7 +2870,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 		ok, err := e.StreamProperty(&Stream{}, &Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("property")},
-		}, Done)
+		}, Done).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -2883,7 +2880,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 		ok, err := e.StreamProperty(&Stream{mode: "read"}, &Compound{
 			Functor: "mode",
 			Args:    []Term{Atom("read")},
-		}, Done)
+		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2893,7 +2890,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 		ok, err := e.StreamProperty(&Stream{mode: "read"}, &Compound{
 			Functor: "mode",
 			Args:    []Term{Atom("foo")},
-		}, Done)
+		}, Done).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -2902,7 +2899,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 func TestEngine_CharConversion(t *testing.T) {
 	t.Run("chars", func(t *testing.T) {
 		var e Engine
-		ok, err := e.CharConversion(Atom("a"), Atom("b"), Done)
+		ok, err := e.CharConversion(Atom("a"), Atom("b"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -2911,17 +2908,17 @@ func TestEngine_CharConversion(t *testing.T) {
 
 	t.Run("non atom", func(t *testing.T) {
 		var e Engine
-		_, err := e.CharConversion(&Variable{}, Atom("b"), Done)
+		_, err := e.CharConversion(&Variable{}, Atom("b"), Done).Force()
 		assert.Error(t, err)
-		_, err = e.CharConversion(Atom("a"), &Variable{}, Done)
+		_, err = e.CharConversion(Atom("a"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("non char", func(t *testing.T) {
 		var e Engine
-		_, err := e.CharConversion(Atom("abc"), Atom("b"), Done)
+		_, err := e.CharConversion(Atom("abc"), Atom("b"), Done).Force()
 		assert.Error(t, err)
-		_, err = e.CharConversion(Atom("a"), Atom("abc"), Done)
+		_, err = e.CharConversion(Atom("a"), Atom("abc"), Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -2931,7 +2928,7 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			t.Run("as is", func(t *testing.T) {
 				var e Engine
-				ok, err := e.CurrentCharConversion(Atom("a"), Atom("a"), Done)
+				ok, err := e.CurrentCharConversion(Atom("a"), Atom("a"), Done).Force()
 				assert.NoError(t, err)
 				assert.True(t, ok)
 			})
@@ -2942,7 +2939,7 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 						'a': 'b',
 					},
 				}}
-				ok, err := e.CurrentCharConversion(Atom("a"), Atom("b"), Done)
+				ok, err := e.CurrentCharConversion(Atom("a"), Atom("b"), Done).Force()
 				assert.NoError(t, err)
 				assert.True(t, ok)
 			})
@@ -2950,7 +2947,7 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 
 		t.Run("not a char", func(t *testing.T) {
 			var e Engine
-			_, err := e.CurrentCharConversion(Atom("abc"), &Variable{}, Done)
+			_, err := e.CurrentCharConversion(Atom("abc"), &Variable{}, Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -2960,7 +2957,7 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 
 		var x, y Variable
 		var r rune
-		ok, err := e.CurrentCharConversion(&x, &y, func() (bool, error) {
+		ok, err := e.CurrentCharConversion(&x, &y, func() Promise {
 			x, ok := x.Ref.(Atom)
 			assert.True(t, ok)
 			assert.Len(t, []rune(x), 1)
@@ -2972,8 +2969,8 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 			assert.Equal(t, r, []rune(x)[0])
 			assert.Equal(t, r, []rune(y)[0])
 			r++
-			return false, nil
-		})
+			return Bool(false)
+		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 		assert.Equal(t, rune(256), r)
@@ -2983,32 +2980,32 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 func TestEngine_SetPrologFlag(t *testing.T) {
 	t.Run("bounded", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("bounded"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("bounded"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("max_integer", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("max_integer"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("max_integer"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("min_integer", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("min_integer"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("min_integer"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("integer_rounding_function", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("integer_rounding_function"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("integer_rounding_function"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("char_conversion", func(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
 			var e Engine
-			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("on"), Done)
+			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("on"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.True(t, e.charConvEnabled)
@@ -3016,7 +3013,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("off", func(t *testing.T) {
 			e := Engine{EngineState{charConvEnabled: true}}
-			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("off"), Done)
+			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("off"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.False(t, e.charConvEnabled)
@@ -3024,13 +3021,13 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("non atom", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("char_conversion"), Integer(0), Done)
+			_, err := e.SetPrologFlag(Atom("char_conversion"), Integer(0), Done).Force()
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid value", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("char_conversion"), Atom("foo"), Done)
+			_, err := e.SetPrologFlag(Atom("char_conversion"), Atom("foo"), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -3038,7 +3035,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 	t.Run("debug", func(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
 			var e Engine
-			ok, err := e.SetPrologFlag(Atom("debug"), Atom("on"), Done)
+			ok, err := e.SetPrologFlag(Atom("debug"), Atom("on"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.True(t, e.debug)
@@ -3046,7 +3043,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("off", func(t *testing.T) {
 			e := Engine{EngineState{debug: true}}
-			ok, err := e.SetPrologFlag(Atom("debug"), Atom("off"), Done)
+			ok, err := e.SetPrologFlag(Atom("debug"), Atom("off"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.False(t, e.debug)
@@ -3054,27 +3051,27 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("non atom", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("debug"), Integer(0), Done)
+			_, err := e.SetPrologFlag(Atom("debug"), Integer(0), Done).Force()
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid value", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("debug"), Atom("foo"), Done)
+			_, err := e.SetPrologFlag(Atom("debug"), Atom("foo"), Done).Force()
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("max_arity", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("max_arity"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("max_arity"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			e := Engine{EngineState{unknown: unknownFail}}
-			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("error"), Done)
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("error"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownError, e.unknown)
@@ -3082,7 +3079,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("warning", func(t *testing.T) {
 			var e Engine
-			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("warning"), Done)
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("warning"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownWarning, e.unknown)
@@ -3090,7 +3087,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("fail", func(t *testing.T) {
 			var e Engine
-			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("fail"), Done)
+			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("fail"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownFail, e.unknown)
@@ -3098,26 +3095,26 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		t.Run("non atom", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("unknown"), Integer(0), Done)
+			_, err := e.SetPrologFlag(Atom("unknown"), Integer(0), Done).Force()
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid value", func(t *testing.T) {
 			var e Engine
-			_, err := e.SetPrologFlag(Atom("unknown"), Atom("foo"), Done)
+			_, err := e.SetPrologFlag(Atom("unknown"), Atom("foo"), Done).Force()
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("non atom flag", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Integer(0), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Integer(0), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 
 	t.Run("unknown flag", func(t *testing.T) {
 		var e Engine
-		_, err := e.SetPrologFlag(Atom("foobar"), &Variable{}, Done)
+		_, err := e.SetPrologFlag(Atom("foobar"), &Variable{}, Done).Force()
 		assert.Error(t, err)
 	})
 }
@@ -3126,35 +3123,35 @@ func TestEngine_CurrentPrologFlag(t *testing.T) {
 	var e Engine
 
 	t.Run("specified", func(t *testing.T) {
-		ok, err := e.CurrentPrologFlag(Atom("bounded"), Atom("true"), Done)
+		ok, err := e.CurrentPrologFlag(Atom("bounded"), Atom("true"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("max_integer"), Integer(math.MaxInt64), Done)
+		ok, err = e.CurrentPrologFlag(Atom("max_integer"), Integer(math.MaxInt64), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("min_integer"), Integer(math.MinInt64), Done)
+		ok, err = e.CurrentPrologFlag(Atom("min_integer"), Integer(math.MinInt64), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("integer_rounding_function"), Atom("toward_zero"), Done)
+		ok, err = e.CurrentPrologFlag(Atom("integer_rounding_function"), Atom("toward_zero"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("char_conversion"), Atom("off"), Done)
+		ok, err = e.CurrentPrologFlag(Atom("char_conversion"), Atom("off"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("debug"), Atom("off"), Done)
+		ok, err = e.CurrentPrologFlag(Atom("debug"), Atom("off"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("max_arity"), Atom("unbounded"), Done)
+		ok, err = e.CurrentPrologFlag(Atom("max_arity"), Atom("unbounded"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.CurrentPrologFlag(Atom("unknown"), Atom("error"), Done)
+		ok, err = e.CurrentPrologFlag(Atom("unknown"), Atom("error"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3162,7 +3159,7 @@ func TestEngine_CurrentPrologFlag(t *testing.T) {
 	t.Run("not specified", func(t *testing.T) {
 		var flag, value Variable
 		var c int
-		ok, err := e.CurrentPrologFlag(&flag, &value, func() (bool, error) {
+		ok, err := e.CurrentPrologFlag(&flag, &value, func() Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Atom("bounded"), flag.Ref)
@@ -3192,8 +3189,8 @@ func TestEngine_CurrentPrologFlag(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return false, nil
-		})
+			return Bool(false)
+		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 		assert.Equal(t, 8, c)

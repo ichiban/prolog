@@ -58,11 +58,11 @@ func main() {
 		log.Panic(err)
 	}
 	e.BeforeHalt = append(e.BeforeHalt, restore)
-	e.Register1("version", func(term prolog.Term, k func() (bool, error)) (bool, error) {
+	e.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
 		if !term.Unify(prolog.Atom(Version), false) {
-			return false, nil
+			return prolog.Bool(false)
 		}
-		return k()
+		return prolog.Delay(k)
 	})
 
 	for _, a := range pflag.Args() {

@@ -296,7 +296,7 @@ func (e *Engine) Exec(s string) error {
 			return err
 		}
 
-		if _, err := e.Assertz(t, Done); err != nil {
+		if _, err := e.Assertz(t, Done).Force(); err != nil {
 			return err
 		}
 	}
@@ -327,13 +327,13 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 
 	a := newAssignment(t)
 
-	return e.Call(t, func() (bool, error) {
-		return cb(a), nil
-	})
+	return e.Call(t, func() Promise {
+		return Bool(cb(a))
+	}).Force()
 }
 
 // Register0 registers a predicate of arity 0.
-func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, error)) {
+func (e *Engine) Register0(name string, p func(func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -341,7 +341,7 @@ func (e *Engine) Register0(name string, p func(func() (bool, error)) (bool, erro
 }
 
 // Register1 registers a predicate of arity 1.
-func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool, error)) {
+func (e *Engine) Register1(name string, p func(Term, func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -349,7 +349,7 @@ func (e *Engine) Register1(name string, p func(Term, func() (bool, error)) (bool
 }
 
 // Register2 registers a predicate of arity 2.
-func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error)) (bool, error)) {
+func (e *Engine) Register2(name string, p func(Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -357,7 +357,7 @@ func (e *Engine) Register2(name string, p func(Term, Term, func() (bool, error))
 }
 
 // Register3 registers a predicate of arity 3.
-func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, error)) (bool, error)) {
+func (e *Engine) Register3(name string, p func(Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -365,7 +365,7 @@ func (e *Engine) Register3(name string, p func(Term, Term, Term, func() (bool, e
 }
 
 // Register4 registers a predicate of arity 4.
-func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() (bool, error)) (bool, error)) {
+func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -373,7 +373,7 @@ func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() (b
 }
 
 // Register5 registers a predicate of arity 5.
-func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)) {
+func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
 		e.procedures = map[string]procedure{}
 	}
@@ -417,14 +417,10 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	Call(*EngineState, Term, func() (bool, error)) (bool, error)
+	Call(*EngineState, Term, func() Promise) Promise
 }
 
-func (e *EngineState) arrive(name string, args Term, k func() (bool, error)) (bool, error) {
-	logrus.WithFields(logrus.Fields{
-		"name": name,
-		"args": loggableTerm{term: args},
-	}).Debug("arrive")
+func (e *EngineState) arrive(name string, args Term, k func() Promise) (bool, error) {
 	p := e.procedures[name]
 	if p == nil {
 		switch e.unknown {
@@ -439,197 +435,141 @@ func (e *EngineState) arrive(name string, args Term, k func() (bool, error)) (bo
 			return false, fmt.Errorf("unknown unknown: %s", e.unknown)
 		}
 	}
-	ok, err := p.Call(e, args, k)
-	if errors.Is(err, errCut) {
-		return true, nil
-	}
-	return ok, err
+
+	// Bowen et al. say arrive/3 is "the entry point to the interpreter."
+	// So it might make sense to contain nondeterminism inside this function and return (bool, error) instead of Promise.
+	return p.Call(e, args, k).Force()
 }
 
-type loggableTerm struct {
-	term Term
-}
-
-func (l loggableTerm) String() string {
-	if l.term == nil {
-		return "nil"
-	}
-
-	opts := defaultWriteTermOptions
-	opts.Descriptive = true
-
-	var buf bytes.Buffer
-	_ = l.term.WriteTerm(&buf, opts)
-	return buf.String()
-}
-
-type loggableVars struct {
-	vars []*Variable
-}
-
-func (l loggableVars) String() string {
-	opts := defaultWriteTermOptions
-	opts.Descriptive = true
-
-	ret := make([]string, len(l.vars))
-	for i, v := range l.vars {
-		var buf bytes.Buffer
-		_ = v.WriteTerm(&buf, opts)
-		ret[i] = buf.String()
-	}
-	return fmt.Sprint(ret)
-}
-
-func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() (bool, error), args, astack Term) (bool, error) {
+func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, args, astack Term) Promise {
 	for len(pc) != 0 {
-		log := logrus.WithFields(logrus.Fields{
-			"xr":     xr,
-			"vars":   loggableVars{vars: vars},
-			"args":   loggableTerm{term: args},
-			"astack": loggableTerm{term: astack},
-		})
 		switch pc[0] {
 		case opVoid:
-			log.Debug("void")
 			pc = pc[1:]
 		case opConst:
-			log.Debugf("const %d", pc[1])
 			x := xr[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(x, &arest), false) {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[2:]
 			args = &arest
 		case opVar:
-			log.Debugf("var %d", pc[1])
 			v := vars[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(v, &arest), false) {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[2:]
 			args = &arest
 		case opFunctor:
-			log.Debugf("functor %d", pc[1])
 			x := xr[pc[1]]
 			var arg, arest Variable
 			if !args.Unify(Cons(&arg, &arest), false) {
-				return false, nil
+				return Bool(false)
 			}
 			var fatom, farity Variable
 			if !x.Unify(&Compound{
 				Functor: "/",
 				Args:    []Term{&fatom, &farity},
 			}, false) {
-				return false, nil
+				return Bool(false)
 			}
-			ok, err := Functor(&arg, &fatom, &farity, Done)
+			ok, err := Functor(&arg, &fatom, &farity, Done).Force()
 			if err != nil {
-				return false, err
+				return Error(err)
 			}
 			if !ok {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Univ(&arg, Cons(&fatom, args), Done)
+			ok, err = Univ(&arg, Cons(&fatom, args), Done).Force()
 			if err != nil {
-				return false, err
+				return Error(err)
 			}
 			if !ok {
-				return false, nil
+				return Bool(false)
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
-			log.Debug("pop")
 			if !args.Unify(List(), false) {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[1:]
 			var a, arest Variable
 			if !astack.Unify(Cons(&a, &arest), false) {
-				return false, nil
+				return Bool(false)
 			}
 			args = &a
 			astack = &arest
 		case opEnter:
-			log.Debug("enter")
 			if !args.Unify(List(), false) {
-				return false, nil
+				return Bool(false)
 			}
 			if !astack.Unify(List(), false) {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[1:]
 			var v Variable
 			args = &v
 			astack = &v
 		case opCall:
-			log.Debugf("call %d", pc[1])
 			x := xr[pc[1]]
 			if !args.Unify(List(), false) {
-				return false, nil
+				return Bool(false)
 			}
 			pc = pc[2:]
-			return e.arrive(x.String(), astack, func() (bool, error) {
+			ok, err := e.arrive(x.String(), astack, func() Promise {
 				var v Variable
-				return e.exec(pc, xr, vars, k, &v, &v)
+				return Delay(func() Promise {
+					return e.exec(pc, xr, vars, k, &v, &v)
+				})
 			})
+			if err != nil {
+				return Error(err)
+			}
+			return Bool(ok)
 		case opExit:
-			log.Debug("exit")
-			return k()
+			return Delay(k)
 		default:
-			return false, fmt.Errorf("unknown(%d)", pc[0])
+			return Error(fmt.Errorf("unknown(%d)", pc[0]))
 		}
 	}
-	return false, errors.New("non-exit end of bytecode")
+	return Error(errors.New("non-exit end of bytecode"))
 }
 
 type clauses []clause
 
-func (cs clauses) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (cs clauses) Call(e *EngineState, args Term, k func() Promise) Promise {
 	if len(cs) == 0 {
-		return false, nil
+		return Bool(false)
 	}
 
 	a := newAssignment(args)
 
-	log := logrus.WithFields(logrus.Fields{
-		"name": cs[0].name,
-		"args": args,
-	})
-
-	for i, c := range cs {
-		log = log.WithField("choice", i)
-
-		switch i {
-		case 0:
-			log.Info("call")
-		default:
-			log.Info("redo")
+	i := 0
+	var f func() Promise
+	f = func() Promise {
+		if i == len(cs) {
+			return Bool(false)
 		}
+		a.reset()
+
+		c := cs[i]
 
 		vars := make([]*Variable, len(c.vars))
 		for i := range c.vars {
 			vars[i] = &Variable{}
 		}
+		i++
 
-		ok, err := e.exec(c.bytecode, c.xrTable, vars, k, args, List())
-		if err != nil {
-			log.Info("exception")
-			return false, err
-		}
-		if ok {
-			log.Info("exit")
-			return true, nil
-		}
-
-		a.reset()
+		return Delay(func() Promise {
+			return e.exec(c.bytecode, c.xrTable, vars, k, args, List())
+		}, f)
 	}
 
-	log.Info("fail")
-	return false, nil
+	return Delay(f)
 }
 
 type clause struct {
@@ -791,79 +731,79 @@ func (b bytecode) String() string {
 	return strings.Join(ret, "; ")
 }
 
-type predicate0 func(func() (bool, error)) (bool, error)
+type predicate0 func(func() Promise) Promise
 
-func (p predicate0) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate0) Call(e *EngineState, args Term, k func() Promise) Promise {
 	if !args.Unify(List(), false) {
-		return false, errors.New("wrong number of arguments")
+		return Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(func() (bool, error) {
+	return p(func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate1 func(Term, func() (bool, error)) (bool, error)
+type predicate1 func(Term, func() Promise) Promise
 
-func (p predicate1) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate1) Call(e *EngineState, args Term, k func() Promise) Promise {
 	var v1 Variable
 	if !args.Unify(List(&v1), false) {
-		return false, fmt.Errorf("wrong number of arguments: %s", args)
+		return Error(fmt.Errorf("wrong number of arguments: %s", args))
 	}
 
-	return p(&v1, func() (bool, error) {
+	return p(&v1, func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate2 func(Term, Term, func() (bool, error)) (bool, error)
+type predicate2 func(Term, Term, func() Promise) Promise
 
-func (p predicate2) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate2) Call(e *EngineState, args Term, k func() Promise) Promise {
 	var v1, v2 Variable
 	if !args.Unify(List(&v1, &v2), false) {
-		return false, errors.New("wrong number of arguments")
+		return Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, func() (bool, error) {
+	return p(&v1, &v2, func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate3 func(Term, Term, Term, func() (bool, error)) (bool, error)
+type predicate3 func(Term, Term, Term, func() Promise) Promise
 
-func (p predicate3) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate3) Call(e *EngineState, args Term, k func() Promise) Promise {
 	var v1, v2, v3 Variable
 	if !args.Unify(List(&v1, &v2, &v3), false) {
-		return false, errors.New("wrong number of arguments")
+		return Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, func() (bool, error) {
+	return p(&v1, &v2, &v3, func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate4 func(Term, Term, Term, Term, func() (bool, error)) (bool, error)
+type predicate4 func(Term, Term, Term, Term, func() Promise) Promise
 
-func (p predicate4) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate4) Call(e *EngineState, args Term, k func() Promise) Promise {
 	var v1, v2, v3, v4 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4), false) {
-		return false, errors.New("wrong number of arguments")
+		return Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, &v4, func() (bool, error) {
+	return p(&v1, &v2, &v3, &v4, func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate5 func(Term, Term, Term, Term, Term, func() (bool, error)) (bool, error)
+type predicate5 func(Term, Term, Term, Term, Term, func() Promise) Promise
 
-func (p predicate5) Call(e *EngineState, args Term, k func() (bool, error)) (bool, error) {
+func (p predicate5) Call(e *EngineState, args Term, k func() Promise) Promise {
 	var v1, v2, v3, v4, v5 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4, &v5), false) {
-		return false, errors.New("wrong number of arguments")
+		return Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, &v4, &v5, func() (bool, error) {
+	return p(&v1, &v2, &v3, &v4, &v5, func() Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
@@ -871,7 +811,7 @@ func (p predicate5) Call(e *EngineState, args Term, k func() (bool, error)) (boo
 type assignment []*Variable
 
 func newAssignment(ts ...Term) assignment {
-	var a assignment
+	a := assignment{}
 	for _, t := range ts {
 		a.add(t)
 	}
@@ -899,7 +839,6 @@ func (a *assignment) add(t Term) {
 }
 
 func (a assignment) reset() {
-	logrus.WithField("vars", loggableVars{vars: a}).Debug("reset")
 	for _, v := range a {
 		v.Ref = nil
 	}
@@ -915,6 +854,6 @@ func (a assignment) contains(v *Variable) bool {
 }
 
 // Done terminates a continuation chain.
-func Done() (bool, error) {
-	return true, nil
+func Done() Promise {
+	return Bool(true)
 }

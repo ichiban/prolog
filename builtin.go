@@ -12,85 +12,80 @@ import (
 	"strings"
 )
 
-func (e *EngineState) Call(goal Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Call(goal Term, k func() Promise) Promise {
 	name, args, err := nameArgs(goal)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
-	return e.arrive(name, args, k)
+	ok, err := e.arrive(name, args, k)
+	if err != nil {
+		return Error(err)
+	}
+	return Bool(ok)
 }
 
-var errCut = errors.New("cut")
-
-func Cut(k func() (bool, error)) (bool, error) {
-	if _, err := k(); err != nil {
-		return false, err
-	}
-	return false, errCut
-}
-
-func Unify(t1, t2 Term, k func() (bool, error)) (bool, error) {
+func Unify(t1, t2 Term, k func() Promise) Promise {
 	a := newAssignment(t1, t2)
 	if !t1.Unify(t2, false) {
 		a.reset()
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func UnifyWithOccursCheck(t1, t2 Term, k func() (bool, error)) (bool, error) {
+func UnifyWithOccursCheck(t1, t2 Term, k func() Promise) Promise {
 	a := newAssignment(t1, t2)
 	if !t1.Unify(t2, true) {
 		a.reset()
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func TypeVar(t Term, k func() (bool, error)) (bool, error) {
+func TypeVar(t Term, k func() Promise) Promise {
 	if _, ok := Resolve(t).(*Variable); !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func TypeFloat(t Term, k func() (bool, error)) (bool, error) {
+func TypeFloat(t Term, k func() Promise) Promise {
 	if _, ok := Resolve(t).(Float); !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func TypeInteger(t Term, k func() (bool, error)) (bool, error) {
+func TypeInteger(t Term, k func() Promise) Promise {
 	if _, ok := Resolve(t).(Integer); !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func TypeAtom(t Term, k func() (bool, error)) (bool, error) {
+func TypeAtom(t Term, k func() Promise) Promise {
 	if _, ok := Resolve(t).(Atom); !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func TypeCompound(t Term, k func() (bool, error)) (bool, error) {
+func TypeCompound(t Term, k func() Promise) Promise {
 	if _, ok := Resolve(t).(*Compound); !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
+func Functor(term, name, arity Term, k func() Promise) Promise {
 	var v *Variable
 	for v == nil {
 		switch t := term.(type) {
 		case Atom:
 			if !t.Unify(name, false) || !Integer(0).Unify(arity, false) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		case *Variable:
 			if t.Ref == nil {
 				v = t
@@ -99,11 +94,11 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 			term = t.Ref
 		case *Compound:
 			if !t.Functor.Unify(name, false) || !Integer(len(t.Args)).Unify(arity, false) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		default:
-			return false, nil
+			return Bool(false)
 		}
 	}
 
@@ -114,11 +109,11 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 			n = &t
 		case *Variable:
 			if t.Ref == nil {
-				return false, errors.New("invalid arguments: atom is not instantiated")
+				return Error(errors.New("invalid arguments: atom is not instantiated"))
 			}
 			name = t.Ref
 		default:
-			return false, fmt.Errorf("invalid arguments: name is %T", name)
+			return Error(fmt.Errorf("invalid arguments: name is %T", name))
 		}
 	}
 
@@ -129,19 +124,19 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 			a = &t
 		case *Variable:
 			if t.Ref == nil {
-				return false, errors.New("invalid arguments")
+				return Error(errors.New("invalid arguments"))
 			}
 			arity = t.Ref
 		default:
-			return false, errors.New("invalid arguments")
+			return Error(errors.New("invalid arguments"))
 		}
 	}
 
 	if *a == 0 {
 		if !v.Unify(*a, false) {
-			return false, nil
+			return Bool(false)
 		}
-		return k()
+		return Delay(k)
 	}
 
 	vars := make([]Term, *a)
@@ -154,49 +149,45 @@ func Functor(term, name, arity Term, k func() (bool, error)) (bool, error) {
 		Functor: *n,
 		Args:    vars,
 	}, false) {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func Arg(arg, term, value Term, k func() (bool, error)) (bool, error) {
+func Arg(arg, term, value Term, k func() Promise) Promise {
 	c, ok := Resolve(term).(*Compound)
 	if !ok {
-		return false, errors.New("term should be compound")
+		return Error(errors.New("term should be compound"))
 	}
 
 	n, ok := Resolve(arg).(Integer)
 	if !ok {
+		pattern := Compound{Args: []Term{arg, value}}
 		a := newAssignment(arg, term, value)
+		ks := make([]func() Promise, len(c.Args))
 		for i, t := range c.Args {
-			if arg.Unify(Integer(i+1), false) && value.Unify(t, false) {
-				ok, err := k()
-				if err != nil {
-					return false, err
-				}
-				if ok {
-					return true, nil
-				}
+			ks[i] = func() Promise {
+				defer a.reset()
+				return Unify(&pattern, &Compound{Args: []Term{Integer(i + 1), t}}, k)
 			}
-			a.reset()
 		}
-		return false, nil
+		return Delay(ks...)
 	}
 	if n == 0 || int(n) >= len(c.Args) {
-		return false, nil
+		return Bool(false)
 	}
 	if n < 0 {
-		return false, errors.New("arg shouldn't be negative")
+		return Error(errors.New("arg shouldn't be negative"))
 	}
 
 	if !c.Args[int(n)-1].Unify(value, false) {
-		return false, nil
+		return Bool(false)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func Univ(term, list Term, k func() (bool, error)) (bool, error) {
+func Univ(term, list Term, k func() Promise) Promise {
 	var c *Compound
 	for c == nil {
 		switch t := term.(type) {
@@ -204,7 +195,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 			if t.Ref == nil {
 				var car, cdr Variable
 				if !list.Unify(Cons(&car, &cdr), false) {
-					return false, errors.New("invalid argument")
+					return Error(errors.New("invalid argument"))
 				}
 				var f *Atom
 				for f == nil {
@@ -213,11 +204,11 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 						f = &t
 					case *Variable:
 						if t.Ref == nil {
-							return false, errors.New("invalid argument")
+							return Error(errors.New("invalid argument"))
 						}
 						car.Ref = t.Ref
 					default:
-						return false, errors.New("invalid argument")
+						return Error(errors.New("invalid argument"))
 					}
 				}
 
@@ -227,7 +218,7 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 				for list != Atom("[]") {
 					var car, cdr Variable
 					if !list.Unify(Cons(&car, &cdr), false) {
-						return false, errors.New("invalid argument")
+						return Error(errors.New("invalid argument"))
 					}
 					args = append(args, car.Ref)
 					list = cdr.Ref
@@ -237,15 +228,15 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 					Functor: *f,
 					Args:    args,
 				}, false) {
-					return false, nil
+					return Bool(false)
 				}
-				return k()
+				return Delay(k)
 			}
 			term = t.Ref
 		case *Compound:
 			c = t
 		default:
-			return false, errors.New("invalid argument")
+			return Error(errors.New("invalid argument"))
 		}
 	}
 
@@ -254,29 +245,29 @@ func Univ(term, list Term, k func() (bool, error)) (bool, error) {
 		l = Cons(c.Args[i], l)
 	}
 	if !list.Unify(Cons(c.Functor, l), false) {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func CopyTerm(in, out Term, k func() (bool, error)) (bool, error) {
+func CopyTerm(in, out Term, k func() Promise) Promise {
 	return Unify(in.Copy(), out, k)
 }
 
-func (e *EngineState) Op(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Op(precedence, typ, name Term, k func() Promise) Promise {
 	p, ok := Resolve(precedence).(Integer)
 	if !ok {
-		return false, fmt.Errorf("invalid precedence: %s", precedence)
+		return Error(fmt.Errorf("invalid precedence: %s", precedence))
 	}
 
 	t, ok := Resolve(typ).(Atom)
 	if !ok {
-		return false, fmt.Errorf("invalid type: %s", typ)
+		return Error(fmt.Errorf("invalid type: %s", typ))
 	}
 
 	n, ok := Resolve(name).(Atom)
 	if !ok {
-		return false, fmt.Errorf("invalid name: %s", name)
+		return Error(fmt.Errorf("invalid name: %s", name))
 	}
 
 	// already defined?
@@ -292,7 +283,7 @@ func (e *EngineState) Op(precedence, typ, name Term, k func() (bool, error)) (bo
 
 		// or keep it removed.
 		if p == 0 {
-			return k()
+			return Delay(k)
 		}
 	}
 
@@ -308,44 +299,38 @@ func (e *EngineState) Op(precedence, typ, name Term, k func() (bool, error)) (bo
 		Name:       n,
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) CurrentOp(precedence, typ, name Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentOp(precedence, typ, name Term, k func() Promise) Promise {
+	pattern := Compound{Args: []Term{precedence, typ, name}}
 	a := newAssignment(precedence, typ, name)
-
-	for _, op := range e.operators {
-		if op.Precedence.Unify(precedence, false) && op.Type.Unify(typ, false) && op.Name.Unify(name, false) {
-			ok, err := k()
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
+	ks := make([]func() Promise, len(e.operators))
+	for i, op := range e.operators {
+		ks[i] = func() Promise {
+			a.reset()
+			return Unify(&pattern, &Compound{Args: []Term{op.Precedence, op.Type, op.Name}}, k)
 		}
-		a.reset()
 	}
-
-	return false, nil
+	return Delay(ks...)
 }
 
-func (e *EngineState) Assertz(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Assertz(t Term, k func() Promise) Promise {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(cs, c)
 	})
 }
 
-func (e *EngineState) Asserta(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Asserta(t Term, k func() Promise) Promise {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(clauses{c}, cs...)
 	})
 }
 
-func (e *EngineState) assert(t Term, k func() (bool, error), merge func(clauses, clause) clauses) (bool, error) {
+func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
 	name, args, err := nameArgs(t)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	switch name {
@@ -354,19 +339,19 @@ func (e *EngineState) assert(t Term, k func() (bool, error), merge func(clauses,
 		args.Unify(Cons(&d, &Variable{}), false)
 		name, args, err := nameArgs(&d)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		ok, err := e.arrive(name, args, k)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
-		return ok, nil
+		return Bool(ok)
 	case "(:-)/2":
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}), false)
 		name, _, err = nameArgs(&h)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
@@ -380,15 +365,15 @@ func (e *EngineState) assert(t Term, k func() (bool, error), merge func(clauses,
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return false, errors.New("builtin")
+		return Error(errors.New("builtin"))
 	}
 	c := clause{name: name}
 	if err := c.compile(t); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	e.procedures[name] = merge(cs, c)
-	return k()
+	return Delay(k)
 }
 
 func nameArgs(t Term) (string, Term, error) {
@@ -402,27 +387,27 @@ func nameArgs(t Term) (string, Term, error) {
 	}
 }
 
-func Repeat(k func() (bool, error)) (bool, error) {
+func Repeat(k func() Promise) Promise {
 	for {
-		ok, err := k()
+		ok, err := k().Force()
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		if ok {
-			return true, nil
+			return Bool(true)
 		}
 	}
 }
 
-func (e *EngineState) BagOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) BagOf(template, goal, bag Term, k func() Promise) Promise {
 	return e.collectionOf(template, goal, bag, k, List)
 }
 
-func (e *EngineState) SetOf(template, goal, bag Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetOf(template, goal, bag Term, k func() Promise) Promise {
 	return e.collectionOf(template, goal, bag, k, Set)
 }
 
-func (e *EngineState) collectionOf(template, goal, collection Term, k func() (bool, error), agg func(...Term) Term) (bool, error) {
+func (e *EngineState) collectionOf(template, goal, collection Term, k func() Promise, agg func(...Term) Term) Promise {
 	var qualifier, body Variable
 	if goal.Unify(&Compound{
 		Functor: "^",
@@ -448,7 +433,7 @@ func (e *EngineState) collectionOf(template, goal, collection Term, k func() (bo
 	}
 
 	var solutions []solution
-	_, err := e.Call(goal, func() (bool, error) {
+	_, err := e.Call(goal, func() Promise {
 		snapshots := make([]Term, len(groupingVariables))
 		for i, v := range groupingVariables {
 			snapshots[i] = v.Ref
@@ -457,56 +442,53 @@ func (e *EngineState) collectionOf(template, goal, collection Term, k func() (bo
 	solutions:
 		for i, s := range solutions {
 			for i := range groupingVariables {
-				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Done)
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Done).Force()
 				if err != nil {
-					return false, err
+					return Error(err)
 				}
 				if !ok {
 					continue solutions
 				}
 			}
 			solutions[i].bag = append(s.bag, template.Copy())
-			return false, nil // ask for more solutions
+			return Bool(false) // ask for more solutions
 		}
 
 		solutions = append(solutions, solution{
 			snapshots: snapshots,
 			bag:       []Term{template.Copy()},
 		})
-		return false, nil // ask for more solutions
-	})
+		return Bool(false) // ask for more solutions
+	}).Force()
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
+	freeVariables.reset()
+
 	if len(solutions) == 0 {
-		return false, nil
+		return Bool(false)
 	}
 
 	b := newAssignment(collection)
-	for _, s := range solutions {
-		// revert to snapshot
-		for i, v := range groupingVariables {
-			v.Ref = s.snapshots[i]
-		}
+	ks := make([]func() Promise, len(solutions))
+	for i := range solutions {
+		s := solutions[i]
+		ks[i] = func() Promise {
+			b.reset()
 
-		if collection.Unify(agg(s.bag...), false) {
-			ok, err := k()
-			if err != nil {
-				return false, err
+			// revert to snapshot
+			for i, v := range groupingVariables {
+				v.Ref = s.snapshots[i]
 			}
-			if ok {
-				return ok, nil
-			}
-		}
 
-		b.reset()
+			return Unify(collection, agg(s.bag...), k)
+		}
 	}
-
-	return false, nil
+	return Delay(ks...)
 }
 
-func Compare(order, term1, term2 Term, k func() (bool, error)) (bool, error) {
+func Compare(order, term1, term2 Term, k func() Promise) Promise {
 	d := compare(term1, term2)
 	switch {
 	case d < 0:
@@ -516,7 +498,7 @@ func Compare(order, term1, term2 Term, k func() (bool, error)) (bool, error) {
 	case d > 0:
 		return Unify(Atom(">"), order, k)
 	default:
-		return false, errors.New("unreachable")
+		return Error(errors.New("unreachable"))
 	}
 }
 
@@ -606,72 +588,66 @@ func (e *Exception) Error() string {
 	return e.String()
 }
 
-func Throw(t Term, _ func() (bool, error)) (bool, error) {
-	return false, &Exception{Term: Resolve(t).Copy()}
+func Throw(t Term, _ func() Promise) Promise {
+	return Error(&Exception{Term: Resolve(t).Copy()})
 }
 
-func (e *EngineState) Catch(goal, catcher, recover Term, k func() (bool, error)) (bool, error) {
-	ok, err := e.Call(goal, Done)
+func (e *EngineState) Catch(goal, catcher, recover Term, k func() Promise) Promise {
+	ok, err := e.Call(goal, Done).Force()
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
 			return e.Call(recover, k)
 		}
-		return false, err
+		return Error(err)
 	}
 	if !ok {
-		return false, nil
+		return Bool(false)
 	}
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) CurrentPredicate(pf Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentPredicate(pf Term, k func() Promise) Promise {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
 
 	a := newAssignment(pf)
+	ks := make([]func() Promise, 0, len(e.procedures))
 	for key := range e.procedures {
 		p := NewParser(bufio.NewReader(strings.NewReader(key)), &Operators{
 			{Precedence: 400, Type: "yfx", Name: "/"},
 		}, conv)
 		t, err := p.Term()
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
-		if pf.Unify(t, false) {
-			ok, err := k()
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
-		}
-
-		a.reset()
+		ks = append(ks, func() Promise {
+			a.reset()
+			return Unify(pf, t, k)
+		})
 	}
-	return false, nil
+	return Delay(ks...)
 }
 
-func (e *EngineState) Retract(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
 	name, _, err := nameArgs(h)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	p, ok := e.procedures[name]
 	if !ok {
-		return false, nil
+		return Bool(false)
 	}
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return false, errors.New("not retractable")
+		return Error(errors.New("not retractable"))
 	}
 
 	updated := make(clauses, 0, len(cs))
@@ -687,61 +663,65 @@ func (e *EngineState) Retract(t Term, k func() (bool, error)) (bool, error) {
 			continue
 		}
 
-		ok, err := k()
+		ok, err := k().Force()
 		if err != nil {
 			updated = append(updated, cs[i+1:]...)
 			a.reset()
-			return false, err
+			return Error(err)
 		}
 		if ok {
 			updated = append(updated, cs[i+1:]...)
 			a.reset()
-			return true, nil
+			return Bool(true)
 		}
 
 		a.reset()
 	}
 
-	return false, nil
+	return Bool(false)
 }
 
-func (e *EngineState) Abolish(t Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Abolish(t Term, k func() Promise) Promise {
 	delete(e.procedures, t.String())
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) CurrentInput(stream Term, k func() (bool, error)) (bool, error) {
-	return Unify(stream, e.input, k)
+func (e *EngineState) CurrentInput(stream Term, k func() Promise) Promise {
+	return Delay(func() Promise {
+		return Unify(stream, e.input, k)
+	})
 }
 
-func (e *EngineState) CurrentOutput(stream Term, k func() (bool, error)) (bool, error) {
-	return Unify(stream, e.output, k)
+func (e *EngineState) CurrentOutput(stream Term, k func() Promise) Promise {
+	return Delay(func() Promise {
+		return Unify(stream, e.output, k)
+	})
 }
 
-func (e *EngineState) SetInput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetInput(stream Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 	e.input = s
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) SetOutput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetOutput(stream Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 	e.output = s
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) Open(filename, mode, stream, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Open(filename, mode, stream, options Term, k func() Promise) Promise {
 	filename, mode, options = Resolve(filename), Resolve(mode), Resolve(options)
 
 	n, ok := filename.(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
 	var (
@@ -765,7 +745,7 @@ func (e *EngineState) Open(filename, mode, stream, options Term, k func() (bool,
 		flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 		perm = 0644
 	default:
-		return false, errors.New("unknown mode")
+		return Error(errors.New("unknown mode"))
 	}
 
 	if err := Each(options, func(option Term) error {
@@ -800,12 +780,12 @@ func (e *EngineState) Open(filename, mode, stream, options Term, k func() (bool,
 		}
 		return nil
 	}); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	f, err := os.OpenFile(string(n), flag, perm)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	s := Stream{
@@ -835,13 +815,15 @@ func (e *EngineState) Open(filename, mode, stream, options Term, k func() (bool,
 		e.streams[alias] = &s
 	}
 
-	return Unify(stream, &s, k)
+	return Delay(func() Promise {
+		return Unify(stream, &s, k)
+	})
 }
 
-func (e *EngineState) Close(stream, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Close(stream, options Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	var force bool
@@ -856,20 +838,20 @@ func (e *EngineState) Close(stream, options Term, k func() (bool, error)) (bool,
 		}
 		return nil
 	}); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if err := s.Close(); err != nil && !force {
-		return false, err
+		return Error(err)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) FlushOutput(stream Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) FlushOutput(stream Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	type flusher interface {
@@ -878,17 +860,17 @@ func (e *EngineState) FlushOutput(stream Term, k func() (bool, error)) (bool, er
 
 	if f, ok := s.Writer.(flusher); ok {
 		if err := f.Flush(); err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) WriteTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) WriteTerm(stream, term, options Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	opts := WriteTermOptions{Ops: e.operators}
@@ -911,76 +893,80 @@ func (e *EngineState) WriteTerm(stream, term, options Term, k func() (bool, erro
 		}
 		return nil
 	}); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if err := Resolve(term).WriteTerm(s, opts); err != nil {
-		return false, err
+		return Error(err)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func CharCode(char, code Term, k func() (bool, error)) (bool, error) {
+func CharCode(char, code Term, k func() Promise) Promise {
 	char, code = Resolve(char), Resolve(code)
 
 	if c, ok := char.(Atom); ok {
 		rs := []rune(c)
 		if len(rs) != 1 {
-			return false, errors.New("not a character")
+			return Error(errors.New("not a character"))
 		}
 
-		return Unify(code, Integer(rs[0]), k)
+		return Delay(func() Promise {
+			return Unify(code, Integer(rs[0]), k)
+		})
 	}
 
 	c, ok := code.(Integer)
 	if !ok {
-		return false, errors.New("not a code")
+		return Error(errors.New("not a code"))
 	}
 
-	return Unify(char, Atom(rune(c)), k)
+	return Delay(func() Promise {
+		return Unify(char, Atom(rune(c)), k)
+	})
 }
 
-func (e *EngineState) PutByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PutByte(stream, byt Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	b, ok := Resolve(byt).(Integer)
 	if !ok || 0 > b || 255 < b {
-		return false, errors.New("not a byte")
+		return Error(errors.New("not a byte"))
 	}
 
 	if _, err := s.Write([]byte{byte(b)}); err != nil {
-		return false, err
+		return Error(err)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) PutCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PutCode(stream, code Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	c, ok := Resolve(code).(Integer)
 	if !ok {
-		return false, errors.New("not an integer")
+		return Error(errors.New("not an integer"))
 	}
 
 	if _, err := s.Write([]byte(string(rune(c)))); err != nil {
-		return false, err
+		return Error(err)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) ReadTerm(stream, term, options Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) ReadTerm(stream, term, options Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	var opts readTermOptions
@@ -998,12 +984,12 @@ func (e *EngineState) ReadTerm(stream, term, options Term, k func() (bool, error
 		}
 		return nil
 	}); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	br, ok := s.Reader.(*bufio.Reader)
 	if !ok {
-		return false, errors.New("not a buffered stream")
+		return Error(errors.New("not a buffered stream"))
 	}
 
 	var conv map[rune]rune
@@ -1014,7 +1000,7 @@ func (e *EngineState) ReadTerm(stream, term, options Term, k func() (bool, error
 
 	t, err := p.Clause()
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	var singletons, variables, variableNames []Term
@@ -1031,123 +1017,141 @@ func (e *EngineState) ReadTerm(stream, term, options Term, k func() (bool, error
 	}
 
 	if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
-		return false, nil
+		return Bool(false)
 	}
 
 	if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
-		return false, nil
+		return Bool(false)
 	}
 
 	if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
-		return false, nil
+		return Bool(false)
 	}
 
-	return Unify(term, t, k)
+	return Delay(func() Promise {
+		return Unify(term, t, k)
+	})
 }
 
-func (e *EngineState) GetByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) GetByte(stream, byt Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	b := make([]byte, 1)
 	_, err = s.Read(b)
 	switch err {
 	case nil:
-		return Unify(byt, Integer(b[0]), k)
+		return Delay(func() Promise {
+			return Unify(byt, Integer(b[0]), k)
+		})
 	case io.EOF:
-		return Unify(byt, Integer(-1), k)
+		return Delay(func() Promise {
+			return Unify(byt, Integer(-1), k)
+		})
 	default:
-		return false, err
+		return Error(err)
 	}
 }
 
-func (e *EngineState) GetCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) GetCode(stream, code Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if s.Reader == nil {
-		return false, errors.New("not an input stream")
+		return Error(errors.New("not an input stream"))
 	}
 
 	br, ok := s.Reader.(*bufio.Reader)
 	if !ok {
-		return false, errors.New("not a buffered stream")
+		return Error(errors.New("not a buffered stream"))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
-		return Unify(code, Integer(r), k)
+		return Delay(func() Promise {
+			return Unify(code, Integer(r), k)
+		})
 	case io.EOF:
-		return Unify(code, Integer(-1), k)
+		return Delay(func() Promise {
+			return Unify(code, Integer(-1), k)
+		})
 	default:
-		return false, err
+		return Error(err)
 	}
 }
 
-func (e *EngineState) PeekByte(stream, byt Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PeekByte(stream, byt Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if s.Reader == nil {
-		return false, errors.New("not an input stream")
+		return Error(errors.New("not an input stream"))
 	}
 
 	br, ok := s.Reader.(*bufio.Reader)
 	if !ok {
-		return false, errors.New("not a buffered stream")
+		return Error(errors.New("not a buffered stream"))
 	}
 
 	b, err := br.Peek(1)
 	switch err {
 	case nil:
-		return Unify(byt, Integer(b[0]), k)
+		return Delay(func() Promise {
+			return Unify(byt, Integer(b[0]), k)
+		})
 	case io.EOF:
-		return Unify(byt, Integer(-1), k)
+		return Delay(func() Promise {
+			return Unify(byt, Integer(-1), k)
+		})
 	default:
-		return false, err
+		return Error(err)
 	}
 }
 
-func (e *EngineState) PeekCode(stream, code Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) PeekCode(stream, code Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if s.Reader == nil {
-		return false, errors.New("not an input stream")
+		return Error(errors.New("not an input stream"))
 	}
 
 	br, ok := s.Reader.(*bufio.Reader)
 	if !ok {
-		return false, errors.New("not a buffered stream")
+		return Error(errors.New("not a buffered stream"))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
 		if err := br.UnreadRune(); err != nil {
-			return false, err
+			return Error(err)
 		}
-		return Unify(code, Integer(r), k)
+		return Delay(func() Promise {
+			return Unify(code, Integer(r), k)
+		})
 	case io.EOF:
-		return Unify(code, Integer(-1), k)
+		return Delay(func() Promise {
+			return Unify(code, Integer(-1), k)
+		})
 	default:
-		return false, err
+		return Error(err)
 	}
 }
 
-func (e *EngineState) Halt(n Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Halt(n Term, k func() Promise) Promise {
 	code, ok := Resolve(n).(Integer)
 	if !ok {
-		return false, errors.New("not an integer")
+		return Error(errors.New("not an integer"))
 	}
 
 	for _, f := range e.BeforeHalt {
@@ -1156,16 +1160,13 @@ func (e *EngineState) Halt(n Term, k func() (bool, error)) (bool, error) {
 
 	os.Exit(int(code))
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) Clause(head, body Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) Clause(head, body Term, k func() Promise) Promise {
 	head, body = Resolve(head), Resolve(body)
+	pattern := &Compound{Functor: ":-", Args: []Term{head, body}}
 	a := newAssignment(head, body)
-	pattern := &Compound{
-		Functor: ":-",
-		Args:    []Term{head, body},
-	}
 
 	for _, p := range e.procedures {
 		cs, ok := p.(clauses)
@@ -1173,96 +1174,86 @@ func (e *EngineState) Clause(head, body Term, k func() (bool, error)) (bool, err
 			continue
 		}
 
-		for _, c := range cs {
-			ok, err := Unify(pattern, Rulify(c.raw), k)
-			if err != nil {
-				return false, err
+		ks := make([]func() Promise, len(cs))
+		for i, c := range cs {
+			ks[i] = func() Promise {
+				a.reset()
+				return Unify(pattern, Rulify(c.raw), k)
 			}
-			if ok {
-				return true, nil
-			}
-			a.reset()
 		}
+		return Delay(ks...)
 	}
 
-	return false, nil
+	return Bool(false)
 }
 
-func AtomLength(atom, integer Term, k func() (bool, error)) (bool, error) {
+func AtomLength(atom, integer Term, k func() Promise) Promise {
 	a, ok := Resolve(atom).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
-	return Unify(integer, Integer(len([]rune(a))), k)
+	return Delay(func() Promise {
+		return Unify(integer, Integer(len([]rune(a))), k)
+	})
 }
 
-func AtomConcat(atom1, atom2, atom3 Term, k func() (bool, error)) (bool, error) {
+func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 	if a1, ok := Resolve(atom1).(Atom); ok {
 		if a2, ok := Resolve(atom2).(Atom); ok {
-			return Unify(a1+a2, atom3, k)
+			return Delay(func() Promise {
+				return Unify(a1+a2, atom3, k)
+			})
 		}
 	}
 
 	a3, ok := Resolve(atom3).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
-	pattern := Compound{
-		Args: []Term{atom1, atom2},
-	}
+	pattern := Compound{Args: []Term{atom1, atom2}}
 	a := newAssignment(atom1, atom2)
+	ks := make([]func() Promise, 0, len(a3)+1)
 	for i := range a3 {
-		ok, err := Unify(&pattern, &Compound{
-			Args: []Term{a3[:i], a3[i:]},
-		}, k)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return ok, nil
-		}
-		a.reset()
+		a1, a2 := a3[:i], a3[i:]
+		ks = append(ks, func() Promise {
+			a.reset()
+			return Unify(&pattern, &Compound{Args: []Term{a1, a2}}, k)
+		})
 	}
+	ks = append(ks, func() Promise {
+		a.reset()
+		return Unify(&pattern, &Compound{Args: []Term{a3, Atom("")}}, k)
+	})
 
-	return Unify(&pattern, &Compound{
-		Args: []Term{a3, Atom("")},
-	}, k)
+	return Delay(ks...)
 }
 
-func SubAtom(atom, before, length, after, subAtom Term, k func() (bool, error)) (bool, error) {
+func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promise {
 	whole, ok := Resolve(atom).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
-	}
-
-	a := newAssignment(before, length, after, subAtom)
-
-	pattern := Compound{
-		Args: []Term{before, length, after, subAtom},
+		return Error(errors.New("not an atom"))
 	}
 
 	rs := []rune(whole)
+
+	pattern := Compound{Args: []Term{before, length, after, subAtom}}
+	a := newAssignment(before, length, after, subAtom)
+	var ks []func() Promise
 	for i := 0; i <= len(rs); i++ {
 		for j := i; j <= len(rs); j++ {
-			ok, err := Unify(&pattern, &Compound{
-				Args: []Term{Integer(i), Integer(j - i), Integer(len(rs) - j), Atom(rs[i:j])},
-			}, k)
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
-			a.reset()
+			before, length, after, subAtom := Integer(i), Integer(j-i), Integer(len(rs)-j), Atom(rs[i:j])
+			ks = append(ks, func() Promise {
+				a.reset()
+				return Unify(&pattern, &Compound{Args: []Term{before, length, after, subAtom}}, k)
+			})
 		}
 	}
-
-	return false, nil
+	return Delay(ks...)
 }
 
-func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
+func AtomChars(atom, chars Term, k func() Promise) Promise {
 	a, ok := Resolve(atom).(Atom)
 	if !ok {
 		var sb strings.Builder
@@ -1274,9 +1265,11 @@ func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
 			_, err := sb.WriteString(string(e))
 			return err
 		}); err != nil {
-			return false, err
+			return Error(err)
 		}
-		return Unify(atom, Atom(sb.String()), k)
+		return Delay(func() Promise {
+			return Unify(atom, Atom(sb.String()), k)
+		})
 	}
 
 	rs := []rune(a)
@@ -1284,10 +1277,12 @@ func AtomChars(atom, chars Term, k func() (bool, error)) (bool, error) {
 	for i, r := range rs {
 		cs[i] = Atom(r)
 	}
-	return Unify(chars, List(cs...), k)
+	return Delay(func() Promise {
+		return Unify(chars, List(cs...), k)
+	})
 }
 
-func AtomCodes(atom, codes Term, k func() (bool, error)) (bool, error) {
+func AtomCodes(atom, codes Term, k func() Promise) Promise {
 	a, ok := Resolve(atom).(Atom)
 	if !ok {
 		var sb strings.Builder
@@ -1299,9 +1294,11 @@ func AtomCodes(atom, codes Term, k func() (bool, error)) (bool, error) {
 			_, err := sb.WriteRune(rune(e))
 			return err
 		}); err != nil {
-			return false, err
+			return Error(err)
 		}
-		return Unify(atom, Atom(sb.String()), k)
+		return Delay(func() Promise {
+			return Unify(atom, Atom(sb.String()), k)
+		})
 	}
 
 	rs := []rune(a)
@@ -1309,22 +1306,26 @@ func AtomCodes(atom, codes Term, k func() (bool, error)) (bool, error) {
 	for i, r := range rs {
 		cs[i] = Integer(r)
 	}
-	return Unify(codes, List(cs...), k)
+	return Delay(func() Promise {
+		return Unify(codes, List(cs...), k)
+	})
 }
 
-func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
+func NumberChars(num, chars Term, k func() Promise) Promise {
 	switch n := Resolve(num).(type) {
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
-			return false, err
+			return Error(err)
 		}
 		rs := []rune(buf.String())
 		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Atom(r)
 		}
-		return Unify(chars, List(cs...), k)
+		return Delay(func() Promise {
+			return Unify(chars, List(cs...), k)
+		})
 	default:
 		var sb strings.Builder
 		if err := Each(Resolve(chars), func(elem Term) error {
@@ -1335,37 +1336,41 @@ func NumberChars(num, chars Term, k func() (bool, error)) (bool, error) {
 			_, err := sb.WriteString(string(e))
 			return err
 		}); err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		switch t := t.(type) {
 		case Integer, Float:
-			return Unify(num, t, k)
+			return Delay(func() Promise {
+				return Unify(num, t, k)
+			})
 		default:
-			return false, errors.New("not a number")
+			return Error(errors.New("not a number"))
 		}
 	}
 }
 
-func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
+func NumberCodes(num, chars Term, k func() Promise) Promise {
 	switch n := Resolve(num).(type) {
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
-			return false, err
+			return Error(err)
 		}
 		rs := []rune(buf.String())
 		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Integer(r)
 		}
-		return Unify(chars, List(cs...), k)
+		return Delay(func() Promise {
+			return Unify(chars, List(cs...), k)
+		})
 	default:
 		var sb strings.Builder
 		if err := Each(Resolve(chars), func(elem Term) error {
@@ -1376,20 +1381,22 @@ func NumberCodes(num, chars Term, k func() (bool, error)) (bool, error) {
 			_, err := sb.WriteRune(rune(e))
 			return err
 		}); err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
 		t, err := p.Term()
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		switch t := t.(type) {
 		case Integer, Float:
-			return Unify(num, t, k)
+			return Delay(func() Promise {
+				return Unify(num, t, k)
+			})
 		default:
-			return false, errors.New("not a number")
+			return Error(errors.New("not a number"))
 		}
 	}
 }
@@ -1399,15 +1406,17 @@ type FunctionSet struct {
 	Binary map[Atom]func(x, y Term) (Term, error)
 }
 
-func (fs FunctionSet) Is(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) Is(lhs, rhs Term, k func() Promise) Promise {
 	v, err := fs.eval(rhs)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
-	return Unify(lhs, v, k)
+	return Delay(func() Promise {
+		return Unify(lhs, v, k)
+	})
 }
 
-func (fs FunctionSet) Equal(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) Equal(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i == j
 	}, func(f Float, g Float) bool {
@@ -1415,7 +1424,7 @@ func (fs FunctionSet) Equal(lhs, rhs Term, k func() (bool, error)) (bool, error)
 	})
 }
 
-func (fs FunctionSet) NotEqual(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) NotEqual(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i != j
 	}, func(f Float, g Float) bool {
@@ -1423,7 +1432,7 @@ func (fs FunctionSet) NotEqual(lhs, rhs Term, k func() (bool, error)) (bool, err
 	})
 }
 
-func (fs FunctionSet) LessThan(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) LessThan(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i < j
 	}, func(f Float, g Float) bool {
@@ -1431,7 +1440,7 @@ func (fs FunctionSet) LessThan(lhs, rhs Term, k func() (bool, error)) (bool, err
 	})
 }
 
-func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i > j
 	}, func(f Float, g Float) bool {
@@ -1439,7 +1448,7 @@ func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func() (bool, error)) (bool, 
 	})
 }
 
-func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i <= j
 	}, func(f Float, g Float) bool {
@@ -1447,7 +1456,7 @@ func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() (bool, error)) (bo
 	})
 }
 
-func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() (bool, error)) (bool, error) {
+func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() Promise) Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i >= j
 	}, func(f Float, g Float) bool {
@@ -1455,15 +1464,15 @@ func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() (bool, error)) 
 	})
 }
 
-func (fs FunctionSet) compare(lhs, rhs Term, k func() (bool, error), pi func(Integer, Integer) bool, pf func(Float, Float) bool) (bool, error) {
+func (fs FunctionSet) compare(lhs, rhs Term, k func() Promise, pi func(Integer, Integer) bool, pf func(Float, Float) bool) Promise {
 	l, err := fs.eval(lhs)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	r, err := fs.eval(rhs)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	switch l := l.(type) {
@@ -1471,34 +1480,34 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() (bool, error), pi func(Int
 		switch r := r.(type) {
 		case Integer:
 			if !pi(l, r) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		case Float:
 			if !pf(Float(l), r) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		default:
-			return false, errors.New("not a number")
+			return Error(errors.New("not a number"))
 		}
 	case Float:
 		switch r := r.(type) {
 		case Integer:
 			if !pf(l, Float(r)) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		case Float:
 			if !pf(l, r) {
-				return false, nil
+				return Bool(false)
 			}
-			return k()
+			return Delay(k)
 		default:
-			return false, errors.New("not a number")
+			return Error(errors.New("not a number"))
 		}
 	default:
-		return false, errors.New("not a number")
+		return Error(errors.New("not a number"))
 	}
 }
 
@@ -1700,10 +1709,10 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 	}
 }
 
-func (e *EngineState) StreamProperty(stream, property Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) StreamProperty(stream, property Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	properties := []Term{
@@ -1732,7 +1741,7 @@ func (e *EngineState) StreamProperty(stream, property Term, k func() (bool, erro
 	if f, ok := s.Closer.(*os.File); ok {
 		pos, err := f.Seek(0, 1)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		if br, ok := s.Reader.(*bufio.Reader); ok {
 			pos -= int64(br.Buffered())
@@ -1740,7 +1749,7 @@ func (e *EngineState) StreamProperty(stream, property Term, k func() (bool, erro
 
 		fi, err := f.Stat()
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		eos := "not"
@@ -1760,66 +1769,63 @@ func (e *EngineState) StreamProperty(stream, property Term, k func() (bool, erro
 	}
 
 	a := newAssignment(property)
-	for _, p := range properties {
-		ok, err := Unify(property, p, k)
-		if err != nil {
-			return false, err
+	ks := make([]func() Promise, len(properties))
+	for i := range properties {
+		p := properties[i]
+		ks[i] = func() Promise {
+			a.reset()
+			return Unify(property, p, k)
 		}
-		if ok {
-			return true, nil
-		}
-		a.reset()
 	}
-
-	return false, nil
+	return Delay(ks...)
 }
 
-func (e *EngineState) SetStreamPosition(stream, pos Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetStreamPosition(stream, pos Term, k func() Promise) Promise {
 	s, err := e.stream(stream)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	p, ok := Resolve(pos).(Integer)
 	if !ok {
-		return false, errors.New("not an integer")
+		return Error(errors.New("not an integer"))
 	}
 
 	f, ok := s.Closer.(*os.File)
 	if !ok {
-		return false, errors.New("not a repositionable stream")
+		return Error(errors.New("not a repositionable stream"))
 	}
 
 	if _, err := f.Seek(int64(p), 0); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if br, ok := s.Reader.(*bufio.Reader); ok {
 		br.Reset(f)
 	}
 
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) CharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CharConversion(char1, char2 Term, k func() Promise) Promise {
 	c1, ok := Resolve(char1).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
 	r1 := []rune(c1)
 	if len(r1) != 1 {
-		return false, errors.New("not a char")
+		return Error(errors.New("not a char"))
 	}
 
 	c2, ok := Resolve(char2).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
 	r2 := []rune(c2)
 	if len(r2) != 1 {
-		return false, errors.New("not a char")
+		return Error(errors.New("not a char"))
 	}
 
 	if e.charConversions == nil {
@@ -1827,114 +1833,112 @@ func (e *EngineState) CharConversion(char1, char2 Term, k func() (bool, error)) 
 	}
 	if r1[0] == r2[0] {
 		delete(e.charConversions, r1[0])
-		return k()
+		return Delay(k)
 	}
 	e.charConversions[r1[0]] = r2[0]
-	return k()
+	return Delay(k)
 }
 
-func (e *EngineState) CurrentCharConversion(char1, char2 Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentCharConversion(char1, char2 Term, k func() Promise) Promise {
 	if c1, ok := Resolve(char1).(Atom); ok {
 		r := []rune(c1)
 		if len(r) != 1 {
-			return false, errors.New("not a char")
+			return Error(errors.New("not a char"))
 		}
 		if r, ok := e.charConversions[r[0]]; ok {
-			return Unify(char2, Atom(r), k)
+			return Delay(func() Promise {
+				return Unify(char2, Atom(r), k)
+			})
 		}
-		return Unify(char2, c1, k)
+		return Delay(func() Promise {
+			return Unify(char2, c1, k)
+		})
 	}
 
 	a := newAssignment(char1, char2)
 	pattern := Compound{Args: []Term{char1, char2}}
-	for r := rune(0); r <= 0x00ff; r++ {
+	ks := make([]func() Promise, 256)
+	for i := 0; i < 256; i++ {
+		r := rune(i)
 		cr, ok := e.charConversions[r]
 		if !ok {
 			cr = r
 		}
 
-		ok, err := Unify(&pattern, &Compound{Args: []Term{Atom(r), Atom(cr)}}, k)
-		if err != nil {
-			return false, err
+		ks[i] = func() Promise {
+			a.reset()
+			return Unify(&pattern, &Compound{Args: []Term{Atom(r), Atom(cr)}}, k)
 		}
-		if ok {
-			return true, nil
-		}
-
-		a.reset()
 	}
-	return false, nil
+	return Delay(ks...)
 }
 
-func (e *EngineState) SetPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 	f, ok := Resolve(flag).(Atom)
 	if !ok {
-		return false, errors.New("not an atom")
+		return Error(errors.New("not an atom"))
 	}
 
 	switch f {
 	case "bounded", "max_integer", "min_integer", "integer_rounding_function", "max_arity":
-		return false, errors.New("unchangeable flag")
+		return Error(errors.New("unchangeable flag"))
 	case "char_conversion":
 		a, ok := Resolve(value).(Atom)
 		if !ok {
-			return false, errors.New("not an atom")
+			return Error(errors.New("not an atom"))
 		}
 		switch a {
 		case "on":
 			e.charConvEnabled = true
-			return k()
+			return Delay(k)
 		case "off":
 			e.charConvEnabled = false
-			return k()
+			return Delay(k)
 		default:
-			return false, errors.New("unknown value")
+			return Error(errors.New("unknown value"))
 		}
 	case "debug":
 		a, ok := Resolve(value).(Atom)
 		if !ok {
-			return false, errors.New("not an atom")
+			return Error(errors.New("not an atom"))
 		}
 		switch a {
 		case "on":
 			e.debug = true
-			return k()
+			return Delay(k)
 		case "off":
 			e.debug = false
-			return k()
+			return Delay(k)
 		default:
-			return false, errors.New("unknown value")
+			return Error(errors.New("unknown value"))
 		}
 	case "unknown":
 		a, ok := Resolve(value).(Atom)
 		if !ok {
-			return false, errors.New("not an atom")
+			return Error(errors.New("not an atom"))
 		}
 		switch a {
 		case "error":
 			e.unknown = unknownError
-			return k()
+			return Delay(k)
 		case "warning":
 			e.unknown = unknownWarning
-			return k()
+			return Delay(k)
 		case "fail":
 			e.unknown = unknownFail
-			return k()
+			return Delay(k)
 		default:
-			return false, errors.New("unknown value")
+			return Error(errors.New("unknown value"))
 		}
 	default:
-		return false, errors.New("unknown flag")
+		return Error(errors.New("unknown flag"))
 	}
 }
 
-func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() (bool, error)) (bool, error) {
+func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
 	flag, value = Resolve(flag), Resolve(value)
-
 	pattern := Compound{Args: []Term{flag, value}}
-
-	a := newAssignment(flag, value)
-	for _, f := range []Term{
+	flags := []Term{
 		&Compound{Args: []Term{Atom("bounded"), Atom("true")}},
 		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
 		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
@@ -1943,17 +1947,17 @@ func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() (bool, error)
 		&Compound{Args: []Term{Atom("debug"), onOff(e.debug)}},
 		&Compound{Args: []Term{Atom("max_arity"), Atom("unbounded")}},
 		&Compound{Args: []Term{Atom("unknown"), Atom(e.unknown.String())}},
-	} {
-		ok, err := Unify(&pattern, f, k)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return true, nil
-		}
-		a.reset()
 	}
-	return false, nil
+	a := newAssignment(flag, value)
+	ks := make([]func() Promise, len(flags))
+	for i := range flags {
+		f := flags[i]
+		ks[i] = func() Promise {
+			a.reset()
+			return Unify(&pattern, f, k)
+		}
+	}
+	return Delay(ks...)
 }
 
 func onOff(b bool) Atom {
