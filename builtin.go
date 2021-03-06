@@ -385,7 +385,7 @@ func nameArgs(t Term) (string, Term, error) {
 
 func Repeat(k func() Promise) Promise {
 	for {
-		ok, err := Force(k())
+		ok, err := k().Force()
 		if err != nil {
 			return Error(err)
 		}
@@ -429,7 +429,7 @@ func (e *EngineState) collectionOf(template, goal, collection Term, k func() Pro
 	}
 
 	var solutions []solution
-	_, err := Force(e.Call(goal, func() Promise {
+	_, err := e.Call(goal, func() Promise {
 		snapshots := make([]Term, len(groupingVariables))
 		for i, v := range groupingVariables {
 			snapshots[i] = v.Ref
@@ -438,7 +438,7 @@ func (e *EngineState) collectionOf(template, goal, collection Term, k func() Pro
 	solutions:
 		for i, s := range solutions {
 			for i := range groupingVariables {
-				ok, err := Force(Compare(Atom("="), s.snapshots[i], snapshots[i], Done))
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Done).Force()
 				if err != nil {
 					return Error(err)
 				}
@@ -455,7 +455,7 @@ func (e *EngineState) collectionOf(template, goal, collection Term, k func() Pro
 			bag:       []Term{template.Copy()},
 		})
 		return Bool(false) // ask for more solutions
-	}))
+	}).Force()
 	if err != nil {
 		return Error(err)
 	}
@@ -589,7 +589,7 @@ func Throw(t Term, _ func() Promise) Promise {
 }
 
 func (e *EngineState) Catch(goal, catcher, recover Term, k func() Promise) Promise {
-	ok, err := Force(e.Call(goal, Done))
+	ok, err := e.Call(goal, Done).Force()
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
 			return e.Call(recover, k)
@@ -659,7 +659,7 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 			continue
 		}
 
-		ok, err := Force(k())
+		ok, err := k().Force()
 		if err != nil {
 			updated = append(updated, cs[i+1:]...)
 			a.reset()

@@ -28,7 +28,7 @@ func Error(err error) Promise {
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
-func Force(p Promise) (bool, error) {
+func (p Promise) Force() (bool, error) {
 	ks := p.delayed
 	for len(ks) > 0 {
 		// Try the leftmost alternative first.

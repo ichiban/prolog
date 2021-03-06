@@ -296,7 +296,7 @@ func (e *Engine) Exec(s string) error {
 			return err
 		}
 
-		if _, err := Force(e.Assertz(t, Done)); err != nil {
+		if _, err := e.Assertz(t, Done).Force(); err != nil {
 			return err
 		}
 	}
@@ -327,9 +327,9 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 
 	a := newAssignment(t)
 
-	return Force(e.Call(t, func() Promise {
+	return e.Call(t, func() Promise {
 		return Bool(cb(a))
-	}))
+	}).Force()
 }
 
 // Register0 registers a predicate of arity 0.
@@ -522,7 +522,7 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			}, false) {
 				return Bool(false)
 			}
-			ok, err := Force(Functor(&arg, &fatom, &farity, Done))
+			ok, err := Functor(&arg, &fatom, &farity, Done).Force()
 			if err != nil {
 				return Error(err)
 			}
@@ -531,7 +531,7 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Force(Univ(&arg, Cons(&fatom, args), Done))
+			ok, err = Univ(&arg, Cons(&fatom, args), Done).Force()
 			if err != nil {
 				return Error(err)
 			}
