@@ -17,9 +17,11 @@ func (e *EngineState) Call(goal Term, k func() Promise) Promise {
 	if err != nil {
 		return Error(err)
 	}
-	return Delay(func() Promise {
-		return e.arrive(name, args, k)
-	})
+	ok, err := e.arrive(name, args, k)
+	if err != nil {
+		return Error(err)
+	}
+	return Bool(ok)
 }
 
 func Unify(t1, t2 Term, k func() Promise) Promise {
@@ -339,9 +341,11 @@ func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, claus
 		if err != nil {
 			return Error(err)
 		}
-		return Delay(func() Promise {
-			return e.arrive(name, args, k)
-		})
+		ok, err := e.arrive(name, args, k)
+		if err != nil {
+			return Error(err)
+		}
+		return Bool(ok)
 	case "(:-)/2":
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}), false)

@@ -420,24 +420,25 @@ type procedure interface {
 	Call(*EngineState, Term, func() Promise) Promise
 }
 
-func (e *EngineState) arrive(name string, args Term, k func() Promise) Promise {
+func (e *EngineState) arrive(name string, args Term, k func() Promise) (bool, error) {
 	p := e.procedures[name]
 	if p == nil {
 		switch e.unknown {
 		case unknownError:
-			return Error(fmt.Errorf("unknown procedure: %s", name))
+			return false, fmt.Errorf("unknown procedure: %s", name)
 		case unknownWarning:
 			logrus.WithField("procedure", name).Warn("unknown procedure")
 			fallthrough
 		case unknownFail:
-			return Bool(false)
+			return false, nil
 		default:
-			return Error(fmt.Errorf("unknown unknown: %s", e.unknown))
+			return false, fmt.Errorf("unknown unknown: %s", e.unknown)
 		}
 	}
-	return Delay(func() Promise {
-		return p.Call(e, args, k)
-	})
+
+	// Bowen et al. say arrive/3 is "the entry point to the interpreter."
+	// So it might make sense to contain nondeterminism inside this function and return (bool, error) instead of Promise.
+	return p.Call(e, args, k).Force()
 }
 
 func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, args, astack Term) Promise {
@@ -519,14 +520,16 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 				return Bool(false)
 			}
 			pc = pc[2:]
-			return Delay(func() Promise {
-				return e.arrive(x.String(), astack, func() Promise {
-					var v Variable
-					return Delay(func() Promise {
-						return e.exec(pc, xr, vars, k, &v, &v)
-					})
+			ok, err := e.arrive(x.String(), astack, func() Promise {
+				var v Variable
+				return Delay(func() Promise {
+					return e.exec(pc, xr, vars, k, &v, &v)
 				})
 			})
+			if err != nil {
+				return Error(err)
+			}
+			return Bool(ok)
 		case opExit:
 			return Delay(k)
 		default:
