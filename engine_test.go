@@ -3,8 +3,6 @@ package prolog
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -112,13 +110,6 @@ func TestEngine_Exec(t *testing.T) {
 }
 
 func TestEngine_Query(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetFormatter(&logrus.TextFormatter{
-		ForceColors:      true,
-		DisableQuote:     true,
-		DisableTimestamp: true,
-	})
-
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
 	e := Engine{EngineState{
@@ -222,9 +213,6 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("tak/4", func(t *testing.T) {
-		t.SkipNow()
-		logrus.SetLevel(logrus.FatalLevel)
-
 		e, err := NewEngine(nil, nil)
 		assert.NoError(t, err)
 		assert.NoError(t, e.Exec(`

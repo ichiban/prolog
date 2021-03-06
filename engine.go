@@ -421,10 +421,6 @@ type procedure interface {
 }
 
 func (e *EngineState) arrive(name string, args Term, k func() Promise) Promise {
-	logrus.WithFields(logrus.Fields{
-		"name": name,
-		"args": loggableTerm{term: args},
-	}).Debug("arrive")
 	p := e.procedures[name]
 	if p == nil {
 		switch e.unknown {
@@ -444,54 +440,12 @@ func (e *EngineState) arrive(name string, args Term, k func() Promise) Promise {
 	})
 }
 
-type loggableTerm struct {
-	term Term
-}
-
-func (l loggableTerm) String() string {
-	if l.term == nil {
-		return "nil"
-	}
-
-	opts := defaultWriteTermOptions
-	opts.Descriptive = true
-
-	var buf bytes.Buffer
-	_ = l.term.WriteTerm(&buf, opts)
-	return buf.String()
-}
-
-type loggableVars struct {
-	vars []*Variable
-}
-
-func (l loggableVars) String() string {
-	opts := defaultWriteTermOptions
-	opts.Descriptive = true
-
-	ret := make([]string, len(l.vars))
-	for i, v := range l.vars {
-		var buf bytes.Buffer
-		_ = v.WriteTerm(&buf, opts)
-		ret[i] = buf.String()
-	}
-	return fmt.Sprint(ret)
-}
-
 func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, args, astack Term) Promise {
 	for len(pc) != 0 {
-		log := logrus.WithFields(logrus.Fields{
-			"xr":     xr,
-			"vars":   loggableVars{vars: vars},
-			"args":   loggableTerm{term: args},
-			"astack": loggableTerm{term: astack},
-		})
 		switch pc[0] {
 		case opVoid:
-			log.Debug("void")
 			pc = pc[1:]
 		case opConst:
-			log.Debugf("const %d", pc[1])
 			x := xr[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(x, &arest), false) {
@@ -500,7 +454,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			pc = pc[2:]
 			args = &arest
 		case opVar:
-			log.Debugf("var %d", pc[1])
 			v := vars[pc[1]]
 			var arest Variable
 			if !args.Unify(Cons(v, &arest), false) {
@@ -509,7 +462,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			pc = pc[2:]
 			args = &arest
 		case opFunctor:
-			log.Debugf("functor %d", pc[1])
 			x := xr[pc[1]]
 			var arg, arest Variable
 			if !args.Unify(Cons(&arg, &arest), false) {
@@ -540,7 +492,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
-			log.Debug("pop")
 			if !args.Unify(List(), false) {
 				return Bool(false)
 			}
@@ -552,7 +503,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			args = &a
 			astack = &arest
 		case opEnter:
-			log.Debug("enter")
 			if !args.Unify(List(), false) {
 				return Bool(false)
 			}
@@ -564,7 +514,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			args = &v
 			astack = &v
 		case opCall:
-			log.Debugf("call %d", pc[1])
 			x := xr[pc[1]]
 			if !args.Unify(List(), false) {
 				return Bool(false)
@@ -579,7 +528,6 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 				})
 			})
 		case opExit:
-			log.Debug("exit")
 			return Delay(k)
 		default:
 			return Error(fmt.Errorf("unknown(%d)", pc[0]))
@@ -595,32 +543,17 @@ func (cs clauses) Call(e *EngineState, args Term, k func() Promise) Promise {
 		return Bool(false)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
-		"name": cs[0].name,
-		"args": args,
-	})
-
 	a := newAssignment(args)
 
 	i := 0
 	var f func() Promise
 	f = func() Promise {
 		if i == len(cs) {
-			log.Info("fail")
 			return Bool(false)
 		}
 		a.reset()
 
 		c := cs[i]
-
-		log = log.WithField("choice", i)
-
-		switch i {
-		case 0:
-			log.Info("call")
-		default:
-			log.Info("redo")
-		}
 
 		vars := make([]*Variable, len(c.vars))
 		for i := range c.vars {
@@ -875,7 +808,7 @@ func (p predicate5) Call(e *EngineState, args Term, k func() Promise) Promise {
 type assignment []*Variable
 
 func newAssignment(ts ...Term) assignment {
-	var a assignment
+	a := assignment{}
 	for _, t := range ts {
 		a.add(t)
 	}
@@ -903,7 +836,6 @@ func (a *assignment) add(t Term) {
 }
 
 func (a assignment) reset() {
-	logrus.WithField("vars", loggableVars{vars: a}).Debug("reset")
 	for _, v := range a {
 		v.Ref = nil
 	}
