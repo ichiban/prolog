@@ -335,49 +335,49 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 // Register0 registers a predicate of arity 0.
 func (e *Engine) Register0(name string, p func(func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 0).String()] = predicate0(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 0}] = predicate0(p)
 }
 
 // Register1 registers a predicate of arity 1.
 func (e *Engine) Register1(name string, p func(Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 1).String()] = predicate1(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 1}] = predicate1(p)
 }
 
 // Register2 registers a predicate of arity 2.
 func (e *Engine) Register2(name string, p func(Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 2).String()] = predicate2(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 2}] = predicate2(p)
 }
 
 // Register3 registers a predicate of arity 3.
 func (e *Engine) Register3(name string, p func(Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 3).String()] = predicate3(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 3}] = predicate3(p)
 }
 
 // Register4 registers a predicate of arity 4.
 func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 4).String()] = predicate4(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 4}] = predicate4(p)
 }
 
 // Register5 registers a predicate of arity 5.
 func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	e.procedures[PrincipalFunctor(Atom(name), 5).String()] = predicate5(p)
+	e.procedures[principalFunctor{name: Atom(name), arity: 5}] = predicate5(p)
 }
 
 // EngineState is an internal state of Engine, a subject to many builtin predicates.
@@ -386,7 +386,7 @@ type EngineState struct {
 	BeforeHalt []func()
 
 	operators       Operators
-	procedures      map[string]procedure
+	procedures      map[principalFunctor]procedure
 	streams         map[Atom]*Stream
 	input, output   *Stream
 	charConversions map[rune]rune
@@ -420,25 +420,25 @@ type procedure interface {
 	Call(*EngineState, Term, func() Promise) Promise
 }
 
-func (e *EngineState) arrive(name string, args Term, k func() Promise) (bool, error) {
-	p := e.procedures[name]
+func (e *EngineState) arrive(pf principalFunctor, args Term, k func() Promise) Promise {
+	p := e.procedures[pf]
 	if p == nil {
 		switch e.unknown {
 		case unknownError:
-			return false, fmt.Errorf("unknown procedure: %s", name)
+			return Error(fmt.Errorf("unknown procedure: %s", pf))
 		case unknownWarning:
-			logrus.WithField("procedure", name).Warn("unknown procedure")
+			logrus.WithField("procedure", pf).Warn("unknown procedure")
 			fallthrough
 		case unknownFail:
-			return false, nil
+			return Bool(false)
 		default:
-			return false, fmt.Errorf("unknown unknown: %s", e.unknown)
+			return Error(fmt.Errorf("unknown unknown: %s", e.unknown))
 		}
 	}
 
-	// Bowen et al. say arrive/3 is "the entry point to the interpreter."
-	// So it might make sense to contain nondeterminism inside this function and return (bool, error) instead of Promise.
-	return p.Call(e, args, k).Force()
+	return Delay(func() Promise {
+		return p.Call(e, args, k)
+	})
 }
 
 func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, args, astack Term) Promise {
@@ -449,7 +449,11 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 		case opConst:
 			x := xr[pc[1]]
 			var arest Variable
-			if !args.Unify(Cons(x, &arest), false) {
+			cons := Compound{
+				Functor: ".",
+				Args:    []Term{x, &arest},
+			}
+			if !args.Unify(&cons, false) {
 				return Bool(false)
 			}
 			pc = pc[2:]
@@ -457,7 +461,11 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 		case opVar:
 			v := vars[pc[1]]
 			var arest Variable
-			if !args.Unify(Cons(v, &arest), false) {
+			cons := Compound{
+				Functor: ".",
+				Args:    []Term{v, &arest},
+			}
+			if !args.Unify(&cons, false) {
 				return Bool(false)
 			}
 			pc = pc[2:]
@@ -465,17 +473,18 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 		case opFunctor:
 			x := xr[pc[1]]
 			var arg, arest Variable
-			if !args.Unify(Cons(&arg, &arest), false) {
+			cons1 := Compound{
+				Functor: ".",
+				Args:    []Term{&arg, &arest},
+			}
+			if !args.Unify(&cons1, false) {
 				return Bool(false)
 			}
-			var fatom, farity Variable
-			if !x.Unify(&Compound{
-				Functor: "/",
-				Args:    []Term{&fatom, &farity},
-			}, false) {
-				return Bool(false)
+			pf, ok := x.(principalFunctor)
+			if !ok {
+				return Error(errors.New("not a principal functor"))
 			}
-			ok, err := Functor(&arg, &fatom, &farity, Done).Force()
+			ok, err := Functor(&arg, pf.name, pf.arity, Done).Force()
 			if err != nil {
 				return Error(err)
 			}
@@ -484,7 +493,11 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			}
 			pc = pc[2:]
 			args = &Variable{}
-			ok, err = Univ(&arg, Cons(&fatom, args), Done).Force()
+			cons2 := Compound{
+				Functor: ".",
+				Args:    []Term{pf.name, args},
+			}
+			ok, err = Univ(&arg, &cons2, Done).Force()
 			if err != nil {
 				return Error(err)
 			}
@@ -498,7 +511,11 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			}
 			pc = pc[1:]
 			var a, arest Variable
-			if !astack.Unify(Cons(&a, &arest), false) {
+			cons := Compound{
+				Functor: ".",
+				Args:    []Term{&a, &arest},
+			}
+			if !astack.Unify(&cons, false) {
 				return Bool(false)
 			}
 			args = &a
@@ -520,16 +537,18 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 				return Bool(false)
 			}
 			pc = pc[2:]
-			ok, err := e.arrive(x.String(), astack, func() Promise {
-				var v Variable
-				return Delay(func() Promise {
-					return e.exec(pc, xr, vars, k, &v, &v)
+			pf, ok := x.(principalFunctor)
+			if !ok {
+				return Error(errors.New("not a principal functor"))
+			}
+			return Delay(func() Promise {
+				return e.arrive(pf, astack, func() Promise {
+					var v Variable
+					return Delay(func() Promise {
+						return e.exec(pc, xr, vars, k, &v, &v)
+					})
 				})
 			})
-			if err != nil {
-				return Error(err)
-			}
-			return Bool(ok)
 		case opExit:
 			return Delay(k)
 		default:
@@ -547,33 +566,23 @@ func (cs clauses) Call(e *EngineState, args Term, k func() Promise) Promise {
 	}
 
 	a := newAssignment(args)
-
-	i := 0
-	var f func() Promise
-	f = func() Promise {
-		if i == len(cs) {
-			return Bool(false)
-		}
-		a.reset()
-
+	ks := make([]func() Promise, len(cs))
+	for i := range cs {
 		c := cs[i]
-
-		vars := make([]*Variable, len(c.vars))
-		for i := range c.vars {
-			vars[i] = &Variable{}
-		}
-		i++
-
-		return Delay(func() Promise {
+		ks[i] = func() Promise {
+			a.reset()
+			vars := make([]*Variable, len(c.vars))
+			for i := range c.vars {
+				vars[i] = &Variable{}
+			}
 			return e.exec(c.bytecode, c.xrTable, vars, k, args, List())
-		}, f)
+		}
 	}
-
-	return Delay(f)
+	return Delay(ks...)
 }
 
 type clause struct {
-	name     string
+	pf       principalFunctor
 	raw      Term
 	xrTable  []Term
 	vars     []*Variable
@@ -631,10 +640,7 @@ func (c *clause) compileClause(head Term, body Term) error {
 func (c *clause) compilePred(p Term) error {
 	switch p := p.(type) {
 	case Atom:
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(&Compound{
-			Functor: "/",
-			Args:    []Term{p, Integer(0)},
-		}))
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(principalFunctor{name: p, arity: 0}))
 		return nil
 	case *Compound:
 		for _, a := range p.Args {
@@ -642,10 +648,7 @@ func (c *clause) compilePred(p Term) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(&Compound{
-			Functor: "/",
-			Args:    []Term{p.Functor, Integer(len(p.Args))},
-		}))
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(principalFunctor{name: p.Functor, arity: Integer(len(p.Args))}))
 		return nil
 	default:
 		return errors.New("not a predicate")
@@ -661,10 +664,7 @@ func (c *clause) compileArg(a Term) error {
 	case *Variable:
 		c.bytecode = append(c.bytecode, opVar, c.varOffset(a))
 	case *Compound:
-		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(&Compound{
-			Functor: "/",
-			Args:    []Term{a.Functor, Integer(len(a.Args))},
-		}))
+		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(principalFunctor{name: a.Functor, arity: Integer(len(a.Args))}))
 		for _, n := range a.Args {
 			if err := c.compileArg(n); err != nil {
 				return err

@@ -485,8 +485,8 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 }
 
 func TestEngine_CurrentPredicate(t *testing.T) {
-	e := Engine{EngineState{procedures: map[string]procedure{
-		"(=)/2": nil,
+	e := Engine{EngineState{procedures: map[principalFunctor]procedure{
+		{name: "=", arity: 2}: nil,
 	}}}
 
 	var v Variable
@@ -719,7 +719,7 @@ func TestEngine_Abolish(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	_, ok = e.procedures["foo/1"]
+	_, ok = e.procedures[principalFunctor{name: "foo", arity: 1}]
 	assert.False(t, ok)
 }
 

@@ -418,14 +418,6 @@ func (c *Compound) Copy() Term {
 	}
 }
 
-// PrincipalFunctor returns a compound of name/arity.
-func PrincipalFunctor(name Atom, arity Integer) Term {
-	return &Compound{
-		Functor: "/",
-		Args:    []Term{name, arity},
-	}
-}
-
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
 	return &Compound{
@@ -614,4 +606,41 @@ type readTermOptions struct {
 	singletons    *Variable
 	variables     *Variable
 	variableNames *Variable
+}
+
+// principalFunctor is a specialized variant of Compound.
+type principalFunctor struct {
+	name  Atom
+	arity Integer
+}
+
+func (p principalFunctor) String() string {
+	var buf bytes.Buffer
+	_ = p.WriteTerm(&buf, defaultWriteTermOptions)
+	return buf.String()
+}
+
+func (p principalFunctor) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	_, err := fmt.Fprintf(w, "%s/%d", p.name, p.arity)
+	return err
+}
+
+func (p principalFunctor) Unify(t Term, _ bool) bool {
+	pf, ok := t.(principalFunctor)
+	return ok && p.name == pf.name && p.arity == pf.arity
+}
+
+func (p principalFunctor) Copy() Term {
+	return p
+}
+
+func pfArgs(t Term) (principalFunctor, Term, error) {
+	switch f := Resolve(t).(type) {
+	case Atom:
+		return principalFunctor{name: f, arity: 0}, List(), nil
+	case *Compound:
+		return principalFunctor{name: f.Functor, arity: Integer(len(f.Args))}, List(f.Args...), nil
+	default:
+		return principalFunctor{}, nil, errors.New("not callable")
+	}
 }

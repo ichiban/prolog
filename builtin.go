@@ -13,11 +13,13 @@ import (
 )
 
 func (e *EngineState) Call(goal Term, k func() Promise) Promise {
-	name, args, err := nameArgs(goal)
+	pf, args, err := pfArgs(goal)
 	if err != nil {
 		return Error(err)
 	}
-	ok, err := e.arrive(name, args, k)
+
+	// restricts the scope of cut.
+	ok, err := e.arrive(pf, args, k).Force()
 	if err != nil {
 		return Error(err)
 	}
@@ -328,37 +330,35 @@ func (e *EngineState) Asserta(t Term, k func() Promise) Promise {
 }
 
 func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
-	name, args, err := nameArgs(t)
+	pf, args, err := pfArgs(t)
 	if err != nil {
 		return Error(err)
 	}
 
-	switch name {
-	case "(:-)/1": // directive
+	switch pf {
+	case principalFunctor{name: ":-", arity: 1}: // directive
 		var d Variable
 		args.Unify(Cons(&d, &Variable{}), false)
-		name, args, err := nameArgs(&d)
+		name, args, err := pfArgs(&d)
 		if err != nil {
 			return Error(err)
 		}
-		ok, err := e.arrive(name, args, k)
-		if err != nil {
-			return Error(err)
-		}
-		return Bool(ok)
-	case "(:-)/2":
+		return Delay(func() Promise {
+			return e.arrive(name, args, k)
+		})
+	case principalFunctor{name: ":-", arity: 2}:
 		var h Variable
 		args.Unify(Cons(&h, &Variable{}), false)
-		name, _, err = nameArgs(&h)
+		pf, _, err = pfArgs(&h)
 		if err != nil {
 			return Error(err)
 		}
 	}
 
 	if e.procedures == nil {
-		e.procedures = map[string]procedure{}
+		e.procedures = map[principalFunctor]procedure{}
 	}
-	p, ok := e.procedures[name]
+	p, ok := e.procedures[pf]
 	if !ok {
 		p = clauses{}
 	}
@@ -367,24 +367,13 @@ func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, claus
 	if !ok {
 		return Error(errors.New("builtin"))
 	}
-	c := clause{name: name}
+	c := clause{pf: pf}
 	if err := c.compile(t); err != nil {
 		return Error(err)
 	}
 
-	e.procedures[name] = merge(cs, c)
+	e.procedures[pf] = merge(cs, c)
 	return Delay(k)
-}
-
-func nameArgs(t Term) (string, Term, error) {
-	switch f := Resolve(t).(type) {
-	case Atom:
-		return PrincipalFunctor(f, 0).String(), List(), nil
-	case *Compound:
-		return PrincipalFunctor(f.Functor, Integer(len(f.Args))).String(), List(f.Args...), nil
-	default:
-		return "", nil, errors.New("not callable")
-	}
 }
 
 func Repeat(k func() Promise) Promise {
@@ -607,25 +596,12 @@ func (e *EngineState) Catch(goal, catcher, recover Term, k func() Promise) Promi
 }
 
 func (e *EngineState) CurrentPredicate(pf Term, k func() Promise) Promise {
-	var conv map[rune]rune
-	if e.charConvEnabled {
-		conv = e.charConversions
-	}
-
 	a := newAssignment(pf)
 	ks := make([]func() Promise, 0, len(e.procedures))
 	for key := range e.procedures {
-		p := NewParser(bufio.NewReader(strings.NewReader(key)), &Operators{
-			{Precedence: 400, Type: "yfx", Name: "/"},
-		}, conv)
-		t, err := p.Term()
-		if err != nil {
-			return Error(err)
-		}
-
 		ks = append(ks, func() Promise {
 			a.reset()
-			return Unify(pf, t, k)
+			return Unify(pf, &Compound{Functor: "/", Args: []Term{key.name, key.arity}}, k)
 		})
 	}
 	return Delay(ks...)
@@ -635,12 +611,12 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
-	name, _, err := nameArgs(h)
+	pf, _, err := pfArgs(h)
 	if err != nil {
 		return Error(err)
 	}
 
-	p, ok := e.procedures[name]
+	p, ok := e.procedures[pf]
 	if !ok {
 		return Bool(false)
 	}
@@ -651,7 +627,7 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 	}
 
 	updated := make(clauses, 0, len(cs))
-	defer func() { e.procedures[name] = updated }()
+	defer func() { e.procedures[pf] = updated }()
 
 	for i, c := range cs {
 		raw := Rulify(c.raw)
@@ -682,7 +658,26 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 }
 
 func (e *EngineState) Abolish(t Term, k func() Promise) Promise {
-	delete(e.procedures, t.String())
+	c, ok := Resolve(t).(*Compound)
+	if !ok {
+		return Error(errors.New("not a compound"))
+	}
+
+	if c.Functor != "/" || len(c.Args) != 2 {
+		return Error(errors.New("not a principal functor"))
+	}
+
+	name, ok := Resolve(c.Args[0]).(Atom)
+	if !ok {
+		return Error(errors.New("not a principal functor"))
+	}
+
+	arity, ok := Resolve(c.Args[1]).(Integer)
+	if !ok {
+		return Error(errors.New("not a principal functor"))
+	}
+
+	delete(e.procedures, principalFunctor{name: name, arity: arity})
 	return Delay(k)
 }
 
