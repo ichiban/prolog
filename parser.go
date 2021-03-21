@@ -127,6 +127,21 @@ func (p *Parser) Term() (Term, error) {
 	return p.expr(1)
 }
 
+// Number parses a number.
+func (p *Parser) Number() (Term, error) {
+	if f, err := p.accept(internal.TokenFloat); err == nil {
+		n, _ := strconv.ParseFloat(f, 64)
+		return Float(n), nil
+	}
+
+	if i, err := p.accept(internal.TokenInteger); err == nil {
+		n, _ := strconv.Atoi(i)
+		return Integer(n), nil
+	}
+
+	return nil, SyntaxError(Atom("not_a_number"), Atom("not a number."))
+}
+
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 func (p *Parser) expr(min int) (Term, error) {
 	lhs, err := p.lhs()
@@ -271,14 +286,14 @@ type Operators []Operator
 
 // Operator is an operator definition.
 type Operator struct {
-	Precedence Integer // 1 ~ 1200
-	Type       Atom
-	Name       Atom
+	Priority  Integer // 1 ~ 1200
+	Specifier Atom    // xf, yf, xfx, xfy, yfx, fx, or fy
+	Name      Atom
 }
 
 func (o *Operator) bindingPowers() (int, int) {
-	bp := 1201 - int(o.Precedence) // 1 ~ 1200
-	switch o.Type {
+	bp := 1201 - int(o.Priority) // 1 ~ 1200
+	switch o.Specifier {
 	case "xf":
 		return bp + 1, 0
 	case "yf":

@@ -7,6 +7,11 @@ type Promise struct {
 	err     error
 }
 
+// NewPromise creates a new promise of returning ok, err.
+func NewPromise(ok bool, err error) Promise {
+	return Promise{ok: ok, err: err}
+}
+
 // Delay delays an execution of k.
 func Delay(k ...func() Promise) Promise {
 	return Promise{delayed: k}

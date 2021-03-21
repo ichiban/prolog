@@ -48,9 +48,9 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	}
 	e := Engine{
 		EngineState: EngineState{
-			streams: map[Atom]*Stream{
-				"user_input":  &input,
-				"user_output": &output,
+			streams: map[Term]*Stream{
+				Atom("user_input"):  &input,
+				Atom("user_output"): &output,
 			},
 			input:  &input,
 			output: &output,
@@ -95,9 +95,9 @@ func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	e.Register2("put_code", e.PutCode)
 	e.Register3("read_term", e.ReadTerm)
 	e.Register2("get_byte", e.GetByte)
-	e.Register2("get_code", e.GetCode)
+	e.Register2("get_char", e.GetChar)
 	e.Register2("peek_byte", e.PeekByte)
-	e.Register2("peek_code", e.PeekCode)
+	e.Register2("peek_char", e.PeekChar)
 	e.Register1("halt", e.Halt)
 	e.Register2("clause", e.Clause)
 	e.Register2("atom_length", AtomLength)
@@ -255,24 +255,29 @@ read(Term) :- current_input(S), read(S, Term).
 
 get_byte(Byte) :- current_input(S), get_byte(S, Byte).
 
-get_code(Code) :- current_input(S), get_code(S, Code).
-
-get_char(Stream, Char) :- get_code(Stream, Code), char_code(Char, Code).
-
 get_char(Char) :- current_input(S), get_char(S, Char).
+
+get_code(Stream, Code) :-
+  get_char(Stream, Char),
+  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
+
+get_code(Code) :- current_input(S), get_code(S, Code).
 
 peek_byte(Byte) :- current_input(S), peek_byte(S, Byte).
 
-peek_code(Code) :- current_input(S), peek_code(S, Code).
-
-peek_char(Stream, Char) :- peek_code(Stream, Code), char_code(Char, Code).
-
 peek_char(Char) :- current_input(S), peek_char(S, Char).
+
+peek_code(Stream, Code) :-
+  peek_char(Stream, Char),
+  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
+
+peek_code(Code) :- current_input(S), peek_code(S, Code).
 
 halt :- halt(0).
 
-at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(at)).
-at_end_of_stream(Stream) :- stream_property(Stream, end_of_stream(past)).
+at_end_of_stream(Stream) :-
+  stream_property(Stream, end_of_stream(E)), !,
+  (E = at; E = past).
 
 at_end_of_stream :- current_input(S), at_end_of_stream(S).
 `)
@@ -335,49 +340,49 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 // Register0 registers a predicate of arity 0.
 func (e *Engine) Register0(name string, p func(func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 0}] = predicate0(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 0}] = predicate0(p)
 }
 
 // Register1 registers a predicate of arity 1.
 func (e *Engine) Register1(name string, p func(Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 1}] = predicate1(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 1}] = predicate1(p)
 }
 
 // Register2 registers a predicate of arity 2.
 func (e *Engine) Register2(name string, p func(Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 2}] = predicate2(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 2}] = predicate2(p)
 }
 
 // Register3 registers a predicate of arity 3.
 func (e *Engine) Register3(name string, p func(Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 3}] = predicate3(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 3}] = predicate3(p)
 }
 
 // Register4 registers a predicate of arity 4.
 func (e *Engine) Register4(name string, p func(Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 4}] = predicate4(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 4}] = predicate4(p)
 }
 
 // Register5 registers a predicate of arity 5.
 func (e *Engine) Register5(name string, p func(Term, Term, Term, Term, Term, func() Promise) Promise) {
 	if e.procedures == nil {
-		e.procedures = map[principalFunctor]procedure{}
+		e.procedures = map[procedureIndicator]procedure{}
 	}
-	e.procedures[principalFunctor{name: Atom(name), arity: 5}] = predicate5(p)
+	e.procedures[procedureIndicator{name: Atom(name), arity: 5}] = predicate5(p)
 }
 
 // EngineState is an internal state of Engine, a subject to many builtin predicates.
@@ -386,8 +391,8 @@ type EngineState struct {
 	BeforeHalt []func()
 
 	operators       Operators
-	procedures      map[principalFunctor]procedure
-	streams         map[Atom]*Stream
+	procedures      map[procedureIndicator]procedure
+	streams         map[Term]*Stream
 	input, output   *Stream
 	charConversions map[rune]rune
 	charConvEnabled bool
@@ -420,19 +425,22 @@ type procedure interface {
 	Call(*EngineState, Term, func() Promise) Promise
 }
 
-func (e *EngineState) arrive(pf principalFunctor, args Term, k func() Promise) Promise {
-	p := e.procedures[pf]
+func (e *EngineState) arrive(pi procedureIndicator, args Term, k func() Promise) Promise {
+	p := e.procedures[pi]
 	if p == nil {
 		switch e.unknown {
 		case unknownError:
-			return Error(fmt.Errorf("unknown procedure: %s", pf))
+			return Error(ExistenceErrorProcedure(&Compound{
+				Functor: "/",
+				Args:    []Term{pi.name, pi.arity},
+			}))
 		case unknownWarning:
-			logrus.WithField("procedure", pf).Warn("unknown procedure")
+			logrus.WithField("procedure", pi).Warn("unknown procedure")
 			fallthrough
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(fmt.Errorf("unknown unknown: %s", e.unknown))
+			return Error(SystemError(fmt.Errorf("unknown unknown: %s", e.unknown)))
 		}
 	}
 
@@ -480,7 +488,7 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 			if !args.Unify(&cons1, false) {
 				return Bool(false)
 			}
-			pf, ok := x.(principalFunctor)
+			pf, ok := x.(procedureIndicator)
 			if !ok {
 				return Error(errors.New("not a principal functor"))
 			}
@@ -537,7 +545,7 @@ func (e *EngineState) exec(pc bytecode, xr []Term, vars []*Variable, k func() Pr
 				return Bool(false)
 			}
 			pc = pc[2:]
-			pf, ok := x.(principalFunctor)
+			pf, ok := x.(procedureIndicator)
 			if !ok {
 				return Error(errors.New("not a principal functor"))
 			}
@@ -582,7 +590,7 @@ func (cs clauses) Call(e *EngineState, args Term, k func() Promise) Promise {
 }
 
 type clause struct {
-	pf       principalFunctor
+	pf       procedureIndicator
 	raw      Term
 	xrTable  []Term
 	vars     []*Variable
@@ -601,7 +609,7 @@ func (c *clause) compile(t Term) error {
 		}
 		return c.compileClause(t, nil)
 	default:
-		return fmt.Errorf("not a compound: %s", t)
+		return TypeErrorCallable(t)
 	}
 }
 
@@ -615,7 +623,7 @@ func (c *clause) compileClause(head Term, body Term) error {
 			}
 		}
 	default:
-		return fmt.Errorf("not an atom nor compound: %s", head)
+		return TypeErrorCallable(head)
 	}
 	if body != nil {
 		c.bytecode = append(c.bytecode, opEnter)
@@ -640,7 +648,7 @@ func (c *clause) compileClause(head Term, body Term) error {
 func (c *clause) compilePred(p Term) error {
 	switch p := p.(type) {
 	case Atom:
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(principalFunctor{name: p, arity: 0}))
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p, arity: 0}))
 		return nil
 	case *Compound:
 		for _, a := range p.Args {
@@ -648,23 +656,21 @@ func (c *clause) compilePred(p Term) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(principalFunctor{name: p.Functor, arity: Integer(len(p.Args))}))
+		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p.Functor, arity: Integer(len(p.Args))}))
 		return nil
 	default:
-		return errors.New("not a predicate")
+		return TypeErrorCallable(p)
 	}
 }
 
 func (c *clause) compileArg(a Term) error {
 	switch a := a.(type) {
-	case Atom:
-		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
-	case Integer:
-		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
 	case *Variable:
 		c.bytecode = append(c.bytecode, opVar, c.varOffset(a))
+	case Float, Integer, Atom:
+		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
 	case *Compound:
-		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(principalFunctor{name: a.Functor, arity: Integer(len(a.Args))}))
+		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(procedureIndicator{name: a.Functor, arity: Integer(len(a.Args))}))
 		for _, n := range a.Args {
 			if err := c.compileArg(n); err != nil {
 				return err
@@ -672,7 +678,7 @@ func (c *clause) compileArg(a Term) error {
 		}
 		c.bytecode = append(c.bytecode, opPop)
 	default:
-		return errors.New("unknown")
+		return SystemError(fmt.Errorf("unknown argument: %s", a))
 	}
 	return nil
 }

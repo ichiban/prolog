@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// Version is a version of this build.
 var Version = "1pl/0.1"
 
 func main() {
