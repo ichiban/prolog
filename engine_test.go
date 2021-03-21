@@ -18,7 +18,7 @@ func TestEngine_Exec(t *testing.T) {
 		assert.NoError(t, e.Exec(`append(nil, L, L).`))
 		assert.Equal(t, clauses{
 			{
-				pf: principalFunctor{name: "append", arity: 3},
+				pf: procedureIndicator{name: "append", arity: 3},
 				raw: &Compound{
 					Functor: "append",
 					Args: []Term{
@@ -38,20 +38,20 @@ func TestEngine_Exec(t *testing.T) {
 					opExit,
 				},
 			},
-		}, e.procedures[principalFunctor{name: "append", arity: 3}])
+		}, e.procedures[procedureIndicator{name: "append", arity: 3}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
 		e := Engine{EngineState{
 			operators: Operators{
-				{Precedence: 1200, Type: `xfx`, Name: `:-`},
-				{Precedence: 400, Type: `yfx`, Name: `/`},
+				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+				{Priority: 400, Specifier: `yfx`, Name: `/`},
 			},
 		}}
 		assert.NoError(t, e.Exec(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
 		assert.Equal(t, clauses{
 			{
-				pf: principalFunctor{name: "append", arity: 3},
+				pf: procedureIndicator{name: "append", arity: 3},
 				raw: &Compound{
 					Functor: ":-",
 					Args: []Term{
@@ -86,8 +86,8 @@ func TestEngine_Exec(t *testing.T) {
 					},
 				},
 				xrTable: []Term{
-					principalFunctor{name: "cons", arity: 2},
-					principalFunctor{name: "append", arity: 3},
+					procedureIndicator{name: "cons", arity: 2},
+					procedureIndicator{name: "append", arity: 3},
 				},
 				vars: []*Variable{{}, {}, {}, {}},
 				bytecode: []byte{
@@ -99,7 +99,7 @@ func TestEngine_Exec(t *testing.T) {
 					opExit,
 				},
 			},
-		}, e.procedures[principalFunctor{name: "append", arity: 3}])
+		}, e.procedures[procedureIndicator{name: "append", arity: 3}])
 	})
 }
 
@@ -108,10 +108,10 @@ func TestEngine_Query(t *testing.T) {
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
 	e := Engine{EngineState{
 		operators: Operators{
-			{Precedence: 1200, Type: `xfx`, Name: `:-`},
-			{Precedence: 400, Type: `yfx`, Name: `/`},
+			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+			{Priority: 400, Specifier: `yfx`, Name: `/`},
 		},
-		procedures: map[principalFunctor]procedure{
+		procedures: map[procedureIndicator]procedure{
 			{name: "append", arity: 3}: clauses{
 				{
 					xrTable: []Term{
@@ -127,8 +127,8 @@ func TestEngine_Query(t *testing.T) {
 				},
 				{
 					xrTable: []Term{
-						principalFunctor{name: "cons", arity: 2},
-						principalFunctor{name: "append", arity: 3},
+						procedureIndicator{name: "cons", arity: 2},
+						procedureIndicator{name: "append", arity: 3},
 					},
 					vars: []*Variable{{}, {}, {}, {}},
 					bytecode: []byte{
@@ -191,35 +191,6 @@ func TestEngine_Query(t *testing.T) {
 								},
 							},
 						},
-					},
-				},
-			}, vars[0])
-			return true
-		})
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("tak/4", func(t *testing.T) {
-		t.SkipNow()
-
-		e, err := NewEngine(nil, nil)
-		assert.NoError(t, err)
-		assert.NoError(t, e.Exec(`
-tak(X, Y, Z, Z) :- X =< Y, !.
-tak(X, Y, Z, A) :- X1 is X - 1, tak(X1, Y, Z, A1),
-                   Y1 is Y - 1, tak(Y1, Z, X, A2),
-                   Z1 is Z - 1, tak(Z1, X, Y, A3),
-                   tak(A1, A2, A3, A).
-`))
-
-		ok, err := e.Query(`tak(20, 10, 0, X).`, func(vars []*Variable) bool {
-			assert.Len(t, vars, 1)
-			assert.Equal(t, &Variable{
-				Name: "X",
-				Ref: &Variable{
-					Ref: &Variable{
-						Ref: Integer(1),
 					},
 				},
 			}, vars[0])

@@ -31,7 +31,7 @@ append(nil,L,L).
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 `)), &Operators{
-			{Precedence: 1200, Type: `xfx`, Name: `:-`},
+			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
 		}, map[rune]rune{})
 		c, err := p.Clause()
 		assert.NoError(t, err)
@@ -73,8 +73,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 	t.Run("conjunction", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &Operators{
-			{Precedence: 1200, Type: `xfx`, Name: `:-`},
-			{Precedence: 1000, Type: `xfy`, Name: `,`},
+			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
 		}, map[rune]rune{})
 
 		c, err := p.Clause()
@@ -102,8 +102,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 	t.Run("qualifier", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &Operators{
-			{Precedence: 1000, Type: `xfy`, Name: `,`},
-			{Precedence: 200, Type: `xfy`, Name: `^`},
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
+			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}, map[rune]rune{})
 
 		c, err := p.Clause()
@@ -133,8 +133,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 	t.Run("multiple qualifiers", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &Operators{
-			{Precedence: 1000, Type: `xfy`, Name: `,`},
-			{Precedence: 200, Type: `xfy`, Name: `^`},
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
+			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}, map[rune]rune{})
 
 		c, err := p.Clause()
@@ -172,8 +172,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 func TestParser_Term(t *testing.T) {
 	t.Run("expression", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e`)), &Operators{
-			{Precedence: 500, Type: `yfx`, Name: `+`},
-			{Precedence: 400, Type: `yfx`, Name: `*`},
+			{Priority: 500, Specifier: `yfx`, Name: `+`},
+			{Priority: 400, Specifier: `yfx`, Name: `*`},
 		}, map[rune]rune{})
 		term, err := p.Term()
 		assert.NoError(t, err)
@@ -210,7 +210,7 @@ func TestParser_Term(t *testing.T) {
 
 	t.Run("principal functor", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2`)), &Operators{
-			{Precedence: 400, Type: "yfx", Name: "/"},
+			{Priority: 400, Specifier: "yfx", Name: "/"},
 		}, map[rune]rune{})
 		term, err := p.Term()
 		assert.NoError(t, err)

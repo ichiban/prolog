@@ -563,6 +563,7 @@ func isGraphic(r rune) bool {
 	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
 }
 
+// IsExtendedGraphic checks if the rune is a graphic token, comma, or semicolon.
 func IsExtendedGraphic(r rune) bool {
 	return strings.ContainsRune(",;", r) || isGraphic(r)
 }

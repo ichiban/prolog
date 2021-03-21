@@ -267,7 +267,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			if o.Name != c.Functor {
 				continue
 			}
-			switch o.Type {
+			switch o.Specifier {
 			case `xf`, `yf`:
 				var lb, fb bytes.Buffer
 				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
@@ -309,7 +309,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			if o.Name != c.Functor {
 				continue
 			}
-			switch o.Type {
+			switch o.Specifier {
 			case `xfx`, `xfy`, `yfx`:
 				var lb, fb, rb bytes.Buffer
 				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
@@ -431,7 +431,7 @@ func List(ts ...Term) Term {
 	return ListRest(Atom("[]"), ts...)
 }
 
-// ListRest returns a list of ts prepended by rest.
+// ListRest returns a list of ts followed by rest.
 func ListRest(rest Term, ts ...Term) Term {
 	l := rest
 	for i := len(ts) - 1; i >= 0; i-- {
@@ -466,23 +466,26 @@ func Set(ts ...Term) Term {
 
 // Each iterates over list.
 func Each(list Term, f func(elem Term) error) error {
+	whole := list
 	for {
 		switch l := Resolve(list).(type) {
+		case *Variable:
+			return InstantiationError(whole)
 		case Atom:
 			if l != "[]" {
-				return errors.New("invalid list")
+				return TypeErrorList(l)
 			}
 			return nil
 		case *Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return errors.New("invalid list")
+				return TypeErrorList(l)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return errors.New("invalid list")
+			return TypeErrorList(l)
 		}
 	}
 }
@@ -597,7 +600,7 @@ type WriteTermOptions struct {
 var defaultWriteTermOptions = WriteTermOptions{
 	Quoted: true,
 	Ops: []Operator{
-		{Precedence: 400, Type: "yfx", Name: "/"}, // for principal functors
+		{Priority: 400, Specifier: "yfx", Name: "/"}, // for principal functors
 	},
 	NumberVars: false,
 }
@@ -608,39 +611,41 @@ type readTermOptions struct {
 	variableNames *Variable
 }
 
-// principalFunctor is a specialized variant of Compound.
-type principalFunctor struct {
+// procedureIndicator is a specialized variant of Compound.
+type procedureIndicator struct {
 	name  Atom
 	arity Integer
 }
 
-func (p principalFunctor) String() string {
+func (p procedureIndicator) String() string {
 	var buf bytes.Buffer
 	_ = p.WriteTerm(&buf, defaultWriteTermOptions)
 	return buf.String()
 }
 
-func (p principalFunctor) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 	_, err := fmt.Fprintf(w, "%s/%d", p.name, p.arity)
 	return err
 }
 
-func (p principalFunctor) Unify(t Term, _ bool) bool {
-	pf, ok := t.(principalFunctor)
+func (p procedureIndicator) Unify(t Term, _ bool) bool {
+	pf, ok := t.(procedureIndicator)
 	return ok && p.name == pf.name && p.arity == pf.arity
 }
 
-func (p principalFunctor) Copy() Term {
+func (p procedureIndicator) Copy() Term {
 	return p
 }
 
-func pfArgs(t Term) (principalFunctor, Term, error) {
+func piArgs(t Term) (procedureIndicator, Term, error) {
 	switch f := Resolve(t).(type) {
+	case *Variable:
+		return procedureIndicator{}, nil, InstantiationError(t)
 	case Atom:
-		return principalFunctor{name: f, arity: 0}, List(), nil
+		return procedureIndicator{name: f, arity: 0}, List(), nil
 	case *Compound:
-		return principalFunctor{name: f.Functor, arity: Integer(len(f.Args))}, List(f.Args...), nil
+		return procedureIndicator{name: f.Functor, arity: Integer(len(f.Args))}, List(f.Args...), nil
 	default:
-		return principalFunctor{}, nil, errors.New("not callable")
+		return procedureIndicator{}, nil, TypeErrorCallable(t)
 	}
 }
