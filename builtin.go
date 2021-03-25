@@ -108,18 +108,18 @@ func Functor(term, name, arity Term, k func() Promise) Promise {
 
 	a, ok := Resolve(arity).(Integer)
 	if !ok {
-		return Error(TypeErrorInteger(arity))
+		return Error(typeErrorInteger(arity))
 	}
 	switch {
 	case a < 0:
-		return Error(DomainErrorNotLessThanZero(a))
+		return Error(domainErrorNotLessThanZero(a))
 	case a == 0:
 		return Unify(t, name, k)
 	}
 
 	n, ok := Resolve(name).(Atom)
 	if !ok {
-		return Error(TypeErrorAtom(name))
+		return Error(typeErrorAtom(name))
 	}
 
 	vs := make([]Term, a)
@@ -138,7 +138,7 @@ func Functor(term, name, arity Term, k func() Promise) Promise {
 func Arg(nth, term, arg Term, k func() Promise) Promise {
 	t, ok := Resolve(term).(*Compound)
 	if !ok {
-		return Error(TypeErrorCompound(term))
+		return Error(typeErrorCompound(term))
 	}
 
 	switch n := Resolve(nth).(type) {
@@ -160,13 +160,13 @@ func Arg(nth, term, arg Term, k func() Promise) Promise {
 			return Bool(false)
 		}
 		if n < 0 {
-			return Error(DomainErrorNotLessThanZero(n))
+			return Error(domainErrorNotLessThanZero(n))
 		}
 		return Delay(func() Promise {
 			return Unify(arg, t.Args[int(n)-1], k)
 		})
 	default:
-		return Error(TypeErrorInteger(n))
+		return Error(typeErrorInteger(n))
 	}
 }
 
@@ -176,16 +176,16 @@ func Univ(term, list Term, k func() Promise) Promise {
 	case *Variable:
 		list = Resolve(list)
 		if list == Atom("[]") {
-			return Error(DomainErrorNotEmptyList(list))
+			return Error(domainErrorNotEmptyList(list))
 		}
 		cons, ok := list.(*Compound)
 		if !ok || cons.Functor != "." || len(cons.Args) != 2 {
-			return Error(TypeErrorList(list))
+			return Error(typeErrorList(list))
 		}
 
 		f, ok := cons.Args[0].(Atom)
 		if !ok {
-			return Error(TypeErrorAtom(cons.Args[0]))
+			return Error(typeErrorAtom(cons.Args[0]))
 		}
 
 		var args []Term
@@ -222,26 +222,26 @@ func CopyTerm(in, out Term, k func() Promise) Promise {
 func (e *EngineState) Op(priority, specifier, operator Term, k func() Promise) Promise {
 	p, ok := Resolve(priority).(Integer)
 	if !ok {
-		return Error(TypeErrorInteger(priority))
+		return Error(typeErrorInteger(priority))
 	}
 	if p < 0 || p > 1200 {
-		return Error(DomainErrorOperatorPriority(priority))
+		return Error(domainErrorOperatorPriority(priority))
 	}
 
 	s, ok := Resolve(specifier).(Atom)
 	if !ok {
-		return Error(TypeErrorAtom(specifier))
+		return Error(typeErrorAtom(specifier))
 	}
 	switch s {
 	case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
 		break
 	default:
-		return Error(DomainErrorOperatorSpecifier(s))
+		return Error(domainErrorOperatorSpecifier(s))
 	}
 
 	o, ok := Resolve(operator).(Atom)
 	if !ok {
-		return Error(TypeErrorAtom(operator))
+		return Error(typeErrorAtom(operator))
 	}
 
 	// already defined?
@@ -283,11 +283,11 @@ func (e *EngineState) CurrentOp(priority, specifier, operator Term, k func() Pro
 		break
 	case Integer:
 		if p < 0 || p > 1200 {
-			return Error(DomainErrorOperatorPriority(priority))
+			return Error(domainErrorOperatorPriority(priority))
 		}
 		break
 	default:
-		return Error(DomainErrorOperatorPriority(priority))
+		return Error(domainErrorOperatorPriority(priority))
 	}
 
 	switch s := Resolve(specifier).(type) {
@@ -298,17 +298,17 @@ func (e *EngineState) CurrentOp(priority, specifier, operator Term, k func() Pro
 		case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
 			break
 		default:
-			return Error(DomainErrorOperatorSpecifier(s))
+			return Error(domainErrorOperatorSpecifier(s))
 		}
 	default:
-		return Error(DomainErrorOperatorSpecifier(s))
+		return Error(domainErrorOperatorSpecifier(s))
 	}
 
 	switch Resolve(operator).(type) {
 	case *Variable, Atom:
 		break
 	default:
-		return Error(TypeErrorAtom(operator))
+		return Error(typeErrorAtom(operator))
 	}
 
 	pattern := Compound{Args: []Term{priority, specifier, operator}}
@@ -370,10 +370,10 @@ func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, claus
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return Error(PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		return Error(permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{pi.name, pi.arity},
-		}, Atom(fmt.Sprintf("%s is static.", pi))))
+		}))
 	}
 	c := clause{pf: pi}
 	if err := c.compile(t); err != nil {
@@ -409,7 +409,7 @@ func (e *EngineState) SetOf(template, goal, instances Term, k func() Promise) Pr
 
 func (e *EngineState) collectionOf(template, goal, instances Term, k func() Promise, agg func(...Term) Term) Promise {
 	if _, ok := Resolve(goal).(*Variable); ok {
-		return Error(InstantiationError(goal))
+		return Error(instantiationError(goal))
 	}
 
 	var qualifier, body Variable
@@ -502,11 +502,11 @@ func Compare(order, term1, term2 Term, k func() Promise) Promise {
 		case "<", "=", ">":
 			break
 		default:
-			return Error(DomainErrorOrder(order))
+			return Error(domainErrorOrder(order))
 		}
 		break
 	default:
-		return Error(TypeErrorAtom(order))
+		return Error(typeErrorAtom(order))
 	}
 
 	d := compare(term1, term2)
@@ -601,7 +601,7 @@ func compare(a, b Term) int64 {
 // Throw throws ball as an exception.
 func Throw(ball Term, _ func() Promise) Promise {
 	if _, ok := Resolve(ball).(*Variable); ok {
-		return Error(InstantiationError(ball))
+		return Error(instantiationError(ball))
 	}
 	return Error(&Exception{Term: Resolve(ball).Copy()})
 }
@@ -627,17 +627,17 @@ func (e *EngineState) CurrentPredicate(pi Term, k func() Promise) Promise {
 		break
 	case *Compound:
 		if pi.Functor != "/" || len(pi.Args) != 2 {
-			return Error(TypeErrorPredicateIndicator(pi))
+			return Error(typeErrorPredicateIndicator(pi))
 		}
 		if _, ok := Resolve(pi.Args[0]).(Atom); !ok {
-			return Error(TypeErrorPredicateIndicator(pi))
+			return Error(typeErrorPredicateIndicator(pi))
 		}
 		if _, ok := Resolve(pi.Args[1]).(Integer); !ok {
-			return Error(TypeErrorPredicateIndicator(pi))
+			return Error(typeErrorPredicateIndicator(pi))
 		}
 		break
 	default:
-		return Error(TypeErrorPredicateIndicator(pi))
+		return Error(typeErrorPredicateIndicator(pi))
 	}
 
 	a := newAssignment(pi)
@@ -669,10 +669,10 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return Error(PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		return Error(permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{pi.name, pi.arity},
-		}, Atom(fmt.Sprintf("%s is static.", pi))))
+		}))
 	}
 
 	updated := make(clauses, 0, len(cs))
@@ -709,41 +709,41 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 // Abolish removes the procedure indicated by pi from the database.
 func (e *EngineState) Abolish(pi Term, k func() Promise) Promise {
 	if _, ok := Resolve(pi).(*Variable); ok {
-		return Error(InstantiationError(pi))
+		return Error(instantiationError(pi))
 	}
 
 	c, ok := Resolve(pi).(*Compound)
 	if !ok || c.Functor != "/" || len(c.Args) != 2 {
-		return Error(TypeErrorPredicateIndicator(pi))
+		return Error(typeErrorPredicateIndicator(pi))
 	}
 
 	if _, ok := Resolve(c.Args[0]).(*Variable); ok {
-		return Error(InstantiationError(c.Args[0]))
+		return Error(instantiationError(c.Args[0]))
 	}
 
 	name, ok := Resolve(c.Args[0]).(Atom)
 	if !ok {
-		return Error(TypeErrorAtom(c.Args[0]))
+		return Error(typeErrorAtom(c.Args[0]))
 	}
 
 	if _, ok := Resolve(c.Args[1]).(*Variable); ok {
-		return Error(InstantiationError(c.Args[1]))
+		return Error(instantiationError(c.Args[1]))
 	}
 
 	arity, ok := Resolve(c.Args[1]).(Integer)
 	if !ok {
-		return Error(TypeErrorInteger(c.Args[1]))
+		return Error(typeErrorInteger(c.Args[1]))
 	}
 	if arity < 0 {
-		return Error(DomainErrorNotLessThanZero(c.Args[1]))
+		return Error(domainErrorNotLessThanZero(c.Args[1]))
 	}
 
 	key := procedureIndicator{name: name, arity: arity}
 	if _, ok := e.procedures[key].(clauses); !ok {
-		return Error(PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		return Error(permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{name, arity},
-		}, Atom(fmt.Sprintf("%s is static.", key))))
+		}))
 	}
 	delete(e.procedures, key)
 	return Delay(k)
@@ -755,7 +755,7 @@ func (e *EngineState) CurrentInput(stream Term, k func() Promise) Promise {
 	case *Variable, *Stream:
 		break
 	default:
-		return Error(DomainErrorStream(stream))
+		return Error(domainErrorStream(stream))
 	}
 
 	return Delay(func() Promise {
@@ -769,7 +769,7 @@ func (e *EngineState) CurrentOutput(stream Term, k func() Promise) Promise {
 	case *Variable, *Stream:
 		break
 	default:
-		return Error(DomainErrorStream(stream))
+		return Error(domainErrorStream(stream))
 	}
 
 	return Delay(func() Promise {
@@ -784,8 +784,8 @@ func (e *EngineState) SetInput(streamOrAlias Term, k func() Promise) Promise {
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	e.input = s
@@ -799,8 +799,8 @@ func (e *EngineState) SetOutput(streamOrAlias Term, k func() Promise) Promise {
 		return Error(err)
 	}
 
-	if s.Writer == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an output stream.", streamOrAlias))))
+	if s.sink == nil {
+		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	e.output = s
@@ -812,86 +812,134 @@ func (e *EngineState) Open(sourceSink, mode, stream, options Term, k func() Prom
 	var n Atom
 	switch s := Resolve(sourceSink).(type) {
 	case *Variable:
-		return Error(InstantiationError(sourceSink))
+		return Error(instantiationError(sourceSink))
 	case Atom:
 		n = s
 	default:
-		return Error(DomainErrorSourceSink(sourceSink))
+		return Error(domainErrorSourceSink(sourceSink))
 	}
 
 	var (
+		s Stream
+
 		flag   int
 		perm   os.FileMode
 		buffer bool
 	)
 	switch m := Resolve(mode).(type) {
 	case *Variable:
-		return Error(InstantiationError(mode))
+		return Error(instantiationError(mode))
 	case Atom:
 		switch m {
 		case "read":
+			s.mode = streamModeRead
 			flag = os.O_RDONLY
 			buffer = true
 		case "write":
+			s.mode = streamModeWrite
 			flag = os.O_CREATE | os.O_WRONLY
 			perm = 0644
 		case "append":
+			s.mode = streamModeAppend
 			flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 			perm = 0644
 		default:
-			return Error(DomainErrorIOMode(m))
+			return Error(domainErrorIOMode(m))
 		}
 	default:
-		return Error(TypeErrorAtom(mode))
+		return Error(typeErrorAtom(mode))
 	}
 
 	if _, ok := Resolve(stream).(*Variable); !ok {
-		return Error(TypeErrorVariable(stream))
+		return Error(typeErrorVariable(stream))
 	}
 
-	var (
-		typ       = Atom("text")
-		alias     Atom
-		eofAction = Atom("error")
-	)
 	if err := Each(Resolve(options), func(option Term) error {
-		if _, ok := Resolve(option).(*Variable); ok {
-			return InstantiationError(option)
-		}
-
-		var arg Variable
-		switch {
-		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("text")}}, false):
-			typ = "text"
-		case option.Unify(&Compound{Functor: "type", Args: []Term{Atom("binary")}}, false):
-			typ = "binary"
-		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("true")}}, false):
-			// TODO: don't know what to do.
-		case option.Unify(&Compound{Functor: "reposition", Args: []Term{Atom("false")}}, false):
-			// TODO: don't know what to do.
-		case option.Unify(&Compound{Functor: "alias", Args: []Term{&arg}}, false):
-			n, ok := Resolve(arg.Ref).(Atom)
-			if !ok {
-				return errors.New("not an atom")
+		switch o := Resolve(option).(type) {
+		case *Variable:
+			return instantiationError(option)
+		case *Compound:
+			if len(o.Args) != 1 {
+				return domainErrorStreamOption(option)
 			}
-			if _, ok := e.streams[n]; ok {
-				return PermissionError(Atom("open"), Atom("source_sink"), option, Atom(fmt.Sprintf("%s is already defined as an alias.", n)))
+			arg := o.Args[0]
+			switch o.Functor {
+			case "type":
+				switch t := Resolve(arg).(type) {
+				case *Variable:
+					return instantiationError(arg)
+				case Atom:
+					switch t {
+					case "text":
+						s.streamType = streamTypeText
+						return nil
+					case "binary":
+						s.streamType = streamTypeBinary
+						return nil
+					default:
+						return domainErrorStreamOption(option)
+					}
+				default:
+					return typeErrorAtom(arg)
+				}
+			case "reposition":
+				switch b := Resolve(arg).(type) {
+				case *Variable:
+					return instantiationError(arg)
+				case Atom:
+					switch b {
+					case "true":
+						s.reposition = true
+						return nil
+					case "false":
+						s.reposition = false
+						return nil
+					default:
+						return domainErrorStreamOption(option)
+					}
+				default:
+					return typeErrorAtom(arg)
+				}
+			case "alias":
+				switch a := Resolve(arg).(type) {
+				case *Variable:
+					return instantiationError(arg)
+				case Atom:
+					if _, ok := e.streams[a]; ok {
+						return permissionError(Atom("open"), Atom("source_sink"), option, Atom(fmt.Sprintf("%s is already defined as an alias.", a)))
+					}
+					s.alias = a
+					return nil
+				default:
+					return domainErrorStreamOption(option)
+				}
+			case "eof_action":
+				switch a := Resolve(arg).(type) {
+				case *Variable:
+					return instantiationError(arg)
+				case Atom:
+					switch a {
+					case "error":
+						s.eofAction = eofActionError
+						return nil
+					case "eof_code":
+						s.eofAction = eofActionEOFCode
+						return nil
+					case "reset":
+						s.eofAction = eofActionReset
+						return nil
+					default:
+						return domainErrorStreamOption(option)
+					}
+				default:
+					return domainErrorStreamOption(option)
+				}
+			default:
+				return domainErrorStreamOption(option)
 			}
-			alias = n
-		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, false):
-			eofAction = "error"
-		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}}, false):
-			eofAction = "eof_code"
-		case option.Unify(&Compound{Functor: "eof_action", Args: []Term{Atom("reset")}}, false):
-			eofAction = "reset"
-		case option.Unify(&Compound{Functor: "buffer", Args: []Term{Atom("true")}}, false):
-			buffer = true
-		case option.Unify(&Compound{Functor: "buffer", Args: []Term{Atom("false")}}, false):
-			buffer = false
 		default:
-			return DomainErrorStreamOption(option)
+			return domainErrorStreamOption(option)
 		}
-		return nil
 	}); err != nil {
 		return Error(err)
 	}
@@ -900,42 +948,36 @@ func (e *EngineState) Open(sourceSink, mode, stream, options Term, k func() Prom
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
-			return Error(ExistenceErrorSourceSink(sourceSink))
+			return Error(existenceErrorSourceSink(sourceSink))
 		case os.IsPermission(err):
-			return Error(PermissionError(Atom("open"), Atom("source_sink"), sourceSink, Atom(fmt.Sprintf("%s cannot be opened.", sourceSink))))
+			return Error(permissionError(Atom("open"), Atom("source_sink"), sourceSink, Atom(fmt.Sprintf("%s cannot be opened.", sourceSink))))
 		default:
-			return Error(SystemError(err))
+			return Error(systemError(err))
 		}
 	}
 
-	s := Stream{
-		Closer:    f,
-		mode:      mode.(Atom),
-		alias:     alias,
-		eofAction: eofAction,
-		typ:       typ,
-	}
-	switch mode {
-	case Atom("read"):
-		s.Reader = f
+	switch s.mode {
+	case streamModeRead:
+		s.source = f
 		if buffer {
-			s.Reader = bufio.NewReader(s.Reader)
+			s.source = bufio.NewReader(s.source)
 		}
-	case Atom("write"), Atom("append"):
-		s.Writer = f
+	case streamModeWrite, streamModeAppend:
+		s.sink = f
 		if buffer {
-			s.Writer = bufio.NewWriter(s.Writer)
+			s.sink = bufio.NewWriter(s.sink)
 		}
 	}
+	s.closer = f
 
 	if e.streams == nil {
 		e.streams = map[Term]*Stream{}
 	}
-	if alias == "" {
+	if s.alias == "" {
 		// we can't use alias for the key but all the open streams should be in streams map anyways.
 		e.streams[&s] = &s
 	} else {
-		e.streams[alias] = &s
+		e.streams[s.alias] = &s
 	}
 
 	return Delay(func() Promise {
@@ -953,7 +995,7 @@ func (e *EngineState) Close(streamOrAlias, options Term, k func() Promise) Promi
 	var force bool
 	if err := Each(Resolve(options), func(option Term) error {
 		if _, ok := Resolve(option).(*Variable); ok {
-			return InstantiationError(option)
+			return instantiationError(option)
 		}
 
 		switch {
@@ -962,15 +1004,15 @@ func (e *EngineState) Close(streamOrAlias, options Term, k func() Promise) Promi
 		case option.Unify(&Compound{Functor: "force", Args: []Term{Atom("true")}}, false):
 			force = true
 		default:
-			return DomainErrorStreamOption(option)
+			return domainErrorStreamOption(option)
 		}
 		return nil
 	}); err != nil {
 		return Error(err)
 	}
 
-	if err := s.Close(); err != nil && !force {
-		return Error(ResourceError(streamOrAlias, Atom(err.Error())))
+	if err := s.closer.Close(); err != nil && !force {
+		return Error(resourceError(streamOrAlias, Atom(err.Error())))
 	}
 
 	if s.alias == "" {
@@ -989,15 +1031,15 @@ func (e *EngineState) FlushOutput(streamOrAlias Term, k func() Promise) Promise 
 		return Error(err)
 	}
 
-	if s.Writer == nil {
-		return Error(PermissionError(Atom("output"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an output stream.", streamOrAlias))))
+	if s.sink == nil {
+		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	type flusher interface {
 		Flush() error
 	}
 
-	if f, ok := s.Writer.(flusher); ok {
+	if f, ok := s.sink.(flusher); ok {
 		if err := f.Flush(); err != nil {
 			return Error(err)
 		}
@@ -1013,10 +1055,18 @@ func (e *EngineState) WriteTerm(streamOrAlias, term, options Term, k func() Prom
 		return Error(err)
 	}
 
+	if s.sink == nil {
+		return Error(permissionErrorOutputStream(streamOrAlias))
+	}
+
+	if s.streamType == streamTypeBinary {
+		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
+	}
+
 	opts := WriteTermOptions{Ops: e.operators}
 	if err := Each(Resolve(options), func(option Term) error {
 		if _, ok := Resolve(option).(*Variable); ok {
-			return InstantiationError(option)
+			return instantiationError(option)
 		}
 
 		switch {
@@ -1033,18 +1083,14 @@ func (e *EngineState) WriteTerm(streamOrAlias, term, options Term, k func() Prom
 		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("true")}}, false):
 			opts.NumberVars = true
 		default:
-			return DomainErrorWriteOption(option)
+			return domainErrorWriteOption(option)
 		}
 		return nil
 	}); err != nil {
 		return Error(err)
 	}
 
-	if s.Writer == nil {
-		return Error(PermissionError(Atom("output"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an output stream.", streamOrAlias))))
-	}
-
-	if err := Resolve(term).WriteTerm(s, opts); err != nil {
+	if err := Resolve(term).WriteTerm(s.sink, opts); err != nil {
 		return Error(err)
 	}
 
@@ -1057,7 +1103,7 @@ func CharCode(char, code Term, k func() Promise) Promise {
 	case *Variable:
 		switch cd := Resolve(code).(type) {
 		case *Variable:
-			return Error(InstantiationError(&Compound{
+			return Error(instantiationError(&Compound{
 				Functor: ",",
 				Args:    []Term{char, code},
 			}))
@@ -1065,26 +1111,26 @@ func CharCode(char, code Term, k func() Promise) Promise {
 			r := rune(cd)
 
 			if !utf8.ValidRune(r) {
-				return Error(RepresentationError(Atom("character_code"), Atom(fmt.Sprintf("%d is not a valid unicode code point.", r))))
+				return Error(representationError(Atom("character_code"), Atom(fmt.Sprintf("%d is not a valid unicode code point.", r))))
 			}
 
 			return Delay(func() Promise {
 				return Unify(ch, Atom(r), k)
 			})
 		default:
-			return Error(TypeErrorInteger(code))
+			return Error(typeErrorInteger(code))
 		}
 	case Atom:
 		rs := []rune(ch)
 		if len(rs) != 1 {
-			return Error(TypeErrorCharacter(char))
+			return Error(typeErrorCharacter(char))
 		}
 
 		return Delay(func() Promise {
 			return Unify(code, Integer(rs[0]), k)
 		})
 	default:
-		return Error(TypeErrorCharacter(char))
+		return Error(typeErrorCharacter(char))
 	}
 }
 
@@ -1095,25 +1141,29 @@ func (e *EngineState) PutByte(streamOrAlias, byt Term, k func() Promise) Promise
 		return Error(err)
 	}
 
-	if s.Writer == nil {
-		return Error(PermissionError(Atom("output"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an output stream.", streamOrAlias))))
+	if s.sink == nil {
+		return Error(permissionErrorOutputStream(streamOrAlias))
+	}
+
+	if s.streamType == streamTypeText {
+		return Error(permissionErrorOutputTextStream(streamOrAlias))
 	}
 
 	switch b := Resolve(byt).(type) {
 	case *Variable:
-		return Error(InstantiationError(byt))
+		return Error(instantiationError(byt))
 	case Integer:
 		if 0 > b || 255 < b {
-			return Error(TypeErrorByte(byt))
+			return Error(typeErrorByte(byt))
 		}
 
-		if _, err := s.Write([]byte{byte(b)}); err != nil {
-			return Error(SystemError(err))
+		if _, err := s.sink.Write([]byte{byte(b)}); err != nil {
+			return Error(systemError(err))
 		}
 
 		return Delay(k)
 	default:
-		return Error(TypeErrorByte(byt))
+		return Error(typeErrorByte(byt))
 	}
 }
 
@@ -1124,27 +1174,31 @@ func (e *EngineState) PutCode(streamOrAlias, code Term, k func() Promise) Promis
 		return Error(err)
 	}
 
-	if s.Writer == nil {
-		return Error(PermissionError(Atom("output"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an output stream.", streamOrAlias))))
+	if s.sink == nil {
+		return Error(permissionErrorOutputStream(streamOrAlias))
+	}
+
+	if s.streamType == streamTypeBinary {
+		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
 	switch c := Resolve(code).(type) {
 	case *Variable:
-		return Error(InstantiationError(code))
+		return Error(instantiationError(code))
 	case Integer:
 		r := rune(c)
 
 		if !utf8.ValidRune(r) {
-			return Error(RepresentationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid unicode code point.", c))))
+			return Error(representationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid unicode code point.", c))))
 		}
 
-		if _, err := s.Write([]byte(string(r))); err != nil {
-			return Error(SystemError(err))
+		if _, err := s.sink.Write([]byte(string(r))); err != nil {
+			return Error(systemError(err))
 		}
 
 		return Delay(k)
 	default:
-		return Error(TypeErrorInteger(code))
+		return Error(typeErrorInteger(code))
 	}
 }
 
@@ -1155,10 +1209,18 @@ func (e *EngineState) ReadTerm(streamOrAlias, term, options Term, k func() Promi
 		return Error(err)
 	}
 
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
+	}
+
+	if s.streamType == streamTypeBinary {
+		return Error(permissionErrorInputBinaryStream(streamOrAlias))
+	}
+
 	var opts readTermOptions
 	if err := Each(Resolve(options), func(option Term) error {
 		if _, ok := Resolve(option).(*Variable); ok {
-			return InstantiationError(option)
+			return instantiationError(option)
 		}
 
 		var v Variable
@@ -1170,18 +1232,14 @@ func (e *EngineState) ReadTerm(streamOrAlias, term, options Term, k func() Promi
 		case option.Unify(&Compound{Functor: "variable_names", Args: []Term{&v}}, false):
 			opts.variableNames = &v
 		default:
-			return DomainErrorReadOption(option)
+			return domainErrorReadOption(option)
 		}
 		return nil
 	}); err != nil {
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
-	}
-
-	br, ok := s.Reader.(*bufio.Reader)
+	br, ok := s.source.(*bufio.Reader)
 	if !ok {
 		return Error(errors.New("not a buffered stream"))
 	}
@@ -1192,39 +1250,55 @@ func (e *EngineState) ReadTerm(streamOrAlias, term, options Term, k func() Promi
 	}
 	p := NewParser(br, &e.operators, conv)
 
-	t, err := p.Clause()
-	if err != nil {
+	t, err := p.Term()
+	switch err {
+	case nil:
+		var singletons, variables, variableNames []Term
+		for _, vc := range p.vars {
+			if vc.Count == 1 {
+				singletons = append(singletons, vc.variable)
+			}
+			variables = append(variables, vc.variable)
+			variableNames = append(variableNames, &Compound{
+				Functor: "=",
+				Args:    []Term{Atom(vc.variable.Name), vc.variable},
+			})
+			vc.variable.Name = ""
+		}
+
+		if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
+			return Bool(false)
+		}
+
+		if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
+			return Bool(false)
+		}
+
+		if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
+			return Bool(false)
+		}
+
+		return Delay(func() Promise {
+			return Unify(term, t, k)
+		})
+	case io.EOF:
+		switch s.eofAction {
+		case eofActionError:
+			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+		case eofActionEOFCode:
+			return Delay(func() Promise {
+				return Unify(term, Atom("end_of_file"), k)
+			})
+		case eofActionReset:
+			return Delay(func() Promise {
+				return e.ReadTerm(streamOrAlias, term, options, k)
+			})
+		default:
+			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+		}
+	default:
 		return Error(err)
 	}
-
-	var singletons, variables, variableNames []Term
-	for _, vc := range p.vars {
-		if vc.Count == 1 {
-			singletons = append(singletons, vc.variable)
-		}
-		variables = append(variables, vc.variable)
-		variableNames = append(variableNames, &Compound{
-			Functor: "=",
-			Args:    []Term{Atom(vc.variable.Name), vc.variable},
-		})
-		vc.variable.Name = ""
-	}
-
-	if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
-		return Bool(false)
-	}
-
-	if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
-		return Bool(false)
-	}
-
-	if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
-		return Bool(false)
-	}
-
-	return Delay(func() Promise {
-		return Unify(term, t, k)
-	})
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
@@ -1234,8 +1308,12 @@ func (e *EngineState) GetByte(streamOrAlias, inByte Term, k func() Promise) Prom
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
+	}
+
+	if s.streamType == streamTypeText {
+		return Error(permissionErrorInputTextStream(streamOrAlias))
 	}
 
 	switch b := Resolve(inByte).(type) {
@@ -1243,24 +1321,35 @@ func (e *EngineState) GetByte(streamOrAlias, inByte Term, k func() Promise) Prom
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			Error(TypeErrorInByte(inByte))
+			Error(typeErrorInByte(inByte))
 		}
 		break
 	default:
-		return Error(TypeErrorInByte(inByte))
+		return Error(typeErrorInByte(inByte))
 	}
 
 	b := make([]byte, 1)
-	_, err = s.Read(b)
+	_, err = s.source.Read(b)
 	switch err {
 	case nil:
 		return Delay(func() Promise {
 			return Unify(inByte, Integer(b[0]), k)
 		})
 	case io.EOF:
-		return Delay(func() Promise {
-			return Unify(inByte, Integer(-1), k)
-		})
+		switch s.eofAction {
+		case eofActionError:
+			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+		case eofActionEOFCode:
+			return Delay(func() Promise {
+				return Unify(inByte, Integer(-1), k)
+			})
+		case eofActionReset:
+			return Delay(func() Promise {
+				return e.GetByte(streamOrAlias, inByte, k)
+			})
+		default:
+			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+		}
 	default:
 		return Error(err)
 	}
@@ -1273,13 +1362,17 @@ func (e *EngineState) GetChar(streamOrAlias, char Term, k func() Promise) Promis
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	br, ok := s.Reader.(*bufio.Reader)
+	if s.streamType == streamTypeBinary {
+		return Error(permissionErrorInputBinaryStream(streamOrAlias))
+	}
+
+	br, ok := s.source.(*bufio.Reader)
 	if !ok {
-		return Error(PermissionError(Atom("input"), Atom("buffered_stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not a buffered stream.", streamOrAlias))))
+		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := Resolve(char).(type) {
@@ -1287,29 +1380,40 @@ func (e *EngineState) GetChar(streamOrAlias, char Term, k func() Promise) Promis
 		break
 	case Atom:
 		if len([]rune(c)) != 1 {
-			return Error(TypeErrorInCharacter(char))
+			return Error(typeErrorInCharacter(char))
 		}
 		break
 	default:
-		return Error(TypeErrorInCharacter(char))
+		return Error(typeErrorInCharacter(char))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
 		if r == unicode.ReplacementChar {
-			return Error(RepresentationError(Atom("character"), Atom("invalid character.")))
+			return Error(representationError(Atom("character"), Atom("invalid character.")))
 		}
 
 		return Delay(func() Promise {
 			return Unify(char, Atom(r), k)
 		})
 	case io.EOF:
-		return Delay(func() Promise {
-			return Unify(char, Atom("end_of_file"), k)
-		})
+		switch s.eofAction {
+		case eofActionError:
+			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+		case eofActionEOFCode:
+			return Delay(func() Promise {
+				return Unify(char, Atom("end_of_file"), k)
+			})
+		case eofActionReset:
+			return Delay(func() Promise {
+				return e.GetChar(streamOrAlias, char, k)
+			})
+		default:
+			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+		}
 	default:
-		return Error(SystemError(err))
+		return Error(systemError(err))
 	}
 }
 
@@ -1320,13 +1424,17 @@ func (e *EngineState) PeekByte(streamOrAlias, inByte Term, k func() Promise) Pro
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	br, ok := s.Reader.(*bufio.Reader)
+	if s.streamType == streamTypeText {
+		return Error(permissionErrorInputTextStream(streamOrAlias))
+	}
+
+	br, ok := s.source.(*bufio.Reader)
 	if !ok {
-		return Error(PermissionError(Atom("input"), Atom("buffered_stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not a buffered stream.", streamOrAlias))))
+		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch b := Resolve(inByte).(type) {
@@ -1334,11 +1442,11 @@ func (e *EngineState) PeekByte(streamOrAlias, inByte Term, k func() Promise) Pro
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			return Error(TypeErrorInByte(inByte))
+			return Error(typeErrorInByte(inByte))
 		}
 		break
 	default:
-		return Error(TypeErrorInByte(inByte))
+		return Error(typeErrorInByte(inByte))
 	}
 
 	b, err := br.Peek(1)
@@ -1348,11 +1456,22 @@ func (e *EngineState) PeekByte(streamOrAlias, inByte Term, k func() Promise) Pro
 			return Unify(inByte, Integer(b[0]), k)
 		})
 	case io.EOF:
-		return Delay(func() Promise {
-			return Unify(inByte, Integer(-1), k)
-		})
+		switch s.eofAction {
+		case eofActionError:
+			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+		case eofActionEOFCode:
+			return Delay(func() Promise {
+				return Unify(inByte, Integer(-1), k)
+			})
+		case eofActionReset:
+			return Delay(func() Promise {
+				return e.PeekByte(streamOrAlias, inByte, k)
+			})
+		default:
+			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+		}
 	default:
-		return Error(SystemError(err))
+		return Error(systemError(err))
 	}
 }
 
@@ -1363,13 +1482,17 @@ func (e *EngineState) PeekChar(streamOrAlias, char Term, k func() Promise) Promi
 		return Error(err)
 	}
 
-	if s.Reader == nil {
-		return Error(PermissionError(Atom("input"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not an input stream.", streamOrAlias))))
+	if s.source == nil {
+		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	br, ok := s.Reader.(*bufio.Reader)
+	if s.streamType == streamTypeBinary {
+		return Error(permissionErrorInputBinaryStream(streamOrAlias))
+	}
+
+	br, ok := s.source.(*bufio.Reader)
 	if !ok {
-		return Error(PermissionError(Atom("input"), Atom("buffered_stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not a buffered stream.", streamOrAlias))))
+		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := Resolve(char).(type) {
@@ -1377,33 +1500,44 @@ func (e *EngineState) PeekChar(streamOrAlias, char Term, k func() Promise) Promi
 		break
 	case Atom:
 		if len([]rune(c)) != 1 {
-			return Error(TypeErrorInCharacter(char))
+			return Error(typeErrorInCharacter(char))
 		}
 		break
 	default:
-		return Error(TypeErrorInCharacter(char))
+		return Error(typeErrorInCharacter(char))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
 		if err := br.UnreadRune(); err != nil {
-			return Error(SystemError(err))
+			return Error(systemError(err))
 		}
 
 		if r == unicode.ReplacementChar {
-			return Error(RepresentationError(Atom("character"), Atom("invalid character.")))
+			return Error(representationError(Atom("character"), Atom("invalid character.")))
 		}
 
 		return Delay(func() Promise {
 			return Unify(char, Atom(r), k)
 		})
 	case io.EOF:
-		return Delay(func() Promise {
-			return Unify(char, Atom("end_of_file"), k)
-		})
+		switch s.eofAction {
+		case eofActionError:
+			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+		case eofActionEOFCode:
+			return Delay(func() Promise {
+				return Unify(char, Atom("end_of_file"), k)
+			})
+		case eofActionReset:
+			return Delay(func() Promise {
+				return e.PeekChar(streamOrAlias, char, k)
+			})
+		default:
+			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+		}
 	default:
-		return Error(SystemError(err))
+		return Error(systemError(err))
 	}
 }
 
@@ -1413,7 +1547,7 @@ var osExit = os.Exit
 func (e *EngineState) Halt(n Term, k func() Promise) Promise {
 	switch code := Resolve(n).(type) {
 	case *Variable:
-		return Error(InstantiationError(n))
+		return Error(instantiationError(n))
 	case Integer:
 		for _, f := range e.BeforeHalt {
 			f()
@@ -1423,7 +1557,7 @@ func (e *EngineState) Halt(n Term, k func() Promise) Promise {
 
 		return Delay(k)
 	default:
-		return Error(TypeErrorInteger(n))
+		return Error(typeErrorInteger(n))
 	}
 }
 
@@ -1438,7 +1572,7 @@ func (e *EngineState) Clause(head, body Term, k func() Promise) Promise {
 	case *Variable, Atom, *Compound:
 		break
 	default:
-		return Error(TypeErrorCallable(body))
+		return Error(typeErrorCallable(body))
 	}
 
 	a := newAssignment(head, body)
@@ -1462,25 +1596,25 @@ func (e *EngineState) Clause(head, body Term, k func() Promise) Promise {
 func AtomLength(atom, length Term, k func() Promise) Promise {
 	switch a := Resolve(atom).(type) {
 	case *Variable:
-		return Error(InstantiationError(atom))
+		return Error(instantiationError(atom))
 	case Atom:
 		switch l := Resolve(length).(type) {
 		case *Variable:
 			break
 		case Integer:
 			if l < 0 {
-				return Error(DomainErrorNotLessThanZero(length))
+				return Error(domainErrorNotLessThanZero(length))
 			}
 			break
 		default:
-			return Error(TypeErrorInteger(length))
+			return Error(typeErrorInteger(length))
 		}
 
 		return Delay(func() Promise {
 			return Unify(length, Integer(len([]rune(a))), k)
 		})
 	default:
-		return Error(TypeErrorAtom(atom))
+		return Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1490,14 +1624,14 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 	case *Variable:
 		switch a1 := Resolve(atom1).(type) {
 		case *Variable:
-			return Error(InstantiationError(&Compound{
+			return Error(instantiationError(&Compound{
 				Functor: ",",
 				Args:    []Term{atom1, atom3},
 			}))
 		case Atom:
 			switch a2 := Resolve(atom2).(type) {
 			case *Variable:
-				return Error(InstantiationError(&Compound{
+				return Error(instantiationError(&Compound{
 					Functor: ",",
 					Args:    []Term{atom2, atom3},
 				}))
@@ -1506,24 +1640,24 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 					return Unify(a1+a2, a3, k)
 				})
 			default:
-				return Error(TypeErrorAtom(atom2))
+				return Error(typeErrorAtom(atom2))
 			}
 		default:
-			return Error(TypeErrorAtom(atom1))
+			return Error(typeErrorAtom(atom1))
 		}
 	case Atom:
 		switch Resolve(atom1).(type) {
 		case *Variable, Atom:
 			break
 		default:
-			return Error(TypeErrorAtom(atom1))
+			return Error(typeErrorAtom(atom1))
 		}
 
 		switch Resolve(atom2).(type) {
 		case *Variable, Atom:
 			break
 		default:
-			return Error(TypeErrorAtom(atom2))
+			return Error(typeErrorAtom(atom2))
 		}
 
 		pattern := Compound{Args: []Term{atom1, atom2}}
@@ -1542,7 +1676,7 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 		})
 		return Delay(ks...)
 	default:
-		return Error(TypeErrorAtom(atom3))
+		return Error(typeErrorAtom(atom3))
 	}
 }
 
@@ -1550,7 +1684,7 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promise {
 	switch whole := Resolve(atom).(type) {
 	case *Variable:
-		return Error(InstantiationError(atom))
+		return Error(instantiationError(atom))
 	case Atom:
 		rs := []rune(whole)
 
@@ -1559,11 +1693,11 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promis
 			break
 		case Integer:
 			if b < 0 {
-				return Error(DomainErrorNotLessThanZero(before))
+				return Error(domainErrorNotLessThanZero(before))
 			}
 			break
 		default:
-			return Error(TypeErrorInteger(before))
+			return Error(typeErrorInteger(before))
 		}
 
 		switch l := Resolve(length).(type) {
@@ -1571,11 +1705,11 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promis
 			break
 		case Integer:
 			if l < 0 {
-				return Error(DomainErrorNotLessThanZero(length))
+				return Error(domainErrorNotLessThanZero(length))
 			}
 			break
 		default:
-			return Error(TypeErrorInteger(length))
+			return Error(typeErrorInteger(length))
 		}
 
 		switch a := Resolve(after).(type) {
@@ -1583,18 +1717,18 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promis
 			break
 		case Integer:
 			if a < 0 {
-				return Error(DomainErrorNotLessThanZero(after))
+				return Error(domainErrorNotLessThanZero(after))
 			}
 			break
 		default:
-			return Error(TypeErrorInteger(after))
+			return Error(typeErrorInteger(after))
 		}
 
 		switch Resolve(subAtom).(type) {
 		case *Variable, Atom:
 			break
 		default:
-			return Error(TypeErrorAtom(subAtom))
+			return Error(typeErrorAtom(subAtom))
 		}
 
 		pattern := Compound{Args: []Term{before, length, after, subAtom}}
@@ -1611,7 +1745,7 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promis
 		}
 		return Delay(ks...)
 	default:
-		return Error(TypeErrorAtom(atom))
+		return Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1624,17 +1758,17 @@ func AtomChars(atom, chars Term, k func() Promise) Promise {
 		if err := Each(Resolve(chars), func(elem Term) error {
 			switch e := Resolve(elem).(type) {
 			case *Variable:
-				return InstantiationError(elem)
+				return instantiationError(elem)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return TypeErrorCharacter(elem)
+					return typeErrorCharacter(elem)
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return SystemError(err)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return TypeErrorCharacter(elem)
+				return typeErrorCharacter(elem)
 			}
 		}); err != nil {
 			return Error(err)
@@ -1652,7 +1786,7 @@ func AtomChars(atom, chars Term, k func() Promise) Promise {
 			return Unify(chars, List(cs...), k)
 		})
 	default:
-		return Error(TypeErrorAtom(atom))
+		return Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1665,14 +1799,14 @@ func AtomCodes(atom, codes Term, k func() Promise) Promise {
 		if err := Each(Resolve(codes), func(elem Term) error {
 			switch e := Resolve(elem).(type) {
 			case *Variable:
-				return InstantiationError(elem)
+				return instantiationError(elem)
 			case Integer:
 				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return SystemError(err)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return RepresentationError(Atom("character_code"), Atom("invalid character code."))
+				return representationError(Atom("character_code"), Atom("invalid character code."))
 			}
 		}); err != nil {
 			return Error(err)
@@ -1690,7 +1824,7 @@ func AtomCodes(atom, codes Term, k func() Promise) Promise {
 			return Unify(codes, List(cs...), k)
 		})
 	default:
-		return Error(TypeErrorAtom(atom))
+		return Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1703,30 +1837,39 @@ func NumberChars(num, chars Term, k func() Promise) Promise {
 		if err := Each(Resolve(chars), func(elem Term) error {
 			switch e := Resolve(elem).(type) {
 			case *Variable:
-				return InstantiationError(elem)
+				return instantiationError(elem)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return TypeErrorCharacter(elem)
+					return typeErrorCharacter(elem)
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return SystemError(err)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return TypeErrorCharacter(elem)
+				return typeErrorCharacter(elem)
 			}
 		}); err != nil {
 			return Error(err)
 		}
 
+		if _, err := sb.WriteRune('.'); err != nil {
+			return Error(systemError(err))
+		}
+
 		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
-		t, err := p.Number()
+		t, err := p.Term()
 		if err != nil {
 			return Error(err)
 		}
-		return Delay(func() Promise {
-			return Unify(num, t, k)
-		})
+		switch t.(type) {
+		case Float, Integer:
+			return Delay(func() Promise {
+				return Unify(num, t, k)
+			})
+		default:
+			return Error(syntaxErrorNotANumber(t))
+		}
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
@@ -1741,7 +1884,7 @@ func NumberChars(num, chars Term, k func() Promise) Promise {
 			return Unify(chars, List(cs...), k)
 		})
 	default:
-		return Error(TypeErrorNumber(num))
+		return Error(typeErrorNumber(num))
 	}
 }
 
@@ -1754,27 +1897,36 @@ func NumberCodes(num, codes Term, k func() Promise) Promise {
 		if err := Each(Resolve(codes), func(elem Term) error {
 			switch e := Resolve(elem).(type) {
 			case *Variable:
-				return InstantiationError(elem)
+				return instantiationError(elem)
 			case Integer:
 				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return SystemError(err)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return RepresentationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid character code.", elem)))
+				return representationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid character code.", elem)))
 			}
 		}); err != nil {
 			return Error(err)
 		}
 
+		if _, err := sb.WriteRune('.'); err != nil {
+			return Error(systemError(err))
+		}
+
 		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
-		t, err := p.Number()
+		t, err := p.Term()
 		if err != nil {
 			return Error(err)
 		}
-		return Delay(func() Promise {
-			return Unify(num, t, k)
-		})
+		switch t.(type) {
+		case Float, Integer:
+			return Delay(func() Promise {
+				return Unify(num, t, k)
+			})
+		default:
+			return Error(syntaxErrorNotANumber(t))
+		}
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
@@ -1789,7 +1941,7 @@ func NumberCodes(num, codes Term, k func() Promise) Promise {
 			return Unify(codes, List(cs...), k)
 		})
 	default:
-		return Error(TypeErrorNumber(num))
+		return Error(typeErrorNumber(num))
 	}
 }
 
@@ -1889,7 +2041,7 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() Promise, pi func(Integer, 
 			}
 			return Delay(k)
 		default:
-			return Error(TypeErrorEvaluable(r))
+			return Error(typeErrorEvaluable(r))
 		}
 	case Float:
 		switch r := r.(type) {
@@ -1904,10 +2056,10 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() Promise, pi func(Integer, 
 			}
 			return Delay(k)
 		default:
-			return Error(TypeErrorEvaluable(r))
+			return Error(typeErrorEvaluable(r))
 		}
 	default:
-		return Error(TypeErrorEvaluable(l))
+		return Error(typeErrorEvaluable(l))
 	}
 }
 
@@ -1916,7 +2068,7 @@ func (fs FunctionSet) eval(expression Term) (_ Term, err error) {
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
 				if e.Error() == "runtime error: integer divide by zero" {
-					err = EvaluationErrorZeroDivisor()
+					err = evaluationErrorZeroDivisor()
 					return
 				}
 			}
@@ -1926,9 +2078,9 @@ func (fs FunctionSet) eval(expression Term) (_ Term, err error) {
 
 	switch t := Resolve(expression).(type) {
 	case *Variable:
-		return nil, InstantiationError(expression)
+		return nil, instantiationError(expression)
 	case Atom:
-		return nil, TypeErrorEvaluable(expression) // TODO: constants?
+		return nil, typeErrorEvaluable(expression) // TODO: constants?
 	case Integer, Float:
 		return t, nil
 	case *Compound:
@@ -1936,7 +2088,7 @@ func (fs FunctionSet) eval(expression Term) (_ Term, err error) {
 		case 1:
 			f, ok := fs.Unary[t.Functor]
 			if !ok {
-				return nil, TypeErrorEvaluable(expression)
+				return nil, typeErrorEvaluable(expression)
 			}
 			x, err := fs.eval(t.Args[0])
 			if err != nil {
@@ -1946,7 +2098,7 @@ func (fs FunctionSet) eval(expression Term) (_ Term, err error) {
 		case 2:
 			f, ok := fs.Binary[t.Functor]
 			if !ok {
-				return nil, TypeErrorEvaluable(expression)
+				return nil, typeErrorEvaluable(expression)
 			}
 			x, err := fs.eval(t.Args[0])
 			if err != nil {
@@ -1958,10 +2110,10 @@ func (fs FunctionSet) eval(expression Term) (_ Term, err error) {
 			}
 			return f(x, y)
 		default:
-			return nil, TypeErrorEvaluable(expression)
+			return nil, typeErrorEvaluable(expression)
 		}
 	default:
-		return nil, TypeErrorEvaluable(expression)
+		return nil, typeErrorEvaluable(expression)
 	}
 }
 
@@ -2021,7 +2173,7 @@ func unaryInteger(f func(i int64) int64) func(Term) (Term, error) {
 	return func(x Term) (Term, error) {
 		i, ok := Resolve(x).(Integer)
 		if !ok {
-			return nil, TypeErrorInteger(x)
+			return nil, typeErrorInteger(x)
 		}
 
 		return Integer(f(int64(i))), nil
@@ -2032,12 +2184,12 @@ func binaryInteger(f func(i, j int64) int64) func(Term, Term) (Term, error) {
 	return func(x, y Term) (Term, error) {
 		i, ok := Resolve(x).(Integer)
 		if !ok {
-			return nil, TypeErrorInteger(x)
+			return nil, typeErrorInteger(x)
 		}
 
 		j, ok := Resolve(y).(Integer)
 		if !ok {
-			return nil, TypeErrorInteger(y)
+			return nil, typeErrorInteger(y)
 		}
 
 		return Integer(f(int64(i), int64(j))), nil
@@ -2052,7 +2204,7 @@ func unaryFloat(f func(n float64) float64) func(Term) (Term, error) {
 		case Float:
 			return Float(f(float64(x))), nil
 		default:
-			return nil, TypeErrorEvaluable(x)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2067,7 +2219,7 @@ func binaryFloat(f func(n float64, m float64) float64) func(Term, Term) (Term, e
 			case Float:
 				return Float(f(float64(x), float64(y))), nil
 			default:
-				return nil, TypeErrorEvaluable(y)
+				return nil, typeErrorEvaluable(y)
 			}
 		case Float:
 			switch y := Resolve(y).(type) {
@@ -2076,10 +2228,10 @@ func binaryFloat(f func(n float64, m float64) float64) func(Term, Term) (Term, e
 			case Float:
 				return Float(f(float64(x), float64(y))), nil
 			default:
-				return nil, TypeErrorEvaluable(y)
+				return nil, typeErrorEvaluable(y)
 			}
 		default:
-			return nil, TypeErrorEvaluable(x)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2092,7 +2244,7 @@ func unaryNumber(fi func(i int64) int64, ff func(n float64) float64) func(Term) 
 		case Float:
 			return Float(ff(float64(x))), nil
 		default:
-			return nil, TypeErrorEvaluable(x)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2107,7 +2259,7 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 			case Float:
 				return Float(ff(float64(x), float64(y))), nil
 			default:
-				return nil, TypeErrorEvaluable(y)
+				return nil, typeErrorEvaluable(y)
 			}
 		case Float:
 			switch y := Resolve(y).(type) {
@@ -2116,10 +2268,10 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 			case Float:
 				return Float(ff(float64(x), float64(y))), nil
 			default:
-				return nil, TypeErrorEvaluable(y)
+				return nil, typeErrorEvaluable(y)
 			}
 		default:
-			return nil, TypeErrorEvaluable(x)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2135,13 +2287,13 @@ func (e *EngineState) StreamProperty(streamOrAlias, property Term, k func() Prom
 	case Atom: // ISO standard stream_property/2 doesn't take an alias but why not?
 		v, ok := e.streams[s]
 		if !ok {
-			return Error(ExistenceErrorStream(streamOrAlias))
+			return Error(existenceErrorStream(streamOrAlias))
 		}
 		streams = append(streams, v)
 	case *Stream:
 		streams = append(streams, s)
 	default:
-		return Error(DomainErrorStreamOrAlias(streamOrAlias))
+		return Error(domainErrorStreamOrAlias(streamOrAlias))
 	}
 
 	switch p := Resolve(property).(type) {
@@ -2152,68 +2304,88 @@ func (e *EngineState) StreamProperty(streamOrAlias, property Term, k func() Prom
 		case "input", "output":
 			break
 		default:
-			return Error(DomainErrorStreamProperty(property))
+			return Error(domainErrorStreamProperty(property))
 		}
 	case *Compound:
+		if len(p.Args) != 1 {
+			return Error(domainErrorStreamProperty(property))
+		}
+		arg := p.Args[0]
 		switch p.Functor {
 		case "file_name", "mode", "alias", "end_of_stream", "eof_action", "reposition":
-			if len(p.Args) != 1 {
-				return Error(DomainErrorStreamProperty(property))
-			}
-			switch Resolve(p.Args[0]).(type) {
+			switch Resolve(arg).(type) {
 			case *Variable, Atom:
 				break
 			default:
-				return Error(TypeErrorAtom(p.Args[0]))
+				return Error(typeErrorAtom(arg))
 			}
 		case "position":
 			if len(p.Args) != 1 {
-				return Error(DomainErrorStreamProperty(property))
+				return Error(domainErrorStreamProperty(property))
 			}
 			switch Resolve(p.Args[0]).(type) {
 			case *Variable, Integer:
 				break
 			default:
-				return Error(TypeErrorAtom(p.Args[0]))
+				return Error(typeErrorAtom(arg))
 			}
 		default:
-			return Error(DomainErrorStreamProperty(property))
+			return Error(domainErrorStreamProperty(property))
 		}
 	default:
-		return Error(DomainErrorStreamProperty(property))
+		return Error(domainErrorStreamProperty(property))
 	}
 
 	var ks []func() Promise
 	for _, s := range streams {
-		properties := []Term{
-			&Compound{Functor: "mode", Args: []Term{s.mode}},
-			&Compound{Functor: "alias", Args: []Term{s.alias}},
-			&Compound{Functor: "eof_action", Args: []Term{s.eofAction}},
-			&Compound{Functor: "type", Args: []Term{s.typ}},
+		var properties []Term
+
+		switch s.mode {
+		case streamModeRead:
+			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("read")}})
+		case streamModeWrite:
+			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("write")}})
+		case streamModeAppend:
+			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("append")}})
 		}
 
-		if s.Reader != nil {
-			if _, ok := s.Reader.(*bufio.Reader); ok {
+		if s.alias != "" {
+			properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
+		}
+
+		switch s.eofAction {
+		case eofActionError:
+			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}})
+		case eofActionEOFCode:
+			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}})
+		case eofActionReset:
+			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("reset")}})
+		}
+
+		if s.source != nil {
+			properties = append(properties, Atom("input"))
+			if _, ok := s.source.(*bufio.Reader); ok {
 				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
 			} else {
 				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
 			}
 		}
 
-		if s.Writer != nil {
-			if _, ok := s.Writer.(*bufio.Writer); ok {
+		if s.sink != nil {
+			properties = append(properties, Atom("output"))
+			if _, ok := s.sink.(*bufio.Writer); ok {
 				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
 			} else {
 				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
 			}
 		}
 
-		if f, ok := s.Closer.(*os.File); ok {
+		if f, ok := s.closer.(*os.File); ok {
 			pos, err := f.Seek(0, 1)
 			if err != nil {
 				return Error(err)
 			}
-			if br, ok := s.Reader.(*bufio.Reader); ok {
+			if br, ok := s.source.(*bufio.Reader); ok {
 				pos -= int64(br.Buffered())
 			}
 
@@ -2234,8 +2406,20 @@ func (e *EngineState) StreamProperty(streamOrAlias, property Term, k func() Prom
 				&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
 				&Compound{Functor: "position", Args: []Term{Integer(pos)}},
 				&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
-				&Compound{Functor: "reposition", Args: []Term{Atom("true")}},
 			)
+		}
+
+		if s.reposition {
+			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
+		} else {
+			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
+		}
+
+		switch s.streamType {
+		case streamTypeText:
+			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("text")}})
+		case streamTypeBinary:
+			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("false")}})
 		}
 
 		a := newAssignment(property)
@@ -2259,24 +2443,24 @@ func (e *EngineState) SetStreamPosition(streamOrAlias, position Term, k func() P
 
 	switch p := Resolve(position).(type) {
 	case *Variable:
-		return Error(InstantiationError(position))
+		return Error(instantiationError(position))
 	case Integer:
-		f, ok := s.Closer.(*os.File)
+		f, ok := s.closer.(*os.File)
 		if !ok {
-			return Error(PermissionError(Atom("reposition"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not a file.", streamOrAlias))))
+			return Error(permissionError(Atom("reposition"), Atom("stream"), streamOrAlias, Atom(fmt.Sprintf("%s is not a file.", streamOrAlias))))
 		}
 
 		if _, err := f.Seek(int64(p), 0); err != nil {
-			return Error(SystemError(err))
+			return Error(systemError(err))
 		}
 
-		if br, ok := s.Reader.(*bufio.Reader); ok {
+		if br, ok := s.source.(*bufio.Reader); ok {
 			br.Reset(f)
 		}
 
 		return Delay(k)
 	default:
-		return Error(TypeErrorInteger(position))
+		return Error(typeErrorInteger(position))
 	}
 }
 
@@ -2284,20 +2468,20 @@ func (e *EngineState) SetStreamPosition(streamOrAlias, position Term, k func() P
 func (e *EngineState) CharConversion(inChar, outChar Term, k func() Promise) Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
-		return Error(InstantiationError(inChar))
+		return Error(instantiationError(inChar))
 	case Atom:
 		i := []rune(in)
 		if len(i) != 1 {
-			return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
+			return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
 		}
 
 		switch out := Resolve(outChar).(type) {
 		case *Variable:
-			return Error(InstantiationError(outChar))
+			return Error(instantiationError(outChar))
 		case Atom:
 			o := []rune(out)
 			if len(o) != 1 {
-				return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
+				return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 			}
 
 			if e.charConversions == nil {
@@ -2310,10 +2494,10 @@ func (e *EngineState) CharConversion(inChar, outChar Term, k func() Promise) Pro
 			e.charConversions[i[0]] = o[0]
 			return Delay(k)
 		default:
-			return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
+			return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 		}
 	default:
-		return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
+		return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
 	}
 }
 
@@ -2325,10 +2509,10 @@ func (e *EngineState) CurrentCharConversion(inChar, outChar Term, k func() Promi
 	case Atom:
 		i := []rune(in)
 		if len(i) != 1 {
-			return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
+			return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
 		}
 	default:
-		return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
+		return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", inChar))))
 	}
 
 	switch out := Resolve(outChar).(type) {
@@ -2337,10 +2521,10 @@ func (e *EngineState) CurrentCharConversion(inChar, outChar Term, k func() Promi
 	case Atom:
 		o := []rune(out)
 		if len(o) != 1 {
-			return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
+			return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 		}
 	default:
-		return Error(RepresentationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
+		return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 	}
 
 	if c1, ok := Resolve(inChar).(Atom); ok {
@@ -2377,15 +2561,15 @@ func (e *EngineState) CurrentCharConversion(inChar, outChar Term, k func() Promi
 func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
-		return Error(InstantiationError(flag))
+		return Error(instantiationError(flag))
 	case Atom:
 		switch f {
 		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "max_arity":
-			return Error(PermissionError(Atom("modify"), Atom("flag"), f, Atom(fmt.Sprintf("%s is not modifiable.", f))))
+			return Error(permissionError(Atom("modify"), Atom("flag"), f, Atom(fmt.Sprintf("%s is not modifiable.", f))))
 		case "char_conversion":
 			switch a := Resolve(value).(type) {
 			case *Variable:
-				return Error(InstantiationError(value))
+				return Error(instantiationError(value))
 			case Atom:
 				switch a {
 				case "on":
@@ -2395,13 +2579,13 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 					e.charConvEnabled = false
 					return Delay(k)
 				default:
-					return Error(DomainErrorFlagValue(&Compound{
+					return Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
 						Args:    []Term{flag, value},
 					}))
 				}
 			default:
-				return Error(DomainErrorFlagValue(&Compound{
+				return Error(domainErrorFlagValue(&Compound{
 					Functor: "+",
 					Args:    []Term{flag, value},
 				}))
@@ -2409,7 +2593,7 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 		case "debug":
 			switch a := Resolve(value).(type) {
 			case *Variable:
-				return Error(InstantiationError(value))
+				return Error(instantiationError(value))
 			case Atom:
 				switch a {
 				case "on":
@@ -2419,13 +2603,13 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 					e.debug = false
 					return Delay(k)
 				default:
-					return Error(DomainErrorFlagValue(&Compound{
+					return Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
 						Args:    []Term{flag, value},
 					}))
 				}
 			default:
-				return Error(DomainErrorFlagValue(&Compound{
+				return Error(domainErrorFlagValue(&Compound{
 					Functor: "+",
 					Args:    []Term{flag, value},
 				}))
@@ -2433,7 +2617,7 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 		case "unknown":
 			switch a := Resolve(value).(type) {
 			case *Variable:
-				return Error(InstantiationError(value))
+				return Error(instantiationError(value))
 			case Atom:
 				switch a {
 				case "error":
@@ -2446,22 +2630,22 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 					e.unknown = unknownFail
 					return Delay(k)
 				default:
-					return Error(DomainErrorFlagValue(&Compound{
+					return Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
 						Args:    []Term{flag, value},
 					}))
 				}
 			default:
-				return Error(DomainErrorFlagValue(&Compound{
+				return Error(domainErrorFlagValue(&Compound{
 					Functor: "+",
 					Args:    []Term{flag, value},
 				}))
 			}
 		default:
-			return Error(DomainErrorPrologFlag(flag))
+			return Error(domainErrorPrologFlag(flag))
 		}
 	default:
-		return Error(TypeErrorAtom(flag))
+		return Error(typeErrorAtom(flag))
 	}
 }
 
@@ -2475,10 +2659,10 @@ func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() Promise) Prom
 		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "char_conversion", "debug", "max_arity", "unknown":
 			break
 		default:
-			return Error(DomainErrorPrologFlag(flag))
+			return Error(domainErrorPrologFlag(flag))
 		}
 	default:
-		return Error(TypeErrorAtom(flag))
+		return Error(typeErrorAtom(flag))
 	}
 
 	pattern := Compound{Args: []Term{flag, value}}
@@ -2514,16 +2698,16 @@ func onOff(b bool) Atom {
 func (e *EngineState) stream(streamOrAlias Term) (*Stream, error) {
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
-		return nil, InstantiationError(streamOrAlias)
+		return nil, instantiationError(streamOrAlias)
 	case Atom:
 		v, ok := e.streams[s]
 		if !ok {
-			return nil, ExistenceErrorStream(streamOrAlias)
+			return nil, existenceErrorStream(streamOrAlias)
 		}
 		return v, nil
 	case *Stream:
 		return s, nil
 	default:
-		return nil, DomainErrorStreamOrAlias(streamOrAlias)
+		return nil, domainErrorStreamOrAlias(streamOrAlias)
 	}
 }

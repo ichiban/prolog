@@ -11,8 +11,7 @@ func (e *Exception) Error() string {
 	return e.Term.String()
 }
 
-// InstantiationError creates an Exception which describes a certain argument contains a free variable.
-func InstantiationError(culprit Term) *Exception {
+func instantiationError(culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -24,73 +23,59 @@ func InstantiationError(culprit Term) *Exception {
 	}
 }
 
-// TypeErrorAtom creates an Exception which describes culprit is not an atom.
-func TypeErrorAtom(culprit Term) *Exception {
+func typeErrorAtom(culprit Term) *Exception {
 	return typeError(Atom("atom"), culprit, Atom(fmt.Sprintf("%s is not an atom.", culprit)))
 }
 
-// TypeErrorAtomic creates an Exception which describes culprit is not atomic.
-func TypeErrorAtomic(culprit Term) *Exception {
+func typeErrorAtomic(culprit Term) *Exception {
 	return typeError(Atom("atomic"), culprit, Atom(fmt.Sprintf("%s is not atomic.", culprit)))
 }
 
-// TypeErrorByte creates an Exception which describes culprit is not a byte.
-func TypeErrorByte(culprit Term) *Exception {
+func typeErrorByte(culprit Term) *Exception {
 	return typeError(Atom("byte"), culprit, Atom(fmt.Sprintf("%s is not a byte.", culprit)))
 }
 
-// TypeErrorCallable creates an Exception which describes culprit is not callable.
-func TypeErrorCallable(culprit Term) *Exception {
+func typeErrorCallable(culprit Term) *Exception {
 	return typeError(Atom("callable"), culprit, Atom(fmt.Sprintf("%s is not callable.", culprit)))
 }
 
-// TypeErrorCharacter creates an Exception which describes culprit is not a character.
-func TypeErrorCharacter(culprit Term) *Exception {
+func typeErrorCharacter(culprit Term) *Exception {
 	return typeError(Atom("character"), culprit, Atom(fmt.Sprintf("%s is not a character.", culprit)))
 }
 
-// TypeErrorInByte creates an Exception which describes culprit is not a byte.
-func TypeErrorInByte(culprit Term) *Exception {
+func typeErrorInByte(culprit Term) *Exception {
 	return typeError(Atom("in_byte"), culprit, Atom(fmt.Sprintf("%s is not a byte.", culprit)))
 }
 
-// TypeErrorInCharacter creates an Exception which describes culprit is not a byte.
-func TypeErrorInCharacter(culprit Term) *Exception {
+func typeErrorInCharacter(culprit Term) *Exception {
 	return typeError(Atom("in_character"), culprit, Atom(fmt.Sprintf("%s is not a character.", culprit)))
 }
 
-// TypeErrorEvaluable creates an Exception which describes culprit is not callable.
-func TypeErrorEvaluable(culprit Term) *Exception {
+func typeErrorEvaluable(culprit Term) *Exception {
 	return typeError(Atom("evaluable"), culprit, Atom(fmt.Sprintf("%s is not evaluable.", culprit)))
 }
 
-// TypeErrorInteger creates an Exception which describes culprit is not an integer.
-func TypeErrorInteger(culprit Term) *Exception {
+func typeErrorInteger(culprit Term) *Exception {
 	return typeError(Atom("integer"), culprit, Atom(fmt.Sprintf("%s is not an integer.", culprit)))
 }
 
-// TypeErrorList creates an Exception which describes culprit is not a list.
-func TypeErrorList(culprit Term) *Exception {
+func typeErrorList(culprit Term) *Exception {
 	return typeError(Atom("list"), culprit, Atom(fmt.Sprintf("%s is not a list.", culprit)))
 }
 
-// TypeErrorNumber creates an Exception which describes culprit is not a number.
-func TypeErrorNumber(culprit Term) *Exception {
+func typeErrorNumber(culprit Term) *Exception {
 	return typeError(Atom("number"), culprit, Atom(fmt.Sprintf("%s is not a number.", culprit)))
 }
 
-// TypeErrorPredicateIndicator creates an Exception which describes culprit is not a predicate indicator.
-func TypeErrorPredicateIndicator(culprit Term) *Exception {
+func typeErrorPredicateIndicator(culprit Term) *Exception {
 	return typeError(Atom("predicate_indicator"), culprit, Atom(fmt.Sprintf("%s is not a predicate indicator.", culprit)))
 }
 
-// TypeErrorVariable creates an Exception which describes culprit is not a variable.
-func TypeErrorVariable(culprit Term) *Exception {
+func typeErrorVariable(culprit Term) *Exception {
 	return typeError(Atom("variable"), culprit, Atom(fmt.Sprintf("%s is not a variable.", culprit)))
 }
 
-// TypeErrorCompound creates an Exception which describes culprit is not a compound.
-func TypeErrorCompound(culprit Term) *Exception {
+func typeErrorCompound(culprit Term) *Exception {
 	return typeError(Atom("compound"), culprit, Atom(fmt.Sprintf("%s is not a compound.", culprit)))
 }
 
@@ -109,93 +94,75 @@ func typeError(validType, culprit, info Term) *Exception {
 	}
 }
 
-// DomainErrorCharacterCodeList creates an Exception which describes culprit is not a character code list.
-func DomainErrorCharacterCodeList(culprit Term) *Exception {
+func domainErrorCharacterCodeList(culprit Term) *Exception {
 	return domainError(Atom("character_code_list"), culprit, Atom(fmt.Sprintf("%s is not a character code list.", culprit)))
 }
 
-// DomainErrorCloseOption creates an Exception which describes culprit is not a close option.
-func DomainErrorCloseOption(culprit Term) *Exception {
+func domainErrorCloseOption(culprit Term) *Exception {
 	return domainError(Atom("close_option"), culprit, Atom(fmt.Sprintf("%s is not a close option.", culprit)))
 }
 
-// DomainErrorFlagValue creates an Exception which describes culprit is not a flag value.
-func DomainErrorFlagValue(culprit Term) *Exception {
+func domainErrorFlagValue(culprit Term) *Exception {
 	return domainError(Atom("flag_value"), culprit, Atom(fmt.Sprintf("%s is not a flag value.", culprit)))
 }
 
-// DomainErrorIOMode creates an Exception which describes culprit is not an I/O mode.
-func DomainErrorIOMode(culprit Term) *Exception {
+func domainErrorIOMode(culprit Term) *Exception {
 	return domainError(Atom("io_mode"), culprit, Atom(fmt.Sprintf("%s is not an I/O mode.", culprit)))
 }
 
-// DomainErrorNotEmptyList creates an Exception which describes culprit is an empty list.
-func DomainErrorNotEmptyList(culprit Term) *Exception {
+func domainErrorNotEmptyList(culprit Term) *Exception {
 	return domainError(Atom("not_empty_list"), culprit, Atom(fmt.Sprintf("%s is an empty list.", culprit)))
 }
 
-// DomainErrorNotLessThanZero creates an Exception which describes culprit is less than zero.
-func DomainErrorNotLessThanZero(culprit Term) *Exception {
+func domainErrorNotLessThanZero(culprit Term) *Exception {
 	return domainError(Atom("not_less_than_zero"), culprit, Atom(fmt.Sprintf("%s is less than zero.", culprit)))
 }
 
-// DomainErrorOperatorPriority creates an Exception which describes culprit is not an operator priority.
-func DomainErrorOperatorPriority(culprit Term) *Exception {
+func domainErrorOperatorPriority(culprit Term) *Exception {
 	return domainError(Atom("operator_priority"), culprit, Atom(fmt.Sprintf("%s is not between 0 and 1200.", culprit)))
 }
 
-// DomainErrorOperatorSpecifier creates an Exception which describes culprit is not an operator specifier.
-func DomainErrorOperatorSpecifier(culprit Term) *Exception {
+func domainErrorOperatorSpecifier(culprit Term) *Exception {
 	return domainError(Atom("operator_specifier"), culprit, Atom(fmt.Sprintf("%s is neither xf, yf, xfx, xfy, yfx, fx, nor fy.", culprit)))
 }
 
-// DomainErrorPrologFlag creates an Exception which describes culprit is not a prolog flag.
-func DomainErrorPrologFlag(culprit Term) *Exception {
+func domainErrorPrologFlag(culprit Term) *Exception {
 	return domainError(Atom("prolog_flag"), culprit, Atom(fmt.Sprintf("%s is not a prolog flag.", culprit)))
 }
 
-// DomainErrorReadOption creates an Exception which describes culprit is not a read option.
-func DomainErrorReadOption(culprit Term) *Exception {
+func domainErrorReadOption(culprit Term) *Exception {
 	return domainError(Atom("read_option"), culprit, Atom(fmt.Sprintf("%s is not a read option.", culprit)))
 }
 
-// DomainErrorSourceSink creates an Exception which describes culprit is not a source/sink.
-func DomainErrorSourceSink(culprit Term) *Exception {
+func domainErrorSourceSink(culprit Term) *Exception {
 	return domainError(Atom("source_sink"), culprit, Atom(fmt.Sprintf("%s is not a source/sink.", culprit)))
 }
 
-// DomainErrorStream creates an Exception which describes culprit is not a stream.
-func DomainErrorStream(culprit Term) *Exception {
+func domainErrorStream(culprit Term) *Exception {
 	return domainError(Atom("stream"), culprit, Atom(fmt.Sprintf("%s is not a stream.", culprit)))
 }
 
-// DomainErrorStreamOption creates an Exception which describes culprit is not a stream option.
-func DomainErrorStreamOption(culprit Term) *Exception {
+func domainErrorStreamOption(culprit Term) *Exception {
 	return domainError(Atom("stream_option"), culprit, Atom(fmt.Sprintf("%s is not a stream option.", culprit)))
 }
 
-// DomainErrorStreamOrAlias creates an Exception which describes culprit is neither a stream nor an alias.
-func DomainErrorStreamOrAlias(culprit Term) *Exception {
+func domainErrorStreamOrAlias(culprit Term) *Exception {
 	return domainError(Atom("stream_or_alias"), culprit, Atom(fmt.Sprintf("%s is neither a stream nor an alias.", culprit)))
 }
 
-// DomainErrorStreamPosition creates an Exception which describes culprit is not a stream position.
-func DomainErrorStreamPosition(culprit Term) *Exception {
+func domainErrorStreamPosition(culprit Term) *Exception {
 	return domainError(Atom("stream_position"), culprit, Atom(fmt.Sprintf("%s is not a stream position.", culprit)))
 }
 
-// DomainErrorStreamProperty creates an Exception which describes culprit is not a stream property.
-func DomainErrorStreamProperty(culprit Term) *Exception {
+func domainErrorStreamProperty(culprit Term) *Exception {
 	return domainError(Atom("stream_property"), culprit, Atom(fmt.Sprintf("%s is not a stream property.", culprit)))
 }
 
-// DomainErrorWriteOption creates an Exception which describes culprit is not a write option.
-func DomainErrorWriteOption(culprit Term) *Exception {
+func domainErrorWriteOption(culprit Term) *Exception {
 	return domainError(Atom("write_option"), culprit, Atom(fmt.Sprintf("%s is not a write option.", culprit)))
 }
 
-// DomainErrorOrder creates an Exception which describes culprit is not an order.
-func DomainErrorOrder(culprit Term) *Exception {
+func domainErrorOrder(culprit Term) *Exception {
 	return domainError(Atom("order"), culprit, Atom(fmt.Sprintf("%s is neither <, =, nor >.", culprit)))
 }
 
@@ -214,18 +181,15 @@ func domainError(validDomain, culprit, info Term) *Exception {
 	}
 }
 
-// ExistenceErrorProcedure creates an Exception which describes culprit of procedure doesn't exist.
-func ExistenceErrorProcedure(culprit Term) *Exception {
+func existenceErrorProcedure(culprit Term) *Exception {
 	return existenceError(Atom("procedure"), culprit, Atom(fmt.Sprintf("procedure %s is not defined.", culprit)))
 }
 
-// ExistenceErrorSourceSink creates an Exception which describes culprit of source/sink doesn't exist.
-func ExistenceErrorSourceSink(culprit Term) *Exception {
+func existenceErrorSourceSink(culprit Term) *Exception {
 	return existenceError(Atom("source_sink"), culprit, Atom(fmt.Sprintf("file %s doesn't exist.", culprit)))
 }
 
-// ExistenceErrorStream creates an Exception which describes culprit of stream doesn't exist.
-func ExistenceErrorStream(culprit Term) *Exception {
+func existenceErrorStream(culprit Term) *Exception {
 	return existenceError(Atom("stream"), culprit, Atom(fmt.Sprintf("stream %s doesn't exist.", culprit)))
 }
 
@@ -244,8 +208,43 @@ func existenceError(objectType, culprit, info Term) *Exception {
 	}
 }
 
-// PermissionError creates an Exception which describes it's not permitted to do operation on culprit of permissionType.
-func PermissionError(operation, permissionType, culprit, info Term) *Exception {
+func permissionErrorModifyStaticProcedure(culprit Term) *Exception {
+	return permissionError(Atom("modify"), Atom("static_procedure"), culprit, Atom(fmt.Sprintf("%s is static.", culprit)))
+}
+
+func permissionErrorOutputStream(culprit Term) *Exception {
+	return permissionError(Atom("output"), Atom("stream"), culprit, Atom(fmt.Sprintf("%s is not an output stream.", culprit)))
+}
+
+func permissionErrorOutputBinaryStream(culprit Term) *Exception {
+	return permissionError(Atom("output"), Atom("binary_stream"), culprit, Atom(fmt.Sprintf("%s is a binary stream.", culprit)))
+}
+
+func permissionErrorOutputTextStream(culprit Term) *Exception {
+	return permissionError(Atom("output"), Atom("text_stream"), culprit, Atom(fmt.Sprintf("%s is a text stream.", culprit)))
+}
+
+func permissionErrorInputStream(culprit Term) *Exception {
+	return permissionError(Atom("input"), Atom("stream"), culprit, Atom(fmt.Sprintf("%s is not an input stream.", culprit)))
+}
+
+func permissionErrorInputBufferedStream(culprit Term) *Exception {
+	return permissionError(Atom("input"), Atom("buffered_stream"), culprit, Atom(fmt.Sprintf("%s is not a buffered stream.", culprit)))
+}
+
+func permissionErrorInputBinaryStream(culprit Term) *Exception {
+	return permissionError(Atom("input"), Atom("binary_stream"), culprit, Atom(fmt.Sprintf("%s is a binary stream.", culprit)))
+}
+
+func permissionErrorInputTextStream(culprit Term) *Exception {
+	return permissionError(Atom("input"), Atom("text_stream"), culprit, Atom(fmt.Sprintf("%s is a text stream.", culprit)))
+}
+
+func permissionErrorInputPastEndOfStream(culprit Term) *Exception {
+	return permissionError(Atom("input"), Atom("past_end_of_stream"), culprit, Atom(fmt.Sprintf("%s has past end of stream.", culprit)))
+}
+
+func permissionError(operation, permissionType, culprit, info Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -260,8 +259,7 @@ func PermissionError(operation, permissionType, culprit, info Term) *Exception {
 	}
 }
 
-// RepresentationError creates an Exception which describes an implementation limit has been breached.
-func RepresentationError(limit, info Term) *Exception {
+func representationError(limit, info Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -276,8 +274,7 @@ func RepresentationError(limit, info Term) *Exception {
 	}
 }
 
-// EvaluationErrorZeroDivisor creates an Exception which descirbes zero division caused by culprit.
-func EvaluationErrorZeroDivisor() *Exception {
+func evaluationErrorZeroDivisor() *Exception {
 	return evaluationError(Atom("zero_divisor"), Atom("divided by zero."))
 }
 
@@ -296,8 +293,7 @@ func evaluationError(error, info Term) *Exception {
 	}
 }
 
-// ResourceError creates an Exception which describes an insufficient resource.
-func ResourceError(resource, info Term) *Exception {
+func resourceError(resource, info Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -312,8 +308,19 @@ func ResourceError(resource, info Term) *Exception {
 	}
 }
 
-// SyntaxError creates an Exception which describes an error on syntax.
-func SyntaxError(detail, info Term) *Exception {
+func syntaxErrorNotANumber(culprit Term) *Exception {
+	return syntaxError(Atom("not_a_number"), Atom(fmt.Sprintf("%s is not a number", culprit)))
+}
+
+func syntaxErrorInsufficient() *Exception {
+	return syntaxError(Atom("insufficient"), Atom("Not enough input for a term."))
+}
+
+func syntaxErrorInvalidToken(info Term) *Exception {
+	return syntaxError(Atom("invalid_token"), info)
+}
+
+func syntaxError(detail, info Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -328,8 +335,7 @@ func SyntaxError(detail, info Term) *Exception {
 	}
 }
 
-// SystemError creates an Exception which describes a system error.
-func SystemError(err error) *Exception {
+func systemError(err error) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",

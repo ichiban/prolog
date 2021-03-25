@@ -3,6 +3,7 @@ package internal
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"unicode"
@@ -26,25 +27,39 @@ func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
 }
 
 // Next returns the next token.
-func (l *Lexer) Next() Token {
+func (l *Lexer) Next() (Token, error) {
 	for l.state != nil && len(l.tokens) == 0 {
-		l.state = l.state(l.next())
+		r, err := l.next()
+		if err != nil {
+			return Token{}, err
+		}
+		l.state = l.state(r)
 	}
 
 	if len(l.tokens) > 0 {
 		var t Token
 		t, l.tokens = l.tokens[0], l.tokens[1:]
-		return t
+		return t, nil
 	}
 
-	return Token{}
+	return Token{}, nil
 }
 
-func (l *Lexer) next() rune {
-	r, w, _ := l.input.ReadRune()
+const etx = '\u0002'
+
+func (l *Lexer) next() (rune, error) {
+	r, w, err := l.input.ReadRune()
+	switch err {
+	case nil:
+		break
+	case io.EOF:
+		w = etx
+	default:
+		return 0, err
+	}
 	l.width = w
 	l.pos += l.width
-	return r
+	return r, nil
 }
 
 func (l *Lexer) backup() {
@@ -60,6 +75,10 @@ func (l *Lexer) emit(t Token) {
 type Token struct {
 	Kind TokenKind
 	Val  string
+}
+
+func (t Token) String() string {
+	return fmt.Sprintf("<%s %s>", t.Kind, t.Val)
 }
 
 // TokenKind is a type of Token.
@@ -382,6 +401,9 @@ func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
 		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
+			if _, err := b.WriteRune('.'); err != nil {
+				return nil
+			}
 			if _, err := b.WriteRune(r); err != nil {
 				return nil
 			}
@@ -389,7 +411,7 @@ func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
 		default:
 			s := b.String()
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: s[:len(s)-1]})
+			l.emit(Token{Kind: TokenInteger, Val: s})
 			l.emit(Token{Kind: TokenSeparator, Val: "."})
 			return ctx
 		}
@@ -423,9 +445,6 @@ func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
 			}
 			return l.integer(b, ctx)
 		case r == '.':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil
-			}
 			return l.decimal(b, ctx)
 		default:
 			l.backup()

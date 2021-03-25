@@ -470,22 +470,22 @@ func Each(list Term, f func(elem Term) error) error {
 	for {
 		switch l := Resolve(list).(type) {
 		case *Variable:
-			return InstantiationError(whole)
+			return instantiationError(whole)
 		case Atom:
 			if l != "[]" {
-				return TypeErrorList(l)
+				return typeErrorList(l)
 			}
 			return nil
 		case *Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return TypeErrorList(l)
+				return typeErrorList(l)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return TypeErrorList(l)
+			return typeErrorList(l)
 		}
 	}
 }
@@ -548,16 +548,40 @@ func Rulify(t Term) Term {
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
+type streamMode int
+
+const (
+	streamModeRead streamMode = iota
+	streamModeWrite
+	streamModeAppend
+)
+
+type eofAction int
+
+const (
+	eofActionEOFCode eofAction = iota
+	eofActionError
+	eofActionReset
+)
+
+type streamType int
+
+const (
+	streamTypeText streamType = iota
+	streamTypeBinary
+)
+
 // Stream is a prolog stream.
 type Stream struct {
-	io.Reader
-	io.Writer
-	io.Closer
+	source io.Reader
+	sink   io.Writer
+	closer io.Closer
 
-	mode      Atom
-	alias     Atom
-	eofAction Atom
-	typ       Atom
+	mode       streamMode
+	alias      Atom
+	eofAction  eofAction
+	reposition bool
+	streamType streamType
 }
 
 func (s *Stream) String() string {
@@ -640,12 +664,12 @@ func (p procedureIndicator) Copy() Term {
 func piArgs(t Term) (procedureIndicator, Term, error) {
 	switch f := Resolve(t).(type) {
 	case *Variable:
-		return procedureIndicator{}, nil, InstantiationError(t)
+		return procedureIndicator{}, nil, instantiationError(t)
 	case Atom:
 		return procedureIndicator{name: f, arity: 0}, List(), nil
 	case *Compound:
 		return procedureIndicator{name: f.Functor, arity: Integer(len(f.Args))}, List(f.Args...), nil
 	default:
-		return procedureIndicator{}, nil, TypeErrorCallable(t)
+		return procedureIndicator{}, nil, typeErrorCallable(t)
 	}
 }

@@ -24,7 +24,7 @@ func TestEngine_Call(t *testing.T) {
 
 	t.Run("undefined atom", func(t *testing.T) {
 		ok, err := e.Call(Atom("foo"), Done).Force()
-		assert.Equal(t, ExistenceErrorProcedure(&Compound{
+		assert.Equal(t, existenceErrorProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(0)},
 		}), err)
@@ -41,7 +41,7 @@ func TestEngine_Call(t *testing.T) {
 
 	t.Run("undefined compound", func(t *testing.T) {
 		ok, err := e.Call(&Compound{Functor: "bar", Args: []Term{&Variable{}, &Variable{}}}, Done).Force()
-		assert.Equal(t, ExistenceErrorProcedure(&Compound{
+		assert.Equal(t, existenceErrorProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{Atom("bar"), Integer(2)},
 		}), err)
@@ -60,13 +60,13 @@ func TestEngine_Call(t *testing.T) {
 		x := Variable{Name: "X"}
 
 		ok, err := e.Call(&x, Done).Force()
-		assert.Equal(t, InstantiationError(&x), err)
+		assert.Equal(t, instantiationError(&x), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("not callable", func(t *testing.T) {
 		ok, err := e.Call(Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -355,7 +355,7 @@ func TestFunctor(t *testing.T) {
 func TestArg(t *testing.T) {
 	t.Run("term is not a compound", func(t *testing.T) {
 		ok, err := Arg(&Variable{}, Atom("foo"), &Variable{}, Done).Force()
-		assert.Equal(t, TypeErrorCompound(Atom("foo")), err)
+		assert.Equal(t, typeErrorCompound(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
@@ -407,7 +407,7 @@ func TestArg(t *testing.T) {
 				Functor: "f",
 				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("b"), Done).Force()
-			assert.Equal(t, DomainErrorNotLessThanZero(Integer(-2)), err)
+			assert.Equal(t, domainErrorNotLessThanZero(Integer(-2)), err)
 			assert.False(t, ok)
 		})
 	})
@@ -417,7 +417,7 @@ func TestArg(t *testing.T) {
 			Functor: "f",
 			Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 		}, Atom("b"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -439,28 +439,28 @@ func TestUniv(t *testing.T) {
 		t.Run("list is empty", func(t *testing.T) {
 			var term Variable
 			ok, err := Univ(&term, List(), Done).Force()
-			assert.Equal(t, DomainErrorNotEmptyList(Atom("[]")), err)
+			assert.Equal(t, domainErrorNotEmptyList(Atom("[]")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("list is not a list", func(t *testing.T) {
 			var term Variable
 			ok, err := Univ(&term, Atom("list"), Done).Force()
-			assert.Equal(t, TypeErrorList(Atom("list")), err)
+			assert.Equal(t, typeErrorList(Atom("list")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("list's first element is not an atom", func(t *testing.T) {
 			var term Variable
 			ok, err := Univ(&term, List(Integer(0), Atom("a"), Atom("b")), Done).Force()
-			assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+			assert.Equal(t, typeErrorAtom(Integer(0)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("list is not fully instantiated", func(t *testing.T) {
 			var term Variable
 			ok, err := Univ(&term, ListRest(&Variable{Name: "Rest"}, Atom("f"), Atom("a"), Atom("b")), Done).Force()
-			assert.Equal(t, InstantiationError(ListRest(&Variable{Name: "Rest"}, Atom("a"), Atom("b"))), err)
+			assert.Equal(t, instantiationError(ListRest(&Variable{Name: "Rest"}, Atom("a"), Atom("b"))), err)
 			assert.False(t, ok)
 		})
 	})
@@ -574,42 +574,42 @@ func TestEngine_Op(t *testing.T) {
 	t.Run("priority is not an integer", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Atom("foo"), Atom("xfx"), Atom("+"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("priority is negative", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Integer(-1), Atom("xfx"), Atom("+"), Done).Force()
-		assert.Equal(t, DomainErrorOperatorPriority(Integer(-1)), err)
+		assert.Equal(t, domainErrorOperatorPriority(Integer(-1)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("priority is more than 1200", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Integer(1201), Atom("xfx"), Atom("+"), Done).Force()
-		assert.Equal(t, DomainErrorOperatorPriority(Integer(1201)), err)
+		assert.Equal(t, domainErrorOperatorPriority(Integer(1201)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is not an atom", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Integer(1000), Integer(0), Atom("+"), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is not a valid operator specifier", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Integer(1000), Atom("foo"), Atom("+"), Done).Force()
-		assert.Equal(t, DomainErrorOperatorSpecifier(Atom("foo")), err)
+		assert.Equal(t, domainErrorOperatorSpecifier(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("operator is not an atom", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Op(Integer(1000), Atom("xfx"), Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -675,13 +675,13 @@ func TestEngine_CurrentOp(t *testing.T) {
 	t.Run("priority is not an operator priority", func(t *testing.T) {
 		t.Run("priority is not an integer", func(t *testing.T) {
 			ok, err := e.CurrentOp(Atom("foo"), Atom("xfx"), Atom("+"), Done).Force()
-			assert.Equal(t, DomainErrorOperatorPriority(Atom("foo")), err)
+			assert.Equal(t, domainErrorOperatorPriority(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("priority is negative", func(t *testing.T) {
 			ok, err := e.CurrentOp(Integer(-1), Atom("xfx"), Atom("+"), Done).Force()
-			assert.Equal(t, DomainErrorOperatorPriority(Integer(-1)), err)
+			assert.Equal(t, domainErrorOperatorPriority(Integer(-1)), err)
 			assert.False(t, ok)
 		})
 	})
@@ -689,20 +689,20 @@ func TestEngine_CurrentOp(t *testing.T) {
 	t.Run("specifier is not an operator specifier", func(t *testing.T) {
 		t.Run("specifier is not an atom", func(t *testing.T) {
 			ok, err := e.CurrentOp(Integer(1100), Integer(0), Atom("+"), Done).Force()
-			assert.Equal(t, DomainErrorOperatorSpecifier(Integer(0)), err)
+			assert.Equal(t, domainErrorOperatorSpecifier(Integer(0)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("specifier is a non-specifier atom", func(t *testing.T) {
 			ok, err := e.CurrentOp(Integer(1100), Atom("foo"), Atom("+"), Done).Force()
-			assert.Equal(t, DomainErrorOperatorSpecifier(Atom("foo")), err)
+			assert.Equal(t, domainErrorOperatorSpecifier(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("operator is not an atom", func(t *testing.T) {
 		ok, err := e.CurrentOp(Integer(1100), Atom("xfx"), Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -863,14 +863,14 @@ foo(c, c, g).
 
 		var e Engine
 		ok, err := e.BagOf(&Variable{}, &goal, &Variable{}, Done).Force()
-		assert.Equal(t, InstantiationError(&goal), err)
+		assert.Equal(t, instantiationError(&goal), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
 		var e Engine
 		ok, err := e.BagOf(&Variable{}, Integer(0), &Variable{}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -1018,14 +1018,14 @@ foo(c, c, g).
 
 		var e Engine
 		ok, err := e.SetOf(&Variable{}, &goal, &Variable{}, Done).Force()
-		assert.Equal(t, InstantiationError(&goal), err)
+		assert.Equal(t, instantiationError(&goal), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetOf(&Variable{}, Integer(0), &Variable{}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -1167,13 +1167,13 @@ func TestCompare(t *testing.T) {
 
 	t.Run("order is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := Compare(Integer(0), &Variable{}, &Variable{}, Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("order is an atom but not <, =, or >", func(t *testing.T) {
 		ok, err := Compare(Atom("foo"), &Variable{}, &Variable{}, Done).Force()
-		assert.Equal(t, DomainErrorOrder(Atom("foo")), err)
+		assert.Equal(t, domainErrorOrder(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -1189,7 +1189,7 @@ func TestThrow(t *testing.T) {
 		ball := Variable{Name: "Ball"}
 
 		ok, err := Throw(&ball, nil).Force()
-		assert.Equal(t, InstantiationError(&ball), err)
+		assert.Equal(t, instantiationError(&ball), err)
 		assert.False(t, ok)
 	})
 }
@@ -1270,7 +1270,7 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CurrentPredicate(Atom("foo"), Done).Force()
-			assert.Equal(t, TypeErrorPredicateIndicator(Atom("foo")), err)
+			assert.Equal(t, typeErrorPredicateIndicator(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
@@ -1281,7 +1281,7 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 					Functor: "f",
 					Args:    []Term{Atom("a")},
 				}, Done).Force()
-				assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+				assert.Equal(t, typeErrorPredicateIndicator(&Compound{
 					Functor: "f",
 					Args:    []Term{Atom("a")},
 				}), err)
@@ -1294,7 +1294,7 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 					Functor: "/",
 					Args:    []Term{Integer(0), Integer(0)},
 				}, Done).Force()
-				assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+				assert.Equal(t, typeErrorPredicateIndicator(&Compound{
 					Functor: "/",
 					Args:    []Term{Integer(0), Integer(0)},
 				}), err)
@@ -1307,7 +1307,7 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 					Functor: "/",
 					Args:    []Term{Atom("foo"), Atom("bar")},
 				}, Done).Force()
-				assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+				assert.Equal(t, typeErrorPredicateIndicator(&Compound{
 					Functor: "/",
 					Args:    []Term{Atom("foo"), Atom("bar")},
 				}), err)
@@ -1376,18 +1376,18 @@ func TestEngine_Assertz(t *testing.T) {
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
-		clause := Variable{Name: "Clause"}
+		clause := Variable{Name: "Term"}
 
 		var e Engine
 		ok, err := e.Assertz(&clause, Done).Force()
-		assert.Equal(t, InstantiationError(&clause), err)
+		assert.Equal(t, instantiationError(&clause), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Assertz(Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1399,7 +1399,7 @@ func TestEngine_Assertz(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{&head, Atom("true")},
 		}, Done).Force()
-		assert.Equal(t, InstantiationError(&head), err)
+		assert.Equal(t, instantiationError(&head), err)
 		assert.False(t, ok)
 	})
 
@@ -1409,7 +1409,7 @@ func TestEngine_Assertz(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{Integer(0), Atom("true")},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1421,7 +1421,7 @@ func TestEngine_Assertz(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{&directive},
 		}, Done).Force()
-		assert.Equal(t, InstantiationError(&directive), err)
+		assert.Equal(t, instantiationError(&directive), err)
 		assert.False(t, ok)
 	})
 
@@ -1431,7 +1431,7 @@ func TestEngine_Assertz(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{Integer(0)},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1444,7 +1444,7 @@ func TestEngine_Assertz(t *testing.T) {
 				Args:    []Term{Atom("true"), Integer(0)},
 			}},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1460,13 +1460,13 @@ func TestEngine_Assertz(t *testing.T) {
 		}
 
 		ok, err := e.Assertz(Atom("static"), Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args: []Term{
 				Atom("static"),
 				Integer(0),
 			},
-		}, Atom("static/0 is static.")), err)
+		}), err)
 		assert.False(t, ok)
 	})
 }
@@ -1530,18 +1530,18 @@ func TestEngine_Asserta(t *testing.T) {
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
-		clause := Variable{Name: "Clause"}
+		clause := Variable{Name: "Term"}
 
 		var e Engine
 		ok, err := e.Asserta(&clause, Done).Force()
-		assert.Equal(t, InstantiationError(&clause), err)
+		assert.Equal(t, instantiationError(&clause), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Asserta(Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1553,7 +1553,7 @@ func TestEngine_Asserta(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{&head, Atom("true")},
 		}, Done).Force()
-		assert.Equal(t, InstantiationError(&head), err)
+		assert.Equal(t, instantiationError(&head), err)
 		assert.False(t, ok)
 	})
 
@@ -1563,7 +1563,7 @@ func TestEngine_Asserta(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{Integer(0), Atom("true")},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1575,7 +1575,7 @@ func TestEngine_Asserta(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{&directive},
 		}, Done).Force()
-		assert.Equal(t, InstantiationError(&directive), err)
+		assert.Equal(t, instantiationError(&directive), err)
 		assert.False(t, ok)
 	})
 
@@ -1585,7 +1585,7 @@ func TestEngine_Asserta(t *testing.T) {
 			Functor: ":-",
 			Args:    []Term{Integer(0)},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1598,7 +1598,7 @@ func TestEngine_Asserta(t *testing.T) {
 				Args:    []Term{Atom("true"), Integer(0)},
 			}},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1614,13 +1614,13 @@ func TestEngine_Asserta(t *testing.T) {
 		}
 
 		ok, err := e.Asserta(Atom("static"), Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args: []Term{
 				Atom("static"),
 				Integer(0),
 			},
-		}, Atom("static/0 is static.")), err)
+		}), err)
 		assert.False(t, ok)
 	})
 }
@@ -1714,14 +1714,14 @@ func TestEngine_Retract(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Retract(&x, Done).Force()
-		assert.Equal(t, InstantiationError(&x), err)
+		assert.Equal(t, instantiationError(&x), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("not callable", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Retract(Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1746,10 +1746,10 @@ func TestEngine_Retract(t *testing.T) {
 		}
 
 		ok, err := e.Retract(Atom("foo"), Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(0)},
-		}, Atom("foo/0 is static.")), err)
+		}), err)
 		assert.False(t, ok)
 	})
 
@@ -1799,7 +1799,7 @@ func TestEngine_Abolish(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Abolish(&pi, Done).Force()
-		assert.Equal(t, InstantiationError(&pi), err)
+		assert.Equal(t, instantiationError(&pi), err)
 		assert.False(t, ok)
 	})
 
@@ -1812,7 +1812,7 @@ func TestEngine_Abolish(t *testing.T) {
 				Functor: "/",
 				Args:    []Term{&name, Integer(2)},
 			}, Done).Force()
-			assert.Equal(t, InstantiationError(&name), err)
+			assert.Equal(t, instantiationError(&name), err)
 			assert.False(t, ok)
 		})
 
@@ -1824,7 +1824,7 @@ func TestEngine_Abolish(t *testing.T) {
 				Functor: "/",
 				Args:    []Term{Atom("foo"), &arity},
 			}, Done).Force()
-			assert.Equal(t, InstantiationError(&arity), err)
+			assert.Equal(t, instantiationError(&arity), err)
 			assert.False(t, ok)
 		})
 	})
@@ -1832,7 +1832,7 @@ func TestEngine_Abolish(t *testing.T) {
 	t.Run("pi is neither a variable nor a predicate indicator", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Abolish(Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorPredicateIndicator(Integer(0)), err)
+		assert.Equal(t, typeErrorPredicateIndicator(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1842,7 +1842,7 @@ func TestEngine_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Integer(0), Integer(2)},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -1852,7 +1852,7 @@ func TestEngine_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Atom("bar")},
 		}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("bar")), err)
+		assert.Equal(t, typeErrorInteger(Atom("bar")), err)
 		assert.False(t, ok)
 	})
 
@@ -1862,7 +1862,7 @@ func TestEngine_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(-2)},
 		}, Done).Force()
-		assert.Equal(t, DomainErrorNotLessThanZero(Integer(-2)), err)
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-2)), err)
 		assert.False(t, ok)
 	})
 
@@ -1878,10 +1878,10 @@ func TestEngine_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(0)},
 		}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("static_procedure"), &Compound{
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(0)},
-		}, Atom("foo/0 is static.")), err)
+		}), err)
 		assert.False(t, ok)
 	})
 }
@@ -1903,7 +1903,7 @@ func TestEngine_CurrentInput(t *testing.T) {
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.CurrentInput(Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStream(Integer(0)), err)
+		assert.Equal(t, domainErrorStream(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -1925,7 +1925,7 @@ func TestEngine_CurrentOutput(t *testing.T) {
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.CurrentOutput(Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStream(Integer(0)), err)
+		assert.Equal(t, domainErrorStream(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -1933,7 +1933,7 @@ func TestEngine_CurrentOutput(t *testing.T) {
 func TestEngine_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
-		s := Stream{Reader: os.Stdin}
+		s := Stream{source: os.Stdin}
 		ok, err := e.SetInput(&Variable{Ref: &s}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1941,7 +1941,7 @@ func TestEngine_SetInput(t *testing.T) {
 	})
 
 	t.Run("alias", func(t *testing.T) {
-		s := Stream{Reader: os.Stdin}
+		s := Stream{source: os.Stdin}
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
 				Atom("x"): &s,
@@ -1958,29 +1958,29 @@ func TestEngine_SetInput(t *testing.T) {
 
 		var e Engine
 		ok, err := e.SetInput(&streamOrAlias, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetInput(Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetInput(Atom("x"), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("x")), err)
+		assert.Equal(t, existenceErrorStream(Atom("x")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		var e Engine
-		s := Stream{Writer: os.Stdout}
-		ok, err := e.SetInput(&Variable{Name: "Stream", Ref: &s}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &Variable{Name: "Stream", Ref: &s}, Atom("Stream is not an input stream.")), err)
+		s := Variable{Name: "Stream", Ref: &Stream{sink: os.Stdout}}
+		ok, err := e.SetInput(&s, Done).Force()
+		assert.Equal(t, permissionErrorInputStream(&s), err)
 		assert.False(t, ok)
 	})
 }
@@ -1988,7 +1988,7 @@ func TestEngine_SetInput(t *testing.T) {
 func TestEngine_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		var e Engine
-		s := Stream{Writer: os.Stdout}
+		s := Stream{sink: os.Stdout}
 		ok, err := e.SetOutput(&Variable{Ref: &s}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1996,7 +1996,7 @@ func TestEngine_SetOutput(t *testing.T) {
 	})
 
 	t.Run("alias", func(t *testing.T) {
-		s := Stream{Writer: os.Stdout}
+		s := Stream{sink: os.Stdout}
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
 				Atom("x"): &s,
@@ -2013,29 +2013,30 @@ func TestEngine_SetOutput(t *testing.T) {
 
 		var e Engine
 		ok, err := e.SetOutput(&streamOrAlias, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetOutput(Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetOutput(Atom("x"), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("x")), err)
+		assert.Equal(t, existenceErrorStream(Atom("x")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
+		s := Variable{Name: "Stream", Ref: &Stream{source: os.Stdin}}
+
 		var e Engine
-		s := Stream{Reader: os.Stdin}
-		ok, err := e.SetOutput(&Variable{Name: "Stream", Ref: &s}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &Variable{Name: "Stream", Ref: &s}, Atom("Stream is not an output stream.")), err)
+		ok, err := e.SetOutput(&s, Done).Force()
+		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
 }
@@ -2068,7 +2069,7 @@ func TestEngine_Open(t *testing.T) {
 
 		assert.Equal(t, e.streams[Atom("input")], s)
 
-		b, err := ioutil.ReadAll(s)
+		b, err := ioutil.ReadAll(s.source)
 		assert.NoError(t, err)
 		assert.Equal(t, "test\n", string(b))
 	})
@@ -2092,7 +2093,7 @@ func TestEngine_Open(t *testing.T) {
 
 		assert.Equal(t, e.streams[Atom("output")], s)
 
-		_, err = fmt.Fprintf(s, "test\n")
+		_, err = fmt.Fprintf(s.sink, "test\n")
 		assert.NoError(t, err)
 
 		f, err := os.Open(n)
@@ -2131,7 +2132,7 @@ func TestEngine_Open(t *testing.T) {
 
 		assert.Equal(t, e.streams[Atom("append")], s)
 
-		_, err = fmt.Fprintf(s, "test\n")
+		_, err = fmt.Fprintf(s.sink, "test\n")
 		assert.NoError(t, err)
 
 		f, err = os.Open(f.Name())
@@ -2150,7 +2151,7 @@ func TestEngine_Open(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Open(&sourceSink, Atom("read"), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, InstantiationError(&sourceSink), err)
+		assert.Equal(t, instantiationError(&sourceSink), err)
 		assert.False(t, ok)
 	})
 
@@ -2159,7 +2160,7 @@ func TestEngine_Open(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), &mode, &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, InstantiationError(&mode), err)
+		assert.Equal(t, instantiationError(&mode), err)
 		assert.False(t, ok)
 	})
 
@@ -2172,7 +2173,7 @@ func TestEngine_Open(t *testing.T) {
 
 			var e Engine
 			ok, err := e.Open(Atom("/dev/null"), Atom("read"), &Variable{Name: "Stream"}, options, Done).Force()
-			assert.Equal(t, InstantiationError(options), err)
+			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
 
@@ -2185,7 +2186,7 @@ func TestEngine_Open(t *testing.T) {
 				&Compound{Functor: "type", Args: []Term{Atom("text")}},
 				&Compound{Functor: "alias", Args: []Term{Atom("foo")}},
 			), Done).Force()
-			assert.Equal(t, InstantiationError(&option), err)
+			assert.Equal(t, instantiationError(&option), err)
 			assert.False(t, ok)
 		})
 	})
@@ -2193,42 +2194,42 @@ func TestEngine_Open(t *testing.T) {
 	t.Run("mode is neither a variable nor an atom", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), Integer(0), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), Atom("read"), &Variable{Name: "Stream"}, Atom("list"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("list")), err)
+		assert.Equal(t, typeErrorList(Atom("list")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("stream is not a variable", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), Atom("read"), Atom("stream"), List(), Done).Force()
-		assert.Equal(t, TypeErrorVariable(Atom("stream")), err)
+		assert.Equal(t, typeErrorVariable(Atom("stream")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("sourceSink is neither a variable nor a source/sink", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Integer(0), Atom("read"), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, DomainErrorSourceSink(Integer(0)), err)
+		assert.Equal(t, domainErrorSourceSink(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is an atom but not an input/output mode", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), Atom("foo"), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, DomainErrorIOMode(Atom("foo")), err)
+		assert.Equal(t, domainErrorIOMode(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the options list is neither a variable nor a stream-option", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Open(Atom("/dev/null"), Atom("read"), &Variable{Name: "Stream"}, List(Atom("foo")), Done).Force()
-		assert.Equal(t, DomainErrorStreamOption(Atom("foo")), err)
+		assert.Equal(t, domainErrorStreamOption(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
@@ -2239,7 +2240,7 @@ func TestEngine_Open(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Open(Atom(f.Name()), Atom("read"), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, ExistenceErrorSourceSink(Atom(f.Name())), err)
+		assert.Equal(t, existenceErrorSourceSink(Atom(f.Name())), err)
 		assert.False(t, ok)
 	})
 
@@ -2254,7 +2255,7 @@ func TestEngine_Open(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Open(Atom(f.Name()), Atom("read"), &Variable{Name: "Stream"}, List(), Done).Force()
-		assert.Equal(t, PermissionError(Atom("open"), Atom("source_sink"), Atom(f.Name()), Atom(fmt.Sprintf("'%s' cannot be opened.", f.Name()))), err)
+		assert.Equal(t, permissionError(Atom("open"), Atom("source_sink"), Atom(f.Name()), Atom(fmt.Sprintf("'%s' cannot be opened.", f.Name()))), err)
 		assert.False(t, ok)
 	})
 
@@ -2276,7 +2277,7 @@ func TestEngine_Open(t *testing.T) {
 			Functor: "alias",
 			Args:    []Term{Atom("foo")},
 		}), Done).Force()
-		assert.Equal(t, PermissionError(Atom("open"), Atom("source_sink"), &Compound{
+		assert.Equal(t, permissionError(Atom("open"), Atom("source_sink"), &Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("foo")},
 		}, Atom("foo is already defined as an alias.")), err)
@@ -2296,7 +2297,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(&Stream{Closer: &m}, List(), Done).Force()
+			ok, err := e.Close(&Stream{closer: &m}, List(), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2307,7 +2308,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.Close(&Stream{Closer: &m}, List(), Done).Force()
+			_, err := e.Close(&Stream{closer: &m}, List(), Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -2319,7 +2320,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
 			}), Done).Force()
@@ -2332,14 +2333,14 @@ func TestEngine_Close(t *testing.T) {
 			m.On("Close").Return(errors.New("something happened")).Once()
 			defer m.AssertExpectations(t)
 
-			s := Stream{Closer: &m}
+			s := Stream{closer: &m}
 
 			var e Engine
 			ok, err := e.Close(&s, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("false")},
 			}), Done).Force()
-			assert.Equal(t, ResourceError(&s, Atom("something happened")), err)
+			assert.Equal(t, resourceError(&s, Atom("something happened")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -2351,7 +2352,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
 			}), Done).Force()
@@ -2365,7 +2366,7 @@ func TestEngine_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.Close(&Stream{Closer: &m}, List(&Compound{
+			ok, err := e.Close(&Stream{closer: &m}, List(&Compound{
 				Functor: "force",
 				Args:    []Term{Atom("true")},
 			}), Done).Force()
@@ -2381,7 +2382,7 @@ func TestEngine_Close(t *testing.T) {
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
-				Atom("foo"): {Closer: &m},
+				Atom("foo"): {closer: &m},
 			},
 		}}
 		ok, err := e.Close(Atom("foo"), List(), Done).Force()
@@ -2394,7 +2395,7 @@ func TestEngine_Close(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Close(&streamOrAlias, List(), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
@@ -2406,7 +2407,7 @@ func TestEngine_Close(t *testing.T) {
 
 			var e Engine
 			ok, err := e.Close(&Stream{}, options, Done).Force()
-			assert.Equal(t, InstantiationError(options), err)
+			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
 
@@ -2415,7 +2416,7 @@ func TestEngine_Close(t *testing.T) {
 
 			var e Engine
 			ok, err := e.Close(&Stream{}, List(&option, &Compound{Functor: "force", Args: []Term{Atom("true")}}), Done).Force()
-			assert.Equal(t, InstantiationError(&option), err)
+			assert.Equal(t, instantiationError(&option), err)
 			assert.False(t, ok)
 		})
 	})
@@ -2423,28 +2424,28 @@ func TestEngine_Close(t *testing.T) {
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Close(&Stream{}, Atom("foo"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("foo")), err)
+		assert.Equal(t, typeErrorList(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Close(Integer(0), List(), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a stream-option", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Close(&Stream{}, List(Atom("foo")), Done).Force()
-		assert.Equal(t, DomainErrorStreamOption(Atom("foo")), err)
+		assert.Equal(t, domainErrorStreamOption(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Close(Atom("foo"), List(), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -2482,7 +2483,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 		defer m.AssertExpectations(t)
 
 		var e Engine
-		ok, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
+		ok, err := e.FlushOutput(&Stream{sink: &m}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2498,7 +2499,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			ok, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
+			ok, err := e.FlushOutput(&Stream{sink: &m}, Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2513,7 +2514,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var e Engine
-			_, err := e.FlushOutput(&Stream{Writer: &m}, Done).Force()
+			_, err := e.FlushOutput(&Stream{sink: &m}, Done).Force()
 			assert.Error(t, err)
 		})
 	})
@@ -2524,7 +2525,7 @@ func TestEngine_FlushOutput(t *testing.T) {
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
-				Atom("foo"): {Writer: &m},
+				Atom("foo"): {sink: &m},
 			},
 		}}
 		ok, err := e.FlushOutput(Atom("foo"), Done).Force()
@@ -2537,30 +2538,30 @@ func TestEngine_FlushOutput(t *testing.T) {
 
 		var e Engine
 		ok, err := e.FlushOutput(&streamOrAlias, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.FlushOutput(Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.FlushOutput(Atom("foo"), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("SorA is an input stream", func(t *testing.T) {
-		s := Stream{Reader: &mockReader{}}
+		s := Stream{source: &mockReader{}}
 
 		var e Engine
 		ok, err := e.FlushOutput(&s, Done).Force()
-		assert.Equal(t, PermissionError(Atom("output"), Atom("stream"), &s, Atom(fmt.Sprintf("%s is not an output stream.", &s))), err)
+		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
 }
@@ -2578,7 +2579,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	var w mockWriter
 	defer w.AssertExpectations(t)
 
-	s := Stream{Writer: &w}
+	s := Stream{sink: &w}
 
 	ops := Operators{
 		{Priority: 500, Specifier: "yfx", Name: "+"},
@@ -2595,7 +2596,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(), Done).Force()
@@ -2605,7 +2606,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("ng", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(errors.New("")).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: ops}).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			_, err := e.WriteTerm(&s, &m, List(), Done).Force()
@@ -2616,7 +2617,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Quoted: false, Ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Quoted: false, Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2629,7 +2630,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Quoted: true, Ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Quoted: true, Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2644,7 +2645,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: ops}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2657,7 +2658,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: nil}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: nil}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2672,7 +2673,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops, NumberVars: false}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: ops, NumberVars: false}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2685,7 +2686,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", &s, WriteTermOptions{Ops: ops, NumberVars: true}).Return(nil).Once()
+			m.On("WriteTerm", s.sink, WriteTermOptions{Ops: ops, NumberVars: true}).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := e.WriteTerm(&s, &m, List(&Compound{
@@ -2702,7 +2703,7 @@ func TestEngine_WriteTerm(t *testing.T) {
 
 		var e Engine
 		ok, err := e.WriteTerm(&streamOrAlias, Atom("foo"), List(), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
@@ -2713,8 +2714,8 @@ func TestEngine_WriteTerm(t *testing.T) {
 			)
 
 			var e Engine
-			ok, err := e.WriteTerm(&Stream{}, Atom("foo"), options, Done).Force()
-			assert.Equal(t, InstantiationError(options), err)
+			ok, err := e.WriteTerm(&Stream{sink: &mockWriter{}}, Atom("foo"), options, Done).Force()
+			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
 
@@ -2722,8 +2723,8 @@ func TestEngine_WriteTerm(t *testing.T) {
 			option := Variable{Name: "Option"}
 
 			var e Engine
-			ok, err := e.WriteTerm(&Stream{}, Atom("foo"), List(&option, &Compound{Functor: "quoted", Args: []Term{Atom("true")}}), Done).Force()
-			assert.Equal(t, InstantiationError(&option), err)
+			ok, err := e.WriteTerm(&Stream{sink: &mockWriter{}}, Atom("foo"), List(&option, &Compound{Functor: "quoted", Args: []Term{Atom("true")}}), Done).Force()
+			assert.Equal(t, instantiationError(&option), err)
 			assert.False(t, ok)
 		})
 	})
@@ -2731,24 +2732,24 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.WriteTerm(Integer(0), Atom("foo"), List(), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var e Engine
-		ok, err := e.WriteTerm(&Stream{}, Atom("foo"), Atom("options"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("options")), err)
+		ok, err := e.WriteTerm(&Stream{sink: &mockWriter{}}, Atom("foo"), Atom("options"), Done).Force()
+		assert.Equal(t, typeErrorList(Atom("options")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid write-option", func(t *testing.T) {
 		var e Engine
-		ok, err := e.WriteTerm(&Stream{}, Atom("foo"), List(&Compound{
+		ok, err := e.WriteTerm(&Stream{sink: &mockWriter{}}, Atom("foo"), List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), Done).Force()
-		assert.Equal(t, DomainErrorWriteOption(&Compound{
+		assert.Equal(t, domainErrorWriteOption(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), err)
@@ -2758,21 +2759,26 @@ func TestEngine_WriteTerm(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.WriteTerm(Atom("stream"), Atom("foo"), List(), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("stream")), err)
+		assert.Equal(t, existenceErrorStream(Atom("stream")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Stream{Reader: &mockReader{}}
+		s := Stream{source: &mockReader{}}
 
 		var e Engine
 		ok, err := e.WriteTerm(&s, Atom("foo"), List(), Done).Force()
-		assert.Equal(t, PermissionError(Atom("output"), Atom("stream"), &s, Atom(fmt.Sprintf("%s is not an output stream.", &s))), err)
+		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		// TODO:
+		s := Stream{sink: &mockWriter{}, streamType: streamTypeBinary}
+
+		var e Engine
+		ok, err := e.WriteTerm(&s, Atom("foo"), List(), Done).Force()
+		assert.Equal(t, permissionErrorOutputBinaryStream(&s), err)
+		assert.False(t, ok)
 	})
 }
 
@@ -2833,7 +2839,7 @@ func TestCharCode(t *testing.T) {
 		char, code := Variable{Name: "Char"}, Variable{Name: "Code"}
 
 		ok, err := CharCode(&char, &code, Done).Force()
-		assert.Equal(t, InstantiationError(&Compound{
+		assert.Equal(t, instantiationError(&Compound{
 			Functor: ",",
 			Args:    []Term{&char, &code},
 		}), err)
@@ -2843,26 +2849,26 @@ func TestCharCode(t *testing.T) {
 	t.Run("char is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			ok, err := CharCode(Atom("foo"), &Variable{}, Done).Force()
-			assert.Equal(t, TypeErrorCharacter(Atom("foo")), err)
+			assert.Equal(t, typeErrorCharacter(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("non-atom", func(t *testing.T) {
 			ok, err := CharCode(Integer(0), &Variable{}, Done).Force()
-			assert.Equal(t, TypeErrorCharacter(Integer(0)), err)
+			assert.Equal(t, typeErrorCharacter(Integer(0)), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := CharCode(&Variable{}, Atom("foo"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is neither a variable nor a character-code", func(t *testing.T) {
 		ok, err := CharCode(&Variable{}, Integer(-1), Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character_code"), Atom(fmt.Sprintf("-1 is not a valid unicode code point."))), err)
+		assert.Equal(t, representationError(Atom("character_code"), Atom(fmt.Sprintf("-1 is not a valid unicode code point."))), err)
 		assert.False(t, ok)
 	})
 }
@@ -2873,7 +2879,7 @@ func TestEngine_PutByte(t *testing.T) {
 		w.On("Write", []byte{97}).Return(1, nil).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w, streamType: streamTypeBinary}
 
 		var e Engine
 		ok, err := e.PutByte(&s, Integer(97), Done).Force()
@@ -2886,7 +2892,7 @@ func TestEngine_PutByte(t *testing.T) {
 		w.On("Write", []byte{97}).Return(0, errors.New("")).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w, streamType: streamTypeBinary}
 
 		var e Engine
 		_, err := e.PutByte(&s, Integer(97), Done).Force()
@@ -2898,7 +2904,7 @@ func TestEngine_PutByte(t *testing.T) {
 		w.On("Write", []byte{97}).Return(1, nil).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w, streamType: streamTypeBinary}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -2915,7 +2921,7 @@ func TestEngine_PutByte(t *testing.T) {
 
 		var e Engine
 		ok, err := e.PutByte(&streamOrAlias, Integer(97), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
@@ -2923,36 +2929,41 @@ func TestEngine_PutByte(t *testing.T) {
 		byt := Variable{Name: "Byte"}
 
 		var e Engine
-		ok, err := e.PutByte(&Stream{Writer: &mockWriter{}}, &byt, Done).Force()
-		assert.Equal(t, InstantiationError(&byt), err)
+		ok, err := e.PutByte(&Stream{sink: &mockWriter{}, streamType: streamTypeBinary}, &byt, Done).Force()
+		assert.Equal(t, instantiationError(&byt), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("byt is neither a variable nor an byte", func(t *testing.T) {
 		var e Engine
-		ok, err := e.PutByte(&Stream{Writer: &mockWriter{}}, Atom("byte"), Done).Force()
-		assert.Equal(t, TypeErrorByte(Atom("byte")), err)
+		ok, err := e.PutByte(&Stream{sink: &mockWriter{}, streamType: streamTypeBinary}, Atom("byte"), Done).Force()
+		assert.Equal(t, typeErrorByte(Atom("byte")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.PutByte(Integer(0), Integer(97), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Reader: &mockReader{}}}
+		s := Variable{Name: "Stream", Ref: &Stream{source: &mockReader{}}}
 
 		var e Engine
 		ok, err := e.PutByte(&s, Integer(97), Done).Force()
-		assert.Equal(t, PermissionError(Atom("output"), Atom("stream"), &s, Atom("Stream is not an output stream.")), err)
+		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		// TODO:
+		s := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}, streamType: streamTypeText}}
+
+		var e Engine
+		ok, err := e.PutByte(&s, Integer(97), Done).Force()
+		assert.Equal(t, permissionErrorOutputTextStream(&s), err)
+		assert.False(t, ok)
 	})
 }
 
@@ -2962,7 +2973,7 @@ func TestEngine_PutCode(t *testing.T) {
 		w.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w}
 
 		var e Engine
 		ok, err := e.PutCode(&s, Integer('😀'), Done).Force()
@@ -2975,7 +2986,7 @@ func TestEngine_PutCode(t *testing.T) {
 		w.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(0, errors.New("")).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w}
 
 		var e Engine
 		_, err := e.PutCode(&s, Integer('😀'), Done).Force()
@@ -2987,7 +2998,7 @@ func TestEngine_PutCode(t *testing.T) {
 		w.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3004,7 +3015,7 @@ func TestEngine_PutCode(t *testing.T) {
 
 		var e Engine
 		ok, err := e.PutCode(&streamOrAlias, Integer(97), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
@@ -3012,49 +3023,54 @@ func TestEngine_PutCode(t *testing.T) {
 		code := Variable{Name: "Code"}
 
 		var e Engine
-		ok, err := e.PutCode(&Stream{Writer: &mockWriter{}}, &code, Done).Force()
-		assert.Equal(t, InstantiationError(&code), err)
+		ok, err := e.PutCode(&Stream{sink: &mockWriter{}}, &code, Done).Force()
+		assert.Equal(t, instantiationError(&code), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		var e Engine
-		ok, err := e.PutCode(&Stream{Writer: &mockWriter{}}, Atom("code"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("code")), err)
+		ok, err := e.PutCode(&Stream{sink: &mockWriter{}}, Atom("code"), Done).Force()
+		assert.Equal(t, typeErrorInteger(Atom("code")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.PutCode(Integer(0), Integer(97), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.PutCode(Atom("foo"), Integer(97), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Reader: &mockReader{}}}
+		s := Variable{Name: "Stream", Ref: &Stream{source: &mockReader{}}}
 
 		var e Engine
 		ok, err := e.PutCode(&s, Integer(97), Done).Force()
-		assert.Equal(t, PermissionError(Atom("output"), Atom("stream"), &s, Atom("Stream is not an output stream.")), err)
+		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		// TODO:
+		s := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}, streamType: streamTypeBinary}}
+
+		var e Engine
+		ok, err := e.PutCode(&s, Integer(97), Done).Force()
+		assert.Equal(t, permissionErrorOutputBinaryStream(&s), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("code is an integer but not an character code", func(t *testing.T) {
 		var e Engine
-		ok, err := e.PutCode(&Stream{Writer: &mockWriter{}}, Integer(-1), Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character_code"), Atom("-1 is not a valid unicode code point.")), err)
+		ok, err := e.PutCode(&Stream{sink: &mockWriter{}}, Integer(-1), Done).Force()
+		assert.Equal(t, representationError(Atom("character_code"), Atom("-1 is not a valid unicode code point.")), err)
 		assert.False(t, ok)
 	})
 
@@ -3074,7 +3090,7 @@ func TestEngine_PutCode(t *testing.T) {
 		var w mockWriter
 		defer w.AssertExpectations(t)
 
-		s := Stream{Writer: &w}
+		s := Stream{sink: &w}
 
 		t.Run("not an integer", func(t *testing.T) {
 			var e Engine
@@ -3089,7 +3105,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var v Variable
-		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}, &v, List(), Done).Force()
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("foo."))}, &v, List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -3097,7 +3113,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("foo."))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("foo."))}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3117,7 +3133,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, singletons Variable
-		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "singletons",
 			Args:    []Term{&singletons},
 		}), Done).Force()
@@ -3140,7 +3156,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variables Variable
-		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variables",
 			Args:    []Term{&variables},
 		}), Done).Force()
@@ -3163,7 +3179,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 		var e Engine
 
 		var term, variableNames Variable
-		ok, err := e.ReadTerm(&Stream{Reader: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, &term, List(&Compound{
 			Functor: "variable_names",
 			Args:    []Term{&variableNames},
 		}), Done).Force()
@@ -3194,7 +3210,7 @@ func TestEngine_ReadTerm(t *testing.T) {
 	t.Run("multiple reads", func(t *testing.T) {
 		var e Engine
 
-		s := Stream{Reader: bufio.NewReader(strings.NewReader(`
+		s := Stream{source: bufio.NewReader(strings.NewReader(`
 foo(a).
 foo(b).
 foo(c).
@@ -3224,7 +3240,7 @@ foo(c).
 
 		var e Engine
 		ok, err := e.ReadTerm(&streamOrAlias, &Variable{}, List(), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
@@ -3235,8 +3251,8 @@ foo(c).
 			)
 
 			var e Engine
-			ok, err := e.ReadTerm(&Stream{Reader: &mockReader{}}, &Variable{}, options, Done).Force()
-			assert.Equal(t, InstantiationError(options), err)
+			ok, err := e.ReadTerm(&Stream{source: &mockReader{}}, &Variable{}, options, Done).Force()
+			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
 
@@ -3244,8 +3260,8 @@ foo(c).
 			option := Variable{Name: "Option"}
 
 			var e Engine
-			ok, err := e.ReadTerm(&Stream{Reader: &mockReader{}}, &Variable{}, List(&option, &Compound{Functor: "variables", Args: []Term{&Variable{Name: "VL"}}}), Done).Force()
-			assert.Equal(t, InstantiationError(&option), err)
+			ok, err := e.ReadTerm(&Stream{source: &mockReader{}}, &Variable{}, List(&option, &Compound{Functor: "variables", Args: []Term{&Variable{Name: "VL"}}}), Done).Force()
+			assert.Equal(t, instantiationError(&option), err)
 			assert.False(t, ok)
 		})
 	})
@@ -3253,24 +3269,24 @@ foo(c).
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.ReadTerm(Integer(0), &Variable{}, List(), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var e Engine
-		ok, err := e.ReadTerm(&Stream{Reader: &mockReader{}}, &Variable{}, Atom("options"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("options")), err)
+		ok, err := e.ReadTerm(&Stream{source: &mockReader{}}, &Variable{}, Atom("options"), Done).Force()
+		assert.Equal(t, typeErrorList(Atom("options")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
 		var e Engine
-		ok, err := e.ReadTerm(&Stream{Reader: &mockReader{}}, &Variable{}, List(&Compound{
+		ok, err := e.ReadTerm(&Stream{source: &mockReader{}}, &Variable{}, List(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), Done).Force()
-		assert.Equal(t, DomainErrorReadOption(&Compound{
+		assert.Equal(t, domainErrorReadOption(&Compound{
 			Functor: "unknown",
 			Args:    []Term{Atom("option")},
 		}), err)
@@ -3280,39 +3296,64 @@ foo(c).
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.ReadTerm(Atom("foo"), &Variable{}, List(), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Writer: &mockWriter{}}}
+		s := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}}}
 
 		var e Engine
 		ok, err := e.ReadTerm(&s, &Variable{}, List(), Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &s, Atom("Stream is not an input stream.")), err)
+		assert.Equal(t, permissionErrorInputStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		// TODO:
+		s := Variable{Name: "Stream", Ref: &Stream{source: bufio.NewReader(&mockReader{}), streamType: streamTypeBinary}}
+
+		var e Engine
+		ok, err := e.ReadTerm(&s, &Variable{}, List(), Done).Force()
+		assert.Equal(t, permissionErrorInputBinaryStream(&s), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		// TODO: permission_error(input, past_end_of_stream, S_or_a)
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, io.EOF)
+
+		s := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:    bufio.NewReader(&r),
+				eofAction: eofActionError,
+			},
+		}
+
+		var e Engine
+		ok, err := e.ReadTerm(&s, &Variable{}, List(), Done).Force()
+		assert.Equal(t, permissionErrorInputPastEndOfStream(&s), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
-		// TODO: syntax_error(implementation_dependent_atom)
+		var e Engine
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("fo"))}, &Variable{}, List(), Done).Force()
+		assert.Equal(t, syntaxErrorInsufficient(), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
-		// TODO: syntax_error(implementation_dependent_atom)
+		var e Engine
+		ok, err := e.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("X = a."))}, &Variable{}, List(), Done).Force()
+		assert.Equal(t, syntaxErrorInvalidToken(Atom("expected: <separator [.]>, actual: <atom =>")), err)
+		assert.False(t, ok)
 	})
 }
 
 func TestEngine_GetByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s := Stream{Reader: strings.NewReader("a")}
+		s := Stream{source: strings.NewReader("a"), streamType: streamTypeBinary}
 
 		var e Engine
 
@@ -3325,7 +3366,7 @@ func TestEngine_GetByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s := Stream{Reader: strings.NewReader("a")}
+		s := Stream{source: strings.NewReader("a"), streamType: streamTypeBinary}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3342,7 +3383,7 @@ func TestEngine_GetByte(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s := Stream{Reader: strings.NewReader("")}
+		s := Stream{source: strings.NewReader(""), streamType: streamTypeBinary}
 
 		var e Engine
 
@@ -3359,7 +3400,7 @@ func TestEngine_GetByte(t *testing.T) {
 		m.On("Read", make([]byte, 1)).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := Stream{Reader: &m}
+		s := Stream{source: &m, streamType: streamTypeBinary}
 
 		var e Engine
 
@@ -3372,52 +3413,72 @@ func TestEngine_GetByte(t *testing.T) {
 		streamOrAlias := Variable{Name: "Stream"}
 		var e Engine
 		ok, err := e.GetByte(&streamOrAlias, &Variable{Name: "InByte"}, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
 		var e Engine
-		ok, err := e.GetByte(&Stream{Reader: &mockReader{}}, Atom("inByte"), Done).Force()
-		assert.Equal(t, TypeErrorInByte(Atom("inByte")), err)
+		ok, err := e.GetByte(&Stream{source: &mockReader{}, streamType: streamTypeBinary}, Atom("inByte"), Done).Force()
+		assert.Equal(t, typeErrorInByte(Atom("inByte")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.GetByte(Integer(0), &Variable{Name: "InByte"}, Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.GetByte(Atom("foo"), &Variable{Name: "InByte"}, Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Writer: &mockWriter{}}}
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}}}
 
 		var e Engine
 		ok, err := e.GetByte(&streamOrAlias, &Variable{Name: "InByte"}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &streamOrAlias, Atom("Stream is not an input stream.")), err)
+		assert.Equal(t, permissionErrorInputStream(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		// TODO:
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{source: &mockReader{}}}
+
+		var e Engine
+		ok, err := e.GetByte(&streamOrAlias, &Variable{Name: "InByte"}, Done).Force()
+		assert.Equal(t, permissionErrorInputTextStream(&streamOrAlias), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		// TODO:
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, io.EOF)
+
+		streamOrAlias := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:     &r,
+				streamType: streamTypeBinary,
+				eofAction:  eofActionError,
+			},
+		}
+
+		var e Engine
+		ok, err := e.GetByte(&streamOrAlias, &Variable{Name: "InByte"}, Done).Force()
+		assert.Equal(t, permissionErrorInputPastEndOfStream(&streamOrAlias), err)
+		assert.False(t, ok)
 	})
 }
 
 func TestEngine_GetChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("😀"))}
 
 		var e Engine
 
@@ -3430,7 +3491,7 @@ func TestEngine_GetChar(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("😀"))}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3447,17 +3508,17 @@ func TestEngine_GetChar(t *testing.T) {
 	})
 
 	t.Run("non buffered stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Reader: strings.NewReader("")}}
+		s := Variable{Name: "Stream", Ref: &Stream{source: strings.NewReader("")}}
 
 		var e Engine
 
 		ok, err := e.GetChar(&s, &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("buffered_stream"), &s, Atom("Stream is not a buffered stream.")), err)
+		assert.Equal(t, permissionErrorInputBufferedStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader(""))}
+		s := Stream{source: bufio.NewReader(strings.NewReader(""))}
 
 		var e Engine
 
@@ -3474,13 +3535,13 @@ func TestEngine_GetChar(t *testing.T) {
 		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := Stream{Reader: bufio.NewReader(&m)}
+		s := Stream{source: bufio.NewReader(&m)}
 
 		var e Engine
 
 		var v Variable
 		ok, err := e.GetChar(&s, &v, Done).Force()
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
@@ -3489,54 +3550,73 @@ func TestEngine_GetChar(t *testing.T) {
 
 		var e Engine
 		ok, err := e.GetChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		var e Engine
-		ok, err := e.GetChar(&Stream{Reader: bufio.NewReader(&mockReader{})}, Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorInCharacter(Integer(0)), err)
+		ok, err := e.GetChar(&Stream{source: bufio.NewReader(&mockReader{})}, Integer(0), Done).Force()
+		assert.Equal(t, typeErrorInCharacter(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.GetChar(Integer(0), &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Writer: &mockWriter{}}}
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}}}
 
 		var e Engine
 		ok, err := e.GetChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &streamOrAlias, Atom("Stream is not an input stream.")), err)
+		assert.Equal(t, permissionErrorInputStream(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		// TODO:
-	})
-
-	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		// TODO:
-	})
-
-	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Reader: bufio.NewReader(bytes.NewBufferString(string(unicode.ReplacementChar)))}}
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{source: bufio.NewReader(&mockReader{}), streamType: streamTypeBinary}}
 
 		var e Engine
 		ok, err := e.GetChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character"), Atom("invalid character.")), err)
+		assert.Equal(t, permissionErrorInputBinaryStream(&streamOrAlias), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, io.EOF)
+
+		streamOrAlias := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:    bufio.NewReader(&r),
+				eofAction: eofActionError,
+			},
+		}
+
+		var e Engine
+		ok, err := e.GetChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
+		assert.Equal(t, permissionErrorInputPastEndOfStream(&streamOrAlias), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{source: bufio.NewReader(bytes.NewBufferString(string(unicode.ReplacementChar)))}}
+
+		var e Engine
+		ok, err := e.GetChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
+		assert.Equal(t, representationError(Atom("character"), Atom("invalid character.")), err)
 		assert.False(t, ok)
 	})
 }
 
 func TestEngine_PeekByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("abc"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("abc")), streamType: streamTypeBinary}
 
 		var e Engine
 
@@ -3553,7 +3633,7 @@ func TestEngine_PeekByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("abc"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("abc")), streamType: streamTypeBinary}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3570,17 +3650,17 @@ func TestEngine_PeekByte(t *testing.T) {
 	})
 
 	t.Run("non buffered stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Reader: strings.NewReader("")}}
+		s := Variable{Name: "Stream", Ref: &Stream{source: strings.NewReader(""), streamType: streamTypeBinary}}
 
 		var e Engine
 
 		ok, err := e.PeekByte(&s, &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("buffered_stream"), &s, Atom("Stream is not a buffered stream.")), err)
+		assert.Equal(t, permissionErrorInputBufferedStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader(""))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("")), streamType: streamTypeBinary}
 
 		var e Engine
 
@@ -3597,13 +3677,13 @@ func TestEngine_PeekByte(t *testing.T) {
 		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := Stream{Reader: bufio.NewReader(&m)}
+		s := Stream{source: bufio.NewReader(&m), streamType: streamTypeBinary}
 
 		var e Engine
 
 		var v Variable
 		ok, err := e.PeekByte(&s, &v, Done).Force()
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
@@ -3612,45 +3692,65 @@ func TestEngine_PeekByte(t *testing.T) {
 
 		var e Engine
 		ok, err := e.PeekByte(&streamOrAlias, &Variable{Name: "Byte"}, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
 		var e Engine
-		ok, err := e.PeekByte(&Stream{Reader: bufio.NewReader(&mockReader{})}, Atom("byte"), Done).Force()
-		assert.Equal(t, TypeErrorInByte(Atom("byte")), err)
+		ok, err := e.PeekByte(&Stream{source: bufio.NewReader(&mockReader{}), streamType: streamTypeBinary}, Atom("byte"), Done).Force()
+		assert.Equal(t, typeErrorInByte(Atom("byte")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.PeekByte(Integer(0), &Variable{Name: "Byte"}, Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Writer: &mockWriter{}}}
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}}}
 
 		var e Engine
 		ok, err := e.PeekByte(&streamOrAlias, &Variable{Name: "Byte"}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &streamOrAlias, Atom("Stream is not an input stream.")), err)
+		assert.Equal(t, permissionErrorInputStream(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		// TODO:
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{source: bufio.NewReader(&mockReader{}), streamType: streamTypeText}}
+
+		var e Engine
+		ok, err := e.PeekByte(&streamOrAlias, &Variable{Name: "Byte"}, Done).Force()
+		assert.Equal(t, permissionErrorInputTextStream(&streamOrAlias), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		// TODO:
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, io.EOF)
+
+		streamOrAlias := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:     bufio.NewReader(&r),
+				streamType: streamTypeBinary,
+				eofAction:  eofActionError,
+			},
+		}
+
+		var e Engine
+		ok, err := e.PeekByte(&streamOrAlias, &Variable{Name: "Byte"}, Done).Force()
+		assert.Equal(t, permissionErrorInputPastEndOfStream(&streamOrAlias), err)
+		assert.False(t, ok)
 	})
 }
 
 func TestEngine_PeekChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀❗"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("😀❗"))}
 
 		var e Engine
 
@@ -3667,7 +3767,7 @@ func TestEngine_PeekChar(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader("😀❗"))}
+		s := Stream{source: bufio.NewReader(strings.NewReader("😀❗"))}
 
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
@@ -3684,16 +3784,16 @@ func TestEngine_PeekChar(t *testing.T) {
 	})
 
 	t.Run("non buffered stream", func(t *testing.T) {
-		s := Variable{Name: "Stream", Ref: &Stream{Reader: strings.NewReader("")}}
+		s := Variable{Name: "Stream", Ref: &Stream{source: strings.NewReader("")}}
 
 		var e Engine
 		ok, err := e.PeekChar(&s, &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("buffered_stream"), &s, Atom("Stream is not a buffered stream.")), err)
+		assert.Equal(t, permissionErrorInputBufferedStream(&s), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s := Stream{Reader: bufio.NewReader(strings.NewReader(""))}
+		s := Stream{source: bufio.NewReader(strings.NewReader(""))}
 
 		var e Engine
 
@@ -3710,13 +3810,13 @@ func TestEngine_PeekChar(t *testing.T) {
 		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := Stream{Reader: bufio.NewReader(&m)}
+		s := Stream{source: bufio.NewReader(&m)}
 
 		var e Engine
 
 		var v Variable
 		ok, err := e.PeekChar(&s, &v, Done).Force()
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
@@ -3725,47 +3825,72 @@ func TestEngine_PeekChar(t *testing.T) {
 
 		var e Engine
 		ok, err := e.PeekChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		var e Engine
-		ok, err := e.PeekChar(&Stream{Reader: bufio.NewReader(&mockReader{})}, Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorInCharacter(Integer(0)), err)
+		ok, err := e.PeekChar(&Stream{source: bufio.NewReader(&mockReader{})}, Integer(0), Done).Force()
+		assert.Equal(t, typeErrorInCharacter(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.PeekChar(Integer(0), &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Writer: &mockWriter{}}}
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{sink: &mockWriter{}}}
 
 		var e Engine
 		ok, err := e.PeekChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("input"), Atom("stream"), &streamOrAlias, Atom("Stream is not an input stream.")), err)
+		assert.Equal(t, permissionErrorInputStream(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		// TODO:
-	})
-
-	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		// TODO:
-	})
-
-	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
-		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{Reader: bufio.NewReader(bytes.NewBufferString(string(unicode.ReplacementChar)))}}
+		streamOrAlias := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:     bufio.NewReader(&mockReader{}),
+				streamType: streamTypeBinary,
+			},
+		}
 
 		var e Engine
 		ok, err := e.PeekChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character"), Atom("invalid character.")), err)
+		assert.Equal(t, permissionErrorInputBinaryStream(&streamOrAlias), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, io.EOF)
+
+		streamOrAlias := Variable{
+			Name: "Stream",
+			Ref: &Stream{
+				source:    bufio.NewReader(&r),
+				eofAction: eofActionError,
+			},
+		}
+
+		var e Engine
+		ok, err := e.PeekChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
+		assert.Equal(t, permissionErrorInputPastEndOfStream(&streamOrAlias), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
+		streamOrAlias := Variable{Name: "Stream", Ref: &Stream{source: bufio.NewReader(bytes.NewBufferString(string(unicode.ReplacementChar)))}}
+
+		var e Engine
+		ok, err := e.PeekChar(&streamOrAlias, &Variable{Name: "Char"}, Done).Force()
+		assert.Equal(t, representationError(Atom("character"), Atom("invalid character.")), err)
 		assert.False(t, ok)
 	})
 }
@@ -3804,14 +3929,14 @@ func TestEngine_Halt(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Halt(&n, Done).Force()
-		assert.Equal(t, InstantiationError(&n), err)
+		assert.Equal(t, instantiationError(&n), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Halt(Atom("foo"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -3855,14 +3980,14 @@ func TestEngine_Clause(t *testing.T) {
 
 		var e Engine
 		ok, err := e.Clause(&head, Atom("true"), Done).Force()
-		assert.Equal(t, InstantiationError(&head), err)
+		assert.Equal(t, instantiationError(&head), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("head is neither a variable nor a predication", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Clause(Integer(0), Atom("true"), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -3873,7 +3998,7 @@ func TestEngine_Clause(t *testing.T) {
 	t.Run("body is neither a variable nor a callable term", func(t *testing.T) {
 		var e Engine
 		ok, err := e.Clause(Atom("foo"), Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorCallable(Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
 	})
 }
@@ -3894,25 +4019,25 @@ func TestAtomLength(t *testing.T) {
 	t.Run("atom is a variable", func(t *testing.T) {
 		atom := Variable{Name: "Atom"}
 		ok, err := AtomLength(&atom, Integer(0), Done).Force()
-		assert.Equal(t, InstantiationError(&atom), err)
+		assert.Equal(t, instantiationError(&atom), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := AtomLength(Integer(2), Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(2)), err)
+		assert.Equal(t, typeErrorAtom(Integer(2)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := AtomLength(Atom("😀"), Atom("1"), Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("1")), err)
+		assert.Equal(t, typeErrorInteger(Atom("1")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is an integer less than zero", func(t *testing.T) {
 		ok, err := AtomLength(Atom("😀"), Integer(-1), Done).Force()
-		assert.Equal(t, DomainErrorNotLessThanZero(Integer(-1)), err)
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
 		assert.False(t, ok)
 	})
 }
@@ -3958,7 +4083,7 @@ func TestAtomConcat(t *testing.T) {
 		atom1, atom3 := Variable{Name: "Atom1"}, Variable{Name: "Atom3"}
 
 		ok, err := AtomConcat(&atom1, Atom("bar"), &atom3, Done).Force()
-		assert.Equal(t, InstantiationError(&Compound{
+		assert.Equal(t, instantiationError(&Compound{
 			Functor: ",",
 			Args:    []Term{&atom1, &atom3},
 		}), err)
@@ -3969,7 +4094,7 @@ func TestAtomConcat(t *testing.T) {
 		atom2, atom3 := Variable{Name: "Atom2"}, Variable{Name: "Atom3"}
 
 		ok, err := AtomConcat(Atom("foo"), &atom2, &atom3, Done).Force()
-		assert.Equal(t, InstantiationError(&Compound{
+		assert.Equal(t, instantiationError(&Compound{
 			Functor: ",",
 			Args:    []Term{&atom2, &atom3},
 		}), err)
@@ -3979,13 +4104,13 @@ func TestAtomConcat(t *testing.T) {
 	t.Run("atom1 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
 			ok, err := AtomConcat(Integer(1), Atom("bar"), &Variable{Name: "Atom3"}, Done).Force()
-			assert.Equal(t, TypeErrorAtom(Integer(1)), err)
+			assert.Equal(t, typeErrorAtom(Integer(1)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom3 is an atom", func(t *testing.T) {
 			ok, err := AtomConcat(Integer(1), Atom("bar"), Atom("foobar"), Done).Force()
-			assert.Equal(t, TypeErrorAtom(Integer(1)), err)
+			assert.Equal(t, typeErrorAtom(Integer(1)), err)
 			assert.False(t, ok)
 		})
 	})
@@ -3993,20 +4118,20 @@ func TestAtomConcat(t *testing.T) {
 	t.Run("atom2 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
 			ok, err := AtomConcat(Atom("foo"), Integer(2), &Variable{Name: "Atom3"}, Done).Force()
-			assert.Equal(t, TypeErrorAtom(Integer(2)), err)
+			assert.Equal(t, typeErrorAtom(Integer(2)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom3 is an atom", func(t *testing.T) {
 			ok, err := AtomConcat(Atom("foo"), Integer(2), Atom("foobar"), Done).Force()
-			assert.Equal(t, TypeErrorAtom(Integer(2)), err)
+			assert.Equal(t, typeErrorAtom(Integer(2)), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("atom3 is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := AtomConcat(Atom("foo"), Atom("bar"), Integer(3), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(3)), err)
+		assert.Equal(t, typeErrorAtom(Integer(3)), err)
 		assert.False(t, ok)
 	})
 }
@@ -4054,55 +4179,55 @@ func TestSubAtom(t *testing.T) {
 	t.Run("atom is a variable", func(t *testing.T) {
 		var atom Variable
 		ok, err := SubAtom(&atom, &Variable{Name: "Before"}, &Variable{Name: "Length"}, &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, InstantiationError(&atom), err)
+		assert.Equal(t, instantiationError(&atom), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := SubAtom(Integer(0), &Variable{Name: "Before"}, &Variable{Name: "Length"}, &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("subAtom is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), &Variable{Name: "Before"}, &Variable{Name: "Length"}, &Variable{Name: "After"}, Integer(0), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Atom("before"), &Variable{Name: "Length"}, &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("before")), err)
+		assert.Equal(t, typeErrorInteger(Atom("before")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), &Variable{Name: "Before"}, Atom("length"), &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("length")), err)
+		assert.Equal(t, typeErrorInteger(Atom("length")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), &Variable{Name: "Before"}, &Variable{Name: "Length"}, Atom("after"), &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Atom("after")), err)
+		assert.Equal(t, typeErrorInteger(Atom("after")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is an integer less than zero", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Integer(-1), &Variable{Name: "Length"}, &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, DomainErrorNotLessThanZero(Integer(-1)), err)
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is an integer less than zero", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), &Variable{Name: "Before"}, Integer(-1), &Variable{Name: "After"}, &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, DomainErrorNotLessThanZero(Integer(-1)), err)
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is an integer less than zero", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), &Variable{Name: "Before"}, &Variable{Name: "Length"}, Integer(-1), &Variable{Name: "SubAtom"}, Done).Force()
-		assert.Equal(t, DomainErrorNotLessThanZero(Integer(-1)), err)
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
 		assert.False(t, ok)
 	})
 }
@@ -4135,41 +4260,41 @@ func TestAtomChars(t *testing.T) {
 			)
 
 			ok, err := AtomChars(&Variable{}, chars, Done).Force()
-			assert.Equal(t, InstantiationError(chars), err)
+			assert.Equal(t, instantiationError(chars), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("variable element", func(t *testing.T) {
 			char := Variable{Name: "Char"}
 			ok, err := AtomChars(&Variable{}, List(&char, Atom("o"), Atom("o")), Done).Force()
-			assert.Equal(t, InstantiationError(&char), err)
+			assert.Equal(t, instantiationError(&char), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := AtomChars(Integer(0), &Variable{}, Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
 		ok, err := AtomChars(&Variable{}, Atom("chars"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("chars")), err)
+		assert.Equal(t, typeErrorList(Atom("chars")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and an element E of the list List is neither a variable nor a one-character atom", func(t *testing.T) {
 		t.Run("not a one-character atom", func(t *testing.T) {
 			ok, err := AtomChars(&Variable{}, List(Atom("chars")), Done).Force()
-			assert.Equal(t, TypeErrorCharacter(Atom("chars")), err)
+			assert.Equal(t, typeErrorCharacter(Atom("chars")), err)
 			assert.False(t, ok)
 
 		})
 
 		t.Run("not an atom", func(t *testing.T) {
 			ok, err := AtomChars(&Variable{}, List(Integer(0)), Done).Force()
-			assert.Equal(t, TypeErrorCharacter(Integer(0)), err)
+			assert.Equal(t, typeErrorCharacter(Integer(0)), err)
 			assert.False(t, ok)
 		})
 	})
@@ -4199,7 +4324,7 @@ func TestAtomCodes(t *testing.T) {
 				Integer(111),
 			)
 			ok, err := AtomCodes(&Variable{}, codes, Done).Force()
-			assert.Equal(t, InstantiationError(codes), err)
+			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
 
@@ -4207,26 +4332,26 @@ func TestAtomCodes(t *testing.T) {
 			code := Variable{Name: "Code"}
 
 			ok, err := AtomCodes(&Variable{}, List(&code, Integer(111), Integer(111)), Done).Force()
-			assert.Equal(t, InstantiationError(&code), err)
+			assert.Equal(t, instantiationError(&code), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		ok, err := AtomCodes(Integer(0), List(Integer(102), Integer(111), Integer(111)), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
 		ok, err := AtomCodes(&Variable{}, Atom("codes"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("codes")), err)
+		assert.Equal(t, typeErrorList(Atom("codes")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and an element E of the list List is neither a variable nor a character-code", func(t *testing.T) {
 		ok, err := AtomCodes(&Variable{}, List(Atom("f"), Integer(111), Integer(111)), Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character_code"), Atom("invalid character code.")), err)
+		assert.Equal(t, representationError(Atom("character_code"), Atom("invalid character code.")), err)
 		assert.False(t, ok)
 	})
 }
@@ -4255,7 +4380,7 @@ func TestNumberChars(t *testing.T) {
 			)
 
 			ok, err := NumberChars(&Variable{}, codes, Done).Force()
-			assert.Equal(t, InstantiationError(codes), err)
+			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
 
@@ -4263,32 +4388,32 @@ func TestNumberChars(t *testing.T) {
 			code := Variable{Name: "Code"}
 
 			ok, err := NumberChars(&Variable{}, List(&code, Atom("3"), Atom("."), Atom("4")), Done).Force()
-			assert.Equal(t, InstantiationError(&code), err)
+			assert.Equal(t, instantiationError(&code), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberChars(Atom("23.4"), List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Done).Force()
-		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("num is a variable and chars is neither a list nor partial list", func(t *testing.T) {
 		ok, err := NumberChars(&Variable{}, Atom("23.4"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("23.4")), err)
+		assert.Equal(t, typeErrorList(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the list chars is neither a variable nor a one-character atom", func(t *testing.T) {
 		ok, err := NumberChars(&Variable{}, List(Integer(2), Atom("3"), Atom("."), Atom("4")), Done).Force()
-		assert.Equal(t, TypeErrorCharacter(Integer(2)), err)
+		assert.Equal(t, typeErrorCharacter(Integer(2)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("chars is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		ok, err := NumberChars(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), Done).Force()
-		assert.Equal(t, SyntaxError(Atom("not_a_number"), Atom("not a number.")), err)
+		assert.Equal(t, syntaxErrorNotANumber(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -4317,7 +4442,7 @@ func TestNumberCodes(t *testing.T) {
 			)
 
 			ok, err := NumberCodes(&Variable{}, codes, Done).Force()
-			assert.Equal(t, InstantiationError(codes), err)
+			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
 
@@ -4325,32 +4450,32 @@ func TestNumberCodes(t *testing.T) {
 			code := Variable{Name: "Code"}
 
 			ok, err := NumberCodes(&Variable{}, List(&code, Integer(50), Integer(51), Integer(46), Integer(52)), Done).Force()
-			assert.Equal(t, InstantiationError(&code), err)
+			assert.Equal(t, instantiationError(&code), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberCodes(Atom("23.4"), List(Integer(50), Integer(51), Integer(46), Integer(52)), Done).Force()
-		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("num is a variable and codes is neither a list nor partial list", func(t *testing.T) {
 		ok, err := NumberCodes(&Variable{}, Atom("23.4"), Done).Force()
-		assert.Equal(t, TypeErrorList(Atom("23.4")), err)
+		assert.Equal(t, typeErrorList(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the list codes is neither a variable nor a one-character atom", func(t *testing.T) {
 		ok, err := NumberCodes(&Variable{}, List(Atom("2"), Integer(51), Integer(46), Integer(52)), Done).Force()
-		assert.Equal(t, RepresentationError(Atom("character_code"), Atom("'2' is not a valid character code.")), err)
+		assert.Equal(t, representationError(Atom("character_code"), Atom("'2' is not a valid character code.")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("codes is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		ok, err := NumberCodes(&Variable{}, List(Integer(102), Integer(111), Integer(111)), Done).Force()
-		assert.Equal(t, SyntaxError(Atom("not_a_number"), Atom("not a number.")), err)
+		assert.Equal(t, syntaxErrorNotANumber(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -4434,15 +4559,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Integer(4), Float(2)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(2)), err)
+		assert.Equal(t, typeErrorInteger(Float(2)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Float(4), Integer(2)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "//", Args: []Term{Integer(4), Integer(0)}}, Done).Force()
-		assert.Equal(t, EvaluationErrorZeroDivisor(), err)
+		assert.Equal(t, evaluationErrorZeroDivisor(), err)
 		assert.False(t, ok)
 	})
 
@@ -4452,11 +4577,11 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Integer(-21), Float(4)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "rem", Args: []Term{Float(-21), Integer(4)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(-21)), err)
+		assert.Equal(t, typeErrorInteger(Float(-21)), err)
 		assert.False(t, ok)
 	})
 
@@ -4466,11 +4591,11 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Integer(-21), Float(4)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "mod", Args: []Term{Float(-21), Integer(4)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(-21)), err)
+		assert.Equal(t, typeErrorInteger(Float(-21)), err)
 		assert.False(t, ok)
 	})
 
@@ -4676,15 +4801,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Integer(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Integer(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		assert.Equal(t, typeErrorInteger(Float(1)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: ">>", Args: []Term{Float(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 	})
 
@@ -4694,15 +4819,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Integer(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Integer(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		assert.Equal(t, typeErrorInteger(Float(1)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "<<", Args: []Term{Float(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 	})
 
@@ -4712,15 +4837,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Integer(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(5)), err)
+		assert.Equal(t, typeErrorInteger(Float(5)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Integer(5), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		assert.Equal(t, typeErrorInteger(Float(1)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "/\\", Args: []Term{Float(5), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(5)), err)
+		assert.Equal(t, typeErrorInteger(Float(5)), err)
 		assert.False(t, ok)
 	})
 
@@ -4730,15 +4855,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Integer(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Integer(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		assert.Equal(t, typeErrorInteger(Float(1)), err)
 		assert.False(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\/", Args: []Term{Float(4), Float(1)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(4)), err)
+		assert.Equal(t, typeErrorInteger(Float(4)), err)
 		assert.False(t, ok)
 	})
 
@@ -4748,7 +4873,7 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = DefaultFunctionSet.Is(&Variable{}, &Compound{Functor: "\\", Args: []Term{Float(0)}}, Done).Force()
-		assert.Equal(t, TypeErrorInteger(Float(0)), err)
+		assert.Equal(t, typeErrorInteger(Float(0)), err)
 		assert.False(t, ok)
 	})
 
@@ -4756,7 +4881,7 @@ func TestFunctionSet_Is(t *testing.T) {
 		expression := Variable{Name: "Exp"}
 
 		ok, err := DefaultFunctionSet.Is(Integer(0), &expression, Done).Force()
-		assert.Equal(t, InstantiationError(&expression), err)
+		assert.Equal(t, instantiationError(&expression), err)
 		assert.False(t, ok)
 	})
 }
@@ -4802,7 +4927,7 @@ func TestFunctionSet_Equal(t *testing.T) {
 		lhs := Variable{Name: "LHS"}
 
 		ok, err := DefaultFunctionSet.Equal(&lhs, Integer(1), Done).Force()
-		assert.Equal(t, InstantiationError(&lhs), err)
+		assert.Equal(t, instantiationError(&lhs), err)
 		assert.False(t, ok)
 	})
 
@@ -4810,7 +4935,7 @@ func TestFunctionSet_Equal(t *testing.T) {
 		rhs := Variable{Name: "RHS"}
 
 		ok, err := DefaultFunctionSet.Equal(Integer(1), &rhs, Done).Force()
-		assert.Equal(t, InstantiationError(&rhs), err)
+		assert.Equal(t, instantiationError(&rhs), err)
 		assert.False(t, ok)
 	})
 }
@@ -4856,7 +4981,7 @@ func TestFunctionSet_NotEqual(t *testing.T) {
 		lhs := Variable{Name: "LHS"}
 
 		ok, err := DefaultFunctionSet.NotEqual(&lhs, Integer(1), Done).Force()
-		assert.Equal(t, InstantiationError(&lhs), err)
+		assert.Equal(t, instantiationError(&lhs), err)
 		assert.False(t, ok)
 	})
 
@@ -4864,7 +4989,7 @@ func TestFunctionSet_NotEqual(t *testing.T) {
 		rhs := Variable{Name: "RHS"}
 
 		ok, err := DefaultFunctionSet.NotEqual(Integer(1), &rhs, Done).Force()
-		assert.Equal(t, InstantiationError(&rhs), err)
+		assert.Equal(t, instantiationError(&rhs), err)
 		assert.False(t, ok)
 	})
 }
@@ -4950,39 +5075,29 @@ func TestEngine_StreamProperty(t *testing.T) {
 	}()
 
 	t.Run("stream", func(t *testing.T) {
+		expected := []Term{
+			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
+			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
+			Atom("input"),
+			&Compound{Functor: "buffer", Args: []Term{Atom("true")}},
+			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(0)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
+			&Compound{Functor: "reposition", Args: []Term{Atom("false")}},
+			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+		}
+
 		var e Engine
 		var v Variable
 		c := 0
 		ok, err := e.StreamProperty(&Stream{
-			Reader:    bufio.NewReader(f),
-			Closer:    f,
-			mode:      "read",
-			alias:     "null",
-			eofAction: "error",
-			typ:       "text",
+			source: bufio.NewReader(f),
+			closer: f,
+			mode:   streamModeRead,
+			alias:  "null",
 		}, &v, func() Promise {
-			switch c {
-			case 0:
-				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("read")}}, v.Ref)
-			case 1:
-				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
-			case 2:
-				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
-			case 3:
-				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
-			case 4:
-				assert.Equal(t, &Compound{Functor: "buffer", Args: []Term{Atom("true")}}, v.Ref)
-			case 5:
-				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}}, v.Ref)
-			case 6:
-				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
-			case 7:
-				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}}, v.Ref)
-			case 8:
-				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("true")}}, v.Ref)
-			default:
-				assert.Fail(t, "unreachable")
-			}
+			assert.Equal(t, expected[c], v.Ref)
 			c++
 			return Bool(false)
 		}).Force()
@@ -4991,43 +5106,33 @@ func TestEngine_StreamProperty(t *testing.T) {
 	})
 
 	t.Run("stream alias", func(t *testing.T) {
+		expected := []Term{
+			&Compound{Functor: "mode", Args: []Term{Atom("write")}},
+			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
+			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
+			Atom("output"),
+			&Compound{Functor: "buffer", Args: []Term{Atom("true")}},
+			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(0)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
+			&Compound{Functor: "reposition", Args: []Term{Atom("false")}},
+			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+		}
+
 		e := Engine{EngineState{
 			streams: map[Term]*Stream{
 				Atom("null"): {
-					Writer:    bufio.NewWriter(f),
-					Closer:    f,
-					mode:      "write",
-					alias:     "null",
-					eofAction: "error",
-					typ:       "text",
+					sink:   bufio.NewWriter(f),
+					closer: f,
+					mode:   streamModeWrite,
+					alias:  "null",
 				},
 			},
 		}}
 		var v Variable
 		c := 0
 		ok, err := e.StreamProperty(Atom("null"), &v, func() Promise {
-			switch c {
-			case 0:
-				assert.Equal(t, &Compound{Functor: "mode", Args: []Term{Atom("write")}}, v.Ref)
-			case 1:
-				assert.Equal(t, &Compound{Functor: "alias", Args: []Term{Atom("null")}}, v.Ref)
-			case 2:
-				assert.Equal(t, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}}, v.Ref)
-			case 3:
-				assert.Equal(t, &Compound{Functor: "type", Args: []Term{Atom("text")}}, v.Ref)
-			case 4:
-				assert.Equal(t, &Compound{Functor: "buffer", Args: []Term{Atom("true")}}, v.Ref)
-			case 5:
-				assert.Equal(t, &Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}}, v.Ref)
-			case 6:
-				assert.Equal(t, &Compound{Functor: "position", Args: []Term{Integer(0)}}, v.Ref)
-			case 7:
-				assert.Equal(t, &Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}}, v.Ref)
-			case 8:
-				assert.Equal(t, &Compound{Functor: "reposition", Args: []Term{Atom("true")}}, v.Ref)
-			default:
-				assert.Fail(t, "unreachable")
-			}
+			assert.Equal(t, expected[c], v.Ref)
 			c++
 			return Bool(false)
 		}).Force()
@@ -5037,7 +5142,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 
 	t.Run("correct property value", func(t *testing.T) {
 		var e Engine
-		ok, err := e.StreamProperty(&Stream{mode: "read"}, &Compound{
+		ok, err := e.StreamProperty(&Stream{mode: streamModeRead}, &Compound{
 			Functor: "mode",
 			Args:    []Term{Atom("read")},
 		}, Done).Force()
@@ -5048,21 +5153,21 @@ func TestEngine_StreamProperty(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable, a stream-term, nor an alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.StreamProperty(Integer(0), &Variable{}, Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(0)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("property is neither a variable nor a stream property", func(t *testing.T) {
 		var e Engine
 		ok, err := e.StreamProperty(&Variable{}, Atom("property"), Done).Force()
-		assert.Equal(t, DomainErrorStreamProperty(Atom("property")), err)
+		assert.Equal(t, domainErrorStreamProperty(Atom("property")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.StreamProperty(Atom("foo"), &Variable{}, Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -5077,11 +5182,9 @@ func TestEngine_SetStreamPosition(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		s := Stream{
-			Reader:    f,
-			Closer:    f,
-			mode:      "read",
-			eofAction: "error",
-			typ:       "text",
+			source: f,
+			closer: f,
+			mode:   streamModeRead,
 		}
 
 		var e Engine
@@ -5095,52 +5198,48 @@ func TestEngine_SetStreamPosition(t *testing.T) {
 
 		var e Engine
 		ok, err := e.SetStreamPosition(&streamOrAlias, Integer(0), Done).Force()
-		assert.Equal(t, InstantiationError(&streamOrAlias), err)
+		assert.Equal(t, instantiationError(&streamOrAlias), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("position is a variable", func(t *testing.T) {
 		s := Stream{
-			Reader:    f,
-			Closer:    f,
-			mode:      "read",
-			eofAction: "error",
-			typ:       "text",
+			source: f,
+			closer: f,
+			mode:   streamModeRead,
 		}
 
 		position := Variable{Name: "Pos"}
 
 		var e Engine
 		ok, err := e.SetStreamPosition(&s, &position, Done).Force()
-		assert.Equal(t, InstantiationError(&position), err)
+		assert.Equal(t, instantiationError(&position), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetStreamPosition(Integer(2), Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorStreamOrAlias(Integer(2)), err)
+		assert.Equal(t, domainErrorStreamOrAlias(Integer(2)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetStreamPosition(Atom("foo"), Integer(0), Done).Force()
-		assert.Equal(t, ExistenceErrorStream(Atom("foo")), err)
+		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias has stream property reposition(false)", func(t *testing.T) {
 		s := Variable{Name: "Stream", Ref: &Stream{
-			Reader:    bytes.NewReader(nil),
-			mode:      "read",
-			eofAction: "error",
-			typ:       "text",
+			source: bytes.NewReader(nil),
+			mode:   streamModeRead,
 		}}
 
 		var e Engine
 		ok, err := e.SetStreamPosition(&s, Integer(0), Done).Force()
-		assert.Equal(t, PermissionError(Atom("reposition"), Atom("stream"), &s, Atom("Stream is not a file.")), err)
+		assert.Equal(t, permissionError(Atom("reposition"), Atom("stream"), &s, Atom("Stream is not a file.")), err)
 		assert.False(t, ok)
 	})
 }
@@ -5176,7 +5275,7 @@ func TestEngine_CharConversion(t *testing.T) {
 
 		var e Engine
 		ok, err := e.CharConversion(&inChar, Atom("a"), Done).Force()
-		assert.Equal(t, InstantiationError(&inChar), err)
+		assert.Equal(t, instantiationError(&inChar), err)
 		assert.False(t, ok)
 	})
 
@@ -5185,7 +5284,7 @@ func TestEngine_CharConversion(t *testing.T) {
 
 		var e Engine
 		ok, err := e.CharConversion(Atom("a"), &outChar, Done).Force()
-		assert.Equal(t, InstantiationError(&outChar), err)
+		assert.Equal(t, instantiationError(&outChar), err)
 		assert.False(t, ok)
 	})
 
@@ -5193,14 +5292,14 @@ func TestEngine_CharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CharConversion(Integer(0), Atom("a"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("0 is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CharConversion(Atom("foo"), Atom("a"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("foo is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -5209,14 +5308,14 @@ func TestEngine_CharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CharConversion(Atom("a"), Integer(0), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("0 is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CharConversion(Atom("a"), Atom("foo"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("foo is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -5271,14 +5370,14 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CurrentCharConversion(Integer(0), Atom("b"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("0 is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CurrentCharConversion(Atom("foo"), Atom("b"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("foo is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -5287,14 +5386,14 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CurrentCharConversion(Atom("a"), Integer(0), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("0 is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
 			var e Engine
 			ok, err := e.CurrentCharConversion(Atom("a"), Atom("bar"), Done).Force()
-			assert.Equal(t, RepresentationError(Atom("character"), Atom("bar is not a character.")), err)
+			assert.Equal(t, representationError(Atom("character"), Atom("bar is not a character.")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -5304,28 +5403,28 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 	t.Run("bounded", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("bounded"), &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("bounded"), Atom("bounded is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("bounded"), Atom("bounded is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("max_integer", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("max_integer"), &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("max_integer"), Atom("max_integer is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("max_integer"), Atom("max_integer is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("min_integer", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("min_integer"), &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("min_integer"), Atom("min_integer is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("min_integer"), Atom("min_integer is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("integer_rounding_function", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("integer_rounding_function"), &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("integer_rounding_function"), Atom("integer_rounding_function is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("integer_rounding_function"), Atom("integer_rounding_function is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 
@@ -5368,7 +5467,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 	t.Run("max_arity", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("max_arity"), &Variable{}, Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("max_arity"), Atom("max_arity is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("max_arity"), Atom("max_arity is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 
@@ -5403,7 +5502,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		var e Engine
 		ok, err := e.SetPrologFlag(&flag, Atom("fail"), Done).Force()
-		assert.Equal(t, InstantiationError(&flag), err)
+		assert.Equal(t, instantiationError(&flag), err)
 		assert.False(t, ok)
 	})
 
@@ -5412,28 +5511,28 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("unknown"), &value, Done).Force()
-		assert.Equal(t, InstantiationError(&value), err)
+		assert.Equal(t, instantiationError(&value), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Integer(0), Atom("fail"), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("foo"), Atom("fail"), Done).Force()
-		assert.Equal(t, DomainErrorPrologFlag(Atom("foo")), err)
+		assert.Equal(t, domainErrorPrologFlag(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("value is inadmissible for flag", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("unknown"), Integer(0), Done).Force()
-		assert.Equal(t, DomainErrorFlagValue(&Compound{
+		assert.Equal(t, domainErrorFlagValue(&Compound{
 			Functor: "+",
 			Args:    []Term{Atom("unknown"), Integer(0)},
 		}), err)
@@ -5443,7 +5542,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 	t.Run("value is admissible for flag but the flag is not modifiable", func(t *testing.T) {
 		var e Engine
 		ok, err := e.SetPrologFlag(Atom("bounded"), Atom("true"), Done).Force()
-		assert.Equal(t, PermissionError(Atom("modify"), Atom("flag"), Atom("bounded"), Atom("bounded is not modifiable.")), err)
+		assert.Equal(t, permissionError(Atom("modify"), Atom("flag"), Atom("bounded"), Atom("bounded is not modifiable.")), err)
 		assert.False(t, ok)
 	})
 }
@@ -5528,14 +5627,14 @@ func TestEngine_CurrentPrologFlag(t *testing.T) {
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
 		var e Engine
 		ok, err := e.CurrentPrologFlag(Integer(0), Atom("error"), Done).Force()
-		assert.Equal(t, TypeErrorAtom(Integer(0)), err)
+		assert.Equal(t, typeErrorAtom(Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
 		var e Engine
 		ok, err := e.CurrentPrologFlag(Atom("foo"), Atom("error"), Done).Force()
-		assert.Equal(t, DomainErrorPrologFlag(Atom("foo")), err)
+		assert.Equal(t, domainErrorPrologFlag(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
