@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/ichiban/prolog/internal"
@@ -74,7 +75,10 @@ func (p *Parser) acceptPrefix() (*Operator, error) {
 
 func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
-		t := p.lexer.Next()
+		t, err := p.lexer.Next()
+		if err != nil {
+			return "", err
+		}
 		p.current = &t
 	}
 
@@ -102,44 +106,35 @@ func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 	return p.current.Val, nil
 }
 
-// Clause parses a clause, term followed by a full stop.
-func (p *Parser) Clause() (Term, error) {
+// Term parses a term followed by a full stop.
+func (p *Parser) Term() (Term, error) {
+	if _, err := p.expect(internal.TokenEOS); err == nil {
+		return nil, io.EOF
+	}
+
 	// reset vars
 	for i := range p.vars {
 		p.vars[i] = variableWithCount{}
 	}
 	p.vars = p.vars[:0]
 
-	t, err := p.Term()
+	t, err := p.expr(1)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := p.accept(internal.TokenSeparator, "."); err != nil {
-		return nil, fmt.Errorf("clause: %w", err)
+	_, err = p.accept(internal.TokenSeparator, ".")
+	switch e := err.(type) {
+	case nil:
+		return t, nil
+	case *unexpectedToken:
+		if e.Actual.Kind == internal.TokenEOS {
+			return nil, syntaxErrorInsufficient()
+		}
+		return nil, syntaxErrorInvalidToken(Atom(e.Error()))
+	default:
+		return nil, systemError(err)
 	}
-
-	return t, nil
-}
-
-// Term parses a term.
-func (p *Parser) Term() (Term, error) {
-	return p.expr(1)
-}
-
-// Number parses a number.
-func (p *Parser) Number() (Term, error) {
-	if f, err := p.accept(internal.TokenFloat); err == nil {
-		n, _ := strconv.ParseFloat(f, 64)
-		return Float(n), nil
-	}
-
-	if i, err := p.accept(internal.TokenInteger); err == nil {
-		n, _ := strconv.Atoi(i)
-		return Integer(n), nil
-	}
-
-	return nil, SyntaxError(Atom("not_a_number"), Atom("not a number."))
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
@@ -187,7 +182,7 @@ func (p *Parser) lhs() (Term, error) {
 	if _, err := p.accept(internal.TokenSeparator, "["); err == nil {
 		var es []Term
 		for {
-			e, err := p.Term()
+			e, err := p.expr(1)
 			if err != nil {
 				return nil, err
 			}
@@ -199,7 +194,7 @@ func (p *Parser) lhs() (Term, error) {
 			}
 			switch s {
 			case "|":
-				rest, err := p.Term()
+				rest, err := p.expr(1)
 				if err != nil {
 					return nil, err
 				}
@@ -263,7 +258,7 @@ func (p *Parser) lhs() (Term, error) {
 
 	var args []Term
 	for {
-		t, err := p.Term()
+		t, err := p.expr(1)
 		if err != nil {
 			return nil, err
 		}

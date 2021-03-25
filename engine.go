@@ -33,18 +33,14 @@ type Engine struct {
 // *bufio.Reader since it enables a wide range of input operations.
 func NewEngine(in io.Reader, out io.Writer) (*Engine, error) {
 	input := Stream{
-		Reader:    in,
-		mode:      "read",
-		alias:     "user_input",
-		eofAction: "error",
-		typ:       "text",
+		source: in,
+		mode:   streamModeRead,
+		alias:  "user_input",
 	}
 	output := Stream{
-		Writer:    out,
-		mode:      "write",
-		alias:     "user_output",
-		eofAction: "error",
-		typ:       "text",
+		sink:  out,
+		mode:  streamModeWrite,
+		alias: "user_output",
 	}
 	e := Engine{
 		EngineState: EngineState{
@@ -296,7 +292,7 @@ func (e *Engine) Exec(s string) error {
 			return nil
 		}
 
-		t, err := p.Clause()
+		t, err := p.Term()
 		if err != nil {
 			return err
 		}
@@ -325,7 +321,7 @@ func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
-	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv).Clause()
+	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv).Term()
 	if err != nil {
 		return false, err
 	}
@@ -430,7 +426,7 @@ func (e *EngineState) arrive(pi procedureIndicator, args Term, k func() Promise)
 	if p == nil {
 		switch e.unknown {
 		case unknownError:
-			return Error(ExistenceErrorProcedure(&Compound{
+			return Error(existenceErrorProcedure(&Compound{
 				Functor: "/",
 				Args:    []Term{pi.name, pi.arity},
 			}))
@@ -440,7 +436,7 @@ func (e *EngineState) arrive(pi procedureIndicator, args Term, k func() Promise)
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(SystemError(fmt.Errorf("unknown unknown: %s", e.unknown)))
+			return Error(systemError(fmt.Errorf("unknown unknown: %s", e.unknown)))
 		}
 	}
 
@@ -609,7 +605,7 @@ func (c *clause) compile(t Term) error {
 		}
 		return c.compileClause(t, nil)
 	default:
-		return TypeErrorCallable(t)
+		return typeErrorCallable(t)
 	}
 }
 
@@ -623,7 +619,7 @@ func (c *clause) compileClause(head Term, body Term) error {
 			}
 		}
 	default:
-		return TypeErrorCallable(head)
+		return typeErrorCallable(head)
 	}
 	if body != nil {
 		c.bytecode = append(c.bytecode, opEnter)
@@ -659,7 +655,7 @@ func (c *clause) compilePred(p Term) error {
 		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p.Functor, arity: Integer(len(p.Args))}))
 		return nil
 	default:
-		return TypeErrorCallable(p)
+		return typeErrorCallable(p)
 	}
 }
 
@@ -678,7 +674,7 @@ func (c *clause) compileArg(a Term) error {
 		}
 		c.bytecode = append(c.bytecode, opPop)
 	default:
-		return SystemError(fmt.Errorf("unknown argument: %s", a))
+		return systemError(fmt.Errorf("unknown argument: %s", a))
 	}
 	return nil
 }
