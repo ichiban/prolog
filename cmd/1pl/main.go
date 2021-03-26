@@ -89,28 +89,41 @@ func main() {
 			log.WithError(err).Error("failed to read line")
 		}
 
-		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
-			ls := make([]string, 0, len(vars))
-			for _, v := range vars {
-				if v.Name == "" {
-					continue
-				}
-				if _, ok := prolog.Resolve(v).(*prolog.Variable); ok {
-					continue
-				}
+		c := 0
+		sols, err := e.Query(line)
+		if err != nil {
+			log.WithError(err).Error("failed to query")
+			continue
+		}
+		for sols.Next() {
+			c++
 
-				ls = append(ls, e.Describe(v))
+			m := map[string]prolog.Term{}
+			if err := sols.Scan(m); err != nil {
+				log.WithError(err).Error("failed to scan")
+				break
+			}
+
+			vars := sols.Vars()
+			ls := make([]string, 0, len(vars))
+			for _, n := range vars {
+				v := m[n]
+				if _, ok := v.(*prolog.Variable); ok {
+					continue
+				}
+				ls = append(ls, fmt.Sprintf("%s = %s", n, v))
 			}
 			if len(ls) == 0 {
-				fmt.Fprintf(t, "%t ", true)
-			} else {
-				fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
+				fmt.Fprintf(t, "%t.\n", true)
+				break
 			}
+
+			fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
 
 			r, _, err := keys.ReadRune()
 			if err != nil {
 				log.WithError(err).Error("failed to query")
-				return false
+				break
 			}
 			if r != ';' {
 				r = '.'
@@ -118,13 +131,13 @@ func main() {
 
 			fmt.Fprintf(t, "%s\n", string(r))
 
-			return r == '.'
-		})
-		if err != nil {
-			log.WithError(err).Error("failed to query")
-			continue
+			if r == '.' {
+				break
+			}
 		}
-		if !ok {
+		sols.Close()
+
+		if c == 0 {
 			fmt.Fprintf(t, "%t.\n", false)
 		}
 	}

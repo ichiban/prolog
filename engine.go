@@ -310,27 +310,40 @@ func (e *Engine) Describe(v *Variable) string {
 	return buf.String()
 }
 
-// Query executes a prolog query and calls the callback function for each solution. Returning true from the callback
-// halts the iteration.
-func (e *Engine) Query(s string, cb func(vars []*Variable) bool) (bool, error) {
-	if cb == nil {
-		cb = func([]*Variable) bool { return true }
-	}
-
+// Query executes a prolog query and returns *Solutions.
+func (e *Engine) Query(s string) (*Solutions, error) {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
 	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv).Term()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	a := newAssignment(t)
+	more := make(chan bool, 1)
+	next := make(chan bool)
+	sols := Solutions{
+		vars: newAssignment(t),
+		more: more,
+		next: next,
+	}
 
-	return e.Call(t, func() Promise {
-		return Bool(cb(a))
-	}).Force()
+	go func() {
+		defer close(next)
+
+		if !<-more {
+			return
+		}
+		if _, err := e.Call(t, func() Promise {
+			next <- true
+			return Bool(!<-more)
+		}).Force(); err != nil {
+			sols.err = err
+		}
+	}()
+
+	return &sols, nil
 }
 
 // Register0 registers a predicate of arity 0.

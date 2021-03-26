@@ -145,45 +145,55 @@ func TestEngine_Query(t *testing.T) {
 	}}
 
 	t.Run("fact", func(t *testing.T) {
-		ok, err := e.Query(`append(X, Y, Z).`, func(vars []*Variable) bool {
-			assert.Len(t, vars, 3)
-			assert.Equal(t, &Variable{Name: "X", Ref: Atom("nil")}, vars[0])
-			assert.Equal(t, &Variable{Name: "Y", Ref: &Variable{Ref: &Variable{}}}, vars[1]) // TODO: it should be Y = Z
-			assert.Equal(t, &Variable{Name: "Z", Ref: &Variable{}}, vars[2])
-			return true
-		})
+		sols, err := e.Query(`append(X, Y, Z).`)
 		assert.NoError(t, err)
-		assert.True(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("nil"),
+			"Y": &Variable{},
+			"Z": &Variable{},
+		}, m)
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		ok, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`, func(vars []*Variable) bool {
-			assert.Len(t, vars, 1)
-			assert.Equal(t, &Variable{
-				Name: "X",
-				Ref: &Variable{
-					Ref: &Compound{
-						Functor: "cons",
-						Args: []Term{
-							&Variable{
-								Ref: Atom("a"),
-							},
-							&Variable{
-								Ref: &Variable{
-									Ref: &Variable{
-										Ref: &Compound{
-											Functor: "cons",
-											Args: []Term{
-												&Variable{
-													Ref: Atom("b"),
-												},
-												&Variable{
-													Ref: &Variable{
-														Ref: &Compound{
-															Functor: "cons",
-															Args:    []Term{Atom("c"), Atom("nil")},
-														},
-													},
+		sols, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": &Compound{
+				Functor: "cons",
+				Args: []Term{
+					&Variable{
+						Ref: Atom("a"),
+					},
+					&Variable{
+						Ref: &Variable{
+							Ref: &Variable{
+								Ref: &Compound{
+									Functor: "cons",
+									Args: []Term{
+										&Variable{
+											Ref: Atom("b"),
+										},
+										&Variable{
+											Ref: &Variable{
+												Ref: &Compound{
+													Functor: "cons",
+													Args:    []Term{Atom("c"), Atom("nil")},
 												},
 											},
 										},
@@ -193,10 +203,7 @@ func TestEngine_Query(t *testing.T) {
 						},
 					},
 				},
-			}, vars[0])
-			return true
-		})
-		assert.NoError(t, err)
-		assert.True(t, ok)
+			},
+		}, m)
 	})
 }

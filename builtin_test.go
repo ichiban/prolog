@@ -1335,21 +1335,27 @@ func TestEngine_Assertz(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		var c int
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
-			case 1:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := e.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("directive", func(t *testing.T) {
@@ -1489,21 +1495,27 @@ func TestEngine_Asserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		var c int
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
-			case 1:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := e.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("directive", func(t *testing.T) {
@@ -1639,21 +1651,27 @@ func TestEngine_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		c := 0
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("b")}}, vars)
-			case 1:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := e.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("c"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
@@ -1669,21 +1687,27 @@ func TestEngine_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		c := 0
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("a")}}, vars)
-			case 1:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := e.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("c"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("retract all", func(t *testing.T) {
@@ -1701,12 +1725,13 @@ func TestEngine_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = e.Query("foo(X).", func([]*Variable) bool {
-			assert.Fail(t, "unreachable")
-			return true
-		})
+		sols, err := e.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -1766,13 +1791,14 @@ func TestEngine_Retract(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, ok)
 
-		// removed
-		ok, err = e.Query("foo(a).", func([]*Variable) bool {
-			assert.Fail(t, "unreachable")
-			return true
-		})
+		sols, err := e.Query("foo(a).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		// removed
+		assert.False(t, sols.Next())
 	})
 }
 
