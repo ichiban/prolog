@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 
 	"github.com/ichiban/prolog/internal"
@@ -12,10 +13,12 @@ import (
 
 // Parser turns bytes into Term.
 type Parser struct {
-	lexer     *internal.Lexer
-	current   *internal.Token
-	operators *Operators
-	vars      []variableWithCount
+	lexer       *internal.Lexer
+	current     *internal.Token
+	operators   *Operators
+	vars        []variableWithCount
+	placeholder Atom
+	args        []Term
 }
 
 type variableWithCount struct {
@@ -30,6 +33,47 @@ func NewParser(input *bufio.Reader, operators *Operators, charConversions map[ru
 		operators: operators,
 	}
 	return &p
+}
+
+func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
+	p.placeholder = placeholder
+	p.args = make([]Term, len(args))
+	for i, a := range args {
+		var err error
+		p.args[i], err = termOf(reflect.ValueOf(a))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func termOf(o reflect.Value) (Term, error) {
+	if t, ok := o.Interface().(Term); ok {
+		return t, nil
+	}
+
+	switch o.Kind() {
+	case reflect.Float32, reflect.Float64:
+		return Float(o.Float()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return Integer(o.Int()), nil
+	case reflect.String:
+		return Atom(o.String()), nil
+	case reflect.Array, reflect.Slice:
+		l := o.Len()
+		es := make([]Term, l)
+		for i := 0; i < l; i++ {
+			var err error
+			es[i], err = termOf(o.Index(i))
+			if err != nil {
+				return nil, err
+			}
+		}
+		return List(es...), nil
+	default:
+		return nil, fmt.Errorf("can't convert to term: %v", o)
+	}
 }
 
 func (p *Parser) accept(k internal.TokenKind, vals ...string) (string, error) {
@@ -126,6 +170,9 @@ func (p *Parser) Term() (Term, error) {
 	_, err = p.accept(internal.TokenSeparator, ".")
 	switch e := err.(type) {
 	case nil:
+		if len(p.args) != 0 {
+			return nil, systemError(fmt.Errorf("too many arguments for placeholders: %s", p.args))
+		}
 		return t, nil
 	case *unexpectedToken:
 		if e.Actual.Kind == internal.TokenEOS {
@@ -253,6 +300,14 @@ func (p *Parser) lhs() (Term, error) {
 	}
 
 	if _, err := p.accept(internal.TokenSeparator, "("); err != nil {
+		if p.placeholder != "" && p.placeholder == Atom(a) {
+			if len(p.args) == 0 {
+				return nil, errors.New("not enough arguments for placeholders")
+			}
+			var t Term
+			t, p.args = p.args[0], p.args[1:]
+			return t, nil
+		}
 		return Atom(a), nil
 	}
 

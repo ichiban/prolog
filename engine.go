@@ -281,12 +281,15 @@ at_end_of_stream :- current_input(S), at_end_of_stream(S).
 }
 
 // Exec executes a prolog program.
-func (e *Engine) Exec(s string) error {
+func (e *Engine) Exec(query string, args ...interface{}) error {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
-	p := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv)
+	p := NewParser(bufio.NewReader(strings.NewReader(query)), &e.operators, conv)
+	if err := p.Replace("?", args...); err != nil {
+		return err
+	}
 	for {
 		if _, err := p.accept(internal.TokenEOS); err == nil {
 			return nil
@@ -311,12 +314,16 @@ func (e *Engine) Describe(v *Variable) string {
 }
 
 // Query executes a prolog query and returns *Solutions.
-func (e *Engine) Query(s string) (*Solutions, error) {
+func (e *Engine) Query(query string, args ...interface{}) (*Solutions, error) {
 	var conv map[rune]rune
 	if e.charConvEnabled {
 		conv = e.charConversions
 	}
-	t, err := NewParser(bufio.NewReader(strings.NewReader(s)), &e.operators, conv).Term()
+	p := NewParser(bufio.NewReader(strings.NewReader(query)), &e.operators, conv)
+	if err := p.Replace("?", args...); err != nil {
+		return nil, err
+	}
+	t, err := p.Term()
 	if err != nil {
 		return nil, err
 	}
