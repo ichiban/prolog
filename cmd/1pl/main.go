@@ -54,12 +54,9 @@ func main() {
 
 	logrus.SetOutput(t)
 
-	e, err := prolog.NewEngine(bufio.NewReader(os.Stdin), t)
-	if err != nil {
-		log.Panic(err)
-	}
-	e.BeforeHalt = append(e.BeforeHalt, restore)
-	e.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
+	i := prolog.New(bufio.NewReader(os.Stdin), t)
+	i.BeforeHalt = append(i.BeforeHalt, restore)
+	i.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
 		if !term.Unify(prolog.Atom(Version), false) {
 			return prolog.Bool(false)
 		}
@@ -74,7 +71,7 @@ func main() {
 			log.WithError(err).Panic("failed to read")
 		}
 
-		if err := e.Exec(string(b)); err != nil {
+		if err := i.Exec(string(b)); err != nil {
 			log.WithError(err).Panic("failed to compile")
 		}
 	}
@@ -90,7 +87,7 @@ func main() {
 		}
 
 		c := 0
-		sols, err := e.Query(line)
+		sols, err := i.Query(line)
 		if err != nil {
 			log.WithError(err).Error("failed to query")
 			continue
@@ -136,6 +133,11 @@ func main() {
 			}
 		}
 		sols.Close()
+
+		if err := sols.Err(); err != nil {
+			log.WithError(err).Error("failed")
+			continue
+		}
 
 		if c == 0 {
 			fmt.Fprintf(t, "%t.\n", false)

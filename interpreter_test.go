@@ -6,16 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewEngine(t *testing.T) {
-	e, err := NewEngine(nil, nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, e)
-}
-
-func TestEngine_Exec(t *testing.T) {
+func TestInterpreter_Exec(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec(`append(nil, L, L).`))
+		var i Interpreter
+		assert.NoError(t, i.Exec(`append(nil, L, L).`))
 		assert.Equal(t, clauses{
 			{
 				pf: procedureIndicator{name: "append", arity: 3},
@@ -38,17 +32,19 @@ func TestEngine_Exec(t *testing.T) {
 					opExit,
 				},
 			},
-		}, e.procedures[procedureIndicator{name: "append", arity: 3}])
+		}, i.procedures[procedureIndicator{name: "append", arity: 3}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		e := Engine{EngineState{
-			operators: Operators{
-				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-				{Priority: 400, Specifier: `yfx`, Name: `/`},
+		i := Interpreter{
+			Engine{
+				operators: Operators{
+					{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+					{Priority: 400, Specifier: `yfx`, Name: `/`},
+				},
 			},
-		}}
-		assert.NoError(t, e.Exec(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
+		}
+		assert.NoError(t, i.Exec(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
 		assert.Equal(t, clauses{
 			{
 				pf: procedureIndicator{name: "append", arity: 3},
@@ -99,12 +95,12 @@ func TestEngine_Exec(t *testing.T) {
 					opExit,
 				},
 			},
-		}, e.procedures[procedureIndicator{name: "append", arity: 3}])
+		}, i.procedures[procedureIndicator{name: "append", arity: 3}])
 	})
 
 	t.Run("bindvars", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(?, ?, ?, ?).", "a", 1, 2.0, []string{"abc", "def"}))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(?, ?, ?, ?).", "a", 1, 2.0, []string{"abc", "def"}))
 
 		assert.Equal(t, clauses{
 			{
@@ -136,53 +132,55 @@ func TestEngine_Exec(t *testing.T) {
 					opExit,
 				},
 			},
-		}, e.procedures[procedureIndicator{name: "foo", arity: 4}])
+		}, i.procedures[procedureIndicator{name: "foo", arity: 4}])
 	})
 }
 
-func TestEngine_Query(t *testing.T) {
+func TestInterpreter_Query(t *testing.T) {
 	// append(nil, L, L).
 	// append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
-	e := Engine{EngineState{
-		operators: Operators{
-			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-			{Priority: 400, Specifier: `yfx`, Name: `/`},
-		},
-		procedures: map[procedureIndicator]procedure{
-			{name: "append", arity: 3}: clauses{
-				{
-					xrTable: []Term{
-						Atom("nil"),
+	i := Interpreter{
+		Engine{
+			operators: Operators{
+				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+				{Priority: 400, Specifier: `yfx`, Name: `/`},
+			},
+			procedures: map[procedureIndicator]procedure{
+				{name: "append", arity: 3}: clauses{
+					{
+						xrTable: []Term{
+							Atom("nil"),
+						},
+						vars: []*Variable{{}},
+						bytecode: []byte{
+							opConst, 0, // nil
+							opVar, 0, // L
+							opVar, 0, // L
+							opExit,
+						},
 					},
-					vars: []*Variable{{}},
-					bytecode: []byte{
-						opConst, 0, // nil
-						opVar, 0, // L
-						opVar, 0, // L
-						opExit,
-					},
-				},
-				{
-					xrTable: []Term{
-						procedureIndicator{name: "cons", arity: 2},
-						procedureIndicator{name: "append", arity: 3},
-					},
-					vars: []*Variable{{}, {}, {}, {}},
-					bytecode: []byte{
-						opFunctor, 0, opVar, 0, opVar, 1, opPop, // cons(X, L1)
-						opVar, 2, // L2
-						opFunctor, 0, opVar, 0, opVar, 3, opPop, // cons(X, L3)
-						opEnter,
-						opVar, 1, opVar, 2, opVar, 3, opCall, 1, // append(L1, L2, L3)
-						opExit,
+					{
+						xrTable: []Term{
+							procedureIndicator{name: "cons", arity: 2},
+							procedureIndicator{name: "append", arity: 3},
+						},
+						vars: []*Variable{{}, {}, {}, {}},
+						bytecode: []byte{
+							opFunctor, 0, opVar, 0, opVar, 1, opPop, // cons(X, L1)
+							opVar, 2, // L2
+							opFunctor, 0, opVar, 0, opVar, 3, opPop, // cons(X, L3)
+							opEnter,
+							opVar, 1, opVar, 2, opVar, 3, opCall, 1, // append(L1, L2, L3)
+							opExit,
+						},
 					},
 				},
 			},
 		},
-	}}
+	}
 
 	t.Run("fact", func(t *testing.T) {
-		sols, err := e.Query(`append(X, Y, Z).`)
+		sols, err := i.Query(`append(X, Y, Z).`)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, sols.Close())
@@ -200,7 +198,7 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		sols, err := e.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`)
+		sols, err := i.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, sols.Close())
@@ -245,8 +243,8 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("bindvars", func(t *testing.T) {
-		e := Engine{
-			EngineState{
+		i := Interpreter{
+			Engine{
 				procedures: map[procedureIndicator]procedure{
 					{name: "foo", arity: 4}: clauses{
 						{
@@ -282,7 +280,7 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 		}
-		sols, err := e.Query(`foo(?, ?, ?, ?).`, "a", 1, 2.0, []string{"abc", "def"})
+		sols, err := i.Query(`foo(?, ?, ?, ?).`, "a", 1, 2.0, []string{"abc", "def"})
 		assert.NoError(t, err)
 
 		m := map[string]interface{}{}
@@ -293,8 +291,8 @@ func TestEngine_Query(t *testing.T) {
 	})
 
 	t.Run("scan to struct", func(t *testing.T) {
-		e := Engine{
-			EngineState{
+		i := Interpreter{
+			Engine{
 				procedures: map[procedureIndicator]procedure{
 					{name: "foo", arity: 4}: clauses{
 						{
@@ -330,7 +328,7 @@ func TestEngine_Query(t *testing.T) {
 				},
 			},
 		}
-		sols, err := e.Query(`foo(A, B, C, D).`)
+		sols, err := i.Query(`foo(A, B, C, D).`)
 		assert.NoError(t, err)
 
 		type result struct {

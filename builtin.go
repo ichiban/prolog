@@ -15,7 +15,7 @@ import (
 )
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-func (e *EngineState) Call(goal Term, k func() Promise) Promise {
+func (e *Engine) Call(goal Term, k func() Promise) Promise {
 	pi, args, err := piArgs(goal)
 	if err != nil {
 		return Error(err)
@@ -219,7 +219,7 @@ func CopyTerm(in, out Term, k func() Promise) Promise {
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
-func (e *EngineState) Op(priority, specifier, operator Term, k func() Promise) Promise {
+func (e *Engine) Op(priority, specifier, operator Term, k func() Promise) Promise {
 	p, ok := Resolve(priority).(Integer)
 	if !ok {
 		return Error(typeErrorInteger(priority))
@@ -277,7 +277,7 @@ func (e *EngineState) Op(priority, specifier, operator Term, k func() Promise) P
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func (e *EngineState) CurrentOp(priority, specifier, operator Term, k func() Promise) Promise {
+func (e *Engine) CurrentOp(priority, specifier, operator Term, k func() Promise) Promise {
 	switch p := Resolve(priority).(type) {
 	case *Variable:
 		break
@@ -325,20 +325,20 @@ func (e *EngineState) CurrentOp(priority, specifier, operator Term, k func() Pro
 }
 
 // Assertz appends t to the database.
-func (e *EngineState) Assertz(t Term, k func() Promise) Promise {
+func (e *Engine) Assertz(t Term, k func() Promise) Promise {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(cs, c)
 	})
 }
 
 // Asserta prepends t to the database.
-func (e *EngineState) Asserta(t Term, k func() Promise) Promise {
+func (e *Engine) Asserta(t Term, k func() Promise) Promise {
 	return e.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(clauses{c}, cs...)
 	})
 }
 
-func (e *EngineState) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
+func (e *Engine) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
 	pi, args, err := piArgs(t)
 	if err != nil {
 		return Error(err)
@@ -398,16 +398,16 @@ func Repeat(k func() Promise) Promise {
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
-func (e *EngineState) BagOf(template, goal, instances Term, k func() Promise) Promise {
+func (e *Engine) BagOf(template, goal, instances Term, k func() Promise) Promise {
 	return e.collectionOf(template, goal, instances, k, List)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
-func (e *EngineState) SetOf(template, goal, instances Term, k func() Promise) Promise {
+func (e *Engine) SetOf(template, goal, instances Term, k func() Promise) Promise {
 	return e.collectionOf(template, goal, instances, k, Set)
 }
 
-func (e *EngineState) collectionOf(template, goal, instances Term, k func() Promise, agg func(...Term) Term) Promise {
+func (e *Engine) collectionOf(template, goal, instances Term, k func() Promise, agg func(...Term) Term) Promise {
 	if _, ok := Resolve(goal).(*Variable); ok {
 		return Error(instantiationError(goal))
 	}
@@ -607,7 +607,7 @@ func Throw(ball Term, _ func() Promise) Promise {
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
-func (e *EngineState) Catch(goal, catcher, recover Term, k func() Promise) Promise {
+func (e *Engine) Catch(goal, catcher, recover Term, k func() Promise) Promise {
 	ok, err := e.Call(goal, k).Force()
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
@@ -621,7 +621,7 @@ func (e *EngineState) Catch(goal, catcher, recover Term, k func() Promise) Promi
 }
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
-func (e *EngineState) CurrentPredicate(pi Term, k func() Promise) Promise {
+func (e *Engine) CurrentPredicate(pi Term, k func() Promise) Promise {
 	switch pi := Resolve(pi).(type) {
 	case *Variable:
 		break
@@ -653,7 +653,7 @@ func (e *EngineState) CurrentPredicate(pi Term, k func() Promise) Promise {
 }
 
 // Retract removes a clause which matches with t.
-func (e *EngineState) Retract(t Term, k func() Promise) Promise {
+func (e *Engine) Retract(t Term, k func() Promise) Promise {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
@@ -707,7 +707,7 @@ func (e *EngineState) Retract(t Term, k func() Promise) Promise {
 }
 
 // Abolish removes the procedure indicated by pi from the database.
-func (e *EngineState) Abolish(pi Term, k func() Promise) Promise {
+func (e *Engine) Abolish(pi Term, k func() Promise) Promise {
 	if _, ok := Resolve(pi).(*Variable); ok {
 		return Error(instantiationError(pi))
 	}
@@ -750,7 +750,7 @@ func (e *EngineState) Abolish(pi Term, k func() Promise) Promise {
 }
 
 // CurrentInput unifies stream with the current input stream.
-func (e *EngineState) CurrentInput(stream Term, k func() Promise) Promise {
+func (e *Engine) CurrentInput(stream Term, k func() Promise) Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -764,7 +764,7 @@ func (e *EngineState) CurrentInput(stream Term, k func() Promise) Promise {
 }
 
 // CurrentOutput unifies stream with the current output stream.
-func (e *EngineState) CurrentOutput(stream Term, k func() Promise) Promise {
+func (e *Engine) CurrentOutput(stream Term, k func() Promise) Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -778,7 +778,7 @@ func (e *EngineState) CurrentOutput(stream Term, k func() Promise) Promise {
 }
 
 // SetInput sets streamOrAlias as the current input stream.
-func (e *EngineState) SetInput(streamOrAlias Term, k func() Promise) Promise {
+func (e *Engine) SetInput(streamOrAlias Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -793,7 +793,7 @@ func (e *EngineState) SetInput(streamOrAlias Term, k func() Promise) Promise {
 }
 
 // SetOutput sets streamOrAlias as the current output stream.
-func (e *EngineState) SetOutput(streamOrAlias Term, k func() Promise) Promise {
+func (e *Engine) SetOutput(streamOrAlias Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -808,7 +808,7 @@ func (e *EngineState) SetOutput(streamOrAlias Term, k func() Promise) Promise {
 }
 
 // Open opens sourceSink in mode and unifies with stream.
-func (e *EngineState) Open(sourceSink, mode, stream, options Term, k func() Promise) Promise {
+func (e *Engine) Open(sourceSink, mode, stream, options Term, k func() Promise) Promise {
 	var n Atom
 	switch s := Resolve(sourceSink).(type) {
 	case *Variable:
@@ -986,7 +986,7 @@ func (e *EngineState) Open(sourceSink, mode, stream, options Term, k func() Prom
 }
 
 // Close closes a stream specified by streamOrAlias.
-func (e *EngineState) Close(streamOrAlias, options Term, k func() Promise) Promise {
+func (e *Engine) Close(streamOrAlias, options Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1025,7 +1025,7 @@ func (e *EngineState) Close(streamOrAlias, options Term, k func() Promise) Promi
 }
 
 // FlushOutput sends any buffered output to the stream.
-func (e *EngineState) FlushOutput(streamOrAlias Term, k func() Promise) Promise {
+func (e *Engine) FlushOutput(streamOrAlias Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1049,7 +1049,7 @@ func (e *EngineState) FlushOutput(streamOrAlias Term, k func() Promise) Promise 
 }
 
 // WriteTerm outputs term to stream with options.
-func (e *EngineState) WriteTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
+func (e *Engine) WriteTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1135,7 +1135,7 @@ func CharCode(char, code Term, k func() Promise) Promise {
 }
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
-func (e *EngineState) PutByte(streamOrAlias, byt Term, k func() Promise) Promise {
+func (e *Engine) PutByte(streamOrAlias, byt Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1168,7 +1168,7 @@ func (e *EngineState) PutByte(streamOrAlias, byt Term, k func() Promise) Promise
 }
 
 // PutCode outputs code to the stream represented by streamOrAlias.
-func (e *EngineState) PutCode(streamOrAlias, code Term, k func() Promise) Promise {
+func (e *Engine) PutCode(streamOrAlias, code Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1203,7 +1203,7 @@ func (e *EngineState) PutCode(streamOrAlias, code Term, k func() Promise) Promis
 }
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
-func (e *EngineState) ReadTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
+func (e *Engine) ReadTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1302,7 +1302,7 @@ func (e *EngineState) ReadTerm(streamOrAlias, term, options Term, k func() Promi
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (e *EngineState) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
+func (e *Engine) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1356,7 +1356,7 @@ func (e *EngineState) GetByte(streamOrAlias, inByte Term, k func() Promise) Prom
 }
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
-func (e *EngineState) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
+func (e *Engine) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1418,7 +1418,7 @@ func (e *EngineState) GetChar(streamOrAlias, char Term, k func() Promise) Promis
 }
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (e *EngineState) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise {
+func (e *Engine) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1476,7 +1476,7 @@ func (e *EngineState) PeekByte(streamOrAlias, inByte Term, k func() Promise) Pro
 }
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
-func (e *EngineState) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
+func (e *Engine) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -1544,7 +1544,7 @@ func (e *EngineState) PeekChar(streamOrAlias, char Term, k func() Promise) Promi
 var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
-func (e *EngineState) Halt(n Term, k func() Promise) Promise {
+func (e *Engine) Halt(n Term, k func() Promise) Promise {
 	switch code := Resolve(n).(type) {
 	case *Variable:
 		return Error(instantiationError(n))
@@ -1562,7 +1562,7 @@ func (e *EngineState) Halt(n Term, k func() Promise) Promise {
 }
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
-func (e *EngineState) Clause(head, body Term, k func() Promise) Promise {
+func (e *Engine) Clause(head, body Term, k func() Promise) Promise {
 	pi, _, err := piArgs(head)
 	if err != nil {
 		return Error(err)
@@ -2277,7 +2277,7 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 }
 
 // StreamProperty succeeds iff the stream represented by streamOrAlias has the stream property property.
-func (e *EngineState) StreamProperty(streamOrAlias, property Term, k func() Promise) Promise {
+func (e *Engine) StreamProperty(streamOrAlias, property Term, k func() Promise) Promise {
 	streams := make([]*Stream, 0, len(e.streams))
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
@@ -2435,7 +2435,7 @@ func (e *EngineState) StreamProperty(streamOrAlias, property Term, k func() Prom
 }
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
-func (e *EngineState) SetStreamPosition(streamOrAlias, position Term, k func() Promise) Promise {
+func (e *Engine) SetStreamPosition(streamOrAlias, position Term, k func() Promise) Promise {
 	s, err := e.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
@@ -2465,7 +2465,7 @@ func (e *EngineState) SetStreamPosition(streamOrAlias, position Term, k func() P
 }
 
 // CharConversion registers a character conversion from inChar to outChar, or remove the conversion if inChar = outChar.
-func (e *EngineState) CharConversion(inChar, outChar Term, k func() Promise) Promise {
+func (e *Engine) CharConversion(inChar, outChar Term, k func() Promise) Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		return Error(instantiationError(inChar))
@@ -2502,7 +2502,7 @@ func (e *EngineState) CharConversion(inChar, outChar Term, k func() Promise) Pro
 }
 
 // CurrentCharConversion succeeds iff a conversion from inChar to outChar is defined.
-func (e *EngineState) CurrentCharConversion(inChar, outChar Term, k func() Promise) Promise {
+func (e *Engine) CurrentCharConversion(inChar, outChar Term, k func() Promise) Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		break
@@ -2558,7 +2558,7 @@ func (e *EngineState) CurrentCharConversion(inChar, outChar Term, k func() Promi
 }
 
 // SetPrologFlag sets flag to value.
-func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise {
+func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		return Error(instantiationError(flag))
@@ -2650,7 +2650,7 @@ func (e *EngineState) SetPrologFlag(flag, value Term, k func() Promise) Promise 
 }
 
 // CurrentPrologFlag succeeds iff flag is set to value.
-func (e *EngineState) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
+func (e *Engine) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		break
@@ -2695,7 +2695,7 @@ func onOff(b bool) Atom {
 	return "off"
 }
 
-func (e *EngineState) stream(streamOrAlias Term) (*Stream, error) {
+func (e *Engine) stream(streamOrAlias Term) (*Stream, error) {
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
 		return nil, instantiationError(streamOrAlias)
