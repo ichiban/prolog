@@ -35,6 +35,8 @@ func NewParser(input *bufio.Reader, operators *Operators, charConversions map[ru
 	return &p
 }
 
+// Replace registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
+// Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
 func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
 	p.placeholder = placeholder
 	p.args = make([]Term, len(args))

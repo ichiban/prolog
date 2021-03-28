@@ -291,4 +291,64 @@ func TestEngine_Query(t *testing.T) {
 		assert.NoError(t, sols.Scan(m))
 		assert.Equal(t, map[string]interface{}{}, m)
 	})
+
+	t.Run("scan to struct", func(t *testing.T) {
+		e := Engine{
+			EngineState{
+				procedures: map[procedureIndicator]procedure{
+					{name: "foo", arity: 4}: clauses{
+						{
+							pf: procedureIndicator{name: "foo", arity: 4},
+							raw: &Compound{
+								Functor: "foo",
+								Args:    []Term{Atom("a"), Integer(1), Float(2.0), List(Atom("abc"), Atom("def"))},
+							},
+							xrTable: []Term{
+								Atom("a"),
+								Integer(1),
+								Float(2.0),
+								procedureIndicator{name: ".", arity: 2},
+								Atom("abc"),
+								Atom("def"),
+								Atom("[]"),
+							},
+							bytecode: []byte{
+								opConst, 0,
+								opConst, 1,
+								opConst, 2,
+								opFunctor, 3, // .(
+								opConst, 4, // abc
+								opFunctor, 3, // .(
+								opConst, 5, // def
+								opConst, 6, // []
+								opPop, // )
+								opPop, // )
+								opExit,
+							},
+						},
+					},
+				},
+			},
+		}
+		sols, err := e.Query(`foo(A, B, C, D).`)
+		assert.NoError(t, err)
+
+		type result struct {
+			A    string
+			B    int
+			C    float64
+			List []string `prolog:"D"`
+		}
+
+		assert.True(t, sols.Next())
+
+		var r result
+		assert.NoError(t, sols.Scan(&r))
+		assert.Equal(t, result{
+			A:    "a",
+			B:    1,
+			C:    2.0,
+			List: []string{"abc", "def"},
+		}, r)
+	})
 }
