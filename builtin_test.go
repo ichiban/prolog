@@ -493,18 +493,16 @@ func TestCopyTerm(t *testing.T) {
 func TestEngine_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				operators: Operators{
-					{
-						Priority:  900,
-						Specifier: "xfx",
-						Name:      "+++",
-					},
-					{
-						Priority:  1100,
-						Specifier: "xfx",
-						Name:      "+",
-					},
+			operators: Operators{
+				{
+					Priority:  900,
+					Specifier: "xfx",
+					Name:      "+++",
+				},
+				{
+					Priority:  1100,
+					Specifier: "xfx",
+					Name:      "+",
 				},
 			},
 		}
@@ -533,23 +531,21 @@ func TestEngine_Op(t *testing.T) {
 
 	t.Run("remove", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				operators: Operators{
-					{
-						Priority:  900,
-						Specifier: "xfx",
-						Name:      "+++",
-					},
-					{
-						Priority:  1000,
-						Specifier: "xfx",
-						Name:      "++",
-					},
-					{
-						Priority:  1100,
-						Specifier: "xfx",
-						Name:      "+",
-					},
+			operators: Operators{
+				{
+					Priority:  900,
+					Specifier: "xfx",
+					Name:      "+++",
+				},
+				{
+					Priority:  1000,
+					Specifier: "xfx",
+					Name:      "++",
+				},
+				{
+					Priority:  1100,
+					Specifier: "xfx",
+					Name:      "+",
 				},
 			},
 		}
@@ -616,23 +612,21 @@ func TestEngine_Op(t *testing.T) {
 
 func TestEngine_CurrentOp(t *testing.T) {
 	e := Engine{
-		EngineState{
-			operators: Operators{
-				{
-					Priority:  900,
-					Specifier: "xfx",
-					Name:      "+++",
-				},
-				{
-					Priority:  1000,
-					Specifier: "xfx",
-					Name:      "++",
-				},
-				{
-					Priority:  1100,
-					Specifier: "xfx",
-					Name:      "+",
-				},
+		operators: Operators{
+			{
+				Priority:  900,
+				Specifier: "xfx",
+				Name:      "+++",
+			},
+			{
+				Priority:  1000,
+				Specifier: "xfx",
+				Name:      "++",
+			},
+			{
+				Priority:  1100,
+				Specifier: "xfx",
+				Name:      "+",
 			},
 		},
 	}
@@ -725,8 +719,8 @@ func TestRepeat(t *testing.T) {
 
 func TestBagOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec(`
+		var i Interpreter
+		assert.NoError(t, i.Exec(`
 foo(a, b, c).
 foo(a, b, d).
 foo(b, c, e).
@@ -739,7 +733,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.BagOf(&c, &Compound{
+			ok, err := i.BagOf(&c, &Compound{
 				Functor: "foo",
 				Args:    []Term{&a, &b, &c},
 			}, &cs, func() Promise {
@@ -782,7 +776,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.BagOf(&c, &Compound{
+			ok, err := i.BagOf(&c, &Compound{
 				Functor: "^",
 				Args: []Term{&a, &Compound{
 					Functor: "foo",
@@ -822,7 +816,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.BagOf(&c, &Compound{
+			ok, err := i.BagOf(&c, &Compound{
 				Functor: "^",
 				Args: []Term{
 					&Compound{
@@ -877,8 +871,8 @@ foo(c, c, g).
 
 func TestSetOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec(`
+		var i Interpreter
+		assert.NoError(t, i.Exec(`
 foo(a, b, c).
 foo(a, b, d).
 foo(a, b, c).
@@ -894,7 +888,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.SetOf(&c, &Compound{
+			ok, err := i.SetOf(&c, &Compound{
 				Functor: "foo",
 				Args:    []Term{&a, &b, &c},
 			}, &cs, func() Promise {
@@ -937,7 +931,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.SetOf(&c, &Compound{
+			ok, err := i.SetOf(&c, &Compound{
 				Functor: "^",
 				Args: []Term{&a, &Compound{
 					Functor: "foo",
@@ -977,7 +971,7 @@ foo(c, c, g).
 				count       int
 				a, b, c, cs Variable
 			)
-			ok, err := e.SetOf(&c, &Compound{
+			ok, err := i.SetOf(&c, &Compound{
 				Functor: "^",
 				Args: []Term{
 					&Compound{
@@ -1195,12 +1189,11 @@ func TestThrow(t *testing.T) {
 }
 
 func TestEngine_Catch(t *testing.T) {
-	e, err := NewEngine(nil, nil)
-	assert.NoError(t, err)
+	i := New(nil, nil)
 
 	t.Run("match", func(t *testing.T) {
 		var v Variable
-		ok, err := e.Catch(&Compound{
+		ok, err := i.Catch(&Compound{
 			Functor: "throw",
 			Args:    []Term{Atom("a")},
 		}, &v, &Compound{
@@ -1212,7 +1205,7 @@ func TestEngine_Catch(t *testing.T) {
 	})
 
 	t.Run("not match", func(t *testing.T) {
-		ok, err := e.Catch(&Compound{
+		ok, err := i.Catch(&Compound{
 			Functor: "throw",
 			Args:    []Term{Atom("a")},
 		}, Atom("b"), Atom("fail"), Done).Force()
@@ -1221,19 +1214,19 @@ func TestEngine_Catch(t *testing.T) {
 	})
 
 	t.Run("true", func(t *testing.T) {
-		ok, err := e.Catch(Atom("true"), Atom("b"), Atom("fail"), Done).Force()
+		ok, err := i.Catch(Atom("true"), Atom("b"), Atom("fail"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("false", func(t *testing.T) {
-		ok, err := e.Catch(Atom("fail"), Atom("b"), Atom("fail"), Done).Force()
+		ok, err := i.Catch(Atom("fail"), Atom("b"), Atom("fail"), Done).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("non-exception error", func(t *testing.T) {
-		ok, err := e.Catch(Atom("true"), &Variable{}, Atom("true"), func() Promise {
+		ok, err := i.Catch(Atom("true"), &Variable{}, Atom("true"), func() Promise {
 			return Error(errors.New("failed"))
 		}).Force()
 		assert.Error(t, err)
@@ -1243,9 +1236,9 @@ func TestEngine_Catch(t *testing.T) {
 
 func TestEngine_CurrentPredicate(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		e := Engine{EngineState{procedures: map[procedureIndicator]procedure{
+		e := Engine{procedures: map[procedureIndicator]procedure{
 			{name: "=", arity: 2}: nil,
-		}}}
+		}}
 
 		var v Variable
 		ok, err := e.CurrentPredicate(&v, Done).Force()
@@ -1319,49 +1312,53 @@ func TestEngine_CurrentPredicate(t *testing.T) {
 
 func TestEngine_Assertz(t *testing.T) {
 	t.Run("append", func(t *testing.T) {
-		var e Engine
+		var i Interpreter
 
-		ok, err := e.Assertz(&Compound{
+		ok, err := i.Assertz(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("a")},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.Assertz(&Compound{
+		ok, err = i.Assertz(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("b")},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		var c int
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
-			case 1:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := i.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("directive", func(t *testing.T) {
 		var called bool
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
-						called = true
-						return Delay(f)
-					}),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
+					called = true
+					return Delay(f)
+				}),
 			},
 		}
 
@@ -1450,12 +1447,10 @@ func TestEngine_Assertz(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
-						return Delay(f)
-					}),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
+					return Delay(f)
+				}),
 			},
 		}
 
@@ -1473,49 +1468,53 @@ func TestEngine_Assertz(t *testing.T) {
 
 func TestEngine_Asserta(t *testing.T) {
 	t.Run("prepend", func(t *testing.T) {
-		var e Engine
+		var i Interpreter
 
-		ok, err := e.Asserta(&Compound{
+		ok, err := i.Asserta(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("a")},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = e.Asserta(&Compound{
+		ok, err = i.Asserta(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("b")},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		var c int
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("b")}, vars[0])
-			case 1:
-				assert.Equal(t, &Variable{Name: "X", Ref: Atom("a")}, vars[0])
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := i.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("directive", func(t *testing.T) {
 		var called bool
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
-						called = true
-						return Delay(f)
-					}),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
+					called = true
+					return Delay(f)
+				}),
 			},
 		}
 
@@ -1604,12 +1603,10 @@ func TestEngine_Asserta(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
-						return Delay(f)
-					}),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
+					return Delay(f)
+				}),
 			},
 		}
 
@@ -1627,72 +1624,84 @@ func TestEngine_Asserta(t *testing.T) {
 
 func TestEngine_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(a)."))
-		assert.NoError(t, e.Exec("foo(b)."))
-		assert.NoError(t, e.Exec("foo(c)."))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(a)."))
+		assert.NoError(t, i.Exec("foo(b)."))
+		assert.NoError(t, i.Exec("foo(c)."))
 
-		ok, err := e.Retract(&Compound{
+		ok, err := i.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{&Variable{Name: "X"}},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		c := 0
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("b")}}, vars)
-			case 1:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := i.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("b"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("c"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(a)."))
-		assert.NoError(t, e.Exec("foo(b)."))
-		assert.NoError(t, e.Exec("foo(c)."))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(a)."))
+		assert.NoError(t, i.Exec("foo(b)."))
+		assert.NoError(t, i.Exec("foo(c)."))
 
-		ok, err := e.Retract(&Compound{
+		ok, err := i.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("b")},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		c := 0
-		ok, err = e.Query("foo(X).", func(vars []*Variable) bool {
-			switch c {
-			case 0:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("a")}}, vars)
-			case 1:
-				assert.Equal(t, []*Variable{{Name: "X", Ref: Atom("c")}}, vars)
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return false
-		})
+		sols, err := i.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		m := map[string]Term{}
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("a"),
+		}, m)
+
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(m))
+		assert.Equal(t, map[string]Term{
+			"X": Atom("c"),
+		}, m)
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("retract all", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(a)."))
-		assert.NoError(t, e.Exec("foo(b)."))
-		assert.NoError(t, e.Exec("foo(c)."))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(a)."))
+		assert.NoError(t, i.Exec("foo(b)."))
+		assert.NoError(t, i.Exec("foo(c)."))
 
-		ok, err := e.Retract(&Compound{
+		ok, err := i.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{&Variable{Name: "X"}},
 		}, func() Promise {
@@ -1701,12 +1710,13 @@ func TestEngine_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = e.Query("foo(X).", func([]*Variable) bool {
-			assert.Fail(t, "unreachable")
-			return true
-		})
+		sols, err := i.Query("foo(X).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		assert.False(t, sols.Next())
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -1738,10 +1748,8 @@ func TestEngine_Retract(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "foo", arity: 0}: predicate0(nil),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "foo", arity: 0}: predicate0(nil),
 			},
 		}
 
@@ -1754,10 +1762,10 @@ func TestEngine_Retract(t *testing.T) {
 	})
 
 	t.Run("exception in continuation", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(a)."))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(a)."))
 
-		ok, err := e.Retract(&Compound{
+		ok, err := i.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{&Variable{Name: "X"}},
 		}, func() Promise {
@@ -1766,31 +1774,32 @@ func TestEngine_Retract(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, ok)
 
-		// removed
-		ok, err = e.Query("foo(a).", func([]*Variable) bool {
-			assert.Fail(t, "unreachable")
-			return true
-		})
+		sols, err := i.Query("foo(a).")
 		assert.NoError(t, err)
-		assert.False(t, ok)
+		defer func() {
+			assert.NoError(t, sols.Close())
+		}()
+
+		// removed
+		assert.False(t, sols.Next())
 	})
 }
 
 func TestEngine_Abolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		var e Engine
-		assert.NoError(t, e.Exec("foo(a)."))
-		assert.NoError(t, e.Exec("foo(b)."))
-		assert.NoError(t, e.Exec("foo(c)."))
+		var i Interpreter
+		assert.NoError(t, i.Exec("foo(a)."))
+		assert.NoError(t, i.Exec("foo(b)."))
+		assert.NoError(t, i.Exec("foo(c)."))
 
-		ok, err := e.Abolish(&Compound{
+		ok, err := i.Abolish(&Compound{
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Integer(1)},
 		}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = e.procedures[procedureIndicator{name: "foo", arity: 1}]
+		_, ok = i.procedures[procedureIndicator{name: "foo", arity: 1}]
 		assert.False(t, ok)
 	})
 
@@ -1868,10 +1877,8 @@ func TestEngine_Abolish(t *testing.T) {
 
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				procedures: map[procedureIndicator]procedure{
-					{name: "foo", arity: 0}: predicate0(nil),
-				},
+			procedures: map[procedureIndicator]procedure{
+				{name: "foo", arity: 0}: predicate0(nil),
 			},
 		}
 		ok, err := e.Abolish(&Compound{
@@ -1890,9 +1897,7 @@ func TestEngine_CurrentInput(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var s Stream
 		e := Engine{
-			EngineState{
-				input: &s,
-			},
+			input: &s,
 		}
 
 		ok, err := e.CurrentInput(&s, Done).Force()
@@ -1912,9 +1917,7 @@ func TestEngine_CurrentOutput(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var s Stream
 		e := Engine{
-			EngineState{
-				output: &s,
-			},
+			output: &s,
 		}
 
 		ok, err := e.CurrentOutput(&s, Done).Force()
@@ -1942,11 +1945,11 @@ func TestEngine_SetInput(t *testing.T) {
 
 	t.Run("alias", func(t *testing.T) {
 		s := Stream{source: os.Stdin}
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("x"): &s,
 			},
-		}}
+		}
 		ok, err := e.SetInput(&Variable{Ref: Atom("x")}, Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1997,11 +2000,11 @@ func TestEngine_SetOutput(t *testing.T) {
 
 	t.Run("alias", func(t *testing.T) {
 		s := Stream{sink: os.Stdout}
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("x"): &s,
 			},
-		}}
+		}
 		ok, err := e.SetOutput(Atom("x"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2267,10 +2270,8 @@ func TestEngine_Open(t *testing.T) {
 		}()
 
 		e := Engine{
-			EngineState{
-				streams: map[Term]*Stream{
-					Atom("foo"): nil,
-				},
+			streams: map[Term]*Stream{
+				Atom("foo"): nil,
 			},
 		}
 		ok, err := e.Open(Atom(f.Name()), Atom("read"), &Variable{Name: "Stream"}, List(&Compound{
@@ -2380,11 +2381,11 @@ func TestEngine_Close(t *testing.T) {
 		m.On("Close").Return(nil).Once()
 		defer m.AssertExpectations(t)
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): {closer: &m},
 			},
-		}}
+		}
 		ok, err := e.Close(Atom("foo"), List(), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2523,11 +2524,11 @@ func TestEngine_FlushOutput(t *testing.T) {
 		var m mockWriter
 		defer m.AssertExpectations(t)
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): {sink: &m},
 			},
-		}}
+		}
 		ok, err := e.FlushOutput(Atom("foo"), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2586,12 +2587,12 @@ func TestEngine_WriteTerm(t *testing.T) {
 		{Priority: 200, Specifier: "fy", Name: "-"},
 	}
 
-	e := Engine{EngineState{
+	e := Engine{
 		operators: ops,
 		streams: map[Term]*Stream{
 			Atom("foo"): &s,
 		},
-	}}
+	}
 
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
@@ -2906,11 +2907,11 @@ func TestEngine_PutByte(t *testing.T) {
 
 		s := Stream{sink: &w, streamType: streamTypeBinary}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 		ok, err := e.PutByte(Atom("foo"), Integer(97), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3000,11 +3001,11 @@ func TestEngine_PutCode(t *testing.T) {
 
 		s := Stream{sink: &w}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 		ok, err := e.PutCode(Atom("foo"), Integer('😀'), Done).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3115,11 +3116,11 @@ func TestEngine_ReadTerm(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{source: bufio.NewReader(strings.NewReader("foo."))}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 
 		var v Variable
 		ok, err := e.ReadTerm(Atom("foo"), &v, List(), Done).Force()
@@ -3368,11 +3369,11 @@ func TestEngine_GetByte(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{source: strings.NewReader("a"), streamType: streamTypeBinary}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 
 		var v Variable
 		ok, err := e.GetByte(Atom("foo"), &v, Done).Force()
@@ -3493,11 +3494,11 @@ func TestEngine_GetChar(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{source: bufio.NewReader(strings.NewReader("😀"))}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 
 		var v Variable
 		ok, err := e.GetChar(Atom("foo"), &v, Done).Force()
@@ -3635,11 +3636,11 @@ func TestEngine_PeekByte(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{source: bufio.NewReader(strings.NewReader("abc")), streamType: streamTypeBinary}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 
 		var v Variable
 		ok, err := e.PeekByte(Atom("foo"), &v, Done).Force()
@@ -3769,11 +3770,11 @@ func TestEngine_PeekChar(t *testing.T) {
 	t.Run("valid stream alias", func(t *testing.T) {
 		s := Stream{source: bufio.NewReader(strings.NewReader("😀❗"))}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("foo"): &s,
 			},
-		}}
+		}
 
 		var v Variable
 		ok, err := e.PeekChar(Atom("foo"), &v, Done).Force()
@@ -3908,11 +3909,9 @@ func TestEngine_Halt(t *testing.T) {
 
 		var callbackCalled bool
 		e := Engine{
-			EngineState{
-				BeforeHalt: []func(){
-					func() {
-						callbackCalled = true
-					},
+			BeforeHalt: []func(){
+				func() {
+					callbackCalled = true
 				},
 			},
 		}
@@ -3943,15 +3942,14 @@ func TestEngine_Halt(t *testing.T) {
 
 func TestEngine_Clause(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		e, err := NewEngine(nil, nil)
-		assert.NoError(t, err)
-		assert.NoError(t, e.Exec("green(X) :- moldy(X)."))
-		assert.NoError(t, e.Exec("green(kermit)."))
+		i := New(nil, nil)
+		assert.NoError(t, i.Exec("green(X) :- moldy(X)."))
+		assert.NoError(t, i.Exec("green(kermit)."))
 
 		var c int
 
 		var what, body Variable
-		ok, err := e.Clause(&Compound{
+		ok, err := i.Clause(&Compound{
 			Functor: "green",
 			Args:    []Term{&what},
 		}, &body, func() Promise {
@@ -5119,7 +5117,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 			&Compound{Functor: "type", Args: []Term{Atom("text")}},
 		}
 
-		e := Engine{EngineState{
+		e := Engine{
 			streams: map[Term]*Stream{
 				Atom("null"): {
 					sink:   bufio.NewWriter(f),
@@ -5128,7 +5126,7 @@ func TestEngine_StreamProperty(t *testing.T) {
 					alias:  "null",
 				},
 			},
-		}}
+		}
 		var v Variable
 		c := 0
 		ok, err := e.StreamProperty(Atom("null"), &v, func() Promise {
@@ -5256,10 +5254,8 @@ func TestEngine_CharConversion(t *testing.T) {
 
 	t.Run("remove", func(t *testing.T) {
 		e := Engine{
-			EngineState{
-				charConversions: map[rune]rune{
-					'a': 'b',
-				},
+			charConversions: map[rune]rune{
+				'a': 'b',
 			},
 		}
 		ok, err := e.CharConversion(Atom("a"), Atom("a"), Done).Force()
@@ -5331,11 +5327,11 @@ func TestEngine_CurrentCharConversion(t *testing.T) {
 		})
 
 		t.Run("converted", func(t *testing.T) {
-			e := Engine{EngineState{
+			e := Engine{
 				charConversions: map[rune]rune{
 					'a': 'b',
 				},
-			}}
+			}
 			ok, err := e.CurrentCharConversion(Atom("a"), Atom("b"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -5438,7 +5434,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 		})
 
 		t.Run("off", func(t *testing.T) {
-			e := Engine{EngineState{charConvEnabled: true}}
+			e := Engine{charConvEnabled: true}
 			ok, err := e.SetPrologFlag(Atom("char_conversion"), Atom("off"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -5456,7 +5452,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 		})
 
 		t.Run("off", func(t *testing.T) {
-			e := Engine{EngineState{debug: true}}
+			e := Engine{debug: true}
 			ok, err := e.SetPrologFlag(Atom("debug"), Atom("off"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -5473,7 +5469,7 @@ func TestEngine_SetPrologFlag(t *testing.T) {
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
-			e := Engine{EngineState{unknown: unknownFail}}
+			e := Engine{unknown: unknownFail}
 			ok, err := e.SetPrologFlag(Atom("unknown"), Atom("error"), Done).Force()
 			assert.NoError(t, err)
 			assert.True(t, ok)

@@ -54,12 +54,9 @@ func main() {
 
 	logrus.SetOutput(t)
 
-	e, err := prolog.NewEngine(bufio.NewReader(os.Stdin), t)
-	if err != nil {
-		log.Panic(err)
-	}
-	e.BeforeHalt = append(e.BeforeHalt, restore)
-	e.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
+	i := prolog.New(bufio.NewReader(os.Stdin), t)
+	i.BeforeHalt = append(i.BeforeHalt, restore)
+	i.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
 		if !term.Unify(prolog.Atom(Version), false) {
 			return prolog.Bool(false)
 		}
@@ -74,7 +71,7 @@ func main() {
 			log.WithError(err).Panic("failed to read")
 		}
 
-		if err := e.Exec(string(b)); err != nil {
+		if err := i.Exec(string(b)); err != nil {
 			log.WithError(err).Panic("failed to compile")
 		}
 	}
@@ -89,28 +86,41 @@ func main() {
 			log.WithError(err).Error("failed to read line")
 		}
 
-		ok, err := e.Query(line, func(vars []*prolog.Variable) bool {
-			ls := make([]string, 0, len(vars))
-			for _, v := range vars {
-				if v.Name == "" {
-					continue
-				}
-				if _, ok := prolog.Resolve(v).(*prolog.Variable); ok {
-					continue
-				}
+		c := 0
+		sols, err := i.Query(line)
+		if err != nil {
+			log.WithError(err).Error("failed to query")
+			continue
+		}
+		for sols.Next() {
+			c++
 
-				ls = append(ls, e.Describe(v))
+			m := map[string]prolog.Term{}
+			if err := sols.Scan(m); err != nil {
+				log.WithError(err).Error("failed to scan")
+				break
+			}
+
+			vars := sols.Vars()
+			ls := make([]string, 0, len(vars))
+			for _, n := range vars {
+				v := m[n]
+				if _, ok := v.(*prolog.Variable); ok {
+					continue
+				}
+				ls = append(ls, fmt.Sprintf("%s = %s", n, v))
 			}
 			if len(ls) == 0 {
-				fmt.Fprintf(t, "%t ", true)
-			} else {
-				fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
+				fmt.Fprintf(t, "%t.\n", true)
+				break
 			}
+
+			fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
 
 			r, _, err := keys.ReadRune()
 			if err != nil {
 				log.WithError(err).Error("failed to query")
-				return false
+				break
 			}
 			if r != ';' {
 				r = '.'
@@ -118,13 +128,18 @@ func main() {
 
 			fmt.Fprintf(t, "%s\n", string(r))
 
-			return r == '.'
-		})
-		if err != nil {
-			log.WithError(err).Error("failed to query")
+			if r == '.' {
+				break
+			}
+		}
+		sols.Close()
+
+		if err := sols.Err(); err != nil {
+			log.WithError(err).Error("failed")
 			continue
 		}
-		if !ok {
+
+		if c == 0 {
 			fmt.Fprintf(t, "%t.\n", false)
 		}
 	}

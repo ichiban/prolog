@@ -1,0 +1,134 @@
+package prolog
+
+import (
+	"errors"
+	"fmt"
+	"reflect"
+)
+
+// Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
+// By calling the Scan method, you can retrieve the content of the solution.
+type Solutions struct {
+	vars []*Variable
+	more chan<- bool
+	next <-chan bool
+	err  error
+}
+
+// Close closes the Solutions and terminates the search for other solutions.
+func (s *Solutions) Close() error {
+	close(s.more)
+	return nil
+}
+
+// Next prepares the next solution for reading with the Scan method. It returns true if it finds another solution,
+// or false if there's no further solutions or if there's an error.
+func (s *Solutions) Next() bool {
+	s.more <- true
+	return <-s.next
+}
+
+// Scan copies the variable values of the current solution into the specified struct/map.
+func (s *Solutions) Scan(dest interface{}) error {
+	o := reflect.ValueOf(dest)
+	switch o.Kind() {
+	case reflect.Ptr:
+		o = o.Elem()
+		switch o.Kind() {
+		case reflect.Struct:
+			t := o.Type()
+
+			fields := map[string]reflect.Value{}
+			for i := 0; i < t.NumField(); i++ {
+				f := t.Field(i)
+				name := f.Name
+				if alias, ok := f.Tag.Lookup("prolog"); ok {
+					name = alias
+				}
+				fields[name] = o.Field(i)
+			}
+
+			for _, v := range s.vars {
+				f, ok := fields[v.Name]
+				if !ok {
+					continue
+				}
+
+				val, err := convert(Resolve(v), f.Type())
+				if err != nil {
+					return err
+				}
+				fields[v.Name].Set(val)
+			}
+		}
+		return nil
+	case reflect.Map:
+		t := o.Type()
+		if t.Key() != reflect.TypeOf("") {
+			return errors.New("map key is not string")
+		}
+
+		for _, v := range s.vars {
+			if v.Name == "" {
+				continue
+			}
+
+			val, err := convert(Resolve(v), t.Elem())
+			if err != nil {
+				return err
+			}
+			o.SetMapIndex(reflect.ValueOf(v.Name), val)
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid kind: %s", o.Kind())
+	}
+}
+
+func convert(t Term, typ reflect.Type) (reflect.Value, error) {
+	switch typ {
+	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*Term)(nil)).Elem():
+		return reflect.ValueOf(t), nil
+	}
+
+	switch typ.Kind() {
+	case reflect.Float32, reflect.Float64:
+		if f, ok := t.(Float); ok {
+			return reflect.ValueOf(f).Convert(typ), nil
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if i, ok := t.(Integer); ok {
+			return reflect.ValueOf(i).Convert(typ), nil
+		}
+	case reflect.String:
+		return reflect.ValueOf(t.String()), nil
+	case reflect.Slice:
+		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
+		if err := Each(t, func(elem Term) error {
+			e, err := convert(Resolve(elem), typ.Elem())
+			if err != nil {
+				return err
+			}
+			r = reflect.Append(r, e)
+			return nil
+		}); err != nil {
+			return reflect.Value{}, err
+		}
+		return r, nil
+	}
+	return reflect.Value{}, fmt.Errorf("failed to convert: %s", typ)
+}
+
+// Err returns the error if exists.
+func (s *Solutions) Err() error {
+	return s.err
+}
+
+// Vars returns variable names.
+func (s *Solutions) Vars() []string {
+	ns := make([]string, len(s.vars))
+	for i, v := range s.vars {
+		ns[i] = v.Name
+	}
+	return ns
+}

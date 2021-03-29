@@ -221,3 +221,44 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		}, term)
 	})
 }
+
+func TestParser_Replace(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
+			Functor: "f",
+			Args:    []Term{Atom("x")},
+		}))
+
+		list, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), &Compound{
+			Functor: "f",
+			Args:    []Term{Atom("x")},
+		}), list)
+	})
+
+	t.Run("invalid argument", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?].`)), &Operators{}, map[rune]rune{})
+		assert.Error(t, p.Replace("?", []struct{}{{}}))
+	})
+
+	t.Run("too few arguments", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
+
+		_, err := p.Term()
+		assert.Error(t, err)
+	})
+
+	t.Run("too many arguments", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
+			Functor: "f",
+			Args:    []Term{Atom("x")},
+		}, "extra"))
+
+		_, err := p.Term()
+		assert.Error(t, err)
+	})
+}
