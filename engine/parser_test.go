@@ -1,4 +1,4 @@
-package prolog
+package engine
 
 import (
 	"bufio"
@@ -10,9 +10,10 @@ import (
 
 func TestParser_Term(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`
 append(nil,L,L).
-`)), &Operators{}, map[rune]rune{})
+`)))
 		c, err := p.Term()
 		assert.NoError(t, err)
 
@@ -28,11 +29,14 @@ append(nil,L,L).
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`
+		vm := VM{
+			operators: Operators{
+				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
-`)), &Operators{
-			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-		}, map[rune]rune{})
+`)))
 		c, err := p.Term()
 		assert.NoError(t, err)
 
@@ -72,11 +76,13 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &Operators{
-			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-			{Priority: 1000, Specifier: `xfy`, Name: `,`},
-		}, map[rune]rune{})
-
+		vm := VM{
+			operators: Operators{
+				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+				{Priority: 1000, Specifier: `xfy`, Name: `,`},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)))
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -101,11 +107,13 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("qualifier", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &Operators{
-			{Priority: 1000, Specifier: `xfy`, Name: `,`},
-			{Priority: 200, Specifier: `xfy`, Name: `^`},
-		}, map[rune]rune{})
-
+		vm := VM{
+			operators: Operators{
+				{Priority: 1000, Specifier: `xfy`, Name: `,`},
+				{Priority: 200, Specifier: `xfy`, Name: `^`},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)))
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -132,11 +140,13 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("multiple qualifiers", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &Operators{
-			{Priority: 1000, Specifier: `xfy`, Name: `,`},
-			{Priority: 200, Specifier: `xfy`, Name: `^`},
-		}, map[rune]rune{})
-
+		vm := VM{
+			operators: Operators{
+				{Priority: 1000, Specifier: `xfy`, Name: `,`},
+				{Priority: 200, Specifier: `xfy`, Name: `^`},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)))
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -169,10 +179,13 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("expression", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)), &Operators{
-			{Priority: 500, Specifier: `yfx`, Name: `+`},
-			{Priority: 400, Specifier: `yfx`, Name: `*`},
-		}, map[rune]rune{})
+		vm := VM{
+			operators: Operators{
+				{Priority: 500, Specifier: `yfx`, Name: `+`},
+				{Priority: 400, Specifier: `yfx`, Name: `*`},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)))
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, term, &Compound{
@@ -200,16 +213,20 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("list", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[a, b, c|X].`)))
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
 	t.Run("principal functor", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2.`)), &Operators{
-			{Priority: 400, Specifier: "yfx", Name: "/"},
-		}, map[rune]rune{})
+		vm := VM{
+			operators: Operators{
+				{Priority: 400, Specifier: "yfx", Name: "/"},
+			},
+		}
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`(==)/2.`)))
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -224,7 +241,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},
@@ -239,12 +257,14 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?].`)), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?].`)))
 		assert.Error(t, p.Replace("?", []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
@@ -252,7 +272,8 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},

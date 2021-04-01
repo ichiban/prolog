@@ -1,4 +1,4 @@
-package prolog
+package engine
 
 import (
 	"bufio"
@@ -15,21 +15,21 @@ import (
 )
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-func (e *Engine) Call(goal Term, k func() Promise) Promise {
+func (vm *VM) Call(goal Term, k func() Promise) Promise {
 	pi, args, err := piArgs(goal)
 	if err != nil {
 		return Error(err)
 	}
 
 	// Force() to restrict the scope of cut.
-	return NewPromise(e.arrive(pi, args, k).Force())
+	return NewPromise(vm.arrive(pi, args, k).Force())
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
 func Unify(t1, t2 Term, k func() Promise) Promise {
-	a := newAssignment(t1, t2)
+	fvs := FreeVariables(t1, t2)
 	if !t1.Unify(t2, false) {
-		a.reset()
+		ResetVariables(fvs...)
 		return Bool(false)
 	}
 	return Delay(k)
@@ -37,9 +37,9 @@ func Unify(t1, t2 Term, k func() Promise) Promise {
 
 // UnifyWithOccursCheck unifies t1 and t2 with occurs check (i.e., X = f(X) is not allowed).
 func UnifyWithOccursCheck(t1, t2 Term, k func() Promise) Promise {
-	a := newAssignment(t1, t2)
+	fvs := FreeVariables(t1, t2)
 	if !t1.Unify(t2, true) {
-		a.reset()
+		ResetVariables(fvs...)
 		return Bool(false)
 	}
 	return Delay(k)
@@ -144,13 +144,13 @@ func Arg(nth, term, arg Term, k func() Promise) Promise {
 	switch n := Resolve(nth).(type) {
 	case *Variable:
 		pattern := Compound{Args: []Term{n, arg}}
-		a := newAssignment(n, term, arg)
+		fvs := FreeVariables(n, term, arg)
 		ks := make([]func() Promise, len(t.Args))
 		for i := range t.Args {
 			n := Integer(i + 1)
 			arg := t.Args[i]
 			ks[i] = func() Promise {
-				a.reset()
+				ResetVariables(fvs...)
 				return Unify(&pattern, &Compound{Args: []Term{n, arg}}, k)
 			}
 		}
@@ -219,7 +219,7 @@ func CopyTerm(in, out Term, k func() Promise) Promise {
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
-func (e *Engine) Op(priority, specifier, operator Term, k func() Promise) Promise {
+func (vm *VM) Op(priority, specifier, operator Term, k func() Promise) Promise {
 	p, ok := Resolve(priority).(Integer)
 	if !ok {
 		return Error(typeErrorInteger(priority))
@@ -245,15 +245,15 @@ func (e *Engine) Op(priority, specifier, operator Term, k func() Promise) Promis
 	}
 
 	// already defined?
-	for i, op := range e.operators {
+	for i, op := range vm.operators {
 		if op.Specifier != s || op.Name != o {
 			continue
 		}
 
 		// remove it first so that we can insert it again in the right position
-		copy(e.operators[i:], e.operators[i+1:])
-		e.operators[len(e.operators)-1] = Operator{}
-		e.operators = e.operators[:len(e.operators)-1]
+		copy(vm.operators[i:], vm.operators[i+1:])
+		vm.operators[len(vm.operators)-1] = Operator{}
+		vm.operators = vm.operators[:len(vm.operators)-1]
 
 		// or keep it removed.
 		if p == 0 {
@@ -262,12 +262,12 @@ func (e *Engine) Op(priority, specifier, operator Term, k func() Promise) Promis
 	}
 
 	// insert
-	i := sort.Search(len(e.operators), func(i int) bool {
-		return e.operators[i].Priority >= p
+	i := sort.Search(len(vm.operators), func(i int) bool {
+		return vm.operators[i].Priority >= p
 	})
-	e.operators = append(e.operators, Operator{})
-	copy(e.operators[i+1:], e.operators[i:])
-	e.operators[i] = Operator{
+	vm.operators = append(vm.operators, Operator{})
+	copy(vm.operators[i+1:], vm.operators[i:])
+	vm.operators[i] = Operator{
 		Priority:  p,
 		Specifier: s,
 		Name:      o,
@@ -277,7 +277,7 @@ func (e *Engine) Op(priority, specifier, operator Term, k func() Promise) Promis
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func (e *Engine) CurrentOp(priority, specifier, operator Term, k func() Promise) Promise {
+func (vm *VM) CurrentOp(priority, specifier, operator Term, k func() Promise) Promise {
 	switch p := Resolve(priority).(type) {
 	case *Variable:
 		break
@@ -312,12 +312,12 @@ func (e *Engine) CurrentOp(priority, specifier, operator Term, k func() Promise)
 	}
 
 	pattern := Compound{Args: []Term{priority, specifier, operator}}
-	a := newAssignment(priority, specifier, operator)
-	ks := make([]func() Promise, len(e.operators))
-	for i := range e.operators {
-		op := e.operators[i]
+	fvs := FreeVariables(priority, specifier, operator)
+	ks := make([]func() Promise, len(vm.operators))
+	for i := range vm.operators {
+		op := vm.operators[i]
 		ks[i] = func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(&pattern, &Compound{Args: []Term{op.Priority, op.Specifier, op.Name}}, k)
 		}
 	}
@@ -325,20 +325,20 @@ func (e *Engine) CurrentOp(priority, specifier, operator Term, k func() Promise)
 }
 
 // Assertz appends t to the database.
-func (e *Engine) Assertz(t Term, k func() Promise) Promise {
-	return e.assert(t, k, func(cs clauses, c clause) clauses {
+func (vm *VM) Assertz(t Term, k func() Promise) Promise {
+	return vm.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(cs, c)
 	})
 }
 
 // Asserta prepends t to the database.
-func (e *Engine) Asserta(t Term, k func() Promise) Promise {
-	return e.assert(t, k, func(cs clauses, c clause) clauses {
+func (vm *VM) Asserta(t Term, k func() Promise) Promise {
+	return vm.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(clauses{c}, cs...)
 	})
 }
 
-func (e *Engine) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
+func (vm *VM) assert(t Term, k func() Promise, merge func(clauses, clause) clauses) Promise {
 	pi, args, err := piArgs(t)
 	if err != nil {
 		return Error(err)
@@ -351,7 +351,7 @@ func (e *Engine) assert(t Term, k func() Promise, merge func(clauses, clause) cl
 			return Error(err)
 		}
 		return Delay(func() Promise {
-			return e.arrive(name, args, k)
+			return vm.arrive(name, args, k)
 		})
 	case procedureIndicator{name: ":-", arity: 2}:
 		pi, _, err = piArgs(args.(*Compound).Args[0])
@@ -360,10 +360,10 @@ func (e *Engine) assert(t Term, k func() Promise, merge func(clauses, clause) cl
 		}
 	}
 
-	if e.procedures == nil {
-		e.procedures = map[procedureIndicator]procedure{}
+	if vm.procedures == nil {
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	p, ok := e.procedures[pi]
+	p, ok := vm.procedures[pi]
 	if !ok {
 		p = clauses{}
 	}
@@ -380,7 +380,7 @@ func (e *Engine) assert(t Term, k func() Promise, merge func(clauses, clause) cl
 		return Error(err)
 	}
 
-	e.procedures[pi] = merge(cs, c)
+	vm.procedures[pi] = merge(cs, c)
 	return Delay(k)
 }
 
@@ -398,16 +398,16 @@ func Repeat(k func() Promise) Promise {
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
-func (e *Engine) BagOf(template, goal, instances Term, k func() Promise) Promise {
-	return e.collectionOf(template, goal, instances, k, List)
+func (vm *VM) BagOf(template, goal, instances Term, k func() Promise) Promise {
+	return vm.collectionOf(template, goal, instances, k, List)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
-func (e *Engine) SetOf(template, goal, instances Term, k func() Promise) Promise {
-	return e.collectionOf(template, goal, instances, k, Set)
+func (vm *VM) SetOf(template, goal, instances Term, k func() Promise) Promise {
+	return vm.collectionOf(template, goal, instances, k, Set)
 }
 
-func (e *Engine) collectionOf(template, goal, instances Term, k func() Promise, agg func(...Term) Term) Promise {
+func (vm *VM) collectionOf(template, goal, instances Term, k func() Promise, agg func(...Term) Term) Promise {
 	if _, ok := Resolve(goal).(*Variable); ok {
 		return Error(instantiationError(goal))
 	}
@@ -420,13 +420,16 @@ func (e *Engine) collectionOf(template, goal, instances Term, k func() Promise, 
 		goal = body.Ref
 	}
 
-	a := newAssignment(goal)
+	fvs := FreeVariables(goal)
 
-	freeVariables := newAssignment(template, &qualifier)
-	groupingVariables := make(assignment, 0, len(a))
-	for _, v := range a {
-		if freeVariables.contains(v) {
-			continue
+	freeVariables := FreeVariables(template, &qualifier)
+	groupingVariables := make([]*Variable, 0, len(fvs))
+grouping:
+	for _, v := range fvs {
+		for _, w := range freeVariables {
+			if v == w {
+				continue grouping
+			}
 		}
 		groupingVariables = append(groupingVariables, v)
 	}
@@ -437,7 +440,7 @@ func (e *Engine) collectionOf(template, goal, instances Term, k func() Promise, 
 	}
 
 	var solutions []solution
-	_, err := e.Call(goal, func() Promise {
+	_, err := vm.Call(goal, func() Promise {
 		snapshots := make([]Term, len(groupingVariables))
 		for i, v := range groupingVariables {
 			snapshots[i] = v.Ref
@@ -468,18 +471,18 @@ func (e *Engine) collectionOf(template, goal, instances Term, k func() Promise, 
 		return Error(err)
 	}
 
-	freeVariables.reset()
+	ResetVariables(freeVariables...)
 
 	if len(solutions) == 0 {
 		return Bool(false)
 	}
 
-	b := newAssignment(instances)
+	b := FreeVariables(instances)
 	ks := make([]func() Promise, len(solutions))
 	for i := range solutions {
 		s := solutions[i]
 		ks[i] = func() Promise {
-			b.reset()
+			ResetVariables(b...)
 
 			// revert to snapshot
 			for i, v := range groupingVariables {
@@ -607,12 +610,12 @@ func Throw(ball Term, _ func() Promise) Promise {
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
-func (e *Engine) Catch(goal, catcher, recover Term, k func() Promise) Promise {
-	ok, err := e.Call(goal, k).Force()
+func (vm *VM) Catch(goal, catcher, recover Term, k func() Promise) Promise {
+	ok, err := vm.Call(goal, k).Force()
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
 			return Delay(func() Promise {
-				return e.Call(recover, k)
+				return vm.Call(recover, k)
 			})
 		}
 		return Error(err)
@@ -621,7 +624,7 @@ func (e *Engine) Catch(goal, catcher, recover Term, k func() Promise) Promise {
 }
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
-func (e *Engine) CurrentPredicate(pi Term, k func() Promise) Promise {
+func (vm *VM) CurrentPredicate(pi Term, k func() Promise) Promise {
 	switch pi := Resolve(pi).(type) {
 	case *Variable:
 		break
@@ -640,12 +643,12 @@ func (e *Engine) CurrentPredicate(pi Term, k func() Promise) Promise {
 		return Error(typeErrorPredicateIndicator(pi))
 	}
 
-	a := newAssignment(pi)
-	ks := make([]func() Promise, 0, len(e.procedures))
-	for key := range e.procedures {
+	fvs := FreeVariables(pi)
+	ks := make([]func() Promise, 0, len(vm.procedures))
+	for key := range vm.procedures {
 		c := Compound{Functor: "/", Args: []Term{key.name, key.arity}}
 		ks = append(ks, func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(pi, &c, k)
 		})
 	}
@@ -653,7 +656,7 @@ func (e *Engine) CurrentPredicate(pi Term, k func() Promise) Promise {
 }
 
 // Retract removes a clause which matches with t.
-func (e *Engine) Retract(t Term, k func() Promise) Promise {
+func (vm *VM) Retract(t Term, k func() Promise) Promise {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
@@ -662,7 +665,7 @@ func (e *Engine) Retract(t Term, k func() Promise) Promise {
 		return Error(err)
 	}
 
-	p, ok := e.procedures[pi]
+	p, ok := vm.procedures[pi]
 	if !ok {
 		return Bool(false)
 	}
@@ -676,38 +679,38 @@ func (e *Engine) Retract(t Term, k func() Promise) Promise {
 	}
 
 	updated := make(clauses, 0, len(cs))
-	defer func() { e.procedures[pi] = updated }()
+	defer func() { vm.procedures[pi] = updated }()
 
 	for i, c := range cs {
 		raw := Rulify(c.raw)
-		a := newAssignment(raw, t)
+		fvs := FreeVariables(raw, t)
 
 		if !t.Unify(raw, false) {
 			updated = append(updated, c)
-			a.reset()
+			ResetVariables(fvs...)
 			continue
 		}
 
 		ok, err := k().Force()
 		if err != nil {
 			updated = append(updated, cs[i+1:]...)
-			a.reset()
+			ResetVariables(fvs...)
 			return Error(err)
 		}
 		if ok {
 			updated = append(updated, cs[i+1:]...)
-			a.reset()
+			ResetVariables(fvs...)
 			return Bool(true)
 		}
 
-		a.reset()
+		ResetVariables(fvs...)
 	}
 
 	return Bool(false)
 }
 
 // Abolish removes the procedure indicated by pi from the database.
-func (e *Engine) Abolish(pi Term, k func() Promise) Promise {
+func (vm *VM) Abolish(pi Term, k func() Promise) Promise {
 	if _, ok := Resolve(pi).(*Variable); ok {
 		return Error(instantiationError(pi))
 	}
@@ -739,18 +742,18 @@ func (e *Engine) Abolish(pi Term, k func() Promise) Promise {
 	}
 
 	key := procedureIndicator{name: name, arity: arity}
-	if _, ok := e.procedures[key].(clauses); !ok {
+	if _, ok := vm.procedures[key].(clauses); !ok {
 		return Error(permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args:    []Term{name, arity},
 		}))
 	}
-	delete(e.procedures, key)
+	delete(vm.procedures, key)
 	return Delay(k)
 }
 
 // CurrentInput unifies stream with the current input stream.
-func (e *Engine) CurrentInput(stream Term, k func() Promise) Promise {
+func (vm *VM) CurrentInput(stream Term, k func() Promise) Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -759,12 +762,12 @@ func (e *Engine) CurrentInput(stream Term, k func() Promise) Promise {
 	}
 
 	return Delay(func() Promise {
-		return Unify(stream, e.input, k)
+		return Unify(stream, vm.input, k)
 	})
 }
 
 // CurrentOutput unifies stream with the current output stream.
-func (e *Engine) CurrentOutput(stream Term, k func() Promise) Promise {
+func (vm *VM) CurrentOutput(stream Term, k func() Promise) Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -773,13 +776,13 @@ func (e *Engine) CurrentOutput(stream Term, k func() Promise) Promise {
 	}
 
 	return Delay(func() Promise {
-		return Unify(stream, e.output, k)
+		return Unify(stream, vm.output, k)
 	})
 }
 
 // SetInput sets streamOrAlias as the current input stream.
-func (e *Engine) SetInput(streamOrAlias Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) SetInput(streamOrAlias Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -788,13 +791,13 @@ func (e *Engine) SetInput(streamOrAlias Term, k func() Promise) Promise {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	e.input = s
+	vm.input = s
 	return Delay(k)
 }
 
 // SetOutput sets streamOrAlias as the current output stream.
-func (e *Engine) SetOutput(streamOrAlias Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) SetOutput(streamOrAlias Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -803,12 +806,12 @@ func (e *Engine) SetOutput(streamOrAlias Term, k func() Promise) Promise {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	e.output = s
+	vm.output = s
 	return Delay(k)
 }
 
 // Open opens sourceSink in mode and unifies with stream.
-func (e *Engine) Open(sourceSink, mode, stream, options Term, k func() Promise) Promise {
+func (vm *VM) Open(sourceSink, mode, stream, options Term, k func() Promise) Promise {
 	var n Atom
 	switch s := Resolve(sourceSink).(type) {
 	case *Variable:
@@ -905,7 +908,7 @@ func (e *Engine) Open(sourceSink, mode, stream, options Term, k func() Promise) 
 				case *Variable:
 					return instantiationError(arg)
 				case Atom:
-					if _, ok := e.streams[a]; ok {
+					if _, ok := vm.streams[a]; ok {
 						return permissionError(Atom("open"), Atom("source_sink"), option, Atom(fmt.Sprintf("%s is already defined as an alias.", a)))
 					}
 					s.alias = a
@@ -970,14 +973,14 @@ func (e *Engine) Open(sourceSink, mode, stream, options Term, k func() Promise) 
 	}
 	s.closer = f
 
-	if e.streams == nil {
-		e.streams = map[Term]*Stream{}
+	if vm.streams == nil {
+		vm.streams = map[Term]*Stream{}
 	}
 	if s.alias == "" {
 		// we can't use alias for the key but all the open streams should be in streams map anyways.
-		e.streams[&s] = &s
+		vm.streams[&s] = &s
 	} else {
-		e.streams[s.alias] = &s
+		vm.streams[s.alias] = &s
 	}
 
 	return Delay(func() Promise {
@@ -986,8 +989,8 @@ func (e *Engine) Open(sourceSink, mode, stream, options Term, k func() Promise) 
 }
 
 // Close closes a stream specified by streamOrAlias.
-func (e *Engine) Close(streamOrAlias, options Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) Close(streamOrAlias, options Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1016,17 +1019,17 @@ func (e *Engine) Close(streamOrAlias, options Term, k func() Promise) Promise {
 	}
 
 	if s.alias == "" {
-		delete(e.streams, s)
+		delete(vm.streams, s)
 	} else {
-		delete(e.streams, s.alias)
+		delete(vm.streams, s.alias)
 	}
 
 	return Delay(k)
 }
 
 // FlushOutput sends any buffered output to the stream.
-func (e *Engine) FlushOutput(streamOrAlias Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) FlushOutput(streamOrAlias Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1049,8 +1052,8 @@ func (e *Engine) FlushOutput(streamOrAlias Term, k func() Promise) Promise {
 }
 
 // WriteTerm outputs term to stream with options.
-func (e *Engine) WriteTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) WriteTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1063,7 +1066,7 @@ func (e *Engine) WriteTerm(streamOrAlias, term, options Term, k func() Promise) 
 		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
-	opts := WriteTermOptions{Ops: e.operators}
+	opts := WriteTermOptions{Ops: vm.operators}
 	if err := Each(Resolve(options), func(option Term) error {
 		if _, ok := Resolve(option).(*Variable); ok {
 			return instantiationError(option)
@@ -1075,7 +1078,7 @@ func (e *Engine) WriteTerm(streamOrAlias, term, options Term, k func() Promise) 
 		case option.Unify(&Compound{Functor: "quoted", Args: []Term{Atom("true")}}, false):
 			opts.Quoted = true
 		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("false")}}, false):
-			opts.Ops = e.operators
+			opts.Ops = vm.operators
 		case option.Unify(&Compound{Functor: "ignore_ops", Args: []Term{Atom("true")}}, false):
 			opts.Ops = nil
 		case option.Unify(&Compound{Functor: "numbervars", Args: []Term{Atom("false")}}, false):
@@ -1135,8 +1138,8 @@ func CharCode(char, code Term, k func() Promise) Promise {
 }
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
-func (e *Engine) PutByte(streamOrAlias, byt Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) PutByte(streamOrAlias, byt Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1168,8 +1171,8 @@ func (e *Engine) PutByte(streamOrAlias, byt Term, k func() Promise) Promise {
 }
 
 // PutCode outputs code to the stream represented by streamOrAlias.
-func (e *Engine) PutCode(streamOrAlias, code Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) PutCode(streamOrAlias, code Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1203,8 +1206,8 @@ func (e *Engine) PutCode(streamOrAlias, code Term, k func() Promise) Promise {
 }
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
-func (e *Engine) ReadTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1244,12 +1247,7 @@ func (e *Engine) ReadTerm(streamOrAlias, term, options Term, k func() Promise) P
 		return Error(errors.New("not a buffered stream"))
 	}
 
-	var conv map[rune]rune
-	if e.charConvEnabled {
-		conv = e.charConversions
-	}
-	p := NewParser(br, &e.operators, conv)
-
+	p := NewParser(vm, br)
 	t, err := p.Term()
 	switch err {
 	case nil:
@@ -1291,7 +1289,7 @@ func (e *Engine) ReadTerm(streamOrAlias, term, options Term, k func() Promise) P
 			})
 		case eofActionReset:
 			return Delay(func() Promise {
-				return e.ReadTerm(streamOrAlias, term, options, k)
+				return vm.ReadTerm(streamOrAlias, term, options, k)
 			})
 		default:
 			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
@@ -1302,8 +1300,8 @@ func (e *Engine) ReadTerm(streamOrAlias, term, options Term, k func() Promise) P
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (e *Engine) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1345,7 +1343,7 @@ func (e *Engine) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
 			})
 		case eofActionReset:
 			return Delay(func() Promise {
-				return e.GetByte(streamOrAlias, inByte, k)
+				return vm.GetByte(streamOrAlias, inByte, k)
 			})
 		default:
 			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
@@ -1356,8 +1354,8 @@ func (e *Engine) GetByte(streamOrAlias, inByte Term, k func() Promise) Promise {
 }
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
-func (e *Engine) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1407,7 +1405,7 @@ func (e *Engine) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
 			})
 		case eofActionReset:
 			return Delay(func() Promise {
-				return e.GetChar(streamOrAlias, char, k)
+				return vm.GetChar(streamOrAlias, char, k)
 			})
 		default:
 			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
@@ -1418,8 +1416,8 @@ func (e *Engine) GetChar(streamOrAlias, char Term, k func() Promise) Promise {
 }
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (e *Engine) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1465,7 +1463,7 @@ func (e *Engine) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise 
 			})
 		case eofActionReset:
 			return Delay(func() Promise {
-				return e.PeekByte(streamOrAlias, inByte, k)
+				return vm.PeekByte(streamOrAlias, inByte, k)
 			})
 		default:
 			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
@@ -1476,8 +1474,8 @@ func (e *Engine) PeekByte(streamOrAlias, inByte Term, k func() Promise) Promise 
 }
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
-func (e *Engine) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -1531,7 +1529,7 @@ func (e *Engine) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
 			})
 		case eofActionReset:
 			return Delay(func() Promise {
-				return e.PeekChar(streamOrAlias, char, k)
+				return vm.PeekChar(streamOrAlias, char, k)
 			})
 		default:
 			return Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
@@ -1544,12 +1542,12 @@ func (e *Engine) PeekChar(streamOrAlias, char Term, k func() Promise) Promise {
 var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
-func (e *Engine) Halt(n Term, k func() Promise) Promise {
+func (vm *VM) Halt(n Term, k func() Promise) Promise {
 	switch code := Resolve(n).(type) {
 	case *Variable:
 		return Error(instantiationError(n))
 	case Integer:
-		for _, f := range e.BeforeHalt {
+		for _, f := range vm.BeforeHalt {
 			f()
 		}
 
@@ -1562,7 +1560,7 @@ func (e *Engine) Halt(n Term, k func() Promise) Promise {
 }
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
-func (e *Engine) Clause(head, body Term, k func() Promise) Promise {
+func (vm *VM) Clause(head, body Term, k func() Promise) Promise {
 	pi, _, err := piArgs(head)
 	if err != nil {
 		return Error(err)
@@ -1575,14 +1573,14 @@ func (e *Engine) Clause(head, body Term, k func() Promise) Promise {
 		return Error(typeErrorCallable(body))
 	}
 
-	a := newAssignment(head, body)
+	fvs := FreeVariables(head, body)
 
-	cs, _ := e.procedures[pi].(clauses)
+	cs, _ := vm.procedures[pi].(clauses)
 	ks := make([]func() Promise, len(cs))
 	for i := range cs {
 		r := Rulify(cs[i].raw.Copy())
 		ks[i] = func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(&Compound{
 				Functor: ":-",
 				Args:    []Term{head, body},
@@ -1661,17 +1659,17 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() Promise) Promise {
 		}
 
 		pattern := Compound{Args: []Term{atom1, atom2}}
-		a := newAssignment(atom1, atom2)
+		fvs := FreeVariables(atom1, atom2)
 		ks := make([]func() Promise, 0, len(a3)+1)
 		for i := range a3 {
 			a1, a2 := a3[:i], a3[i:]
 			ks = append(ks, func() Promise {
-				a.reset()
+				ResetVariables(fvs...)
 				return Unify(&pattern, &Compound{Args: []Term{a1, a2}}, k)
 			})
 		}
 		ks = append(ks, func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(&pattern, &Compound{Args: []Term{a3, Atom("")}}, k)
 		})
 		return Delay(ks...)
@@ -1732,13 +1730,13 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() Promise) Promis
 		}
 
 		pattern := Compound{Args: []Term{before, length, after, subAtom}}
-		a := newAssignment(before, length, after, subAtom)
+		fvs := FreeVariables(before, length, after, subAtom)
 		var ks []func() Promise
 		for i := 0; i <= len(rs); i++ {
 			for j := i; j <= len(rs); j++ {
 				before, length, after, subAtom := Integer(i), Integer(j-i), Integer(len(rs)-j), Atom(rs[i:j])
 				ks = append(ks, func() Promise {
-					a.reset()
+					ResetVariables(fvs...)
 					return Unify(&pattern, &Compound{Args: []Term{before, length, after, subAtom}}, k)
 				})
 			}
@@ -1857,7 +1855,8 @@ func NumberChars(num, chars Term, k func() Promise) Promise {
 			return Error(systemError(err))
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
 		t, err := p.Term()
 		if err != nil {
 			return Error(err)
@@ -1914,7 +1913,8 @@ func NumberCodes(num, codes Term, k func() Promise) Promise {
 			return Error(systemError(err))
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), &Operators{}, map[rune]rune{})
+		var vm VM
+		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
 		t, err := p.Term()
 		if err != nil {
 			return Error(err)
@@ -2277,15 +2277,15 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 }
 
 // StreamProperty succeeds iff the stream represented by streamOrAlias has the stream property property.
-func (e *Engine) StreamProperty(streamOrAlias, property Term, k func() Promise) Promise {
-	streams := make([]*Stream, 0, len(e.streams))
+func (vm *VM) StreamProperty(streamOrAlias, property Term, k func() Promise) Promise {
+	streams := make([]*Stream, 0, len(vm.streams))
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
-		for _, v := range e.streams {
+		for _, v := range vm.streams {
 			streams = append(streams, v)
 		}
 	case Atom: // ISO standard stream_property/2 doesn't take an alias but why not?
-		v, ok := e.streams[s]
+		v, ok := vm.streams[s]
 		if !ok {
 			return Error(existenceErrorStream(streamOrAlias))
 		}
@@ -2422,11 +2422,11 @@ func (e *Engine) StreamProperty(streamOrAlias, property Term, k func() Promise) 
 			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("false")}})
 		}
 
-		a := newAssignment(property)
+		fvs := FreeVariables(property)
 		for i := range properties {
 			p := properties[i]
 			ks = append(ks, func() Promise {
-				a.reset()
+				ResetVariables(fvs...)
 				return Unify(property, p, k)
 			})
 		}
@@ -2435,8 +2435,8 @@ func (e *Engine) StreamProperty(streamOrAlias, property Term, k func() Promise) 
 }
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
-func (e *Engine) SetStreamPosition(streamOrAlias, position Term, k func() Promise) Promise {
-	s, err := e.stream(streamOrAlias)
+func (vm *VM) SetStreamPosition(streamOrAlias, position Term, k func() Promise) Promise {
+	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return Error(err)
 	}
@@ -2465,7 +2465,7 @@ func (e *Engine) SetStreamPosition(streamOrAlias, position Term, k func() Promis
 }
 
 // CharConversion registers a character conversion from inChar to outChar, or remove the conversion if inChar = outChar.
-func (e *Engine) CharConversion(inChar, outChar Term, k func() Promise) Promise {
+func (vm *VM) CharConversion(inChar, outChar Term, k func() Promise) Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		return Error(instantiationError(inChar))
@@ -2484,14 +2484,14 @@ func (e *Engine) CharConversion(inChar, outChar Term, k func() Promise) Promise 
 				return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 			}
 
-			if e.charConversions == nil {
-				e.charConversions = map[rune]rune{}
+			if vm.charConversions == nil {
+				vm.charConversions = map[rune]rune{}
 			}
 			if i[0] == o[0] {
-				delete(e.charConversions, i[0])
+				delete(vm.charConversions, i[0])
 				return Delay(k)
 			}
-			e.charConversions[i[0]] = o[0]
+			vm.charConversions[i[0]] = o[0]
 			return Delay(k)
 		default:
 			return Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
@@ -2502,7 +2502,7 @@ func (e *Engine) CharConversion(inChar, outChar Term, k func() Promise) Promise 
 }
 
 // CurrentCharConversion succeeds iff a conversion from inChar to outChar is defined.
-func (e *Engine) CurrentCharConversion(inChar, outChar Term, k func() Promise) Promise {
+func (vm *VM) CurrentCharConversion(inChar, outChar Term, k func() Promise) Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		break
@@ -2529,7 +2529,7 @@ func (e *Engine) CurrentCharConversion(inChar, outChar Term, k func() Promise) P
 
 	if c1, ok := Resolve(inChar).(Atom); ok {
 		r := []rune(c1)
-		if r, ok := e.charConversions[r[0]]; ok {
+		if r, ok := vm.charConversions[r[0]]; ok {
 			return Delay(func() Promise {
 				return Unify(outChar, Atom(r), k)
 			})
@@ -2539,18 +2539,18 @@ func (e *Engine) CurrentCharConversion(inChar, outChar Term, k func() Promise) P
 		})
 	}
 
-	a := newAssignment(inChar, outChar)
+	fvs := FreeVariables(inChar, outChar)
 	pattern := Compound{Args: []Term{inChar, outChar}}
 	ks := make([]func() Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
-		cr, ok := e.charConversions[r]
+		cr, ok := vm.charConversions[r]
 		if !ok {
 			cr = r
 		}
 
 		ks[i] = func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(&pattern, &Compound{Args: []Term{Atom(r), Atom(cr)}}, k)
 		}
 	}
@@ -2558,7 +2558,7 @@ func (e *Engine) CurrentCharConversion(inChar, outChar Term, k func() Promise) P
 }
 
 // SetPrologFlag sets flag to value.
-func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
+func (vm *VM) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		return Error(instantiationError(flag))
@@ -2573,10 +2573,10 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 			case Atom:
 				switch a {
 				case "on":
-					e.charConvEnabled = true
+					vm.charConvEnabled = true
 					return Delay(k)
 				case "off":
-					e.charConvEnabled = false
+					vm.charConvEnabled = false
 					return Delay(k)
 				default:
 					return Error(domainErrorFlagValue(&Compound{
@@ -2597,10 +2597,10 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 			case Atom:
 				switch a {
 				case "on":
-					e.debug = true
+					vm.debug = true
 					return Delay(k)
 				case "off":
-					e.debug = false
+					vm.debug = false
 					return Delay(k)
 				default:
 					return Error(domainErrorFlagValue(&Compound{
@@ -2621,13 +2621,13 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 			case Atom:
 				switch a {
 				case "error":
-					e.unknown = unknownError
+					vm.unknown = unknownError
 					return Delay(k)
 				case "warning":
-					e.unknown = unknownWarning
+					vm.unknown = unknownWarning
 					return Delay(k)
 				case "fail":
-					e.unknown = unknownFail
+					vm.unknown = unknownFail
 					return Delay(k)
 				default:
 					return Error(domainErrorFlagValue(&Compound{
@@ -2650,7 +2650,7 @@ func (e *Engine) SetPrologFlag(flag, value Term, k func() Promise) Promise {
 }
 
 // CurrentPrologFlag succeeds iff flag is set to value.
-func (e *Engine) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
+func (vm *VM) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		break
@@ -2671,17 +2671,17 @@ func (e *Engine) CurrentPrologFlag(flag, value Term, k func() Promise) Promise {
 		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
 		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
 		&Compound{Args: []Term{Atom("integer_rounding_function"), Atom("toward_zero")}},
-		&Compound{Args: []Term{Atom("char_conversion"), onOff(e.charConvEnabled)}},
-		&Compound{Args: []Term{Atom("debug"), onOff(e.debug)}},
+		&Compound{Args: []Term{Atom("char_conversion"), onOff(vm.charConvEnabled)}},
+		&Compound{Args: []Term{Atom("debug"), onOff(vm.debug)}},
 		&Compound{Args: []Term{Atom("max_arity"), Atom("unbounded")}},
-		&Compound{Args: []Term{Atom("unknown"), Atom(e.unknown.String())}},
+		&Compound{Args: []Term{Atom("unknown"), Atom(vm.unknown.String())}},
 	}
-	a := newAssignment(flag, value)
+	fvs := FreeVariables(flag, value)
 	ks := make([]func() Promise, len(flags))
 	for i := range flags {
 		f := flags[i]
 		ks[i] = func() Promise {
-			a.reset()
+			ResetVariables(fvs...)
 			return Unify(&pattern, f, k)
 		}
 	}
@@ -2695,12 +2695,12 @@ func onOff(b bool) Atom {
 	return "off"
 }
 
-func (e *Engine) stream(streamOrAlias Term) (*Stream, error) {
+func (vm *VM) stream(streamOrAlias Term) (*Stream, error) {
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
 		return nil, instantiationError(streamOrAlias)
 	case Atom:
-		v, ok := e.streams[s]
+		v, ok := vm.streams[s]
 		if !ok {
 			return nil, existenceErrorStream(streamOrAlias)
 		}

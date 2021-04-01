@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/ichiban/prolog/engine"
 )
 
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	vars []*Variable
+	vars []*engine.Variable
 	more chan<- bool
 	next <-chan bool
 	err  error
@@ -54,7 +56,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 					continue
 				}
 
-				val, err := convert(Resolve(v), f.Type())
+				val, err := convert(engine.Resolve(v), f.Type())
 				if err != nil {
 					return err
 				}
@@ -73,7 +75,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 				continue
 			}
 
-			val, err := convert(Resolve(v), t.Elem())
+			val, err := convert(engine.Resolve(v), t.Elem())
 			if err != nil {
 				return err
 			}
@@ -85,27 +87,27 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t Term, typ reflect.Type) (reflect.Value, error) {
+func convert(t engine.Term, typ reflect.Type) (reflect.Value, error) {
 	switch typ {
-	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*Term)(nil)).Elem():
+	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
 		return reflect.ValueOf(t), nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
-		if f, ok := t.(Float); ok {
+		if f, ok := t.(engine.Float); ok {
 			return reflect.ValueOf(f).Convert(typ), nil
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if i, ok := t.(Integer); ok {
+		if i, ok := t.(engine.Integer); ok {
 			return reflect.ValueOf(i).Convert(typ), nil
 		}
 	case reflect.String:
 		return reflect.ValueOf(t.String()), nil
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		if err := Each(t, func(elem Term) error {
-			e, err := convert(Resolve(elem), typ.Elem())
+		if err := engine.Each(t, func(elem engine.Term) error {
+			e, err := convert(engine.Resolve(elem), typ.Elem())
 			if err != nil {
 				return err
 			}

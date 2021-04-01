@@ -1,4 +1,4 @@
-package prolog
+package engine
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {

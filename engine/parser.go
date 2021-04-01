@@ -1,4 +1,4 @@
-package prolog
+package engine
 
 import (
 	"bufio"
@@ -27,10 +27,10 @@ type variableWithCount struct {
 }
 
 // NewParser creates a Parser.
-func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune) *Parser {
+func NewParser(vm *VM, input *bufio.Reader) *Parser {
 	p := Parser{
-		lexer:     internal.NewLexer(input, charConversions),
-		operators: operators,
+		lexer:     internal.NewLexer(input, vm.charConversions),
+		operators: &vm.operators,
 	}
 	return &p
 }
@@ -331,6 +331,12 @@ func (p *Parser) lhs() (Term, error) {
 	}
 
 	return &Compound{Functor: Atom(a), Args: args}, nil
+}
+
+// More checks if the parser has more tokens to read.
+func (p *Parser) More() bool {
+	_, err := p.accept(internal.TokenEOS)
+	return err != nil
 }
 
 // Operators are a list of operators sorted in a descending order of precedence.
