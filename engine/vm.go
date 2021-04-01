@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ichiban/prolog/nondet"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -59,7 +61,7 @@ func (vm *VM) SetUserOutput(w io.Writer) {
 }
 
 // Register0 registers a predicate of arity 0.
-func (vm *VM) Register0(name string, p func(func() Promise) Promise) {
+func (vm *VM) Register0(name string, p func(func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -67,7 +69,7 @@ func (vm *VM) Register0(name string, p func(func() Promise) Promise) {
 }
 
 // Register1 registers a predicate of arity 1.
-func (vm *VM) Register1(name string, p func(Term, func() Promise) Promise) {
+func (vm *VM) Register1(name string, p func(Term, func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -75,7 +77,7 @@ func (vm *VM) Register1(name string, p func(Term, func() Promise) Promise) {
 }
 
 // Register2 registers a predicate of arity 2.
-func (vm *VM) Register2(name string, p func(Term, Term, func() Promise) Promise) {
+func (vm *VM) Register2(name string, p func(Term, Term, func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -83,7 +85,7 @@ func (vm *VM) Register2(name string, p func(Term, Term, func() Promise) Promise)
 }
 
 // Register3 registers a predicate of arity 3.
-func (vm *VM) Register3(name string, p func(Term, Term, Term, func() Promise) Promise) {
+func (vm *VM) Register3(name string, p func(Term, Term, Term, func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -91,7 +93,7 @@ func (vm *VM) Register3(name string, p func(Term, Term, Term, func() Promise) Pr
 }
 
 // Register4 registers a predicate of arity 4.
-func (vm *VM) Register4(name string, p func(Term, Term, Term, Term, func() Promise) Promise) {
+func (vm *VM) Register4(name string, p func(Term, Term, Term, Term, func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -99,7 +101,7 @@ func (vm *VM) Register4(name string, p func(Term, Term, Term, Term, func() Promi
 }
 
 // Register5 registers a predicate of arity 5.
-func (vm *VM) Register5(name string, p func(Term, Term, Term, Term, Term, func() Promise) Promise) {
+func (vm *VM) Register5(name string, p func(Term, Term, Term, Term, Term, func() nondet.Promise) nondet.Promise) {
 	if vm.procedures == nil {
 		vm.procedures = map[procedureIndicator]procedure{}
 	}
@@ -128,15 +130,15 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	Call(*VM, Term, func() Promise) Promise
+	Call(*VM, Term, func() nondet.Promise) nondet.Promise
 }
 
-func (vm *VM) arrive(pi procedureIndicator, args Term, k func() Promise) Promise {
+func (vm *VM) arrive(pi procedureIndicator, args Term, k func() nondet.Promise) nondet.Promise {
 	p := vm.procedures[pi]
 	if p == nil {
 		switch vm.unknown {
 		case unknownError:
-			return Error(existenceErrorProcedure(&Compound{
+			return nondet.Error(existenceErrorProcedure(&Compound{
 				Functor: "/",
 				Args:    []Term{pi.name, pi.arity},
 			}))
@@ -144,18 +146,18 @@ func (vm *VM) arrive(pi procedureIndicator, args Term, k func() Promise) Promise
 			logrus.WithField("procedure", pi).Warn("unknown procedure")
 			fallthrough
 		case unknownFail:
-			return Bool(false)
+			return nondet.Bool(false)
 		default:
-			return Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown)))
+			return nondet.Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown)))
 		}
 	}
 
-	return Delay(func() Promise {
+	return nondet.Delay(func() nondet.Promise {
 		return p.Call(vm, args, k)
 	})
 }
 
-func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, args, astack Term) Promise {
+func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() nondet.Promise, args, astack Term) nondet.Promise {
 	for len(pc) != 0 {
 		switch pc[0] {
 		case opVoid:
@@ -168,7 +170,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 				Args:    []Term{x, &arest},
 			}
 			if !args.Unify(&cons, false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[2:]
 			args = &arest
@@ -180,7 +182,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 				Args:    []Term{v, &arest},
 			}
 			if !args.Unify(&cons, false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[2:]
 			args = &arest
@@ -192,18 +194,18 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 				Args:    []Term{&arg, &arest},
 			}
 			if !args.Unify(&cons1, false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pf, ok := x.(procedureIndicator)
 			if !ok {
-				return Error(errors.New("not a principal functor"))
+				return nondet.Error(errors.New("not a principal functor"))
 			}
 			ok, err := Functor(&arg, pf.name, pf.arity, Done).Force()
 			if err != nil {
-				return Error(err)
+				return nondet.Error(err)
 			}
 			if !ok {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[2:]
 			args = &Variable{}
@@ -213,15 +215,15 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 			}
 			ok, err = Univ(&arg, &cons2, Done).Force()
 			if err != nil {
-				return Error(err)
+				return nondet.Error(err)
 			}
 			if !ok {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
 			if !args.Unify(List(), false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[1:]
 			var a, arest Variable
@@ -230,16 +232,16 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 				Args:    []Term{&a, &arest},
 			}
 			if !astack.Unify(&cons, false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			args = &a
 			astack = &arest
 		case opEnter:
 			if !args.Unify(List(), false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			if !astack.Unify(List(), false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[1:]
 			var v Variable
@@ -248,42 +250,42 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k func() Promise, a
 		case opCall:
 			x := xr[pc[1]]
 			if !args.Unify(List(), false) {
-				return Bool(false)
+				return nondet.Bool(false)
 			}
 			pc = pc[2:]
 			pf, ok := x.(procedureIndicator)
 			if !ok {
-				return Error(errors.New("not a principal functor"))
+				return nondet.Error(errors.New("not a principal functor"))
 			}
-			return Delay(func() Promise {
-				return vm.arrive(pf, astack, func() Promise {
+			return nondet.Delay(func() nondet.Promise {
+				return vm.arrive(pf, astack, func() nondet.Promise {
 					var v Variable
-					return Delay(func() Promise {
+					return nondet.Delay(func() nondet.Promise {
 						return vm.exec(pc, xr, vars, k, &v, &v)
 					})
 				})
 			})
 		case opExit:
-			return Delay(k)
+			return nondet.Delay(k)
 		default:
-			return Error(fmt.Errorf("unknown(%d)", pc[0]))
+			return nondet.Error(fmt.Errorf("unknown(%d)", pc[0]))
 		}
 	}
-	return Error(errors.New("non-exit end of bytecode"))
+	return nondet.Error(errors.New("non-exit end of bytecode"))
 }
 
 type clauses []clause
 
-func (cs clauses) Call(e *VM, args Term, k func() Promise) Promise {
+func (cs clauses) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	if len(cs) == 0 {
-		return Bool(false)
+		return nondet.Bool(false)
 	}
 
 	fvs := FreeVariables(args)
-	ks := make([]func() Promise, len(cs))
+	ks := make([]func() nondet.Promise, len(cs))
 	for i := range cs {
 		c := cs[i]
-		ks[i] = func() Promise {
+		ks[i] = func() nondet.Promise {
 			ResetVariables(fvs...)
 			vars := make([]*Variable, len(c.vars))
 			for i := range c.vars {
@@ -292,7 +294,7 @@ func (cs clauses) Call(e *VM, args Term, k func() Promise) Promise {
 			return e.exec(c.bytecode, c.xrTable, vars, k, args, List())
 		}
 	}
-	return Delay(ks...)
+	return nondet.Delay(ks...)
 }
 
 type clause struct {
@@ -412,79 +414,79 @@ func (c *clause) varOffset(o *Variable) byte {
 
 type bytecode []byte
 
-type predicate0 func(func() Promise) Promise
+type predicate0 func(func() nondet.Promise) nondet.Promise
 
-func (p predicate0) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate0) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	if !args.Unify(List(), false) {
-		return Error(errors.New("wrong number of arguments"))
+		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(func() Promise {
+	return p(func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate1 func(Term, func() Promise) Promise
+type predicate1 func(Term, func() nondet.Promise) nondet.Promise
 
-func (p predicate1) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate1) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	var v1 Variable
 	if !args.Unify(List(&v1), false) {
-		return Error(fmt.Errorf("wrong number of arguments: %s", args))
+		return nondet.Error(fmt.Errorf("wrong number of arguments: %s", args))
 	}
 
-	return p(&v1, func() Promise {
+	return p(&v1, func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate2 func(Term, Term, func() Promise) Promise
+type predicate2 func(Term, Term, func() nondet.Promise) nondet.Promise
 
-func (p predicate2) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate2) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	var v1, v2 Variable
 	if !args.Unify(List(&v1, &v2), false) {
-		return Error(errors.New("wrong number of arguments"))
+		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, func() Promise {
+	return p(&v1, &v2, func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate3 func(Term, Term, Term, func() Promise) Promise
+type predicate3 func(Term, Term, Term, func() nondet.Promise) nondet.Promise
 
-func (p predicate3) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate3) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	var v1, v2, v3 Variable
 	if !args.Unify(List(&v1, &v2, &v3), false) {
-		return Error(errors.New("wrong number of arguments"))
+		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, func() Promise {
+	return p(&v1, &v2, &v3, func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate4 func(Term, Term, Term, Term, func() Promise) Promise
+type predicate4 func(Term, Term, Term, Term, func() nondet.Promise) nondet.Promise
 
-func (p predicate4) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate4) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	var v1, v2, v3, v4 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4), false) {
-		return Error(errors.New("wrong number of arguments"))
+		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, &v4, func() Promise {
+	return p(&v1, &v2, &v3, &v4, func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
 
-type predicate5 func(Term, Term, Term, Term, Term, func() Promise) Promise
+type predicate5 func(Term, Term, Term, Term, Term, func() nondet.Promise) nondet.Promise
 
-func (p predicate5) Call(e *VM, args Term, k func() Promise) Promise {
+func (p predicate5) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promise {
 	var v1, v2, v3, v4, v5 Variable
 	if !args.Unify(List(&v1, &v2, &v3, &v4, &v5), false) {
-		return Error(errors.New("wrong number of arguments"))
+		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(&v1, &v2, &v3, &v4, &v5, func() Promise {
+	return p(&v1, &v2, &v3, &v4, &v5, func() nondet.Promise {
 		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
 	})
 }
@@ -524,6 +526,6 @@ func ResetVariables(vs ...*Variable) {
 }
 
 // Done terminates a continuation chain.
-func Done() Promise {
-	return Bool(true)
+func Done() nondet.Promise {
+	return nondet.Bool(true)
 }

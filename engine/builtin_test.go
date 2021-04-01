@@ -14,6 +14,8 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/ichiban/prolog/nondet"
+
 	"github.com/stretchr/testify/mock"
 
 	"github.com/stretchr/testify/assert"
@@ -367,7 +369,7 @@ func TestArg(t *testing.T) {
 		ok, err := Arg(&nth, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("a"), Atom("b"), Atom("a")},
-		}, Atom("a"), func() Promise {
+		}, Atom("a"), func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(1), nth.Ref)
@@ -377,7 +379,7 @@ func TestArg(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -642,7 +644,7 @@ func TestVM_CurrentOp(t *testing.T) {
 			priority, specifier, operator Variable
 			c                             int
 		)
-		ok, err := vm.CurrentOp(&priority, &specifier, &operator, func() Promise {
+		ok, err := vm.CurrentOp(&priority, &specifier, &operator, func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(900), priority.Ref)
@@ -660,7 +662,7 @@ func TestVM_CurrentOp(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -703,15 +705,15 @@ func TestVM_CurrentOp(t *testing.T) {
 
 func TestRepeat(t *testing.T) {
 	c := 3
-	ok, err := Repeat(func() Promise {
+	ok, err := Repeat(func() nondet.Promise {
 		c--
-		return Bool(c == 0)
+		return nondet.Bool(c == 0)
 	}).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Repeat(func() Promise {
-		return Error(errors.New(""))
+	ok, err = Repeat(func() nondet.Promise {
+		return nondet.Error(errors.New(""))
 	}).Force()
 	assert.Error(t, err)
 	assert.False(t, ok)
@@ -739,7 +741,7 @@ func TestVM_BagOf(t *testing.T) {
 			ok, err := vm.BagOf(&c, &Compound{
 				Functor: "foo",
 				Args:    []Term{&a, &b, &c},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, Atom("a"), a.Ref)
@@ -768,7 +770,7 @@ func TestVM_BagOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -785,7 +787,7 @@ func TestVM_BagOf(t *testing.T) {
 					Functor: "foo",
 					Args:    []Term{&a, &b, &c},
 				}},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, &Variable{}, a.Ref)
@@ -808,7 +810,7 @@ func TestVM_BagOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -831,7 +833,7 @@ func TestVM_BagOf(t *testing.T) {
 						Args:    []Term{&a, &b, &c},
 					},
 				},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, nil, a.Ref)
@@ -848,7 +850,7 @@ func TestVM_BagOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -897,7 +899,7 @@ func TestSetOf(t *testing.T) {
 			ok, err := vm.SetOf(&c, &Compound{
 				Functor: "foo",
 				Args:    []Term{&a, &b, &c},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, Atom("a"), a.Ref)
@@ -926,7 +928,7 @@ func TestSetOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -943,7 +945,7 @@ func TestSetOf(t *testing.T) {
 					Functor: "foo",
 					Args:    []Term{&a, &b, &c},
 				}},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, &Variable{}, a.Ref)
@@ -966,7 +968,7 @@ func TestSetOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -989,7 +991,7 @@ func TestSetOf(t *testing.T) {
 						Args:    []Term{&a, &b, &c},
 					},
 				},
-			}, &cs, func() Promise {
+			}, &cs, func() nondet.Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, nil, a.Ref)
@@ -1006,7 +1008,7 @@ func TestSetOf(t *testing.T) {
 					assert.Fail(t, "unreachable")
 				}
 				count++
-				return Bool(false)
+				return nondet.Bool(false)
 			}).Force()
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -1198,11 +1200,11 @@ func TestVM_Catch(t *testing.T) {
 	var vm VM
 	vm.Register2("=", Unify)
 	vm.Register1("throw", Throw)
-	vm.Register0("true", func(k func() Promise) Promise {
-		return Delay(k)
+	vm.Register0("true", func(k func() nondet.Promise) nondet.Promise {
+		return nondet.Delay(k)
 	})
-	vm.Register0("fail", func(_ func() Promise) Promise {
-		return Bool(false)
+	vm.Register0("fail", func(_ func() nondet.Promise) nondet.Promise {
+		return nondet.Bool(false)
 	})
 
 	t.Run("match", func(t *testing.T) {
@@ -1240,8 +1242,8 @@ func TestVM_Catch(t *testing.T) {
 	})
 
 	t.Run("non-exception error", func(t *testing.T) {
-		ok, err := vm.Catch(Atom("true"), &Variable{}, Atom("true"), func() Promise {
-			return Error(errors.New("failed"))
+		ok, err := vm.Catch(Atom("true"), &Variable{}, Atom("true"), func() nondet.Promise {
+			return nondet.Error(errors.New("failed"))
 		}).Force()
 		assert.Error(t, err)
 		assert.False(t, ok)
@@ -1266,8 +1268,8 @@ func TestVM_CurrentPredicate(t *testing.T) {
 			},
 		}, v.Ref)
 
-		ok, err = vm.CurrentPredicate(&v, func() Promise {
-			return Bool(false)
+		ok, err = vm.CurrentPredicate(&v, func() nondet.Promise {
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -1377,9 +1379,9 @@ func TestVM_Assertz(t *testing.T) {
 		var called bool
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
+				{name: "directive", arity: 0}: predicate0(func(f func() nondet.Promise) nondet.Promise {
 					called = true
-					return Delay(f)
+					return nondet.Delay(f)
 				}),
 			},
 		}
@@ -1470,8 +1472,8 @@ func TestVM_Assertz(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
-					return Delay(f)
+				{name: "static", arity: 0}: predicate0(func(f func() nondet.Promise) nondet.Promise {
+					return nondet.Delay(f)
 				}),
 			},
 		}
@@ -1531,9 +1533,9 @@ func TestVM_Asserta(t *testing.T) {
 		var called bool
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(f func() Promise) Promise {
+				{name: "directive", arity: 0}: predicate0(func(f func() nondet.Promise) nondet.Promise {
 					called = true
-					return Delay(f)
+					return nondet.Delay(f)
 				}),
 			},
 		}
@@ -1624,8 +1626,8 @@ func TestVM_Asserta(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(f func() Promise) Promise {
-					return Delay(f)
+				{name: "static", arity: 0}: predicate0(func(f func() nondet.Promise) nondet.Promise {
+					return nondet.Delay(f)
 				}),
 			},
 		}
@@ -1705,8 +1707,8 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{&Variable{Name: "X"}},
-		}, func() Promise {
-			return Bool(false)
+		}, func() nondet.Promise {
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -1768,8 +1770,8 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{&Variable{Name: "X"}},
-		}, func() Promise {
-			return Error(errors.New("failed"))
+		}, func() nondet.Promise {
+			return nondet.Error(errors.New("failed"))
 		}).Force()
 		assert.Error(t, err)
 		assert.False(t, ok)
@@ -3963,7 +3965,7 @@ func TestVM_Clause(t *testing.T) {
 		ok, err := vm.Clause(&Compound{
 			Functor: "green",
 			Args:    []Term{&what},
-		}, &body, func() Promise {
+		}, &body, func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, &Variable{}, what.Ref)
@@ -3978,7 +3980,7 @@ func TestVM_Clause(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -4064,7 +4066,7 @@ func TestAtomConcat(t *testing.T) {
 	t.Run("atom3 is an atom", func(t *testing.T) {
 		var c int
 		var v1, v2 Variable
-		ok, err := AtomConcat(&v1, &v2, Atom("foo"), func() Promise {
+		ok, err := AtomConcat(&v1, &v2, Atom("foo"), func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Atom(""), v1.Ref)
@@ -4082,7 +4084,7 @@ func TestAtomConcat(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -4149,7 +4151,7 @@ func TestSubAtom(t *testing.T) {
 	t.Run("multiple solutions", func(t *testing.T) {
 		var c int
 		var before, length, after Variable
-		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), &before, &length, &after, Atom("ATGA"), func() Promise {
+		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), &before, &length, &after, Atom("ATGA"), func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(1), before.Ref)
@@ -4171,7 +4173,7 @@ func TestSubAtom(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -5105,10 +5107,10 @@ func TestVM_StreamProperty(t *testing.T) {
 			closer: f,
 			mode:   streamModeRead,
 			alias:  "null",
-		}, &v, func() Promise {
+		}, &v, func() nondet.Promise {
 			assert.Equal(t, expected[c], v.Ref)
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -5140,10 +5142,10 @@ func TestVM_StreamProperty(t *testing.T) {
 		}
 		var v Variable
 		c := 0
-		ok, err := vm.StreamProperty(Atom("null"), &v, func() Promise {
+		ok, err := vm.StreamProperty(Atom("null"), &v, func() nondet.Promise {
 			assert.Equal(t, expected[c], v.Ref)
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -5354,7 +5356,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 
 		var x, y Variable
 		var r rune
-		ok, err := vm.CurrentCharConversion(&x, &y, func() Promise {
+		ok, err := vm.CurrentCharConversion(&x, &y, func() nondet.Promise {
 			x, ok := x.Ref.(Atom)
 			assert.True(t, ok)
 			assert.Len(t, []rune(x), 1)
@@ -5366,7 +5368,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 			assert.Equal(t, r, []rune(x)[0])
 			assert.Equal(t, r, []rune(y)[0])
 			r++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -5594,7 +5596,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 	t.Run("not specified", func(t *testing.T) {
 		var flag, value Variable
 		var c int
-		ok, err := vm.CurrentPrologFlag(&flag, &value, func() Promise {
+		ok, err := vm.CurrentPrologFlag(&flag, &value, func() nondet.Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Atom("bounded"), flag.Ref)
@@ -5624,7 +5626,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 				assert.Fail(t, "unreachable")
 			}
 			c++
-			return Bool(false)
+			return nondet.Bool(false)
 		}).Force()
 		assert.NoError(t, err)
 		assert.False(t, ok)

@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ichiban/prolog/nondet"
+
 	"github.com/ichiban/prolog/engine"
 )
 
@@ -18,7 +20,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.SetUserInput(in)
 	i.SetUserOutput(out)
-	i.Register0("!", engine.Cut)
+	i.Register0("!", nondet.Cut)
 	i.Register0("repeat", engine.Repeat)
 	i.Register1("call", i.Call)
 	i.Register1("current_predicate", i.CurrentPredicate)
@@ -292,9 +294,9 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func() engine.Promise {
+		if _, err := i.Call(t, func() nondet.Promise {
 			next <- true
-			return engine.Bool(!<-more)
+			return nondet.Bool(!<-more)
 		}).Force(); err != nil {
 			sols.err = err
 		}

@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ichiban/prolog/nondet"
+
 	"github.com/ichiban/prolog/engine"
 
 	"github.com/ichiban/prolog"
@@ -58,11 +60,11 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.BeforeHalt = append(i.BeforeHalt, restore)
-	i.Register1("version", func(term engine.Term, k func() engine.Promise) engine.Promise {
+	i.Register1("version", func(term engine.Term, k func() nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
-			return engine.Bool(false)
+			return nondet.Bool(false)
 		}
-		return engine.Delay(k)
+		return nondet.Delay(k)
 	})
 
 	for _, a := range pflag.Args() {
