@@ -5,66 +5,46 @@ import (
 	"io"
 	"strings"
 
-	"github.com/ichiban/prolog/internal"
+	"github.com/ichiban/prolog/nondet"
+
+	"github.com/ichiban/prolog/engine"
 )
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
-	Engine
+	engine.VM
 }
-
-const (
-	userInput  = "user_input"
-	userOutput = "user_output"
-)
 
 // New creates a new Prolog interpreter with predefined predicates/operators.
 func New(in io.Reader, out io.Writer) *Interpreter {
-	input := Stream{
-		source: in,
-		mode:   streamModeRead,
-		alias:  userInput,
-	}
-	output := Stream{
-		sink:  out,
-		mode:  streamModeWrite,
-		alias: userOutput,
-	}
-	i := Interpreter{
-		Engine{
-			streams: map[Term]*Stream{
-				Atom(userInput):  &input,
-				Atom(userOutput): &output,
-			},
-			input:  &input,
-			output: &output,
-		},
-	}
-	i.Register0("!", Cut)
-	i.Register0("repeat", Repeat)
+	var i Interpreter
+	i.SetUserInput(in)
+	i.SetUserOutput(out)
+	i.Register0("!", nondet.Cut)
+	i.Register0("repeat", engine.Repeat)
 	i.Register1("call", i.Call)
 	i.Register1("current_predicate", i.CurrentPredicate)
 	i.Register1("assertz", i.Assertz)
 	i.Register1("asserta", i.Asserta)
 	i.Register1("retract", i.Retract)
 	i.Register1("abolish", i.Abolish)
-	i.Register1("var", TypeVar)
-	i.Register1("float", TypeFloat)
-	i.Register1("integer", TypeInteger)
-	i.Register1("atom", TypeAtom)
-	i.Register1("compound", TypeCompound)
-	i.Register1("throw", Throw)
-	i.Register2("=", Unify)
-	i.Register2("unify_with_occurs_check", UnifyWithOccursCheck)
-	i.Register2("=..", Univ)
-	i.Register2("copy_term", CopyTerm)
-	i.Register3("arg", Arg)
+	i.Register1("var", engine.TypeVar)
+	i.Register1("float", engine.TypeFloat)
+	i.Register1("integer", engine.TypeInteger)
+	i.Register1("atom", engine.TypeAtom)
+	i.Register1("compound", engine.TypeCompound)
+	i.Register1("throw", engine.Throw)
+	i.Register2("=", engine.Unify)
+	i.Register2("unify_with_occurs_check", engine.UnifyWithOccursCheck)
+	i.Register2("=..", engine.Univ)
+	i.Register2("copy_term", engine.CopyTerm)
+	i.Register3("arg", engine.Arg)
 	i.Register3("bagof", i.BagOf)
 	i.Register3("setof", i.SetOf)
 	i.Register3("catch", i.Catch)
-	i.Register3("functor", Functor)
+	i.Register3("functor", engine.Functor)
 	i.Register3("op", i.Op)
-	i.Register3("compare", Compare)
+	i.Register3("compare", engine.Compare)
 	i.Register3("current_op", i.CurrentOp)
 	i.Register1("current_input", i.CurrentInput)
 	i.Register1("current_output", i.CurrentOutput)
@@ -74,7 +54,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("close", i.Close)
 	i.Register1("flush_output", i.FlushOutput)
 	i.Register3("write_term", i.WriteTerm)
-	i.Register2("char_code", CharCode)
+	i.Register2("char_code", engine.CharCode)
 	i.Register2("put_byte", i.PutByte)
 	i.Register2("put_code", i.PutCode)
 	i.Register3("read_term", i.ReadTerm)
@@ -84,20 +64,20 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("peek_char", i.PeekChar)
 	i.Register1("halt", i.Halt)
 	i.Register2("clause", i.Clause)
-	i.Register2("atom_length", AtomLength)
-	i.Register3("atom_concat", AtomConcat)
-	i.Register5("sub_atom", SubAtom)
-	i.Register2("atom_chars", AtomChars)
-	i.Register2("atom_codes", AtomCodes)
-	i.Register2("number_chars", NumberChars)
-	i.Register2("number_codes", NumberCodes)
-	i.Register2("is", DefaultFunctionSet.Is)
-	i.Register2("=:=", DefaultFunctionSet.Equal)
-	i.Register2("=\\=", DefaultFunctionSet.NotEqual)
-	i.Register2("<", DefaultFunctionSet.LessThan)
-	i.Register2(">", DefaultFunctionSet.GreaterThan)
-	i.Register2("=<", DefaultFunctionSet.LessThanOrEqual)
-	i.Register2(">=", DefaultFunctionSet.GreaterThanOrEqual)
+	i.Register2("atom_length", engine.AtomLength)
+	i.Register3("atom_concat", engine.AtomConcat)
+	i.Register5("sub_atom", engine.SubAtom)
+	i.Register2("atom_chars", engine.AtomChars)
+	i.Register2("atom_codes", engine.AtomCodes)
+	i.Register2("number_chars", engine.NumberChars)
+	i.Register2("number_codes", engine.NumberCodes)
+	i.Register2("is", engine.DefaultFunctionSet.Is)
+	i.Register2("=:=", engine.DefaultFunctionSet.Equal)
+	i.Register2("=\\=", engine.DefaultFunctionSet.NotEqual)
+	i.Register2("<", engine.DefaultFunctionSet.LessThan)
+	i.Register2(">", engine.DefaultFunctionSet.GreaterThan)
+	i.Register2("=<", engine.DefaultFunctionSet.LessThanOrEqual)
+	i.Register2(">=", engine.DefaultFunctionSet.GreaterThanOrEqual)
 	i.Register2("stream_property", i.StreamProperty)
 	i.Register2("set_stream_position", i.SetStreamPosition)
 	i.Register2("char_conversion", i.CharConversion)
@@ -272,37 +252,26 @@ at_end_of_stream :- current_input(S), at_end_of_stream(S).
 
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
-	var conv map[rune]rune
-	if i.charConvEnabled {
-		conv = i.charConversions
-	}
-	p := NewParser(bufio.NewReader(strings.NewReader(query)), &i.operators, conv)
+	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
 	if err := p.Replace("?", args...); err != nil {
 		return err
 	}
-	for {
-		if _, err := p.accept(internal.TokenEOS); err == nil {
-			return nil
-		}
-
+	for p.More() {
 		t, err := p.Term()
 		if err != nil {
 			return err
 		}
 
-		if _, err := i.Assertz(t, Done).Force(); err != nil {
+		if _, err := i.Assertz(t, nondet.Bool(true)).Force(); err != nil {
 			return err
 		}
 	}
+	return nil
 }
 
 // Query executes a prolog query and returns *Solutions.
 func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, error) {
-	var conv map[rune]rune
-	if i.charConvEnabled {
-		conv = i.charConversions
-	}
-	p := NewParser(bufio.NewReader(strings.NewReader(query)), &i.operators, conv)
+	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
 	if err := p.Replace("?", args...); err != nil {
 		return nil, err
 	}
@@ -314,7 +283,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 	more := make(chan bool, 1)
 	next := make(chan bool)
 	sols := Solutions{
-		vars: newAssignment(t),
+		vars: engine.FreeVariables(t),
 		more: more,
 		next: next,
 	}
@@ -325,10 +294,10 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func() Promise {
+		if _, err := i.Call(t, nondet.Delay(func() nondet.Promise {
 			next <- true
-			return Bool(!<-more)
-		}).Force(); err != nil {
+			return nondet.Bool(!<-more)
+		})).Force(); err != nil {
 			sols.err = err
 		}
 	}()

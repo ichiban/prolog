@@ -8,6 +8,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ichiban/prolog/nondet"
+
+	"github.com/ichiban/prolog/engine"
+
 	"github.com/ichiban/prolog"
 
 	"github.com/sirupsen/logrus"
@@ -56,11 +60,11 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.BeforeHalt = append(i.BeforeHalt, restore)
-	i.Register1("version", func(term prolog.Term, k func() prolog.Promise) prolog.Promise {
-		if !term.Unify(prolog.Atom(Version), false) {
-			return prolog.Bool(false)
+	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
+		if !term.Unify(engine.Atom(Version), false) {
+			return nondet.Bool(false)
 		}
-		return prolog.Delay(k)
+		return k
 	})
 
 	for _, a := range pflag.Args() {
@@ -95,7 +99,7 @@ func main() {
 		for sols.Next() {
 			c++
 
-			m := map[string]prolog.Term{}
+			m := map[string]engine.Term{}
 			if err := sols.Scan(m); err != nil {
 				log.WithError(err).Error("failed to scan")
 				break
@@ -105,7 +109,7 @@ func main() {
 			ls := make([]string, 0, len(vars))
 			for _, n := range vars {
 				v := m[n]
-				if _, ok := v.(*prolog.Variable); ok {
+				if _, ok := v.(*engine.Variable); ok {
 					continue
 				}
 				ls = append(ls, fmt.Sprintf("%s = %s", n, v))

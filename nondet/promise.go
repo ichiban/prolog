@@ -1,4 +1,4 @@
-package prolog
+package nondet
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
@@ -7,19 +7,14 @@ type Promise struct {
 	err     error
 }
 
-// NewPromise creates a new promise of returning ok, err.
-func NewPromise(ok bool, err error) Promise {
-	return Promise{ok: ok, err: err}
-}
-
 // Delay delays an execution of k.
 func Delay(k ...func() Promise) Promise {
 	return Promise{delayed: k}
 }
 
 // Cut delays an execution of k while preventing other alternatives.
-func Cut(k func() Promise) Promise {
-	return Promise{delayed: []func() Promise{k}, cut: true}
+func Cut(k Promise) Promise {
+	return Promise{delayed: []func() Promise{func() Promise { return k }}, cut: true}
 }
 
 // Bool returns a promise that simply returns t, nil.
