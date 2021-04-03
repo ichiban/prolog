@@ -60,11 +60,11 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.BeforeHalt = append(i.BeforeHalt, restore)
-	i.Register1("version", func(term engine.Term, k func() nondet.Promise) nondet.Promise {
+	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
 			return nondet.Bool(false)
 		}
-		return nondet.Delay(k)
+		return k
 	})
 
 	for _, a := range pflag.Args() {

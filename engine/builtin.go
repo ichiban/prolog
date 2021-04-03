@@ -17,7 +17,7 @@ import (
 )
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-func (vm *VM) Call(goal Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
 	pi, args, err := piArgs(goal)
 	if err != nil {
 		return nondet.Error(err)
@@ -32,68 +32,68 @@ func (vm *VM) Call(goal Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
-func Unify(t1, t2 Term, k func() nondet.Promise) nondet.Promise {
+func Unify(t1, t2 Term, k nondet.Promise) nondet.Promise {
 	fvs := FreeVariables(t1, t2)
 	if !t1.Unify(t2, false) {
 		ResetVariables(fvs...)
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // UnifyWithOccursCheck unifies t1 and t2 with occurs check (i.e., X = f(X) is not allowed).
-func UnifyWithOccursCheck(t1, t2 Term, k func() nondet.Promise) nondet.Promise {
+func UnifyWithOccursCheck(t1, t2 Term, k nondet.Promise) nondet.Promise {
 	fvs := FreeVariables(t1, t2)
 	if !t1.Unify(t2, true) {
 		ResetVariables(fvs...)
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // TypeVar checks if t is a variable.
-func TypeVar(t Term, k func() nondet.Promise) nondet.Promise {
+func TypeVar(t Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(t).(*Variable); !ok {
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // TypeFloat checks if t is a floating-point number.
-func TypeFloat(t Term, k func() nondet.Promise) nondet.Promise {
+func TypeFloat(t Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(t).(Float); !ok {
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // TypeInteger checks if t is an integer.
-func TypeInteger(t Term, k func() nondet.Promise) nondet.Promise {
+func TypeInteger(t Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(t).(Integer); !ok {
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // TypeAtom checks if t is an atom.
-func TypeAtom(t Term, k func() nondet.Promise) nondet.Promise {
+func TypeAtom(t Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(t).(Atom); !ok {
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // TypeCompound checks if t is a compound term.
-func TypeCompound(t Term, k func() nondet.Promise) nondet.Promise {
+func TypeCompound(t Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(t).(*Compound); !ok {
 		return nondet.Bool(false)
 	}
-	return nondet.Delay(k)
+	return k
 }
 
 // Functor extracts the name and arity of term, or unifies term with an atomic/compound term of name and arity with
 // fresh variables as arguments.
-func Functor(term, name, arity Term, k func() nondet.Promise) nondet.Promise {
+func Functor(term, name, arity Term, k nondet.Promise) nondet.Promise {
 	term = Resolve(term)
 	switch t := Resolve(term).(type) {
 	case *Variable:
@@ -141,7 +141,7 @@ func Functor(term, name, arity Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // Arg extracts nth argument of term as arg, or finds the argument position of arg in term as nth.
-func Arg(nth, term, arg Term, k func() nondet.Promise) nondet.Promise {
+func Arg(nth, term, arg Term, k nondet.Promise) nondet.Promise {
 	t, ok := Resolve(term).(*Compound)
 	if !ok {
 		return nondet.Error(typeErrorCompound(term))
@@ -177,7 +177,7 @@ func Arg(nth, term, arg Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // Univ constructs list as a list which first element is the functor of term and the rest is the arguments of term, or construct a compound from list as term.
-func Univ(term, list Term, k func() nondet.Promise) nondet.Promise {
+func Univ(term, list Term, k nondet.Promise) nondet.Promise {
 	switch t := Resolve(term).(type) {
 	case *Variable:
 		list = Resolve(list)
@@ -220,12 +220,12 @@ func Univ(term, list Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // CopyTerm clones in as out.
-func CopyTerm(in, out Term, k func() nondet.Promise) nondet.Promise {
+func CopyTerm(in, out Term, k nondet.Promise) nondet.Promise {
 	return Unify(in.Copy(), out, k)
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
-func (vm *VM) Op(priority, specifier, operator Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Op(priority, specifier, operator Term, k nondet.Promise) nondet.Promise {
 	p, ok := Resolve(priority).(Integer)
 	if !ok {
 		return nondet.Error(typeErrorInteger(priority))
@@ -263,7 +263,7 @@ func (vm *VM) Op(priority, specifier, operator Term, k func() nondet.Promise) no
 
 		// or keep it removed.
 		if p == 0 {
-			return nondet.Delay(k)
+			return k
 		}
 	}
 
@@ -279,11 +279,11 @@ func (vm *VM) Op(priority, specifier, operator Term, k func() nondet.Promise) no
 		Name:      o,
 	}
 
-	return nondet.Delay(k)
+	return k
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func (vm *VM) CurrentOp(priority, specifier, operator Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentOp(priority, specifier, operator Term, k nondet.Promise) nondet.Promise {
 	switch p := Resolve(priority).(type) {
 	case *Variable:
 		break
@@ -331,20 +331,20 @@ func (vm *VM) CurrentOp(priority, specifier, operator Term, k func() nondet.Prom
 }
 
 // Assertz appends t to the database.
-func (vm *VM) Assertz(t Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Assertz(t Term, k nondet.Promise) nondet.Promise {
 	return vm.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(cs, c)
 	})
 }
 
 // Asserta prepends t to the database.
-func (vm *VM) Asserta(t Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Asserta(t Term, k nondet.Promise) nondet.Promise {
 	return vm.assert(t, k, func(cs clauses, c clause) clauses {
 		return append(clauses{c}, cs...)
 	})
 }
 
-func (vm *VM) assert(t Term, k func() nondet.Promise, merge func(clauses, clause) clauses) nondet.Promise {
+func (vm *VM) assert(t Term, k nondet.Promise, merge func(clauses, clause) clauses) nondet.Promise {
 	pi, args, err := piArgs(t)
 	if err != nil {
 		return nondet.Error(err)
@@ -387,13 +387,13 @@ func (vm *VM) assert(t Term, k func() nondet.Promise, merge func(clauses, clause
 	}
 
 	vm.procedures[pi] = merge(cs, c)
-	return nondet.Delay(k)
+	return k
 }
 
 // Repeat enforces k until it returns true.
-func Repeat(k func() nondet.Promise) nondet.Promise {
+func Repeat(k nondet.Promise) nondet.Promise {
 	for {
-		ok, err := k().Force()
+		ok, err := k.Force()
 		if err != nil {
 			return nondet.Error(err)
 		}
@@ -404,16 +404,16 @@ func Repeat(k func() nondet.Promise) nondet.Promise {
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
-func (vm *VM) BagOf(template, goal, instances Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) BagOf(template, goal, instances Term, k nondet.Promise) nondet.Promise {
 	return vm.collectionOf(template, goal, instances, k, List)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
-func (vm *VM) SetOf(template, goal, instances Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) SetOf(template, goal, instances Term, k nondet.Promise) nondet.Promise {
 	return vm.collectionOf(template, goal, instances, k, Set)
 }
 
-func (vm *VM) collectionOf(template, goal, instances Term, k func() nondet.Promise, agg func(...Term) Term) nondet.Promise {
+func (vm *VM) collectionOf(template, goal, instances Term, k nondet.Promise, agg func(...Term) Term) nondet.Promise {
 	if _, ok := Resolve(goal).(*Variable); ok {
 		return nondet.Error(instantiationError(goal))
 	}
@@ -446,7 +446,7 @@ grouping:
 	}
 
 	var solutions []solution
-	_, err := vm.Call(goal, func() nondet.Promise {
+	_, err := vm.Call(goal, nondet.Delay(func() nondet.Promise {
 		snapshots := make([]Term, len(groupingVariables))
 		for i, v := range groupingVariables {
 			snapshots[i] = v.Ref
@@ -455,7 +455,7 @@ grouping:
 	solutions:
 		for i, s := range solutions {
 			for i := range groupingVariables {
-				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Done).Force()
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], nondet.Bool(true)).Force()
 				if err != nil {
 					return nondet.Error(err)
 				}
@@ -472,7 +472,7 @@ grouping:
 			bag:       []Term{template.Copy()},
 		})
 		return nondet.Bool(false) // ask for more solutions
-	}).Force()
+	})).Force()
 	if err != nil {
 		return nondet.Error(err)
 	}
@@ -502,7 +502,7 @@ grouping:
 }
 
 // Compare compares term1 and term2 and unifies order with <, =, or >.
-func Compare(order, term1, term2 Term, k func() nondet.Promise) nondet.Promise {
+func Compare(order, term1, term2 Term, k nondet.Promise) nondet.Promise {
 	switch o := Resolve(order).(type) {
 	case *Variable:
 		break
@@ -608,7 +608,7 @@ func compare(a, b Term) int64 {
 }
 
 // Throw throws ball as an exception.
-func Throw(ball Term, _ func() nondet.Promise) nondet.Promise {
+func Throw(ball Term, _ nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(ball).(*Variable); ok {
 		return nondet.Error(instantiationError(ball))
 	}
@@ -616,7 +616,7 @@ func Throw(ball Term, _ func() nondet.Promise) nondet.Promise {
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
-func (vm *VM) Catch(goal, catcher, recover Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Catch(goal, catcher, recover Term, k nondet.Promise) nondet.Promise {
 	ok, err := vm.Call(goal, k).Force()
 	if err != nil {
 		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false) {
@@ -630,7 +630,7 @@ func (vm *VM) Catch(goal, catcher, recover Term, k func() nondet.Promise) nondet
 }
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
-func (vm *VM) CurrentPredicate(pi Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentPredicate(pi Term, k nondet.Promise) nondet.Promise {
 	switch pi := Resolve(pi).(type) {
 	case *Variable:
 		break
@@ -662,7 +662,7 @@ func (vm *VM) CurrentPredicate(pi Term, k func() nondet.Promise) nondet.Promise 
 }
 
 // Retract removes a clause which matches with t.
-func (vm *VM) Retract(t Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Retract(t Term, k nondet.Promise) nondet.Promise {
 	t = Rulify(t)
 
 	h := t.(*Compound).Args[0]
@@ -697,7 +697,7 @@ func (vm *VM) Retract(t Term, k func() nondet.Promise) nondet.Promise {
 			continue
 		}
 
-		ok, err := k().Force()
+		ok, err := k.Force()
 		if err != nil {
 			updated = append(updated, cs[i+1:]...)
 			ResetVariables(fvs...)
@@ -716,7 +716,7 @@ func (vm *VM) Retract(t Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // Abolish removes the procedure indicated by pi from the database.
-func (vm *VM) Abolish(pi Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Abolish(pi Term, k nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(pi).(*Variable); ok {
 		return nondet.Error(instantiationError(pi))
 	}
@@ -755,11 +755,11 @@ func (vm *VM) Abolish(pi Term, k func() nondet.Promise) nondet.Promise {
 		}))
 	}
 	delete(vm.procedures, key)
-	return nondet.Delay(k)
+	return k
 }
 
 // CurrentInput unifies stream with the current input stream.
-func (vm *VM) CurrentInput(stream Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentInput(stream Term, k nondet.Promise) nondet.Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -773,7 +773,7 @@ func (vm *VM) CurrentInput(stream Term, k func() nondet.Promise) nondet.Promise 
 }
 
 // CurrentOutput unifies stream with the current output stream.
-func (vm *VM) CurrentOutput(stream Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentOutput(stream Term, k nondet.Promise) nondet.Promise {
 	switch Resolve(stream).(type) {
 	case *Variable, *Stream:
 		break
@@ -787,7 +787,7 @@ func (vm *VM) CurrentOutput(stream Term, k func() nondet.Promise) nondet.Promise
 }
 
 // SetInput sets streamOrAlias as the current input stream.
-func (vm *VM) SetInput(streamOrAlias Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) SetInput(streamOrAlias Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -798,11 +798,11 @@ func (vm *VM) SetInput(streamOrAlias Term, k func() nondet.Promise) nondet.Promi
 	}
 
 	vm.input = s
-	return nondet.Delay(k)
+	return k
 }
 
 // SetOutput sets streamOrAlias as the current output stream.
-func (vm *VM) SetOutput(streamOrAlias Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) SetOutput(streamOrAlias Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -813,11 +813,11 @@ func (vm *VM) SetOutput(streamOrAlias Term, k func() nondet.Promise) nondet.Prom
 	}
 
 	vm.output = s
-	return nondet.Delay(k)
+	return k
 }
 
 // Open opens sourceSink in mode and unifies with stream.
-func (vm *VM) Open(sourceSink, mode, stream, options Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Open(sourceSink, mode, stream, options Term, k nondet.Promise) nondet.Promise {
 	var n Atom
 	switch s := Resolve(sourceSink).(type) {
 	case *Variable:
@@ -995,7 +995,7 @@ func (vm *VM) Open(sourceSink, mode, stream, options Term, k func() nondet.Promi
 }
 
 // Close closes a stream specified by streamOrAlias.
-func (vm *VM) Close(streamOrAlias, options Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Close(streamOrAlias, options Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1030,11 +1030,11 @@ func (vm *VM) Close(streamOrAlias, options Term, k func() nondet.Promise) nondet
 		delete(vm.streams, s.alias)
 	}
 
-	return nondet.Delay(k)
+	return k
 }
 
 // FlushOutput sends any buffered output to the stream.
-func (vm *VM) FlushOutput(streamOrAlias Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) FlushOutput(streamOrAlias Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1054,11 +1054,11 @@ func (vm *VM) FlushOutput(streamOrAlias Term, k func() nondet.Promise) nondet.Pr
 		}
 	}
 
-	return nondet.Delay(k)
+	return k
 }
 
 // WriteTerm outputs term to stream with options.
-func (vm *VM) WriteTerm(streamOrAlias, term, options Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) WriteTerm(streamOrAlias, term, options Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1103,11 +1103,11 @@ func (vm *VM) WriteTerm(streamOrAlias, term, options Term, k func() nondet.Promi
 		return nondet.Error(err)
 	}
 
-	return nondet.Delay(k)
+	return k
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
-func CharCode(char, code Term, k func() nondet.Promise) nondet.Promise {
+func CharCode(char, code Term, k nondet.Promise) nondet.Promise {
 	switch ch := Resolve(char).(type) {
 	case *Variable:
 		switch cd := Resolve(code).(type) {
@@ -1144,7 +1144,7 @@ func CharCode(char, code Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
-func (vm *VM) PutByte(streamOrAlias, byt Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) PutByte(streamOrAlias, byt Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1170,14 +1170,14 @@ func (vm *VM) PutByte(streamOrAlias, byt Term, k func() nondet.Promise) nondet.P
 			return nondet.Error(systemError(err))
 		}
 
-		return nondet.Delay(k)
+		return k
 	default:
 		return nondet.Error(typeErrorByte(byt))
 	}
 }
 
 // PutCode outputs code to the stream represented by streamOrAlias.
-func (vm *VM) PutCode(streamOrAlias, code Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) PutCode(streamOrAlias, code Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1205,14 +1205,14 @@ func (vm *VM) PutCode(streamOrAlias, code Term, k func() nondet.Promise) nondet.
 			return nondet.Error(systemError(err))
 		}
 
-		return nondet.Delay(k)
+		return k
 	default:
 		return nondet.Error(typeErrorInteger(code))
 	}
 }
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
-func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1306,7 +1306,7 @@ func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k func() nondet.Promis
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (vm *VM) GetByte(streamOrAlias, inByte Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) GetByte(streamOrAlias, inByte Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1360,7 +1360,7 @@ func (vm *VM) GetByte(streamOrAlias, inByte Term, k func() nondet.Promise) nonde
 }
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
-func (vm *VM) GetChar(streamOrAlias, char Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) GetChar(streamOrAlias, char Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1422,7 +1422,7 @@ func (vm *VM) GetChar(streamOrAlias, char Term, k func() nondet.Promise) nondet.
 }
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) PeekByte(streamOrAlias, inByte Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1480,7 +1480,7 @@ func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func() nondet.Promise) nond
 }
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
-func (vm *VM) PeekChar(streamOrAlias, char Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) PeekChar(streamOrAlias, char Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -1548,7 +1548,7 @@ func (vm *VM) PeekChar(streamOrAlias, char Term, k func() nondet.Promise) nondet
 var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
-func (vm *VM) Halt(n Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Halt(n Term, k nondet.Promise) nondet.Promise {
 	switch code := Resolve(n).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(n))
@@ -1559,14 +1559,14 @@ func (vm *VM) Halt(n Term, k func() nondet.Promise) nondet.Promise {
 
 		osExit(int(code))
 
-		return nondet.Delay(k)
+		return k
 	default:
 		return nondet.Error(typeErrorInteger(n))
 	}
 }
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
-func (vm *VM) Clause(head, body Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) Clause(head, body Term, k nondet.Promise) nondet.Promise {
 	pi, _, err := piArgs(head)
 	if err != nil {
 		return nondet.Error(err)
@@ -1597,7 +1597,7 @@ func (vm *VM) Clause(head, body Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // AtomLength counts the runes in atom and unifies the result with length.
-func AtomLength(atom, length Term, k func() nondet.Promise) nondet.Promise {
+func AtomLength(atom, length Term, k nondet.Promise) nondet.Promise {
 	switch a := Resolve(atom).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(atom))
@@ -1623,7 +1623,7 @@ func AtomLength(atom, length Term, k func() nondet.Promise) nondet.Promise {
 }
 
 // AtomConcat concatenates atom1 and atom2 and unifies it with atom3.
-func AtomConcat(atom1, atom2, atom3 Term, k func() nondet.Promise) nondet.Promise {
+func AtomConcat(atom1, atom2, atom3 Term, k nondet.Promise) nondet.Promise {
 	switch a3 := Resolve(atom3).(type) {
 	case *Variable:
 		switch a1 := Resolve(atom1).(type) {
@@ -1685,7 +1685,7 @@ func AtomConcat(atom1, atom2, atom3 Term, k func() nondet.Promise) nondet.Promis
 }
 
 // SubAtom unifies subAtom with a sub atom of atom of length which appears with before runes preceding it and after runes following it.
-func SubAtom(atom, before, length, after, subAtom Term, k func() nondet.Promise) nondet.Promise {
+func SubAtom(atom, before, length, after, subAtom Term, k nondet.Promise) nondet.Promise {
 	switch whole := Resolve(atom).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(atom))
@@ -1755,7 +1755,7 @@ func SubAtom(atom, before, length, after, subAtom Term, k func() nondet.Promise)
 
 // AtomChars breaks down atom into list of characters and unifies with chars, or constructs an atom from a list of
 // characters chars and unifies it with atom.
-func AtomChars(atom, chars Term, k func() nondet.Promise) nondet.Promise {
+func AtomChars(atom, chars Term, k nondet.Promise) nondet.Promise {
 	switch a := Resolve(atom).(type) {
 	case *Variable:
 		var sb strings.Builder
@@ -1796,7 +1796,7 @@ func AtomChars(atom, chars Term, k func() nondet.Promise) nondet.Promise {
 
 // AtomCodes breaks up atom into a list of runes and unifies it with codes, or constructs an atom from the list of runes
 // and unifies it with atom.
-func AtomCodes(atom, codes Term, k func() nondet.Promise) nondet.Promise {
+func AtomCodes(atom, codes Term, k nondet.Promise) nondet.Promise {
 	switch a := Resolve(atom).(type) {
 	case *Variable:
 		var sb strings.Builder
@@ -1834,7 +1834,7 @@ func AtomCodes(atom, codes Term, k func() nondet.Promise) nondet.Promise {
 
 // NumberChars breaks up an atom representation of a number num into a list of characters and unifies it with chars, or
 // constructs a number from a list of characters chars and unifies it with num.
-func NumberChars(num, chars Term, k func() nondet.Promise) nondet.Promise {
+func NumberChars(num, chars Term, k nondet.Promise) nondet.Promise {
 	switch n := Resolve(num).(type) {
 	case *Variable:
 		var sb strings.Builder
@@ -1895,7 +1895,7 @@ func NumberChars(num, chars Term, k func() nondet.Promise) nondet.Promise {
 
 // NumberCodes breaks up an atom representation of a number num into a list of runes and unifies it with codes, or
 // constructs a number from a list of runes codes and unifies it with num.
-func NumberCodes(num, codes Term, k func() nondet.Promise) nondet.Promise {
+func NumberCodes(num, codes Term, k nondet.Promise) nondet.Promise {
 	switch n := Resolve(num).(type) {
 	case *Variable:
 		var sb strings.Builder
@@ -1958,7 +1958,7 @@ type FunctionSet struct {
 }
 
 // Is evaluates expression and unifies the result with result.
-func (fs FunctionSet) Is(result, expression Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) Is(result, expression Term, k nondet.Promise) nondet.Promise {
 	v, err := fs.eval(expression)
 	if err != nil {
 		return nondet.Error(err)
@@ -1969,7 +1969,7 @@ func (fs FunctionSet) Is(result, expression Term, k func() nondet.Promise) nonde
 }
 
 // Equal succeeds iff lhs equals to rhs.
-func (fs FunctionSet) Equal(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) Equal(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i == j
 	}, func(f Float, g Float) bool {
@@ -1978,7 +1978,7 @@ func (fs FunctionSet) Equal(lhs, rhs Term, k func() nondet.Promise) nondet.Promi
 }
 
 // NotEqual succeeds iff lhs doesn't equal to rhs.
-func (fs FunctionSet) NotEqual(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) NotEqual(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i != j
 	}, func(f Float, g Float) bool {
@@ -1987,7 +1987,7 @@ func (fs FunctionSet) NotEqual(lhs, rhs Term, k func() nondet.Promise) nondet.Pr
 }
 
 // LessThan succeeds iff lhs is less than rhs.
-func (fs FunctionSet) LessThan(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) LessThan(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i < j
 	}, func(f Float, g Float) bool {
@@ -1996,7 +1996,7 @@ func (fs FunctionSet) LessThan(lhs, rhs Term, k func() nondet.Promise) nondet.Pr
 }
 
 // GreaterThan succeeds iff lhs is greater than rhs.
-func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) GreaterThan(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i > j
 	}, func(f Float, g Float) bool {
@@ -2005,7 +2005,7 @@ func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func() nondet.Promise) nondet
 }
 
 // LessThanOrEqual succeeds iff lhs is less than or equal to rhs.
-func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i <= j
 	}, func(f Float, g Float) bool {
@@ -2014,7 +2014,7 @@ func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func() nondet.Promise) no
 }
 
 // GreaterThanOrEqual succeeds iff lhs is greater than or equal to rhs.
-func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() nondet.Promise) nondet.Promise {
+func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k nondet.Promise) nondet.Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i >= j
 	}, func(f Float, g Float) bool {
@@ -2022,7 +2022,7 @@ func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func() nondet.Promise)
 	})
 }
 
-func (fs FunctionSet) compare(lhs, rhs Term, k func() nondet.Promise, pi func(Integer, Integer) bool, pf func(Float, Float) bool) nondet.Promise {
+func (fs FunctionSet) compare(lhs, rhs Term, k nondet.Promise, pi func(Integer, Integer) bool, pf func(Float, Float) bool) nondet.Promise {
 	l, err := fs.eval(lhs)
 	if err != nil {
 		return nondet.Error(err)
@@ -2040,12 +2040,12 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() nondet.Promise, pi func(In
 			if !pi(l, r) {
 				return nondet.Bool(false)
 			}
-			return nondet.Delay(k)
+			return k
 		case Float:
 			if !pf(Float(l), r) {
 				return nondet.Bool(false)
 			}
-			return nondet.Delay(k)
+			return k
 		default:
 			return nondet.Error(typeErrorEvaluable(r))
 		}
@@ -2055,12 +2055,12 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func() nondet.Promise, pi func(In
 			if !pf(l, Float(r)) {
 				return nondet.Bool(false)
 			}
-			return nondet.Delay(k)
+			return k
 		case Float:
 			if !pf(l, r) {
 				return nondet.Bool(false)
 			}
-			return nondet.Delay(k)
+			return k
 		default:
 			return nondet.Error(typeErrorEvaluable(r))
 		}
@@ -2283,7 +2283,7 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 }
 
 // StreamProperty succeeds iff the stream represented by streamOrAlias has the stream property property.
-func (vm *VM) StreamProperty(streamOrAlias, property Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) StreamProperty(streamOrAlias, property Term, k nondet.Promise) nondet.Promise {
 	streams := make([]*Stream, 0, len(vm.streams))
 	switch s := Resolve(streamOrAlias).(type) {
 	case *Variable:
@@ -2441,7 +2441,7 @@ func (vm *VM) StreamProperty(streamOrAlias, property Term, k func() nondet.Promi
 }
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
-func (vm *VM) SetStreamPosition(streamOrAlias, position Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) SetStreamPosition(streamOrAlias, position Term, k nondet.Promise) nondet.Promise {
 	s, err := vm.stream(streamOrAlias)
 	if err != nil {
 		return nondet.Error(err)
@@ -2464,14 +2464,14 @@ func (vm *VM) SetStreamPosition(streamOrAlias, position Term, k func() nondet.Pr
 			br.Reset(f)
 		}
 
-		return nondet.Delay(k)
+		return k
 	default:
 		return nondet.Error(typeErrorInteger(position))
 	}
 }
 
 // CharConversion registers a character conversion from inChar to outChar, or remove the conversion if inChar = outChar.
-func (vm *VM) CharConversion(inChar, outChar Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CharConversion(inChar, outChar Term, k nondet.Promise) nondet.Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(inChar))
@@ -2495,10 +2495,10 @@ func (vm *VM) CharConversion(inChar, outChar Term, k func() nondet.Promise) nond
 			}
 			if i[0] == o[0] {
 				delete(vm.charConversions, i[0])
-				return nondet.Delay(k)
+				return k
 			}
 			vm.charConversions[i[0]] = o[0]
-			return nondet.Delay(k)
+			return k
 		default:
 			return nondet.Error(representationError(Atom("character"), Atom(fmt.Sprintf("%s is not a character.", outChar))))
 		}
@@ -2508,7 +2508,7 @@ func (vm *VM) CharConversion(inChar, outChar Term, k func() nondet.Promise) nond
 }
 
 // CurrentCharConversion succeeds iff a conversion from inChar to outChar is defined.
-func (vm *VM) CurrentCharConversion(inChar, outChar Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentCharConversion(inChar, outChar Term, k nondet.Promise) nondet.Promise {
 	switch in := Resolve(inChar).(type) {
 	case *Variable:
 		break
@@ -2564,7 +2564,7 @@ func (vm *VM) CurrentCharConversion(inChar, outChar Term, k func() nondet.Promis
 }
 
 // SetPrologFlag sets flag to value.
-func (vm *VM) SetPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) SetPrologFlag(flag, value Term, k nondet.Promise) nondet.Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(flag))
@@ -2580,10 +2580,10 @@ func (vm *VM) SetPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Pr
 				switch a {
 				case "on":
 					vm.charConvEnabled = true
-					return nondet.Delay(k)
+					return k
 				case "off":
 					vm.charConvEnabled = false
-					return nondet.Delay(k)
+					return k
 				default:
 					return nondet.Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
@@ -2604,10 +2604,10 @@ func (vm *VM) SetPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Pr
 				switch a {
 				case "on":
 					vm.debug = true
-					return nondet.Delay(k)
+					return k
 				case "off":
 					vm.debug = false
-					return nondet.Delay(k)
+					return k
 				default:
 					return nondet.Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
@@ -2628,13 +2628,13 @@ func (vm *VM) SetPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Pr
 				switch a {
 				case "error":
 					vm.unknown = unknownError
-					return nondet.Delay(k)
+					return k
 				case "warning":
 					vm.unknown = unknownWarning
-					return nondet.Delay(k)
+					return k
 				case "fail":
 					vm.unknown = unknownFail
-					return nondet.Delay(k)
+					return k
 				default:
 					return nondet.Error(domainErrorFlagValue(&Compound{
 						Functor: "+",
@@ -2656,7 +2656,7 @@ func (vm *VM) SetPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Pr
 }
 
 // CurrentPrologFlag succeeds iff flag is set to value.
-func (vm *VM) CurrentPrologFlag(flag, value Term, k func() nondet.Promise) nondet.Promise {
+func (vm *VM) CurrentPrologFlag(flag, value Term, k nondet.Promise) nondet.Promise {
 	switch f := Resolve(flag).(type) {
 	case *Variable:
 		break

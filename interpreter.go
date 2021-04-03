@@ -262,7 +262,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 			return err
 		}
 
-		if _, err := i.Assertz(t, engine.Done).Force(); err != nil {
+		if _, err := i.Assertz(t, nondet.Bool(true)).Force(); err != nil {
 			return err
 		}
 	}
@@ -294,10 +294,10 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func() nondet.Promise {
+		if _, err := i.Call(t, nondet.Delay(func() nondet.Promise {
 			next <- true
 			return nondet.Bool(!<-more)
-		}).Force(); err != nil {
+		})).Force(); err != nil {
 			sols.err = err
 		}
 	}()

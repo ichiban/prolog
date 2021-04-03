@@ -13,8 +13,8 @@ func Delay(k ...func() Promise) Promise {
 }
 
 // Cut delays an execution of k while preventing other alternatives.
-func Cut(k func() Promise) Promise {
-	return Promise{delayed: []func() Promise{k}, cut: true}
+func Cut(k Promise) Promise {
+	return Promise{delayed: []func() Promise{func() Promise { return k }}, cut: true}
 }
 
 // Bool returns a promise that simply returns t, nil.
