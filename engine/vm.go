@@ -36,6 +36,7 @@ type VM struct {
 	unknown         unknownAction
 }
 
+// SetUserInput sets the given reader as a stream with an alias of user_input.
 func (vm *VM) SetUserInput(r io.Reader) {
 	const userInput = Atom("user_input")
 	if vm.streams == nil {
@@ -48,6 +49,7 @@ func (vm *VM) SetUserInput(r io.Reader) {
 	}
 }
 
+// SetUserOutput sets the given writer as a stream with an alias of user_output.
 func (vm *VM) SetUserOutput(w io.Writer) {
 	const userOutput = Atom("user_output")
 	if vm.streams == nil {
@@ -491,6 +493,7 @@ func (p predicate5) Call(e *VM, args Term, k func() nondet.Promise) nondet.Promi
 	})
 }
 
+// FreeVariables extracts variables in the given terms.
 func FreeVariables(ts ...Term) []*Variable {
 	var fvs []*Variable
 	for _, t := range ts {
@@ -519,6 +522,7 @@ func appendFreeVariables(fvs []*Variable, t Term) []*Variable {
 	return fvs
 }
 
+// ResetVariables resets the assignment of the given variables.
 func ResetVariables(vs ...*Variable) {
 	for _, v := range vs {
 		v.Ref = nil
