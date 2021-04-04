@@ -60,6 +60,12 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.BeforeHalt = append(i.BeforeHalt, restore)
+	i.OnArrive = append(i.OnArrive, func(name string, arity int, args engine.Term) {
+		logrus.WithFields(logrus.Fields{"name": name, "arity": arity, "args": i.DescribeTerm(args)}).Debug("arrive")
+	})
+	i.OnPanic = append(i.OnPanic, func(r interface{}) {
+		logrus.WithField("value", r).Error("panicked")
+	})
 	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
 			return nondet.Bool(false)

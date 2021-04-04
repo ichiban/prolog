@@ -10,7 +10,7 @@ import (
 
 func TestLexer_Next(t *testing.T) {
 	t.Run("clause", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("append(nil,L,L).")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("append(nil,L,L).")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -54,7 +54,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("p(X, Y), p(Y, X).")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("p(X, Y), p(Y, X).")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -118,7 +118,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("nil", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("[]")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("[]")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -130,7 +130,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("list", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("[a, b|c]")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("[a, b|c]")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -166,7 +166,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("comma", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,)).")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,)).")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -258,7 +258,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("single line comment", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("% comment\nfoo.")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("% comment\nfoo.")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -274,7 +274,7 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("multi line comment", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -291,7 +291,7 @@ func TestLexer_Next(t *testing.T) {
 
 	t.Run("quoted atom", func(t *testing.T) {
 		t.Run("no escape", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'abc'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'abc'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -307,7 +307,7 @@ func TestLexer_Next(t *testing.T) {
 		})
 
 		t.Run("double single quotes", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'dont''t panic'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'dont''t panic'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -324,7 +324,7 @@ func TestLexer_Next(t *testing.T) {
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'this is \
-an atom'.`)), map[rune]rune{})
+an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -340,7 +340,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("alert", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\a'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\a'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -356,7 +356,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("backspace", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\b'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\b'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -372,7 +372,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("formfeed", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\f'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\f'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -388,7 +388,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("newline", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\n'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\n'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -404,7 +404,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("return", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\r'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\r'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -420,7 +420,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\t'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\t'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -436,7 +436,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("vertical tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\v'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\v'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -452,7 +452,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("hex code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x23\'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x23\'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -468,7 +468,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("oct code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\43\'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\43\'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -484,7 +484,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("backslash", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\\'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\\'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -500,7 +500,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("single quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\''.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\''.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -516,7 +516,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("double quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\"'.`)), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\"'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -532,7 +532,7 @@ an atom'.`)), map[rune]rune{})
 		})
 
 		t.Run("backquote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("'\\`'.")), map[rune]rune{})
+			l := NewLexer(bufio.NewReader(strings.NewReader("'\\`'.")), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
@@ -549,7 +549,7 @@ an atom'.`)), map[rune]rune{})
 	})
 
 	t.Run("integer then period", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("X is 1 + 2.")), map[rune]rune{})
+		l := NewLexer(bufio.NewReader(strings.NewReader("X is 1 + 2.")), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -585,7 +585,7 @@ an atom'.`)), map[rune]rune{})
 foo(a).
 foo(b).
 foo(c).
-`)), map[rune]rune{})
+`)), nil)
 
 		token, err := l.Next()
 		assert.NoError(t, err)
@@ -668,6 +668,171 @@ foo(c).
 		token, err = l.Next()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenSeparator, Val: ")"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "."}, token)
+	})
+
+	t.Run("trailing space in args", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader(`:- op( 20, xfx, <-- ).`)), nil)
+
+		token, err := l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: ":-"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "op"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "("}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenInteger, Val: "20"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "xfx"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "<--"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ")"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "."}, token)
+	})
+
+	t.Run("elems", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader(`[V<--Ans].`)), nil)
+
+		token, err := l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "["}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "V"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "<--"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "Ans"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "]"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "."}, token)
+	})
+
+	t.Run("", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader(`del_item(Item, [It |R], R) :-
+      same_subst(Item, It), ! .`)), nil)
+
+		token, err := l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "del_item"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "("}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "Item"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "["}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "It"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "|"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "R"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "]"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "R"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ")"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: ":-"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "same_subst"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: "("}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "Item"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "It"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenSeparator, Val: ")"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenAtom, Val: "!"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)

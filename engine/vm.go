@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,11 @@ type VM struct {
 	// BeforeHalt is a hook which gets triggered right before halt/0 or halt/1.
 	BeforeHalt []func()
 
+	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
+	OnArrive []func(name string, arity int, args Term)
+
+	OnPanic []func(r interface{})
+
 	operators       Operators
 	procedures      map[procedureIndicator]procedure
 	streams         map[Term]*Stream
@@ -39,27 +45,43 @@ type VM struct {
 // SetUserInput sets the given reader as a stream with an alias of user_input.
 func (vm *VM) SetUserInput(r io.Reader) {
 	const userInput = Atom("user_input")
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[userInput] = &Stream{
+
+	s := Stream{
 		source: r,
 		mode:   streamModeRead,
 		alias:  userInput,
 	}
+
+	if vm.streams == nil {
+		vm.streams = map[Term]*Stream{}
+	}
+	vm.streams[userInput] = &s
+
+	vm.input = &s
 }
 
 // SetUserOutput sets the given writer as a stream with an alias of user_output.
 func (vm *VM) SetUserOutput(w io.Writer) {
 	const userOutput = Atom("user_output")
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[userOutput] = &Stream{
+
+	s := Stream{
 		sink:  w,
 		mode:  streamModeWrite,
 		alias: userOutput,
 	}
+
+	if vm.streams == nil {
+		vm.streams = map[Term]*Stream{}
+	}
+	vm.streams[userOutput] = &s
+
+	vm.output = &s
+}
+
+func (vm *VM) DescribeTerm(t Term) string {
+	var buf bytes.Buffer
+	_ = t.WriteTerm(&buf, WriteTermOptions{Quoted: true, Descriptive: true})
+	return buf.String()
 }
 
 // Register0 registers a predicate of arity 0.
@@ -136,6 +158,10 @@ type procedure interface {
 }
 
 func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.Promise {
+	for _, f := range vm.OnArrive {
+		f(string(pi.name), int(pi.arity), args)
+	}
+
 	p := vm.procedures[pi]
 	if p == nil {
 		switch vm.unknown {

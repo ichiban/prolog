@@ -15,6 +15,7 @@ import (
 type Parser struct {
 	lexer       *internal.Lexer
 	current     *internal.Token
+	history     []internal.Token
 	operators   *Operators
 	vars        []variableWithCount
 	placeholder Atom
@@ -83,6 +84,10 @@ func (p *Parser) accept(k internal.TokenKind, vals ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	p.history = append(p.history, *p.current)
+	if len(p.history) > 4 {
+		p.history = p.history[1:]
+	}
 	p.current = nil
 	return v, nil
 }
@@ -133,6 +138,7 @@ func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 			ExpectedKind: k,
 			ExpectedVals: vals,
 			Actual:       *p.current,
+			History:      p.history,
 		}
 	}
 
@@ -375,8 +381,9 @@ type unexpectedToken struct {
 	ExpectedKind internal.TokenKind
 	ExpectedVals []string
 	Actual       internal.Token
+	History      []internal.Token
 }
 
 func (e *unexpectedToken) Error() string {
-	return fmt.Sprintf("expected: <%s %s>, actual: %s", e.ExpectedKind, e.ExpectedVals, e.Actual)
+	return fmt.Sprintf("expected: <%s %s>, actual: %s, history: %s", e.ExpectedKind, e.ExpectedVals, e.Actual, e.History)
 }

@@ -2717,3 +2717,40 @@ func (vm *VM) stream(streamOrAlias Term) (*Stream, error) {
 		return nil, domainErrorStreamOrAlias(streamOrAlias)
 	}
 }
+
+func (vm *VM) Dynamic(pi Term, k nondet.Promise) nondet.Promise {
+	switch p := Resolve(pi).(type) {
+	case *Variable:
+		return nondet.Error(instantiationError(pi))
+	case *Compound:
+		if p.Functor != "/" || len(p.Args) != 2 {
+			return nondet.Error(typeErrorPredicateIndicator(pi))
+		}
+		switch f := Resolve(p.Args[0]).(type) {
+		case *Variable:
+			return nondet.Error(instantiationError(pi))
+		case Atom:
+			switch a := Resolve(p.Args[1]).(type) {
+			case *Variable:
+				return nondet.Error(instantiationError(pi))
+			case Integer:
+				pi := procedureIndicator{name: f, arity: a}
+				p, ok := vm.procedures[pi]
+				if !ok {
+					vm.procedures[pi] = clauses{}
+					return k
+				}
+				if _, ok := p.(clauses); !ok {
+					return nondet.Bool(false)
+				}
+				return k
+			default:
+				return nondet.Error(typeErrorPredicateIndicator(pi))
+			}
+		default:
+			return nondet.Error(typeErrorPredicateIndicator(pi))
+		}
+	default:
+		return nondet.Error(typeErrorPredicateIndicator(pi))
+	}
+}

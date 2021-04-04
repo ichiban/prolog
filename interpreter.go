@@ -84,6 +84,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("current_char_conversion", i.CurrentCharConversion)
 	i.Register2("set_prolog_flag", i.SetPrologFlag)
 	i.Register2("current_prolog_flag", i.CurrentPrologFlag)
+	i.Register1("dynamic", i.Dynamic)
 	if err := i.Exec(`
 /*
  *  bootstrap script
@@ -290,6 +291,14 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 	go func() {
 		defer close(next)
+
+		defer func() {
+			if r := recover(); r != nil {
+				for _, f := range i.VM.OnPanic {
+					f(r)
+				}
+			}
+		}()
 
 		if !<-more {
 			return

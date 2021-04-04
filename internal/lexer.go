@@ -42,7 +42,7 @@ func (l *Lexer) Next() (Token, error) {
 		return t, nil
 	}
 
-	return Token{}, nil
+	return Token{Kind: TokenEOS}, nil
 }
 
 const etx = '\u0002'
@@ -134,8 +134,10 @@ type lexState func(rune) lexState
 
 func (l *Lexer) program(r rune) lexState {
 	r = l.conv(r)
-	switch r {
-	case '.':
+	switch {
+	case unicode.IsSpace(r):
+		return l.program
+	case r == '.':
 		l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 		return l.program
 	default:
@@ -198,8 +200,10 @@ func (l *Lexer) term(ctx lexState) lexState {
 func (l *Lexer) paren(ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
-		switch r {
-		case ')':
+		switch {
+		case unicode.IsSpace(r):
+			return l.paren(ctx)
+		case r == ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return ctx
 		default:
@@ -212,11 +216,13 @@ func (l *Lexer) paren(ctx lexState) lexState {
 func (l *Lexer) args(ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
-		switch r {
-		case ')':
+		switch {
+		case unicode.IsSpace(r):
+			return l.args(ctx)
+		case r == ')':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return ctx
-		case ',':
+		case r == ',':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.args(ctx))
 		default:
@@ -229,17 +235,20 @@ func (l *Lexer) args(ctx lexState) lexState {
 func (l *Lexer) elems(ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
-		switch r {
-		case ']':
+		switch {
+		case unicode.IsSpace(r):
+			return l.elems(ctx)
+		case r == ']':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return ctx
-		case ',':
+		case r == ',':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.elems(ctx))
-		case '|':
+		case r == '|':
 			l.emit(Token{Kind: TokenSeparator, Val: string(r)})
 			return l.term(l.elems(ctx))
 		default:
+			l.backup()
 			return l.term(l.elems(ctx))
 		}
 	}
@@ -495,8 +504,10 @@ func (l *Lexer) graphic(b *strings.Builder, ctx lexState) lexState {
 func (l *Lexer) list(ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
-		switch r {
-		case ']':
+		switch {
+		case unicode.IsSpace(r):
+			return l.list(ctx)
+		case r == ']':
 			l.emit(Token{Kind: TokenAtom, Val: "[]"})
 			return ctx
 		default:

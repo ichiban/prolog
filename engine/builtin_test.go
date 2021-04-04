@@ -3346,7 +3346,7 @@ foo(c).
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
 		var vm VM
 		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("X = a."))}, &Variable{}, List(), nondet.Bool(true)).Force()
-		assert.Equal(t, syntaxErrorInvalidToken(Atom("expected: <separator [.]>, actual: <atom =>")), err)
+		assert.Equal(t, syntaxErrorInvalidToken(Atom("expected: <separator [.]>, actual: <atom =>, history: [<variable X>]")), err)
 		assert.False(t, ok)
 	})
 }
