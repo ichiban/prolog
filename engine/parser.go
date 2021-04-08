@@ -7,6 +7,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ichiban/prolog/internal"
 )
@@ -283,8 +284,17 @@ func (p *Parser) lhs() (Term, error) {
 	}
 
 	if i, err := p.accept(internal.TokenInteger); err == nil {
-		n, _ := strconv.Atoi(i)
-		return Integer(n), nil
+		switch {
+		case strings.HasPrefix(i, "0'"):
+			return Integer([]rune(i)[2]), nil
+		case strings.HasPrefix(i, "+0'"):
+			return Integer([]rune(i)[3]), nil
+		case strings.HasPrefix(i, "-0'"):
+			return Integer(-1 * int64([]rune(i)[3])), nil
+		default:
+			n, _ := strconv.ParseInt(i, 0, 64)
+			return Integer(n), nil
+		}
 	}
 
 	if v, err := p.accept(internal.TokenVariable); err == nil {

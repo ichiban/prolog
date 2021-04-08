@@ -165,14 +165,26 @@ func (l *Lexer) term(ctx lexState) lexState {
 		case r == '\'':
 			var b strings.Builder
 			return l.quotedAtom(&b, ctx)
+		case r == '+' || r == '-':
+			var b strings.Builder
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.sign(&b, ctx)
 		case isGraphic(r):
 			l.backup()
 			var b strings.Builder
 			return l.graphic(&b, ctx)
+		case r == '0':
+			var b strings.Builder
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerZero(&b, ctx)
 		case unicode.IsNumber(r):
 			l.backup()
 			var b strings.Builder
-			return l.integer(&b, ctx)
+			return l.integerDecimal(&b, ctx)
 		case unicode.IsUpper(r), r == '_':
 			l.backup()
 			var b strings.Builder
@@ -405,29 +417,7 @@ func (l *Lexer) quotedAtomSlashCode(b *strings.Builder, ctx lexState, base int, 
 	}
 }
 
-func (l *Lexer) decimal(b *strings.Builder, ctx lexState) lexState {
-	return func(r rune) lexState {
-		r = l.conv(r)
-		switch {
-		case unicode.IsNumber(r):
-			if _, err := b.WriteRune('.'); err != nil {
-				return nil
-			}
-			if _, err := b.WriteRune(r); err != nil {
-				return nil
-			}
-			return l.float(b, ctx)
-		default:
-			s := b.String()
-			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: s})
-			l.emit(Token{Kind: TokenSeparator, Val: "."})
-			return ctx
-		}
-	}
-}
-
-func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
+func (l *Lexer) floatMantissa(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
 		switch {
@@ -435,7 +425,12 @@ func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
 			if _, err := b.WriteRune(r); err != nil {
 				return nil
 			}
-			return l.float(b, ctx)
+			return l.floatMantissa(b, ctx)
+		case r == 'E' || r == 'e':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.floatE(b, ctx)
 		default:
 			l.backup()
 			l.emit(Token{Kind: TokenFloat, Val: b.String()})
@@ -444,7 +439,22 @@ func (l *Lexer) float(b *strings.Builder, ctx lexState) lexState {
 	}
 }
 
-func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
+func (l *Lexer) floatE(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch {
+		case unicode.IsNumber(r), r == '+', r == '-':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.floatExponent(b, ctx)
+		default:
+			return nil
+		}
+	}
+}
+
+func (l *Lexer) floatExponent(b *strings.Builder, ctx lexState) lexState {
 	return func(r rune) lexState {
 		r = l.conv(r)
 		switch {
@@ -452,13 +462,218 @@ func (l *Lexer) integer(b *strings.Builder, ctx lexState) lexState {
 			if _, err := b.WriteRune(r); err != nil {
 				return nil
 			}
-			return l.integer(b, ctx)
-		case r == '.':
-			return l.decimal(b, ctx)
+			return l.floatExponent(b, ctx)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenFloat, Val: b.String()})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerZero(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch r {
+		case 'o':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerOctal(b, ctx)
+		case 'x':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerHex(b, ctx)
+		case 'b':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerBinary(b, ctx)
+		case '\'':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerChar(b, ctx)
+		default:
+			l.backup()
+			return l.integerDecimal(b, ctx)
+		}
+	}
+}
+
+func (l *Lexer) integerOctal(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch r {
+		case '0', '1', '2', '3', '4', '5', '6', '7':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerOctal(b, ctx)
 		default:
 			l.backup()
 			l.emit(Token{Kind: TokenInteger, Val: b.String()})
 			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerHex(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch unicode.ToUpper(r) {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerHex(b, ctx)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerBinary(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch r {
+		case '0', '1':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerBinary(b, ctx)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerChar(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch r {
+		case '\\':
+			return l.integerCharEscape(b, ctx)
+		default:
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerCharEscape(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch r {
+		case 'a':
+			if _, err := b.WriteRune('\a'); err != nil {
+				return nil
+			}
+		case 'b':
+			if _, err := b.WriteRune('\b'); err != nil {
+				return nil
+			}
+		case 'f':
+			if _, err := b.WriteRune('\f'); err != nil {
+				return nil
+			}
+		case 'n':
+			if _, err := b.WriteRune('\n'); err != nil {
+				return nil
+			}
+		case 'r':
+			if _, err := b.WriteRune('\r'); err != nil {
+				return nil
+			}
+		case 't':
+			if _, err := b.WriteRune('\t'); err != nil {
+				return nil
+			}
+		case 'v':
+			if _, err := b.WriteRune('\v'); err != nil {
+				return nil
+			}
+		case '\\':
+			if _, err := b.WriteRune('\\'); err != nil {
+				return nil
+			}
+		case '\'':
+			if _, err := b.WriteRune('\''); err != nil {
+				return nil
+			}
+		default:
+			return nil
+		}
+		l.emit(Token{Kind: TokenInteger, Val: b.String()})
+		return ctx
+	}
+}
+
+func (l *Lexer) integerDecimal(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch {
+		case unicode.IsNumber(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerDecimal(b, ctx)
+		case r == '.':
+			return l.integerDot(b, ctx)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) integerDot(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch {
+		case unicode.IsDigit(r):
+			if _, err := b.WriteRune('.'); err != nil {
+				return nil
+			}
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.floatMantissa(b, ctx)
+		default:
+			l.emit(Token{Kind: TokenInteger, Val: b.String()})
+			l.emit(Token{Kind: TokenSeparator, Val: "."})
+			l.backup()
+			return ctx
+		}
+	}
+}
+
+func (l *Lexer) sign(b *strings.Builder, ctx lexState) lexState {
+	return func(r rune) lexState {
+		r = l.conv(r)
+		switch {
+		case r == '0':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerZero(b, ctx)
+		case unicode.IsDigit(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil
+			}
+			return l.integerDecimal(b, ctx)
+		default:
+			l.backup()
+			return l.graphic(b, ctx)
 		}
 	}
 }

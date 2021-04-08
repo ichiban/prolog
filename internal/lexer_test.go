@@ -548,6 +548,265 @@ an atom'.`)), nil)
 		})
 	})
 
+	t.Run("integer", func(t *testing.T) {
+		t.Run("decimal", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`012345`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "012345"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+012345`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "+012345"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-012345`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "-012345"}, token)
+			})
+		})
+
+		t.Run("octal", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`0o567`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+0o567`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "+0o567"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-0o567`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "-0o567"}, token)
+			})
+		})
+
+		t.Run("hexadecimal", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`0x89ABC`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+0x89ABC`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "+0x89ABC"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-0x89ABC`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "-0x89ABC"}, token)
+			})
+		})
+
+		t.Run("binary", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`0b10110101`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+0b10110101`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "+0b10110101"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-0b10110101`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "-0b10110101"}, token)
+			})
+		})
+
+		t.Run("character", func(t *testing.T) {
+			t.Run("normal", func(t *testing.T) {
+				t.Run("no sign", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'a`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'a"}, token)
+				})
+
+				t.Run("plus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`+0'a`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "+0'a"}, token)
+				})
+
+				t.Run("minus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`-0'a`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "-0'a"}, token)
+				})
+			})
+
+			t.Run("quote", func(t *testing.T) {
+				t.Run("no sign", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0''`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "0''"}, token)
+				})
+
+				t.Run("plus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`+0''`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "+0''"}, token)
+				})
+
+				t.Run("minus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`-0''`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "-0''"}, token)
+				})
+			})
+
+			t.Run("escape sequence", func(t *testing.T) {
+				t.Run("no sign", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\n`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
+				})
+
+				t.Run("plus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`+0'\n`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "+0'\n"}, token)
+				})
+
+				t.Run("minus", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`-0'\n`)), nil)
+					token, err := l.Next()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInteger, Val: "-0'\n"}, token)
+				})
+			})
+		})
+	})
+
+	t.Run("float", func(t *testing.T) {
+		t.Run("without e", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "+2.34"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "-2.34"}, token)
+			})
+		})
+
+		t.Run("with e and no sign", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E5"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "+2.34E5"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "-2.34E5"}, token)
+			})
+		})
+
+		t.Run("with e and plus", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E+5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E+5"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E+5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "+2.34E+5"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E+5`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "-2.34E+5"}, token)
+			})
+		})
+
+		t.Run("with e and minus", func(t *testing.T) {
+			t.Run("no sign", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E-10`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E-10"}, token)
+			})
+
+			t.Run("plus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E-10`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "+2.34E-10"}, token)
+			})
+
+			t.Run("minus", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E-10`)), nil)
+				token, err := l.Next()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenFloat, Val: "-2.34E-10"}, token)
+			})
+		})
+	})
+
 	t.Run("integer then period", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("X is 1 + 2.")), nil)
 
