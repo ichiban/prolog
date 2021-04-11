@@ -59,7 +59,7 @@ func main() {
 	logrus.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.BeforeHalt = append(i.BeforeHalt, restore)
+	i.OnHalt = append(i.OnHalt, restore)
 	i.OnArrive = append(i.OnArrive, func(name string, arity int, args engine.Term) {
 		logrus.WithFields(logrus.Fields{"name": name, "arity": arity, "args": i.DescribeTerm(args)}).Debug("arrive")
 	})

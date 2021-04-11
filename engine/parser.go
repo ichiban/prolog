@@ -93,7 +93,18 @@ func (p *Parser) accept(k internal.TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
-func (p *Parser) acceptOp(min int) (*Operator, error) {
+func (p *Parser) acceptOp(min int, allowComma, allowPeriod bool) (*Operator, error) {
+	if !allowComma {
+		if _, err := p.expect(internal.TokenComma); err == nil {
+			return nil, errors.New("no match")
+		}
+	}
+	if !allowPeriod {
+		if _, err := p.expect(internal.TokenPeriod); err == nil {
+			return nil, errors.New("no match")
+		}
+	}
+
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l < min {
@@ -127,7 +138,7 @@ func (p *Parser) acceptPrefix() (*Operator, error) {
 
 func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
-		t, err := p.lexer.Next()
+		t, err := p.lexer.Next(k)
 		if err != nil {
 			return "", err
 		}
@@ -161,7 +172,7 @@ func (p *Parser) expect(k internal.TokenKind, vals ...string) (string, error) {
 
 // Term parses a term followed by a full stop.
 func (p *Parser) Term() (Term, error) {
-	if _, err := p.expect(internal.TokenEOS); err == nil {
+	if _, err := p.accept(internal.TokenEOS); err == nil {
 		return nil, io.EOF
 	}
 
@@ -171,113 +182,24 @@ func (p *Parser) Term() (Term, error) {
 	}
 	p.vars = p.vars[:0]
 
-	t, err := p.expr(1)
+	t, err := p.expr(1, true, false)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = p.accept(internal.TokenSeparator, ".")
-	switch e := err.(type) {
-	case nil:
-		if len(p.args) != 0 {
-			return nil, systemError(fmt.Errorf("too many arguments for placeholders: %s", p.args))
-		}
-		return t, nil
-	case *unexpectedToken:
-		if e.Actual.Kind == internal.TokenEOS {
-			return nil, syntaxErrorInsufficient()
-		}
-		return nil, syntaxErrorInvalidToken(Atom(e.Error()))
-	default:
-		return nil, systemError(err)
-	}
-}
-
-// based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(min int) (Term, error) {
-	lhs, err := p.lhs()
-	if err != nil {
+	if _, err := p.accept(internal.TokenPeriod); err != nil {
 		return nil, err
 	}
 
-	for {
-		op, err := p.acceptOp(min)
-		if err != nil {
-			break
-		}
-
-		_, r := op.bindingPowers()
-		rhs, err := p.expr(r)
-		if err != nil {
-			return nil, err
-		}
-
-		lhs = &Compound{
-			Functor: op.Name,
-			Args:    []Term{lhs, rhs},
-		}
+	if len(p.args) != 0 {
+		return nil, fmt.Errorf("too many arguments for placeholders: %s", p.args)
 	}
 
-	return lhs, nil
+	return t, nil
 }
 
-func (p *Parser) lhs() (Term, error) {
-	if _, err := p.accept(internal.TokenSeparator, "("); err == nil {
-		lhs, err := p.expr(1)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := p.accept(internal.TokenSeparator, ")"); err != nil {
-			return nil, err
-		}
-
-		return lhs, nil
-	}
-
-	if _, err := p.accept(internal.TokenSeparator, "["); err == nil {
-		var es []Term
-		for {
-			e, err := p.expr(1)
-			if err != nil {
-				return nil, err
-			}
-			es = append(es, e)
-
-			s, err := p.accept(internal.TokenSeparator, ",", "|", "]")
-			if err != nil {
-				return nil, err
-			}
-			switch s {
-			case "|":
-				rest, err := p.expr(1)
-				if err != nil {
-					return nil, err
-				}
-
-				if _, err := p.accept(internal.TokenSeparator, "]"); err != nil {
-					return nil, err
-				}
-
-				return ListRest(rest, es...), nil
-			case "]":
-				return List(es...), nil
-			}
-		}
-	}
-
-	if op, err := p.acceptPrefix(); err == nil {
-		_, r := op.bindingPowers()
-		rhs, err := p.expr(r)
-		if err != nil {
-			return nil, err
-		}
-		return &Compound{
-			Functor: op.Name,
-			Args:    []Term{rhs},
-		}, nil
-	}
-
+// Number parses a number term.
+func (p *Parser) Number() (Term, error) {
 	if f, err := p.accept(internal.TokenFloat); err == nil {
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
@@ -297,6 +219,67 @@ func (p *Parser) lhs() (Term, error) {
 		}
 	}
 
+	return nil, syntaxErrorNotANumber()
+}
+
+// based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
+func (p *Parser) expr(min int, allowComma, allowPeriod bool) (Term, error) {
+	lhs, err := p.lhs(allowComma, allowPeriod)
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		op, err := p.acceptOp(min, allowComma, allowPeriod)
+		if err != nil {
+			break
+		}
+
+		_, r := op.bindingPowers()
+		rhs, err := p.expr(r, allowComma, allowPeriod)
+		if err != nil {
+			return nil, err
+		}
+
+		lhs = &Compound{
+			Functor: op.Name,
+			Args:    []Term{lhs, rhs},
+		}
+	}
+
+	return lhs, nil
+}
+
+func (p *Parser) lhs(allowComma, allowPeriod bool) (Term, error) {
+	if _, err := p.accept(internal.TokenParenL); err == nil {
+		lhs, err := p.expr(1, true, true)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.accept(internal.TokenParenR); err != nil {
+			return nil, err
+		}
+
+		return lhs, nil
+	}
+
+	if t, err := p.Number(); err == nil {
+		return t, nil
+	}
+
+	if op, err := p.acceptPrefix(); err == nil {
+		_, r := op.bindingPowers()
+		rhs, err := p.expr(r, allowComma, allowPeriod)
+		if err != nil {
+			return nil, err
+		}
+		return &Compound{
+			Functor: op.Name,
+			Args:    []Term{rhs},
+		}, nil
+	}
+
 	if v, err := p.accept(internal.TokenVariable); err == nil {
 		if v == "_" {
 			return &Variable{}, nil
@@ -312,41 +295,83 @@ func (p *Parser) lhs() (Term, error) {
 		return n, nil
 	}
 
-	a, err := p.accept(internal.TokenAtom)
-	if err != nil {
-		return nil, err
+	if !allowComma {
+		if _, err := p.expect(internal.TokenComma); err == nil {
+			return nil, errors.New("no match")
+		}
+	}
+	if !allowPeriod {
+		if _, err := p.expect(internal.TokenPeriod); err == nil {
+			return nil, errors.New("no match")
+		}
 	}
 
-	if _, err := p.accept(internal.TokenSeparator, "("); err != nil {
-		if p.placeholder != "" && p.placeholder == Atom(a) {
-			if len(p.args) == 0 {
-				return nil, errors.New("not enough arguments for placeholders")
+	if a, err := p.accept(internal.TokenAtom); err == nil {
+		if _, err := p.accept(internal.TokenParenL); err != nil {
+			if p.placeholder != "" && p.placeholder == Atom(a) {
+				if len(p.args) == 0 {
+					return nil, errors.New("not enough arguments for placeholders")
+				}
+				var t Term
+				t, p.args = p.args[0], p.args[1:]
+				return t, nil
 			}
-			var t Term
-			t, p.args = p.args[0], p.args[1:]
-			return t, nil
+			return Atom(a), nil
 		}
-		return Atom(a), nil
+
+		var args []Term
+		for {
+			t, err := p.expr(1, false, allowPeriod)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, t)
+
+			if _, err := p.accept(internal.TokenParenR); err == nil {
+				break
+			}
+
+			if _, err := p.accept(internal.TokenComma); err != nil {
+				return nil, fmt.Errorf("lhs: %w", err)
+			}
+		}
+
+		return &Compound{Functor: Atom(a), Args: args}, nil
 	}
 
-	var args []Term
-	for {
-		t, err := p.expr(1)
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, t)
+	if _, err := p.accept(internal.TokenBracketL); err == nil {
+		var es []Term
+		for {
+			e, err := p.expr(1, false, true)
+			if err != nil {
+				return nil, err
+			}
+			es = append(es, e)
 
-		sep, err := p.accept(internal.TokenSeparator, ",", ")")
-		if err != nil {
-			return nil, fmt.Errorf("lhs: %w", err)
-		}
-		if sep == ")" {
-			break
+			if _, err := p.accept(internal.TokenBar); err == nil {
+				rest, err := p.expr(1, false, true)
+				if err != nil {
+					return nil, err
+				}
+
+				if _, err := p.accept(internal.TokenBracketR); err != nil {
+					return nil, err
+				}
+
+				return ListRest(rest, es...), nil
+			}
+
+			if _, err := p.accept(internal.TokenBracketR); err == nil {
+				return List(es...), nil
+			}
+
+			if _, err := p.accept(internal.TokenComma); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return &Compound{Functor: Atom(a), Args: args}, nil
+	return nil, fmt.Errorf("failed to parse: %v", p)
 }
 
 // More checks if the parser has more tokens to read.

@@ -3338,15 +3338,15 @@ foo(c).
 
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
 		var vm VM
-		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("fo"))}, &Variable{}, List(), nondet.Bool(true)).Force()
-		assert.Equal(t, syntaxErrorInsufficient(), err)
+		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("foo bar baz."))}, &Variable{}, List(), nondet.Bool(true)).Force()
+		assert.Equal(t, syntaxErrorUnexpectedChar(Atom("unexpected char: b")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
 		var vm VM
 		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("X = a."))}, &Variable{}, List(), nondet.Bool(true)).Force()
-		assert.Equal(t, syntaxErrorInvalidToken(Atom("expected: <separator [.]>, actual: <atom =>, history: [<variable X>]")), err)
+		assert.Equal(t, syntaxErrorUnexpectedChar(Atom("unexpected char: =")), err)
 		assert.False(t, ok)
 	})
 }
@@ -3908,7 +3908,7 @@ func TestVM_Halt(t *testing.T) {
 
 		var callbackCalled bool
 		vm := VM{
-			BeforeHalt: []func(){
+			OnHalt: []func(){
 				func() {
 					callbackCalled = true
 				},
@@ -4422,7 +4422,7 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("chars is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		ok, err := NumberChars(&Variable{}, List(Atom("f"), Atom("o"), Atom("o")), nondet.Bool(true)).Force()
-		assert.Equal(t, syntaxErrorNotANumber(Atom("foo")), err)
+		assert.Equal(t, syntaxErrorNotANumber(), err)
 		assert.False(t, ok)
 	})
 }
@@ -4484,7 +4484,7 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("codes is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		ok, err := NumberCodes(&Variable{}, List(Integer(102), Integer(111), Integer(111)), nondet.Bool(true)).Force()
-		assert.Equal(t, syntaxErrorNotANumber(Atom("foo")), err)
+		assert.Equal(t, syntaxErrorNotANumber(), err)
 		assert.False(t, ok)
 	})
 }

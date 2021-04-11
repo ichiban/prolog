@@ -13,6 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/ichiban/prolog/internal"
+
 	"github.com/ichiban/prolog/nondet"
 )
 
@@ -1255,54 +1257,60 @@ func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k nondet.Promise) nond
 
 	p := NewParser(vm, br)
 	t, err := p.Term()
-	switch err {
-	case nil:
-		var singletons, variables, variableNames []Term
-		for _, vc := range p.vars {
-			if vc.Count == 1 {
-				singletons = append(singletons, vc.variable)
+	if err != nil {
+		switch {
+		case errors.Is(err, io.EOF):
+			switch s.eofAction {
+			case eofActionError:
+				return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+			case eofActionEOFCode:
+				return nondet.Delay(func() nondet.Promise {
+					return Unify(term, Atom("end_of_file"), k)
+				})
+			case eofActionReset:
+				return nondet.Delay(func() nondet.Promise {
+					return vm.ReadTerm(streamOrAlias, term, options, k)
+				})
+			default:
+				return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 			}
-			variables = append(variables, vc.variable)
-			variableNames = append(variableNames, &Compound{
-				Functor: "=",
-				Args:    []Term{Atom(vc.variable.Name), vc.variable},
-			})
-			vc.variable.Name = ""
-		}
-
-		if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
-			return nondet.Bool(false)
-		}
-
-		if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
-			return nondet.Bool(false)
-		}
-
-		if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
-			return nondet.Bool(false)
-		}
-
-		return nondet.Delay(func() nondet.Promise {
-			return Unify(term, t, k)
-		})
-	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case eofActionEOFCode:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(term, Atom("end_of_file"), k)
-			})
-		case eofActionReset:
-			return nondet.Delay(func() nondet.Promise {
-				return vm.ReadTerm(streamOrAlias, term, options, k)
-			})
+		case errors.Is(err, internal.ErrInsufficient):
+			return nondet.Error(syntaxErrorInsufficient())
+		case errors.As(err, &internal.UnexpectedRuneError{}):
+			return nondet.Error(syntaxErrorUnexpectedChar(Atom(err.Error())))
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+			return nondet.Error(systemError(err))
 		}
-	default:
-		return nondet.Error(err)
 	}
+
+	var singletons, variables, variableNames []Term
+	for _, vc := range p.vars {
+		if vc.Count == 1 {
+			singletons = append(singletons, vc.variable)
+		}
+		variables = append(variables, vc.variable)
+		variableNames = append(variableNames, &Compound{
+			Functor: "=",
+			Args:    []Term{Atom(vc.variable.Name), vc.variable},
+		})
+		vc.variable.Name = ""
+	}
+
+	if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
+		return nondet.Bool(false)
+	}
+
+	if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
+		return nondet.Bool(false)
+	}
+
+	if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
+		return nondet.Bool(false)
+	}
+
+	return nondet.Delay(func() nondet.Promise {
+		return Unify(term, t, k)
+	})
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
@@ -1553,7 +1561,7 @@ func (vm *VM) Halt(n Term, k nondet.Promise) nondet.Promise {
 	case *Variable:
 		return nondet.Error(instantiationError(n))
 	case Integer:
-		for _, f := range vm.BeforeHalt {
+		for _, f := range vm.OnHalt {
 			f()
 		}
 
@@ -1857,24 +1865,15 @@ func NumberChars(num, chars Term, k nondet.Promise) nondet.Promise {
 			return nondet.Error(err)
 		}
 
-		if _, err := sb.WriteRune('.'); err != nil {
-			return nondet.Error(systemError(err))
-		}
-
 		var vm VM
 		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
-		t, err := p.Term()
+		t, err := p.Number()
 		if err != nil {
 			return nondet.Error(err)
 		}
-		switch t.(type) {
-		case Float, Integer:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(num, t, k)
-			})
-		default:
-			return nondet.Error(syntaxErrorNotANumber(t))
-		}
+		return nondet.Delay(func() nondet.Promise {
+			return Unify(num, t, k)
+		})
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
@@ -1915,24 +1914,15 @@ func NumberCodes(num, codes Term, k nondet.Promise) nondet.Promise {
 			return nondet.Error(err)
 		}
 
-		if _, err := sb.WriteRune('.'); err != nil {
-			return nondet.Error(systemError(err))
-		}
-
 		var vm VM
 		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
-		t, err := p.Term()
+		t, err := p.Number()
 		if err != nil {
 			return nondet.Error(err)
 		}
-		switch t.(type) {
-		case Float, Integer:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(num, t, k)
-			})
-		default:
-			return nondet.Error(syntaxErrorNotANumber(t))
-		}
+		return nondet.Delay(func() nondet.Promise {
+			return Unify(num, t, k)
+		})
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {

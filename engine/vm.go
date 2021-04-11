@@ -24,8 +24,8 @@ const (
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
-	// BeforeHalt is a hook which gets triggered right before halt/0 or halt/1.
-	BeforeHalt []func()
+	// OnHalt is a hook which gets triggered right before halt/0 or halt/1.
+	OnHalt []func()
 
 	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
 	OnArrive []func(name string, arity int, args Term)
