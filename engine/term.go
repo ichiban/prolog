@@ -592,6 +592,10 @@ func (s *Stream) String() string {
 
 // WriteTerm writes the stream into w.
 func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+	if s.alias != "" {
+		_, err := fmt.Fprintf(w, "<stream>(%s)", s.alias)
+		return err
+	}
 	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
 	return err
 }
@@ -623,7 +627,7 @@ type WriteTermOptions struct {
 
 var defaultWriteTermOptions = WriteTermOptions{
 	Quoted: true,
-	Ops: []Operator{
+	Ops: Operators{
 		{Priority: 400, Specifier: "yfx", Name: "/"}, // for principal functors
 	},
 	NumberVars: false,

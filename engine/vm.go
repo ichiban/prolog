@@ -80,7 +80,11 @@ func (vm *VM) SetUserOutput(w io.Writer) {
 
 func (vm *VM) DescribeTerm(t Term) string {
 	var buf bytes.Buffer
-	_ = t.WriteTerm(&buf, WriteTermOptions{Quoted: true, Descriptive: true})
+	_ = t.WriteTerm(&buf, WriteTermOptions{
+		Quoted:      true,
+		Ops:         vm.operators,
+		Descriptive: true,
+	})
 	return buf.String()
 }
 
