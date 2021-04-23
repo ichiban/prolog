@@ -28,9 +28,16 @@ type VM struct {
 	OnHalt []func()
 
 	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
-	OnArrive []func(name string, arity int, args Term)
+	OnArrive []func(goal Term)
+
+	OnExec func(op string, arg Term)
 
 	OnPanic []func(r interface{})
+
+	OnCall func(pi string, args Term)
+	OnExit func(pi string, args Term)
+	OnFail func(pi string, args Term)
+	OnRedo func(pi string, args Term)
 
 	operators       Operators
 	procedures      map[procedureIndicator]procedure
@@ -163,7 +170,19 @@ type procedure interface {
 
 func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.Promise {
 	for _, f := range vm.OnArrive {
-		f(string(pi.name), int(pi.arity), args)
+		var as []Term
+		Each(args, func(elem Term) error {
+			as = append(as, elem)
+			return nil
+		})
+		if len(as) == 0 {
+			f(pi.name)
+		} else {
+			f(&Compound{
+				Functor: pi.name,
+				Args:    as,
+			})
+		}
 	}
 
 	p := vm.procedures[pi]
@@ -190,12 +209,17 @@ func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.
 }
 
 func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, args, astack Term) nondet.Promise {
+	if vm.OnExec == nil {
+		vm.OnExec = func(op string, arg Term) {}
+	}
 	for len(pc) != 0 {
 		switch pc[0] {
 		case opVoid:
+			vm.OnExec("void", nil)
 			pc = pc[1:]
 		case opConst:
 			x := xr[pc[1]]
+			vm.OnExec("const", x)
 			var arest Variable
 			cons := Compound{
 				Functor: ".",
@@ -208,6 +232,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &arest
 		case opVar:
 			v := vars[pc[1]]
+			vm.OnExec("var", v)
 			var arest Variable
 			cons := Compound{
 				Functor: ".",
@@ -220,6 +245,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &arest
 		case opFunctor:
 			x := xr[pc[1]]
+			vm.OnExec("functor", x)
 			var arg, arest Variable
 			cons1 := Compound{
 				Functor: ".",
@@ -254,6 +280,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
+			vm.OnExec("pop", nil)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
@@ -269,6 +296,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &a
 			astack = &arest
 		case opEnter:
+			vm.OnExec("enter", nil)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
@@ -281,16 +309,17 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			astack = &v
 		case opCall:
 			x := xr[pc[1]]
+			vm.OnExec("call", x)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
 			pc = pc[2:]
-			pf, ok := x.(procedureIndicator)
+			pi, ok := x.(procedureIndicator)
 			if !ok {
 				return nondet.Error(errors.New("not a principal functor"))
 			}
 			return nondet.Delay(func() nondet.Promise {
-				return vm.arrive(pf, astack, nondet.Delay(func() nondet.Promise {
+				return vm.arrive(pi, astack, nondet.Delay(func() nondet.Promise {
 					var v Variable
 					return nondet.Delay(func() nondet.Promise {
 						return vm.exec(pc, xr, vars, k, &v, &v)
@@ -298,6 +327,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				}))
 			})
 		case opExit:
+			vm.OnExec("exit", nil)
 			return k
 		default:
 			return nondet.Error(fmt.Errorf("unknown(%d)", pc[0]))
@@ -308,29 +338,58 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 
 type clauses []clause
 
-func (cs clauses) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
+func (cs clauses) Call(vm *VM, args Term, k nondet.Promise) nondet.Promise {
 	if len(cs) == 0 {
 		return nondet.Bool(false)
 	}
 
+	if vm.OnCall == nil {
+		vm.OnCall = func(pi string, args Term) {}
+	}
+	if vm.OnExit == nil {
+		vm.OnExit = func(pi string, args Term) {}
+	}
+	if vm.OnFail == nil {
+		vm.OnFail = func(pi string, args Term) {}
+	}
+	if vm.OnRedo == nil {
+		vm.OnRedo = func(pi string, args Term) {}
+	}
+
+	pi := cs[0].pi.String()
 	fvs := FreeVariables(args)
-	ks := make([]func() nondet.Promise, len(cs))
+	ks := make([]func() nondet.Promise, len(cs)+1)
 	for i := range cs {
+		var f func(pi string, args Term)
+		if i == 0 {
+			f = vm.OnCall
+		} else {
+			f = vm.OnRedo
+		}
 		c := cs[i]
 		ks[i] = func() nondet.Promise {
+			f(pi, args)
 			ResetVariables(fvs...)
 			vars := make([]*Variable, len(c.vars))
 			for i := range c.vars {
 				vars[i] = &Variable{}
 			}
-			return e.exec(c.bytecode, c.xrTable, vars, k, args, List())
+			return vm.exec(c.bytecode, c.xrTable, vars, nondet.Delay(func() nondet.Promise {
+				vm.OnExit(pi, args)
+				return k
+			}), args, List())
 		}
+	}
+	ks[len(cs)] = func() nondet.Promise {
+		vm.OnFail(pi, args)
+		ResetVariables(fvs...)
+		return nondet.Bool(false)
 	}
 	return nondet.Delay(ks...)
 }
 
 type clause struct {
-	pf       procedureIndicator
+	pi       procedureIndicator
 	raw      Term
 	xrTable  []Term
 	vars     []*Variable

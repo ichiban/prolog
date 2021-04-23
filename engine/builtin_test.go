@@ -1344,7 +1344,7 @@ func TestVM_Assertz(t *testing.T) {
 
 		assert.Equal(t, clauses{
 			{
-				pf: procedureIndicator{
+				pi: procedureIndicator{
 					name:  "foo",
 					arity: 1,
 				},
@@ -1356,7 +1356,7 @@ func TestVM_Assertz(t *testing.T) {
 				bytecode: bytecode{opConst, 0, opExit},
 			},
 			{
-				pf: procedureIndicator{
+				pi: procedureIndicator{
 					name:  "foo",
 					arity: 1,
 				},
@@ -1507,7 +1507,7 @@ func TestVM_Asserta(t *testing.T) {
 
 		assert.Equal(t, clauses{
 			{
-				pf: procedureIndicator{name: "foo", arity: 1},
+				pi: procedureIndicator{name: "foo", arity: 1},
 				raw: &Compound{
 					Functor: "foo",
 					Args:    []Term{Atom("b")},
@@ -1516,7 +1516,7 @@ func TestVM_Asserta(t *testing.T) {
 				bytecode: bytecode{opConst, 0, opExit},
 			},
 			{
-				pf: procedureIndicator{name: "foo", arity: 1},
+				pi: procedureIndicator{name: "foo", arity: 1},
 				raw: &Compound{
 					Functor: "foo",
 					Args:    []Term{Atom("a")},

@@ -18,6 +18,78 @@ import (
 	"github.com/ichiban/prolog/nondet"
 )
 
+// Conjunction executes the given goals p then q.
+// Note that ,/2 in clause body (H :- B1, B2, ..., Bn.) is compiled and doesn't involve this method.
+func (vm *VM) Conjunction(p, q Term, k nondet.Promise) nondet.Promise {
+	return nondet.Delay(func() nondet.Promise {
+		pi, args, err := piArgs(p)
+		if err != nil {
+			return nondet.Error(err)
+		}
+
+		return vm.arrive(pi, args, nondet.Delay(func() nondet.Promise {
+			pi, args, err := piArgs(q)
+			if err != nil {
+				return nondet.Error(err)
+			}
+
+			return nondet.Delay(func() nondet.Promise {
+				return vm.arrive(pi, args, k)
+			})
+		}))
+	})
+}
+
+func (vm *VM) Disjunction(p, q Term, k nondet.Promise) nondet.Promise {
+	if c, ok := Resolve(p).(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
+		return vm.IfThenElse(c.Args[0], c.Args[1], q, k)
+	}
+
+	return nondet.Delay(
+		func() nondet.Promise {
+			pi, args, err := piArgs(p)
+			if err != nil {
+				return nondet.Error(err)
+			}
+			return vm.arrive(pi, args, k)
+		},
+		func() nondet.Promise {
+			pi, args, err := piArgs(q)
+			if err != nil {
+				return nondet.Error(err)
+			}
+			return vm.arrive(pi, args, k)
+		},
+	)
+}
+
+func (vm *VM) Negation(goal Term, k nondet.Promise) nondet.Promise {
+	ok, err := vm.Call(goal, nondet.Bool(true)).Force()
+	if err != nil {
+		return nondet.Error(err)
+	}
+	if ok {
+		return nondet.Bool(false)
+	}
+	return k
+}
+
+func (vm *VM) IfThenElse(if_, then_, else_ Term, k nondet.Promise) nondet.Promise {
+	ok, err := nondet.Opaque(vm.Call(if_, nondet.Bool(true)).Force())
+	if err != nil {
+		return nondet.Error(err)
+	}
+	if ok {
+		return nondet.Delay(func() nondet.Promise {
+			return vm.Call(then_, k)
+		})
+	} else {
+		return nondet.Delay(func() nondet.Promise {
+			return vm.Call(else_, k)
+		})
+	}
+}
+
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
 	pi, args, err := piArgs(goal)
@@ -26,7 +98,7 @@ func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
 	}
 
 	// Force() to restrict the scope of cut.
-	ok, err := vm.arrive(pi, args, k).Force()
+	ok, err := nondet.Opaque(vm.arrive(pi, args, k).Force())
 	if err != nil {
 		return nondet.Error(err)
 	}
@@ -383,7 +455,7 @@ func (vm *VM) assert(t Term, k nondet.Promise, merge func(clauses, clause) claus
 			Args:    []Term{pi.name, pi.arity},
 		}))
 	}
-	c := clause{pf: pi}
+	c := clause{pi: pi}
 	if err := c.compile(t); err != nil {
 		return nondet.Error(err)
 	}

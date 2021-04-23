@@ -22,6 +22,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.SetUserOutput(out)
 	i.Register0("!", nondet.Cut)
 	i.Register0("repeat", engine.Repeat)
+	i.Register1(`\+`, i.Negation)
 	i.Register1("call", i.Call)
 	i.Register1("current_predicate", i.CurrentPredicate)
 	i.Register1("assertz", i.Assertz)
@@ -34,6 +35,8 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("atom", engine.TypeAtom)
 	i.Register1("compound", engine.TypeCompound)
 	i.Register1("throw", engine.Throw)
+	i.Register2(",", i.Conjunction)
+	i.Register2(";", i.Disjunction)
 	i.Register2("=", engine.Unify)
 	i.Register2("unify_with_occurs_check", engine.UnifyWithOccursCheck)
 	i.Register2("=..", engine.Univ)
@@ -135,26 +138,14 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 :-(op(100, xfx, @)).
 :-(op(50, xfx, :)).
 
-% conjunction
-P, Q :- call(P), call(Q).
-
-% disjunction
-P; Q :- call(P).
-P; Q :- call(Q).
-
-% true/false
+% true/fail
 true.
-false :- a = b.
-fail :- false.
+fail :- \+true.
 
-% if then else
-If -> Then; Else :- call(If), !, call(Then).
-If -> Then; Else :- !, call(Else).
-If -> Then :- call(If), !, call(Then).
+% if then
+If -> Then :- If -> Then; fail.
 
 % logic and control
-\+P :- call(P), !, false.
-\+P :- true.
 once(P) :- call(P), !.
 
 % not unifiable
@@ -245,6 +236,14 @@ at_end_of_stream(Stream) :-
   (E = at; E = past).
 
 at_end_of_stream :- current_input(S), at_end_of_stream(S).
+
+%%%% non-ISO predicates
+
+false :- fail.
+
+append([], L, L).
+append([X|L1], L2, [X|L3]) :- append(L1, L2, L3). 
+
 `); err != nil {
 		panic(err)
 	}
@@ -291,7 +290,6 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 	go func() {
 		defer close(next)
-
 		defer func() {
 			if r := recover(); r != nil {
 				for _, f := range i.VM.OnPanic {
@@ -299,7 +297,6 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 				}
 			}
 		}()
-
 		if !<-more {
 			return
 		}

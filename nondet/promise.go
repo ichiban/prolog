@@ -1,9 +1,13 @@
 package nondet
 
+import (
+	"fmt"
+)
+
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
 	delayed []func() Promise
-	ok, cut bool
+	ok      bool
 	err     error
 }
 
@@ -14,7 +18,13 @@ func Delay(k ...func() Promise) Promise {
 
 // Cut delays an execution of k while preventing other alternatives.
 func Cut(k Promise) Promise {
-	return Promise{delayed: []func() Promise{func() Promise { return k }}, cut: true}
+	return Delay(func() Promise {
+		ok, err := k.Force()
+		if err != nil {
+			return Error(err)
+		}
+		return Error(cutError{ok: ok})
+	})
 }
 
 // Bool returns a promise that simply returns t, nil.
@@ -40,13 +50,27 @@ func (p Promise) Force() (bool, error) {
 			return true, nil
 		}
 
-		// If cut, other alternatives are ignored.
-		if p.cut {
-			ks = p.delayed
-			continue
-		}
-
 		ks = append(p.delayed, ks[1:]...)
 	}
 	return p.ok, p.err
+}
+
+// Opaque
+func Opaque(ok bool, err error) (bool, error) {
+	switch err := err.(type) {
+	case nil:
+		return ok, nil
+	case cutError:
+		return err.ok, nil
+	default:
+		return false, err
+	}
+}
+
+type cutError struct {
+	ok bool
+}
+
+func (c cutError) Error() string {
+	return fmt.Sprintf("cut: %t", c.ok)
 }

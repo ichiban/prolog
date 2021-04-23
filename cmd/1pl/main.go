@@ -60,12 +60,24 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.OnHalt = append(i.OnHalt, restore)
-	i.OnArrive = append(i.OnArrive, func(name string, arity int, args engine.Term) {
-		logrus.WithFields(logrus.Fields{"name": name, "arity": arity, "args": i.DescribeTerm(args)}).Debug("arrive")
+	i.OnArrive = append(i.OnArrive, func(goal engine.Term) {
+		logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
 	})
 	i.OnPanic = append(i.OnPanic, func(r interface{}) {
 		logrus.WithField("value", r).Error("panicked")
 	})
+	i.OnCall = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{"pi": pi, "args": i.DescribeTerm(args)}).Debug("call")
+	}
+	i.OnExit = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{"pi": pi, "args": i.DescribeTerm(args)}).Debug("exit")
+	}
+	i.OnFail = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{"pi": pi, "args": i.DescribeTerm(args)}).Debug("fail")
+	}
+	i.OnRedo = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{"pi": pi, "args": i.DescribeTerm(args)}).Debug("redo")
+	}
 	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
 			return nondet.Bool(false)
