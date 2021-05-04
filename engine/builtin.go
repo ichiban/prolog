@@ -13,22 +13,92 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/ichiban/prolog/internal"
+
 	"github.com/ichiban/prolog/nondet"
 )
 
+// Conjunction executes the given goals p then q.
+// Note that ,/2 in clause body (H :- B1, B2, ..., Bn.) is compiled and doesn't involve this method.
+func (vm *VM) Conjunction(p, q Term, k nondet.Promise) nondet.Promise {
+	return nondet.Delay(func() nondet.Promise {
+		pi, args, err := piArgs(p)
+		if err != nil {
+			return nondet.Error(err)
+		}
+
+		return vm.arrive(pi, args, nondet.Delay(func() nondet.Promise {
+			pi, args, err := piArgs(q)
+			if err != nil {
+				return nondet.Error(err)
+			}
+
+			return nondet.Delay(func() nondet.Promise {
+				return vm.arrive(pi, args, k)
+			})
+		}))
+	})
+}
+
+func (vm *VM) Disjunction(p, q Term, k nondet.Promise) nondet.Promise {
+	if c, ok := Resolve(p).(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
+		return vm.IfThenElse(c.Args[0], c.Args[1], q, k)
+	}
+
+	return nondet.Delay(
+		func() nondet.Promise {
+			pi, args, err := piArgs(p)
+			if err != nil {
+				return nondet.Error(err)
+			}
+			return vm.arrive(pi, args, k)
+		},
+		func() nondet.Promise {
+			pi, args, err := piArgs(q)
+			if err != nil {
+				return nondet.Error(err)
+			}
+			return vm.arrive(pi, args, k)
+		},
+	)
+}
+
+func (vm *VM) Negation(goal Term, k nondet.Promise) nondet.Promise {
+	ok, err := vm.Call(goal, nondet.Bool(true)).Force()
+	if err != nil {
+		return nondet.Error(err)
+	}
+	if ok {
+		return nondet.Bool(false)
+	}
+	return k
+}
+
+func (vm *VM) IfThenElse(if_, then_, else_ Term, k nondet.Promise) nondet.Promise {
+	ok, err := vm.Call(if_, nondet.Bool(true)).Force()
+	if err != nil {
+		return nondet.Error(err)
+	}
+	if ok {
+		return nondet.Delay(func() nondet.Promise {
+			return vm.Call(then_, k)
+		})
+	} else {
+		return nondet.Delay(func() nondet.Promise {
+			return vm.Call(else_, k)
+		})
+	}
+}
+
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
+// TODO: compile goal
 func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
 	pi, args, err := piArgs(goal)
 	if err != nil {
 		return nondet.Error(err)
 	}
 
-	// Force() to restrict the scope of cut.
-	ok, err := vm.arrive(pi, args, k).Force()
-	if err != nil {
-		return nondet.Error(err)
-	}
-	return nondet.Bool(ok)
+	return vm.arrive(pi, args, k)
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
@@ -221,7 +291,33 @@ func Univ(term, list Term, k nondet.Promise) nondet.Promise {
 
 // CopyTerm clones in as out.
 func CopyTerm(in, out Term, k nondet.Promise) nondet.Promise {
-	return Unify(in.Copy(), out, k)
+	return Unify(copyTerm(in, nil), out, k)
+}
+
+func copyTerm(t Term, vars map[*Variable]*Variable) Term {
+	if vars == nil {
+		vars = map[*Variable]*Variable{}
+	}
+	switch t := t.(type) {
+	case *Variable:
+		v, ok := vars[t]
+		if !ok {
+			v = &Variable{Ref: copyTerm(t.Ref, vars)}
+			vars[t] = v
+		}
+		return v
+	case *Compound:
+		c := Compound{
+			Functor: t.Functor,
+			Args:    make([]Term, len(t.Args)),
+		}
+		for i, a := range t.Args {
+			c.Args[i] = copyTerm(a, vars)
+		}
+		return &c
+	default:
+		return t
+	}
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
@@ -381,7 +477,7 @@ func (vm *VM) assert(t Term, k nondet.Promise, merge func(clauses, clause) claus
 			Args:    []Term{pi.name, pi.arity},
 		}))
 	}
-	c := clause{pf: pi}
+	c := clause{pi: pi}
 	if err := c.compile(t); err != nil {
 		return nondet.Error(err)
 	}
@@ -463,13 +559,13 @@ grouping:
 					continue solutions
 				}
 			}
-			solutions[i].bag = append(s.bag, template.Copy())
+			solutions[i].bag = append(s.bag, copyTerm(template, nil))
 			return nondet.Bool(false) // ask for more solutions
 		}
 
 		solutions = append(solutions, solution{
 			snapshots: snapshots,
-			bag:       []Term{template.Copy()},
+			bag:       []Term{copyTerm(template, nil)},
 		})
 		return nondet.Bool(false) // ask for more solutions
 	})).Force()
@@ -612,7 +708,7 @@ func Throw(ball Term, _ nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(ball).(*Variable); ok {
 		return nondet.Error(instantiationError(ball))
 	}
-	return nondet.Error(&Exception{Term: Resolve(ball).Copy()})
+	return nondet.Error(&Exception{Term: copyTerm(Resolve(ball), nil)})
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
@@ -1255,54 +1351,60 @@ func (vm *VM) ReadTerm(streamOrAlias, term, options Term, k nondet.Promise) nond
 
 	p := NewParser(vm, br)
 	t, err := p.Term()
-	switch err {
-	case nil:
-		var singletons, variables, variableNames []Term
-		for _, vc := range p.vars {
-			if vc.Count == 1 {
-				singletons = append(singletons, vc.variable)
+	if err != nil {
+		switch {
+		case errors.Is(err, io.EOF):
+			switch s.eofAction {
+			case eofActionError:
+				return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
+			case eofActionEOFCode:
+				return nondet.Delay(func() nondet.Promise {
+					return Unify(term, Atom("end_of_file"), k)
+				})
+			case eofActionReset:
+				return nondet.Delay(func() nondet.Promise {
+					return vm.ReadTerm(streamOrAlias, term, options, k)
+				})
+			default:
+				return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 			}
-			variables = append(variables, vc.variable)
-			variableNames = append(variableNames, &Compound{
-				Functor: "=",
-				Args:    []Term{Atom(vc.variable.Name), vc.variable},
-			})
-			vc.variable.Name = ""
-		}
-
-		if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
-			return nondet.Bool(false)
-		}
-
-		if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
-			return nondet.Bool(false)
-		}
-
-		if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
-			return nondet.Bool(false)
-		}
-
-		return nondet.Delay(func() nondet.Promise {
-			return Unify(term, t, k)
-		})
-	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case eofActionEOFCode:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(term, Atom("end_of_file"), k)
-			})
-		case eofActionReset:
-			return nondet.Delay(func() nondet.Promise {
-				return vm.ReadTerm(streamOrAlias, term, options, k)
-			})
+		case errors.Is(err, internal.ErrInsufficient):
+			return nondet.Error(syntaxErrorInsufficient())
+		case errors.As(err, &internal.UnexpectedRuneError{}):
+			return nondet.Error(syntaxErrorUnexpectedChar(Atom(err.Error())))
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+			return nondet.Error(systemError(err))
 		}
-	default:
-		return nondet.Error(err)
 	}
+
+	var singletons, variables, variableNames []Term
+	for _, vc := range p.vars {
+		if vc.Count == 1 {
+			singletons = append(singletons, vc.variable)
+		}
+		variables = append(variables, vc.variable)
+		variableNames = append(variableNames, &Compound{
+			Functor: "=",
+			Args:    []Term{Atom(vc.variable.Name), vc.variable},
+		})
+		vc.variable.Name = ""
+	}
+
+	if opts.singletons != nil && !opts.singletons.Unify(List(singletons...), false) {
+		return nondet.Bool(false)
+	}
+
+	if opts.variables != nil && !opts.variables.Unify(List(variables...), false) {
+		return nondet.Bool(false)
+	}
+
+	if opts.variableNames != nil && !opts.variableNames.Unify(List(variableNames...), false) {
+		return nondet.Bool(false)
+	}
+
+	return nondet.Delay(func() nondet.Promise {
+		return Unify(term, t, k)
+	})
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
@@ -1549,16 +1651,15 @@ var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
 func (vm *VM) Halt(n Term, k nondet.Promise) nondet.Promise {
+	if vm.OnHalt == nil {
+		vm.OnHalt = func() {}
+	}
 	switch code := Resolve(n).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(n))
 	case Integer:
-		for _, f := range vm.BeforeHalt {
-			f()
-		}
-
+		vm.OnHalt()
 		osExit(int(code))
-
 		return k
 	default:
 		return nondet.Error(typeErrorInteger(n))
@@ -1584,7 +1685,7 @@ func (vm *VM) Clause(head, body Term, k nondet.Promise) nondet.Promise {
 	cs, _ := vm.procedures[pi].(clauses)
 	ks := make([]func() nondet.Promise, len(cs))
 	for i := range cs {
-		r := Rulify(cs[i].raw.Copy())
+		r := Rulify(copyTerm(cs[i].raw, nil))
 		ks[i] = func() nondet.Promise {
 			ResetVariables(fvs...)
 			return Unify(&Compound{
@@ -1857,24 +1958,15 @@ func NumberChars(num, chars Term, k nondet.Promise) nondet.Promise {
 			return nondet.Error(err)
 		}
 
-		if _, err := sb.WriteRune('.'); err != nil {
-			return nondet.Error(systemError(err))
-		}
-
 		var vm VM
 		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
-		t, err := p.Term()
+		t, err := p.Number()
 		if err != nil {
 			return nondet.Error(err)
 		}
-		switch t.(type) {
-		case Float, Integer:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(num, t, k)
-			})
-		default:
-			return nondet.Error(syntaxErrorNotANumber(t))
-		}
+		return nondet.Delay(func() nondet.Promise {
+			return Unify(num, t, k)
+		})
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
@@ -1915,24 +2007,15 @@ func NumberCodes(num, codes Term, k nondet.Promise) nondet.Promise {
 			return nondet.Error(err)
 		}
 
-		if _, err := sb.WriteRune('.'); err != nil {
-			return nondet.Error(systemError(err))
-		}
-
 		var vm VM
 		p := NewParser(&vm, bufio.NewReader(strings.NewReader(sb.String())))
-		t, err := p.Term()
+		t, err := p.Number()
 		if err != nil {
 			return nondet.Error(err)
 		}
-		switch t.(type) {
-		case Float, Integer:
-			return nondet.Delay(func() nondet.Promise {
-				return Unify(num, t, k)
-			})
-		default:
-			return nondet.Error(syntaxErrorNotANumber(t))
-		}
+		return nondet.Delay(func() nondet.Promise {
+			return Unify(num, t, k)
+		})
 	case Integer, Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, defaultWriteTermOptions); err != nil {
@@ -2715,5 +2798,42 @@ func (vm *VM) stream(streamOrAlias Term) (*Stream, error) {
 		return s, nil
 	default:
 		return nil, domainErrorStreamOrAlias(streamOrAlias)
+	}
+}
+
+func (vm *VM) Dynamic(pi Term, k nondet.Promise) nondet.Promise {
+	switch p := Resolve(pi).(type) {
+	case *Variable:
+		return nondet.Error(instantiationError(pi))
+	case *Compound:
+		if p.Functor != "/" || len(p.Args) != 2 {
+			return nondet.Error(typeErrorPredicateIndicator(pi))
+		}
+		switch f := Resolve(p.Args[0]).(type) {
+		case *Variable:
+			return nondet.Error(instantiationError(pi))
+		case Atom:
+			switch a := Resolve(p.Args[1]).(type) {
+			case *Variable:
+				return nondet.Error(instantiationError(pi))
+			case Integer:
+				pi := procedureIndicator{name: f, arity: a}
+				p, ok := vm.procedures[pi]
+				if !ok {
+					vm.procedures[pi] = clauses{}
+					return k
+				}
+				if _, ok := p.(clauses); !ok {
+					return nondet.Bool(false)
+				}
+				return k
+			default:
+				return nondet.Error(typeErrorPredicateIndicator(pi))
+			}
+		default:
+			return nondet.Error(typeErrorPredicateIndicator(pi))
+		}
+	default:
+		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 }

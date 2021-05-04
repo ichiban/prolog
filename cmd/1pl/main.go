@@ -59,7 +59,20 @@ func main() {
 	logrus.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.BeforeHalt = append(i.BeforeHalt, restore)
+	i.OnHalt = restore
+	i.OnArrive = func(goal engine.Term) {
+		logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
+	}
+	i.OnPanic = func(r interface{}) {
+		logrus.WithField("value", r).Error("panicked")
+	}
+	i.OnExec = func(op string, arg engine.Term) {
+		fs := logrus.Fields{}
+		if arg != nil {
+			fs["arg"] = arg
+		}
+		logrus.WithFields(fs).Debug(op)
+	}
 	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
 			return nondet.Bool(false)

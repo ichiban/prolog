@@ -308,16 +308,16 @@ func resourceError(resource, info Term) *Exception {
 	}
 }
 
-func syntaxErrorNotANumber(culprit Term) *Exception {
-	return syntaxError(Atom("not_a_number"), Atom(fmt.Sprintf("%s is not a number", culprit)))
+func syntaxErrorNotANumber() *Exception {
+	return syntaxError(Atom("not_a_number"), Atom("Not a number."))
+}
+
+func syntaxErrorUnexpectedChar(info Term) *Exception {
+	return syntaxError(Atom("unexpected char"), info)
 }
 
 func syntaxErrorInsufficient() *Exception {
-	return syntaxError(Atom("insufficient"), Atom("Not enough input for a term."))
-}
-
-func syntaxErrorInvalidToken(info Term) *Exception {
-	return syntaxError(Atom("invalid_token"), info)
+	return syntaxError(Atom("insufficient"), Atom("Not enough input."))
 }
 
 func syntaxError(detail, info Term) *Exception {

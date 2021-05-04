@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -19,12 +20,19 @@ const (
 	opVar
 	opFunctor
 	opPop
+
+	opCut
 )
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
-	// BeforeHalt is a hook which gets triggered right before halt/0 or halt/1.
-	BeforeHalt []func()
+	// OnHalt is a hook which gets triggered right before halt/0 or halt/1.
+	OnHalt func()
+
+	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
+	OnArrive func(goal Term)
+	OnExec   func(op string, arg Term)
+	OnPanic  func(r interface{})
 
 	operators       Operators
 	procedures      map[procedureIndicator]procedure
@@ -39,27 +47,47 @@ type VM struct {
 // SetUserInput sets the given reader as a stream with an alias of user_input.
 func (vm *VM) SetUserInput(r io.Reader) {
 	const userInput = Atom("user_input")
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[userInput] = &Stream{
+
+	s := Stream{
 		source: r,
 		mode:   streamModeRead,
 		alias:  userInput,
 	}
+
+	if vm.streams == nil {
+		vm.streams = map[Term]*Stream{}
+	}
+	vm.streams[userInput] = &s
+
+	vm.input = &s
 }
 
 // SetUserOutput sets the given writer as a stream with an alias of user_output.
 func (vm *VM) SetUserOutput(w io.Writer) {
 	const userOutput = Atom("user_output")
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[userOutput] = &Stream{
+
+	s := Stream{
 		sink:  w,
 		mode:  streamModeWrite,
 		alias: userOutput,
 	}
+
+	if vm.streams == nil {
+		vm.streams = map[Term]*Stream{}
+	}
+	vm.streams[userOutput] = &s
+
+	vm.output = &s
+}
+
+func (vm *VM) DescribeTerm(t Term) string {
+	var buf bytes.Buffer
+	_ = t.WriteTerm(&buf, WriteTermOptions{
+		Quoted:      true,
+		Ops:         vm.operators,
+		Descriptive: true,
+	})
+	return buf.String()
 }
 
 // Register0 registers a predicate of arity 0.
@@ -136,6 +164,22 @@ type procedure interface {
 }
 
 func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.Promise {
+	if vm.OnArrive == nil {
+		vm.OnArrive = func(goal Term) {}
+	}
+	var as []Term
+	if err := Each(args, func(elem Term) error {
+		as = append(as, elem)
+		return nil
+	}); err != nil {
+		return nondet.Error(systemError(err))
+	}
+	if len(as) == 0 {
+		vm.OnArrive(pi.name)
+	} else {
+		vm.OnArrive(&Compound{Functor: pi.name, Args: as})
+	}
+
 	p := vm.procedures[pi]
 	if p == nil {
 		switch vm.unknown {
@@ -160,12 +204,17 @@ func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.
 }
 
 func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, args, astack Term) nondet.Promise {
+	if vm.OnExec == nil {
+		vm.OnExec = func(op string, arg Term) {}
+	}
 	for len(pc) != 0 {
 		switch pc[0] {
 		case opVoid:
+			vm.OnExec("void", nil)
 			pc = pc[1:]
 		case opConst:
 			x := xr[pc[1]]
+			vm.OnExec("const", x)
 			var arest Variable
 			cons := Compound{
 				Functor: ".",
@@ -178,6 +227,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &arest
 		case opVar:
 			v := vars[pc[1]]
+			vm.OnExec("var", v)
 			var arest Variable
 			cons := Compound{
 				Functor: ".",
@@ -190,6 +240,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &arest
 		case opFunctor:
 			x := xr[pc[1]]
+			vm.OnExec("functor", x)
 			var arg, arest Variable
 			cons1 := Compound{
 				Functor: ".",
@@ -224,6 +275,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
+			vm.OnExec("pop", nil)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
@@ -239,6 +291,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			args = &a
 			astack = &arest
 		case opEnter:
+			vm.OnExec("enter", nil)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
@@ -251,16 +304,17 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			astack = &v
 		case opCall:
 			x := xr[pc[1]]
+			vm.OnExec("call", x)
 			if !args.Unify(List(), false) {
 				return nondet.Bool(false)
 			}
 			pc = pc[2:]
-			pf, ok := x.(procedureIndicator)
+			pi, ok := x.(procedureIndicator)
 			if !ok {
 				return nondet.Error(errors.New("not a principal functor"))
 			}
 			return nondet.Delay(func() nondet.Promise {
-				return vm.arrive(pf, astack, nondet.Delay(func() nondet.Promise {
+				return vm.arrive(pi, astack, nondet.Delay(func() nondet.Promise {
 					var v Variable
 					return nondet.Delay(func() nondet.Promise {
 						return vm.exec(pc, xr, vars, k, &v, &v)
@@ -268,7 +322,12 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				}))
 			})
 		case opExit:
+			vm.OnExec("exit", nil)
 			return k
+		case opCut:
+			vm.OnExec("cut", nil)
+			k = nondet.Cut(k)
+			pc = pc[1:]
 		default:
 			return nondet.Error(fmt.Errorf("unknown(%d)", pc[0]))
 		}
@@ -278,7 +337,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 
 type clauses []clause
 
-func (cs clauses) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
+func (cs clauses) Call(vm *VM, args Term, k nondet.Promise) nondet.Promise {
 	if len(cs) == 0 {
 		return nondet.Bool(false)
 	}
@@ -288,19 +347,23 @@ func (cs clauses) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	for i := range cs {
 		c := cs[i]
 		ks[i] = func() nondet.Promise {
-			ResetVariables(fvs...)
 			vars := make([]*Variable, len(c.vars))
 			for i := range c.vars {
 				vars[i] = &Variable{}
 			}
-			return e.exec(c.bytecode, c.xrTable, vars, k, args, List())
+			return nondet.Delay(func() nondet.Promise {
+				return vm.exec(c.bytecode, c.xrTable, vars, k, args, List())
+			}, func() nondet.Promise {
+				ResetVariables(fvs...)
+				return nondet.Bool(false)
+			})
 		}
 	}
 	return nondet.Delay(ks...)
 }
 
 type clause struct {
-	pf       procedureIndicator
+	pi       procedureIndicator
 	raw      Term
 	xrTable  []Term
 	vars     []*Variable
@@ -358,6 +421,10 @@ func (c *clause) compileClause(head Term, body Term) error {
 func (c *clause) compilePred(p Term) error {
 	switch p := p.(type) {
 	case Atom:
+		if p == "!" {
+			c.bytecode = append(c.bytecode, opCut)
+			return nil
+		}
 		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p, arity: 0}))
 		return nil
 	case *Compound:

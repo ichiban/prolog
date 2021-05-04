@@ -103,7 +103,9 @@ func convert(t engine.Term, typ reflect.Type) (reflect.Value, error) {
 			return reflect.ValueOf(i).Convert(typ), nil
 		}
 	case reflect.String:
-		return reflect.ValueOf(t.String()), nil
+		if a, ok := t.(engine.Atom); ok {
+			return reflect.ValueOf(string(a)), nil
+		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
 		if err := engine.Each(t, func(elem engine.Term) error {
