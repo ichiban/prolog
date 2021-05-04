@@ -3908,10 +3908,8 @@ func TestVM_Halt(t *testing.T) {
 
 		var callbackCalled bool
 		vm := VM{
-			OnHalt: []func(){
-				func() {
-					callbackCalled = true
-				},
+			OnHalt: func() {
+				callbackCalled = true
 			},
 		}
 		ok, err := vm.Halt(Integer(2), nondet.Bool(true)).Force()
@@ -3969,7 +3967,7 @@ func TestVM_Clause(t *testing.T) {
 				assert.Equal(t, &Variable{}, what.Ref)
 				assert.Equal(t, &Compound{
 					Functor: "moldy",
-					Args:    []Term{&Variable{}},
+					Args:    []Term{&Variable{Ref: &Variable{}}},
 				}, body.Ref)
 			case 1:
 				assert.Equal(t, Atom("kermit"), what.Ref)

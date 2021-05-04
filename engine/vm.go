@@ -20,24 +20,19 @@ const (
 	opVar
 	opFunctor
 	opPop
+
+	opCut
 )
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 	// OnHalt is a hook which gets triggered right before halt/0 or halt/1.
-	OnHalt []func()
+	OnHalt func()
 
 	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
-	OnArrive []func(goal Term)
-
-	OnExec func(op string, arg Term)
-
-	OnPanic []func(r interface{})
-
-	OnCall func(pi string, args Term)
-	OnExit func(pi string, args Term)
-	OnFail func(pi string, args Term)
-	OnRedo func(pi string, args Term)
+	OnArrive func(goal Term)
+	OnExec   func(op string, arg Term)
+	OnPanic  func(r interface{})
 
 	operators       Operators
 	procedures      map[procedureIndicator]procedure
@@ -169,20 +164,20 @@ type procedure interface {
 }
 
 func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.Promise {
-	for _, f := range vm.OnArrive {
-		var as []Term
-		Each(args, func(elem Term) error {
-			as = append(as, elem)
-			return nil
-		})
-		if len(as) == 0 {
-			f(pi.name)
-		} else {
-			f(&Compound{
-				Functor: pi.name,
-				Args:    as,
-			})
-		}
+	if vm.OnArrive == nil {
+		vm.OnArrive = func(goal Term) {}
+	}
+	var as []Term
+	if err := Each(args, func(elem Term) error {
+		as = append(as, elem)
+		return nil
+	}); err != nil {
+		return nondet.Error(systemError(err))
+	}
+	if len(as) == 0 {
+		vm.OnArrive(pi.name)
+	} else {
+		vm.OnArrive(&Compound{Functor: pi.name, Args: as})
 	}
 
 	p := vm.procedures[pi]
@@ -329,6 +324,10 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 		case opExit:
 			vm.OnExec("exit", nil)
 			return k
+		case opCut:
+			vm.OnExec("cut", nil)
+			k = nondet.Cut(k)
+			pc = pc[1:]
 		default:
 			return nondet.Error(fmt.Errorf("unknown(%d)", pc[0]))
 		}
@@ -343,47 +342,22 @@ func (cs clauses) Call(vm *VM, args Term, k nondet.Promise) nondet.Promise {
 		return nondet.Bool(false)
 	}
 
-	if vm.OnCall == nil {
-		vm.OnCall = func(pi string, args Term) {}
-	}
-	if vm.OnExit == nil {
-		vm.OnExit = func(pi string, args Term) {}
-	}
-	if vm.OnFail == nil {
-		vm.OnFail = func(pi string, args Term) {}
-	}
-	if vm.OnRedo == nil {
-		vm.OnRedo = func(pi string, args Term) {}
-	}
-
-	pi := cs[0].pi.String()
 	fvs := FreeVariables(args)
-	ks := make([]func() nondet.Promise, len(cs)+1)
+	ks := make([]func() nondet.Promise, len(cs))
 	for i := range cs {
-		var f func(pi string, args Term)
-		if i == 0 {
-			f = vm.OnCall
-		} else {
-			f = vm.OnRedo
-		}
 		c := cs[i]
 		ks[i] = func() nondet.Promise {
-			f(pi, args)
-			ResetVariables(fvs...)
 			vars := make([]*Variable, len(c.vars))
 			for i := range c.vars {
 				vars[i] = &Variable{}
 			}
-			return vm.exec(c.bytecode, c.xrTable, vars, nondet.Delay(func() nondet.Promise {
-				vm.OnExit(pi, args)
-				return k
-			}), args, List())
+			return nondet.Delay(func() nondet.Promise {
+				return vm.exec(c.bytecode, c.xrTable, vars, k, args, List())
+			}, func() nondet.Promise {
+				ResetVariables(fvs...)
+				return nondet.Bool(false)
+			})
 		}
-	}
-	ks[len(cs)] = func() nondet.Promise {
-		vm.OnFail(pi, args)
-		ResetVariables(fvs...)
-		return nondet.Bool(false)
 	}
 	return nondet.Delay(ks...)
 }
@@ -447,6 +421,10 @@ func (c *clause) compileClause(head Term, body Term) error {
 func (c *clause) compilePred(p Term) error {
 	switch p := p.(type) {
 	case Atom:
+		if p == "!" {
+			c.bytecode = append(c.bytecode, opCut)
+			return nil
+		}
 		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p, arity: 0}))
 		return nil
 	case *Compound:

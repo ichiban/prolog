@@ -18,7 +18,6 @@ type Term interface {
 	fmt.Stringer
 	WriteTerm(io.Writer, WriteTermOptions) error
 	Unify(Term, bool) bool
-	Copy() Term
 }
 
 // Variable is a prolog variable.
@@ -68,14 +67,6 @@ func (v *Variable) Unify(t Term, occursCheck bool) bool {
 	return true
 }
 
-// Copy returns a fresh variable with a copy of Ref.
-func (v *Variable) Copy() Term {
-	if v.Ref == nil {
-		return &Variable{}
-	}
-	return &Variable{Ref: v.Ref.Copy()}
-}
-
 // Float is a prolog floating-point number.
 type Float float64
 
@@ -103,11 +94,6 @@ func (f Float) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
-// Copy simply returns the float.
-func (f Float) Copy() Term {
-	return f
-}
-
 // Integer is a prolog integer.
 type Integer int64
 
@@ -133,11 +119,6 @@ func (i Integer) Unify(t Term, occursCheck bool) bool {
 	default:
 		return false
 	}
-}
-
-// Copy simply returns the integer.
-func (i Integer) Copy() Term {
-	return i
 }
 
 // Atom is a prolog atom.
@@ -206,11 +187,6 @@ func (a Atom) Unify(t Term, occursCheck bool) bool {
 	default:
 		return false
 	}
-}
-
-// Copy simply returns the atom.
-func (a Atom) Copy() Term {
-	return a
 }
 
 // Compound is a prolog compound.
@@ -403,18 +379,6 @@ func (c *Compound) Unify(t Term, occursCheck bool) bool {
 		return t.Unify(c, occursCheck)
 	default:
 		return false
-	}
-}
-
-// Copy returns a fresh compound with copies of arguments.
-func (c *Compound) Copy() Term {
-	args := make([]Term, len(c.Args))
-	for i, a := range c.Args {
-		args[i] = a.Copy()
-	}
-	return &Compound{
-		Functor: c.Functor,
-		Args:    args,
 	}
 }
 
@@ -612,11 +576,6 @@ func (s *Stream) Unify(t Term, occursCheck bool) bool {
 	}
 }
 
-// Copy simply returns the stream.
-func (s *Stream) Copy() Term {
-	return s
-}
-
 // WriteTermOptions describes options to write terms.
 type WriteTermOptions struct {
 	Quoted      bool
@@ -659,10 +618,6 @@ func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 func (p procedureIndicator) Unify(t Term, _ bool) bool {
 	pf, ok := t.(procedureIndicator)
 	return ok && p.name == pf.name && p.arity == pf.arity
-}
-
-func (p procedureIndicator) Copy() Term {
-	return p
 }
 
 func piArgs(t Term) (procedureIndicator, Term, error) {

@@ -20,7 +20,6 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.SetUserInput(in)
 	i.SetUserOutput(out)
-	i.Register0("!", nondet.Cut)
 	i.Register0("repeat", engine.Repeat)
 	i.Register1(`\+`, i.Negation)
 	i.Register1("call", i.Call)
@@ -291,10 +290,11 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 	go func() {
 		defer close(next)
 		defer func() {
+			if i.OnPanic == nil {
+				i.OnPanic = func(r interface{}) {}
+			}
 			if r := recover(); r != nil {
-				for _, f := range i.VM.OnPanic {
-					f(r)
-				}
+				i.OnPanic(r)
 			}
 		}()
 		if !<-more {

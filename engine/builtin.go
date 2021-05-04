@@ -75,7 +75,7 @@ func (vm *VM) Negation(goal Term, k nondet.Promise) nondet.Promise {
 }
 
 func (vm *VM) IfThenElse(if_, then_, else_ Term, k nondet.Promise) nondet.Promise {
-	ok, err := nondet.Opaque(vm.Call(if_, nondet.Bool(true)).Force())
+	ok, err := vm.Call(if_, nondet.Bool(true)).Force()
 	if err != nil {
 		return nondet.Error(err)
 	}
@@ -91,18 +91,14 @@ func (vm *VM) IfThenElse(if_, then_, else_ Term, k nondet.Promise) nondet.Promis
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
+// TODO: compile goal
 func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
 	pi, args, err := piArgs(goal)
 	if err != nil {
 		return nondet.Error(err)
 	}
 
-	// Force() to restrict the scope of cut.
-	ok, err := nondet.Opaque(vm.arrive(pi, args, k).Force())
-	if err != nil {
-		return nondet.Error(err)
-	}
-	return nondet.Bool(ok)
+	return vm.arrive(pi, args, k)
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
@@ -295,7 +291,33 @@ func Univ(term, list Term, k nondet.Promise) nondet.Promise {
 
 // CopyTerm clones in as out.
 func CopyTerm(in, out Term, k nondet.Promise) nondet.Promise {
-	return Unify(in.Copy(), out, k)
+	return Unify(copyTerm(in, nil), out, k)
+}
+
+func copyTerm(t Term, vars map[*Variable]*Variable) Term {
+	if vars == nil {
+		vars = map[*Variable]*Variable{}
+	}
+	switch t := t.(type) {
+	case *Variable:
+		v, ok := vars[t]
+		if !ok {
+			v = &Variable{Ref: copyTerm(t.Ref, vars)}
+			vars[t] = v
+		}
+		return v
+	case *Compound:
+		c := Compound{
+			Functor: t.Functor,
+			Args:    make([]Term, len(t.Args)),
+		}
+		for i, a := range t.Args {
+			c.Args[i] = copyTerm(a, vars)
+		}
+		return &c
+	default:
+		return t
+	}
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
@@ -537,13 +559,13 @@ grouping:
 					continue solutions
 				}
 			}
-			solutions[i].bag = append(s.bag, template.Copy())
+			solutions[i].bag = append(s.bag, copyTerm(template, nil))
 			return nondet.Bool(false) // ask for more solutions
 		}
 
 		solutions = append(solutions, solution{
 			snapshots: snapshots,
-			bag:       []Term{template.Copy()},
+			bag:       []Term{copyTerm(template, nil)},
 		})
 		return nondet.Bool(false) // ask for more solutions
 	})).Force()
@@ -686,7 +708,7 @@ func Throw(ball Term, _ nondet.Promise) nondet.Promise {
 	if _, ok := Resolve(ball).(*Variable); ok {
 		return nondet.Error(instantiationError(ball))
 	}
-	return nondet.Error(&Exception{Term: Resolve(ball).Copy()})
+	return nondet.Error(&Exception{Term: copyTerm(Resolve(ball), nil)})
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
@@ -1629,16 +1651,15 @@ var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
 func (vm *VM) Halt(n Term, k nondet.Promise) nondet.Promise {
+	if vm.OnHalt == nil {
+		vm.OnHalt = func() {}
+	}
 	switch code := Resolve(n).(type) {
 	case *Variable:
 		return nondet.Error(instantiationError(n))
 	case Integer:
-		for _, f := range vm.OnHalt {
-			f()
-		}
-
+		vm.OnHalt()
 		osExit(int(code))
-
 		return k
 	default:
 		return nondet.Error(typeErrorInteger(n))
@@ -1664,7 +1685,7 @@ func (vm *VM) Clause(head, body Term, k nondet.Promise) nondet.Promise {
 	cs, _ := vm.procedures[pi].(clauses)
 	ks := make([]func() nondet.Promise, len(cs))
 	for i := range cs {
-		r := Rulify(cs[i].raw.Copy())
+		r := Rulify(copyTerm(cs[i].raw, nil))
 		ks[i] = func() nondet.Promise {
 			ResetVariables(fvs...)
 			return Unify(&Compound{

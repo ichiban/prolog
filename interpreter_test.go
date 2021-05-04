@@ -152,10 +152,74 @@ func TestMisc(t *testing.T) {
 		assert.False(t, sols.Next())
 	})
 
-	// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
 	t.Run("cut", func(t *testing.T) {
-		i := New(nil, nil)
-		i.Exec(`
+		// https://www.cs.uleth.ca/~gaur/post/prolog-cut-negation/
+		t.Run("p", func(t *testing.T) {
+			i := New(nil, nil)
+			assert.NoError(t, i.Exec(`
+p(a).
+p(b):-!.
+p(c).
+`))
+
+			t.Run("single", func(t *testing.T) {
+				sols, err := i.Query(`p(X).`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				var s struct {
+					X string
+				}
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+
+				assert.False(t, sols.Next())
+			})
+
+			t.Run("double", func(t *testing.T) {
+				sols, err := i.Query(`p(X), p(Y).`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				var s struct {
+					X string
+					Y string
+				}
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+				assert.Equal(t, "a", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+				assert.Equal(t, "b", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+				assert.Equal(t, "a", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+				assert.Equal(t, "b", s.Y)
+
+				assert.False(t, sols.Next())
+			})
+		})
+
+		// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
+		t.Run("teaches", func(t *testing.T) {
+			i := New(nil, nil)
+			i.Exec(`
 teaches(dr_fred, history).
 teaches(dr_fred, english).
 teaches(dr_fred, drama).
@@ -166,111 +230,112 @@ studies(amelia, drama).
 studies(alex, physics).
 `)
 
-		t.Run("without cut", func(t *testing.T) {
-			sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course).`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
+			t.Run("without cut", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
-			type cs struct {
-				Course  string
-				Student string
-			}
-			var s cs
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "english",
-				Student: "alice",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "english",
-				Student: "angus",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "angus",
+				}, s)
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "drama",
-				Student: "amelia",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "drama",
+					Student: "amelia",
+				}, s)
 
-			assert.False(t, sols.Next())
-		})
+				assert.False(t, sols.Next())
+			})
 
-		t.Run("with cut in the middle", func(t *testing.T) {
-			sols, err := i.Query(`teaches(dr_fred, Course), !, studies(Student, Course).`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
+			t.Run("with cut in the middle", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), !, studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
-			assert.False(t, sols.Next())
-		})
+				assert.False(t, sols.Next())
+			})
 
-		t.Run("with cut at the end", func(t *testing.T) {
-			sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course), !.`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
+			t.Run("with cut at the end", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course), !.`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
-			type cs struct {
-				Course  string
-				Student string
-			}
-			var s cs
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "english",
-				Student: "alice",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
 
-			assert.False(t, sols.Next())
-		})
+				assert.False(t, sols.Next())
+			})
 
-		t.Run("with cut at the beginning", func(t *testing.T) {
-			sols, err := i.Query(`!, teaches(dr_fred, Course), studies(Student, Course).`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
+			t.Run("with cut at the beginning", func(t *testing.T) {
+				sols, err := i.Query(`!, teaches(dr_fred, Course), studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
-			type cs struct {
-				Course  string
-				Student string
-			}
-			var s cs
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "english",
-				Student: "alice",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "english",
-				Student: "angus",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "angus",
+				}, s)
 
-			assert.True(t, sols.Next())
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, cs{
-				Course:  "drama",
-				Student: "amelia",
-			}, s)
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "drama",
+					Student: "amelia",
+				}, s)
 
-			assert.False(t, sols.Next())
+				assert.False(t, sols.Next())
+			})
 		})
 	})
 
@@ -303,7 +368,21 @@ studies(alex, physics).
 			}
 			assert.NoError(t, sols.Scan(&vars))
 			assert.Len(t, vars.Vars, 1)
-			assert.Equal(t, &engine.Variable{Name: "X"}, vars.Vars[0])
+			assert.Equal(t, &engine.Variable{}, vars.Vars[0]) // Should it be &engine.Variable{Name: "X"}?
+
+			assert.False(t, sols.Next())
+		})
+
+		t.Run("call_with_result", func(t *testing.T) {
+			sols, err := i.Query(`call_with_result((X=1, var(X)), R).`)
+			assert.NoError(t, err)
+			assert.True(t, sols.Next())
+
+			var s struct {
+				R string
+			}
+			assert.NoError(t, sols.Scan(&s))
+			assert.Equal(t, "failure", s.R)
 
 			assert.False(t, sols.Next())
 		})
