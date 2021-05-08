@@ -30,9 +30,10 @@ type VM struct {
 	OnHalt func()
 
 	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
-	OnArrive func(goal Term)
-	OnExec   func(op string, arg Term)
-	OnPanic  func(r interface{})
+	OnArrive                       func(goal Term)
+	OnExec                         func(op string, arg Term)
+	OnCall, OnExit, OnFail, OnRedo func(pi string, args Term)
+	OnPanic                        func(r interface{})
 
 	operators       Operators
 	procedures      map[procedureIndicator]procedure
@@ -203,7 +204,12 @@ func (vm *VM) arrive(pi procedureIndicator, args Term, k nondet.Promise) nondet.
 	})
 }
 
-func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, args, astack Term) nondet.Promise {
+type cont struct {
+	exit nondet.Promise
+	fail nondet.Promise
+}
+
+func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k cont, args, astack Term) nondet.Promise {
 	if vm.OnExec == nil {
 		vm.OnExec = func(op string, arg Term) {}
 	}
@@ -221,7 +227,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				Args:    []Term{x, &arest},
 			}
 			if !args.Unify(&cons, false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[2:]
 			args = &arest
@@ -234,7 +240,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				Args:    []Term{v, &arest},
 			}
 			if !args.Unify(&cons, false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[2:]
 			args = &arest
@@ -247,7 +253,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				Args:    []Term{&arg, &arest},
 			}
 			if !args.Unify(&cons1, false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pf, ok := x.(procedureIndicator)
 			if !ok {
@@ -258,7 +264,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				return nondet.Error(err)
 			}
 			if !ok {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[2:]
 			args = &Variable{}
@@ -271,13 +277,13 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				return nondet.Error(err)
 			}
 			if !ok {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			astack = Cons(&arest, astack)
 		case opPop:
 			vm.OnExec("pop", nil)
 			if !args.Unify(List(), false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[1:]
 			var a, arest Variable
@@ -286,17 +292,17 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 				Args:    []Term{&a, &arest},
 			}
 			if !astack.Unify(&cons, false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			args = &a
 			astack = &arest
 		case opEnter:
 			vm.OnExec("enter", nil)
 			if !args.Unify(List(), false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			if !astack.Unify(List(), false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[1:]
 			var v Variable
@@ -306,7 +312,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			x := xr[pc[1]]
 			vm.OnExec("call", x)
 			if !args.Unify(List(), false) {
-				return nondet.Bool(false)
+				return k.fail
 			}
 			pc = pc[2:]
 			pi, ok := x.(procedureIndicator)
@@ -316,18 +322,18 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []*Variable, k nondet.Promise, a
 			return nondet.Delay(func() nondet.Promise {
 				return vm.arrive(pi, astack, nondet.Delay(func() nondet.Promise {
 					var v Variable
-					return nondet.Delay(func() nondet.Promise {
-						return vm.exec(pc, xr, vars, k, &v, &v)
-					})
+					return vm.exec(pc, xr, vars, k, &v, &v)
 				}))
 			})
 		case opExit:
 			vm.OnExec("exit", nil)
-			return k
+			return k.exit
 		case opCut:
 			vm.OnExec("cut", nil)
-			k = nondet.Cut(k)
 			pc = pc[1:]
+			return nondet.Cut(nondet.Delay(func() nondet.Promise {
+				return vm.exec(pc, xr, vars, k, args, astack)
+			}))
 		default:
 			return nondet.Error(fmt.Errorf("unknown(%d)", pc[0]))
 		}
@@ -342,24 +348,50 @@ func (cs clauses) Call(vm *VM, args Term, k nondet.Promise) nondet.Promise {
 		return nondet.Bool(false)
 	}
 
+	if vm.OnCall == nil {
+		vm.OnCall = func(pi string, args Term) {}
+	}
+	if vm.OnExit == nil {
+		vm.OnExit = func(pi string, args Term) {}
+	}
+	if vm.OnFail == nil {
+		vm.OnFail = func(pi string, args Term) {}
+	}
+	if vm.OnRedo == nil {
+		vm.OnRedo = func(pi string, args Term) {}
+	}
+
 	fvs := FreeVariables(args)
 	ks := make([]func() nondet.Promise, len(cs))
 	for i := range cs {
-		c := cs[i]
+		i, c := i, cs[i]
 		ks[i] = func() nondet.Promise {
+			if i == 0 {
+				vm.OnCall(c.pi.String(), args)
+			} else {
+				ResetVariables(fvs...)
+				vm.OnRedo(c.pi.String(), args)
+			}
 			vars := make([]*Variable, len(c.vars))
 			for i := range c.vars {
 				vars[i] = &Variable{}
 			}
 			return nondet.Delay(func() nondet.Promise {
-				return vm.exec(c.bytecode, c.xrTable, vars, k, args, List())
-			}, func() nondet.Promise {
-				ResetVariables(fvs...)
-				return nondet.Bool(false)
+				return vm.exec(c.bytecode, c.xrTable, vars, cont{
+					exit: nondet.Delay(func() nondet.Promise {
+						vm.OnExit(c.pi.String(), args)
+						return k
+					}),
+					fail: nondet.Delay(func() nondet.Promise {
+						vm.OnFail(c.pi.String(), args)
+						ResetVariables(fvs...)
+						return nondet.Bool(false)
+					}),
+				}, args, List())
 			})
 		}
 	}
-	return nondet.Delay(ks...)
+	return nondet.Opaque(nondet.Delay(ks...))
 }
 
 type clause struct {
@@ -476,7 +508,6 @@ func (c *clause) varOffset(o *Variable) byte {
 			return byte(i)
 		}
 	}
-	o.Name = ""
 	c.vars = append(c.vars, o)
 	return byte(len(c.vars) - 1)
 }
@@ -491,7 +522,10 @@ func (p predicate0) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 
@@ -504,7 +538,10 @@ func (p predicate1) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(&v1, nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 
@@ -517,7 +554,10 @@ func (p predicate2) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(&v1, &v2, nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 
@@ -530,7 +570,10 @@ func (p predicate3) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(&v1, &v2, &v3, nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 
@@ -543,7 +586,10 @@ func (p predicate4) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(&v1, &v2, &v3, &v4, nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 
@@ -556,7 +602,10 @@ func (p predicate5) Call(e *VM, args Term, k nondet.Promise) nondet.Promise {
 	}
 
 	return p(&v1, &v2, &v3, &v4, &v5, nondet.Delay(func() nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, k, nil, nil)
+		return e.exec([]byte{opExit}, nil, nil, cont{
+			exit: k,
+			fail: nondet.Bool(false),
+		}, nil, nil)
 	}))
 }
 

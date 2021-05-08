@@ -2,9 +2,11 @@ package nondet
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
-	delayed []func() Promise
-	ok, cut bool
-	err     error
+	delayed        []func() Promise
+	cut, cutParent bool
+
+	ok  bool
+	err error
 }
 
 // Delay delays an execution of k.
@@ -23,9 +25,23 @@ func Error(err error) Promise {
 }
 
 func Cut(k Promise) Promise {
-	l := k
-	l.cut = true
-	return l
+	return Promise{
+		delayed: []func() Promise{
+			func() Promise {
+				return k
+			},
+		},
+		cut: true,
+	}
+}
+
+func Opaque(k Promise) Promise {
+	return Promise{
+		delayed: []func() Promise{func() Promise {
+			return k
+		}},
+		cutParent: true,
+	}
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
@@ -54,9 +70,13 @@ func (p Promise) Force() (bool, error) {
 			return false, err
 		}
 
-		// If cut, we ignore the rest of p.
-		if !q.cut {
-			stack = append(stack, p)
+		stack = append(stack, p)
+
+		// If cut, we ignore other possibilities.
+		if q.cut {
+			for len(stack) > 0 && !stack[len(stack)-1].cutParent {
+				stack, stack[len(stack)-1] = stack[:len(stack)-1], Promise{}
+			}
 		}
 
 		stack = append(stack, q)

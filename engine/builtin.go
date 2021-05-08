@@ -91,14 +91,16 @@ func (vm *VM) IfThenElse(if_, then_, else_ Term, k nondet.Promise) nondet.Promis
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-// TODO: compile goal
 func (vm *VM) Call(goal Term, k nondet.Promise) nondet.Promise {
-	pi, args, err := piArgs(goal)
-	if err != nil {
+	var c clause
+	if err := c.compileClause(Atom(""), goal); err != nil {
 		return nondet.Error(err)
 	}
 
-	return vm.arrive(pi, args, k)
+	return vm.exec(c.bytecode, c.xrTable, c.vars, cont{
+		exit: k,
+		fail: nondet.Bool(false),
+	}, List(), List())
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).

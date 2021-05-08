@@ -60,18 +60,44 @@ func main() {
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.OnHalt = restore
-	i.OnArrive = func(goal engine.Term) {
-		logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
+	/*
+		i.OnArrive = func(goal engine.Term) {
+			logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
+		}
+		i.OnExec = func(op string, arg engine.Term) {
+			fs := logrus.Fields{"op": op}
+			if arg != nil {
+				fs["arg"] = arg
+			}
+			logrus.WithFields(fs).Debug("exec")
+		}
+	*/
+	i.OnCall = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args),
+		}).Debug("call")
+	}
+	i.OnExit = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args),
+		}).Debug("exit")
+	}
+	i.OnFail = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args),
+		}).Debug("fail")
+	}
+	i.OnRedo = func(pi string, args engine.Term) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args),
+		}).Debug("redo")
 	}
 	i.OnPanic = func(r interface{}) {
 		logrus.WithField("value", r).Error("panicked")
-	}
-	i.OnExec = func(op string, arg engine.Term) {
-		fs := logrus.Fields{}
-		if arg != nil {
-			fs["arg"] = arg
-		}
-		logrus.WithFields(fs).Debug(op)
 	}
 	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
 		if !term.Unify(engine.Atom(Version), false) {
