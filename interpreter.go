@@ -5,8 +5,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/ichiban/prolog/nondet"
-
 	"github.com/ichiban/prolog/engine"
 )
 
@@ -251,6 +249,7 @@ append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
+	env := engine.NewEnv(nil)
 	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
 	if err := p.Replace("?", args...); err != nil {
 		return err
@@ -261,7 +260,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 			return err
 		}
 
-		if _, err := i.Assertz(t, nondet.Bool(true)).Force(); err != nil {
+		if _, err := i.Assertz(t, engine.Success, env).Force(); err != nil {
 			return err
 		}
 	}
@@ -279,10 +278,12 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		return nil, err
 	}
 
+	env := engine.NewEnv(nil)
+
 	more := make(chan bool, 1)
 	next := make(chan bool)
 	sols := Solutions{
-		vars: engine.FreeVariables(t),
+		vars: env.FreeVariables(t),
 		more: more,
 		next: next,
 	}
@@ -300,10 +301,11 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, nondet.Delay(func() nondet.Promise {
+		if _, err := i.Call(t, func(env *engine.Env) engine.Promise {
 			next <- true
-			return nondet.Bool(!<-more)
-		})).Force(); err != nil {
+			sols.env = env
+			return engine.Bool(!<-more)
+		}, env).Force(); err != nil {
 			sols.err = err
 		}
 	}()

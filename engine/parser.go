@@ -24,7 +24,7 @@ type Parser struct {
 }
 
 type variableWithCount struct {
-	variable *Variable
+	variable Variable
 	Count    int
 }
 
@@ -282,15 +282,15 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Term, error) {
 
 	if v, err := p.accept(internal.TokenVariable); err == nil {
 		if v == "_" {
-			return &Variable{}, nil
+			return NewVariable(), nil
 		}
 		for i, e := range p.vars {
-			if e.variable.Name == v {
+			if e.variable == Variable(v) {
 				p.vars[i].Count++
 				return e.variable, nil
 			}
 		}
-		n := &Variable{Name: v}
+		n := Variable(v)
 		p.vars = append(p.vars, variableWithCount{variable: n, Count: 1})
 		return n, nil
 	}

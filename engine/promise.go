@@ -1,8 +1,9 @@
-package nondet
+package engine
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
-	delayed        []func() Promise
+	delayed []func() Promise
+
 	cut, cutParent bool
 
 	ok  bool
@@ -15,8 +16,8 @@ func Delay(k ...func() Promise) Promise {
 }
 
 // Bool returns a promise that simply returns t, nil.
-func Bool(t bool) Promise {
-	return Promise{ok: t}
+func Bool(ok bool) Promise {
+	return Promise{ok: ok}
 }
 
 // Error returns a promise that simply returns false, err.

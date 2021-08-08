@@ -52,8 +52,8 @@ func TestInterpreter_Query(t *testing.T) {
 		assert.NoError(t, sols.Scan(m))
 		assert.Equal(t, map[string]engine.Term{
 			"X": engine.Atom("nil"),
-			"Y": &engine.Variable{},
-			"Z": &engine.Variable{},
+			"Y": engine.NewVariable(),
+			"Z": engine.NewVariable(),
 		}, m)
 	})
 
@@ -72,28 +72,14 @@ func TestInterpreter_Query(t *testing.T) {
 			"X": &engine.Compound{
 				Functor: "cons",
 				Args: []engine.Term{
-					&engine.Variable{
-						Ref: engine.Atom("a"),
-					},
-					&engine.Variable{
-						Ref: &engine.Variable{
-							Ref: &engine.Variable{
-								Ref: &engine.Compound{
-									Functor: "cons",
-									Args: []engine.Term{
-										&engine.Variable{
-											Ref: engine.Atom("b"),
-										},
-										&engine.Variable{
-											Ref: &engine.Variable{
-												Ref: &engine.Compound{
-													Functor: "cons",
-													Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
-												},
-											},
-										},
-									},
-								},
+					engine.Atom("a"),
+					&engine.Compound{
+						Functor: "cons",
+						Args: []engine.Term{
+							engine.Atom("b"),
+							&engine.Compound{
+								Functor: "cons",
+								Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
 							},
 						},
 					},
@@ -368,7 +354,7 @@ studies(alex, physics).
 			}
 			assert.NoError(t, sols.Scan(&vars))
 			assert.Len(t, vars.Vars, 1)
-			assert.Equal(t, &engine.Variable{}, vars.Vars[0]) // Should it be &engine.Variable{Name: "X"}?
+			assert.Equal(t, engine.NewVariable(), vars.Vars[0]) // Should it be &engine.Variable{Name: "X"}?
 
 			assert.False(t, sols.Next())
 		})

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ichiban/prolog/internal"
 )
@@ -16,54 +17,73 @@ import (
 // Term is a prolog term.
 type Term interface {
 	fmt.Stringer
-	WriteTerm(io.Writer, WriteTermOptions) error
-	Unify(Term, bool) bool
+	WriteTerm(io.Writer, WriteTermOptions, *Env) error
+	Unify(Term, bool, *Env) bool
 }
 
 // Variable is a prolog variable.
-type Variable struct {
-	Name string
-	Ref  Term
+type Variable string
+
+var (
+	varCounter = 0
+	varMutex   sync.Mutex
+)
+
+const anonVarPrefix = "_\u200b"
+
+func NewVariable() Variable {
+	varMutex.Lock()
+	defer varMutex.Unlock()
+
+	varCounter++
+	return anonVar(varCounter)
 }
 
-func (v *Variable) String() string {
+func anonVar(i int) Variable {
+	return Variable(fmt.Sprintf("%s%d", anonVarPrefix, varCounter))
+}
+
+func (v Variable) Anonymous() bool {
+	return strings.HasPrefix(string(v), anonVarPrefix)
+}
+
+func (v Variable) String() string {
 	var buf bytes.Buffer
-	_ = v.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = v.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
 // WriteTerm writes the variable into w.
-func (v *Variable) WriteTerm(w io.Writer, opts WriteTermOptions) error {
-	if opts.Descriptive && v.Ref != nil {
-		if v.Name != "" {
-			if _, err := fmt.Fprintf(w, "%s = ", v.Name); err != nil {
+func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
+	ref, ok := env.Lookup(v)
+	if !ok && opts.Descriptive {
+		if v != "" {
+			if _, err := fmt.Fprintf(w, "%s = ", v); err != nil {
 				return err
 			}
 		}
-		return v.Ref.WriteTerm(w, opts)
+		return ref.WriteTerm(w, opts, env)
 	}
-	if v.Name == "" {
-		_, err := fmt.Fprintf(w, "_%p", v)
-		return err
-	}
-	_, err := fmt.Fprint(w, v.Name)
+	_, err := fmt.Fprint(w, string(v))
 	return err
 }
 
 // Unify unifies the variable with t.
-func (v *Variable) Unify(t Term, occursCheck bool) bool {
-	t = Resolve(t)
-	if occursCheck && Contains(t, v) {
+func (v Variable) Unify(t Term, occursCheck bool, env *Env) bool {
+	t = env.Resolve(t)
+	if occursCheck && Contains(t, v, env) {
 		return false
 	}
-	if v.Ref != nil {
-		return v.Ref.Unify(t, occursCheck)
+	if ref, ok := env.Lookup(v); ok {
+		return ref.Unify(t, occursCheck, env)
 	}
-	if w, ok := t.(*Variable); ok && w.Ref == nil {
-		t = &Variable{}
-		w.Ref = t
+	if w, ok := t.(Variable); ok {
+		if _, ok := env.Lookup(w); !ok {
+			t = NewVariable()
+			env.Bind(w, t)
+		}
 	}
-	v.Ref = t
+	env.Bind(v, t)
 	return true
 }
 
@@ -72,23 +92,23 @@ type Float float64
 
 func (f Float) String() string {
 	var buf bytes.Buffer
-	_ = f.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = f.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
 // WriteTerm writes the float into w.
-func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatFloat(float64(f), 'f', -1, 64))
 	return err
 }
 
 // Unify unifies the float with t.
-func (f Float) Unify(t Term, occursCheck bool) bool {
+func (f Float) Unify(t Term, occursCheck bool, env *Env) bool {
 	switch t := t.(type) {
 	case Float:
 		return f == t
-	case *Variable:
-		return t.Unify(f, occursCheck)
+	case Variable:
+		return t.Unify(f, occursCheck, env)
 	default:
 		return false
 	}
@@ -99,23 +119,23 @@ type Integer int64
 
 func (i Integer) String() string {
 	var buf bytes.Buffer
-	_ = i.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = i.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
 // WriteTerm writes the integer into w.
-func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
 	return err
 }
 
 // Unify unifies the integer with t.
-func (i Integer) Unify(t Term, occursCheck bool) bool {
+func (i Integer) Unify(t Term, occursCheck bool, env *Env) bool {
 	switch t := t.(type) {
 	case Integer:
 		return i == t
-	case *Variable:
-		return t.Unify(i, occursCheck)
+	case Variable:
+		return t.Unify(i, occursCheck, env)
 	default:
 		return false
 	}
@@ -126,7 +146,7 @@ type Atom string
 
 func (a Atom) String() string {
 	var buf bytes.Buffer
-	_ = a.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = a.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
@@ -134,7 +154,7 @@ var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
 // WriteTerm writes the atom into w.
-func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
+func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ *Env) error {
 	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
 		_, err := fmt.Fprint(w, string(a))
 		return err
@@ -178,12 +198,12 @@ func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 }
 
 // Unify unifies the atom with t.
-func (a Atom) Unify(t Term, occursCheck bool) bool {
+func (a Atom) Unify(t Term, occursCheck bool, env *Env) bool {
 	switch t := t.(type) {
 	case Atom:
 		return a == t
-	case *Variable:
-		return t.Unify(a, occursCheck)
+	case Variable:
+		return t.Unify(a, occursCheck, env)
 	default:
 		return false
 	}
@@ -197,29 +217,29 @@ type Compound struct {
 
 func (c *Compound) String() string {
 	var buf bytes.Buffer
-	_ = c.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = c.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
 // WriteTerm writes the compound into w.
-func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
+func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		if _, err := fmt.Fprint(w, "["); err != nil {
 			return err
 		}
-		if err := Resolve(c.Args[0]).WriteTerm(w, opts); err != nil {
+		if err := env.Resolve(c.Args[0]).WriteTerm(w, opts, env); err != nil {
 			return err
 		}
-		t := Resolve(c.Args[1])
+		t := env.Resolve(c.Args[1])
 		for {
 			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
 				if _, err := fmt.Fprint(w, ", "); err != nil {
 					return err
 				}
-				if err := Resolve(l.Args[0]).WriteTerm(w, opts); err != nil {
+				if err := env.Resolve(l.Args[0]).WriteTerm(w, opts, env); err != nil {
 					return err
 				}
-				t = Resolve(l.Args[1])
+				t = env.Resolve(l.Args[1])
 				continue
 			}
 			if a, ok := t.(Atom); ok && a == "[]" {
@@ -228,7 +248,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			if _, err := fmt.Fprint(w, "|"); err != nil {
 				return err
 			}
-			if err := t.WriteTerm(w, opts); err != nil {
+			if err := t.WriteTerm(w, opts, env); err != nil {
 				return err
 			}
 			break
@@ -246,10 +266,10 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			switch o.Specifier {
 			case `xf`, `yf`:
 				var lb, fb bytes.Buffer
-				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
+				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
 					return err
 				}
-				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
 					return err
 				}
 
@@ -263,10 +283,10 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 				return err
 			case `fx`, `fy`:
 				var fb, rb bytes.Buffer
-				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
 					return err
 				}
-				if err := Resolve(c.Args[0]).WriteTerm(&rb, opts); err != nil {
+				if err := env.Resolve(c.Args[0]).WriteTerm(&rb, opts, env); err != nil {
 					return err
 				}
 
@@ -288,13 +308,13 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 			switch o.Specifier {
 			case `xfx`, `xfy`, `yfx`:
 				var lb, fb, rb bytes.Buffer
-				if err := Resolve(c.Args[0]).WriteTerm(&lb, opts); err != nil {
+				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
 					return err
 				}
-				if err := c.Functor.WriteTerm(&fb, opts); err != nil {
+				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
 					return err
 				}
-				if err := Resolve(c.Args[1]).WriteTerm(&rb, opts); err != nil {
+				if err := env.Resolve(c.Args[1]).WriteTerm(&rb, opts, env); err != nil {
 					return err
 				}
 
@@ -320,7 +340,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 	}
 
 	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
-		switch arg := Resolve(c.Args[0]).(type) {
+		switch arg := env.Resolve(c.Args[0]).(type) {
 		case Integer:
 			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 			ls := []rune(letters)
@@ -338,20 +358,20 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 		}
 	}
 
-	if err := c.Functor.WriteTerm(w, opts); err != nil {
+	if err := c.Functor.WriteTerm(w, opts, env); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprint(w, "("); err != nil {
 		return err
 	}
-	if err := Resolve(c.Args[0]).WriteTerm(w, opts); err != nil {
+	if err := env.Resolve(c.Args[0]).WriteTerm(w, opts, env); err != nil {
 		return err
 	}
 	for _, arg := range c.Args[1:] {
 		if _, err := fmt.Fprint(w, ", "); err != nil {
 			return err
 		}
-		if err := Resolve(arg).WriteTerm(w, opts); err != nil {
+		if err := env.Resolve(arg).WriteTerm(w, opts, env); err != nil {
 			return err
 		}
 	}
@@ -360,7 +380,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions) error {
 }
 
 // Unify unifies the compound with t.
-func (c *Compound) Unify(t Term, occursCheck bool) bool {
+func (c *Compound) Unify(t Term, occursCheck bool, env *Env) bool {
 	switch t := t.(type) {
 	case *Compound:
 		if c.Functor != t.Functor {
@@ -370,13 +390,13 @@ func (c *Compound) Unify(t Term, occursCheck bool) bool {
 			return false
 		}
 		for i := range c.Args {
-			if !c.Args[i].Unify(t.Args[i], occursCheck) {
+			if !c.Args[i].Unify(t.Args[i], occursCheck, env) {
 				return false
 			}
 		}
 		return true
-	case *Variable:
-		return t.Unify(c, occursCheck)
+	case Variable:
+		return t.Unify(c, occursCheck, env)
 	default:
 		return false
 	}
@@ -429,11 +449,11 @@ func Set(ts ...Term) Term {
 }
 
 // Each iterates over list.
-func Each(list Term, f func(elem Term) error) error {
+func Each(list Term, f func(elem Term) error, env *Env) error {
 	whole := list
 	for {
-		switch l := Resolve(list).(type) {
-		case *Variable:
+		switch l := env.Resolve(list).(type) {
+		case Variable:
 			return instantiationError(whole)
 		case Atom:
 			if l != "[]" {
@@ -454,46 +474,24 @@ func Each(list Term, f func(elem Term) error) error {
 	}
 }
 
-// Resolve follows the variable chain and returns the first non-variable term or the last free variable.
-func Resolve(t Term) Term {
-	var stop []*Variable
-	for t != nil {
-		switch v := t.(type) {
-		case *Variable:
-			if v.Ref == nil {
-				return v
-			}
-			for _, s := range stop {
-				if v == s {
-					return v
-				}
-			}
-			stop = append(stop, v)
-			t = v.Ref
-		default:
-			return v
-		}
-	}
-	return nil
-}
-
 // Contains checks if t contains s.
-func Contains(t, s Term) bool {
+func Contains(t, s Term, env *Env) bool {
 	switch t := t.(type) {
-	case *Variable:
+	case Variable:
 		if t == s {
 			return true
 		}
-		if t.Ref == nil {
+		ref, ok := env.Lookup(t)
+		if !ok {
 			return false
 		}
-		return Contains(t.Ref, s)
+		return Contains(ref, s, env)
 	case *Compound:
 		if s, ok := s.(Atom); ok && t.Functor == s {
 			return true
 		}
 		for _, a := range t.Args {
-			if Contains(a, s) {
+			if Contains(a, s, env) {
 				return true
 			}
 		}
@@ -504,8 +502,8 @@ func Contains(t, s Term) bool {
 }
 
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Term) Term {
-	t = Resolve(t)
+func Rulify(t Term, env *Env) Term {
+	t = env.Resolve(t)
 	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
 		return t
 	}
@@ -550,12 +548,12 @@ type Stream struct {
 
 func (s *Stream) String() string {
 	var buf bytes.Buffer
-	_ = s.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = s.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
 // WriteTerm writes the stream into w.
-func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	if s.alias != "" {
 		_, err := fmt.Fprintf(w, "<stream>(%s)", s.alias)
 		return err
@@ -565,12 +563,12 @@ func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions) error {
 }
 
 // Unify unifies the stream with t.
-func (s *Stream) Unify(t Term, occursCheck bool) bool {
+func (s *Stream) Unify(t Term, occursCheck bool, env *Env) bool {
 	switch t := t.(type) {
 	case *Stream:
 		return s == t
-	case *Variable:
-		return t.Unify(s, occursCheck)
+	case Variable:
+		return t.Unify(s, occursCheck, env)
 	default:
 		return false
 	}
@@ -593,9 +591,9 @@ var defaultWriteTermOptions = WriteTermOptions{
 }
 
 type readTermOptions struct {
-	singletons    *Variable
-	variables     *Variable
-	variableNames *Variable
+	singletons    Variable
+	variables     Variable
+	variableNames Variable
 }
 
 // procedureIndicator is a specialized variant of Compound.
@@ -606,23 +604,23 @@ type procedureIndicator struct {
 
 func (p procedureIndicator) String() string {
 	var buf bytes.Buffer
-	_ = p.WriteTerm(&buf, defaultWriteTermOptions)
+	_ = p.WriteTerm(&buf, defaultWriteTermOptions, nil)
 	return buf.String()
 }
 
-func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions) error {
+func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	_, err := fmt.Fprintf(w, "%s/%d", p.name, p.arity)
 	return err
 }
 
-func (p procedureIndicator) Unify(t Term, _ bool) bool {
+func (p procedureIndicator) Unify(t Term, _ bool, _ *Env) bool {
 	pf, ok := t.(procedureIndicator)
 	return ok && p.name == pf.name && p.arity == pf.arity
 }
 
-func piArgs(t Term) (procedureIndicator, Term, error) {
-	switch f := Resolve(t).(type) {
-	case *Variable:
+func piArgs(t Term, env *Env) (procedureIndicator, Term, error) {
+	switch f := env.Resolve(t).(type) {
+	case Variable:
 		return procedureIndicator{}, nil, instantiationError(t)
 	case Atom:
 		return procedureIndicator{name: f, arity: 0}, List(), nil

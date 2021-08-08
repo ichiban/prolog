@@ -11,7 +11,8 @@ import (
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	vars []*engine.Variable
+	vars []engine.Variable
+	env  *engine.Env
 	more chan<- bool
 	next <-chan bool
 	err  error
@@ -51,16 +52,16 @@ func (s *Solutions) Scan(dest interface{}) error {
 			}
 
 			for _, v := range s.vars {
-				f, ok := fields[v.Name]
+				f, ok := fields[string(v)]
 				if !ok {
 					continue
 				}
 
-				val, err := convert(engine.Resolve(v), f.Type())
+				val, err := convert(s.env.Resolve(v), f.Type(), s.env)
 				if err != nil {
 					return err
 				}
-				fields[v.Name].Set(val)
+				fields[string(v)].Set(val)
 			}
 		}
 		return nil
@@ -71,15 +72,15 @@ func (s *Solutions) Scan(dest interface{}) error {
 		}
 
 		for _, v := range s.vars {
-			if v.Name == "" {
+			if v.Anonymous() {
 				continue
 			}
 
-			val, err := convert(engine.Resolve(v), t.Elem())
+			val, err := convert(s.env.Resolve(v), t.Elem(), s.env)
 			if err != nil {
 				return err
 			}
-			o.SetMapIndex(reflect.ValueOf(v.Name), val)
+			o.SetMapIndex(reflect.ValueOf(v), val)
 		}
 		return nil
 	default:
@@ -87,7 +88,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t engine.Term, typ reflect.Type) (reflect.Value, error) {
+func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
 		return reflect.ValueOf(t), nil
@@ -109,13 +110,13 @@ func convert(t engine.Term, typ reflect.Type) (reflect.Value, error) {
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
 		if err := engine.Each(t, func(elem engine.Term) error {
-			e, err := convert(engine.Resolve(elem), typ.Elem())
+			e, err := convert(env.Resolve(elem), typ.Elem(), env)
 			if err != nil {
 				return err
 			}
 			r = reflect.Append(r, e)
 			return nil
-		}); err != nil {
+		}, env); err != nil {
 			return reflect.Value{}, err
 		}
 		return r, nil
@@ -132,7 +133,7 @@ func (s *Solutions) Err() error {
 func (s *Solutions) Vars() []string {
 	ns := make([]string, len(s.vars))
 	for i, v := range s.vars {
-		ns[i] = v.Name
+		ns[i] = string(v)
 	}
 	return ns
 }
