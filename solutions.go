@@ -11,10 +11,10 @@ import (
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	vars []engine.Variable
 	env  *engine.Env
+	vars []engine.Variable
 	more chan<- bool
-	next <-chan bool
+	next <-chan *engine.Env
 	err  error
 }
 
@@ -28,7 +28,8 @@ func (s *Solutions) Close() error {
 // or false if there's no further solutions or if there's an error.
 func (s *Solutions) Next() bool {
 	s.more <- true
-	return <-s.next
+	s.env = <-s.next
+	return s.env != nil
 }
 
 // Scan copies the variable values of the current solution into the specified struct/map.
@@ -80,7 +81,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 			if err != nil {
 				return err
 			}
-			o.SetMapIndex(reflect.ValueOf(v), val)
+			o.SetMapIndex(reflect.ValueOf(string(v)), val)
 		}
 		return nil
 	default:
@@ -91,6 +92,13 @@ func (s *Solutions) Scan(dest interface{}) error {
 func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
+		if c, ok := t.(*engine.Compound); ok {
+			c, err := env.Ground(c)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			return reflect.ValueOf(c), nil
+		}
 		return reflect.ValueOf(t), nil
 	}
 

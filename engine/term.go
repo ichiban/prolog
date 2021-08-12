@@ -36,10 +36,6 @@ func NewVariable() Variable {
 	defer varMutex.Unlock()
 
 	varCounter++
-	return anonVar(varCounter)
-}
-
-func anonVar(i int) Variable {
 	return Variable(fmt.Sprintf("%s%d", anonVarPrefix, varCounter))
 }
 

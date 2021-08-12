@@ -281,7 +281,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 	env := engine.NewEnv(nil)
 
 	more := make(chan bool, 1)
-	next := make(chan bool)
+	next := make(chan *engine.Env)
 	sols := Solutions{
 		vars: env.FreeVariables(t),
 		more: more,
@@ -302,8 +302,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 			return
 		}
 		if _, err := i.Call(t, func(env *engine.Env) engine.Promise {
-			next <- true
-			sols.env = env
+			next <- env
 			return engine.Bool(!<-more)
 		}, env).Force(); err != nil {
 			sols.err = err

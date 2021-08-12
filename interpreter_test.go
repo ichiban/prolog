@@ -50,11 +50,11 @@ func TestInterpreter_Query(t *testing.T) {
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]engine.Term{
-			"X": engine.Atom("nil"),
-			"Y": engine.NewVariable(),
-			"Z": engine.NewVariable(),
-		}, m)
+		assert.Len(t, m, 3)
+		assert.Equal(t, engine.Atom("nil"), m["X"])
+		assert.True(t, m["Y"].(engine.Variable).Anonymous())
+		assert.True(t, m["Z"].(engine.Variable).Anonymous())
+		assert.Equal(t, m["Y"], m["Z"])
 	})
 
 	t.Run("rule", func(t *testing.T) {
@@ -322,55 +322,6 @@ studies(alex, physics).
 
 				assert.False(t, sols.Next())
 			})
-		})
-	})
-
-	t.Run("inriasuite", func(t *testing.T) {
-		i := New(nil, nil)
-
-		i.Exec(inriaSuite)
-
-		t.Run("get_all_subs", func(a *testing.T) {
-			sols, err := i.Query(`get_all_subs((X=1, var(X)), Subs).`)
-			assert.NoError(t, err)
-			assert.True(t, sols.Next())
-
-			var ans struct {
-				Subs []string
-			}
-			assert.NoError(t, sols.Scan(&ans))
-			assert.Equal(t, []string{"failure"}, ans.Subs)
-
-			assert.False(t, sols.Next())
-		})
-
-		t.Run("vars_in_term", func(t *testing.T) {
-			sols, err := i.Query(`vars_in_term((X=1, var(X)), Vars).`)
-			assert.NoError(t, err)
-			assert.True(t, sols.Next())
-
-			var vars struct {
-				Vars []engine.Term
-			}
-			assert.NoError(t, sols.Scan(&vars))
-			assert.Len(t, vars.Vars, 1)
-			assert.Equal(t, engine.NewVariable(), vars.Vars[0]) // Should it be &engine.Variable{Name: "X"}?
-
-			assert.False(t, sols.Next())
-		})
-
-		t.Run("call_with_result", func(t *testing.T) {
-			sols, err := i.Query(`call_with_result((X=1, var(X)), R).`)
-			assert.NoError(t, err)
-			assert.True(t, sols.Next())
-
-			var s struct {
-				R string
-			}
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, "failure", s.R)
-
-			assert.False(t, sols.Next())
 		})
 	})
 }

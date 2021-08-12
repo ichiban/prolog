@@ -258,7 +258,10 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, k cont, args, astack
 			if !ok {
 				return Error(errors.New("not a principal functor"))
 			}
-			ok, err := Functor(arg, pf.name, pf.arity, Success, env).Force()
+			ok, err := Functor(arg, pf.name, pf.arity, func(e *Env) Promise {
+				env = e
+				return Bool(true)
+			}, env).Force()
 			if err != nil {
 				return Error(err)
 			}
@@ -271,7 +274,10 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, k cont, args, astack
 				Functor: ".",
 				Args:    []Term{pf.name, args},
 			}
-			ok, err = Univ(arg, &cons2, Success, env).Force()
+			ok, err = Univ(arg, &cons2, func(e *Env) Promise {
+				env = e
+				return Bool(true)
+			}, env).Force()
 			if err != nil {
 				return Error(err)
 			}

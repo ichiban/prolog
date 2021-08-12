@@ -1,13 +1,15 @@
 package engine
 
+import "errors"
+
 // Env is an environment frame.
 type Env struct {
-	Up       *Env
+	up       *Env
 	bindings []binding
 }
 
 func NewEnv(up *Env) *Env {
-	return &Env{Up: up}
+	return &Env{up: up}
 }
 
 func (e *Env) Bind(v Variable, t Term) {
@@ -24,7 +26,7 @@ func (e *Env) Bind(v Variable, t Term) {
 }
 
 func (e *Env) Lookup(v Variable) (Term, bool) {
-	for env := e; env != nil; env = env.Up {
+	for env := e; env != nil; env = env.up {
 		for _, b := range env.bindings {
 			if b.variable == v {
 				return b.value, true
@@ -56,6 +58,29 @@ func (e *Env) Resolve(t Term) Term {
 		}
 	}
 	return nil
+}
+
+// Ground removes variables in term t.
+func (e *Env) Ground(t Term) (Term, error) {
+	switch t := e.Resolve(t).(type) {
+	case Variable:
+		return nil, errors.New("can't ground")
+	case *Compound:
+		c := Compound{
+			Functor: t.Functor,
+			Args:    make([]Term, len(t.Args)),
+		}
+		for i := 0; i < len(c.Args); i++ {
+			g, err := e.Ground(t.Args[i])
+			if err != nil {
+				return nil, err
+			}
+			c.Args[i] = g
+		}
+		return &c, nil
+	default:
+		return t, nil
+	}
 }
 
 // FreeVariables extracts variables in the given terms.

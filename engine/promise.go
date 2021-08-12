@@ -25,33 +25,33 @@ func Error(err error) Promise {
 	return Promise{err: err}
 }
 
-func Cut(k Promise) Promise {
+func Cut(p Promise) Promise {
 	return Promise{
 		delayed: []func() Promise{
 			func() Promise {
-				return k
+				return p
 			},
 		},
 		cut: true,
 	}
 }
 
-func Opaque(k Promise) Promise {
+func Opaque(p Promise) Promise {
 	return Promise{
-		delayed: []func() Promise{func() Promise {
-			return k
-		}},
+		delayed: []func() Promise{
+			func() Promise {
+				return p
+			},
+		},
 		cutParent: true,
 	}
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
 func (p Promise) Force() (bool, error) {
-	stack := []Promise{p}
+	stack := promiseStack{p}
 	for len(stack) > 0 {
-		// pop
-		var p Promise
-		p, stack, stack[len(stack)-1] = stack[len(stack)-1], stack[:len(stack)-1], Promise{}
+		p := stack.pop()
 
 		if len(p.delayed) == 0 {
 			switch {
@@ -64,23 +64,30 @@ func (p Promise) Force() (bool, error) {
 			}
 		}
 
+		// If cut, we eliminate other possibilities.
+		if p.cut {
+			for len(stack) > 0 && !stack.peek().cutParent {
+				_ = stack.pop()
+			}
+			p.cut = false // we don't have to do this again when we revisit.
+		}
+
 		// Try the alternatives from left to right.
 		var q Promise
-		q, p.delayed = p.delayed[0](), p.delayed[1:]
-		if err := q.err; err != nil {
-			return false, err
-		}
-
-		stack = append(stack, p)
-
-		// If cut, we ignore other possibilities.
-		if q.cut {
-			for len(stack) > 0 && !stack[len(stack)-1].cutParent {
-				stack, stack[len(stack)-1] = stack[:len(stack)-1], Promise{}
-			}
-		}
-
-		stack = append(stack, q)
+		q, p.delayed, p.delayed[0] = p.delayed[0](), p.delayed[1:], nil
+		stack = append(stack, p, q)
 	}
 	return false, nil
+}
+
+type promiseStack []Promise
+
+func (s promiseStack) peek() Promise {
+	return s[len(s)-1]
+}
+
+func (s *promiseStack) pop() Promise {
+	var p Promise
+	p, *s, (*s)[len(*s)-1] = (*s)[len(*s)-1], (*s)[:len(*s)-1], Promise{}
+	return p
 }

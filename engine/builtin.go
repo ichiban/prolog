@@ -66,9 +66,7 @@ func (vm *VM) Disjunction(p, q Term, k func(*Env) Promise, env *Env) Promise {
 }
 
 func (vm *VM) Negation(goal Term, k func(*Env) Promise, env *Env) Promise {
-	ok, err := vm.Call(goal, func(_ *Env) Promise {
-		return Bool(false)
-	}, NewEnv(env)).Force()
+	ok, err := vm.Call(goal, Success, NewEnv(env)).Force()
 	if err != nil {
 		return Error(err)
 	}
@@ -105,12 +103,12 @@ func (vm *VM) Call(goal Term, k func(*Env) Promise, env *Env) Promise {
 		return Error(err)
 	}
 
-	return vm.exec(c.bytecode, c.xrTable, c.vars, cont{
+	return Opaque(vm.exec(c.bytecode, c.xrTable, c.vars, cont{
 		exit: k,
 		fail: func(_ *Env) Promise {
 			return Bool(false)
 		},
-	}, List(), List(), env)
+	}, List(), List(), env))
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
@@ -308,14 +306,11 @@ func copyTerm(t Term, vars map[Variable]Variable, env *Env) Term {
 	if vars == nil {
 		vars = map[Variable]Variable{}
 	}
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case Variable:
 		v, ok := vars[t]
 		if !ok {
 			v = NewVariable()
-			if ref, ok := env.Lookup(t); ok {
-				env.Bind(v, copyTerm(ref, vars, env))
-			}
 			vars[t] = v
 		}
 		return v
@@ -530,14 +525,14 @@ func (vm *VM) collectionOf(template, goal, instances Term, k func(*Env) Promise,
 	qualifier, body := NewVariable(), NewVariable()
 	if goal.Unify(&Compound{
 		Functor: "^",
-		Args:    []Term{&qualifier, &body},
+		Args:    []Term{qualifier, body},
 	}, false, env) {
 		goal = body
 	}
 
 	fvs := env.FreeVariables(goal)
 
-	freeVariables := env.FreeVariables(template, &qualifier)
+	freeVariables := env.FreeVariables(template, qualifier)
 	groupingVariables := make([]Variable, 0, len(fvs))
 grouping:
 	for _, v := range fvs {
@@ -565,9 +560,7 @@ grouping:
 		for i, s := range solutions {
 			env := NewEnv(env)
 			for i := range groupingVariables {
-				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], func(_ *Env) Promise {
-					return Bool(true)
-				}, env).Force()
+				ok, err := Compare(Atom("="), s.snapshots[i], snapshots[i], Success, env).Force()
 				if err != nil {
 					return Error(err)
 				}
@@ -626,7 +619,7 @@ func Compare(order, term1, term2 Term, k func(*Env) Promise, env *Env) Promise {
 		return Error(typeErrorAtom(order))
 	}
 
-	d := compare(term1, term2)
+	d := compare(env.Resolve(term1), env.Resolve(term2))
 	switch {
 	case d < 0:
 		return Unify(Atom("<"), order, k, env)
@@ -795,7 +788,7 @@ func (vm *VM) Retract(t Term, k func(*Env) Promise, env *Env) Promise {
 	defer func() { vm.procedures[pi] = updated }()
 
 	for i, c := range cs {
-		env = NewEnv(env)
+		env := NewEnv(env)
 
 		raw := Rulify(c.raw, env)
 

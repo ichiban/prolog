@@ -802,12 +802,12 @@ func TestVM_BagOf(t *testing.T) {
 			}, cs, func(env *Env) Promise {
 				switch count {
 				case 0:
-					assert.Equal(t, a, env.Resolve(a))
+					assert.True(t, env.Resolve(a).(Variable).Anonymous())
 					assert.Equal(t, Atom("b"), env.Resolve(b))
 					assert.Equal(t, c, env.Resolve(c))
 					assert.True(t, List(Atom("c"), Atom("d")).Unify(cs, false, env))
 				case 1:
-					assert.Equal(t, a, env.Resolve(a))
+					assert.True(t, env.Resolve(a).(Variable).Anonymous())
 					assert.Equal(t, Atom("c"), env.Resolve(b))
 					assert.Equal(t, c, env.Resolve(c))
 					assert.True(t, List(Atom("e"), Atom("f"), Atom("g")).Unify(cs, false, env))
@@ -906,6 +906,7 @@ func TestSetOf(t *testing.T) {
 					assert.Equal(t, Atom("a"), env.Resolve(a))
 					assert.Equal(t, Atom("b"), env.Resolve(b))
 					assert.Equal(t, c, env.Resolve(c))
+					assert.Equal(t, List(Atom("c"), Atom("d")), env.Resolve(cs))
 					assert.True(t, List(Atom("c"), Atom("d")).Unify(cs, false, env))
 				case 1:
 					assert.Equal(t, Atom("b"), env.Resolve(a))
@@ -942,12 +943,12 @@ func TestSetOf(t *testing.T) {
 			}, cs, func(env *Env) Promise {
 				switch count {
 				case 0:
-					assert.Equal(t, a, env.Resolve(a))
+					assert.True(t, env.Resolve(a).(Variable).Anonymous())
 					assert.Equal(t, Atom("b"), env.Resolve(b))
 					assert.Equal(t, c, env.Resolve(c))
 					assert.True(t, List(Atom("c"), Atom("d")).Unify(cs, false, env))
 				case 1:
-					assert.Equal(t, a, env.Resolve(a))
+					assert.True(t, env.Resolve(a).(Variable).Anonymous())
 					assert.Equal(t, Atom("c"), env.Resolve(b))
 					assert.Equal(t, c, env.Resolve(c))
 					assert.True(t, List(Atom("e"), Atom("f"), Atom("g")).Unify(cs, false, env))
