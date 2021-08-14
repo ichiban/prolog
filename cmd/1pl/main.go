@@ -70,25 +70,25 @@ func main() {
 			logrus.WithFields(fs).Debug("exec")
 		}
 	*/
-	i.OnCall = func(pi string, args engine.Term, env *engine.Env) {
+	i.OnCall = func(pi string, args engine.Term, env engine.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("call")
 	}
-	i.OnExit = func(pi string, args engine.Term, env *engine.Env) {
+	i.OnExit = func(pi string, args engine.Term, env engine.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("exit")
 	}
-	i.OnFail = func(pi string, args engine.Term, env *engine.Env) {
+	i.OnFail = func(pi string, args engine.Term, env engine.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("fail")
 	}
-	i.OnRedo = func(pi string, args engine.Term, env *engine.Env) {
+	i.OnRedo = func(pi string, args engine.Term, env engine.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
@@ -97,11 +97,11 @@ func main() {
 	i.OnPanic = func(r interface{}) {
 		logrus.WithField("value", r).Error("panicked")
 	}
-	i.Register1("version", func(term engine.Term, k func(*engine.Env) engine.Promise, env *engine.Env) engine.Promise {
+	i.Register1("version", func(term engine.Term, k func(engine.Env) engine.Promise, env *engine.Env) engine.Promise {
 		if !term.Unify(engine.Atom(Version), false, env) {
 			return engine.Bool(false)
 		}
-		return k(env)
+		return k(*env)
 	})
 
 	for _, a := range pflag.Args() {

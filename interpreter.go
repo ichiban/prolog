@@ -249,7 +249,7 @@ append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
-	env := engine.NewEnv(nil)
+	env := engine.Env{}
 	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
 	if err := p.Replace("?", args...); err != nil {
 		return err
@@ -260,7 +260,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 			return err
 		}
 
-		if _, err := i.Assertz(t, engine.Success, env).Force(); err != nil {
+		if _, err := i.Assertz(t, engine.Success, &env).Force(); err != nil {
 			return err
 		}
 	}
@@ -278,10 +278,10 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		return nil, err
 	}
 
-	env := engine.NewEnv(nil)
+	env := engine.Env{}
 
 	more := make(chan bool, 1)
-	next := make(chan *engine.Env)
+	next := make(chan engine.Env)
 	sols := Solutions{
 		vars: env.FreeVariables(t),
 		more: more,
@@ -301,10 +301,10 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env *engine.Env) engine.Promise {
+		if _, err := i.Call(t, func(env engine.Env) engine.Promise {
 			next <- env
 			return engine.Bool(!<-more)
-		}, env).Force(); err != nil {
+		}, &env).Force(); err != nil {
 			sols.err = err
 		}
 	}()

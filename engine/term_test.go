@@ -8,34 +8,42 @@ import (
 )
 
 func TestVariable_Unify(t *testing.T) {
-	env := NewEnv(nil)
+	env := Env{}
 	v1, v2 := Variable("V1"), Variable("V2")
-	assert.True(t, v1.Unify(v2, false, env))
-	assert.True(t, v1.Unify(Atom("foo"), false, env))
+	assert.True(t, v1.Unify(v2, false, &env))
+	assert.True(t, v1.Unify(Atom("foo"), false, &env))
 	assert.Equal(t, Atom("foo"), env.Resolve(v1))
 	assert.Equal(t, Atom("foo"), env.Resolve(v2))
 
 	v3, v4 := Variable("V3"), Variable("V4")
-	assert.True(t, v3.Unify(v4, false, env))
-	assert.True(t, v4.Unify(Atom("bar"), false, env))
+	assert.True(t, v3.Unify(v4, false, &env))
+	assert.True(t, v4.Unify(Atom("bar"), false, &env))
 	assert.Equal(t, Atom("bar"), env.Resolve(v3))
 	assert.Equal(t, Atom("bar"), env.Resolve(v4))
 }
 
 func TestVariable_WriteTerm(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
-		env := NewEnv(nil)
 		v := Variable("X")
-		env.Bind(v, Integer(1))
+		env := Env{
+			{
+				Variable: v,
+				Value:    Integer(1),
+			},
+		}
 		var buf bytes.Buffer
 		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
 		assert.Equal(t, "X", buf.String())
 	})
 
 	t.Run("unnamed", func(t *testing.T) {
-		env := NewEnv(nil)
 		v := NewVariable()
-		env.Bind(v, Integer(1))
+		env := Env{
+			{
+				Variable: v,
+				Value:    Integer(1),
+			},
+		}
 		var buf bytes.Buffer
 		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
 		assert.Regexp(t, `\A_​[[:xdigit:]]+\z`, buf.String())
@@ -102,23 +110,31 @@ func TestAtom_Unify(t *testing.T) {
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			env := NewEnv(nil)
+			env := Env{}
 			v := Variable("X")
-			assert.True(t, unit.Unify(v, false, env))
+			assert.True(t, unit.Unify(v, false, &env))
 			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, unit)
-			assert.True(t, unit.Unify(v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value:    unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
 			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, Atom("bar"))
-			assert.False(t, unit.Unify(v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value:    Atom("bar"),
+				},
+			}
+			assert.False(t, unit.Unify(v, false, &env))
 		})
 	})
 
@@ -144,22 +160,30 @@ func TestInteger_Unify(t *testing.T) {
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			env := NewEnv(nil)
+			env := Env{}
 			v := Variable("X")
-			assert.True(t, unit.Unify(v, false, env))
+			assert.True(t, unit.Unify(v, false, &env))
 			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, unit)
-			assert.True(t, unit.Unify(v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value:    unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, Integer(0))
-			assert.False(t, unit.Unify(v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value:    Integer(0),
+				},
+			}
+			assert.False(t, unit.Unify(v, false, &env))
 		})
 	})
 
@@ -187,25 +211,33 @@ func TestCompound_Unify(t *testing.T) {
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			env := NewEnv(nil)
+			env := Env{}
 			v := Variable("X")
-			assert.True(t, unit.Unify(v, false, env))
+			assert.True(t, unit.Unify(v, false, &env))
 			assert.Equal(t, &unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, &unit)
-			assert.True(t, unit.Unify(v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value:    &unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			env := NewEnv(nil)
 			v := Variable("X")
-			env.Bind(v, &Compound{
-				Functor: "foo",
-				Args:    []Term{Atom("baz")},
-			})
-			assert.False(t, unit.Unify(&v, false, env))
+			env := Env{
+				{
+					Variable: v,
+					Value: &Compound{
+						Functor: "foo",
+						Args:    []Term{Atom("baz")},
+					},
+				},
+			}
+			assert.False(t, unit.Unify(&v, false, &env))
 		})
 	})
 
@@ -226,12 +258,12 @@ func TestCompound_Unify(t *testing.T) {
 			Functor: "foo",
 			Args:    []Term{Atom("baz")},
 		}, false, nil))
-		env := NewEnv(nil)
+		env := Env{}
 		v := Variable("X")
 		assert.True(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{v},
-		}, false, env))
+		}, false, &env))
 		assert.Equal(t, Atom("bar"), env.Resolve(v))
 	})
 }
@@ -311,15 +343,18 @@ func TestCompound_WriteTerm(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
-	assert.True(t, Contains(Atom("a"), Atom("a"), nil))
-	assert.False(t, Contains(NewVariable(), Atom("a"), nil))
-	env := NewEnv(nil)
+	env := Env{}
+	assert.True(t, Contains(Atom("a"), Atom("a"), &env))
+	assert.False(t, Contains(NewVariable(), Atom("a"), &env))
 	v := Variable("V")
-	env.Bind(v, Atom("a"))
-	assert.True(t, Contains(v, Atom("a"), env))
-	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a"), nil))
-	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a"), nil))
-	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a"), nil))
+	env = append(env, Binding{
+		Variable: v,
+		Value:    Atom("a"),
+	})
+	assert.True(t, Contains(v, Atom("a"), &env))
+	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a"), &env))
+	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a"), &env))
+	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a"), &env))
 }
 
 func TestRulify(t *testing.T) {
@@ -327,9 +362,13 @@ func TestRulify(t *testing.T) {
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("true")},
 	}, Rulify(Atom("a"), nil))
-	env := NewEnv(nil)
 	v := Variable("V")
-	env.Bind(v, Atom("a"))
+	env := Env{
+		{
+			Variable: v,
+			Value:    Atom("a"),
+		},
+	}
 	assert.Equal(t, &Compound{
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("true")},

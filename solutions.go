@@ -11,10 +11,10 @@ import (
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	env  *engine.Env
+	env  engine.Env
 	vars []engine.Variable
 	more chan<- bool
-	next <-chan *engine.Env
+	next <-chan engine.Env
 	err  error
 }
 
@@ -89,7 +89,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
+func convert(t engine.Term, typ reflect.Type, env engine.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
 		if c, ok := t.(*engine.Compound); ok {

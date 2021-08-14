@@ -17,7 +17,7 @@ import (
 // Term is a prolog term.
 type Term interface {
 	fmt.Stringer
-	WriteTerm(io.Writer, WriteTermOptions, *Env) error
+	WriteTerm(io.Writer, WriteTermOptions, Env) error
 	Unify(Term, bool, *Env) bool
 }
 
@@ -50,7 +50,7 @@ func (v Variable) String() string {
 }
 
 // WriteTerm writes the variable into w.
-func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
+func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
 	ref, ok := env.Lookup(v)
 	if !ok && opts.Descriptive {
 		if v != "" {
@@ -76,10 +76,16 @@ func (v Variable) Unify(t Term, occursCheck bool, env *Env) bool {
 	if w, ok := t.(Variable); ok {
 		if _, ok := env.Lookup(w); !ok {
 			t = NewVariable()
-			env.Bind(w, t)
+			*env = append(*env, Binding{
+				Variable: w,
+				Value:    t,
+			})
 		}
 	}
-	env.Bind(v, t)
+	*env = append(*env, Binding{
+		Variable: v,
+		Value:    t,
+	})
 	return true
 }
 
@@ -93,7 +99,7 @@ func (f Float) String() string {
 }
 
 // WriteTerm writes the float into w.
-func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
+func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatFloat(float64(f), 'f', -1, 64))
 	return err
 }
@@ -120,7 +126,7 @@ func (i Integer) String() string {
 }
 
 // WriteTerm writes the integer into w.
-func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
+func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
 	return err
 }
@@ -150,7 +156,7 @@ var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
 // WriteTerm writes the atom into w.
-func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ *Env) error {
+func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ Env) error {
 	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
 		_, err := fmt.Fprint(w, string(a))
 		return err
@@ -218,7 +224,7 @@ func (c *Compound) String() string {
 }
 
 // WriteTerm writes the compound into w.
-func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
+func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		if _, err := fmt.Fprint(w, "["); err != nil {
 			return err
@@ -445,7 +451,7 @@ func Set(ts ...Term) Term {
 }
 
 // Each iterates over list.
-func Each(list Term, f func(elem Term) error, env *Env) error {
+func Each(list Term, f func(elem Term) error, env Env) error {
 	whole := list
 	for {
 		switch l := env.Resolve(list).(type) {
@@ -498,7 +504,7 @@ func Contains(t, s Term, env *Env) bool {
 }
 
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Term, env *Env) Term {
+func Rulify(t Term, env Env) Term {
 	t = env.Resolve(t)
 	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
 		return t
@@ -549,7 +555,7 @@ func (s *Stream) String() string {
 }
 
 // WriteTerm writes the stream into w.
-func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
+func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 	if s.alias != "" {
 		_, err := fmt.Fprintf(w, "<stream>(%s)", s.alias)
 		return err
@@ -604,7 +610,7 @@ func (p procedureIndicator) String() string {
 	return buf.String()
 }
 
-func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
+func (p procedureIndicator) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 	_, err := fmt.Fprintf(w, "%s/%d", p.name, p.arity)
 	return err
 }
@@ -614,7 +620,7 @@ func (p procedureIndicator) Unify(t Term, _ bool, _ *Env) bool {
 	return ok && p.name == pf.name && p.arity == pf.arity
 }
 
-func piArgs(t Term, env *Env) (procedureIndicator, Term, error) {
+func piArgs(t Term, env Env) (procedureIndicator, Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
 		return procedureIndicator{}, nil, instantiationError(t)
