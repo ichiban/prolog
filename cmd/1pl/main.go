@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ichiban/prolog/nondet"
-
 	"github.com/ichiban/prolog/engine"
 
 	"github.com/ichiban/prolog"
@@ -59,12 +57,51 @@ func main() {
 	logrus.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.BeforeHalt = append(i.BeforeHalt, restore)
-	i.Register1("version", func(term engine.Term, k nondet.Promise) nondet.Promise {
-		if !term.Unify(engine.Atom(Version), false) {
-			return nondet.Bool(false)
+	i.OnHalt = restore
+	/*
+		i.OnArrive = func(goal engine.Term) {
+			logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
 		}
-		return k
+		i.OnExec = func(op string, arg engine.Term) {
+			fs := logrus.Fields{"op": op}
+			if arg != nil {
+				fs["arg"] = arg
+			}
+			logrus.WithFields(fs).Debug("exec")
+		}
+	*/
+	i.OnCall = func(pi string, args engine.Term, env engine.Env) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args, env),
+		}).Debug("call")
+	}
+	i.OnExit = func(pi string, args engine.Term, env engine.Env) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args, env),
+		}).Debug("exit")
+	}
+	i.OnFail = func(pi string, args engine.Term, env engine.Env) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args, env),
+		}).Debug("fail")
+	}
+	i.OnRedo = func(pi string, args engine.Term, env engine.Env) {
+		logrus.WithFields(logrus.Fields{
+			"pi":   pi,
+			"args": i.DescribeTerm(args, env),
+		}).Debug("redo")
+	}
+	i.OnPanic = func(r interface{}) {
+		logrus.WithField("value", r).Error("panicked")
+	}
+	i.Register1("version", func(term engine.Term, k func(engine.Env) engine.Promise, env *engine.Env) engine.Promise {
+		if !term.Unify(engine.Atom(Version), false, env) {
+			return engine.Bool(false)
+		}
+		return k(*env)
 	})
 
 	for _, a := range pflag.Args() {

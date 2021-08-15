@@ -50,11 +50,11 @@ func TestInterpreter_Query(t *testing.T) {
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]engine.Term{
-			"X": engine.Atom("nil"),
-			"Y": &engine.Variable{},
-			"Z": &engine.Variable{},
-		}, m)
+		assert.Len(t, m, 3)
+		assert.Equal(t, engine.Atom("nil"), m["X"])
+		assert.True(t, m["Y"].(engine.Variable).Anonymous())
+		assert.True(t, m["Z"].(engine.Variable).Anonymous())
+		assert.Equal(t, m["Y"], m["Z"])
 	})
 
 	t.Run("rule", func(t *testing.T) {
@@ -72,28 +72,14 @@ func TestInterpreter_Query(t *testing.T) {
 			"X": &engine.Compound{
 				Functor: "cons",
 				Args: []engine.Term{
-					&engine.Variable{
-						Ref: engine.Atom("a"),
-					},
-					&engine.Variable{
-						Ref: &engine.Variable{
-							Ref: &engine.Variable{
-								Ref: &engine.Compound{
-									Functor: "cons",
-									Args: []engine.Term{
-										&engine.Variable{
-											Ref: engine.Atom("b"),
-										},
-										&engine.Variable{
-											Ref: &engine.Variable{
-												Ref: &engine.Compound{
-													Functor: "cons",
-													Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
-												},
-											},
-										},
-									},
-								},
+					engine.Atom("a"),
+					&engine.Compound{
+						Functor: "cons",
+						Args: []engine.Term{
+							engine.Atom("b"),
+							&engine.Compound{
+								Functor: "cons",
+								Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
 							},
 						},
 					},
@@ -140,5 +126,202 @@ func TestInterpreter_Query(t *testing.T) {
 			C:    2.0,
 			List: []string{"abc", "def"},
 		}, r)
+	})
+}
+
+func TestMisc(t *testing.T) {
+	t.Run("negation", func(t *testing.T) {
+		i := New(nil, nil)
+		sols, err := i.Query(`\+true.`)
+		assert.NoError(t, err)
+
+		assert.False(t, sols.Next())
+	})
+
+	t.Run("cut", func(t *testing.T) {
+		// https://www.cs.uleth.ca/~gaur/post/prolog-cut-negation/
+		t.Run("p", func(t *testing.T) {
+			i := New(nil, nil)
+			assert.NoError(t, i.Exec(`
+p(a).
+p(b):-!.
+p(c).
+`))
+
+			t.Run("single", func(t *testing.T) {
+				sols, err := i.Query(`p(X).`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				var s struct {
+					X string
+				}
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+
+				assert.False(t, sols.Next())
+			})
+
+			t.Run("double", func(t *testing.T) {
+				sols, err := i.Query(`p(X), p(Y).`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				var s struct {
+					X string
+					Y string
+				}
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+				assert.Equal(t, "a", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "a", s.X)
+				assert.Equal(t, "b", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+				assert.Equal(t, "a", s.Y)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, "b", s.X)
+				assert.Equal(t, "b", s.Y)
+
+				assert.False(t, sols.Next())
+			})
+		})
+
+		// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
+		t.Run("teaches", func(t *testing.T) {
+			i := New(nil, nil)
+			i.Exec(`
+teaches(dr_fred, history).
+teaches(dr_fred, english).
+teaches(dr_fred, drama).
+teaches(dr_fiona, physics).
+studies(alice, english).
+studies(angus, english).
+studies(amelia, drama).
+studies(alex, physics).
+`)
+
+			t.Run("without cut", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
+
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "angus",
+				}, s)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "drama",
+					Student: "amelia",
+				}, s)
+
+				assert.False(t, sols.Next())
+			})
+
+			t.Run("with cut in the middle", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), !, studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
+
+				assert.False(t, sols.Next())
+			})
+
+			t.Run("with cut at the end", func(t *testing.T) {
+				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course), !.`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
+
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
+
+				assert.False(t, sols.Next())
+			})
+
+			t.Run("with cut at the beginning", func(t *testing.T) {
+				sols, err := i.Query(`!, teaches(dr_fred, Course), studies(Student, Course).`)
+				assert.NoError(t, err)
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
+
+				type cs struct {
+					Course  string
+					Student string
+				}
+				var s cs
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "alice",
+				}, s)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "english",
+					Student: "angus",
+				}, s)
+
+				assert.True(t, sols.Next())
+				assert.NoError(t, sols.Scan(&s))
+				assert.Equal(t, cs{
+					Course:  "drama",
+					Student: "amelia",
+				}, s)
+
+				assert.False(t, sols.Next())
+			})
+		})
 	})
 }

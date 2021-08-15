@@ -8,32 +8,45 @@ import (
 )
 
 func TestVariable_Unify(t *testing.T) {
-	var v1, v2 Variable
-	assert.True(t, v1.Unify(&v2, false))
-	assert.True(t, v1.Unify(Atom("foo"), false))
-	assert.Equal(t, &Variable{Ref: Atom("foo")}, v1.Ref)
-	assert.Equal(t, &Variable{Ref: Atom("foo")}, v2.Ref)
+	env := Env{}
+	v1, v2 := Variable("V1"), Variable("V2")
+	assert.True(t, v1.Unify(v2, false, &env))
+	assert.True(t, v1.Unify(Atom("foo"), false, &env))
+	assert.Equal(t, Atom("foo"), env.Resolve(v1))
+	assert.Equal(t, Atom("foo"), env.Resolve(v2))
 
-	var v3, v4 Variable
-	assert.True(t, v3.Unify(&v4, false))
-	assert.True(t, v4.Unify(Atom("bar"), false))
-	assert.Equal(t, &Variable{Ref: Atom("bar")}, v3.Ref)
-	assert.Equal(t, &Variable{Ref: Atom("bar")}, v4.Ref)
+	v3, v4 := Variable("V3"), Variable("V4")
+	assert.True(t, v3.Unify(v4, false, &env))
+	assert.True(t, v4.Unify(Atom("bar"), false, &env))
+	assert.Equal(t, Atom("bar"), env.Resolve(v3))
+	assert.Equal(t, Atom("bar"), env.Resolve(v4))
 }
 
 func TestVariable_WriteTerm(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
-		v := Variable{Name: "X", Ref: Integer(1)}
+		v := Variable("X")
+		env := Env{
+			{
+				Variable: v,
+				Value:    Integer(1),
+			},
+		}
 		var buf bytes.Buffer
-		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}))
+		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
 		assert.Equal(t, "X", buf.String())
 	})
 
 	t.Run("unnamed", func(t *testing.T) {
-		v := Variable{Ref: Integer(1)}
+		v := NewVariable()
+		env := Env{
+			{
+				Variable: v,
+				Value:    Integer(1),
+			},
+		}
 		var buf bytes.Buffer
-		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}))
-		assert.Regexp(t, `\A_0x[[:xdigit:]]+\z`, buf.String())
+		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
+		assert.Regexp(t, `\A_​[[:xdigit:]]+\z`, buf.String())
 	})
 }
 
@@ -57,13 +70,13 @@ func TestAtom_WriteTerm(t *testing.T) {
 	t.Run("not quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: false}))
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: false}, nil))
 			assert.Equal(t, `a`, buf.String())
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: false}))
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: false}, nil))
 			assert.Equal(t, "\a\b\f\n\r\t\v\x00\\'\"`", buf.String())
 		})
 	})
@@ -71,13 +84,13 @@ func TestAtom_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: true}))
+			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: true}, nil))
 			assert.Equal(t, `a`, buf.String())
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: true}))
+			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: true}, nil))
 			assert.Equal(t, "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'", buf.String())
 		})
 	})
@@ -87,28 +100,41 @@ func TestAtom_Unify(t *testing.T) {
 	unit := Atom("foo")
 
 	t.Run("atom", func(t *testing.T) {
-		assert.True(t, unit.Unify(Atom("foo"), false))
-		assert.False(t, unit.Unify(Atom("bar"), false))
+		assert.True(t, unit.Unify(Atom("foo"), false, nil))
+		assert.False(t, unit.Unify(Atom("bar"), false, nil))
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		assert.False(t, unit.Unify(Integer(1), false))
+		assert.False(t, unit.Unify(Integer(1), false, nil))
 	})
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			v := Variable{Name: "X"}
-			assert.True(t, unit.Unify(&v, false))
-			assert.Equal(t, unit, v.Ref)
+			env := Env{}
+			v := Variable("X")
+			assert.True(t, unit.Unify(v, false, &env))
+			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: unit}
-			assert.True(t, unit.Unify(&v, false))
-			assert.Equal(t, unit, v.Ref)
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value:    unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
+			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: Atom("bar")}
-			assert.False(t, unit.Unify(&v, false))
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value:    Atom("bar"),
+				},
+			}
+			assert.False(t, unit.Unify(v, false, &env))
 		})
 	})
 
@@ -116,40 +142,48 @@ func TestAtom_Unify(t *testing.T) {
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("foo")},
-		}, false))
+		}, false, nil))
 	})
-}
-
-func TestAtom_Copy(t *testing.T) {
-	unit := Atom("foo")
-	assert.Equal(t, unit, unit.Copy())
 }
 
 func TestInteger_Unify(t *testing.T) {
 	unit := Integer(1)
 
 	t.Run("atom", func(t *testing.T) {
-		assert.False(t, unit.Unify(Atom("foo"), false))
+		assert.False(t, unit.Unify(Atom("foo"), false, nil))
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		assert.True(t, unit.Unify(Integer(1), false))
-		assert.False(t, unit.Unify(Integer(0), false))
+		assert.True(t, unit.Unify(Integer(1), false, nil))
+		assert.False(t, unit.Unify(Integer(0), false, nil))
 	})
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			v := Variable{Name: "X"}
-			assert.True(t, unit.Unify(&v, false))
-			assert.Equal(t, unit, v.Ref)
+			env := Env{}
+			v := Variable("X")
+			assert.True(t, unit.Unify(v, false, &env))
+			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: unit}
-			assert.True(t, unit.Unify(&v, false))
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value:    unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: Integer(0)}
-			assert.False(t, unit.Unify(&v, false))
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value:    Integer(0),
+				},
+			}
+			assert.False(t, unit.Unify(v, false, &env))
 		})
 	})
 
@@ -157,13 +191,8 @@ func TestInteger_Unify(t *testing.T) {
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("foo")},
-		}, false))
+		}, false, nil))
 	})
-}
-
-func TestInteger_Copy(t *testing.T) {
-	unit := Integer(1)
-	assert.Equal(t, unit, unit.Copy())
 }
 
 func TestCompound_Unify(t *testing.T) {
@@ -173,29 +202,42 @@ func TestCompound_Unify(t *testing.T) {
 	}
 
 	t.Run("atom", func(t *testing.T) {
-		assert.False(t, unit.Unify(Atom("foo"), false))
+		assert.False(t, unit.Unify(Atom("foo"), false, nil))
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		assert.False(t, unit.Unify(Integer(1), false))
+		assert.False(t, unit.Unify(Integer(1), false, nil))
 	})
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			v := Variable{Name: "X"}
-			assert.True(t, unit.Unify(&v, false))
-			assert.Equal(t, &unit, v.Ref)
+			env := Env{}
+			v := Variable("X")
+			assert.True(t, unit.Unify(v, false, &env))
+			assert.Equal(t, &unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: &unit}
-			assert.True(t, unit.Unify(&v, false))
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value:    &unit,
+				},
+			}
+			assert.True(t, unit.Unify(v, false, &env))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
-			v := Variable{Name: "X", Ref: &Compound{
-				Functor: "foo",
-				Args:    []Term{Atom("baz")},
-			}}
-			assert.False(t, unit.Unify(&v, false))
+			v := Variable("X")
+			env := Env{
+				{
+					Variable: v,
+					Value: &Compound{
+						Functor: "foo",
+						Args:    []Term{Atom("baz")},
+					},
+				},
+			}
+			assert.False(t, unit.Unify(&v, false, &env))
 		})
 	})
 
@@ -203,25 +245,26 @@ func TestCompound_Unify(t *testing.T) {
 		assert.True(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("bar")},
-		}, false))
+		}, false, nil))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("bar"), Atom("baz")},
-		}, false))
+		}, false, nil))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "baz",
 			Args:    []Term{Atom("bar")},
-		}, false))
+		}, false, nil))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("baz")},
-		}, false))
-		v := &Variable{Name: "X"}
+		}, false, nil))
+		env := Env{}
+		v := Variable("X")
 		assert.True(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Term{v},
-		}, false))
-		assert.Equal(t, Atom("bar"), v.Ref)
+		}, false, &env))
+		assert.Equal(t, Atom("bar"), env.Resolve(v))
 	})
 }
 
@@ -263,13 +306,13 @@ func TestCompound_WriteTerm(t *testing.T) {
 			}
 
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: ops}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: ops}, nil))
 			assert.Equal(t, "2+(-2)", buf.String())
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: nil}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: nil}, nil))
 			assert.Equal(t, "+(2, -(2))", buf.String())
 		})
 	})
@@ -287,43 +330,56 @@ func TestCompound_WriteTerm(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: false}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: false}, nil))
 			assert.Equal(t, "f($VAR(1), $VAR(2), $VAR(3), $VAR(27))", buf.String())
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: true}))
+			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: true}, nil))
 			assert.Equal(t, "f(A, B, C, AA)", buf.String())
 		})
 	})
 }
 
 func TestContains(t *testing.T) {
-	assert.True(t, Contains(Atom("a"), Atom("a")))
-	assert.False(t, Contains(&Variable{}, Atom("a")))
-	assert.True(t, Contains(&Variable{Ref: Atom("a")}, Atom("a")))
-	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a")))
-	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a")))
-	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a")))
+	env := Env{}
+	assert.True(t, Contains(Atom("a"), Atom("a"), &env))
+	assert.False(t, Contains(NewVariable(), Atom("a"), &env))
+	v := Variable("V")
+	env = append(env, Binding{
+		Variable: v,
+		Value:    Atom("a"),
+	})
+	assert.True(t, Contains(v, Atom("a"), &env))
+	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a"), &env))
+	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a"), &env))
+	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a"), &env))
 }
 
 func TestRulify(t *testing.T) {
 	assert.Equal(t, &Compound{
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("true")},
-	}, Rulify(Atom("a")))
+	}, Rulify(Atom("a"), nil))
+	v := Variable("V")
+	env := Env{
+		{
+			Variable: v,
+			Value:    Atom("a"),
+		},
+	}
 	assert.Equal(t, &Compound{
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("true")},
-	}, Rulify(&Variable{Ref: Atom("a")}))
+	}, Rulify(v, env))
 	assert.Equal(t, &Compound{
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("b")},
 	}, Rulify(&Compound{
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("b")},
-	}))
+	}, nil))
 }
 
 func TestSet(t *testing.T) {

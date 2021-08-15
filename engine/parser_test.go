@@ -21,8 +21,8 @@ append(nil,L,L).
 			Functor: "append",
 			Args: []Term{
 				Atom("nil"),
-				&Variable{Name: "L"},
-				&Variable{Name: "L"},
+				Variable("L"),
+				Variable("L"),
 			},
 		}, c)
 
@@ -49,16 +49,16 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 						&Compound{
 							Functor: "cons",
 							Args: []Term{
-								&Variable{Name: "X"},
-								&Variable{Name: "L1"},
+								Variable("X"),
+								Variable("L1"),
 							},
 						},
-						&Variable{Name: "L2"},
+						Variable("L2"),
 						&Compound{
 							Functor: "cons",
 							Args: []Term{
-								&Variable{Name: "X"},
-								&Variable{Name: "L3"},
+								Variable("X"),
+								Variable("L3"),
 							},
 						},
 					},
@@ -66,9 +66,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 				&Compound{
 					Functor: "append",
 					Args: []Term{
-						&Variable{Name: "L1"},
-						&Variable{Name: "L2"},
-						&Variable{Name: "L3"},
+						Variable("L1"),
+						Variable("L2"),
+						Variable("L3"),
 					},
 				},
 			},
@@ -91,15 +91,15 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 				&Compound{
 					Functor: ",",
 					Args: []Term{
-						&Variable{Name: "P"},
-						&Variable{Name: "Q"},
+						Variable("P"),
+						Variable("Q"),
 					},
 				},
 				&Compound{
 					Functor: ",",
 					Args: []Term{
-						&Variable{Name: "P"},
-						&Variable{Name: "Q"},
+						Variable("P"),
+						Variable("Q"),
 					},
 				},
 			},
@@ -119,22 +119,22 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
 			Args: []Term{
-				&Variable{Name: "C"},
+				Variable("C"),
 				&Compound{
 					Functor: "^",
 					Args: []Term{
-						&Variable{Name: "A"},
+						Variable("A"),
 						&Compound{
 							Functor: "foo",
 							Args: []Term{
-								&Variable{Name: "A"},
-								&Variable{Name: "B"},
-								&Variable{Name: "C"},
+								Variable("A"),
+								Variable("B"),
+								Variable("C"),
 							},
 						},
 					},
 				},
-				&Variable{Name: "Cs"},
+				Variable("Cs"),
 			},
 		}, c)
 	})
@@ -152,28 +152,28 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
 			Args: []Term{
-				&Variable{Name: "C"},
+				Variable("C"),
 				&Compound{
 					Functor: "^",
 					Args: []Term{
 						&Compound{
 							Functor: ",",
 							Args: []Term{
-								&Variable{Name: "A"},
-								&Variable{Name: "B"},
+								Variable("A"),
+								Variable("B"),
 							},
 						},
 						&Compound{
 							Functor: "foo",
 							Args: []Term{
-								&Variable{Name: "A"},
-								&Variable{Name: "B"},
-								&Variable{Name: "C"},
+								Variable("A"),
+								Variable("B"),
+								Variable("C"),
 							},
 						},
 					},
 				},
-				&Variable{Name: "Cs"},
+				Variable("Cs"),
 			},
 		}, c)
 	})
@@ -217,7 +217,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[a, b, c|X].`)))
 		term, err := p.Term()
 		assert.NoError(t, err)
-		assert.Equal(t, ListRest(&Variable{Name: "X"}, Atom("a"), Atom("b"), Atom("c")), term)
+		assert.Equal(t, ListRest(Variable("X"), Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
 	t.Run("principal functor", func(t *testing.T) {
