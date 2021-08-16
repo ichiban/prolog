@@ -301,7 +301,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env engine.Env) engine.Promise {
+		if _, err := i.Call(t, func(env engine.Env) *engine.Promise {
 			next <- env
 			return engine.Bool(!<-more)
 		}, &env).Force(); err != nil {

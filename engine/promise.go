@@ -2,53 +2,42 @@ package engine
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
-	delayed []func() Promise
+	delayed []func() *Promise
 
-	cut, cutParent bool
+	cutParent *Promise
 
 	ok  bool
 	err error
 }
 
 // Delay delays an execution of k.
-func Delay(k ...func() Promise) Promise {
-	return Promise{delayed: k}
+func Delay(k ...func() *Promise) *Promise {
+	return &Promise{delayed: k}
 }
 
 // Bool returns a promise that simply returns t, nil.
-func Bool(ok bool) Promise {
-	return Promise{ok: ok}
+func Bool(ok bool) *Promise {
+	return &Promise{ok: ok}
 }
 
 // Error returns a promise that simply returns false, err.
-func Error(err error) Promise {
-	return Promise{err: err}
+func Error(err error) *Promise {
+	return &Promise{err: err}
 }
 
-func Cut(p Promise) Promise {
-	return Promise{
-		delayed: []func() Promise{
-			func() Promise {
+func Cut(p, parent *Promise) *Promise {
+	return &Promise{
+		delayed: []func() *Promise{
+			func() *Promise {
 				return p
 			},
 		},
-		cut: true,
-	}
-}
-
-func Opaque(p Promise) Promise {
-	return Promise{
-		delayed: []func() Promise{
-			func() Promise {
-				return p
-			},
-		},
-		cutParent: true,
+		cutParent: parent,
 	}
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
-func (p Promise) Force() (bool, error) {
+func (p *Promise) Force() (bool, error) {
 	stack := promiseStack{p}
 	for len(stack) > 0 {
 		p := stack.pop()
@@ -65,29 +54,27 @@ func (p Promise) Force() (bool, error) {
 		}
 
 		// If cut, we eliminate other possibilities.
-		if p.cut {
-			for len(stack) > 0 && !stack.peek().cutParent {
-				_ = stack.pop()
+		if p.cutParent != nil {
+			for len(stack) > 0 {
+				if pop := stack.pop(); pop == p.cutParent {
+					break
+				}
 			}
-			p.cut = false // we don't have to do this again when we revisit.
+			p.cutParent = nil // we don't have to do this again when we revisit.
 		}
 
 		// Try the alternatives from left to right.
-		var q Promise
+		var q *Promise
 		q, p.delayed, p.delayed[0] = p.delayed[0](), p.delayed[1:], nil
 		stack = append(stack, p, q)
 	}
 	return false, nil
 }
 
-type promiseStack []Promise
+type promiseStack []*Promise
 
-func (s promiseStack) peek() Promise {
-	return s[len(s)-1]
-}
-
-func (s *promiseStack) pop() Promise {
-	var p Promise
-	p, *s, (*s)[len(*s)-1] = (*s)[len(*s)-1], (*s)[:len(*s)-1], Promise{}
+func (s *promiseStack) pop() *Promise {
+	var p *Promise
+	p, *s, (*s)[len(*s)-1] = (*s)[len(*s)-1], (*s)[:len(*s)-1], &Promise{}
 	return p
 }

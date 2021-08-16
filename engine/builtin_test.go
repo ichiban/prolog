@@ -241,7 +241,7 @@ func TestFunctor(t *testing.T) {
 		t.Run("float", func(t *testing.T) {
 			env := Env{}
 			name, arity := Variable("Name"), Variable("Arity")
-			ok, err := Functor(Float(2.0), name, arity, func(env Env) Promise {
+			ok, err := Functor(Float(2.0), name, arity, func(env Env) *Promise {
 				assert.Equal(t, Float(2.0), env.Resolve(name))
 				assert.Equal(t, Integer(0), env.Resolve(arity))
 				return Bool(true)
@@ -253,7 +253,7 @@ func TestFunctor(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
 			env := Env{}
 			name, arity := NewVariable(), NewVariable()
-			ok, err := Functor(Integer(2), name, arity, func(env Env) Promise {
+			ok, err := Functor(Integer(2), name, arity, func(env Env) *Promise {
 				assert.Equal(t, Integer(2), env.Resolve(name))
 				assert.Equal(t, Integer(0), env.Resolve(arity))
 				return Bool(true)
@@ -265,7 +265,7 @@ func TestFunctor(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			env := Env{}
 			name, arity := NewVariable(), NewVariable()
-			ok, err := Functor(Atom("foo"), name, arity, func(env Env) Promise {
+			ok, err := Functor(Atom("foo"), name, arity, func(env Env) *Promise {
 				assert.Equal(t, Atom("foo"), env.Resolve(name))
 				assert.Equal(t, Integer(0), env.Resolve(arity))
 				return Bool(true)
@@ -280,7 +280,7 @@ func TestFunctor(t *testing.T) {
 			ok, err := Functor(&Compound{
 				Functor: "f",
 				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
-			}, name, arity, func(env Env) Promise {
+			}, name, arity, func(env Env) *Promise {
 				assert.Equal(t, Atom("f"), env.Resolve(name))
 				assert.Equal(t, Integer(3), env.Resolve(arity))
 				return Bool(true)
@@ -304,7 +304,7 @@ func TestFunctor(t *testing.T) {
 		t.Run("compound", func(t *testing.T) {
 			env := Env{}
 			term := NewVariable()
-			ok, err := Functor(term, Atom("f"), Integer(2), func(env Env) Promise {
+			ok, err := Functor(term, Atom("f"), Integer(2), func(env Env) *Promise {
 				c, ok := env.Resolve(term).(*Compound)
 				assert.True(t, ok)
 				assert.Equal(t, Atom("f"), c.Functor)
@@ -399,7 +399,7 @@ func TestArg(t *testing.T) {
 		ok, err := Arg(nth, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("a"), Atom("b"), Atom("a")},
-		}, Atom("a"), func(env Env) Promise {
+		}, Atom("a"), func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(1), env.Resolve(nth))
@@ -463,7 +463,7 @@ func TestUniv(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			env := Env{}
 			term := NewVariable()
-			ok, err := Univ(term, List(Atom("f"), Atom("a"), Atom("b")), func(env Env) Promise {
+			ok, err := Univ(term, List(Atom("f"), Atom("a"), Atom("b")), func(env Env) *Promise {
 				assert.Equal(t, &Compound{
 					Functor: "f",
 					Args:    []Term{Atom("a"), Atom("b")},
@@ -702,7 +702,7 @@ func TestVM_CurrentOp(t *testing.T) {
 			priority, specifier, operator = Variable("Priority"), Variable("Specifier"), Variable("Operator")
 			c                             int
 		)
-		ok, err := vm.CurrentOp(priority, specifier, operator, func(env Env) Promise {
+		ok, err := vm.CurrentOp(priority, specifier, operator, func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(900), env.Resolve(priority))
@@ -769,14 +769,14 @@ func TestVM_CurrentOp(t *testing.T) {
 func TestRepeat(t *testing.T) {
 	env := Env{}
 	c := 3
-	ok, err := Repeat(func(env Env) Promise {
+	ok, err := Repeat(func(env Env) *Promise {
 		c--
 		return Bool(c == 0)
 	}, &env).Force()
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = Repeat(func(env Env) Promise {
+	ok, err = Repeat(func(env Env) *Promise {
 		return Error(errors.New(""))
 	}, &env).Force()
 	assert.Error(t, err)
@@ -806,7 +806,7 @@ func TestVM_BagOf(t *testing.T) {
 			ok, err := vm.BagOf(c, &Compound{
 				Functor: "foo",
 				Args:    []Term{a, b, c},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, Atom("a"), env.Resolve(a))
@@ -845,7 +845,7 @@ func TestVM_BagOf(t *testing.T) {
 					Functor: "foo",
 					Args:    []Term{a, b, c},
 				}},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.True(t, env.Resolve(a).(Variable).Anonymous())
@@ -885,7 +885,7 @@ func TestVM_BagOf(t *testing.T) {
 						Args:    []Term{a, b, c},
 					},
 				},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, a, env.Resolve(a))
@@ -948,7 +948,7 @@ func TestSetOf(t *testing.T) {
 			ok, err := vm.SetOf(c, &Compound{
 				Functor: "foo",
 				Args:    []Term{a, b, c},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, Atom("a"), env.Resolve(a))
@@ -988,7 +988,7 @@ func TestSetOf(t *testing.T) {
 					Functor: "foo",
 					Args:    []Term{a, b, c},
 				}},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.True(t, env.Resolve(a).(Variable).Anonymous())
@@ -1028,7 +1028,7 @@ func TestSetOf(t *testing.T) {
 						Args:    []Term{a, b, c},
 					},
 				},
-			}, cs, func(env Env) Promise {
+			}, cs, func(env Env) *Promise {
 				switch count {
 				case 0:
 					assert.Equal(t, a, env.Resolve(a))
@@ -1246,10 +1246,10 @@ func TestVM_Catch(t *testing.T) {
 	var vm VM
 	vm.Register2("=", Unify)
 	vm.Register1("throw", Throw)
-	vm.Register0("true", func(k func(Env) Promise, env *Env) Promise {
+	vm.Register0("true", func(k func(Env) *Promise, env *Env) *Promise {
 		return k(*env)
 	})
-	vm.Register0("fail", func(_ func(Env) Promise, _ *Env) Promise {
+	vm.Register0("fail", func(_ func(Env) *Promise, _ *Env) *Promise {
 		return Bool(false)
 	})
 
@@ -1293,7 +1293,7 @@ func TestVM_Catch(t *testing.T) {
 
 	t.Run("non-exception error", func(t *testing.T) {
 		env := Env{}
-		ok, err := vm.Catch(Atom("true"), NewVariable(), Atom("true"), func(env Env) Promise {
+		ok, err := vm.Catch(Atom("true"), NewVariable(), Atom("true"), func(env Env) *Promise {
 			return Error(errors.New("failed"))
 		}, &env).Force()
 		assert.Error(t, err)
@@ -1309,7 +1309,7 @@ func TestVM_CurrentPredicate(t *testing.T) {
 		vm := VM{procedures: map[procedureIndicator]procedure{
 			{name: "=", arity: 2}: nil,
 		}}
-		ok, err := vm.CurrentPredicate(v, func(env Env) Promise {
+		ok, err := vm.CurrentPredicate(v, func(env Env) *Promise {
 			assert.Equal(t, &Compound{
 				Functor: "/",
 				Args: []Term{
@@ -1438,7 +1438,7 @@ func TestVM_Assertz(t *testing.T) {
 		var called bool
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(k func(Env) Promise, env *Env) Promise {
+				{name: "directive", arity: 0}: predicate0(func(k func(Env) *Promise, env *Env) *Promise {
 					called = true
 					return k(*env)
 				}),
@@ -1539,7 +1539,7 @@ func TestVM_Assertz(t *testing.T) {
 		env := Env{}
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(k func(Env) Promise, env *Env) Promise {
+				{name: "static", arity: 0}: predicate0(func(k func(Env) *Promise, env *Env) *Promise {
 					return k(*env)
 				}),
 			},
@@ -1602,7 +1602,7 @@ func TestVM_Asserta(t *testing.T) {
 		var called bool
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(k func(Env) Promise, env *Env) Promise {
+				{name: "directive", arity: 0}: predicate0(func(k func(Env) *Promise, env *Env) *Promise {
 					called = true
 					return k(*env)
 				}),
@@ -1703,7 +1703,7 @@ func TestVM_Asserta(t *testing.T) {
 		env := Env{}
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(k func(Env) Promise, env *Env) Promise {
+				{name: "static", arity: 0}: predicate0(func(k func(Env) *Promise, env *Env) *Promise {
 					return k(*env)
 				}),
 			},
@@ -1852,7 +1852,7 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&Compound{
 			Functor: "foo",
 			Args:    []Term{Variable("X")},
-		}, func(_ Env) Promise {
+		}, func(_ Env) *Promise {
 			return Error(errors.New("failed"))
 		}, &env).Force()
 		assert.Error(t, err)
@@ -2201,7 +2201,7 @@ func TestVM_Open(t *testing.T) {
 		ok, err := vm.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("input")},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			ref, ok := env.Lookup(v)
 			assert.True(t, ok)
 			s, ok := ref.(*Stream)
@@ -2231,7 +2231,7 @@ func TestVM_Open(t *testing.T) {
 		ok, err := vm.Open(Atom(n), Atom("write"), v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("output")},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			ref, ok := env.Lookup(v)
 			assert.True(t, ok)
 			s, ok := ref.(*Stream)
@@ -2276,7 +2276,7 @@ func TestVM_Open(t *testing.T) {
 		ok, err := vm.Open(Atom(f.Name()), Atom("append"), v, List(&Compound{
 			Functor: "alias",
 			Args:    []Term{Atom("append")},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			ref, ok := env.Lookup(v)
 			assert.True(t, ok)
 			s, ok := ref.(*Stream)
@@ -3052,7 +3052,7 @@ func TestCharCode(t *testing.T) {
 		env := Env{}
 		v := Variable("Char")
 
-		ok, err := CharCode(v, Integer(128512), func(env Env) Promise {
+		ok, err := CharCode(v, Integer(128512), func(env Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3063,7 +3063,7 @@ func TestCharCode(t *testing.T) {
 	t.Run("query code", func(t *testing.T) {
 		env := Env{}
 		v := Variable("Code")
-		ok, err := CharCode(Atom("😀"), v, func(env Env) Promise {
+		ok, err := CharCode(Atom("😀"), v, func(env Env) *Promise {
 			assert.Equal(t, Integer(128512), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3396,7 +3396,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		v := Variable("Term")
 
 		var vm VM
-		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("foo."))}, v, List(), func(env Env) Promise {
+		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("foo."))}, v, List(), func(env Env) *Promise {
 			assert.Equal(t, Atom("foo"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3415,7 +3415,7 @@ func TestVM_ReadTerm(t *testing.T) {
 				Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.ReadTerm(Atom("foo"), v, List(), func(env Env) Promise {
+		ok, err := vm.ReadTerm(Atom("foo"), v, List(), func(env Env) *Promise {
 			assert.Equal(t, Atom("foo"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3431,7 +3431,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, term, List(&Compound{
 			Functor: "singletons",
 			Args:    []Term{singletons},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			assert.Equal(t, &Compound{
 				Functor: "f",
 				Args: []Term{
@@ -3457,7 +3457,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, term, List(&Compound{
 			Functor: "variables",
 			Args:    []Term{variables},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			assert.Equal(t, &Compound{
 				Functor: "f",
 				Args: []Term{
@@ -3483,7 +3483,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		ok, err := vm.ReadTerm(&Stream{source: bufio.NewReader(strings.NewReader("f(X, X, Y)."))}, term, List(&Compound{
 			Functor: "variable_names",
 			Args:    []Term{variableNames},
-		}), func(env Env) Promise {
+		}), func(env Env) *Promise {
 			assert.Equal(t, &Compound{
 				Functor: "f",
 				Args: []Term{
@@ -3522,7 +3522,7 @@ foo(c).
 		var vm VM
 
 		env := Env{}
-		ok, err := vm.ReadTerm(&s, v, List(), func(env Env) Promise {
+		ok, err := vm.ReadTerm(&s, v, List(), func(env Env) *Promise {
 			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("a")}}, env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3530,7 +3530,7 @@ foo(c).
 		assert.True(t, ok)
 
 		env = Env{}
-		ok, err = vm.ReadTerm(&s, v, List(), func(env Env) Promise {
+		ok, err = vm.ReadTerm(&s, v, List(), func(env Env) *Promise {
 			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("b")}}, env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3538,7 +3538,7 @@ foo(c).
 		assert.True(t, ok)
 
 		env = Env{}
-		ok, err = vm.ReadTerm(&s, &v, List(), func(env Env) Promise {
+		ok, err = vm.ReadTerm(&s, &v, List(), func(env Env) *Promise {
 			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("c")}}, env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3695,7 +3695,7 @@ func TestVM_GetByte(t *testing.T) {
 		v := Variable("Byte")
 
 		var vm VM
-		ok, err := vm.GetByte(&s, v, func(env Env) Promise {
+		ok, err := vm.GetByte(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3714,7 +3714,7 @@ func TestVM_GetByte(t *testing.T) {
 				Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.GetByte(Atom("foo"), v, func(env Env) Promise {
+		ok, err := vm.GetByte(Atom("foo"), v, func(env Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3729,7 +3729,7 @@ func TestVM_GetByte(t *testing.T) {
 		v := Variable("Byte")
 
 		var vm VM
-		ok, err := vm.GetByte(&s, v, func(env Env) Promise {
+		ok, err := vm.GetByte(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Integer(-1), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3847,7 +3847,7 @@ func TestVM_GetChar(t *testing.T) {
 		v := Variable("Char")
 
 		var vm VM
-		ok, err := vm.GetChar(&s, v, func(env Env) Promise {
+		ok, err := vm.GetChar(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3866,7 +3866,7 @@ func TestVM_GetChar(t *testing.T) {
 				Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.GetChar(Atom("foo"), v, func(env Env) Promise {
+		ok, err := vm.GetChar(Atom("foo"), v, func(env Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -3896,7 +3896,7 @@ func TestVM_GetChar(t *testing.T) {
 		v := Variable("Char")
 
 		var vm VM
-		ok, err := vm.GetChar(&s, v, func(env Env) Promise {
+		ok, err := vm.GetChar(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Atom("end_of_file"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4022,7 +4022,7 @@ func TestVM_PeekByte(t *testing.T) {
 		v := Variable("Byte")
 
 		var vm VM
-		ok, err := vm.PeekByte(&s, v, func(env Env) Promise {
+		ok, err := vm.PeekByte(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4045,7 +4045,7 @@ func TestVM_PeekByte(t *testing.T) {
 				Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.PeekByte(Atom("foo"), v, func(env Env) Promise {
+		ok, err := vm.PeekByte(Atom("foo"), v, func(env Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4075,7 +4075,7 @@ func TestVM_PeekByte(t *testing.T) {
 		v := Variable("Byte")
 
 		var vm VM
-		ok, err := vm.PeekByte(&s, v, func(env Env) Promise {
+		ok, err := vm.PeekByte(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Integer(-1), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4187,7 +4187,7 @@ func TestVM_PeekChar(t *testing.T) {
 		v := Variable("Char")
 
 		var vm VM
-		ok, err := vm.PeekChar(&s, v, func(env Env) Promise {
+		ok, err := vm.PeekChar(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4210,7 +4210,7 @@ func TestVM_PeekChar(t *testing.T) {
 				Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.PeekChar(Atom("foo"), v, func(env Env) Promise {
+		ok, err := vm.PeekChar(Atom("foo"), v, func(env Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4240,7 +4240,7 @@ func TestVM_PeekChar(t *testing.T) {
 		v := Variable("Char")
 
 		var vm VM
-		ok, err := vm.PeekChar(&s, v, func(env Env) Promise {
+		ok, err := vm.PeekChar(&s, v, func(env Env) *Promise {
 			assert.Equal(t, Atom("end_of_file"), env.Resolve(v))
 			return Bool(true)
 		}, &env).Force()
@@ -4430,7 +4430,7 @@ func TestVM_Clause(t *testing.T) {
 		ok, err := vm.Clause(&Compound{
 			Functor: "green",
 			Args:    []Term{what},
-		}, body, func(env Env) Promise {
+		}, body, func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.True(t, env.Resolve(what).(Variable).Anonymous())
@@ -4533,7 +4533,7 @@ func TestAtomConcat(t *testing.T) {
 		env := Env{}
 		atom3 := Variable("Atom3")
 
-		ok, err := AtomConcat(Atom("foo"), Atom("bar"), atom3, func(env Env) Promise {
+		ok, err := AtomConcat(Atom("foo"), Atom("bar"), atom3, func(env Env) *Promise {
 			assert.Equal(t, Atom("foobar"), env.Resolve(atom3))
 			return Bool(true)
 		}, &env).Force()
@@ -4545,7 +4545,7 @@ func TestAtomConcat(t *testing.T) {
 		env := Env{}
 		var c int
 		v1, v2 := Variable("V1"), Variable("V2")
-		ok, err := AtomConcat(v1, v2, Atom("foo"), func(env Env) Promise {
+		ok, err := AtomConcat(v1, v2, Atom("foo"), func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Atom(""), env.Resolve(v1))
@@ -4638,7 +4638,7 @@ func TestSubAtom(t *testing.T) {
 		env := Env{}
 		before, length, after := Variable("Before"), Variable("Length"), Variable("After")
 		var c int
-		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), before, length, after, Atom("ATGA"), func(env Env) Promise {
+		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), before, length, after, Atom("ATGA"), func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Integer(1), env.Resolve(before))
@@ -4669,7 +4669,7 @@ func TestSubAtom(t *testing.T) {
 	t.Run("get the first char", func(t *testing.T) {
 		env := Env{}
 		char := Variable("Char")
-		ok, err := SubAtom(Atom("a"), Integer(0), Integer(1), Integer(0), char, func(env Env) Promise {
+		ok, err := SubAtom(Atom("a"), Integer(0), Integer(1), Integer(0), char, func(env Env) *Promise {
 			assert.Equal(t, Atom("a"), env.Resolve(char))
 			return Bool(true)
 		}, &env).Force()
@@ -4747,7 +4747,7 @@ func TestAtomChars(t *testing.T) {
 		env := Env{}
 		chars := Variable("Char")
 
-		ok, err := AtomChars(Atom("foo"), chars, func(env Env) Promise {
+		ok, err := AtomChars(Atom("foo"), chars, func(env Env) *Promise {
 			assert.Equal(t, List(Atom("f"), Atom("o"), Atom("o")), env.Resolve(chars))
 			return Bool(true)
 		}, &env).Force()
@@ -4759,7 +4759,7 @@ func TestAtomChars(t *testing.T) {
 		env := Env{}
 		atom := Variable("Atom")
 
-		ok, err := AtomChars(atom, List(Atom("f"), Atom("o"), Atom("o")), func(env Env) Promise {
+		ok, err := AtomChars(atom, List(Atom("f"), Atom("o"), Atom("o")), func(env Env) *Promise {
 			assert.Equal(t, Atom("foo"), env.Resolve(atom))
 			return Bool(true)
 		}, &env).Force()
@@ -4828,7 +4828,7 @@ func TestAtomCodes(t *testing.T) {
 		env := Env{}
 		codes := Variable("Codes")
 
-		ok, err := AtomCodes(Atom("foo"), codes, func(env Env) Promise {
+		ok, err := AtomCodes(Atom("foo"), codes, func(env Env) *Promise {
 			assert.Equal(t, List(Integer(102), Integer(111), Integer(111)), env.Resolve(codes))
 			return Bool(true)
 		}, &env).Force()
@@ -4840,7 +4840,7 @@ func TestAtomCodes(t *testing.T) {
 		env := Env{}
 		atom := Variable("Atom")
 
-		ok, err := AtomCodes(atom, List(Integer(102), Integer(111), Integer(111)), func(env Env) Promise {
+		ok, err := AtomCodes(atom, List(Integer(102), Integer(111), Integer(111)), func(env Env) *Promise {
 			assert.Equal(t, Atom("foo"), env.Resolve(atom))
 			return Bool(true)
 		}, &env).Force()
@@ -4897,7 +4897,7 @@ func TestNumberChars(t *testing.T) {
 		env := Env{}
 		chars := Variable("Chars")
 
-		ok, err := NumberChars(Float(23.4), chars, func(env Env) Promise {
+		ok, err := NumberChars(Float(23.4), chars, func(env Env) *Promise {
 			assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), env.Resolve(chars))
 			return Bool(true)
 		}, &env).Force()
@@ -4909,7 +4909,7 @@ func TestNumberChars(t *testing.T) {
 		env := Env{}
 		num := Variable("Num")
 
-		ok, err := NumberChars(num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), func(env Env) Promise {
+		ok, err := NumberChars(num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), func(env Env) *Promise {
 			assert.Equal(t, Float(23.4), env.Resolve(num))
 			return Bool(true)
 		}, &env).Force()
@@ -4973,7 +4973,7 @@ func TestNumberCodes(t *testing.T) {
 		env := Env{}
 		codes := Variable("Codes")
 
-		ok, err := NumberCodes(Float(23.4), codes, func(env Env) Promise {
+		ok, err := NumberCodes(Float(23.4), codes, func(env Env) *Promise {
 			assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), env.Resolve(codes))
 			return Bool(true)
 		}, &env).Force()
@@ -4985,7 +4985,7 @@ func TestNumberCodes(t *testing.T) {
 		env := Env{}
 		num := Variable("Num")
 
-		ok, err := NumberCodes(num, List(Integer(50), Integer(51), Integer(46), Integer(52)), func(env Env) Promise {
+		ok, err := NumberCodes(num, List(Integer(50), Integer(51), Integer(46), Integer(52)), func(env Env) *Promise {
 			assert.Equal(t, Float(23.4), env.Resolve(num))
 			return Bool(true)
 		}, &env).Force()
@@ -5309,7 +5309,7 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.True(t, ok)
 
 		v := Variable("N")
-		ok, err = DefaultFunctionSet.Is(v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, func(env Env) Promise {
+		ok, err = DefaultFunctionSet.Is(v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, func(env Env) *Promise {
 			assert.True(t, math.IsNaN(float64(env.Resolve(v).(Float))))
 			return Bool(true)
 		}, &env).Force()
@@ -5703,7 +5703,7 @@ func TestVM_StreamProperty(t *testing.T) {
 			closer: f,
 			mode:   streamModeRead,
 			alias:  "null",
-		}, v, func(env Env) Promise {
+		}, v, func(env Env) *Promise {
 			assert.Equal(t, expected[c], env.Resolve(v))
 			c++
 			return Bool(false)
@@ -5739,7 +5739,7 @@ func TestVM_StreamProperty(t *testing.T) {
 		}
 		v := Variable("V")
 		c := 0
-		ok, err := vm.StreamProperty(Atom("null"), v, func(env Env) Promise {
+		ok, err := vm.StreamProperty(Atom("null"), v, func(env Env) *Promise {
 			assert.Equal(t, expected[c], env.Resolve(v))
 			c++
 			return Bool(false)
@@ -5978,7 +5978,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 
 		var r rune
 		var vm VM
-		ok, err := vm.CurrentCharConversion(x, y, func(env Env) Promise {
+		ok, err := vm.CurrentCharConversion(x, y, func(env Env) *Promise {
 			ref, ok := env.Lookup(x)
 			assert.True(t, ok)
 			x, ok := ref.(Atom)
@@ -6246,7 +6246,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 		env := Env{}
 		flag, value := Variable("Flag"), Variable("Value")
 		var c int
-		ok, err := vm.CurrentPrologFlag(flag, value, func(env Env) Promise {
+		ok, err := vm.CurrentPrologFlag(flag, value, func(env Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, Atom("bounded"), env.Resolve(flag))
