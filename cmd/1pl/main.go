@@ -97,7 +97,7 @@ func main() {
 	i.OnPanic = func(r interface{}) {
 		logrus.WithField("value", r).Error("panicked")
 	}
-	i.Register1("version", func(term engine.Term, k func(engine.Env) engine.Promise, env *engine.Env) engine.Promise {
+	i.Register1("version", func(term engine.Term, k func(engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		if !term.Unify(engine.Atom(Version), false, env) {
 			return engine.Bool(false)
 		}

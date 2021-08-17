@@ -8,31 +8,31 @@ import (
 
 func TestPromise_Force(t *testing.T) {
 	var res []int
-	k := Delay(func() Promise {
+	k := Delay(func() *Promise {
 		res = append(res, 1)
 		return Bool(false)
-	}, func() Promise {
+	}, func() *Promise {
 		res = append(res, 2)
-		return Delay(func() Promise {
+		return Delay(func() *Promise {
 			res = append(res, 3)
 			return Bool(false)
-		}, func() Promise {
+		}, func() *Promise {
 			res = append(res, 4)
-			return Delay(func() Promise {
+			return Delay(func() *Promise {
 				res = append(res, 5)
 				return Bool(false)
-			}, func() Promise {
+			}, func() *Promise {
 				res = append(res, 6)
 				return Bool(false)
-			}, func() Promise {
+			}, func() *Promise {
 				res = append(res, 7)
 				return Bool(false)
 			})
-		}, func() Promise {
+		}, func() *Promise {
 			res = append(res, 8)
 			return Bool(false)
 		})
-	}, func() Promise {
+	}, func() *Promise {
 		res = append(res, 9)
 		return Bool(true)
 	})
