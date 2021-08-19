@@ -25,9 +25,6 @@ const (
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
-	// OnHalt is a hook which gets triggered right before halt/0 or halt/1.
-	OnHalt func()
-
 	OnCall, OnExit, OnFail, OnRedo func(pi string, args term.Interface, env term.Env)
 
 	Panic          func(r interface{})

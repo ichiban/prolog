@@ -1593,14 +1593,10 @@ var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
 func (vm *VM) Halt(n term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if vm.OnHalt == nil {
-		vm.OnHalt = func() {}
-	}
 	switch code := env.Resolve(n).(type) {
 	case term.Variable:
 		return nondet.Error(instantiationError(n))
 	case term.Integer:
-		vm.OnHalt()
 		osExit(int(code))
 		return k(*env)
 	default:

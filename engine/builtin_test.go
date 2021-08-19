@@ -4376,18 +4376,12 @@ func TestVM_Halt(t *testing.T) {
 			osExit = os.Exit
 		}()
 
-		var callbackCalled bool
-		vm := VM{
-			OnHalt: func() {
-				callbackCalled = true
-			},
-		}
+		var vm VM
 		ok, err := vm.Halt(term.Integer(2), Success, &env).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		assert.True(t, exitCalled)
-		assert.True(t, callbackCalled)
 	})
 
 	t.Run("n is a variable", func(t *testing.T) {

@@ -42,19 +42,22 @@ func main() {
 	log.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.OnHalt = restore
+	i.Register1("halt", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+		restore()
+		return i.Halt(t, k, env)
+	})
 	if verbose {
 		i.OnCall = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("CALL %s %s", pi, i.DescribeTerm(args, env))
+			log.Printf("CALL %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 		i.OnExit = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("EXIT %s %s", pi, i.DescribeTerm(args, env))
+			log.Printf("EXIT %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 		i.OnFail = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("FAIL %s %s", pi, i.DescribeTerm(args, env))
+			log.Printf("FAIL %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 		i.OnRedo = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("REDO %s %s", pi, i.DescribeTerm(args, env))
+			log.Printf("REDO %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 	}
 	i.Panic = func(r interface{}) {
