@@ -10,8 +10,17 @@ import (
 	"github.com/ichiban/prolog/term"
 )
 
+type bytecode []instruction
+
+type instruction struct {
+	opcode  opcode
+	operand byte
+}
+
+type opcode byte
+
 const (
-	opVoid byte = iota
+	opVoid opcode = iota
 	opEnter
 	opCall
 	opExit
@@ -199,11 +208,11 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 		cutParent = &nondet.Promise{}
 	}
 	for len(pc) != 0 {
-		switch pc[0] {
+		switch pc[0].opcode {
 		case opVoid:
 			pc = pc[1:]
 		case opConst:
-			x := xr[pc[1]]
+			x := xr[pc[0].operand]
 			arest := term.NewVariable()
 			cons := term.Compound{
 				Functor: ".",
@@ -212,10 +221,10 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			if !args.Unify(&cons, false, env) {
 				return k.fail(*env)
 			}
-			pc = pc[2:]
+			pc = pc[1:]
 			args = arest
 		case opVar:
-			v := vars[pc[1]]
+			v := vars[pc[0].operand]
 			arest := term.NewVariable()
 			cons := term.Compound{
 				Functor: ".",
@@ -224,10 +233,10 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			if !args.Unify(&cons, false, env) {
 				return k.fail(*env)
 			}
-			pc = pc[2:]
+			pc = pc[1:]
 			args = arest
 		case opFunctor:
-			x := xr[pc[1]]
+			x := xr[pc[0].operand]
 			arg, arest := term.NewVariable(), term.NewVariable()
 			cons1 := term.Compound{
 				Functor: ".",
@@ -250,7 +259,7 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			if !ok {
 				return k.fail(*env)
 			}
-			pc = pc[2:]
+			pc = pc[1:]
 			args = term.NewVariable()
 			cons2 := term.Compound{
 				Functor: ".",
@@ -294,11 +303,11 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			args = v
 			astack = v
 		case opCall:
-			x := xr[pc[1]]
+			x := xr[pc[0].operand]
 			if !args.Unify(term.List(), false, env) {
 				return k.fail(*env)
 			}
-			pc = pc[2:]
+			pc = pc[1:]
 			pi, ok := x.(procedureIndicator)
 			if !ok {
 				return nondet.Error(errors.New("not a principal functor"))
@@ -419,7 +428,7 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 		return typeErrorCallable(head)
 	}
 	if body != nil {
-		c.bytecode = append(c.bytecode, opEnter)
+		c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 		for {
 			p, ok := body.(*term.Compound)
 			if !ok || p.Functor != "," || len(p.Args) != 2 {
@@ -434,7 +443,7 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 			return err
 		}
 	}
-	c.bytecode = append(c.bytecode, opExit)
+	c.bytecode = append(c.bytecode, instruction{opcode: opExit})
 	return nil
 }
 
@@ -444,10 +453,10 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 		return instantiationError(p)
 	case term.Atom:
 		if p == "!" {
-			c.bytecode = append(c.bytecode, opCut)
+			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p, arity: 0}))
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p, arity: 0})})
 		return nil
 	case *term.Compound:
 		for _, a := range p.Args {
@@ -455,7 +464,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, opCall, c.xrOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))}))
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))})})
 		return nil
 	default:
 		return typeErrorCallable(p)
@@ -465,17 +474,17 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 func (c *clause) compileArg(a term.Interface) error {
 	switch a := a.(type) {
 	case term.Variable:
-		c.bytecode = append(c.bytecode, opVar, c.varOffset(a))
+		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
 	case term.Float, term.Integer, term.Atom:
-		c.bytecode = append(c.bytecode, opConst, c.xrOffset(a))
+		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *term.Compound:
-		c.bytecode = append(c.bytecode, opFunctor, c.xrOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))}))
+		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))})})
 		for _, n := range a.Args {
 			if err := c.compileArg(n); err != nil {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, opPop)
+		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
 		return systemError(fmt.Errorf("unknown argument: %s", a))
 	}
@@ -502,8 +511,6 @@ func (c *clause) varOffset(o term.Variable) byte {
 	return byte(len(c.vars) - 1)
 }
 
-type bytecode []byte
-
 type predicate0 func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
 func (p predicate0) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
@@ -512,7 +519,7 @@ func (p predicate0) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)
@@ -528,7 +535,7 @@ func (p predicate1) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(v1, func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)
@@ -544,7 +551,7 @@ func (p predicate2) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(v1, v2, func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)
@@ -560,7 +567,7 @@ func (p predicate3) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(v1, v2, v3, func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)
@@ -576,7 +583,7 @@ func (p predicate4) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(v1, v2, v3, v4, func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)
@@ -592,7 +599,7 @@ func (p predicate5) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 	}
 
 	return p(v1, v2, v3, v4, v5, func(env term.Env) *nondet.Promise {
-		return e.exec([]byte{opExit}, nil, nil, cont{
+		return e.exec(bytecode{{opcode: opExit}}, nil, nil, cont{
 			exit: k,
 			fail: Failure,
 		}, nil, nil, &env, nil)

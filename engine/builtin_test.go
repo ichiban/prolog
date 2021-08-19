@@ -791,11 +791,36 @@ func TestVM_BagOf(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
 				{name: "foo", arity: 3}: clauses{
-					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("d")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("f")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("d")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("f")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
 				},
 			},
 		}
@@ -930,14 +955,54 @@ func TestSetOf(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
 				{name: "foo", arity: 3}: clauses{
-					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("d")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("f")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
-					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{opConst, 0, opConst, 1, opConst, 2, opExit}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("d")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("f")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
 				},
 			},
 		}
@@ -1414,8 +1479,11 @@ func TestVM_Assertz(t *testing.T) {
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("a")},
 				},
-				xrTable:  []term.Interface{term.Atom("a")},
-				bytecode: bytecode{opConst, 0, opExit},
+				xrTable: []term.Interface{term.Atom("a")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
 			},
 			{
 				pi: procedureIndicator{
@@ -1426,8 +1494,11 @@ func TestVM_Assertz(t *testing.T) {
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("b")},
 				},
-				xrTable:  []term.Interface{term.Atom("b")},
-				bytecode: bytecode{opConst, 0, opExit},
+				xrTable: []term.Interface{term.Atom("b")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
 			},
 		}, vm.procedures[procedureIndicator{
 			name:  "foo",
@@ -1585,8 +1656,11 @@ func TestVM_Asserta(t *testing.T) {
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("b")},
 				},
-				xrTable:  []term.Interface{term.Atom("b")},
-				bytecode: bytecode{opConst, 0, opExit},
+				xrTable: []term.Interface{term.Atom("b")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
 			},
 			{
 				pi: procedureIndicator{name: "foo", arity: 1},
@@ -1594,8 +1668,11 @@ func TestVM_Asserta(t *testing.T) {
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("a")},
 				},
-				xrTable:  []term.Interface{term.Atom("a")},
-				bytecode: bytecode{opConst, 0, opExit},
+				xrTable: []term.Interface{term.Atom("a")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
 			},
 		}, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
 	})
