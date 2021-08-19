@@ -39,7 +39,7 @@ func (v Variable) String() string {
 // WriteTerm writes the variable into w.
 func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
 	ref, ok := env.Lookup(v)
-	if !ok && opts.Descriptive {
+	if ok && opts.Descriptive {
 		if v != "" {
 			if _, err := fmt.Fprintf(w, "%s = ", v); err != nil {
 				return err

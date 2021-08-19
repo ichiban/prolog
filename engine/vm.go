@@ -8,8 +8,6 @@ import (
 
 	"github.com/ichiban/prolog/nondet"
 	"github.com/ichiban/prolog/term"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -30,11 +28,10 @@ type VM struct {
 	// OnHalt is a hook which gets triggered right before halt/0 or halt/1.
 	OnHalt func()
 
-	// OnArrive is a hook which gets triggered when the execution reached to a procedure.
-	OnArrive                       func(goal term.Interface)
-	OnExec                         func(op string, arg term.Interface, env term.Env)
 	OnCall, OnExit, OnFail, OnRedo func(pi string, args term.Interface, env term.Env)
-	OnPanic                        func(r interface{})
+
+	Panic          func(r interface{})
+	UnknownWarning func(procedure string)
 
 	Operators       term.Operators
 	CharConversions map[rune]rune
@@ -167,20 +164,8 @@ type procedure interface {
 }
 
 func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if vm.OnArrive == nil {
-		vm.OnArrive = func(goal term.Interface) {}
-	}
-	var as []term.Interface
-	if err := Each(args, func(elem term.Interface) error {
-		as = append(as, elem)
-		return nil
-	}, *env); err != nil {
-		return nondet.Error(systemError(err))
-	}
-	if len(as) == 0 {
-		vm.OnArrive(pi.name)
-	} else {
-		vm.OnArrive(&term.Compound{Functor: pi.name, Args: as})
+	if vm.UnknownWarning == nil {
+		vm.UnknownWarning = func(string) {}
 	}
 
 	p := vm.procedures[pi]
@@ -192,7 +177,7 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 				Args:    []term.Interface{pi.name, pi.arity},
 			}))
 		case unknownWarning:
-			logrus.WithField("procedure", pi).Warn("unknown procedure")
+			vm.UnknownWarning(pi.String())
 			fallthrough
 		case unknownFail:
 			return nondet.Bool(false)
@@ -216,17 +201,12 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 	if cutParent == nil {
 		cutParent = &nondet.Promise{}
 	}
-	if vm.OnExec == nil {
-		vm.OnExec = func(op string, arg term.Interface, env term.Env) {}
-	}
 	for len(pc) != 0 {
 		switch pc[0] {
 		case opVoid:
-			vm.OnExec("void", nil, *env)
 			pc = pc[1:]
 		case opConst:
 			x := xr[pc[1]]
-			vm.OnExec("const", x, *env)
 			arest := term.NewVariable()
 			cons := term.Compound{
 				Functor: ".",
@@ -239,7 +219,6 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			args = arest
 		case opVar:
 			v := vars[pc[1]]
-			vm.OnExec("var", v, *env)
 			arest := term.NewVariable()
 			cons := term.Compound{
 				Functor: ".",
@@ -252,7 +231,6 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			args = arest
 		case opFunctor:
 			x := xr[pc[1]]
-			vm.OnExec("functor", x, *env)
 			arg, arest := term.NewVariable(), term.NewVariable()
 			cons1 := term.Compound{
 				Functor: ".",
@@ -293,7 +271,6 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			}
 			astack = term.Cons(arest, astack)
 		case opPop:
-			vm.OnExec("pop", nil, *env)
 			if !args.Unify(term.List(), false, env) {
 				return k.fail(*env)
 			}
@@ -309,7 +286,6 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			args = a
 			astack = arest
 		case opEnter:
-			vm.OnExec("enter", nil, *env)
 			if !args.Unify(term.List(), false, env) {
 				return k.fail(*env)
 			}
@@ -322,7 +298,6 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 			astack = v
 		case opCall:
 			x := xr[pc[1]]
-			vm.OnExec("call", x, *env)
 			if !args.Unify(term.List(), false, env) {
 				return k.fail(*env)
 			}
@@ -339,10 +314,8 @@ func (vm *VM) exec(pc bytecode, xr []term.Interface, vars []term.Variable, k con
 				}, &env)
 			})
 		case opExit:
-			vm.OnExec("exit", nil, *env)
 			return k.exit(*env)
 		case opCut:
-			vm.OnExec("cut", nil, *env)
 			pc = pc[1:]
 			return nondet.Cut(nondet.Delay(func() *nondet.Promise {
 				env := *env
