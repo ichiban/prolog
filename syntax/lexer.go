@@ -1,4 +1,4 @@
-package internal
+package syntax
 
 import (
 	"bufio"
@@ -977,24 +977,6 @@ func (l *Lexer) singleLineComment(ctx lexState) (lexState, error) {
 			return ctx, nil
 		default:
 			return l.singleLineComment(ctx)
-		}
-	}, nil
-}
-
-func (l *Lexer) multiLineComment(b *strings.Builder, ctx lexState) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch r {
-		case etx:
-			return nil, ErrInsufficient
-		case '/':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
-			return l.multiLineCommentBegin(b, ctx)
-		default:
-			l.backup()
-			return l.graphic(b)
 		}
 	}, nil
 }

@@ -5,6 +5,9 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ichiban/prolog/nondet"
+	"github.com/ichiban/prolog/term"
+
 	"github.com/ichiban/prolog/engine"
 )
 
@@ -249,8 +252,8 @@ append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
-	env := engine.Env{}
-	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
+	env := term.Env{}
+	p := term.NewParser(bufio.NewReader(strings.NewReader(query)), &i.Operators, i.CharConversions)
 	if err := p.Replace("?", args...); err != nil {
 		return err
 	}
@@ -269,7 +272,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // Query executes a prolog query and returns *Solutions.
 func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, error) {
-	p := engine.NewParser(&i.VM, bufio.NewReader(strings.NewReader(query)))
+	p := term.NewParser(bufio.NewReader(strings.NewReader(query)), &i.Operators, i.CharConversions)
 	if err := p.Replace("?", args...); err != nil {
 		return nil, err
 	}
@@ -278,10 +281,10 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		return nil, err
 	}
 
-	env := engine.Env{}
+	env := term.Env{}
 
 	more := make(chan bool, 1)
-	next := make(chan engine.Env)
+	next := make(chan term.Env)
 	sols := Solutions{
 		vars: env.FreeVariables(t),
 		more: more,
@@ -301,9 +304,9 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env engine.Env) *engine.Promise {
+		if _, err := i.Call(t, func(env term.Env) *nondet.Promise {
 			next <- env
-			return engine.Bool(!<-more)
+			return nondet.Bool(!<-more)
 		}, &env).Force(); err != nil {
 			sols.err = err
 		}

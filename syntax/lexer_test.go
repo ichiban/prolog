@@ -1,4 +1,4 @@
-package internal
+package syntax
 
 import (
 	"bufio"

@@ -8,7 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/nondet"
+	"github.com/ichiban/prolog/term"
 
 	"github.com/ichiban/prolog"
 
@@ -59,10 +60,10 @@ func main() {
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.OnHalt = restore
 	/*
-		i.OnArrive = func(goal engine.Term) {
+		i.OnArrive = func(goal engine.Interface) {
 			logrus.WithFields(logrus.Fields{"goal": i.DescribeTerm(goal)}).Debug("arrive")
 		}
-		i.OnExec = func(op string, arg engine.Term) {
+		i.OnExec = func(op string, arg engine.Interface) {
 			fs := logrus.Fields{"op": op}
 			if arg != nil {
 				fs["arg"] = arg
@@ -70,25 +71,25 @@ func main() {
 			logrus.WithFields(fs).Debug("exec")
 		}
 	*/
-	i.OnCall = func(pi string, args engine.Term, env engine.Env) {
+	i.OnCall = func(pi string, args term.Interface, env term.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("call")
 	}
-	i.OnExit = func(pi string, args engine.Term, env engine.Env) {
+	i.OnExit = func(pi string, args term.Interface, env term.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("exit")
 	}
-	i.OnFail = func(pi string, args engine.Term, env engine.Env) {
+	i.OnFail = func(pi string, args term.Interface, env term.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
 		}).Debug("fail")
 	}
-	i.OnRedo = func(pi string, args engine.Term, env engine.Env) {
+	i.OnRedo = func(pi string, args term.Interface, env term.Env) {
 		logrus.WithFields(logrus.Fields{
 			"pi":   pi,
 			"args": i.DescribeTerm(args, env),
@@ -97,9 +98,9 @@ func main() {
 	i.OnPanic = func(r interface{}) {
 		logrus.WithField("value", r).Error("panicked")
 	}
-	i.Register1("version", func(term engine.Term, k func(engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-		if !term.Unify(engine.Atom(Version), false, env) {
-			return engine.Bool(false)
+	i.Register1("version", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+		if !t.Unify(term.Atom(Version), false, env) {
+			return nondet.Bool(false)
 		}
 		return k(*env)
 	})
@@ -136,7 +137,7 @@ func main() {
 		for sols.Next() {
 			c++
 
-			m := map[string]engine.Term{}
+			m := map[string]term.Interface{}
 			if err := sols.Scan(m); err != nil {
 				log.WithError(err).Error("failed to scan")
 				break
@@ -146,7 +147,7 @@ func main() {
 			ls := make([]string, 0, len(vars))
 			for _, n := range vars {
 				v := m[n]
-				if _, ok := v.(*engine.Variable); ok {
+				if _, ok := v.(*term.Variable); ok {
 					continue
 				}
 				ls = append(ls, fmt.Sprintf("%s = %s", n, v))

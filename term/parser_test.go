@@ -1,4 +1,4 @@
-package engine
+package term
 
 import (
 	"bufio"
@@ -10,16 +10,15 @@ import (
 
 func TestParser_Term(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`
+		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(nil,L,L).
-`)))
+`)), nil, nil)
 		c, err := p.Term()
 		assert.NoError(t, err)
 
 		assert.Equal(t, &Compound{
 			Functor: "append",
-			Args: []Term{
+			Args: []Interface{
 				Atom("nil"),
 				Variable("L"),
 				Variable("L"),
@@ -29,26 +28,24 @@ append(nil,L,L).
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-			},
+		ops := Operators{
+			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`
+		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
-`)))
+`)), &ops, nil)
 		c, err := p.Term()
 		assert.NoError(t, err)
 
 		assert.Equal(t, &Compound{
 			Functor: ":-",
-			Args: []Term{
+			Args: []Interface{
 				&Compound{
 					Functor: "append",
-					Args: []Term{
+					Args: []Interface{
 						&Compound{
 							Functor: "cons",
-							Args: []Term{
+							Args: []Interface{
 								Variable("X"),
 								Variable("L1"),
 							},
@@ -56,7 +53,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 						Variable("L2"),
 						&Compound{
 							Functor: "cons",
-							Args: []Term{
+							Args: []Interface{
 								Variable("X"),
 								Variable("L3"),
 							},
@@ -65,7 +62,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 				},
 				&Compound{
 					Functor: "append",
-					Args: []Term{
+					Args: []Interface{
 						Variable("L1"),
 						Variable("L2"),
 						Variable("L3"),
@@ -76,28 +73,26 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 1200, Specifier: `xfx`, Name: `:-`},
-				{Priority: 1000, Specifier: `xfy`, Name: `,`},
-			},
+		ops := Operators{
+			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &ops, nil)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: ":-",
-			Args: []Term{
+			Args: []Interface{
 				&Compound{
 					Functor: ",",
-					Args: []Term{
+					Args: []Interface{
 						Variable("P"),
 						Variable("Q"),
 					},
 				},
 				&Compound{
 					Functor: ",",
-					Args: []Term{
+					Args: []Interface{
 						Variable("P"),
 						Variable("Q"),
 					},
@@ -107,26 +102,24 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("qualifier", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 1000, Specifier: `xfy`, Name: `,`},
-				{Priority: 200, Specifier: `xfy`, Name: `^`},
-			},
+		ops := Operators{
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
+			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &ops, nil)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
-			Args: []Term{
+			Args: []Interface{
 				Variable("C"),
 				&Compound{
 					Functor: "^",
-					Args: []Term{
+					Args: []Interface{
 						Variable("A"),
 						&Compound{
 							Functor: "foo",
-							Args: []Term{
+							Args: []Interface{
 								Variable("A"),
 								Variable("B"),
 								Variable("C"),
@@ -140,32 +133,30 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("multiple qualifiers", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 1000, Specifier: `xfy`, Name: `,`},
-				{Priority: 200, Specifier: `xfy`, Name: `^`},
-			},
+		ops := Operators{
+			{Priority: 1000, Specifier: `xfy`, Name: `,`},
+			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &ops, nil)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
-			Args: []Term{
+			Args: []Interface{
 				Variable("C"),
 				&Compound{
 					Functor: "^",
-					Args: []Term{
+					Args: []Interface{
 						&Compound{
 							Functor: ",",
-							Args: []Term{
+							Args: []Interface{
 								Variable("A"),
 								Variable("B"),
 							},
 						},
 						&Compound{
 							Functor: "foo",
-							Args: []Term{
+							Args: []Interface{
 								Variable("A"),
 								Variable("B"),
 								Variable("C"),
@@ -179,28 +170,26 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("expression", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 500, Specifier: `yfx`, Name: `+`},
-				{Priority: 400, Specifier: `yfx`, Name: `*`},
-			},
+		ops := Operators{
+			{Priority: 500, Specifier: `yfx`, Name: `+`},
+			{Priority: 400, Specifier: `yfx`, Name: `*`},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)), &ops, nil)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, term, &Compound{
 			Functor: "+",
-			Args: []Term{
+			Args: []Interface{
 				&Compound{
 					Functor: "+",
-					Args: []Term{
+					Args: []Interface{
 						Atom("a"),
 						&Compound{
 							Functor: "*",
-							Args: []Term{
+							Args: []Interface{
 								&Compound{
 									Functor: "*",
-									Args:    []Term{Atom("b"), Atom("c")},
+									Args:    []Interface{Atom("b"), Atom("c")},
 								},
 								Atom("d"),
 							},
@@ -213,25 +202,22 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("list", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[a, b, c|X].`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), nil, nil)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(Variable("X"), Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
 	t.Run("principal functor", func(t *testing.T) {
-		vm := VM{
-			operators: Operators{
-				{Priority: 400, Specifier: "yfx", Name: "/"},
-			},
+		ops := Operators{
+			{Priority: 400, Specifier: "yfx", Name: "/"},
 		}
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`(==)/2.`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2.`)), &ops, nil)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "/",
-			Args: []Term{
+			Args: []Interface{
 				Atom("=="),
 				Integer(2),
 			},
@@ -241,30 +227,27 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
-			Args:    []Term{Atom("x")},
+			Args:    []Interface{Atom("x")},
 		}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), &Compound{
 			Functor: "f",
-			Args:    []Term{Atom("x")},
+			Args:    []Interface{Atom("x")},
 		}), list)
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?].`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?].`)), nil, nil)
 		assert.Error(t, p.Replace("?", []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
@@ -272,11 +255,10 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		var vm VM
-		p := NewParser(&vm, bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
-			Args:    []Term{Atom("x")},
+			Args:    []Interface{Atom("x")},
 		}, "extra"))
 
 		_, err := p.Term()

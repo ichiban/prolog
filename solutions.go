@@ -6,15 +6,17 @@ import (
 	"reflect"
 
 	"github.com/ichiban/prolog/engine"
+
+	"github.com/ichiban/prolog/term"
 )
 
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	env  engine.Env
-	vars []engine.Variable
+	env  term.Env
+	vars []term.Variable
 	more chan<- bool
-	next <-chan engine.Env
+	next <-chan term.Env
 	err  error
 }
 
@@ -58,7 +60,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 					continue
 				}
 
-				val, err := convert(s.env.Resolve(v), f.Type(), s.env)
+				val, err := convert(s.env.Simplify(v), f.Type(), s.env)
 				if err != nil {
 					return err
 				}
@@ -77,7 +79,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 				continue
 			}
 
-			val, err := convert(s.env.Resolve(v), t.Elem(), s.env)
+			val, err := convert(s.env.Simplify(v), t.Elem(), s.env)
 			if err != nil {
 				return err
 			}
@@ -89,36 +91,29 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t engine.Term, typ reflect.Type, env engine.Env) (reflect.Value, error) {
+func convert(t term.Interface, typ reflect.Type, env term.Env) (reflect.Value, error) {
 	switch typ {
-	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
-		if c, ok := t.(*engine.Compound); ok {
-			c, err := env.Ground(c)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(c), nil
-		}
+	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*term.Interface)(nil)).Elem():
 		return reflect.ValueOf(t), nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
-		if f, ok := t.(engine.Float); ok {
+		if f, ok := t.(term.Float); ok {
 			return reflect.ValueOf(f).Convert(typ), nil
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if i, ok := t.(engine.Integer); ok {
+		if i, ok := t.(term.Integer); ok {
 			return reflect.ValueOf(i).Convert(typ), nil
 		}
 	case reflect.String:
-		if a, ok := t.(engine.Atom); ok {
+		if a, ok := t.(term.Atom); ok {
 			return reflect.ValueOf(string(a)), nil
 		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		if err := engine.Each(t, func(elem engine.Term) error {
-			e, err := convert(env.Resolve(elem), typ.Elem(), env)
+		if err := engine.Each(t, func(elem term.Interface) error {
+			e, err := convert(elem, typ.Elem(), env)
 			if err != nil {
 				return err
 			}

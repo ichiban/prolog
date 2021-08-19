@@ -1,17 +1,15 @@
-package engine
-
-import "errors"
+package term
 
 // Env is an environment stack.
 type Env []Binding
 
 type Binding struct {
 	Variable Variable
-	Value    Term
+	Value    Interface
 	// attributes?
 }
 
-func (e Env) Lookup(v Variable) (Term, bool) {
+func (e Env) Lookup(v Variable) (Interface, bool) {
 	for i := len(e) - 1; i >= 0; i-- {
 		b := e[i]
 		if b.Variable == v {
@@ -22,7 +20,7 @@ func (e Env) Lookup(v Variable) (Term, bool) {
 }
 
 // Resolve follows the variable chain and returns the first non-variable term or the last free variable.
-func (e Env) Resolve(t Term) Term {
+func (e Env) Resolve(t Interface) Interface {
 	var stop []Variable
 	for t != nil {
 		switch v := t.(type) {
@@ -45,31 +43,25 @@ func (e Env) Resolve(t Term) Term {
 	return nil
 }
 
-// Ground removes variables in term t.
-func (e Env) Ground(t Term) (Term, error) {
+// Simplify trys to remove as many variables as possible from term t.
+func (e Env) Simplify(t Interface) Interface {
 	switch t := e.Resolve(t).(type) {
-	case Variable:
-		return nil, errors.New("can't ground")
 	case *Compound:
 		c := Compound{
 			Functor: t.Functor,
-			Args:    make([]Term, len(t.Args)),
+			Args:    make([]Interface, len(t.Args)),
 		}
 		for i := 0; i < len(c.Args); i++ {
-			g, err := e.Ground(t.Args[i])
-			if err != nil {
-				return nil, err
-			}
-			c.Args[i] = g
+			c.Args[i] = e.Simplify(t.Args[i])
 		}
-		return &c, nil
+		return &c
 	default:
-		return t, nil
+		return t
 	}
 }
 
 // FreeVariables extracts variables in the given terms.
-func (e Env) FreeVariables(ts ...Term) []Variable {
+func (e Env) FreeVariables(ts ...Interface) []Variable {
 	var fvs []Variable
 	for _, t := range ts {
 		fvs = e.appendFreeVariables(fvs, t)
@@ -77,7 +69,7 @@ func (e Env) FreeVariables(ts ...Term) []Variable {
 	return fvs
 }
 
-func (e Env) appendFreeVariables(fvs []Variable, t Term) []Variable {
+func (e Env) appendFreeVariables(fvs []Variable, t Interface) []Variable {
 	switch t := t.(type) {
 	case Variable:
 		if ref, ok := e.Lookup(t); ok {

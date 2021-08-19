@@ -3,7 +3,7 @@ package prolog
 import (
 	"testing"
 
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/term"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -46,14 +46,14 @@ func TestInterpreter_Query(t *testing.T) {
 			assert.NoError(t, sols.Close())
 		}()
 
-		m := map[string]engine.Term{}
+		m := map[string]term.Interface{}
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
 		assert.Len(t, m, 3)
-		assert.Equal(t, engine.Atom("nil"), m["X"])
-		assert.True(t, m["Y"].(engine.Variable).Anonymous())
-		assert.True(t, m["Z"].(engine.Variable).Anonymous())
+		assert.Equal(t, term.Atom("nil"), m["X"])
+		assert.True(t, m["Y"].(term.Variable).Anonymous())
+		assert.True(t, m["Z"].(term.Variable).Anonymous())
 		assert.Equal(t, m["Y"], m["Z"])
 	})
 
@@ -64,22 +64,22 @@ func TestInterpreter_Query(t *testing.T) {
 			assert.NoError(t, sols.Close())
 		}()
 
-		m := map[string]engine.Term{}
+		m := map[string]term.Interface{}
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]engine.Term{
-			"X": &engine.Compound{
+		assert.Equal(t, map[string]term.Interface{
+			"X": &term.Compound{
 				Functor: "cons",
-				Args: []engine.Term{
-					engine.Atom("a"),
-					&engine.Compound{
+				Args: []term.Interface{
+					term.Atom("a"),
+					&term.Compound{
 						Functor: "cons",
-						Args: []engine.Term{
-							engine.Atom("b"),
-							&engine.Compound{
+						Args: []term.Interface{
+							term.Atom("b"),
+							&term.Compound{
 								Functor: "cons",
-								Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
+								Args:    []term.Interface{term.Atom("c"), term.Atom("nil")},
 							},
 						},
 					},
@@ -205,7 +205,7 @@ p(c).
 		// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
 		t.Run("teaches", func(t *testing.T) {
 			i := New(nil, nil)
-			i.Exec(`
+			assert.NoError(t, i.Exec(`
 teaches(dr_fred, history).
 teaches(dr_fred, english).
 teaches(dr_fred, drama).
@@ -214,7 +214,7 @@ studies(alice, english).
 studies(angus, english).
 studies(amelia, drama).
 studies(alex, physics).
-`)
+`))
 
 			t.Run("without cut", func(t *testing.T) {
 				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course).`)
