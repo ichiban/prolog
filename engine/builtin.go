@@ -105,10 +105,16 @@ func (vm *VM) Call(goal term.Interface, k func(term.Env) *nondet.Promise, env *t
 		return nondet.Error(err)
 	}
 
-	return vm.exec(c.bytecode, c.xrTable, c.vars, cont{
-		exit: k,
-		fail: Failure,
-	}, term.List(), term.List(), env, nil)
+	return vm.exec(registers{
+		pc:     c.bytecode,
+		xr:     c.xrTable,
+		vars:   c.vars,
+		args:   term.List(),
+		astack: term.List(),
+		exit:   k,
+		fail:   Failure,
+		env:    env,
+	})
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
