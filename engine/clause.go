@@ -46,6 +46,7 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 				return vm.exec(registers{
 					pc:     c.bytecode,
 					xr:     c.xrTable,
+					pi:     c.piTable,
 					vars:   vars,
 					args:   args,
 					astack: term.List(),
@@ -71,6 +72,7 @@ type clause struct {
 	pi       procedureIndicator
 	raw      term.Interface
 	xrTable  []term.Interface
+	piTable  []procedureIndicator
 	vars     []term.Variable
 	bytecode bytecode
 }
@@ -136,7 +138,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p, arity: 0})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p, arity: 0})})
 		return nil
 	case *term.Compound:
 		for _, a := range p.Args {
@@ -144,7 +146,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))})})
 		return nil
 	default:
 		return typeErrorCallable(p)
@@ -158,7 +160,7 @@ func (c *clause) compileArg(a term.Interface) error {
 	case term.Float, term.Integer, term.Atom:
 		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *term.Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))})})
 		for _, n := range a.Args {
 			if err := c.compileArg(n); err != nil {
 				return err
@@ -189,4 +191,14 @@ func (c *clause) varOffset(o term.Variable) byte {
 	}
 	c.vars = append(c.vars, o)
 	return byte(len(c.vars) - 1)
+}
+
+func (c *clause) piOffset(o procedureIndicator) byte {
+	for i, r := range c.piTable {
+		if r == o {
+			return byte(i)
+		}
+	}
+	c.piTable = append(c.piTable, o)
+	return byte(len(c.piTable) - 1)
 }

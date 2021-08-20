@@ -108,6 +108,7 @@ func (vm *VM) Call(goal term.Interface, k func(term.Env) *nondet.Promise, env *t
 	return vm.exec(registers{
 		pc:     c.bytecode,
 		xr:     c.xrTable,
+		pi:     c.piTable,
 		vars:   c.vars,
 		args:   term.List(),
 		astack: term.List(),

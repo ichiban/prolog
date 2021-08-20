@@ -201,6 +201,7 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 type registers struct {
 	pc           bytecode
 	xr           []term.Interface
+	pi           []procedureIndicator
 	vars         []term.Variable
 	args, astack term.Interface
 
@@ -273,7 +274,7 @@ func (*VM) execVar(r *registers) *nondet.Promise {
 }
 
 func (*VM) execFunctor(r *registers) *nondet.Promise {
-	x := r.xr[r.pc[0].operand]
+	pi := r.pi[r.pc[0].operand]
 	arg, arest := term.NewVariable(), term.NewVariable()
 	cons1 := term.Compound{
 		Functor: ".",
@@ -282,11 +283,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	if !r.args.Unify(&cons1, false, r.env) {
 		return r.fail(*r.env)
 	}
-	pf, ok := x.(procedureIndicator)
-	if !ok {
-		return nondet.Error(errors.New("not a principal functor"))
-	}
-	ok, err := Functor(arg, pf.name, pf.arity, func(e term.Env) *nondet.Promise {
+	ok, err := Functor(arg, pi.name, pi.arity, func(e term.Env) *nondet.Promise {
 		r.env = &e
 		return nondet.Bool(true)
 	}, r.env).Force()
@@ -300,7 +297,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	r.args = term.NewVariable()
 	cons2 := term.Compound{
 		Functor: ".",
-		Args:    []term.Interface{pf.name, r.args},
+		Args:    []term.Interface{pi.name, r.args},
 	}
 	ok, err = Univ(arg, &cons2, func(e term.Env) *nondet.Promise {
 		r.env = &e
@@ -349,15 +346,11 @@ func (*VM) execEnter(r *registers) *nondet.Promise {
 }
 
 func (vm *VM) execCall(r *registers) *nondet.Promise {
-	x := r.xr[r.pc[0].operand]
+	pi := r.pi[r.pc[0].operand]
 	if !r.args.Unify(term.List(), false, r.env) {
 		return r.fail(*r.env)
 	}
 	r.pc = r.pc[1:]
-	pi, ok := x.(procedureIndicator)
-	if !ok {
-		return nondet.Error(errors.New("not a principal functor"))
-	}
 	return nondet.Delay(func() *nondet.Promise {
 		env := *r.env
 		return vm.arrive(pi, r.astack, func(env term.Env) *nondet.Promise {
@@ -365,6 +358,7 @@ func (vm *VM) execCall(r *registers) *nondet.Promise {
 			return vm.exec(registers{
 				pc:        r.pc,
 				xr:        r.xr,
+				pi:        r.pi,
 				vars:      r.vars,
 				args:      v,
 				astack:    v,
@@ -388,6 +382,7 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 		return vm.exec(registers{
 			pc:        r.pc,
 			xr:        r.xr,
+			pi:        r.pi,
 			vars:      r.vars,
 			args:      r.args,
 			astack:    r.astack,
@@ -401,7 +396,7 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 
 type predicate0 func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate0) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate0) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	if !args.Unify(term.List(), false, env) {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
@@ -411,7 +406,7 @@ func (p predicate0) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate1 func(term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate1) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate1) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	v1 := term.NewVariable()
 	if !args.Unify(term.List(v1), false, env) {
 		return nondet.Error(fmt.Errorf("wrong number of arguments: %s", args))
@@ -422,7 +417,7 @@ func (p predicate1) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate2 func(term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate2) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate2) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	v1, v2 := term.NewVariable(), term.NewVariable()
 	if !args.Unify(term.List(v1, v2), false, env) {
 		return nondet.Error(errors.New("wrong number of arguments"))
@@ -433,7 +428,7 @@ func (p predicate2) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate3 func(term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate3) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate3) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	v1, v2, v3 := term.NewVariable(), term.NewVariable(), term.NewVariable()
 	if !args.Unify(term.List(v1, v2, v3), false, env) {
 		return nondet.Error(errors.New("wrong number of arguments"))
@@ -444,7 +439,7 @@ func (p predicate3) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate4 func(term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate4) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate4) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	v1, v2, v3, v4 := term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable()
 	if !args.Unify(term.List(v1, v2, v3, v4), false, env) {
 		return nondet.Error(errors.New("wrong number of arguments"))
@@ -455,7 +450,7 @@ func (p predicate4) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate5 func(term.Interface, term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate5) Call(e *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (p predicate5) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	v1, v2, v3, v4, v5 := term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable()
 	if !args.Unify(term.List(v1, v2, v3, v4, v5), false, env) {
 		return nondet.Error(errors.New("wrong number of arguments"))
@@ -496,6 +491,15 @@ func Each(list term.Interface, f func(elem term.Interface) error, env term.Env) 
 			return typeErrorList(l)
 		}
 	}
+}
+
+type procedureIndicator struct {
+	name  term.Atom
+	arity term.Integer
+}
+
+func (p *procedureIndicator) String() string {
+	return fmt.Sprintf("%s/%d", p.name, p.arity)
 }
 
 func piArgs(t term.Interface, env term.Env) (procedureIndicator, term.Interface, error) {
