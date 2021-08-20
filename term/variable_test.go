@@ -46,6 +46,6 @@ func TestVariable_WriteTerm(t *testing.T) {
 		}
 		var buf bytes.Buffer
 		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
-		assert.Regexp(t, `\A_​[[:xdigit:]]+\z`, buf.String())
+		assert.Regexp(t, `\A_\d+\z`, buf.String())
 	})
 }

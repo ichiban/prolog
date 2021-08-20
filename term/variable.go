@@ -4,30 +4,23 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strings"
-	"sync"
+	"regexp"
 )
 
 // Variable is a prolog variable.
 type Variable string
 
-var (
-	varCounter = 0
-	varMutex   sync.Mutex
-)
-
-const anonVarPrefix = "_\u200b"
+var varCounter = 0
 
 func NewVariable() Variable {
-	varMutex.Lock()
-	defer varMutex.Unlock()
-
 	varCounter++
-	return Variable(fmt.Sprintf("%s%d", anonVarPrefix, varCounter))
+	return Variable(fmt.Sprintf("_%d", varCounter))
 }
 
+var anonVarPattern = regexp.MustCompile(`\A_\d+\z`)
+
 func (v Variable) Anonymous() bool {
-	return strings.HasPrefix(string(v), anonVarPrefix)
+	return anonVarPattern.MatchString(string(v))
 }
 
 func (v Variable) String() string {
