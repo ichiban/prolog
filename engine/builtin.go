@@ -1298,12 +1298,12 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 			case term.EofActionEOFCode:
 				return nondet.Delay(func() *nondet.Promise {
 					env := *env
-					return Unify(t, term.Atom("end_of_file"), k, &env)
+					return Unify(out, term.Atom("end_of_file"), k, &env)
 				})
 			case term.EofActionReset:
 				return nondet.Delay(func() *nondet.Promise {
 					env := *env
-					return vm.ReadTerm(streamOrAlias, t, options, k, &env)
+					return vm.ReadTerm(streamOrAlias, out, options, k, &env)
 				})
 			default:
 				return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
