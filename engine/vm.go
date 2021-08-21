@@ -36,7 +36,6 @@ const (
 type VM struct {
 	OnCall, OnExit, OnFail, OnRedo func(pi string, args term.Interface, env term.Env)
 
-	Panic          func(r interface{})
 	UnknownWarning func(procedure string)
 
 	Operators       term.Operators

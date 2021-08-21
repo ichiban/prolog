@@ -141,14 +141,6 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 	go func() {
 		defer close(next)
-		defer func() {
-			if i.Panic == nil {
-				i.Panic = func(r interface{}) {}
-			}
-			if r := recover(); r != nil {
-				i.Panic(r)
-			}
-		}()
 		if !<-more {
 			return
 		}

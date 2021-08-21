@@ -60,9 +60,6 @@ func main() {
 			log.Printf("REDO %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 	}
-	i.Panic = func(r interface{}) {
-		log.Printf("panicked: %v", r)
-	}
 	i.UnknownWarning = func(procedure string) {
 		log.Printf("unknown procedure: %s", procedure)
 	}
