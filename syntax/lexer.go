@@ -27,35 +27,22 @@ func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
 
 // Next returns the next token.
 func (l *Lexer) Next(hint TokenKind) (Token, error) {
-	var state lexState
-	switch hint {
-	case TokenEOS:
-		state = l.eos
-	case TokenVariable:
-		state = l.variable
-	case TokenFloat, TokenInteger:
-		state = l.number
-	case TokenAtom:
-		state = l.atom
-	case TokenComma:
-		state = l.comma
-	case TokenPeriod:
-		state = l.period
-	case TokenBar:
-		state = l.bar
-	case TokenParenL:
-		state = l.parenL
-	case TokenParenR:
-		state = l.parenR
-	case TokenBracketL:
-		state = l.bracketL
-	case TokenBracketR:
-		state = l.bracketR
-	case TokenBraceL:
-		state = l.braceL
-	case TokenBraceR:
-		state = l.braceR
-	}
+	state := [tokenLen]lexState{
+		TokenEOS:      l.eos,
+		TokenVariable: l.variable,
+		TokenFloat:    l.number,
+		TokenInteger:  l.number,
+		TokenAtom:     l.atom,
+		TokenComma:    l.comma,
+		TokenPeriod:   l.period,
+		TokenBar:      l.bar,
+		TokenParenL:   l.parenL,
+		TokenParenR:   l.parenR,
+		TokenBracketL: l.bracketL,
+		TokenBracketR: l.bracketR,
+		TokenBraceL:   l.braceL,
+		TokenBraceR:   l.braceR,
+	}[hint]
 	for state != nil && len(l.tokens) == 0 {
 		r, err := l.next()
 		if err != nil {
@@ -158,41 +145,27 @@ const (
 
 	// TokenBraceR represents a close brace.
 	TokenBraceR
+
+	tokenLen
 )
 
 func (k TokenKind) String() string {
-	switch k {
-	case TokenEOS:
-		return "eos"
-	case TokenVariable:
-		return "variable"
-	case TokenFloat:
-		return "float"
-	case TokenInteger:
-		return "integer"
-	case TokenAtom:
-		return "atom"
-	case TokenComma:
-		return "comma"
-	case TokenPeriod:
-		return "period"
-	case TokenBar:
-		return "bar"
-	case TokenParenL:
-		return "paren L"
-	case TokenParenR:
-		return "paren R"
-	case TokenBracketL:
-		return "bracket L"
-	case TokenBracketR:
-		return "bracket R"
-	case TokenBraceL:
-		return "brace L"
-	case TokenBraceR:
-		return "brace R"
-	default:
-		return fmt.Sprintf("unknown(%d)", k)
-	}
+	return [tokenLen]string{
+		TokenEOS:      "eos",
+		TokenVariable: "variable",
+		TokenFloat:    "float",
+		TokenInteger:  "integer",
+		TokenAtom:     "atom",
+		TokenComma:    "comma",
+		TokenPeriod:   "period",
+		TokenBar:      "bar",
+		TokenParenL:   "paren L",
+		TokenParenR:   "paren R",
+		TokenBracketL: "bracket L",
+		TokenBracketR: "bracket R",
+		TokenBraceL:   "brace L",
+		TokenBraceR:   "brace R",
+	}[k]
 }
 
 func (l *Lexer) conv(r rune) rune {
