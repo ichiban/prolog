@@ -44,23 +44,23 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 			return nondet.Delay(func() *nondet.Promise {
 				env := *env
 				return vm.exec(registers{
-					pc:     c.bytecode,
-					xr:     c.xrTable,
-					pi:     c.piTable,
-					vars:   vars,
-					args:   args,
-					astack: term.List(),
-					exit: func(env term.Env) *nondet.Promise {
+					pc:   c.bytecode,
+					xr:   c.xrTable,
+					vars: vars,
+					cont: func(env term.Env) *nondet.Promise {
 						vm.OnExit(c.pi.String(), args, env)
 						return k(env)
 					},
-					fail: func(env term.Env) *nondet.Promise {
-						vm.OnFail(c.pi.String(), args, env)
-						return nondet.Bool(false)
-					},
+					args:      args,
+					astack:    term.List(),
+					pi:        c.piTable,
 					env:       &env,
 					cutParent: p,
 				})
+			}, func() *nondet.Promise {
+				env := *env
+				vm.OnFail(c.pi.String(), args, env)
+				return nondet.Bool(false)
 			})
 		}
 	}

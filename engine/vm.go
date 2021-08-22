@@ -200,13 +200,13 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 type registers struct {
 	pc           bytecode
 	xr           []term.Interface
-	pi           []procedureIndicator
 	vars         []term.Variable
+	cont         func(term.Env) *nondet.Promise
 	args, astack term.Interface
 
-	exit, fail func(term.Env) *nondet.Promise
-	env        *term.Env
-	cutParent  *nondet.Promise
+	pi        []procedureIndicator
+	env       *term.Env
+	cutParent *nondet.Promise
 }
 
 func (vm *VM) exec(r registers) *nondet.Promise {
@@ -250,7 +250,7 @@ func (*VM) execConst(r *registers) *nondet.Promise {
 		Args:    []term.Interface{x, arest},
 	}
 	if !r.args.Unify(&cons, false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	r.args = arest
@@ -265,7 +265,7 @@ func (*VM) execVar(r *registers) *nondet.Promise {
 		Args:    []term.Interface{v, arest},
 	}
 	if !r.args.Unify(&cons, false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	r.args = arest
@@ -280,7 +280,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 		Args:    []term.Interface{arg, arest},
 	}
 	if !r.args.Unify(&cons1, false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	ok, err := Functor(arg, pi.name, pi.arity, func(e term.Env) *nondet.Promise {
 		r.env = &e
@@ -290,7 +290,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 		return nondet.Error(err)
 	}
 	if !ok {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	r.args = term.NewVariable()
@@ -306,7 +306,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 		return nondet.Error(err)
 	}
 	if !ok {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.astack = term.Cons(arest, r.astack)
 	return nil
@@ -314,7 +314,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 
 func (*VM) execPop(r *registers) *nondet.Promise {
 	if !r.args.Unify(term.List(), false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	a, arest := term.NewVariable(), term.NewVariable()
@@ -323,7 +323,7 @@ func (*VM) execPop(r *registers) *nondet.Promise {
 		Args:    []term.Interface{a, arest},
 	}
 	if !r.astack.Unify(&cons, false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.args = a
 	r.astack = arest
@@ -332,10 +332,10 @@ func (*VM) execPop(r *registers) *nondet.Promise {
 
 func (*VM) execEnter(r *registers) *nondet.Promise {
 	if !r.args.Unify(term.List(), false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	if !r.astack.Unify(term.List(), false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	v := term.NewVariable()
@@ -347,7 +347,7 @@ func (*VM) execEnter(r *registers) *nondet.Promise {
 func (vm *VM) execCall(r *registers) *nondet.Promise {
 	pi := r.pi[r.pc[0].operand]
 	if !r.args.Unify(term.List(), false, r.env) {
-		return r.fail(*r.env)
+		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
 	return nondet.Delay(func() *nondet.Promise {
@@ -357,12 +357,11 @@ func (vm *VM) execCall(r *registers) *nondet.Promise {
 			return vm.exec(registers{
 				pc:        r.pc,
 				xr:        r.xr,
-				pi:        r.pi,
 				vars:      r.vars,
+				cont:      r.cont,
 				args:      v,
 				astack:    v,
-				exit:      r.exit,
-				fail:      r.fail,
+				pi:        r.pi,
 				env:       &env,
 				cutParent: r.cutParent,
 			})
@@ -371,7 +370,7 @@ func (vm *VM) execCall(r *registers) *nondet.Promise {
 }
 
 func (*VM) execExit(r *registers) *nondet.Promise {
-	return r.exit(*r.env)
+	return r.cont(*r.env)
 }
 
 func (vm *VM) execCut(r *registers) *nondet.Promise {
@@ -381,12 +380,11 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 		return vm.exec(registers{
 			pc:        r.pc,
 			xr:        r.xr,
-			pi:        r.pi,
 			vars:      r.vars,
+			cont:      r.cont,
 			args:      r.args,
 			astack:    r.astack,
-			exit:      r.exit,
-			fail:      r.fail,
+			pi:        r.pi,
 			env:       &env,
 			cutParent: r.cutParent,
 		})
