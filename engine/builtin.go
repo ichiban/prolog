@@ -19,55 +19,6 @@ import (
 	"github.com/ichiban/prolog/syntax"
 )
 
-// Conjunction executes the given goals p then q.
-// Note that ,/2 in clause body (H :- B1, B2, ..., Bn.) is compiled and doesn't involve this method.
-func (vm *VM) Conjunction(p, q term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return nondet.Delay(func() *nondet.Promise {
-		env := *env
-		pi, args, err := piArgs(p, env)
-		if err != nil {
-			return nondet.Error(err)
-		}
-
-		return vm.arrive(pi, args, func(env term.Env) *nondet.Promise {
-			pi, args, err := piArgs(q, env)
-			if err != nil {
-				return nondet.Error(err)
-			}
-
-			return nondet.Delay(func() *nondet.Promise {
-				env := env
-				return vm.arrive(pi, args, k, &env)
-			})
-		}, &env)
-	})
-}
-
-func (vm *VM) Disjunction(p, q term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if c, ok := env.Resolve(p).(*term.Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
-		return vm.IfThenElse(c.Args[0], c.Args[1], q, k, env)
-	}
-
-	return nondet.Delay(
-		func() *nondet.Promise {
-			env := *env
-			pi, args, err := piArgs(p, env)
-			if err != nil {
-				return nondet.Error(err)
-			}
-			return vm.arrive(pi, args, k, &env)
-		},
-		func() *nondet.Promise {
-			env := *env
-			pi, args, err := piArgs(q, env)
-			if err != nil {
-				return nondet.Error(err)
-			}
-			return vm.arrive(pi, args, k, &env)
-		},
-	)
-}
-
 func (vm *VM) Negation(goal term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	e := *env
 	ok, err := vm.Call(goal, Success, &e).Force()
@@ -78,24 +29,6 @@ func (vm *VM) Negation(goal term.Interface, k func(term.Env) *nondet.Promise, en
 		return nondet.Bool(false)
 	}
 	return k(e)
-}
-
-func (vm *VM) IfThenElse(if_, then_, else_ term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	ok, err := vm.Call(if_, Success, env).Force()
-	if err != nil {
-		return nondet.Error(err)
-	}
-	if ok {
-		return nondet.Delay(func() *nondet.Promise {
-			env := *env
-			return vm.Call(then_, k, &env)
-		})
-	} else {
-		return nondet.Delay(func() *nondet.Promise {
-			env := *env
-			return vm.Call(else_, k, &env)
-		})
-	}
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.

@@ -66,7 +66,10 @@ func TestVM_Call(t *testing.T) {
 		x := term.Variable("X")
 
 		ok, err := vm.Call(x, Success, &env).Force()
-		assert.Equal(t, instantiationError(x), err)
+		assert.Equal(t, existenceErrorProcedure(&term.Compound{
+			Functor: "/",
+			Args:    []term.Interface{term.Atom("call"), term.Integer(1)},
+		}), err)
 		assert.False(t, ok)
 	})
 

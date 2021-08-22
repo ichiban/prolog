@@ -112,7 +112,7 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 	if body != nil {
 		c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 		for {
-			p, ok := body.(*term.Compound)
+			p, ok := env.Resolve(body).(*term.Compound)
 			if !ok || p.Functor != "," || len(p.Args) != 2 {
 				break
 			}
@@ -132,7 +132,10 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 func (c *clause) compilePred(p term.Interface, env term.Env) error {
 	switch p := env.Resolve(p).(type) {
 	case term.Variable:
-		return instantiationError(p)
+		return c.compilePred(&term.Compound{
+			Functor: "call",
+			Args:    []term.Interface{p},
+		}, env)
 	case term.Atom:
 		if p == "!" {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})

@@ -51,11 +51,21 @@
 true.
 fail :- \+true.
 
-% if then
-If -> Then :- If -> Then; fail.
+% if then else
+If -> Then; _ :- If, !, Then.
+_ -> _; Else :- !, Else.
+If -> Then :- If, !, Then.
+
+% conjunction/disjunction
+P, Q :- P, Q.
+P; Q :- P.
+P; Q :- Q.
+
+% cut
+! :- !.
 
 % logic and control
-once(P) :- call(P), !.
+once(P) :- P, !.
 
 % not unifiable
 X \= Y :- \+(X = Y).
@@ -152,3 +162,9 @@ false :- fail.
 
 append([], L, L).
 append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
+
+member(X, [X]).
+member(X, [_|Xs]) :- member(X, Xs).
+
+length([], 0).
+length([_|Xs], N) :- length(Xs, L), N is L + 1.
