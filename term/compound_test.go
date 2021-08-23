@@ -14,11 +14,13 @@ func TestCompound_Unify(t *testing.T) {
 	}
 
 	t.Run("atom", func(t *testing.T) {
-		assert.False(t, unit.Unify(Atom("foo"), false, nil))
+		env := Env{}
+		assert.False(t, unit.Unify(Atom("foo"), false, &env))
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		assert.False(t, unit.Unify(Integer(1), false, nil))
+		env := Env{}
+		assert.False(t, unit.Unify(Integer(1), false, &env))
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -54,23 +56,23 @@ func TestCompound_Unify(t *testing.T) {
 	})
 
 	t.Run("compound", func(t *testing.T) {
+		env := Env{}
 		assert.True(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Interface{Atom("bar")},
-		}, false, nil))
+		}, false, &env))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Interface{Atom("bar"), Atom("baz")},
-		}, false, nil))
+		}, false, &env))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "baz",
 			Args:    []Interface{Atom("bar")},
-		}, false, nil))
+		}, false, &env))
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Interface{Atom("baz")},
-		}, false, nil))
-		env := Env{}
+		}, false, &env))
 		v := Variable("X")
 		assert.True(t, unit.Unify(&Compound{
 			Functor: "foo",

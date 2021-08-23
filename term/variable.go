@@ -46,25 +46,18 @@ func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
 
 // Unify unifies the variable with t.
 func (v Variable) Unify(t Interface, occursCheck bool, env *Env) bool {
-	t = env.Resolve(t)
-	if occursCheck && Contains(t, v, env) {
+	r, t := env.Resolve(v), env.Resolve(t)
+	v, ok := r.(Variable)
+	if !ok {
+		return r.Unify(t, occursCheck, env)
+	}
+	switch {
+	case v == t:
+		return true
+	case occursCheck && Contains(t, v, env):
 		return false
+	default:
+		*env = append(*env, Binding{Variable: v, Value: t})
+		return true
 	}
-	if ref, ok := env.Lookup(v); ok {
-		return ref.Unify(t, occursCheck, env)
-	}
-	if w, ok := t.(Variable); ok {
-		if _, ok := env.Lookup(w); !ok {
-			t = NewVariable()
-			*env = append(*env, Binding{
-				Variable: w,
-				Value:    t,
-			})
-		}
-	}
-	*env = append(*env, Binding{
-		Variable: v,
-		Value:    t,
-	})
-	return true
 }

@@ -10,12 +10,14 @@ func TestInteger_Unify(t *testing.T) {
 	unit := Integer(1)
 
 	t.Run("atom", func(t *testing.T) {
-		assert.False(t, unit.Unify(Atom("foo"), false, nil))
+		env := Env{}
+		assert.False(t, unit.Unify(Atom("foo"), false, &env))
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		assert.True(t, unit.Unify(Integer(1), false, nil))
-		assert.False(t, unit.Unify(Integer(0), false, nil))
+		env := Env{}
+		assert.True(t, unit.Unify(Integer(1), false, &env))
+		assert.False(t, unit.Unify(Integer(0), false, &env))
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -48,9 +50,10 @@ func TestInteger_Unify(t *testing.T) {
 	})
 
 	t.Run("compound", func(t *testing.T) {
+		env := Env{}
 		assert.False(t, unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Interface{Atom("foo")},
-		}, false, nil))
+		}, false, &env))
 	})
 }

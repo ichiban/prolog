@@ -183,7 +183,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error 
 
 // Unify unifies the compound with t.
 func (c *Compound) Unify(t Interface, occursCheck bool, env *Env) bool {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case *Compound:
 		if c.Functor != t.Functor {
 			return false

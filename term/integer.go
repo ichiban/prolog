@@ -24,7 +24,7 @@ func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 
 // Unify unifies the integer with t.
 func (i Integer) Unify(t Interface, occursCheck bool, env *Env) bool {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case Integer:
 		return i == t
 	case Variable:

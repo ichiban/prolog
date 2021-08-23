@@ -66,7 +66,7 @@ func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ Env) error {
 
 // Unify unifies the atom with t.
 func (a Atom) Unify(t Interface, occursCheck bool, env *Env) bool {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case Atom:
 		return a == t
 	case Variable:

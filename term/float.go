@@ -24,7 +24,7 @@ func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 
 // Unify unifies the float with t.
 func (f Float) Unify(t Interface, occursCheck bool, env *Env) bool {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case Float:
 		return f == t
 	case Variable:

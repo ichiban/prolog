@@ -60,7 +60,7 @@ func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 
 // Unify unifies the stream with t.
 func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) bool {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case *Stream:
 		return s == t
 	case Variable:

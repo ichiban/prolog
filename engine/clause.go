@@ -177,8 +177,9 @@ func (c *clause) compileArg(a term.Interface) error {
 }
 
 func (c *clause) xrOffset(o term.Interface) byte {
+	env := term.Env{}
 	for i, r := range c.xrTable {
-		if r.Unify(o, false, nil) {
+		if r.Unify(o, false, &env) {
 			return byte(i)
 		}
 	}
