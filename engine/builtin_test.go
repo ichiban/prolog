@@ -323,6 +323,14 @@ func TestFunctor(t *testing.T) {
 			assert.True(t, ok)
 		})
 
+		t.Run("name is a variable", func(t *testing.T) {
+			env := term.Env{}
+			name := term.NewVariable()
+			ok, err := Functor(term.NewVariable(), name, term.Integer(2), Success, &env).Force()
+			assert.Equal(t, instantiationError(name), err)
+			assert.False(t, ok)
+		})
+
 		t.Run("name is not an atom", func(t *testing.T) {
 			env := term.Env{}
 			ok, err := Functor(term.NewVariable(), term.Integer(0), term.Integer(2), Success, &env).Force()
@@ -341,6 +349,14 @@ func TestFunctor(t *testing.T) {
 					},
 				},
 			}, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("arity is a variable", func(t *testing.T) {
+			env := term.Env{}
+			arity := term.NewVariable()
+			ok, err := Functor(term.NewVariable(), term.Atom("f"), arity, Success, &env).Force()
+			assert.Equal(t, instantiationError(arity), err)
 			assert.False(t, ok)
 		})
 

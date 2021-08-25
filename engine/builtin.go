@@ -111,33 +111,38 @@ func TypeCompound(t term.Interface, k func(term.Env) *nondet.Promise, env *term.
 func Functor(t, name, arity term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch t := env.Resolve(t).(type) {
 	case term.Variable:
-		a, ok := env.Resolve(arity).(term.Integer)
-		if !ok {
+		switch arity := env.Resolve(arity).(type) {
+		case term.Variable:
+			return nondet.Error(instantiationError(arity))
+		case term.Integer:
+			switch {
+			case arity < 0:
+				return nondet.Error(domainErrorNotLessThanZero(arity))
+			case arity == 0:
+				return Unify(t, name, k, env)
+			}
+
+			switch name := env.Resolve(name).(type) {
+			case term.Variable:
+				return nondet.Error(instantiationError(name))
+			case term.Atom:
+				vs := make([]term.Interface, arity)
+				for i := range vs {
+					vs[i] = term.NewVariable()
+				}
+				return nondet.Delay(func() *nondet.Promise {
+					env := *env
+					return Unify(t, &term.Compound{
+						Functor: name,
+						Args:    vs,
+					}, k, &env)
+				})
+			default:
+				return nondet.Error(typeErrorAtom(name))
+			}
+		default:
 			return nondet.Error(typeErrorInteger(arity))
 		}
-		switch {
-		case a < 0:
-			return nondet.Error(domainErrorNotLessThanZero(a))
-		case a == 0:
-			return Unify(t, name, k, env)
-		}
-
-		n, ok := env.Resolve(name).(term.Atom)
-		if !ok {
-			return nondet.Error(typeErrorAtom(name))
-		}
-
-		vs := make([]term.Interface, a)
-		for i := range vs {
-			vs[i] = term.NewVariable()
-		}
-		return nondet.Delay(func() *nondet.Promise {
-			env := *env
-			return Unify(t, &term.Compound{
-				Functor: n,
-				Args:    vs,
-			}, k, &env)
-		})
 	case *term.Compound:
 		pattern := term.Compound{Args: []term.Interface{name, arity}}
 		return nondet.Delay(func() *nondet.Promise {
