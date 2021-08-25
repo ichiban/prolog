@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,6 +46,17 @@ func main() {
 	i.Register1("halt", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		restore()
 		return i.Halt(t, k, env)
+	})
+	i.Register1("cd", func(dir term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+		switch dir := env.Resolve(dir).(type) {
+		case term.Atom:
+			if err := os.Chdir(string(dir)); err != nil {
+				return nondet.Error(err)
+			}
+			return k(*env)
+		default:
+			return nondet.Error(errors.New("not a dir"))
+		}
 	})
 	if verbose {
 		i.OnCall = func(pi string, args term.Interface, env term.Env) {
