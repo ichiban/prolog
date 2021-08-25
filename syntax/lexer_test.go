@@ -793,6 +793,13 @@ an atom'.`)), nil)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "-2.34E-10"}, token)
 			})
 		})
+
+		t.Run("begins with 0", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`0.333`)), nil)
+			token, err := l.Next(TokenFloat)
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenFloat, Val: "0.333"}, token)
+		})
 	})
 
 	t.Run("integer then period", func(t *testing.T) {

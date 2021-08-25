@@ -650,6 +650,8 @@ func (l *Lexer) integerZero(b *strings.Builder) (lexState, error) {
 				return nil, err
 			}
 			return l.integerDecimal(b)
+		case r == '.':
+			return l.integerDot(b)
 		default:
 			l.backup()
 			l.emit(Token{Kind: TokenInteger, Val: b.String()})
