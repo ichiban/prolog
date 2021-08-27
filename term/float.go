@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 // Float is a prolog floating-point number.
@@ -18,7 +19,11 @@ func (f Float) String() string {
 
 // WriteTerm writes the float into w.
 func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
-	_, err := fmt.Fprint(w, strconv.FormatFloat(float64(f), 'f', -1, 64))
+	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
+	if !strings.ContainsRune(s, '.') {
+		s += ".0"
+	}
+	_, err := fmt.Fprint(w, s)
 	return err
 }
 

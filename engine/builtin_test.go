@@ -374,7 +374,7 @@ func TestFunctor(t *testing.T) {
 								term.Float(2.0),
 							},
 						},
-						term.Atom("2 is not an integer."), // TODO: should it be 2.0?
+						term.Atom("2.0 is not an integer."),
 					},
 				},
 			}, err)
