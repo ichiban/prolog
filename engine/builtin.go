@@ -298,15 +298,15 @@ func (vm *VM) Op(priority, specifier, operator term.Interface, k func(term.Env) 
 	}
 
 	// already defined?
-	for i, op := range vm.Operators {
+	for i, op := range vm.operators {
 		if op.Specifier != s || op.Name != o {
 			continue
 		}
 
 		// remove it first so that we can insert it again in the right position
-		copy(vm.Operators[i:], vm.Operators[i+1:])
-		vm.Operators[len(vm.Operators)-1] = term.Operator{}
-		vm.Operators = vm.Operators[:len(vm.Operators)-1]
+		copy(vm.operators[i:], vm.operators[i+1:])
+		vm.operators[len(vm.operators)-1] = term.Operator{}
+		vm.operators = vm.operators[:len(vm.operators)-1]
 
 		// or keep it removed.
 		if p == 0 {
@@ -315,12 +315,12 @@ func (vm *VM) Op(priority, specifier, operator term.Interface, k func(term.Env) 
 	}
 
 	// insert
-	i := sort.Search(len(vm.Operators), func(i int) bool {
-		return vm.Operators[i].Priority >= p
+	i := sort.Search(len(vm.operators), func(i int) bool {
+		return vm.operators[i].Priority >= p
 	})
-	vm.Operators = append(vm.Operators, term.Operator{})
-	copy(vm.Operators[i+1:], vm.Operators[i:])
-	vm.Operators[i] = term.Operator{
+	vm.operators = append(vm.operators, term.Operator{})
+	copy(vm.operators[i+1:], vm.operators[i:])
+	vm.operators[i] = term.Operator{
 		Priority:  p,
 		Specifier: s,
 		Name:      o,
@@ -364,9 +364,9 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(ter
 	}
 
 	pattern := term.Compound{Args: []term.Interface{priority, specifier, operator}}
-	ks := make([]func() *nondet.Promise, len(vm.Operators))
-	for i := range vm.Operators {
-		op := vm.Operators[i]
+	ks := make([]func() *nondet.Promise, len(vm.operators))
+	for i := range vm.operators {
+		op := vm.operators[i]
 		ks[i] = func() *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{op.Priority, op.Specifier, op.Name}}, k, &env)
@@ -1037,7 +1037,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(term.En
 		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
-	opts := term.WriteTermOptions{Ops: vm.Operators}
+	opts := term.WriteTermOptions{Ops: vm.operators}
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		if _, ok := env.Resolve(option).(term.Variable); ok {
 			return instantiationError(option)
@@ -1049,7 +1049,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(term.En
 		case option.Unify(&term.Compound{Functor: "quoted", Args: []term.Interface{term.Atom("true")}}, false, env):
 			opts.Quoted = true
 		case option.Unify(&term.Compound{Functor: "ignore_ops", Args: []term.Interface{term.Atom("false")}}, false, env):
-			opts.Ops = vm.Operators
+			opts.Ops = vm.operators
 		case option.Unify(&term.Compound{Functor: "ignore_ops", Args: []term.Interface{term.Atom("true")}}, false, env):
 			opts.Ops = nil
 		case option.Unify(&term.Compound{Functor: "numbervars", Args: []term.Interface{term.Atom("false")}}, false, env):
@@ -1224,7 +1224,7 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 		return nondet.Error(errors.New("not a buffered stream"))
 	}
 
-	p := term.NewParser(br, &vm.Operators, vm.CharConversions)
+	p := term.NewParser(br, &vm.operators, vm.charConversions)
 	t, err := p.Term()
 	if err != nil {
 		switch {
@@ -1536,7 +1536,7 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(term.Env) *non
 var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
-func (vm *VM) Halt(n term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func Halt(n term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch code := env.Resolve(n).(type) {
 	case term.Variable:
 		return nondet.Error(instantiationError(n))
@@ -2465,14 +2465,14 @@ func (vm *VM) CharConversion(inChar, outChar term.Interface, k func(term.Env) *n
 				return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
 			}
 
-			if vm.CharConversions == nil {
-				vm.CharConversions = map[rune]rune{}
+			if vm.charConversions == nil {
+				vm.charConversions = map[rune]rune{}
 			}
 			if i[0] == o[0] {
-				delete(vm.CharConversions, i[0])
+				delete(vm.charConversions, i[0])
 				return k(*env)
 			}
-			vm.CharConversions[i[0]] = o[0]
+			vm.charConversions[i[0]] = o[0]
 			return k(*env)
 		default:
 			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
@@ -2510,7 +2510,7 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(term.
 
 	if c1, ok := env.Resolve(inChar).(term.Atom); ok {
 		r := []rune(c1)
-		if r, ok := vm.CharConversions[r[0]]; ok {
+		if r, ok := vm.charConversions[r[0]]; ok {
 			return nondet.Delay(func() *nondet.Promise {
 				env := *env
 				return Unify(outChar, term.Atom(r), k, &env)
@@ -2526,7 +2526,7 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(term.
 	ks := make([]func() *nondet.Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
-		cr, ok := vm.CharConversions[r]
+		cr, ok := vm.charConversions[r]
 		if !ok {
 			cr = r
 		}
@@ -2563,7 +2563,7 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(term.Env) *nondet
 				default:
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
-						Args:    []term.Interface{flag, value},
+						Args:    []term.Interface{f, a},
 					}))
 				}
 			default:
@@ -2587,13 +2587,13 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(term.Env) *nondet
 				default:
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
-						Args:    []term.Interface{flag, value},
+						Args:    []term.Interface{f, a},
 					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
-					Args:    []term.Interface{flag, value},
+					Args:    []term.Interface{f, a},
 				}))
 			}
 		case "unknown":
@@ -2614,13 +2614,13 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(term.Env) *nondet
 				default:
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
-						Args:    []term.Interface{flag, value},
+						Args:    []term.Interface{f, a},
 					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
-					Args:    []term.Interface{flag, value},
+					Args:    []term.Interface{f, a},
 				}))
 			}
 		default:

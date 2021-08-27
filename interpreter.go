@@ -1,7 +1,6 @@
 package prolog
 
 import (
-	"bufio"
 	_ "embed"
 	"io"
 	"strings"
@@ -67,7 +66,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("get_char", i.GetChar)
 	i.Register2("peek_byte", i.PeekByte)
 	i.Register2("peek_char", i.PeekChar)
-	i.Register1("halt", i.Halt)
+	i.Register1("halt", engine.Halt)
 	i.Register2("clause", i.Clause)
 	i.Register2("atom_length", engine.AtomLength)
 	i.Register3("atom_concat", engine.AtomConcat)
@@ -99,7 +98,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
 	env := term.Env{}
-	p := term.NewParser(bufio.NewReader(strings.NewReader(query)), &i.Operators, i.CharConversions)
+	p := i.Parser(strings.NewReader(query))
 	if err := p.Replace("?", args...); err != nil {
 		return err
 	}
@@ -118,7 +117,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // Query executes a prolog query and returns *Solutions.
 func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, error) {
-	p := term.NewParser(bufio.NewReader(strings.NewReader(query)), &i.Operators, i.CharConversions)
+	p := i.Parser(strings.NewReader(query))
 	if err := p.Replace("?", args...); err != nil {
 		return nil, err
 	}

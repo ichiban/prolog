@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ichiban/prolog/engine"
+
 	"github.com/ichiban/prolog/nondet"
 	"github.com/ichiban/prolog/term"
 
@@ -45,7 +47,7 @@ func main() {
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
 	i.Register1("halt", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		restore()
-		return i.Halt(t, k, env)
+		return engine.Halt(t, k, env)
 	})
 	i.Register1("cd", func(dir term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		switch dir := env.Resolve(dir).(type) {
@@ -72,8 +74,8 @@ func main() {
 			log.Printf("REDO %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 		}
 	}
-	i.UnknownWarning = func(procedure string) {
-		log.Printf("unknown procedure: %s", procedure)
+	i.OnUnknown = func(pi string, args term.Interface, env term.Env) {
+		log.Printf("UNKNOWN %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
 	}
 	i.Register1("version", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		if !t.Unify(term.Atom(Version), false, env) {

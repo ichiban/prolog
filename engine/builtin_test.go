@@ -566,7 +566,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			Operators: term.Operators{
+			operators: term.Operators{
 				{
 					Priority:  900,
 					Specifier: "xfx",
@@ -599,13 +599,13 @@ func TestVM_Op(t *testing.T) {
 				Specifier: "xfx",
 				Name:      "+",
 			},
-		}, vm.Operators)
+		}, vm.operators)
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			Operators: term.Operators{
+			operators: term.Operators{
 				{
 					Priority:  900,
 					Specifier: "xfx",
@@ -638,7 +638,7 @@ func TestVM_Op(t *testing.T) {
 				Specifier: "xfx",
 				Name:      "+",
 			},
-		}, vm.Operators)
+		}, vm.operators)
 	})
 
 	t.Run("priority is not an integer", func(t *testing.T) {
@@ -692,7 +692,7 @@ func TestVM_Op(t *testing.T) {
 
 func TestVM_CurrentOp(t *testing.T) {
 	vm := VM{
-		Operators: term.Operators{
+		operators: term.Operators{
 			{
 				Priority:  900,
 				Specifier: "xfx",
@@ -2888,7 +2888,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	}
 
 	vm := VM{
-		Operators: ops,
+		operators: ops,
 		streams: map[term.Interface]*term.Stream{
 			term.Atom("foo"): &s,
 		},
@@ -4460,7 +4460,7 @@ func TestVM_PeekChar(t *testing.T) {
 	})
 }
 
-func TestVM_Halt(t *testing.T) {
+func Test_Halt(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		env := term.Env{}
 		var exitCalled bool
@@ -4472,8 +4472,7 @@ func TestVM_Halt(t *testing.T) {
 			osExit = os.Exit
 		}()
 
-		var vm VM
-		ok, err := vm.Halt(term.Integer(2), Success, &env).Force()
+		ok, err := Halt(term.Integer(2), Success, &env).Force()
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -4484,16 +4483,14 @@ func TestVM_Halt(t *testing.T) {
 		env := term.Env{}
 		n := term.Variable("N")
 
-		var vm VM
-		ok, err := vm.Halt(n, Success, &env).Force()
+		ok, err := Halt(n, Success, &env).Force()
 		assert.Equal(t, instantiationError(n), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		var vm VM
-		ok, err := vm.Halt(term.Atom("foo"), Success, &env).Force()
+		ok, err := Halt(term.Atom("foo"), Success, &env).Force()
 		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -5967,13 +5964,13 @@ func TestVM_CharConversion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, 'b', vm.CharConversions['a'])
+		assert.Equal(t, 'b', vm.charConversions['a'])
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			CharConversions: map[rune]rune{
+			charConversions: map[rune]rune{
 				'a': 'b',
 			},
 		}
@@ -5981,7 +5978,7 @@ func TestVM_CharConversion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.CharConversions['a']
+		_, ok = vm.charConversions['a']
 		assert.False(t, ok)
 	})
 
@@ -6055,7 +6052,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("converted", func(t *testing.T) {
 			env := term.Env{}
 			vm := VM{
-				CharConversions: map[rune]rune{
+				charConversions: map[rune]rune{
 					'a': 'b',
 				},
 			}

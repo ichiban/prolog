@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -34,19 +35,44 @@ const (
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
-	OnCall, OnExit, OnFail, OnRedo func(pi string, args term.Interface, env term.Env)
+	// OnCall is a callback that is triggered when the VM reaches to the predicate.
+	OnCall func(pi string, args term.Interface, env term.Env)
 
-	UnknownWarning func(procedure string)
+	// OnExit is a callback that is triggered when the predicate succeeds and the VM continues.
+	OnExit func(pi string, args term.Interface, env term.Env)
 
-	Operators       term.Operators
-	CharConversions map[rune]rune
+	// OnFail is a callback that is triggered when the predicate fails and the VM backtracks.
+	OnFail func(pi string, args term.Interface, env term.Env)
 
-	procedures      map[procedureIndicator]procedure
-	streams         map[term.Interface]*term.Stream
-	input, output   *term.Stream
+	// OnRedo is a callback that is triggered when the VM retries the predicate as a result of backtrack.
+	OnRedo func(pi string, args term.Interface, env term.Env)
+
+	// OnUnknown is a callback that is triggered when the VM reaches to an unknown predicate and also current_prolog_flag(unknown, warning).
+	OnUnknown func(pi string, args term.Interface, env term.Env)
+
+	// Core
+	procedures map[procedureIndicator]procedure
+	unknown    unknownAction
+
+	// Internal/external expression
+	operators       term.Operators
+	charConversions map[rune]rune
 	charConvEnabled bool
-	debug           bool
-	unknown         unknownAction
+
+	// I/O
+	streams       map[term.Interface]*term.Stream
+	input, output *term.Stream
+
+	// Misc
+	debug bool
+}
+
+func (vm *VM) Parser(r io.Reader) *term.Parser {
+	br, ok := r.(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReader(r)
+	}
+	return term.NewParser(br, &vm.operators, vm.charConversions)
 }
 
 // SetUserInput sets the given reader as a stream with an alias of user_input.
@@ -89,7 +115,7 @@ func (vm *VM) DescribeTerm(t term.Interface, env term.Env) string {
 	var buf bytes.Buffer
 	_ = t.WriteTerm(&buf, term.WriteTermOptions{
 		Quoted:      true,
-		Ops:         vm.Operators,
+		Ops:         vm.operators,
 		Descriptive: true,
 	}, env)
 	return buf.String()
@@ -169,8 +195,8 @@ type procedure interface {
 }
 
 func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if vm.UnknownWarning == nil {
-		vm.UnknownWarning = func(string) {}
+	if vm.OnUnknown == nil {
+		vm.OnUnknown = func(string, term.Interface, term.Env) {}
 	}
 
 	p := vm.procedures[pi]
@@ -182,7 +208,7 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 				Args:    []term.Interface{pi.name, pi.arity},
 			}))
 		case unknownWarning:
-			vm.UnknownWarning(pi.String())
+			vm.OnUnknown(pi.String(), args, *env)
 			fallthrough
 		case unknownFail:
 			return nondet.Bool(false)
