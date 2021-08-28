@@ -223,6 +223,19 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			},
 		}, term)
 	})
+
+	t.Run("prefix as an arg", func(t *testing.T) {
+		ops := Operators{
+			{Priority: 200, Specifier: "fy", Name: "+"},
+		}
+		p := NewParser(bufio.NewReader(strings.NewReader(`p(+).`)), &ops, nil)
+		term, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "p",
+			Args:    []Interface{Atom("+")},
+		}, term)
+	})
 }
 
 func TestParser_Replace(t *testing.T) {

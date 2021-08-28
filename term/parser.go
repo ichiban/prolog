@@ -277,7 +277,7 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 		_, r := op.bindingPowers()
 		rhs, err := p.expr(r, allowComma, allowPeriod)
 		if err != nil {
-			return nil, err
+			return op.Name, nil
 		}
 		return &Compound{
 			Functor: op.Name,
@@ -376,7 +376,7 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("failed to parse: %v", p)
+	return nil, fmt.Errorf("failed to parse: %v", p.current)
 }
 
 // More checks if the parser has more tokens to read.
