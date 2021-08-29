@@ -3773,7 +3773,7 @@ foo(c).
 		env := term.Env{}
 		var vm VM
 		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("foo bar baz."))}, term.NewVariable(), term.List(), Success, &env).Force()
-		assert.Equal(t, syntaxErrorUnexpectedChar(term.Atom("unexpected char: b")), err)
+		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom bar>")), err)
 		assert.False(t, ok)
 	})
 
@@ -3781,7 +3781,7 @@ foo(c).
 		env := term.Env{}
 		var vm VM
 		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("X = a."))}, term.NewVariable(), term.List(), Success, &env).Force()
-		assert.Equal(t, syntaxErrorUnexpectedChar(term.Atom("unexpected char: =")), err)
+		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom =>")), err)
 		assert.False(t, ok)
 	})
 }

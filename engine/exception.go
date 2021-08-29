@@ -301,7 +301,11 @@ func syntaxErrorNotANumber() *Exception {
 }
 
 func syntaxErrorUnexpectedChar(info term.Interface) *Exception {
-	return syntaxError(term.Atom("unexpected char"), info)
+	return syntaxError(term.Atom("unexpected_char"), info)
+}
+
+func syntaxErrorUnexpectedToken(info term.Interface) *Exception {
+	return syntaxError(term.Atom("unexpected_token"), info)
 }
 
 func syntaxErrorInsufficient() *Exception {

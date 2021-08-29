@@ -1227,6 +1227,10 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 	p := term.NewParser(br, &vm.operators, vm.charConversions)
 	t, err := p.Term()
 	if err != nil {
+		var (
+			unexpectedRune  *syntax.UnexpectedRuneError
+			unexpectedToken *term.UnexpectedTokenError
+		)
 		switch {
 		case errors.Is(err, io.EOF):
 			switch s.EofAction {
@@ -1247,8 +1251,10 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 			}
 		case errors.Is(err, syntax.ErrInsufficient):
 			return nondet.Error(syntaxErrorInsufficient())
-		case errors.As(err, &syntax.UnexpectedRuneError{}):
+		case errors.As(err, &unexpectedRune):
 			return nondet.Error(syntaxErrorUnexpectedChar(term.Atom(err.Error())))
+		case errors.As(err, &unexpectedToken):
+			return nondet.Error(syntaxErrorUnexpectedToken(term.Atom(err.Error())))
 		default:
 			return nondet.Error(systemError(err))
 		}

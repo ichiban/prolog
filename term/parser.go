@@ -96,25 +96,26 @@ func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
-func (p *Parser) acceptOp(min int, allowComma, allowPeriod bool) (*Operator, error) {
-	if !allowComma {
-		if _, err := p.expect(syntax.TokenComma); err == nil {
-			return nil, errors.New("no match")
+func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
+	if v, err := p.accept(syntax.TokenAtom, vals...); err == nil {
+		return Atom(v), nil
+	}
+	if allowComma {
+		if v, err := p.accept(syntax.TokenComma, vals...); err == nil {
+			return Atom(v), nil
 		}
 	}
-	if !allowPeriod {
-		if _, err := p.expect(syntax.TokenPeriod); err == nil {
-			return nil, errors.New("no match")
-		}
-	}
+	return "", errors.New("not an atom")
+}
 
+func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l < min {
 			continue
 		}
 
-		if _, err := p.accept(syntax.TokenAtom, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -123,14 +124,14 @@ func (p *Parser) acceptOp(min int, allowComma, allowPeriod bool) (*Operator, err
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) acceptPrefix() (*Operator, error) {
+func (p *Parser) acceptPrefix(allowComma bool) (*Operator, error) {
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l != 0 {
 			continue
 		}
 
-		if _, err := p.accept(syntax.TokenAtom, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -141,7 +142,7 @@ func (p *Parser) acceptPrefix() (*Operator, error) {
 
 func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
-		t, err := p.lexer.Next(k)
+		t, err := p.lexer.Next()
 		if err != nil {
 			return "", err
 		}
@@ -149,7 +150,7 @@ func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 	}
 
 	if p.current.Kind != k {
-		return "", &unexpectedToken{
+		return "", &UnexpectedTokenError{
 			ExpectedKind: k,
 			ExpectedVals: vals,
 			Actual:       *p.current,
@@ -163,7 +164,7 @@ func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 				return v, nil
 			}
 		}
-		return "", &unexpectedToken{
+		return "", &UnexpectedTokenError{
 			ExpectedKind: k,
 			ExpectedVals: vals,
 			Actual:       *p.current,
@@ -185,7 +186,7 @@ func (p *Parser) Term() (Interface, error) {
 	}
 	p.Vars = p.Vars[:0]
 
-	t, err := p.expr(1, true, false)
+	t, err := p.expr(1, true)
 	if err != nil {
 		return nil, err
 	}
@@ -228,20 +229,20 @@ func (p *Parser) Number() (Interface, error) {
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(min int, allowComma, allowPeriod bool) (Interface, error) {
-	lhs, err := p.lhs(allowComma, allowPeriod)
+func (p *Parser) expr(min int, allowComma bool) (Interface, error) {
+	lhs, err := p.lhs(allowComma)
 	if err != nil {
 		return nil, err
 	}
 
 	for {
-		op, err := p.acceptOp(min, allowComma, allowPeriod)
+		op, err := p.acceptOp(min, allowComma)
 		if err != nil {
 			break
 		}
 
 		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma, allowPeriod)
+		rhs, err := p.expr(r, allowComma)
 		if err != nil {
 			return nil, err
 		}
@@ -255,9 +256,9 @@ func (p *Parser) expr(min int, allowComma, allowPeriod bool) (Interface, error) 
 	return lhs, nil
 }
 
-func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
+func (p *Parser) lhs(allowComma bool) (Interface, error) {
 	if _, err := p.accept(syntax.TokenParenL); err == nil {
-		lhs, err := p.expr(1, true, true)
+		lhs, err := p.expr(1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -273,9 +274,9 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 		return t, nil
 	}
 
-	if op, err := p.acceptPrefix(); err == nil {
+	if op, err := p.acceptPrefix(allowComma); err == nil {
 		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma, allowPeriod)
+		rhs, err := p.expr(r, allowComma)
 		if err != nil {
 			return op.Name, nil
 		}
@@ -300,20 +301,9 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 		return n, nil
 	}
 
-	if !allowComma {
-		if _, err := p.expect(syntax.TokenComma); err == nil {
-			return nil, errors.New("no match")
-		}
-	}
-	if !allowPeriod {
-		if _, err := p.expect(syntax.TokenPeriod); err == nil {
-			return nil, errors.New("no match")
-		}
-	}
-
-	if a, err := p.accept(syntax.TokenAtom); err == nil {
+	if a, err := p.acceptAtom(allowComma); err == nil {
 		if _, err := p.accept(syntax.TokenParenL); err != nil {
-			if p.placeholder != "" && p.placeholder == Atom(a) {
+			if p.placeholder != "" && p.placeholder == a {
 				if len(p.args) == 0 {
 					return nil, errors.New("not enough arguments for placeholders")
 				}
@@ -321,12 +311,12 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 				t, p.args = p.args[0], p.args[1:]
 				return t, nil
 			}
-			return Atom(a), nil
+			return a, nil
 		}
 
 		var args []Interface
 		for {
-			t, err := p.expr(1, false, allowPeriod)
+			t, err := p.expr(1, false)
 			if err != nil {
 				return nil, err
 			}
@@ -341,20 +331,20 @@ func (p *Parser) lhs(allowComma, allowPeriod bool) (Interface, error) {
 			}
 		}
 
-		return &Compound{Functor: Atom(a), Args: args}, nil
+		return &Compound{Functor: a, Args: args}, nil
 	}
 
 	if _, err := p.accept(syntax.TokenBracketL); err == nil {
 		var es []Interface
 		for {
-			e, err := p.expr(1, false, true)
+			e, err := p.expr(1, false)
 			if err != nil {
 				return nil, err
 			}
 			es = append(es, e)
 
 			if _, err := p.accept(syntax.TokenBar); err == nil {
-				rest, err := p.expr(1, false, true)
+				rest, err := p.expr(1, true)
 				if err != nil {
 					return nil, err
 				}
@@ -417,13 +407,13 @@ func (o *Operator) bindingPowers() (int, int) {
 	}
 }
 
-type unexpectedToken struct {
+type UnexpectedTokenError struct {
 	ExpectedKind syntax.TokenKind
 	ExpectedVals []string
 	Actual       syntax.Token
 	History      []syntax.Token
 }
 
-func (e *unexpectedToken) Error() string {
-	return fmt.Sprintf("expected: <%s %s>, actual: %s, history: %s", e.ExpectedKind, e.ExpectedVals, e.Actual, e.History)
+func (e UnexpectedTokenError) Error() string {
+	return fmt.Sprintf("unexpected token: %s", e.Actual)
 }
