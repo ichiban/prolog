@@ -105,6 +105,9 @@ func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 			return Atom(v), nil
 		}
 	}
+	if v, err := p.accept(syntax.TokenSign, vals...); err == nil {
+		return Atom(v), nil
+	}
 	return "", errors.New("not an atom")
 }
 
@@ -206,12 +209,16 @@ var ErrNotANumber = errors.New("not a number")
 
 // Number parses a number term.
 func (p *Parser) Number() (Interface, error) {
+	sign, _ := p.accept(syntax.TokenSign)
+
 	if f, err := p.accept(syntax.TokenFloat); err == nil {
+		f = sign + f
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
 	}
 
 	if i, err := p.accept(syntax.TokenInteger); err == nil {
+		i = sign + i
 		switch {
 		case strings.HasPrefix(i, "0'"):
 			return Integer([]rune(i)[2]), nil

@@ -254,6 +254,29 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			}, term)
 		})
 	})
+
+	t.Run("ambiguous sign", func(t *testing.T) {
+		ops := Operators{
+			{Priority: 700, Specifier: `xfx`, Name: `is`},
+			{Priority: 500, Specifier: `yfx`, Name: `+`},
+		}
+		p := NewParser(bufio.NewReader(strings.NewReader(`X is +1 +1.`)), &ops, nil)
+		term, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "is",
+			Args: []Interface{
+				Variable("X"),
+				&Compound{
+					Functor: "+",
+					Args: []Interface{
+						Integer(1),
+						Integer(1),
+					},
+				},
+			},
+		}, term)
+	})
 }
 
 func TestParser_Replace(t *testing.T) {

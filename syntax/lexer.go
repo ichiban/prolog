@@ -131,6 +131,9 @@ const (
 	// TokenBraceR represents a close brace.
 	TokenBraceR
 
+	// TokenSign represents a plus/minus.
+	TokenSign
+
 	tokenLen
 )
 
@@ -150,6 +153,7 @@ func (k TokenKind) String() string {
 		TokenBracketR: "bracket R",
 		TokenBraceL:   "brace L",
 		TokenBraceR:   "brace R",
+		TokenSign:     "sign",
 	}[k]
 }
 
@@ -202,7 +206,13 @@ func (l *Lexer) init(r rune) (lexState, error) {
 	case r == '}':
 		l.emit(Token{Kind: TokenBraceR, Val: string(r)})
 		return nil, nil
-	case r == '+', r == '-', unicode.IsNumber(r):
+	case r == '+' || r == '-':
+		var b strings.Builder
+		if _, err := b.WriteRune(r); err != nil {
+			return nil, err
+		}
+		return l.sign(&b)
+	case unicode.IsNumber(r):
 		l.backup()
 		return l.number, nil
 	case unicode.IsUpper(r), r == '_':
@@ -694,12 +704,6 @@ func (l *Lexer) integerDot(b *strings.Builder) (lexState, error) {
 func (l *Lexer) number(r rune) (lexState, error) {
 	r = l.conv(r)
 	switch {
-	case r == '+' || r == '-':
-		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
-		return l.sign(&b)
 	case r == '0':
 		var b strings.Builder
 		if _, err := b.WriteRune(r); err != nil {
@@ -722,21 +726,17 @@ func (l *Lexer) sign(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
 		switch {
-		case r == etx:
-			return nil, ErrInsufficient
-		case r == '0':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
-			return l.integerZero(b)
-		case unicode.IsDigit(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
-			return l.integerDecimal(b)
-		default:
+		case unicode.IsNumber(r):
+			l.backup()
+			l.emit(Token{Kind: TokenSign, Val: b.String()})
+			return nil, nil
+		case isGraphic(r):
 			l.backup()
 			return l.graphic(b)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenAtom, Val: b.String()})
+			return nil, nil
 		}
 	}, nil
 }
