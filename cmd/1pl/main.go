@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ichiban/prolog/syntax"
+
 	"github.com/ichiban/prolog/engine"
 
 	"github.com/ichiban/prolog/nondet"
@@ -105,21 +107,34 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	var buf strings.Builder
 	keys := bufio.NewReader(os.Stdin)
 	for {
-		if err := handleLine(ctx, i, t, keys, timeout); err != nil {
+		if err := handleLine(ctx, &buf, i, t, keys, timeout); err != nil {
 			log.Panic(err)
 		}
 	}
 }
 
-func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader, timeout time.Duration) error {
+func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader, timeout time.Duration) error {
+	if buf.Len() == 0 {
+		t.SetPrompt("?- ")
+	} else {
+		t.SetPrompt("|  ")
+	}
+
 	line, err := t.ReadLine()
 	if err != nil {
 		if err == io.EOF {
 			return err
 		}
 		log.Printf("failed to read line: %v", err)
+		buf.Reset()
+		return nil
+	}
+	if _, err := buf.WriteString(line); err != nil {
+		log.Printf("failed to buffer: %v", err)
+		buf.Reset()
 		return nil
 	}
 
@@ -130,11 +145,24 @@ func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal
 	}
 
 	c := 0
-	sols, err := i.QueryContext(ctx, line)
-	if err != nil {
+	sols, err := i.QueryContext(ctx, buf.String())
+	switch err {
+	case nil:
+		break
+	case syntax.ErrInsufficient:
+		if _, err := buf.WriteRune('\n'); err != nil {
+			log.Printf("failed to buffer: %v", err)
+			buf.Reset()
+		}
+
+		// Returns without resetting buf.
+		return nil
+	default:
 		log.Printf("failed to query: %v", err)
+		buf.Reset()
 		return nil
 	}
+
 	for sols.Next() {
 		c++
 
@@ -187,6 +215,7 @@ func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal
 
 	if err := sols.Err(); err != nil {
 		log.Printf("failed: %v", err)
+		buf.Reset()
 		return nil
 	}
 
@@ -196,5 +225,6 @@ func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal
 		}
 	}
 
+	buf.Reset()
 	return nil
 }

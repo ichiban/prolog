@@ -153,12 +153,7 @@ func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 	}
 
 	if p.current.Kind != k {
-		return "", &UnexpectedTokenError{
-			ExpectedKind: k,
-			ExpectedVals: vals,
-			Actual:       *p.current,
-			History:      p.history,
-		}
+		return "", p.expectationError(k, vals)
 	}
 
 	if len(vals) > 0 {
@@ -167,14 +162,22 @@ func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 				return v, nil
 			}
 		}
-		return "", &UnexpectedTokenError{
-			ExpectedKind: k,
-			ExpectedVals: vals,
-			Actual:       *p.current,
-		}
+		return "", p.expectationError(k, vals)
 	}
 
 	return p.current.Val, nil
+}
+
+func (p *Parser) expectationError(k syntax.TokenKind, vals []string) error {
+	if p.current.Kind == syntax.TokenEOS {
+		return syntax.ErrInsufficient
+	}
+	return &UnexpectedTokenError{
+		ExpectedKind: k,
+		ExpectedVals: vals,
+		Actual:       *p.current,
+		History:      p.history,
+	}
 }
 
 // Term parses a term followed by a full stop.
@@ -264,6 +267,10 @@ func (p *Parser) expr(min int, allowComma bool) (Interface, error) {
 }
 
 func (p *Parser) lhs(allowComma bool) (Interface, error) {
+	if _, err := p.accept(syntax.TokenEOS); err == nil {
+		return nil, syntax.ErrInsufficient
+	}
+
 	if _, err := p.accept(syntax.TokenParenL); err == nil {
 		lhs, err := p.expr(1, true)
 		if err != nil {
