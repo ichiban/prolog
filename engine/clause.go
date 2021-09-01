@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ichiban/prolog/nondet"
@@ -85,18 +86,18 @@ func (c *clause) compile(t term.Interface, env term.Env) error {
 	case term.Variable:
 		return instantiationError(t)
 	case term.Atom:
-		return c.compileClause(t, nil, env)
+		return c.compileClause(t, nil, true, env)
 	case *term.Compound:
 		if t.Functor == ":-" {
-			return c.compileClause(t.Args[0], t.Args[1], env)
+			return c.compileClause(t.Args[0], t.Args[1], true, env)
 		}
-		return c.compileClause(t, nil, env)
+		return c.compileClause(t, nil, true, env)
 	default:
 		return typeErrorCallable(t)
 	}
 }
 
-func (c *clause) compileClause(head term.Interface, body term.Interface, env term.Env) error {
+func (c *clause) compileClause(head term.Interface, body term.Interface, allowVariablePred bool, env term.Env) error {
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
 		return instantiationError(head)
@@ -111,18 +112,13 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 		return typeErrorCallable(head)
 	}
 	if body != nil {
-		c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-		for {
-			p, ok := env.Resolve(body).(*term.Compound)
-			if !ok || p.Functor != "," || len(p.Args) != 2 {
-				break
-			}
-			if err := c.compilePred(p.Args[0], env); err != nil {
-				return err
-			}
-			body = p.Args[1]
-		}
-		if err := c.compilePred(body, env); err != nil {
+		err := c.compileBody(body, allowVariablePred, env)
+		switch err {
+		case nil:
+			break
+		case errNotCallable:
+			return typeErrorCallable(body)
+		default:
 			return err
 		}
 	}
@@ -130,13 +126,36 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 	return nil
 }
 
-func (c *clause) compilePred(p term.Interface, env term.Env) error {
+func (c *clause) compileBody(body term.Interface, allowVariablePred bool, env term.Env) error {
+	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
+	for {
+		p, ok := env.Resolve(body).(*term.Compound)
+		if !ok || p.Functor != "," || len(p.Args) != 2 {
+			break
+		}
+		if err := c.compilePred(p.Args[0], allowVariablePred, env); err != nil {
+			return err
+		}
+		body = p.Args[1]
+	}
+	if err := c.compilePred(body, allowVariablePred, env); err != nil {
+		return err
+	}
+	return nil
+}
+
+var errNotCallable = errors.New("not callable")
+
+func (c *clause) compilePred(p term.Interface, allowVariablePred bool, env term.Env) error {
 	switch p := env.Resolve(p).(type) {
 	case term.Variable:
+		if !allowVariablePred {
+			return instantiationError(p)
+		}
 		return c.compilePred(&term.Compound{
 			Functor: "call",
 			Args:    []term.Interface{p},
-		}, env)
+		}, false, env)
 	case term.Atom:
 		if p == "!" {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
@@ -153,7 +172,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))})})
 		return nil
 	default:
-		return typeErrorCallable(p)
+		return errNotCallable
 	}
 }
 

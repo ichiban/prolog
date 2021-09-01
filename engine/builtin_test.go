@@ -75,10 +75,31 @@ func TestVM_Call(t *testing.T) {
 	})
 
 	t.Run("not callable", func(t *testing.T) {
-		env := term.Env{}
-		ok, err := vm.Call(term.Integer(0), Success, &env).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
-		assert.False(t, ok)
+		t.Run("single predicate", func(t *testing.T) {
+			env := term.Env{}
+			ok, err := vm.Call(term.Integer(0), Success, &env).Force(context.Background())
+			assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("multiple predicates", func(t *testing.T) {
+			env := term.Env{}
+			ok, err := vm.Call(&term.Compound{
+				Functor: ",",
+				Args: []term.Interface{
+					term.Atom("true"),
+					term.Integer(0),
+				},
+			}, Success, &env).Force(context.Background())
+			assert.Equal(t, typeErrorCallable(&term.Compound{
+				Functor: ",",
+				Args: []term.Interface{
+					term.Atom("true"),
+					term.Integer(0),
+				},
+			}), err)
+			assert.False(t, ok)
+		})
 	})
 }
 

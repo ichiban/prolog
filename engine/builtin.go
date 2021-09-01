@@ -37,7 +37,7 @@ func (vm *VM) Negation(goal term.Interface, k func(term.Env) *nondet.Promise, en
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func (vm *VM) Call(goal term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	var c clause
-	if err := c.compileClause(term.Atom(""), goal, *env); err != nil {
+	if err := c.compileClause(term.Atom(""), goal, false, *env); err != nil {
 		return nondet.Error(err)
 	}
 
