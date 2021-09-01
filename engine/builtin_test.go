@@ -807,23 +807,6 @@ func TestVM_CurrentOp(t *testing.T) {
 	})
 }
 
-func TestRepeat(t *testing.T) {
-	env := term.Env{}
-	c := 3
-	ok, err := Repeat(func(env term.Env) *nondet.Promise {
-		c--
-		return nondet.Bool(c == 0)
-	}, &env).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = Repeat(func(env term.Env) *nondet.Promise {
-		return nondet.Error(errors.New(""))
-	}, &env).Force(context.Background())
-	assert.Error(t, err)
-	assert.False(t, ok)
-}
-
 func TestVM_BagOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{

@@ -32,6 +32,7 @@ const (
 	opPop
 
 	opCut
+	opRepeat
 )
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
@@ -250,6 +251,7 @@ func (vm *VM) exec(r registers) *nondet.Promise {
 		opCall:    vm.execCall,
 		opExit:    vm.execExit,
 		opCut:     vm.execCut,
+		opRepeat:  vm.execRepeat,
 	}
 	for len(r.pc) != 0 {
 		op := jumpTable[r.pc[0].opcode]
@@ -416,6 +418,24 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 			cutParent: r.cutParent,
 		})
 	}), r.cutParent)
+}
+
+func (vm *VM) execRepeat(r *registers) *nondet.Promise {
+	r.pc = r.pc[1:]
+	return nondet.Repeat(nondet.Delay(func(context.Context) *nondet.Promise {
+		env := *r.env
+		return vm.exec(registers{
+			pc:        r.pc,
+			xr:        r.xr,
+			vars:      r.vars,
+			cont:      r.cont,
+			args:      r.args,
+			astack:    r.astack,
+			pi:        r.pi,
+			env:       &env,
+			cutParent: r.cutParent,
+		})
+	}))
 }
 
 type predicate0 func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise

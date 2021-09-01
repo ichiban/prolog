@@ -10,6 +10,7 @@ type Promise struct {
 	delayed []func(context.Context) *Promise
 
 	cutParent *Promise
+	repeat    bool
 
 	ok  bool
 	err error
@@ -38,6 +39,17 @@ func Cut(p, parent *Promise) *Promise {
 			},
 		},
 		cutParent: parent,
+	}
+}
+
+func Repeat(p *Promise) *Promise {
+	return &Promise{
+		delayed: []func(context.Context) *Promise{
+			func(context.Context) *Promise {
+				return p
+			},
+		},
+		repeat: true,
 	}
 }
 
@@ -74,7 +86,10 @@ func (p *Promise) Force(ctx context.Context) (bool, error) {
 
 			// Try the alternatives from left to right.
 			var q *Promise
-			q, p.delayed, p.delayed[0] = p.delayed[0](ctx), p.delayed[1:], nil
+			q = p.delayed[0](ctx)
+			if !p.repeat {
+				p.delayed, p.delayed[0] = p.delayed[1:], nil
+			}
 			stack = append(stack, p, q)
 		}
 	}

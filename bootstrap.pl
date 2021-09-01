@@ -64,6 +64,9 @@ P; Q :- Q.
 % cut
 ! :- !.
 
+% repeat
+repeat :- repeat.
+
 % logic and control
 once(P) :- P, !.
 

@@ -25,7 +25,6 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.SetUserInput(in)
 	i.SetUserOutput(out)
-	i.Register0("repeat", engine.Repeat)
 	i.Register1(`\+`, i.Negation)
 	i.Register1("call", i.Call)
 	i.Register1("current_predicate", i.CurrentPredicate)

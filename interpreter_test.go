@@ -324,4 +324,11 @@ studies(alex, physics).
 			})
 		})
 	})
+
+	t.Run("repeat", func(t *testing.T) {
+		i := New(nil, nil)
+		sols, err := i.Query("repeat, !, fail.")
+		assert.NoError(t, err)
+		assert.False(t, sols.Next())
+	})
 }

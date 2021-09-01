@@ -157,8 +157,12 @@ func (c *clause) compilePred(p term.Interface, allowVariablePred bool, env term.
 			Args:    []term.Interface{p},
 		}, false, env)
 	case term.Atom:
-		if p == "!" {
+		switch p {
+		case "!":
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
+			return nil
+		case "repeat":
+			c.bytecode = append(c.bytecode, instruction{opcode: opRepeat})
 			return nil
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p, arity: 0})})

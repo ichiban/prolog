@@ -439,22 +439,6 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 	return k(*env)
 }
 
-// Repeat enforces k until it returns true.
-func Repeat(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		env := *env
-		for {
-			ok, err := k(env).Force(ctx)
-			if err != nil {
-				return nondet.Error(err)
-			}
-			if ok {
-				return nondet.Bool(true)
-			}
-		}
-	})
-}
-
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func (vm *VM) BagOf(template, goal, instances term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	return vm.collectionOf(template, goal, instances, k, term.List, env)
