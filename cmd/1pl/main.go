@@ -30,9 +30,11 @@ var Version = "1pl/0.1"
 func main() {
 	var verbose, debug bool
 	var timeout time.Duration
+	var cd string
 	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
 	pflag.BoolVarP(&debug, "debug", "d", false, `debug`)
 	pflag.DurationVarP(&timeout, "timeout", "t", 10*time.Second, `timeout`)
+	pflag.StringVarP(&cd, "cd", "c", "", `cd`)
 	pflag.Parse()
 
 	oldState, err := terminal.MakeRaw(0)
@@ -112,12 +114,6 @@ func main() {
 }
 
 func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader, timeout time.Duration) error {
-	if timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
 	line, err := t.ReadLine()
 	if err != nil {
 		if err == io.EOF {
@@ -125,6 +121,12 @@ func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal
 		}
 		log.Printf("failed to read line: %v", err)
 		return nil
+	}
+
+	if timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 
 	c := 0
