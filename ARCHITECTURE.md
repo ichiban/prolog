@@ -34,6 +34,7 @@ We use the same VM opcodes you can find in the original paper:
 Also, we've added some extra opcodes:
 
 - `opCut` to perform cut operation
+- `opRepeat` to perform repeat operation
 
 ### Registers
 
