@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"context"
 	_ "embed"
 	"io"
 	"strings"
@@ -97,6 +98,11 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 
 // Exec executes a prolog program.
 func (i *Interpreter) Exec(query string, args ...interface{}) error {
+	return i.ExecContext(context.Background(), query, args...)
+}
+
+// ExecContext executes a prolog program with context.
+func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
 	env := term.Env{}
 	p := i.Parser(strings.NewReader(query))
 	if err := p.Replace("?", args...); err != nil {
@@ -108,7 +114,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 			return err
 		}
 
-		if _, err := i.Assertz(t, engine.Success, &env).Force(); err != nil {
+		if _, err := i.Assertz(t, engine.Success, &env).Force(ctx); err != nil {
 			return err
 		}
 	}
@@ -117,6 +123,11 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // Query executes a prolog query and returns *Solutions.
 func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, error) {
+	return i.QueryContext(context.Background(), query, args...)
+}
+
+// QueryContext executes a prolog query and returns *Solutions with context.
+func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...interface{}) (*Solutions, error) {
 	p := i.Parser(strings.NewReader(query))
 	if err := p.Replace("?", args...); err != nil {
 		return nil, err
@@ -144,7 +155,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 		if _, err := i.Call(t, func(env term.Env) *nondet.Promise {
 			next <- env
 			return nondet.Bool(!<-more)
-		}, &env).Force(); err != nil {
+		}, &env).Force(ctx); err != nil {
 			sols.err = err
 		}
 	}()

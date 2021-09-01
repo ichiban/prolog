@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,15 +21,17 @@ import (
 )
 
 func (vm *VM) Negation(goal term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	e := *env
-	ok, err := vm.Call(goal, Success, &e).Force()
-	if err != nil {
-		return nondet.Error(err)
-	}
-	if ok {
-		return nondet.Bool(false)
-	}
-	return k(e)
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		env := *env
+		ok, err := vm.Call(goal, Success, &env).Force(ctx)
+		if err != nil {
+			return nondet.Error(err)
+		}
+		if ok {
+			return nondet.Bool(false)
+		}
+		return k(env)
+	})
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
@@ -130,7 +133,7 @@ func Functor(t, name, arity term.Interface, k func(term.Env) *nondet.Promise, en
 				for i := range vs {
 					vs[i] = term.NewVariable()
 				}
-				return nondet.Delay(func() *nondet.Promise {
+				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := *env
 					return Unify(t, &term.Compound{
 						Functor: name,
@@ -145,13 +148,13 @@ func Functor(t, name, arity term.Interface, k func(term.Env) *nondet.Promise, en
 		}
 	case *term.Compound:
 		pattern := term.Compound{Args: []term.Interface{name, arity}}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{t.Functor, term.Integer(len(t.Args))}}, k, &env)
 		})
 	default: // atomic
 		pattern := term.Compound{Args: []term.Interface{name, arity}}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{t, term.Integer(0)}}, k, &env)
 		})
@@ -168,11 +171,11 @@ func Arg(nth, t, arg term.Interface, k func(term.Env) *nondet.Promise, env *term
 	switch n := env.Resolve(nth).(type) {
 	case term.Variable:
 		pattern := term.Compound{Args: []term.Interface{n, arg}}
-		ks := make([]func() *nondet.Promise, len(c.Args))
+		ks := make([]func(context.Context) *nondet.Promise, len(c.Args))
 		for i := range c.Args {
 			n := term.Integer(i + 1)
 			arg := c.Args[i]
-			ks[i] = func() *nondet.Promise {
+			ks[i] = func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(&pattern, &term.Compound{Args: []term.Interface{n, arg}}, k, &env)
 			}
@@ -185,7 +188,7 @@ func Arg(nth, t, arg term.Interface, k func(term.Env) *nondet.Promise, env *term
 		if n < 0 {
 			return nondet.Error(domainErrorNotLessThanZero(n))
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(arg, c.Args[int(n)-1], k, &env)
 		})
@@ -220,7 +223,7 @@ func Univ(t, list term.Interface, k func(term.Env) *nondet.Promise, env *term.En
 			return nondet.Error(err)
 		}
 
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(t, &term.Compound{
 				Functor: f,
@@ -228,12 +231,12 @@ func Univ(t, list term.Interface, k func(term.Env) *nondet.Promise, env *term.En
 			}, k, &env)
 		})
 	case *term.Compound:
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(list, term.List(append([]term.Interface{t.Functor}, t.Args...)...), k, &env)
 		})
 	default:
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(list, term.List(t), k, &env)
 		})
@@ -364,10 +367,10 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(ter
 	}
 
 	pattern := term.Compound{Args: []term.Interface{priority, specifier, operator}}
-	ks := make([]func() *nondet.Promise, len(vm.operators))
+	ks := make([]func(context.Context) *nondet.Promise, len(vm.operators))
 	for i := range vm.operators {
 		op := vm.operators[i]
-		ks[i] = func() *nondet.Promise {
+		ks[i] = func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{op.Priority, op.Specifier, op.Name}}, k, &env)
 		}
@@ -401,7 +404,7 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 		if err != nil {
 			return nondet.Error(err)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return vm.arrive(name, args, k, &env)
 		})
@@ -438,15 +441,18 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 
 // Repeat enforces k until it returns true.
 func Repeat(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	for {
-		ok, err := k(*env).Force()
-		if err != nil {
-			return nondet.Error(err)
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		env := *env
+		for {
+			ok, err := k(env).Force(ctx)
+			if err != nil {
+				return nondet.Error(err)
+			}
+			if ok {
+				return nondet.Bool(true)
+			}
 		}
-		if ok {
-			return nondet.Bool(true)
-		}
-	}
+	})
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
@@ -491,60 +497,62 @@ grouping:
 		bag       []term.Interface
 	}
 
-	var solutions []solution
-	_, err := vm.Call(goal, func(env term.Env) *nondet.Promise {
-		snapshots := make([]term.Interface, len(groupingVariables))
-		for i, v := range groupingVariables {
-			snapshots[i] = env.Resolve(v)
-		}
-
-	solutions:
-		for i, s := range solutions {
-			env := env
-			for i := range groupingVariables {
-				ok, err := Compare(term.Atom("="), s.snapshots[i], snapshots[i], Success, &env).Force()
-				if err != nil {
-					return nondet.Error(err)
-				}
-				if !ok {
-					continue solutions
-				}
-			}
-			solutions[i].bag = append(s.bag, copyTerm(template, nil, env))
-			return nondet.Bool(false) // ask for more solutions
-		}
-
-		solutions = append(solutions, solution{
-			snapshots: snapshots,
-			bag:       []term.Interface{copyTerm(template, nil, env)},
-		})
-		return nondet.Bool(false) // ask for more solutions
-	}, env).Force()
-	if err != nil {
-		return nondet.Error(err)
-	}
-
-	if len(solutions) == 0 {
-		return nondet.Bool(false)
-	}
-
-	ks := make([]func() *nondet.Promise, len(solutions))
-	for i := range solutions {
-		s := solutions[i]
-		ks[i] = func() *nondet.Promise {
-			env := *env
-			// revert to snapshot
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		var solutions []solution
+		_, err := vm.Call(goal, func(env term.Env) *nondet.Promise {
+			snapshots := make([]term.Interface, len(groupingVariables))
 			for i, v := range groupingVariables {
-				env = append(env, term.Binding{
-					Variable: v,
-					Value:    s.snapshots[i],
-				})
+				snapshots[i] = env.Resolve(v)
 			}
 
-			return Unify(instances, agg(s.bag...), k, &env)
+		solutions:
+			for i, s := range solutions {
+				env := env
+				for i := range groupingVariables {
+					ok, err := Compare(term.Atom("="), s.snapshots[i], snapshots[i], Success, &env).Force(ctx)
+					if err != nil {
+						return nondet.Error(err)
+					}
+					if !ok {
+						continue solutions
+					}
+				}
+				solutions[i].bag = append(s.bag, copyTerm(template, nil, env))
+				return nondet.Bool(false) // ask for more solutions
+			}
+
+			solutions = append(solutions, solution{
+				snapshots: snapshots,
+				bag:       []term.Interface{copyTerm(template, nil, env)},
+			})
+			return nondet.Bool(false) // ask for more solutions
+		}, env).Force(ctx)
+		if err != nil {
+			return nondet.Error(err)
 		}
-	}
-	return nondet.Delay(ks...)
+
+		if len(solutions) == 0 {
+			return nondet.Bool(false)
+		}
+
+		ks := make([]func(context.Context) *nondet.Promise, len(solutions))
+		for i := range solutions {
+			s := solutions[i]
+			ks[i] = func(context.Context) *nondet.Promise {
+				env := *env
+				// revert to snapshot
+				for i, v := range groupingVariables {
+					env = append(env, term.Binding{
+						Variable: v,
+						Value:    s.snapshots[i],
+					})
+				}
+
+				return Unify(instances, agg(s.bag...), k, &env)
+			}
+		}
+		return nondet.Delay(ks...)
+	})
 }
 
 // Compare compares term1 and term2 and unifies order with <, =, or >.
@@ -584,17 +592,19 @@ func Throw(ball term.Interface, _ func(term.Env) *nondet.Promise, env *term.Env)
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func (vm *VM) Catch(goal, catcher, recover term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	ok, err := vm.Call(goal, k, env).Force()
-	if err != nil {
-		if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false, env) {
-			return nondet.Delay(func() *nondet.Promise {
-				env := *env
-				return vm.Call(recover, k, &env)
-			})
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		ok, err := vm.Call(goal, k, env).Force(ctx)
+		if err != nil {
+			if ex, ok := err.(*Exception); ok && catcher.Unify(ex.Term, false, env) {
+				return nondet.Delay(func(context.Context) *nondet.Promise {
+					env := *env
+					return vm.Call(recover, k, &env)
+				})
+			}
+			return nondet.Error(err)
 		}
-		return nondet.Error(err)
-	}
-	return nondet.Bool(ok)
+		return nondet.Bool(ok)
+	})
 }
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
@@ -616,10 +626,10 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(term.Env) *nondet.Promi
 		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 
-	ks := make([]func() *nondet.Promise, 0, len(vm.procedures))
+	ks := make([]func(context.Context) *nondet.Promise, 0, len(vm.procedures))
 	for key := range vm.procedures {
 		c := term.Compound{Functor: "/", Args: []term.Interface{key.name, key.arity}}
-		ks = append(ks, func() *nondet.Promise {
+		ks = append(ks, func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(pi, &c, k, &env)
 		})
@@ -650,31 +660,33 @@ func (vm *VM) Retract(t term.Interface, k func(term.Env) *nondet.Promise, env *t
 		}))
 	}
 
-	updated := make(clauses, 0, len(cs))
-	defer func() { vm.procedures[pi] = updated }()
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		updated := make(clauses, 0, len(cs))
+		defer func() { vm.procedures[pi] = updated }()
 
-	for i, c := range cs {
-		env := *env
+		for i, c := range cs {
+			env := *env
 
-		raw := term.Rulify(c.raw, env)
+			raw := term.Rulify(c.raw, env)
 
-		if !t.Unify(raw, false, &env) {
-			updated = append(updated, c)
-			continue
+			if !t.Unify(raw, false, &env) {
+				updated = append(updated, c)
+				continue
+			}
+
+			ok, err := k(env).Force(ctx)
+			if err != nil {
+				updated = append(updated, cs[i+1:]...)
+				return nondet.Error(err)
+			}
+			if ok {
+				updated = append(updated, cs[i+1:]...)
+				return nondet.Bool(true)
+			}
 		}
 
-		ok, err := k(env).Force()
-		if err != nil {
-			updated = append(updated, cs[i+1:]...)
-			return nondet.Error(err)
-		}
-		if ok {
-			updated = append(updated, cs[i+1:]...)
-			return nondet.Bool(true)
-		}
-	}
-
-	return nondet.Bool(false)
+		return nondet.Bool(false)
+	})
 }
 
 // Abolish removes the procedure indicated by pi from the database.
@@ -729,7 +741,7 @@ func (vm *VM) CurrentInput(stream term.Interface, k func(term.Env) *nondet.Promi
 		return nondet.Error(domainErrorStream(stream))
 	}
 
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return Unify(stream, vm.input, k, &env)
 	})
@@ -744,7 +756,7 @@ func (vm *VM) CurrentOutput(stream term.Interface, k func(term.Env) *nondet.Prom
 		return nondet.Error(domainErrorStream(stream))
 	}
 
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return Unify(stream, vm.output, k, &env)
 	})
@@ -953,7 +965,7 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(term
 		vm.streams[s.Alias] = &s
 	}
 
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return Unify(stream, &s, k, &env)
 	})
@@ -1088,7 +1100,7 @@ func CharCode(char, code term.Interface, k func(term.Env) *nondet.Promise, env *
 				return nondet.Error(representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%d is not a valid unicode code point.", r))))
 			}
 
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(ch, term.Atom(r), k, &env)
 			})
@@ -1101,7 +1113,7 @@ func CharCode(char, code term.Interface, k func(term.Env) *nondet.Promise, env *
 			return nondet.Error(typeErrorCharacter(char))
 		}
 
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(code, term.Integer(rs[0]), k, &env)
 		})
@@ -1237,12 +1249,12 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 			case term.EofActionError:
 				return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 			case term.EofActionEOFCode:
-				return nondet.Delay(func() *nondet.Promise {
+				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := *env
 					return Unify(out, term.Atom("end_of_file"), k, &env)
 				})
 			case term.EofActionReset:
-				return nondet.Delay(func() *nondet.Promise {
+				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := *env
 					return vm.ReadTerm(streamOrAlias, out, options, k, &env)
 				})
@@ -1285,7 +1297,7 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 		return nondet.Bool(false)
 	}
 
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return Unify(out, t, k, &env)
 	})
@@ -1321,7 +1333,7 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(term.Env) *no
 	_, err = s.Source.Read(b)
 	switch err {
 	case nil:
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(inByte, term.Integer(b[0]), k, &env)
 		})
@@ -1330,12 +1342,12 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(term.Env) *no
 		case term.EofActionError:
 			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(inByte, term.Integer(-1), k, &env)
 			})
 		case term.EofActionReset:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return vm.GetByte(streamOrAlias, inByte, k, &env)
 			})
@@ -1385,7 +1397,7 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(term.Env) *nond
 			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character.")))
 		}
 
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(char, term.Atom(r), k, &env)
 		})
@@ -1394,12 +1406,12 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(term.Env) *nond
 		case term.EofActionError:
 			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(char, term.Atom("end_of_file"), k, &env)
 			})
 		case term.EofActionReset:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return vm.GetChar(streamOrAlias, char, k, &env)
 			})
@@ -1445,7 +1457,7 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(term.Env) *n
 	b, err := br.Peek(1)
 	switch err {
 	case nil:
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(inByte, term.Integer(b[0]), k, &env)
 		})
@@ -1454,12 +1466,12 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(term.Env) *n
 		case term.EofActionError:
 			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(inByte, term.Integer(-1), k, &env)
 			})
 		case term.EofActionReset:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return vm.PeekByte(streamOrAlias, inByte, k, &env)
 			})
@@ -1513,7 +1525,7 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(term.Env) *non
 			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character.")))
 		}
 
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(char, term.Atom(r), k, &env)
 		})
@@ -1522,12 +1534,12 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(term.Env) *non
 		case term.EofActionError:
 			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(char, term.Atom("end_of_file"), k, &env)
 			})
 		case term.EofActionReset:
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return vm.PeekChar(streamOrAlias, char, k, &env)
 			})
@@ -1569,10 +1581,10 @@ func (vm *VM) Clause(head, body term.Interface, k func(term.Env) *nondet.Promise
 	}
 
 	cs, _ := vm.procedures[pi].(clauses)
-	ks := make([]func() *nondet.Promise, len(cs))
+	ks := make([]func(context.Context) *nondet.Promise, len(cs))
 	for i := range cs {
 		r := term.Rulify(copyTerm(cs[i].raw, nil, *env), *env)
-		ks[i] = func() *nondet.Promise {
+		ks[i] = func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&term.Compound{
 				Functor: ":-",
@@ -1600,7 +1612,7 @@ func AtomLength(atom, length term.Interface, k func(term.Env) *nondet.Promise, e
 			return nondet.Error(typeErrorInteger(length))
 		}
 
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(length, term.Integer(len([]rune(a))), k, &env)
 		})
@@ -1627,7 +1639,7 @@ func AtomConcat(atom1, atom2, atom3 term.Interface, k func(term.Env) *nondet.Pro
 					Args:    []term.Interface{atom2, atom3},
 				}))
 			case term.Atom:
-				return nondet.Delay(func() *nondet.Promise {
+				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := *env
 					return Unify(a1+a2, a3, k, &env)
 				})
@@ -1653,15 +1665,15 @@ func AtomConcat(atom1, atom2, atom3 term.Interface, k func(term.Env) *nondet.Pro
 		}
 
 		pattern := term.Compound{Args: []term.Interface{atom1, atom2}}
-		ks := make([]func() *nondet.Promise, 0, len(a3)+1)
+		ks := make([]func(context.Context) *nondet.Promise, 0, len(a3)+1)
 		for i := range a3 {
 			a1, a2 := a3[:i], a3[i:]
-			ks = append(ks, func() *nondet.Promise {
+			ks = append(ks, func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(&pattern, &term.Compound{Args: []term.Interface{a1, a2}}, k, &env)
 			})
 		}
-		ks = append(ks, func() *nondet.Promise {
+		ks = append(ks, func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{a3, term.Atom("")}}, k, &env)
 		})
@@ -1720,11 +1732,11 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(term.En
 		}
 
 		pattern := term.Compound{Args: []term.Interface{before, length, after, subAtom}}
-		var ks []func() *nondet.Promise
+		var ks []func(context.Context) *nondet.Promise
 		for i := 0; i <= len(rs); i++ {
 			for j := i; j <= len(rs); j++ {
 				before, length, after, subAtom := term.Integer(i), term.Integer(j-i), term.Integer(len(rs)-j), term.Atom(rs[i:j])
-				ks = append(ks, func() *nondet.Promise {
+				ks = append(ks, func(context.Context) *nondet.Promise {
 					env := *env
 					return Unify(&pattern, &term.Compound{Args: []term.Interface{before, length, after, subAtom}}, k, &env)
 				})
@@ -1760,7 +1772,7 @@ func AtomChars(atom, chars term.Interface, k func(term.Env) *nondet.Promise, env
 		}, *env); err != nil {
 			return nondet.Error(err)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(atom, term.Atom(sb.String()), k, &env)
 		})
@@ -1770,7 +1782,7 @@ func AtomChars(atom, chars term.Interface, k func(term.Env) *nondet.Promise, env
 		for i, r := range rs {
 			cs[i] = term.Atom(r)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(chars, term.List(cs...), k, &env)
 		})
@@ -1800,7 +1812,7 @@ func AtomCodes(atom, codes term.Interface, k func(term.Env) *nondet.Promise, env
 		}, *env); err != nil {
 			return nondet.Error(err)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(atom, term.Atom(sb.String()), k, &env)
 		})
@@ -1810,7 +1822,7 @@ func AtomCodes(atom, codes term.Interface, k func(term.Env) *nondet.Promise, env
 		for i, r := range rs {
 			cs[i] = term.Integer(r)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(codes, term.List(cs...), k, &env)
 		})
@@ -1854,7 +1866,7 @@ func NumberChars(num, chars term.Interface, k func(term.Env) *nondet.Promise, en
 		default:
 			return nondet.Error(systemError(err))
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(num, t, k, &env)
 		})
@@ -1868,7 +1880,7 @@ func NumberChars(num, chars term.Interface, k func(term.Env) *nondet.Promise, en
 		for i, r := range rs {
 			cs[i] = term.Atom(r)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(chars, term.List(cs...), k, &env)
 		})
@@ -1909,7 +1921,7 @@ func NumberCodes(num, codes term.Interface, k func(term.Env) *nondet.Promise, en
 		default:
 			return nondet.Error(systemError(err))
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(num, t, k, &env)
 		})
@@ -1923,7 +1935,7 @@ func NumberCodes(num, codes term.Interface, k func(term.Env) *nondet.Promise, en
 		for i, r := range rs {
 			cs[i] = term.Integer(r)
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(codes, term.List(cs...), k, &env)
 		})
@@ -1944,7 +1956,7 @@ func (fs FunctionSet) Is(result, expression term.Interface, k func(term.Env) *no
 	if err != nil {
 		return nondet.Error(err)
 	}
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return Unify(result, v, k, &env)
 	})
@@ -2324,7 +2336,7 @@ func (vm *VM) StreamProperty(streamOrAlias, property term.Interface, k func(term
 		return nondet.Error(domainErrorStreamProperty(property))
 	}
 
-	var ks []func() *nondet.Promise
+	var ks []func(context.Context) *nondet.Promise
 	for _, s := range streams {
 		var properties []term.Interface
 
@@ -2412,7 +2424,7 @@ func (vm *VM) StreamProperty(streamOrAlias, property term.Interface, k func(term
 
 		for i := range properties {
 			p := properties[i]
-			ks = append(ks, func() *nondet.Promise {
+			ks = append(ks, func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(property, p, k, &env)
 			})
@@ -2517,19 +2529,19 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(term.
 	if c1, ok := env.Resolve(inChar).(term.Atom); ok {
 		r := []rune(c1)
 		if r, ok := vm.charConversions[r[0]]; ok {
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return Unify(outChar, term.Atom(r), k, &env)
 			})
 		}
-		return nondet.Delay(func() *nondet.Promise {
+		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(outChar, c1, k, &env)
 		})
 	}
 
 	pattern := term.Compound{Args: []term.Interface{inChar, outChar}}
-	ks := make([]func() *nondet.Promise, 256)
+	ks := make([]func(context.Context) *nondet.Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
 		cr, ok := vm.charConversions[r]
@@ -2537,7 +2549,7 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(term.
 			cr = r
 		}
 
-		ks[i] = func() *nondet.Promise {
+		ks[i] = func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, &term.Compound{Args: []term.Interface{term.Atom(r), term.Atom(cr)}}, k, &env)
 		}
@@ -2664,10 +2676,10 @@ func (vm *VM) CurrentPrologFlag(flag, value term.Interface, k func(term.Env) *no
 		&term.Compound{Args: []term.Interface{term.Atom("max_arity"), term.Atom("unbounded")}},
 		&term.Compound{Args: []term.Interface{term.Atom("unknown"), term.Atom(vm.unknown.String())}},
 	}
-	ks := make([]func() *nondet.Promise, len(flags))
+	ks := make([]func(context.Context) *nondet.Promise, len(flags))
 	for i := range flags {
 		f := flags[i]
-		ks[i] = func() *nondet.Promise {
+		ks[i] = func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(&pattern, f, k, &env)
 		}

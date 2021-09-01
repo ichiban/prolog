@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ func TestVM_Call(t *testing.T) {
 
 	t.Run("undefined atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.Call(term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.Call(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(0)},
@@ -39,13 +40,13 @@ func TestVM_Call(t *testing.T) {
 
 	t.Run("defined atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.Call(term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.Call(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("undefined compound", func(t *testing.T) {
-		ok, err := vm.Call(&term.Compound{Functor: "bar", Args: []term.Interface{term.NewVariable(), term.NewVariable()}}, Success, &term.Env{}).Force()
+		ok, err := vm.Call(&term.Compound{Functor: "bar", Args: []term.Interface{term.NewVariable(), term.NewVariable()}}, Success, &term.Env{}).Force(context.Background())
 		assert.Equal(t, existenceErrorProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("bar"), term.Integer(2)},
@@ -56,7 +57,7 @@ func TestVM_Call(t *testing.T) {
 	vm.procedures = map[procedureIndicator]procedure{{name: "bar", arity: 2}: clauses{}}
 
 	t.Run("defined compound", func(t *testing.T) {
-		ok, err := vm.Call(&term.Compound{Functor: "bar", Args: []term.Interface{term.NewVariable(), term.NewVariable()}}, Success, &term.Env{}).Force()
+		ok, err := vm.Call(&term.Compound{Functor: "bar", Args: []term.Interface{term.NewVariable(), term.NewVariable()}}, Success, &term.Env{}).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -65,7 +66,7 @@ func TestVM_Call(t *testing.T) {
 		env := term.Env{}
 		x := term.Variable("X")
 
-		ok, err := vm.Call(x, Success, &env).Force()
+		ok, err := vm.Call(x, Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("call"), term.Integer(1)},
@@ -75,7 +76,7 @@ func TestVM_Call(t *testing.T) {
 
 	t.Run("not callable", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.Call(term.Integer(0), Success, &env).Force()
+		ok, err := vm.Call(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -88,7 +89,7 @@ func TestUnify(t *testing.T) {
 		ok, err := Unify(x, &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -103,7 +104,7 @@ func TestUnify(t *testing.T) {
 		ok, err := Unify(term.Atom("a"), &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -114,7 +115,7 @@ func TestUnify(t *testing.T) {
 		ok, err := Unify(x, &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{x},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -127,7 +128,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 		ok, err := UnifyWithOccursCheck(x, &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -142,7 +143,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 		ok, err := UnifyWithOccursCheck(term.Atom("a"), &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -153,7 +154,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 		ok, err := UnifyWithOccursCheck(x, &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{x},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -162,14 +163,14 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 func TestTypeVar(t *testing.T) {
 	t.Run("var", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeVar(term.NewVariable(), Success, &env).Force()
+		ok, err := TypeVar(term.NewVariable(), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not var", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeVar(term.Atom("foo"), Success, &env).Force()
+		ok, err := TypeVar(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -178,14 +179,14 @@ func TestTypeVar(t *testing.T) {
 func TestTypeFloat(t *testing.T) {
 	t.Run("float", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeFloat(term.Float(1.0), Success, &env).Force()
+		ok, err := TypeFloat(term.Float(1.0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not float", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeFloat(term.Atom("foo"), Success, &env).Force()
+		ok, err := TypeFloat(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -194,14 +195,14 @@ func TestTypeFloat(t *testing.T) {
 func TestTypeInteger(t *testing.T) {
 	t.Run("integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeInteger(term.Integer(1), Success, &env).Force()
+		ok, err := TypeInteger(term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeInteger(term.Atom("foo"), Success, &env).Force()
+		ok, err := TypeInteger(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -210,14 +211,14 @@ func TestTypeInteger(t *testing.T) {
 func TestTypeAtom(t *testing.T) {
 	t.Run("atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeAtom(term.Atom("foo"), Success, &env).Force()
+		ok, err := TypeAtom(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeAtom(term.Integer(1), Success, &env).Force()
+		ok, err := TypeAtom(term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -229,14 +230,14 @@ func TestTypeCompound(t *testing.T) {
 		ok, err := TypeCompound(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not compound", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := TypeCompound(term.Atom("foo"), Success, &env).Force()
+		ok, err := TypeCompound(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -251,7 +252,7 @@ func TestFunctor(t *testing.T) {
 				assert.Equal(t, term.Float(2.0), env.Resolve(name))
 				assert.Equal(t, term.Integer(0), env.Resolve(arity))
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -263,7 +264,7 @@ func TestFunctor(t *testing.T) {
 				assert.Equal(t, term.Integer(2), env.Resolve(name))
 				assert.Equal(t, term.Integer(0), env.Resolve(arity))
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -275,7 +276,7 @@ func TestFunctor(t *testing.T) {
 				assert.Equal(t, term.Atom("foo"), env.Resolve(name))
 				assert.Equal(t, term.Integer(0), env.Resolve(arity))
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -290,7 +291,7 @@ func TestFunctor(t *testing.T) {
 				assert.Equal(t, term.Atom("f"), env.Resolve(name))
 				assert.Equal(t, term.Integer(3), env.Resolve(arity))
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -300,7 +301,7 @@ func TestFunctor(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			env := term.Env{}
 			v := term.NewVariable()
-			ok, err := Functor(v, term.Atom("foo"), term.Integer(0), Success, &env).Force()
+			ok, err := Functor(v, term.Atom("foo"), term.Integer(0), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
@@ -318,7 +319,7 @@ func TestFunctor(t *testing.T) {
 				assert.True(t, c.Args[0].(term.Variable).Anonymous())
 				assert.True(t, c.Args[1].(term.Variable).Anonymous())
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -326,14 +327,14 @@ func TestFunctor(t *testing.T) {
 		t.Run("name is a variable", func(t *testing.T) {
 			env := term.Env{}
 			name := term.NewVariable()
-			ok, err := Functor(term.NewVariable(), name, term.Integer(2), Success, &env).Force()
+			ok, err := Functor(term.NewVariable(), name, term.Integer(2), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(name), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("name is not an atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := Functor(term.NewVariable(), term.Integer(0), term.Integer(2), Success, &env).Force()
+			ok, err := Functor(term.NewVariable(), term.Integer(0), term.Integer(2), Success, &env).Force(context.Background())
 			assert.Equal(t, &Exception{
 				Term: &term.Compound{
 					Functor: "error",
@@ -355,14 +356,14 @@ func TestFunctor(t *testing.T) {
 		t.Run("arity is a variable", func(t *testing.T) {
 			env := term.Env{}
 			arity := term.NewVariable()
-			ok, err := Functor(term.NewVariable(), term.Atom("f"), arity, Success, &env).Force()
+			ok, err := Functor(term.NewVariable(), term.Atom("f"), arity, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(arity), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("arity is not an integer", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := Functor(term.NewVariable(), term.Atom("f"), term.Float(2.0), Success, &env).Force()
+			ok, err := Functor(term.NewVariable(), term.Atom("f"), term.Float(2.0), Success, &env).Force(context.Background())
 			assert.Equal(t, &Exception{
 				Term: &term.Compound{
 					Functor: "error",
@@ -383,7 +384,7 @@ func TestFunctor(t *testing.T) {
 
 		t.Run("arity is negative", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := Functor(term.NewVariable(), term.Atom("f"), term.Integer(-2), Success, &env).Force()
+			ok, err := Functor(term.NewVariable(), term.Atom("f"), term.Integer(-2), Success, &env).Force(context.Background())
 			assert.Equal(t, &Exception{
 				Term: &term.Compound{
 					Functor: "error",
@@ -407,7 +408,7 @@ func TestFunctor(t *testing.T) {
 func TestArg(t *testing.T) {
 	t.Run("term is not a compound", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Arg(term.NewVariable(), term.Atom("foo"), term.NewVariable(), Success, &env).Force()
+		ok, err := Arg(term.NewVariable(), term.Atom("foo"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCompound(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -432,7 +433,7 @@ func TestArg(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -443,7 +444,7 @@ func TestArg(t *testing.T) {
 			ok, err := Arg(term.Integer(2), &term.Compound{
 				Functor: "f",
 				Args:    []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")},
-			}, term.Atom("b"), Success, &env).Force()
+			}, term.Atom("b"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -453,7 +454,7 @@ func TestArg(t *testing.T) {
 			ok, err := Arg(term.Integer(4), &term.Compound{
 				Functor: "f",
 				Args:    []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")},
-			}, term.Atom("b"), Success, &env).Force()
+			}, term.Atom("b"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -463,7 +464,7 @@ func TestArg(t *testing.T) {
 			ok, err := Arg(term.Integer(-2), &term.Compound{
 				Functor: "f",
 				Args:    []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")},
-			}, term.Atom("b"), Success, &env).Force()
+			}, term.Atom("b"), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-2)), err)
 			assert.False(t, ok)
 		})
@@ -474,7 +475,7 @@ func TestArg(t *testing.T) {
 		ok, err := Arg(term.Atom("foo"), &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")},
-		}, term.Atom("b"), Success, &env).Force()
+		}, term.Atom("b"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -491,7 +492,7 @@ func TestUniv(t *testing.T) {
 					Args:    []term.Interface{term.Atom("a"), term.Atom("b")},
 				}, env.Resolve(v))
 				return nondet.Bool(true)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -499,7 +500,7 @@ func TestUniv(t *testing.T) {
 		t.Run("list is empty", func(t *testing.T) {
 			env := term.Env{}
 			v := term.NewVariable()
-			ok, err := Univ(v, term.List(), Success, &env).Force()
+			ok, err := Univ(v, term.List(), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorNotEmptyList(term.Atom("[]")), err)
 			assert.False(t, ok)
 		})
@@ -507,7 +508,7 @@ func TestUniv(t *testing.T) {
 		t.Run("list is not a list", func(t *testing.T) {
 			env := term.Env{}
 			v := term.NewVariable()
-			ok, err := Univ(v, term.Atom("list"), Success, &env).Force()
+			ok, err := Univ(v, term.Atom("list"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorList(term.Atom("list")), err)
 			assert.False(t, ok)
 		})
@@ -515,7 +516,7 @@ func TestUniv(t *testing.T) {
 		t.Run("list's first element is not an atom", func(t *testing.T) {
 			env := term.Env{}
 			v := term.NewVariable()
-			ok, err := Univ(v, term.List(term.Integer(0), term.Atom("a"), term.Atom("b")), Success, &env).Force()
+			ok, err := Univ(v, term.List(term.Integer(0), term.Atom("a"), term.Atom("b")), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 			assert.False(t, ok)
 		})
@@ -523,7 +524,7 @@ func TestUniv(t *testing.T) {
 		t.Run("list is not fully instantiated", func(t *testing.T) {
 			env := term.Env{}
 			v, rest := term.NewVariable(), term.Variable("Rest")
-			ok, err := Univ(v, term.ListRest(rest, term.Atom("f"), term.Atom("a"), term.Atom("b")), Success, &env).Force()
+			ok, err := Univ(v, term.ListRest(rest, term.Atom("f"), term.Atom("a"), term.Atom("b")), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(term.ListRest(rest, term.Atom("a"), term.Atom("b"))), err)
 			assert.False(t, ok)
 		})
@@ -534,14 +535,14 @@ func TestUniv(t *testing.T) {
 		ok, err := Univ(&term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a"), term.Atom("b")},
-		}, term.List(term.Atom("f"), term.Atom("a"), term.Atom("b")), Success, &env).Force()
+		}, term.List(term.Atom("f"), term.Atom("a"), term.Atom("b")), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("term is neither a variable nor a compound", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Univ(term.Atom("foo"), term.List(term.Atom("foo")), Success, &env).Force()
+		ok, err := Univ(term.Atom("foo"), term.List(term.Atom("foo")), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -556,7 +557,7 @@ func TestCopyTerm(t *testing.T) {
 			Value:    term.Atom("a"),
 		},
 	}
-	ok, err := CopyTerm(in, out, Success, &env).Force()
+	ok, err := CopyTerm(in, out, Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, term.Atom("a"), env.Resolve(out))
@@ -579,7 +580,7 @@ func TestVM_Op(t *testing.T) {
 				},
 			},
 		}
-		ok, err := vm.Op(term.Integer(1000), term.Atom("xfx"), term.Atom("++"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(1000), term.Atom("xfx"), term.Atom("++"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -623,7 +624,7 @@ func TestVM_Op(t *testing.T) {
 				},
 			},
 		}
-		ok, err := vm.Op(term.Integer(0), term.Atom("xfx"), term.Atom("++"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(0), term.Atom("xfx"), term.Atom("++"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -644,7 +645,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("priority is not an integer", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Atom("foo"), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.Op(term.Atom("foo"), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -652,7 +653,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("priority is negative", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Integer(-1), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(-1), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorOperatorPriority(term.Integer(-1)), err)
 		assert.False(t, ok)
 	})
@@ -660,7 +661,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("priority is more than 1200", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Integer(1201), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(1201), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorOperatorPriority(term.Integer(1201)), err)
 		assert.False(t, ok)
 	})
@@ -668,7 +669,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("specifier is not an atom", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Integer(1000), term.Integer(0), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(1000), term.Integer(0), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -676,7 +677,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("specifier is not a valid operator specifier", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Integer(1000), term.Atom("foo"), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(1000), term.Atom("foo"), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorOperatorSpecifier(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -684,7 +685,7 @@ func TestVM_Op(t *testing.T) {
 	t.Run("operator is not an atom", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Op(term.Integer(1000), term.Atom("xfx"), term.Integer(0), Success, &env).Force()
+		ok, err := vm.Op(term.Integer(1000), term.Atom("xfx"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -713,7 +714,7 @@ func TestVM_CurrentOp(t *testing.T) {
 
 	t.Run("single solution", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+		ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -743,7 +744,7 @@ func TestVM_CurrentOp(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -751,14 +752,14 @@ func TestVM_CurrentOp(t *testing.T) {
 	t.Run("priority is not an operator priority", func(t *testing.T) {
 		t.Run("priority is not an integer", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := vm.CurrentOp(term.Atom("foo"), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+			ok, err := vm.CurrentOp(term.Atom("foo"), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorOperatorPriority(term.Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("priority is negative", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := vm.CurrentOp(term.Integer(-1), term.Atom("xfx"), term.Atom("+"), Success, &env).Force()
+			ok, err := vm.CurrentOp(term.Integer(-1), term.Atom("xfx"), term.Atom("+"), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorOperatorPriority(term.Integer(-1)), err)
 			assert.False(t, ok)
 		})
@@ -767,14 +768,14 @@ func TestVM_CurrentOp(t *testing.T) {
 	t.Run("specifier is not an operator specifier", func(t *testing.T) {
 		t.Run("specifier is not an atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := vm.CurrentOp(term.Integer(1100), term.Integer(0), term.Atom("+"), Success, &env).Force()
+			ok, err := vm.CurrentOp(term.Integer(1100), term.Integer(0), term.Atom("+"), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorOperatorSpecifier(term.Integer(0)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("specifier is a non-specifier atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("foo"), term.Atom("+"), Success, &env).Force()
+			ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("foo"), term.Atom("+"), Success, &env).Force(context.Background())
 			assert.Equal(t, domainErrorOperatorSpecifier(term.Atom("foo")), err)
 			assert.False(t, ok)
 		})
@@ -782,7 +783,7 @@ func TestVM_CurrentOp(t *testing.T) {
 
 	t.Run("operator is not an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("xfx"), term.Integer(0), Success, &env).Force()
+		ok, err := vm.CurrentOp(term.Integer(1100), term.Atom("xfx"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -794,13 +795,13 @@ func TestRepeat(t *testing.T) {
 	ok, err := Repeat(func(env term.Env) *nondet.Promise {
 		c--
 		return nondet.Bool(c == 0)
-	}, &env).Force()
+	}, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
 	ok, err = Repeat(func(env term.Env) *nondet.Promise {
 		return nondet.Error(errors.New(""))
-	}, &env).Force()
+	}, &env).Force(context.Background())
 	assert.Error(t, err)
 	assert.False(t, ok)
 }
@@ -875,7 +876,7 @@ func TestVM_BagOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -909,7 +910,7 @@ func TestVM_BagOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -944,7 +945,7 @@ func TestVM_BagOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -955,7 +956,7 @@ func TestVM_BagOf(t *testing.T) {
 		goal := term.Variable("Goal")
 
 		var vm VM
-		ok, err := vm.BagOf(term.NewVariable(), goal, term.NewVariable(), Success, &env).Force()
+		ok, err := vm.BagOf(term.NewVariable(), goal, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&goal), err)
 		assert.False(t, ok)
 	})
@@ -963,7 +964,7 @@ func TestVM_BagOf(t *testing.T) {
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.BagOf(term.NewVariable(), term.Integer(0), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.BagOf(term.NewVariable(), term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1058,7 +1059,7 @@ func TestSetOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -1092,7 +1093,7 @@ func TestSetOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -1127,7 +1128,7 @@ func TestSetOf(t *testing.T) {
 				}
 				count++
 				return nondet.Bool(false)
-			}, &env).Force()
+			}, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -1138,7 +1139,7 @@ func TestSetOf(t *testing.T) {
 		goal := term.Variable("Goal")
 
 		var vm VM
-		ok, err := vm.SetOf(term.NewVariable(), goal, term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetOf(term.NewVariable(), goal, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(goal), err)
 		assert.False(t, ok)
 	})
@@ -1146,7 +1147,7 @@ func TestSetOf(t *testing.T) {
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetOf(term.NewVariable(), term.Integer(0), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetOf(term.NewVariable(), term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1157,15 +1158,15 @@ func TestCompare(t *testing.T) {
 		env := term.Env{}
 
 		x, y := term.Variable("X"), term.Variable("Y")
-		ok, err := Compare(term.Atom("<"), x, y, Success, &env).Force()
+		ok, err := Compare(term.Atom("<"), x, y, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("="), x, x, Success, &env).Force()
+		ok, err = Compare(term.Atom("="), x, x, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), y, x, Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), y, x, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1176,111 +1177,111 @@ func TestCompare(t *testing.T) {
 			Variable: y,
 			Value:    term.Atom("a"),
 		})
-		ok, err = Compare(term.Atom(">"), x, y, Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), x, y, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.NewVariable(), term.Integer(0), Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.NewVariable(), term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.NewVariable(), term.Atom(""), Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.NewVariable(), term.Atom(""), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.NewVariable(), &term.Compound{}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.NewVariable(), &term.Compound{}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), term.Integer(0), term.NewVariable(), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.Integer(0), term.Integer(1), Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.Integer(0), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("="), term.Integer(0), term.Integer(0), Success, &env).Force()
+		ok, err = Compare(term.Atom("="), term.Integer(0), term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), term.Integer(1), term.Integer(0), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), term.Integer(1), term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.Integer(0), term.Atom(""), Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.Integer(0), term.Atom(""), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.Integer(0), &term.Compound{}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.Integer(0), &term.Compound{}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), term.Atom(""), term.NewVariable(), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), term.Atom(""), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), term.Atom(""), term.Integer(0), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), term.Atom(""), term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.Atom("a"), term.Atom("b"), Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.Atom("a"), term.Atom("b"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("="), term.Atom("a"), term.Atom("a"), Success, &env).Force()
+		ok, err = Compare(term.Atom("="), term.Atom("a"), term.Atom("a"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), term.Atom("b"), term.Atom("a"), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), term.Atom("b"), term.Atom("a"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), term.Atom(""), &term.Compound{}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), term.Atom(""), &term.Compound{}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.NewVariable(), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.Integer(0), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.Atom(""), Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{}, term.Atom(""), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "a"}, &term.Compound{Functor: "b"}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "a"}, &term.Compound{Functor: "b"}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("="), &term.Compound{Functor: "a"}, &term.Compound{Functor: "a"}, Success, &env).Force()
+		ok, err = Compare(term.Atom("="), &term.Compound{Functor: "a"}, &term.Compound{Functor: "a"}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "b"}, &term.Compound{Functor: "a"}, Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "b"}, &term.Compound{Functor: "a"}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f"}, Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f"}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("="), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force()
+		ok, err = Compare(term.Atom("="), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "f"}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "f"}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("b")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force()
+		ok, err = Compare(term.Atom(">"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("b")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("b")}}, Success, &env).Force()
+		ok, err = Compare(term.Atom("<"), &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("a")}}, &term.Compound{Functor: "f", Args: []term.Interface{term.Atom("b")}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1289,7 +1290,7 @@ func TestCompare(t *testing.T) {
 		env := term.Env{}
 
 		order := term.Variable("Order")
-		ok, err := Compare(order, term.Atom("a"), term.Atom("b"), Success, &env).Force()
+		ok, err := Compare(order, term.Atom("a"), term.Atom("b"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1298,14 +1299,14 @@ func TestCompare(t *testing.T) {
 
 	t.Run("order is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Compare(term.Integer(0), term.NewVariable(), term.NewVariable(), Success, &env).Force()
+		ok, err := Compare(term.Integer(0), term.NewVariable(), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("order is an atom but not <, =, or >", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Compare(term.Atom("foo"), term.NewVariable(), term.NewVariable(), Success, &env).Force()
+		ok, err := Compare(term.Atom("foo"), term.NewVariable(), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorOrder(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -1314,7 +1315,7 @@ func TestCompare(t *testing.T) {
 func TestThrow(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Throw(term.Atom("a"), Success, &env).Force()
+		ok, err := Throw(term.Atom("a"), Success, &env).Force(context.Background())
 		assert.Equal(t, &Exception{Term: term.Atom("a")}, err)
 		assert.False(t, ok)
 	})
@@ -1323,7 +1324,7 @@ func TestThrow(t *testing.T) {
 		env := term.Env{}
 		ball := term.Variable("Ball")
 
-		ok, err := Throw(ball, Success, &env).Force()
+		ok, err := Throw(ball, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&ball), err)
 		assert.False(t, ok)
 	})
@@ -1349,7 +1350,7 @@ func TestVM_Catch(t *testing.T) {
 		}, v, &term.Compound{
 			Functor: "=",
 			Args:    []term.Interface{v, term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -1359,21 +1360,21 @@ func TestVM_Catch(t *testing.T) {
 		ok, err := vm.Catch(&term.Compound{
 			Functor: "throw",
 			Args:    []term.Interface{term.Atom("a")},
-		}, term.Atom("b"), term.Atom("fail"), Success, &env).Force()
+		}, term.Atom("b"), term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.Equal(t, &Exception{Term: term.Atom("a")}, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("true", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.Catch(term.Atom("true"), term.Atom("b"), term.Atom("fail"), Success, &env).Force()
+		ok, err := vm.Catch(term.Atom("true"), term.Atom("b"), term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("false", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.Catch(term.Atom("fail"), term.Atom("b"), term.Atom("fail"), Success, &env).Force()
+		ok, err := vm.Catch(term.Atom("fail"), term.Atom("b"), term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -1382,7 +1383,7 @@ func TestVM_Catch(t *testing.T) {
 		env := term.Env{}
 		ok, err := vm.Catch(term.Atom("true"), term.NewVariable(), term.Atom("true"), func(env term.Env) *nondet.Promise {
 			return nondet.Error(errors.New("failed"))
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -1405,11 +1406,11 @@ func TestVM_CurrentPredicate(t *testing.T) {
 				},
 			}, env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPredicate(v, Failure, &env).Force()
+		ok, err = vm.CurrentPredicate(v, Failure, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -1418,7 +1419,7 @@ func TestVM_CurrentPredicate(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentPredicate(term.Atom("foo"), Success, &env).Force()
+			ok, err := vm.CurrentPredicate(term.Atom("foo"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorPredicateIndicator(term.Atom("foo")), err)
 			assert.False(t, ok)
 		})
@@ -1430,7 +1431,7 @@ func TestVM_CurrentPredicate(t *testing.T) {
 				ok, err := vm.CurrentPredicate(&term.Compound{
 					Functor: "f",
 					Args:    []term.Interface{term.Atom("a")},
-				}, Success, &env).Force()
+				}, Success, &env).Force(context.Background())
 				assert.Equal(t, typeErrorPredicateIndicator(&term.Compound{
 					Functor: "f",
 					Args:    []term.Interface{term.Atom("a")},
@@ -1444,7 +1445,7 @@ func TestVM_CurrentPredicate(t *testing.T) {
 				ok, err := vm.CurrentPredicate(&term.Compound{
 					Functor: "/",
 					Args:    []term.Interface{term.Integer(0), term.Integer(0)},
-				}, Success, &env).Force()
+				}, Success, &env).Force(context.Background())
 				assert.Equal(t, typeErrorPredicateIndicator(&term.Compound{
 					Functor: "/",
 					Args:    []term.Interface{term.Integer(0), term.Integer(0)},
@@ -1458,7 +1459,7 @@ func TestVM_CurrentPredicate(t *testing.T) {
 				ok, err := vm.CurrentPredicate(&term.Compound{
 					Functor: "/",
 					Args:    []term.Interface{term.Atom("foo"), term.Atom("bar")},
-				}, Success, &env).Force()
+				}, Success, &env).Force(context.Background())
 				assert.Equal(t, typeErrorPredicateIndicator(&term.Compound{
 					Functor: "/",
 					Args:    []term.Interface{term.Atom("foo"), term.Atom("bar")},
@@ -1477,14 +1478,14 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		ok, err = vm.Assertz(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("b")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1541,7 +1542,7 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Atom("directive")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1553,7 +1554,7 @@ func TestVM_Assertz(t *testing.T) {
 		clause := term.Variable("Term")
 
 		var vm VM
-		ok, err := vm.Assertz(clause, Success, &env).Force()
+		ok, err := vm.Assertz(clause, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&clause), err)
 		assert.False(t, ok)
 	})
@@ -1561,7 +1562,7 @@ func TestVM_Assertz(t *testing.T) {
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Assertz(term.Integer(0), Success, &env).Force()
+		ok, err := vm.Assertz(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1574,7 +1575,7 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{head, term.Atom("true")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&head), err)
 		assert.False(t, ok)
 	})
@@ -1585,7 +1586,7 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Integer(0), term.Atom("true")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1598,7 +1599,7 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{directive},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(directive), err)
 		assert.False(t, ok)
 	})
@@ -1609,7 +1610,7 @@ func TestVM_Assertz(t *testing.T) {
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Integer(0)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1623,7 +1624,7 @@ func TestVM_Assertz(t *testing.T) {
 				Functor: ",",
 				Args:    []term.Interface{term.Atom("true"), term.Integer(0)},
 			}},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1638,7 +1639,7 @@ func TestVM_Assertz(t *testing.T) {
 			},
 		}
 
-		ok, err := vm.Assertz(term.Atom("static"), Success, &env).Force()
+		ok, err := vm.Assertz(term.Atom("static"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
 			Args: []term.Interface{
@@ -1657,14 +1658,14 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("a")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		ok, err = vm.Asserta(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("b")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1711,7 +1712,7 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Atom("directive")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1723,7 +1724,7 @@ func TestVM_Asserta(t *testing.T) {
 		clause := term.Variable("Term")
 
 		var vm VM
-		ok, err := vm.Asserta(clause, Success, &env).Force()
+		ok, err := vm.Asserta(clause, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&clause), err)
 		assert.False(t, ok)
 	})
@@ -1731,7 +1732,7 @@ func TestVM_Asserta(t *testing.T) {
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Asserta(term.Integer(0), Success, &env).Force()
+		ok, err := vm.Asserta(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1744,7 +1745,7 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{head, term.Atom("true")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(head), err)
 		assert.False(t, ok)
 	})
@@ -1755,7 +1756,7 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Integer(0), term.Atom("true")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1768,7 +1769,7 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{directive},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(directive), err)
 		assert.False(t, ok)
 	})
@@ -1779,7 +1780,7 @@ func TestVM_Asserta(t *testing.T) {
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
 			Args:    []term.Interface{term.Integer(0)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1793,7 +1794,7 @@ func TestVM_Asserta(t *testing.T) {
 				Functor: ",",
 				Args:    []term.Interface{term.Atom("true"), term.Integer(0)},
 			}},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1808,7 +1809,7 @@ func TestVM_Asserta(t *testing.T) {
 			},
 		}
 
-		ok, err := vm.Asserta(term.Atom("static"), Success, &env).Force()
+		ok, err := vm.Asserta(term.Atom("static"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
 			Args: []term.Interface{
@@ -1836,7 +1837,7 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Variable("X")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1861,7 +1862,7 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Atom("b")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1885,7 +1886,7 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Variable("X")},
-		}, Failure, &env).Force()
+		}, Failure, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
@@ -1897,7 +1898,7 @@ func TestVM_Retract(t *testing.T) {
 		x := term.Variable("X")
 
 		var vm VM
-		ok, err := vm.Retract(x, Success, &env).Force()
+		ok, err := vm.Retract(x, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(x), err)
 		assert.False(t, ok)
 	})
@@ -1905,7 +1906,7 @@ func TestVM_Retract(t *testing.T) {
 	t.Run("not callable", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Retract(term.Integer(0), Success, &env).Force()
+		ok, err := vm.Retract(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -1917,7 +1918,7 @@ func TestVM_Retract(t *testing.T) {
 		ok, err := vm.Retract(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Variable("X")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -1930,7 +1931,7 @@ func TestVM_Retract(t *testing.T) {
 			},
 		}
 
-		ok, err := vm.Retract(term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.Retract(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(0)},
@@ -1953,7 +1954,7 @@ func TestVM_Retract(t *testing.T) {
 			Args:    []term.Interface{term.Variable("X")},
 		}, func(_ term.Env) *nondet.Promise {
 			return nondet.Error(errors.New("failed"))
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 
@@ -1978,7 +1979,7 @@ func TestVM_Abolish(t *testing.T) {
 		ok, err := vm.Abolish(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(1)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1991,7 +1992,7 @@ func TestVM_Abolish(t *testing.T) {
 		pi := term.Variable("PI")
 
 		var vm VM
-		ok, err := vm.Abolish(pi, Success, &env).Force()
+		ok, err := vm.Abolish(pi, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&pi), err)
 		assert.False(t, ok)
 	})
@@ -2005,7 +2006,7 @@ func TestVM_Abolish(t *testing.T) {
 			ok, err := vm.Abolish(&term.Compound{
 				Functor: "/",
 				Args:    []term.Interface{name, term.Integer(2)},
-			}, Success, &env).Force()
+			}, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(name), err)
 			assert.False(t, ok)
 		})
@@ -2018,7 +2019,7 @@ func TestVM_Abolish(t *testing.T) {
 			ok, err := vm.Abolish(&term.Compound{
 				Functor: "/",
 				Args:    []term.Interface{term.Atom("foo"), arity},
-			}, Success, &env).Force()
+			}, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(arity), err)
 			assert.False(t, ok)
 		})
@@ -2027,7 +2028,7 @@ func TestVM_Abolish(t *testing.T) {
 	t.Run("pi is neither a variable nor a predicate indicator", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Abolish(term.Integer(0), Success, &env).Force()
+		ok, err := vm.Abolish(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorPredicateIndicator(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2038,7 +2039,7 @@ func TestVM_Abolish(t *testing.T) {
 		ok, err := vm.Abolish(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Integer(0), term.Integer(2)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2049,7 +2050,7 @@ func TestVM_Abolish(t *testing.T) {
 		ok, err := vm.Abolish(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Atom("bar")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("bar")), err)
 		assert.False(t, ok)
 	})
@@ -2060,7 +2061,7 @@ func TestVM_Abolish(t *testing.T) {
 		ok, err := vm.Abolish(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(-2)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-2)), err)
 		assert.False(t, ok)
 	})
@@ -2075,7 +2076,7 @@ func TestVM_Abolish(t *testing.T) {
 		ok, err := vm.Abolish(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(0)},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{term.Atom("foo"), term.Integer(0)},
@@ -2092,7 +2093,7 @@ func TestVM_CurrentInput(t *testing.T) {
 			input: &s,
 		}
 
-		ok, err := vm.CurrentInput(&s, Success, &env).Force()
+		ok, err := vm.CurrentInput(&s, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2100,7 +2101,7 @@ func TestVM_CurrentInput(t *testing.T) {
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.CurrentInput(term.Integer(0), Success, &env).Force()
+		ok, err := vm.CurrentInput(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStream(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2114,7 +2115,7 @@ func TestVM_CurrentOutput(t *testing.T) {
 			output: &s,
 		}
 
-		ok, err := vm.CurrentOutput(&s, Success, &env).Force()
+		ok, err := vm.CurrentOutput(&s, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2122,7 +2123,7 @@ func TestVM_CurrentOutput(t *testing.T) {
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.CurrentOutput(term.Integer(0), Success, &env).Force()
+		ok, err := vm.CurrentOutput(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStream(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2139,7 +2140,7 @@ func TestVM_SetInput(t *testing.T) {
 			},
 		}
 		var vm VM
-		ok, err := vm.SetInput(v, Success, &env).Force()
+		ok, err := vm.SetInput(v, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, vm.input)
@@ -2159,7 +2160,7 @@ func TestVM_SetInput(t *testing.T) {
 				term.Atom("x"): &s,
 			},
 		}
-		ok, err := vm.SetInput(v, Success, &env).Force()
+		ok, err := vm.SetInput(v, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, vm.input)
@@ -2170,7 +2171,7 @@ func TestVM_SetInput(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.SetInput(streamOrAlias, Success, &env).Force()
+		ok, err := vm.SetInput(streamOrAlias, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -2178,7 +2179,7 @@ func TestVM_SetInput(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetInput(term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetInput(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2186,7 +2187,7 @@ func TestVM_SetInput(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetInput(term.Atom("x"), Success, &env).Force()
+		ok, err := vm.SetInput(term.Atom("x"), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("x")), err)
 		assert.False(t, ok)
 	})
@@ -2200,7 +2201,7 @@ func TestVM_SetInput(t *testing.T) {
 			},
 		}
 		var vm VM
-		ok, err := vm.SetInput(v, Success, &env).Force()
+		ok, err := vm.SetInput(v, Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(v), err)
 		assert.False(t, ok)
 	})
@@ -2217,7 +2218,7 @@ func TestVM_SetOutput(t *testing.T) {
 			},
 		}
 		var vm VM
-		ok, err := vm.SetOutput(v, Success, &env).Force()
+		ok, err := vm.SetOutput(v, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, vm.output)
@@ -2231,7 +2232,7 @@ func TestVM_SetOutput(t *testing.T) {
 				term.Atom("x"): &s,
 			},
 		}
-		ok, err := vm.SetOutput(term.Atom("x"), Success, &env).Force()
+		ok, err := vm.SetOutput(term.Atom("x"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		assert.Equal(t, &s, vm.output)
@@ -2242,7 +2243,7 @@ func TestVM_SetOutput(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.SetOutput(streamOrAlias, Success, &env).Force()
+		ok, err := vm.SetOutput(streamOrAlias, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -2250,7 +2251,7 @@ func TestVM_SetOutput(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetOutput(term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetOutput(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2258,7 +2259,7 @@ func TestVM_SetOutput(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetOutput(term.Atom("x"), Success, &env).Force()
+		ok, err := vm.SetOutput(term.Atom("x"), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("x")), err)
 		assert.False(t, ok)
 	})
@@ -2273,7 +2274,7 @@ func TestVM_SetOutput(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.SetOutput(s, Success, &env).Force()
+		ok, err := vm.SetOutput(s, Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputStream(s), err)
 		assert.False(t, ok)
 	})
@@ -2313,7 +2314,7 @@ func TestVM_Open(t *testing.T) {
 			assert.Equal(t, "test\n", string(b))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2352,7 +2353,7 @@ func TestVM_Open(t *testing.T) {
 			assert.Equal(t, "test\n", string(b))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2397,7 +2398,7 @@ func TestVM_Open(t *testing.T) {
 			assert.Equal(t, "test\ntest\n", string(b))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2407,7 +2408,7 @@ func TestVM_Open(t *testing.T) {
 		sourceSink := term.Variable("Source_Sink")
 
 		var vm VM
-		ok, err := vm.Open(sourceSink, term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(sourceSink, term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(sourceSink), err)
 		assert.False(t, ok)
 	})
@@ -2417,7 +2418,7 @@ func TestVM_Open(t *testing.T) {
 		mode := term.Variable("Mode")
 
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), mode, term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), mode, term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(mode), err)
 		assert.False(t, ok)
 	})
@@ -2431,7 +2432,7 @@ func TestVM_Open(t *testing.T) {
 			)
 
 			var vm VM
-			ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), options, Success, &env).Force()
+			ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), options, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
@@ -2445,7 +2446,7 @@ func TestVM_Open(t *testing.T) {
 				option,
 				&term.Compound{Functor: "type", Args: []term.Interface{term.Atom("text")}},
 				&term.Compound{Functor: "alias", Args: []term.Interface{term.Atom("foo")}},
-			), Success, &env).Force()
+			), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(option), err)
 			assert.False(t, ok)
 		})
@@ -2454,7 +2455,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("mode is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), term.Integer(0), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), term.Integer(0), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2462,7 +2463,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), term.Atom("list"), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), term.Atom("list"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("list")), err)
 		assert.False(t, ok)
 	})
@@ -2470,7 +2471,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("stream is not a variable", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Atom("stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Atom("stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorVariable(term.Atom("stream")), err)
 		assert.False(t, ok)
 	})
@@ -2478,7 +2479,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("sourceSink is neither a variable nor a source/sink", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Integer(0), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Integer(0), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorSourceSink(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2486,7 +2487,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("mode is an atom but not an input/output mode", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("foo"), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("foo"), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorIOMode(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2494,7 +2495,7 @@ func TestVM_Open(t *testing.T) {
 	t.Run("an element E of the options list is neither a variable nor a stream-option", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), term.List(term.Atom("foo")), Success, &env).Force()
+		ok, err := vm.Open(term.Atom("/dev/null"), term.Atom("read"), term.Variable("Stream"), term.List(term.Atom("foo")), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOption(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2506,7 +2507,7 @@ func TestVM_Open(t *testing.T) {
 		assert.NoError(t, os.Remove(f.Name()))
 
 		var vm VM
-		ok, err := vm.Open(term.Atom(f.Name()), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom(f.Name()), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorSourceSink(term.Atom(f.Name())), err)
 		assert.False(t, ok)
 	})
@@ -2522,7 +2523,7 @@ func TestVM_Open(t *testing.T) {
 		assert.NoError(t, f.Chmod(0200))
 
 		var vm VM
-		ok, err := vm.Open(term.Atom(f.Name()), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force()
+		ok, err := vm.Open(term.Atom(f.Name()), term.Atom("read"), term.Variable("Stream"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("open"), term.Atom("source_sink"), term.Atom(f.Name()), term.Atom(fmt.Sprintf("'%s' cannot be opened.", f.Name()))), err)
 		assert.False(t, ok)
 	})
@@ -2543,7 +2544,7 @@ func TestVM_Open(t *testing.T) {
 		ok, err := vm.Open(term.Atom(f.Name()), term.Atom("read"), term.Variable("Stream"), term.List(&term.Compound{
 			Functor: "alias",
 			Args:    []term.Interface{term.Atom("foo")},
-		}), Success, &env).Force()
+		}), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("open"), term.Atom("source_sink"), &term.Compound{
 			Functor: "alias",
 			Args:    []term.Interface{term.Atom("foo")},
@@ -2566,7 +2567,7 @@ func TestVM_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var vm VM
-			ok, err := vm.Close(&term.Stream{Closer: &m}, term.List(), Success, &env).Force()
+			ok, err := vm.Close(&term.Stream{Closer: &m}, term.List(), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2579,7 +2580,7 @@ func TestVM_Close(t *testing.T) {
 			defer m.AssertExpectations(t)
 
 			var vm VM
-			_, err := vm.Close(&term.Stream{Closer: &m}, term.List(), Success, &env).Force()
+			_, err := vm.Close(&term.Stream{Closer: &m}, term.List(), Success, &env).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
@@ -2596,7 +2597,7 @@ func TestVM_Close(t *testing.T) {
 			ok, err := vm.Close(&term.Stream{Closer: &m}, term.List(&term.Compound{
 				Functor: "force",
 				Args:    []term.Interface{term.Atom("false")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2614,7 +2615,7 @@ func TestVM_Close(t *testing.T) {
 			ok, err := vm.Close(&s, term.List(&term.Compound{
 				Functor: "force",
 				Args:    []term.Interface{term.Atom("false")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.Equal(t, resourceError(&s, term.Atom("something happened")), err)
 			assert.False(t, ok)
 		})
@@ -2632,7 +2633,7 @@ func TestVM_Close(t *testing.T) {
 			ok, err := vm.Close(&term.Stream{Closer: &m}, term.List(&term.Compound{
 				Functor: "force",
 				Args:    []term.Interface{term.Atom("true")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2648,7 +2649,7 @@ func TestVM_Close(t *testing.T) {
 			ok, err := vm.Close(&term.Stream{Closer: &m}, term.List(&term.Compound{
 				Functor: "force",
 				Args:    []term.Interface{term.Atom("true")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2666,7 +2667,7 @@ func TestVM_Close(t *testing.T) {
 				term.Atom("foo"): {Closer: &m},
 			},
 		}
-		ok, err := vm.Close(term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.Close(term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2676,7 +2677,7 @@ func TestVM_Close(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.Close(streamOrAlias, term.List(), Success, &env).Force()
+		ok, err := vm.Close(streamOrAlias, term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -2689,7 +2690,7 @@ func TestVM_Close(t *testing.T) {
 			)
 
 			var vm VM
-			ok, err := vm.Close(&term.Stream{}, options, Success, &env).Force()
+			ok, err := vm.Close(&term.Stream{}, options, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
@@ -2699,7 +2700,7 @@ func TestVM_Close(t *testing.T) {
 			option := term.Variable("Option")
 
 			var vm VM
-			ok, err := vm.Close(&term.Stream{}, term.List(option, &term.Compound{Functor: "force", Args: []term.Interface{term.Atom("true")}}), Success, &env).Force()
+			ok, err := vm.Close(&term.Stream{}, term.List(option, &term.Compound{Functor: "force", Args: []term.Interface{term.Atom("true")}}), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(option), err)
 			assert.False(t, ok)
 		})
@@ -2708,7 +2709,7 @@ func TestVM_Close(t *testing.T) {
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Close(&term.Stream{}, term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.Close(&term.Stream{}, term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2716,7 +2717,7 @@ func TestVM_Close(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Close(term.Integer(0), term.List(), Success, &env).Force()
+		ok, err := vm.Close(term.Integer(0), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2724,7 +2725,7 @@ func TestVM_Close(t *testing.T) {
 	t.Run("an element E of the Options list is neither a variable nor a stream-option", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Close(&term.Stream{}, term.List(term.Atom("foo")), Success, &env).Force()
+		ok, err := vm.Close(&term.Stream{}, term.List(term.Atom("foo")), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOption(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2732,7 +2733,7 @@ func TestVM_Close(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Close(term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.Close(term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2773,7 +2774,7 @@ func TestVM_FlushOutput(t *testing.T) {
 		defer m.AssertExpectations(t)
 
 		var vm VM
-		ok, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force()
+		ok, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2791,7 +2792,7 @@ func TestVM_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var vm VM
-			ok, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force()
+			ok, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2808,7 +2809,7 @@ func TestVM_FlushOutput(t *testing.T) {
 			defer m.mockFlusher.AssertExpectations(t)
 
 			var vm VM
-			_, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force()
+			_, err := vm.FlushOutput(&term.Stream{Sink: &m}, Success, &env).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
@@ -2824,7 +2825,7 @@ func TestVM_FlushOutput(t *testing.T) {
 				term.Atom("foo"): {Sink: &m},
 			},
 		}
-		ok, err := vm.FlushOutput(term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.FlushOutput(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -2834,7 +2835,7 @@ func TestVM_FlushOutput(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.FlushOutput(streamOrAlias, Success, &env).Force()
+		ok, err := vm.FlushOutput(streamOrAlias, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -2843,7 +2844,7 @@ func TestVM_FlushOutput(t *testing.T) {
 		env := term.Env{}
 
 		var vm VM
-		ok, err := vm.FlushOutput(term.Integer(0), Success, &env).Force()
+		ok, err := vm.FlushOutput(term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -2851,7 +2852,7 @@ func TestVM_FlushOutput(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.FlushOutput(term.Atom("foo"), Success, &env).Force()
+		ok, err := vm.FlushOutput(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -2861,7 +2862,7 @@ func TestVM_FlushOutput(t *testing.T) {
 		s := term.Stream{Source: &mockReader{}}
 
 		var vm VM
-		ok, err := vm.FlushOutput(&s, Success, &env).Force()
+		ok, err := vm.FlushOutput(&s, Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
@@ -2902,7 +2903,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops}, env).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
-			ok, err := vm.WriteTerm(&s, &m, term.List(), Success, &env).Force()
+			ok, err := vm.WriteTerm(&s, &m, term.List(), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2914,7 +2915,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops}, env).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
-			_, err := vm.WriteTerm(&s, &m, term.List(), Success, &env).Force()
+			_, err := vm.WriteTerm(&s, &m, term.List(), Success, &env).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
@@ -2930,7 +2931,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "quoted",
 				Args:    []term.Interface{term.Atom("false")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2945,7 +2946,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "quoted",
 				Args:    []term.Interface{term.Atom("true")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2962,7 +2963,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "ignore_ops",
 				Args:    []term.Interface{term.Atom("false")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2977,7 +2978,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "ignore_ops",
 				Args:    []term.Interface{term.Atom("true")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -2994,7 +2995,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "numbervars",
 				Args:    []term.Interface{term.Atom("false")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -3009,7 +3010,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
 				Functor: "numbervars",
 				Args:    []term.Interface{term.Atom("true")},
-			}), Success, &env).Force()
+			}), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -3020,7 +3021,7 @@ func TestVM_WriteTerm(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.WriteTerm(streamOrAlias, term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.WriteTerm(streamOrAlias, term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3033,7 +3034,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			)
 
 			var vm VM
-			ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), options, Success, &env).Force()
+			ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), options, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
@@ -3043,7 +3044,7 @@ func TestVM_WriteTerm(t *testing.T) {
 			option := term.Variable("Option")
 
 			var vm VM
-			ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), term.List(option, &term.Compound{Functor: "quoted", Args: []term.Interface{term.Atom("true")}}), Success, &env).Force()
+			ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), term.List(option, &term.Compound{Functor: "quoted", Args: []term.Interface{term.Atom("true")}}), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(option), err)
 			assert.False(t, ok)
 		})
@@ -3052,7 +3053,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.WriteTerm(term.Integer(0), term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.WriteTerm(term.Integer(0), term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -3060,7 +3061,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), term.Atom("options"), Success, &env).Force()
+		ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), term.Atom("options"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("options")), err)
 		assert.False(t, ok)
 	})
@@ -3071,7 +3072,7 @@ func TestVM_WriteTerm(t *testing.T) {
 		ok, err := vm.WriteTerm(&term.Stream{Sink: &mockWriter{}}, term.Atom("foo"), term.List(&term.Compound{
 			Functor: "unknown",
 			Args:    []term.Interface{term.Atom("option")},
-		}), Success, &env).Force()
+		}), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorWriteOption(&term.Compound{
 			Functor: "unknown",
 			Args:    []term.Interface{term.Atom("option")},
@@ -3082,7 +3083,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.WriteTerm(term.Atom("stream"), term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.WriteTerm(term.Atom("stream"), term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("stream")), err)
 		assert.False(t, ok)
 	})
@@ -3092,7 +3093,7 @@ func TestVM_WriteTerm(t *testing.T) {
 		s := term.Stream{Source: &mockReader{}}
 
 		var vm VM
-		ok, err := vm.WriteTerm(&s, term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.WriteTerm(&s, term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputStream(&s), err)
 		assert.False(t, ok)
 	})
@@ -3102,7 +3103,7 @@ func TestVM_WriteTerm(t *testing.T) {
 		s := term.Stream{Sink: &mockWriter{}, StreamType: term.StreamTypeBinary}
 
 		var vm VM
-		ok, err := vm.WriteTerm(&s, term.Atom("foo"), term.List(), Success, &env).Force()
+		ok, err := vm.WriteTerm(&s, term.Atom("foo"), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputBinaryStream(&s), err)
 		assert.False(t, ok)
 	})
@@ -3135,14 +3136,14 @@ func (m *mockTerm) Copy() term.Interface {
 func TestCharCode(t *testing.T) {
 	t.Run("ascii", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := CharCode(term.Atom("a"), term.Integer(97), Success, &env).Force()
+		ok, err := CharCode(term.Atom("a"), term.Integer(97), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("emoji", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := CharCode(term.Atom("😀"), term.Integer(128512), Success, &env).Force()
+		ok, err := CharCode(term.Atom("😀"), term.Integer(128512), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3154,7 +3155,7 @@ func TestCharCode(t *testing.T) {
 		ok, err := CharCode(v, term.Integer(128512), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("😀"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3165,7 +3166,7 @@ func TestCharCode(t *testing.T) {
 		ok, err := CharCode(term.Atom("😀"), v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(128512), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3174,7 +3175,7 @@ func TestCharCode(t *testing.T) {
 		env := term.Env{}
 		char, code := term.Variable("Char"), term.Variable("Code")
 
-		ok, err := CharCode(char, code, Success, &env).Force()
+		ok, err := CharCode(char, code, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&term.Compound{
 			Functor: ",",
 			Args:    []term.Interface{char, code},
@@ -3185,14 +3186,14 @@ func TestCharCode(t *testing.T) {
 	t.Run("char is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := CharCode(term.Atom("foo"), term.NewVariable(), Success, &env).Force()
+			ok, err := CharCode(term.Atom("foo"), term.NewVariable(), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorCharacter(term.Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("non-atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := CharCode(term.Integer(0), term.NewVariable(), Success, &env).Force()
+			ok, err := CharCode(term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorCharacter(term.Integer(0)), err)
 			assert.False(t, ok)
 		})
@@ -3200,14 +3201,14 @@ func TestCharCode(t *testing.T) {
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := CharCode(term.NewVariable(), term.Atom("foo"), Success, &env).Force()
+		ok, err := CharCode(term.NewVariable(), term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is neither a variable nor a character-code", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := CharCode(term.NewVariable(), term.Integer(-1), Success, &env).Force()
+		ok, err := CharCode(term.NewVariable(), term.Integer(-1), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character_code"), term.Atom("-1 is not a valid unicode code point.")), err)
 		assert.False(t, ok)
 	})
@@ -3224,7 +3225,7 @@ func TestVM_PutByte(t *testing.T) {
 		s := term.Stream{Sink: &w, StreamType: term.StreamTypeBinary}
 
 		var vm VM
-		ok, err := vm.PutByte(&s, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(&s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3239,7 +3240,7 @@ func TestVM_PutByte(t *testing.T) {
 		s := term.Stream{Sink: &w, StreamType: term.StreamTypeBinary}
 
 		var vm VM
-		_, err := vm.PutByte(&s, term.Integer(97), Success, &env).Force()
+		_, err := vm.PutByte(&s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -3257,7 +3258,7 @@ func TestVM_PutByte(t *testing.T) {
 				term.Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.PutByte(term.Atom("foo"), term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(term.Atom("foo"), term.Integer(97), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3267,7 +3268,7 @@ func TestVM_PutByte(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.PutByte(streamOrAlias, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(streamOrAlias, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3277,7 +3278,7 @@ func TestVM_PutByte(t *testing.T) {
 		byt := term.Variable("Byte")
 
 		var vm VM
-		ok, err := vm.PutByte(&term.Stream{Sink: &mockWriter{}, StreamType: term.StreamTypeBinary}, byt, Success, &env).Force()
+		ok, err := vm.PutByte(&term.Stream{Sink: &mockWriter{}, StreamType: term.StreamTypeBinary}, byt, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(byt), err)
 		assert.False(t, ok)
 	})
@@ -3285,7 +3286,7 @@ func TestVM_PutByte(t *testing.T) {
 	t.Run("byt is neither a variable nor an byte", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutByte(&term.Stream{Sink: &mockWriter{}, StreamType: term.StreamTypeBinary}, term.Atom("byte"), Success, &env).Force()
+		ok, err := vm.PutByte(&term.Stream{Sink: &mockWriter{}, StreamType: term.StreamTypeBinary}, term.Atom("byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorByte(term.Atom("byte")), err)
 		assert.False(t, ok)
 	})
@@ -3293,7 +3294,7 @@ func TestVM_PutByte(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutByte(term.Integer(0), term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(term.Integer(0), term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -3308,7 +3309,7 @@ func TestVM_PutByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PutByte(s, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3323,7 +3324,7 @@ func TestVM_PutByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PutByte(s, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutByte(s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputTextStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3340,7 +3341,7 @@ func TestVM_PutCode(t *testing.T) {
 		s := term.Stream{Sink: &w}
 
 		var vm VM
-		ok, err := vm.PutCode(&s, term.Integer('😀'), Success, &env).Force()
+		ok, err := vm.PutCode(&s, term.Integer('😀'), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3355,7 +3356,7 @@ func TestVM_PutCode(t *testing.T) {
 		s := term.Stream{Sink: &w}
 
 		var vm VM
-		_, err := vm.PutCode(&s, term.Integer('😀'), Success, &env).Force()
+		_, err := vm.PutCode(&s, term.Integer('😀'), Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -3373,7 +3374,7 @@ func TestVM_PutCode(t *testing.T) {
 				term.Atom("foo"): &s,
 			},
 		}
-		ok, err := vm.PutCode(term.Atom("foo"), term.Integer('😀'), Success, &env).Force()
+		ok, err := vm.PutCode(term.Atom("foo"), term.Integer('😀'), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3383,7 +3384,7 @@ func TestVM_PutCode(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.PutCode(streamOrAlias, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutCode(streamOrAlias, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3393,7 +3394,7 @@ func TestVM_PutCode(t *testing.T) {
 		code := term.Variable("Code")
 
 		var vm VM
-		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, code, Success, &env).Force()
+		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, code, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(code), err)
 		assert.False(t, ok)
 	})
@@ -3401,7 +3402,7 @@ func TestVM_PutCode(t *testing.T) {
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, term.Atom("code"), Success, &env).Force()
+		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, term.Atom("code"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("code")), err)
 		assert.False(t, ok)
 	})
@@ -3409,7 +3410,7 @@ func TestVM_PutCode(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutCode(term.Integer(0), term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutCode(term.Integer(0), term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -3417,7 +3418,7 @@ func TestVM_PutCode(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutCode(term.Atom("foo"), term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutCode(term.Atom("foo"), term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -3432,7 +3433,7 @@ func TestVM_PutCode(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PutCode(s, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutCode(s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3447,7 +3448,7 @@ func TestVM_PutCode(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PutCode(s, term.Integer(97), Success, &env).Force()
+		ok, err := vm.PutCode(s, term.Integer(97), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorOutputBinaryStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3455,7 +3456,7 @@ func TestVM_PutCode(t *testing.T) {
 	t.Run("code is an integer but not an character code", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, term.Integer(-1), Success, &env).Force()
+		ok, err := vm.PutCode(&term.Stream{Sink: &mockWriter{}}, term.Integer(-1), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character_code"), term.Atom("-1 is not a valid unicode code point.")), err)
 		assert.False(t, ok)
 	})
@@ -3463,14 +3464,14 @@ func TestVM_PutCode(t *testing.T) {
 	t.Run("unknown stream alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		_, err := vm.PutCode(term.Atom("foo"), term.Integer('😀'), Success, &env).Force()
+		_, err := vm.PutCode(term.Atom("foo"), term.Integer('😀'), Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("not a stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		_, err := vm.PutCode(term.NewVariable(), term.Integer('😀'), Success, &env).Force()
+		_, err := vm.PutCode(term.NewVariable(), term.Integer('😀'), Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -3483,7 +3484,7 @@ func TestVM_PutCode(t *testing.T) {
 		t.Run("not an integer", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			_, err := vm.PutCode(&s, term.Atom("a"), Success, &env).Force()
+			_, err := vm.PutCode(&s, term.Atom("a"), Success, &env).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
@@ -3498,7 +3499,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("foo."))}, v, term.List(), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("foo"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3517,7 +3518,7 @@ func TestVM_ReadTerm(t *testing.T) {
 		ok, err := vm.ReadTerm(term.Atom("foo"), v, term.List(), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("foo"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3543,7 +3544,7 @@ func TestVM_ReadTerm(t *testing.T) {
 			assert.Equal(t, term.List(term.Variable("Y")), env.Resolve(singletons))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3569,7 +3570,7 @@ func TestVM_ReadTerm(t *testing.T) {
 			assert.Equal(t, term.List(term.Variable("X"), term.Variable("Y")), env.Resolve(variables))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3604,7 +3605,7 @@ func TestVM_ReadTerm(t *testing.T) {
 			), env.Resolve(variableNames))
 
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3624,7 +3625,7 @@ foo(c).
 		ok, err := vm.ReadTerm(&s, v, term.List(), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}, env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -3632,7 +3633,7 @@ foo(c).
 		ok, err = vm.ReadTerm(&s, v, term.List(), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}, env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -3640,7 +3641,7 @@ foo(c).
 		ok, err = vm.ReadTerm(&s, &v, term.List(), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}, env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3650,7 +3651,7 @@ foo(c).
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.ReadTerm(streamOrAlias, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(streamOrAlias, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3664,7 +3665,7 @@ foo(c).
 			)
 
 			var vm VM
-			ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), options, Success, &env).Force()
+			ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), options, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(options), err)
 			assert.False(t, ok)
 		})
@@ -3674,7 +3675,7 @@ foo(c).
 			option := term.Variable("Option")
 
 			var vm VM
-			ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), term.List(option, &term.Compound{Functor: "variables", Args: []term.Interface{term.Variable("VL")}}), Success, &env).Force()
+			ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), term.List(option, &term.Compound{Functor: "variables", Args: []term.Interface{term.Variable("VL")}}), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(option), err)
 			assert.False(t, ok)
 		})
@@ -3683,7 +3684,7 @@ foo(c).
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.ReadTerm(term.Integer(0), term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(term.Integer(0), term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -3691,7 +3692,7 @@ foo(c).
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), term.Atom("options"), Success, &env).Force()
+		ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), term.Atom("options"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("options")), err)
 		assert.False(t, ok)
 	})
@@ -3702,7 +3703,7 @@ foo(c).
 		ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), term.List(&term.Compound{
 			Functor: "unknown",
 			Args:    []term.Interface{term.Atom("option")},
-		}), Success, &env).Force()
+		}), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorReadOption(&term.Compound{
 			Functor: "unknown",
 			Args:    []term.Interface{term.Atom("option")},
@@ -3713,7 +3714,7 @@ foo(c).
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.ReadTerm(term.Atom("foo"), term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(term.Atom("foo"), term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -3728,7 +3729,7 @@ foo(c).
 		}
 
 		var vm VM
-		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3743,7 +3744,7 @@ foo(c).
 		}
 
 		var vm VM
-		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBinaryStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3764,7 +3765,7 @@ foo(c).
 		}
 
 		var vm VM
-		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(s, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputPastEndOfStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3772,7 +3773,7 @@ foo(c).
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("foo bar baz."))}, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("foo bar baz."))}, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom bar>")), err)
 		assert.False(t, ok)
 	})
@@ -3780,7 +3781,7 @@ foo(c).
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("X = a."))}, term.NewVariable(), term.List(), Success, &env).Force()
+		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("X = a."))}, term.NewVariable(), term.List(), Success, &env).Force(context.Background())
 		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom =>")), err)
 		assert.False(t, ok)
 	})
@@ -3797,7 +3798,7 @@ func TestVM_GetByte(t *testing.T) {
 		ok, err := vm.GetByte(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(97), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3816,7 +3817,7 @@ func TestVM_GetByte(t *testing.T) {
 		ok, err := vm.GetByte(term.Atom("foo"), v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(97), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3831,7 +3832,7 @@ func TestVM_GetByte(t *testing.T) {
 		ok, err := vm.GetByte(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(-1), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3848,7 +3849,7 @@ func TestVM_GetByte(t *testing.T) {
 		var vm VM
 
 		v := term.Variable("V")
-		_, err := vm.GetByte(&s, v, Success, &env).Force()
+		_, err := vm.GetByte(&s, v, Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -3856,7 +3857,7 @@ func TestVM_GetByte(t *testing.T) {
 		env := term.Env{}
 		streamOrAlias := term.Variable("Stream")
 		var vm VM
-		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3864,7 +3865,7 @@ func TestVM_GetByte(t *testing.T) {
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.GetByte(&term.Stream{Source: &mockReader{}, StreamType: term.StreamTypeBinary}, term.Atom("inByte"), Success, &env).Force()
+		ok, err := vm.GetByte(&term.Stream{Source: &mockReader{}, StreamType: term.StreamTypeBinary}, term.Atom("inByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInByte(term.Atom("inByte")), err)
 		assert.False(t, ok)
 	})
@@ -3872,7 +3873,7 @@ func TestVM_GetByte(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.GetByte(term.Integer(0), term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(term.Integer(0), term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -3880,7 +3881,7 @@ func TestVM_GetByte(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.GetByte(term.Atom("foo"), term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(term.Atom("foo"), term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -3895,7 +3896,7 @@ func TestVM_GetByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3910,7 +3911,7 @@ func TestVM_GetByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputTextStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3932,7 +3933,7 @@ func TestVM_GetByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force()
+		ok, err := vm.GetByte(streamOrAlias, term.Variable("InByte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputPastEndOfStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -3949,7 +3950,7 @@ func TestVM_GetChar(t *testing.T) {
 		ok, err := vm.GetChar(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("😀"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3968,7 +3969,7 @@ func TestVM_GetChar(t *testing.T) {
 		ok, err := vm.GetChar(term.Atom("foo"), v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("😀"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3983,7 +3984,7 @@ func TestVM_GetChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetChar(s, term.NewVariable(), Success, &env).Force()
+		ok, err := vm.GetChar(s, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBufferedStream(s), err)
 		assert.False(t, ok)
 	})
@@ -3998,7 +3999,7 @@ func TestVM_GetChar(t *testing.T) {
 		ok, err := vm.GetChar(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("end_of_file"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4015,7 +4016,7 @@ func TestVM_GetChar(t *testing.T) {
 		v := term.Variable("V")
 
 		var vm VM
-		ok, err := vm.GetChar(&s, v, Success, &env).Force()
+		ok, err := vm.GetChar(&s, v, Success, &env).Force(context.Background())
 		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
@@ -4025,7 +4026,7 @@ func TestVM_GetChar(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4033,7 +4034,7 @@ func TestVM_GetChar(t *testing.T) {
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.GetChar(&term.Stream{Source: bufio.NewReader(&mockReader{})}, term.Integer(0), Success, &env).Force()
+		ok, err := vm.GetChar(&term.Stream{Source: bufio.NewReader(&mockReader{})}, term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInCharacter(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4041,7 +4042,7 @@ func TestVM_GetChar(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.GetChar(term.Integer(0), term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(term.Integer(0), term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4056,7 +4057,7 @@ func TestVM_GetChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4071,7 +4072,7 @@ func TestVM_GetChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBinaryStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4092,7 +4093,7 @@ func TestVM_GetChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputPastEndOfStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4107,7 +4108,7 @@ func TestVM_GetChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.GetChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character"), term.Atom("invalid character.")), err)
 		assert.False(t, ok)
 	})
@@ -4124,11 +4125,11 @@ func TestVM_PeekByte(t *testing.T) {
 		ok, err := vm.PeekByte(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(97), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.PeekByte(&s, v, Success, &env).Force() // 'a' again
+		ok, err = vm.PeekByte(&s, v, Success, &env).Force(context.Background()) // 'a' again
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4147,7 +4148,7 @@ func TestVM_PeekByte(t *testing.T) {
 		ok, err := vm.PeekByte(term.Atom("foo"), v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(97), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4162,7 +4163,7 @@ func TestVM_PeekByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekByte(s, term.NewVariable(), Success, &env).Force()
+		ok, err := vm.PeekByte(s, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBufferedStream(s), err)
 		assert.False(t, ok)
 	})
@@ -4177,7 +4178,7 @@ func TestVM_PeekByte(t *testing.T) {
 		ok, err := vm.PeekByte(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Integer(-1), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4194,7 +4195,7 @@ func TestVM_PeekByte(t *testing.T) {
 		v := term.Variable("V")
 
 		var vm VM
-		ok, err := vm.PeekByte(&s, v, Success, &env).Force()
+		ok, err := vm.PeekByte(&s, v, Success, &env).Force(context.Background())
 		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
@@ -4204,7 +4205,7 @@ func TestVM_PeekByte(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4212,7 +4213,7 @@ func TestVM_PeekByte(t *testing.T) {
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PeekByte(&term.Stream{Source: bufio.NewReader(&mockReader{}), StreamType: term.StreamTypeBinary}, term.Atom("byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(&term.Stream{Source: bufio.NewReader(&mockReader{}), StreamType: term.StreamTypeBinary}, term.Atom("byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInByte(term.Atom("byte")), err)
 		assert.False(t, ok)
 	})
@@ -4220,7 +4221,7 @@ func TestVM_PeekByte(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PeekByte(term.Integer(0), term.Variable("Byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(term.Integer(0), term.Variable("Byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4235,7 +4236,7 @@ func TestVM_PeekByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4250,7 +4251,7 @@ func TestVM_PeekByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputTextStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4272,7 +4273,7 @@ func TestVM_PeekByte(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force()
+		ok, err := vm.PeekByte(streamOrAlias, term.Variable("Byte"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputPastEndOfStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4289,11 +4290,11 @@ func TestVM_PeekChar(t *testing.T) {
 		ok, err := vm.PeekChar(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("😀"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.PeekChar(&s, v, Success, &env).Force() // '😀' again
+		ok, err = vm.PeekChar(&s, v, Success, &env).Force(context.Background()) // '😀' again
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4312,7 +4313,7 @@ func TestVM_PeekChar(t *testing.T) {
 		ok, err := vm.PeekChar(term.Atom("foo"), v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("😀"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4327,7 +4328,7 @@ func TestVM_PeekChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekChar(s, term.NewVariable(), Success, &env).Force()
+		ok, err := vm.PeekChar(s, term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBufferedStream(s), err)
 		assert.False(t, ok)
 	})
@@ -4342,7 +4343,7 @@ func TestVM_PeekChar(t *testing.T) {
 		ok, err := vm.PeekChar(&s, v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("end_of_file"), env.Resolve(v))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4359,7 +4360,7 @@ func TestVM_PeekChar(t *testing.T) {
 		v := term.Variable("V")
 
 		var vm VM
-		ok, err := vm.PeekChar(&s, v, Success, &env).Force()
+		ok, err := vm.PeekChar(&s, v, Success, &env).Force(context.Background())
 		assert.Equal(t, systemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
@@ -4369,7 +4370,7 @@ func TestVM_PeekChar(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4377,7 +4378,7 @@ func TestVM_PeekChar(t *testing.T) {
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PeekChar(&term.Stream{Source: bufio.NewReader(&mockReader{})}, term.Integer(0), Success, &env).Force()
+		ok, err := vm.PeekChar(&term.Stream{Source: bufio.NewReader(&mockReader{})}, term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInCharacter(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4385,7 +4386,7 @@ func TestVM_PeekChar(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.PeekChar(term.Integer(0), term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(term.Integer(0), term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4400,7 +4401,7 @@ func TestVM_PeekChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4418,7 +4419,7 @@ func TestVM_PeekChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputBinaryStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4439,7 +4440,7 @@ func TestVM_PeekChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionErrorInputPastEndOfStream(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -4454,7 +4455,7 @@ func TestVM_PeekChar(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force()
+		ok, err := vm.PeekChar(streamOrAlias, term.Variable("Char"), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character"), term.Atom("invalid character.")), err)
 		assert.False(t, ok)
 	})
@@ -4472,7 +4473,7 @@ func Test_Halt(t *testing.T) {
 			osExit = os.Exit
 		}()
 
-		ok, err := Halt(term.Integer(2), Success, &env).Force()
+		ok, err := Halt(term.Integer(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -4483,14 +4484,14 @@ func Test_Halt(t *testing.T) {
 		env := term.Env{}
 		n := term.Variable("N")
 
-		ok, err := Halt(n, Success, &env).Force()
+		ok, err := Halt(n, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(n), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := Halt(term.Atom("foo"), Success, &env).Force()
+		ok, err := Halt(term.Atom("foo"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -4537,7 +4538,7 @@ func TestVM_Clause(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -4547,7 +4548,7 @@ func TestVM_Clause(t *testing.T) {
 		head := term.Variable("Head")
 
 		var vm VM
-		ok, err := vm.Clause(head, term.Atom("true"), Success, &env).Force()
+		ok, err := vm.Clause(head, term.Atom("true"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(head), err)
 		assert.False(t, ok)
 	})
@@ -4555,7 +4556,7 @@ func TestVM_Clause(t *testing.T) {
 	t.Run("head is neither a variable nor a predication", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Clause(term.Integer(0), term.Atom("true"), Success, &env).Force()
+		ok, err := vm.Clause(term.Integer(0), term.Atom("true"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4567,7 +4568,7 @@ func TestVM_Clause(t *testing.T) {
 	t.Run("body is neither a variable nor a callable term", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.Clause(term.Atom("foo"), term.Integer(0), Success, &env).Force()
+		ok, err := vm.Clause(term.Atom("foo"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -4576,14 +4577,14 @@ func TestVM_Clause(t *testing.T) {
 func TestAtomLength(t *testing.T) {
 	t.Run("ascii", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomLength(term.Atom("abc"), term.Integer(3), Success, &env).Force()
+		ok, err := AtomLength(term.Atom("abc"), term.Integer(3), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("emoji", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomLength(term.Atom("😀"), term.Integer(1), Success, &env).Force()
+		ok, err := AtomLength(term.Atom("😀"), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4591,28 +4592,28 @@ func TestAtomLength(t *testing.T) {
 	t.Run("atom is a variable", func(t *testing.T) {
 		env := term.Env{}
 		atom := term.Variable("Atom")
-		ok, err := AtomLength(atom, term.Integer(0), Success, &env).Force()
+		ok, err := AtomLength(atom, term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(atom), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomLength(term.Integer(2), term.Integer(0), Success, &env).Force()
+		ok, err := AtomLength(term.Integer(2), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(2)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomLength(term.Atom("😀"), term.Atom("1"), Success, &env).Force()
+		ok, err := AtomLength(term.Atom("😀"), term.Atom("1"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("1")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is an integer less than zero", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomLength(term.Atom("😀"), term.Integer(-1), Success, &env).Force()
+		ok, err := AtomLength(term.Atom("😀"), term.Integer(-1), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-1)), err)
 		assert.False(t, ok)
 	})
@@ -4626,7 +4627,7 @@ func TestAtomConcat(t *testing.T) {
 		ok, err := AtomConcat(term.Atom("foo"), term.Atom("bar"), atom3, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("foobar"), env.Resolve(atom3))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4654,7 +4655,7 @@ func TestAtomConcat(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -4663,7 +4664,7 @@ func TestAtomConcat(t *testing.T) {
 		env := term.Env{}
 		atom1, atom3 := term.Variable("Atom1"), term.Variable("Atom3")
 
-		ok, err := AtomConcat(atom1, term.Atom("bar"), atom3, Success, &env).Force()
+		ok, err := AtomConcat(atom1, term.Atom("bar"), atom3, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&term.Compound{
 			Functor: ",",
 			Args:    []term.Interface{atom1, atom3},
@@ -4675,7 +4676,7 @@ func TestAtomConcat(t *testing.T) {
 		env := term.Env{}
 		atom2, atom3 := term.Variable("Atom2"), term.Variable("Atom3")
 
-		ok, err := AtomConcat(term.Atom("foo"), atom2, atom3, Success, &env).Force()
+		ok, err := AtomConcat(term.Atom("foo"), atom2, atom3, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(&term.Compound{
 			Functor: ",",
 			Args:    []term.Interface{atom2, atom3},
@@ -4686,14 +4687,14 @@ func TestAtomConcat(t *testing.T) {
 	t.Run("atom1 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomConcat(term.Integer(1), term.Atom("bar"), term.Variable("Atom3"), Success, &env).Force()
+			ok, err := AtomConcat(term.Integer(1), term.Atom("bar"), term.Variable("Atom3"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(1)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom3 is an atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomConcat(term.Integer(1), term.Atom("bar"), term.Atom("foobar"), Success, &env).Force()
+			ok, err := AtomConcat(term.Integer(1), term.Atom("bar"), term.Atom("foobar"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(1)), err)
 			assert.False(t, ok)
 		})
@@ -4702,14 +4703,14 @@ func TestAtomConcat(t *testing.T) {
 	t.Run("atom2 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomConcat(term.Atom("foo"), term.Integer(2), term.Variable("Atom3"), Success, &env).Force()
+			ok, err := AtomConcat(term.Atom("foo"), term.Integer(2), term.Variable("Atom3"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(2)), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom3 is an atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomConcat(term.Atom("foo"), term.Integer(2), term.Atom("foobar"), Success, &env).Force()
+			ok, err := AtomConcat(term.Atom("foo"), term.Integer(2), term.Atom("foobar"), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(2)), err)
 			assert.False(t, ok)
 		})
@@ -4717,7 +4718,7 @@ func TestAtomConcat(t *testing.T) {
 
 	t.Run("atom3 is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomConcat(term.Atom("foo"), term.Atom("bar"), term.Integer(3), Success, &env).Force()
+		ok, err := AtomConcat(term.Atom("foo"), term.Atom("bar"), term.Integer(3), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(3)), err)
 		assert.False(t, ok)
 	})
@@ -4751,7 +4752,7 @@ func TestSubAtom(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -4762,7 +4763,7 @@ func TestSubAtom(t *testing.T) {
 		ok, err := SubAtom(term.Atom("a"), term.Integer(0), term.Integer(1), term.Integer(0), char, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("a"), env.Resolve(char))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4770,63 +4771,63 @@ func TestSubAtom(t *testing.T) {
 	t.Run("atom is a variable", func(t *testing.T) {
 		env := term.Env{}
 		atom := term.Variable("Atom")
-		ok, err := SubAtom(atom, term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(atom, term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(atom), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Integer(0), term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Integer(0), term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("subAtom is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Integer(0), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Variable("After"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Atom("before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Atom("before"), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("before")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Atom("length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Atom("length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("length")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is neither a variable nor an integer", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Atom("after"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Atom("after"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Atom("after")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is an integer less than zero", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Integer(-1), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Integer(-1), term.Variable("Length"), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-1)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is an integer less than zero", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Integer(-1), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Integer(-1), term.Variable("After"), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-1)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is an integer less than zero", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Integer(-1), term.Variable("SubAtom"), Success, &env).Force()
+		ok, err := SubAtom(term.Atom("foo"), term.Variable("Before"), term.Variable("Length"), term.Integer(-1), term.Variable("SubAtom"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorNotLessThanZero(term.Integer(-1)), err)
 		assert.False(t, ok)
 	})
@@ -4840,7 +4841,7 @@ func TestAtomChars(t *testing.T) {
 		ok, err := AtomChars(term.Atom("foo"), chars, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.List(term.Atom("f"), term.Atom("o"), term.Atom("o")), env.Resolve(chars))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4852,11 +4853,11 @@ func TestAtomChars(t *testing.T) {
 		ok, err := AtomChars(atom, term.List(term.Atom("f"), term.Atom("o"), term.Atom("o")), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("foo"), env.Resolve(atom))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, err = AtomChars(term.NewVariable(), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force()
+		_, err = AtomChars(term.NewVariable(), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -4868,7 +4869,7 @@ func TestAtomChars(t *testing.T) {
 				term.Atom("0"),
 			)
 
-			ok, err := AtomChars(term.NewVariable(), chars, Success, &env).Force()
+			ok, err := AtomChars(term.NewVariable(), chars, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(chars), err)
 			assert.False(t, ok)
 		})
@@ -4876,7 +4877,7 @@ func TestAtomChars(t *testing.T) {
 		t.Run("variable element", func(t *testing.T) {
 			env := term.Env{}
 			char := term.Variable("Char")
-			ok, err := AtomChars(term.NewVariable(), term.List(char, term.Atom("o"), term.Atom("o")), Success, &env).Force()
+			ok, err := AtomChars(term.NewVariable(), term.List(char, term.Atom("o"), term.Atom("o")), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(char), err)
 			assert.False(t, ok)
 		})
@@ -4884,14 +4885,14 @@ func TestAtomChars(t *testing.T) {
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomChars(term.Integer(0), term.NewVariable(), Success, &env).Force()
+		ok, err := AtomChars(term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomChars(term.NewVariable(), term.Atom("chars"), Success, &env).Force()
+		ok, err := AtomChars(term.NewVariable(), term.Atom("chars"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("chars")), err)
 		assert.False(t, ok)
 	})
@@ -4899,14 +4900,14 @@ func TestAtomChars(t *testing.T) {
 	t.Run("atom is a variable and an element E of the list List is neither a variable nor a one-character atom", func(t *testing.T) {
 		t.Run("not a one-character atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomChars(term.NewVariable(), term.List(term.Atom("chars")), Success, &env).Force()
+			ok, err := AtomChars(term.NewVariable(), term.List(term.Atom("chars")), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorCharacter(term.Atom("chars")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("not an atom", func(t *testing.T) {
 			env := term.Env{}
-			ok, err := AtomChars(term.NewVariable(), term.List(term.Integer(0)), Success, &env).Force()
+			ok, err := AtomChars(term.NewVariable(), term.List(term.Integer(0)), Success, &env).Force(context.Background())
 			assert.Equal(t, typeErrorCharacter(term.Integer(0)), err)
 			assert.False(t, ok)
 		})
@@ -4921,7 +4922,7 @@ func TestAtomCodes(t *testing.T) {
 		ok, err := AtomCodes(term.Atom("foo"), codes, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.List(term.Integer(102), term.Integer(111), term.Integer(111)), env.Resolve(codes))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4933,7 +4934,7 @@ func TestAtomCodes(t *testing.T) {
 		ok, err := AtomCodes(atom, term.List(term.Integer(102), term.Integer(111), term.Integer(111)), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Atom("foo"), env.Resolve(atom))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4945,7 +4946,7 @@ func TestAtomCodes(t *testing.T) {
 				term.Integer(111),
 				term.Integer(111),
 			)
-			ok, err := AtomCodes(term.NewVariable(), codes, Success, &env).Force()
+			ok, err := AtomCodes(term.NewVariable(), codes, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
@@ -4954,7 +4955,7 @@ func TestAtomCodes(t *testing.T) {
 			env := term.Env{}
 			code := term.Variable("Code")
 
-			ok, err := AtomCodes(term.NewVariable(), term.List(code, term.Integer(111), term.Integer(111)), Success, &env).Force()
+			ok, err := AtomCodes(term.NewVariable(), term.List(code, term.Integer(111), term.Integer(111)), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(code), err)
 			assert.False(t, ok)
 		})
@@ -4962,21 +4963,21 @@ func TestAtomCodes(t *testing.T) {
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomCodes(term.Integer(0), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force()
+		ok, err := AtomCodes(term.Integer(0), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomCodes(term.NewVariable(), term.Atom("codes"), Success, &env).Force()
+		ok, err := AtomCodes(term.NewVariable(), term.Atom("codes"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("codes")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is a variable and an element E of the list List is neither a variable nor a character-code", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := AtomCodes(term.NewVariable(), term.List(term.Atom("f"), term.Integer(111), term.Integer(111)), Success, &env).Force()
+		ok, err := AtomCodes(term.NewVariable(), term.List(term.Atom("f"), term.Integer(111), term.Integer(111)), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character_code"), term.Atom("invalid character code.")), err)
 		assert.False(t, ok)
 	})
@@ -4990,7 +4991,7 @@ func TestNumberChars(t *testing.T) {
 		ok, err := NumberChars(term.Float(23.4), chars, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.List(term.Atom("2"), term.Atom("3"), term.Atom("."), term.Atom("4")), env.Resolve(chars))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5002,7 +5003,7 @@ func TestNumberChars(t *testing.T) {
 		ok, err := NumberChars(num, term.List(term.Atom("2"), term.Atom("3"), term.Atom("."), term.Atom("4")), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Float(23.4), env.Resolve(num))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5014,7 +5015,7 @@ func TestNumberChars(t *testing.T) {
 				term.Atom("2"), term.Atom("3"), term.Atom("."), term.Atom("4"),
 			)
 
-			ok, err := NumberChars(term.NewVariable(), codes, Success, &env).Force()
+			ok, err := NumberChars(term.NewVariable(), codes, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
@@ -5023,7 +5024,7 @@ func TestNumberChars(t *testing.T) {
 			env := term.Env{}
 			code := term.Variable("Code")
 
-			ok, err := NumberChars(term.NewVariable(), term.List(code, term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force()
+			ok, err := NumberChars(term.NewVariable(), term.List(code, term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(code), err)
 			assert.False(t, ok)
 		})
@@ -5031,28 +5032,28 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberChars(term.Atom("23.4"), term.List(term.Atom("2"), term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force()
+		ok, err := NumberChars(term.Atom("23.4"), term.List(term.Atom("2"), term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorNumber(term.Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("num is a variable and chars is neither a list nor partial list", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberChars(term.NewVariable(), term.Atom("23.4"), Success, &env).Force()
+		ok, err := NumberChars(term.NewVariable(), term.Atom("23.4"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the list chars is neither a variable nor a one-character atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberChars(term.NewVariable(), term.List(term.Integer(2), term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force()
+		ok, err := NumberChars(term.NewVariable(), term.List(term.Integer(2), term.Atom("3"), term.Atom("."), term.Atom("4")), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorCharacter(term.Integer(2)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("chars is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberChars(term.NewVariable(), term.List(term.Atom("f"), term.Atom("o"), term.Atom("o")), Success, &env).Force()
+		ok, err := NumberChars(term.NewVariable(), term.List(term.Atom("f"), term.Atom("o"), term.Atom("o")), Success, &env).Force(context.Background())
 		assert.Equal(t, syntaxErrorNotANumber(), err)
 		assert.False(t, ok)
 	})
@@ -5066,7 +5067,7 @@ func TestNumberCodes(t *testing.T) {
 		ok, err := NumberCodes(term.Float(23.4), codes, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.List(term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), env.Resolve(codes))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5078,7 +5079,7 @@ func TestNumberCodes(t *testing.T) {
 		ok, err := NumberCodes(num, term.List(term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), func(env term.Env) *nondet.Promise {
 			assert.Equal(t, term.Float(23.4), env.Resolve(num))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5090,7 +5091,7 @@ func TestNumberCodes(t *testing.T) {
 				term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52),
 			)
 
-			ok, err := NumberCodes(term.NewVariable(), codes, Success, &env).Force()
+			ok, err := NumberCodes(term.NewVariable(), codes, Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(codes), err)
 			assert.False(t, ok)
 		})
@@ -5099,7 +5100,7 @@ func TestNumberCodes(t *testing.T) {
 			env := term.Env{}
 			code := term.Variable("Code")
 
-			ok, err := NumberCodes(term.NewVariable(), term.List(code, term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force()
+			ok, err := NumberCodes(term.NewVariable(), term.List(code, term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force(context.Background())
 			assert.Equal(t, instantiationError(code), err)
 			assert.False(t, ok)
 		})
@@ -5107,28 +5108,28 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberCodes(term.Atom("23.4"), term.List(term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force()
+		ok, err := NumberCodes(term.Atom("23.4"), term.List(term.Integer(50), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorNumber(term.Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("num is a variable and codes is neither a list nor partial list", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberCodes(term.NewVariable(), term.Atom("23.4"), Success, &env).Force()
+		ok, err := NumberCodes(term.NewVariable(), term.Atom("23.4"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorList(term.Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the list codes is neither a variable nor a one-character atom", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberCodes(term.NewVariable(), term.List(term.Atom("2"), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force()
+		ok, err := NumberCodes(term.NewVariable(), term.List(term.Atom("2"), term.Integer(51), term.Integer(46), term.Integer(52)), Success, &env).Force(context.Background())
 		assert.Equal(t, representationError(term.Atom("character_code"), term.Atom("'2' is not a valid character code.")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("codes is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := NumberCodes(term.NewVariable(), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force()
+		ok, err := NumberCodes(term.NewVariable(), term.List(term.Integer(102), term.Integer(111), term.Integer(111)), Success, &env).Force(context.Background())
 		assert.Equal(t, syntaxErrorNotANumber(), err)
 		assert.False(t, ok)
 	})
@@ -5137,264 +5138,264 @@ func TestNumberCodes(t *testing.T) {
 func TestFunctionSet_Is(t *testing.T) {
 	t.Run("addition", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Integer(1), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Integer(1), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Integer(1), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Integer(1), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Float(1), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Float(1), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Float(1), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(3), &term.Compound{Functor: "+", Args: []term.Interface{term.Float(1), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("subtraction", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(3), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(3), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(3), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(3), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(3), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(3), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(3), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(3), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("multiplication", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Integer(3), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Integer(3), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Integer(3), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Integer(3), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Float(3), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Float(3), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Float(3), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(6), &term.Compound{Functor: "*", Args: []term.Interface{term.Float(3), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("floating-point division", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Float(4), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "/", Args: []term.Interface{term.Float(4), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("integer division", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(2), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(2), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(2)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Integer(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "//", Args: []term.Interface{term.Integer(4), term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, evaluationErrorZeroDivisor(), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("remainder", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "rem", Args: []term.Interface{term.Integer(-21), term.Integer(4)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "rem", Args: []term.Interface{term.Integer(-21), term.Integer(4)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "rem", Args: []term.Interface{term.Integer(-21), term.Float(4)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "rem", Args: []term.Interface{term.Integer(-21), term.Float(4)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "rem", Args: []term.Interface{term.Float(-21), term.Integer(4)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "rem", Args: []term.Interface{term.Float(-21), term.Integer(4)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(-21)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mod", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(3), &term.Compound{Functor: "mod", Args: []term.Interface{term.Integer(-21), term.Integer(4)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(3), &term.Compound{Functor: "mod", Args: []term.Interface{term.Integer(-21), term.Integer(4)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "mod", Args: []term.Interface{term.Integer(-21), term.Float(4)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "mod", Args: []term.Interface{term.Integer(-21), term.Float(4)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "mod", Args: []term.Interface{term.Float(-21), term.Integer(4)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "mod", Args: []term.Interface{term.Float(-21), term.Integer(4)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(-21)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("exponential", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Integer(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Integer(4), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Float(4), term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Float(4), term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(16), &term.Compound{Functor: "**", Args: []term.Interface{term.Float(4), term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sign reversal", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(-2), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(-2), &term.Compound{Functor: "-", Args: []term.Interface{term.Integer(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(-2), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(-2), &term.Compound{Functor: "-", Args: []term.Interface{term.Float(2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("absolute value", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "abs", Args: []term.Interface{term.Integer(-2)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "abs", Args: []term.Interface{term.Integer(-2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "abs", Args: []term.Interface{term.Float(-2)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(2), &term.Compound{Functor: "abs", Args: []term.Interface{term.Float(-2)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("arctangent", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "atan", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "atan", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "atan", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "atan", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("ceiling", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "ceiling", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "ceiling", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "ceiling", Args: []term.Interface{term.Float(0.9)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "ceiling", Args: []term.Interface{term.Float(0.9)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("cosine", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "cos", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "cos", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "cos", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "cos", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("natural antilogarithm", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "exp", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "exp", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "exp", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "exp", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("square root", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "sqrt", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "sqrt", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "sqrt", Args: []term.Interface{term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "sqrt", Args: []term.Interface{term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sign", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(math.MaxInt64)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(math.MaxInt64)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Integer(0), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Integer(0), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(-1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(-1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(math.MinInt64)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Integer(math.MinInt64)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(math.MaxFloat64)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(math.MaxFloat64)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(-1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(-1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(-math.MaxFloat64)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(-1), &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(-math.MaxFloat64)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -5402,160 +5403,160 @@ func TestFunctionSet_Is(t *testing.T) {
 		ok, err = DefaultFunctionSet.Is(v, &term.Compound{Functor: "sign", Args: []term.Interface{term.Float(math.NaN())}}, func(env term.Env) *nondet.Promise {
 			assert.True(t, math.IsNaN(float64(env.Resolve(v).(term.Float))))
 			return nondet.Bool(true)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("float", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "float", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "float", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "float", Args: []term.Interface{term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1.0), &term.Compound{Functor: "float", Args: []term.Interface{term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("floor", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "floor", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "floor", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "floor", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "floor", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("natural logarithm", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "log", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "log", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "log", Args: []term.Interface{term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "log", Args: []term.Interface{term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("sine", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sin", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sin", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sin", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(0), &term.Compound{Functor: "sin", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("truncate", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "truncate", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "truncate", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "truncate", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "truncate", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("round", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "round", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "round", Args: []term.Interface{term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "round", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.Float(1), &term.Compound{Functor: "round", Args: []term.Interface{term.Float(1.1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("bit-shift right", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(2), &term.Compound{Functor: ">>", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(2), &term.Compound{Functor: ">>", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(1)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: ">>", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("bit-shift left", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(8), &term.Compound{Functor: "<<", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(8), &term.Compound{Functor: "<<", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(1)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "<<", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("bitwise and", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Integer(5), term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(1), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Integer(5), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Float(5), term.Integer(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Float(5), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(5)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Integer(5), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Integer(5), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(1)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Float(5), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "/\\", Args: []term.Interface{term.Float(5), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(5)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("bitwise or", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(5), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(5), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Integer(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Float(4), term.Integer(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Integer(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(1)), err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\/", Args: []term.Interface{term.Float(4), term.Float(1)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(4)), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("bitwise complement", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "\\", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(-1), &term.Compound{Functor: "\\", Args: []term.Interface{term.Integer(0)}}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\", Args: []term.Interface{term.Float(0)}}, Success, &env).Force()
+		ok, err = DefaultFunctionSet.Is(term.NewVariable(), &term.Compound{Functor: "\\", Args: []term.Interface{term.Float(0)}}, Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorInteger(term.Float(0)), err)
 		assert.False(t, ok)
 	})
@@ -5564,7 +5565,7 @@ func TestFunctionSet_Is(t *testing.T) {
 		env := term.Env{}
 		expression := term.Variable("Exp")
 
-		ok, err := DefaultFunctionSet.Is(term.Integer(0), expression, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Is(term.Integer(0), expression, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(expression), err)
 		assert.False(t, ok)
 	})
@@ -5573,38 +5574,38 @@ func TestFunctionSet_Is(t *testing.T) {
 func TestFunctionSet_Equal(t *testing.T) {
 	t.Run("same", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Equal(term.Integer(1), term.Integer(1), Success, &env).Force()
+		ok, err := DefaultFunctionSet.Equal(term.Integer(1), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Integer(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Integer(1), term.Float(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Integer(1), term.Float(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Float(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Float(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("different", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.Equal(term.Integer(1), term.Integer(2), Success, &env).Force()
+		ok, err := DefaultFunctionSet.Equal(term.Integer(1), term.Integer(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Integer(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Integer(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Integer(1), term.Float(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Integer(1), term.Float(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Float(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.Equal(term.Float(1), term.Float(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -5613,7 +5614,7 @@ func TestFunctionSet_Equal(t *testing.T) {
 		env := term.Env{}
 		lhs := term.Variable("LHS")
 
-		ok, err := DefaultFunctionSet.Equal(lhs, term.Integer(1), Success, &env).Force()
+		ok, err := DefaultFunctionSet.Equal(lhs, term.Integer(1), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(lhs), err)
 		assert.False(t, ok)
 	})
@@ -5622,7 +5623,7 @@ func TestFunctionSet_Equal(t *testing.T) {
 		env := term.Env{}
 		rhs := term.Variable("RHS")
 
-		ok, err := DefaultFunctionSet.Equal(term.Integer(1), rhs, Success, &env).Force()
+		ok, err := DefaultFunctionSet.Equal(term.Integer(1), rhs, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(rhs), err)
 		assert.False(t, ok)
 	})
@@ -5631,38 +5632,38 @@ func TestFunctionSet_Equal(t *testing.T) {
 func TestFunctionSet_NotEqual(t *testing.T) {
 	t.Run("same", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), term.Integer(1), Success, &env).Force()
+		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Integer(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Integer(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Integer(1), term.Float(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Integer(1), term.Float(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Float(1), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Float(1), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("different", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), term.Integer(2), Success, &env).Force()
+		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), term.Integer(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Integer(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Integer(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Integer(1), term.Float(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Integer(1), term.Float(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Float(2), Success, &env).Force()
+		ok, err = DefaultFunctionSet.NotEqual(term.Float(1), term.Float(2), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5671,7 +5672,7 @@ func TestFunctionSet_NotEqual(t *testing.T) {
 		env := term.Env{}
 		lhs := term.Variable("LHS")
 
-		ok, err := DefaultFunctionSet.NotEqual(lhs, term.Integer(1), Success, &env).Force()
+		ok, err := DefaultFunctionSet.NotEqual(lhs, term.Integer(1), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(lhs), err)
 		assert.False(t, ok)
 	})
@@ -5680,7 +5681,7 @@ func TestFunctionSet_NotEqual(t *testing.T) {
 		env := term.Env{}
 		rhs := term.Variable("RHS")
 
-		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), rhs, Success, &env).Force()
+		ok, err := DefaultFunctionSet.NotEqual(term.Integer(1), rhs, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(rhs), err)
 		assert.False(t, ok)
 	})
@@ -5688,76 +5689,76 @@ func TestFunctionSet_NotEqual(t *testing.T) {
 
 func TestFunctionSet_LessThan(t *testing.T) {
 	env := term.Env{}
-	ok, err := DefaultFunctionSet.LessThan(term.Integer(1), term.Integer(2), Success, &env).Force()
+	ok, err := DefaultFunctionSet.LessThan(term.Integer(1), term.Integer(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(term.Float(1), term.Integer(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThan(term.Float(1), term.Integer(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(term.Integer(1), term.Float(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThan(term.Integer(1), term.Float(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThan(term.Float(1), term.Float(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThan(term.Float(1), term.Float(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_GreaterThan(t *testing.T) {
 	env := term.Env{}
-	ok, err := DefaultFunctionSet.GreaterThan(term.Integer(2), term.Integer(1), Success, &env).Force()
+	ok, err := DefaultFunctionSet.GreaterThan(term.Integer(2), term.Integer(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(term.Float(2), term.Integer(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThan(term.Float(2), term.Integer(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(term.Integer(2), term.Float(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThan(term.Integer(2), term.Float(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThan(term.Float(2), term.Float(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThan(term.Float(2), term.Float(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_LessThanOrEqual(t *testing.T) {
 	env := term.Env{}
-	ok, err := DefaultFunctionSet.LessThanOrEqual(term.Integer(1), term.Integer(2), Success, &env).Force()
+	ok, err := DefaultFunctionSet.LessThanOrEqual(term.Integer(1), term.Integer(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Float(1), term.Integer(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Float(1), term.Integer(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Integer(1), term.Float(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Integer(1), term.Float(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Float(1), term.Float(2), Success, &env).Force()
+	ok, err = DefaultFunctionSet.LessThanOrEqual(term.Float(1), term.Float(2), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFunctionSet_GreaterThanOrEqual(t *testing.T) {
 	env := term.Env{}
-	ok, err := DefaultFunctionSet.GreaterThanOrEqual(term.Integer(2), term.Integer(1), Success, &env).Force()
+	ok, err := DefaultFunctionSet.GreaterThanOrEqual(term.Integer(2), term.Integer(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Float(2), term.Integer(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Float(2), term.Integer(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Integer(2), term.Float(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Integer(2), term.Float(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Float(2), term.Float(1), Success, &env).Force()
+	ok, err = DefaultFunctionSet.GreaterThanOrEqual(term.Float(2), term.Float(1), Success, &env).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
@@ -5797,7 +5798,7 @@ func TestVM_StreamProperty(t *testing.T) {
 			assert.Equal(t, expected[c], env.Resolve(v))
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -5833,7 +5834,7 @@ func TestVM_StreamProperty(t *testing.T) {
 			assert.Equal(t, expected[c], env.Resolve(v))
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -5844,7 +5845,7 @@ func TestVM_StreamProperty(t *testing.T) {
 		ok, err := vm.StreamProperty(&term.Stream{Mode: term.StreamModeRead}, &term.Compound{
 			Functor: "mode",
 			Args:    []term.Interface{term.Atom("read")},
-		}, Success, &env).Force()
+		}, Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5852,7 +5853,7 @@ func TestVM_StreamProperty(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable, a stream-term, nor an alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.StreamProperty(term.Integer(0), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.StreamProperty(term.Integer(0), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -5860,7 +5861,7 @@ func TestVM_StreamProperty(t *testing.T) {
 	t.Run("property is neither a variable nor a stream property", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.StreamProperty(term.NewVariable(), term.Atom("property"), Success, &env).Force()
+		ok, err := vm.StreamProperty(term.NewVariable(), term.Atom("property"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamProperty(term.Atom("property")), err)
 		assert.False(t, ok)
 	})
@@ -5868,7 +5869,7 @@ func TestVM_StreamProperty(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.StreamProperty(term.Atom("foo"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.StreamProperty(term.Atom("foo"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -5891,7 +5892,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.SetStreamPosition(&s, term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetStreamPosition(&s, term.Integer(0), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5901,7 +5902,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 		streamOrAlias := term.Variable("Stream")
 
 		var vm VM
-		ok, err := vm.SetStreamPosition(streamOrAlias, term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetStreamPosition(streamOrAlias, term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(streamOrAlias), err)
 		assert.False(t, ok)
 	})
@@ -5916,7 +5917,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 		position := term.Variable("Pos")
 
 		var vm VM
-		ok, err := vm.SetStreamPosition(&s, position, Success, &env).Force()
+		ok, err := vm.SetStreamPosition(&s, position, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(position), err)
 		assert.False(t, ok)
 	})
@@ -5924,7 +5925,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetStreamPosition(term.Integer(2), term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetStreamPosition(term.Integer(2), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorStreamOrAlias(term.Integer(2)), err)
 		assert.False(t, ok)
 	})
@@ -5932,7 +5933,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetStreamPosition(term.Atom("foo"), term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetStreamPosition(term.Atom("foo"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -5950,7 +5951,7 @@ func TestVM_SetStreamPosition(t *testing.T) {
 		}
 
 		var vm VM
-		ok, err := vm.SetStreamPosition(s, term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetStreamPosition(s, term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("reposition"), term.Atom("stream"), s, term.Atom("Stream is not a file.")), err)
 		assert.False(t, ok)
 	})
@@ -5960,7 +5961,7 @@ func TestVM_CharConversion(t *testing.T) {
 	t.Run("register", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.CharConversion(term.Atom("a"), term.Atom("b"), Success, &env).Force()
+		ok, err := vm.CharConversion(term.Atom("a"), term.Atom("b"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -5974,7 +5975,7 @@ func TestVM_CharConversion(t *testing.T) {
 				'a': 'b',
 			},
 		}
-		ok, err := vm.CharConversion(term.Atom("a"), term.Atom("a"), Success, &env).Force()
+		ok, err := vm.CharConversion(term.Atom("a"), term.Atom("a"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -5987,7 +5988,7 @@ func TestVM_CharConversion(t *testing.T) {
 		inChar := term.Variable("In")
 
 		var vm VM
-		ok, err := vm.CharConversion(inChar, term.Atom("a"), Success, &env).Force()
+		ok, err := vm.CharConversion(inChar, term.Atom("a"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(inChar), err)
 		assert.False(t, ok)
 	})
@@ -5997,7 +5998,7 @@ func TestVM_CharConversion(t *testing.T) {
 		outChar := term.Variable("Out")
 
 		var vm VM
-		ok, err := vm.CharConversion(term.Atom("a"), outChar, Success, &env).Force()
+		ok, err := vm.CharConversion(term.Atom("a"), outChar, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(outChar), err)
 		assert.False(t, ok)
 	})
@@ -6006,7 +6007,7 @@ func TestVM_CharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CharConversion(term.Integer(0), term.Atom("a"), Success, &env).Force()
+			ok, err := vm.CharConversion(term.Integer(0), term.Atom("a"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6014,7 +6015,7 @@ func TestVM_CharConversion(t *testing.T) {
 		t.Run("multi-character atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CharConversion(term.Atom("foo"), term.Atom("a"), Success, &env).Force()
+			ok, err := vm.CharConversion(term.Atom("foo"), term.Atom("a"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6024,7 +6025,7 @@ func TestVM_CharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CharConversion(term.Atom("a"), term.Integer(0), Success, &env).Force()
+			ok, err := vm.CharConversion(term.Atom("a"), term.Integer(0), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6032,7 +6033,7 @@ func TestVM_CharConversion(t *testing.T) {
 		t.Run("multi-character atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CharConversion(term.Atom("a"), term.Atom("foo"), Success, &env).Force()
+			ok, err := vm.CharConversion(term.Atom("a"), term.Atom("foo"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6044,7 +6045,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("as is", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("a"), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("a"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -6056,7 +6057,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 					'a': 'b',
 				},
 			}
-			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("b"), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("b"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -6085,7 +6086,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 			assert.Equal(t, r, []rune(y)[0])
 			r++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 		assert.Equal(t, rune(256), r)
@@ -6095,7 +6096,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentCharConversion(term.Integer(0), term.Atom("b"), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Integer(0), term.Atom("b"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6103,7 +6104,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("multi-character atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentCharConversion(term.Atom("foo"), term.Atom("b"), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Atom("foo"), term.Atom("b"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("foo is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6113,7 +6114,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Integer(0), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Integer(0), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("0 is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6121,7 +6122,7 @@ func TestVM_CurrentCharConversion(t *testing.T) {
 		t.Run("multi-character atom", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("bar"), Success, &env).Force()
+			ok, err := vm.CurrentCharConversion(term.Atom("a"), term.Atom("bar"), Success, &env).Force(context.Background())
 			assert.Equal(t, representationError(term.Atom("character"), term.Atom("bar is not a character.")), err)
 			assert.False(t, ok)
 		})
@@ -6132,7 +6133,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("bounded", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("bounded"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("bounded"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("bounded"), term.Atom("bounded is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6140,7 +6141,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("max_integer", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("max_integer"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("max_integer"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("max_integer"), term.Atom("max_integer is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6148,7 +6149,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("min_integer", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("min_integer"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("min_integer"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("min_integer"), term.Atom("min_integer is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6156,7 +6157,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("integer_rounding_function", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("integer_rounding_function"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("integer_rounding_function"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("integer_rounding_function"), term.Atom("integer_rounding_function is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6165,7 +6166,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.SetPrologFlag(term.Atom("char_conversion"), term.Atom("on"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("char_conversion"), term.Atom("on"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.True(t, vm.charConvEnabled)
@@ -6174,7 +6175,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("off", func(t *testing.T) {
 			env := term.Env{}
 			vm := VM{charConvEnabled: true}
-			ok, err := vm.SetPrologFlag(term.Atom("char_conversion"), term.Atom("off"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("char_conversion"), term.Atom("off"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.False(t, vm.charConvEnabled)
@@ -6185,7 +6186,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.SetPrologFlag(term.Atom("debug"), term.Atom("on"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("debug"), term.Atom("on"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.True(t, vm.debug)
@@ -6194,7 +6195,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("off", func(t *testing.T) {
 			env := term.Env{}
 			vm := VM{debug: true}
-			ok, err := vm.SetPrologFlag(term.Atom("debug"), term.Atom("off"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("debug"), term.Atom("off"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.False(t, vm.debug)
@@ -6204,7 +6205,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("max_arity", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("max_arity"), term.NewVariable(), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("max_arity"), term.NewVariable(), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("max_arity"), term.Atom("max_arity is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6213,7 +6214,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			env := term.Env{}
 			vm := VM{unknown: unknownFail}
-			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("error"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("error"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownError, vm.unknown)
@@ -6222,7 +6223,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("warning", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("warning"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("warning"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownWarning, vm.unknown)
@@ -6231,7 +6232,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		t.Run("fail", func(t *testing.T) {
 			env := term.Env{}
 			var vm VM
-			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("fail"), Success, &env).Force()
+			ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Atom("fail"), Success, &env).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownFail, vm.unknown)
@@ -6243,7 +6244,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		flag := term.Variable("Flag")
 
 		var vm VM
-		ok, err := vm.SetPrologFlag(flag, term.Atom("fail"), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(flag, term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(flag), err)
 		assert.False(t, ok)
 	})
@@ -6253,7 +6254,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 		value := term.Variable("Value")
 
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("unknown"), value, Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("unknown"), value, Success, &env).Force(context.Background())
 		assert.Equal(t, instantiationError(value), err)
 		assert.False(t, ok)
 	})
@@ -6261,7 +6262,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Integer(0), term.Atom("fail"), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Integer(0), term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -6269,7 +6270,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("foo"), term.Atom("fail"), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("foo"), term.Atom("fail"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorPrologFlag(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})
@@ -6277,7 +6278,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("value is inadmissible for flag", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Integer(0), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("unknown"), term.Integer(0), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorFlagValue(&term.Compound{
 			Functor: "+",
 			Args:    []term.Interface{term.Atom("unknown"), term.Integer(0)},
@@ -6288,7 +6289,7 @@ func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("value is admissible for flag but the flag is not modifiable", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.SetPrologFlag(term.Atom("bounded"), term.Atom("true"), Success, &env).Force()
+		ok, err := vm.SetPrologFlag(term.Atom("bounded"), term.Atom("true"), Success, &env).Force(context.Background())
 		assert.Equal(t, permissionError(term.Atom("modify"), term.Atom("flag"), term.Atom("bounded"), term.Atom("bounded is not modifiable.")), err)
 		assert.False(t, ok)
 	})
@@ -6299,35 +6300,35 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 
 	t.Run("specified", func(t *testing.T) {
 		env := term.Env{}
-		ok, err := vm.CurrentPrologFlag(term.Atom("bounded"), term.Atom("true"), Success, &env).Force()
+		ok, err := vm.CurrentPrologFlag(term.Atom("bounded"), term.Atom("true"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("max_integer"), term.Integer(math.MaxInt64), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("max_integer"), term.Integer(math.MaxInt64), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("min_integer"), term.Integer(math.MinInt64), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("min_integer"), term.Integer(math.MinInt64), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("integer_rounding_function"), term.Atom("toward_zero"), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("integer_rounding_function"), term.Atom("toward_zero"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("char_conversion"), term.Atom("off"), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("char_conversion"), term.Atom("off"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("debug"), term.Atom("off"), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("debug"), term.Atom("off"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("max_arity"), term.Atom("unbounded"), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("max_arity"), term.Atom("unbounded"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = vm.CurrentPrologFlag(term.Atom("unknown"), term.Atom("error"), Success, &env).Force()
+		ok, err = vm.CurrentPrologFlag(term.Atom("unknown"), term.Atom("error"), Success, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -6367,7 +6368,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 			}
 			c++
 			return nondet.Bool(false)
-		}, &env).Force()
+		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 		assert.Equal(t, 8, c)
@@ -6376,7 +6377,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.CurrentPrologFlag(term.Integer(0), term.Atom("error"), Success, &env).Force()
+		ok, err := vm.CurrentPrologFlag(term.Integer(0), term.Atom("error"), Success, &env).Force(context.Background())
 		assert.Equal(t, typeErrorAtom(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
@@ -6384,7 +6385,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
 		env := term.Env{}
 		var vm VM
-		ok, err := vm.CurrentPrologFlag(term.Atom("foo"), term.Atom("error"), Success, &env).Force()
+		ok, err := vm.CurrentPrologFlag(term.Atom("foo"), term.Atom("error"), Success, &env).Force(context.Background())
 		assert.Equal(t, domainErrorPrologFlag(term.Atom("foo")), err)
 		assert.False(t, ok)
 	})

@@ -1,8 +1,13 @@
 package nondet
 
+import (
+	"context"
+	"errors"
+)
+
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
-	delayed []func() *Promise
+	delayed []func(context.Context) *Promise
 
 	cutParent *Promise
 
@@ -11,7 +16,7 @@ type Promise struct {
 }
 
 // Delay delays an execution of k.
-func Delay(k ...func() *Promise) *Promise {
+func Delay(k ...func(context.Context) *Promise) *Promise {
 	return &Promise{delayed: k}
 }
 
@@ -27,8 +32,8 @@ func Error(err error) *Promise {
 
 func Cut(p, parent *Promise) *Promise {
 	return &Promise{
-		delayed: []func() *Promise{
-			func() *Promise {
+		delayed: []func(context.Context) *Promise{
+			func(context.Context) *Promise {
 				return p
 			},
 		},
@@ -37,36 +42,41 @@ func Cut(p, parent *Promise) *Promise {
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
-func (p *Promise) Force() (bool, error) {
+func (p *Promise) Force(ctx context.Context) (bool, error) {
 	stack := promiseStack{p}
 	for len(stack) > 0 {
-		p := stack.pop()
+		select {
+		case <-ctx.Done():
+			return false, errors.New("canceled")
+		default:
+			p := stack.pop()
 
-		if len(p.delayed) == 0 {
-			switch {
-			case p.err != nil:
-				return false, p.err
-			case p.ok:
-				return true, nil
-			default:
-				continue
-			}
-		}
-
-		// If cut, we eliminate other possibilities.
-		if p.cutParent != nil {
-			for len(stack) > 0 {
-				if pop := stack.pop(); pop == p.cutParent {
-					break
+			if len(p.delayed) == 0 {
+				switch {
+				case p.err != nil:
+					return false, p.err
+				case p.ok:
+					return true, nil
+				default:
+					continue
 				}
 			}
-			p.cutParent = nil // we don't have to do this again when we revisit.
-		}
 
-		// Try the alternatives from left to right.
-		var q *Promise
-		q, p.delayed, p.delayed[0] = p.delayed[0](), p.delayed[1:], nil
-		stack = append(stack, p, q)
+			// If cut, we eliminate other possibilities.
+			if p.cutParent != nil {
+				for len(stack) > 0 {
+					if pop := stack.pop(); pop == p.cutParent {
+						break
+					}
+				}
+				p.cutParent = nil // we don't have to do this again when we revisit.
+			}
+
+			// Try the alternatives from left to right.
+			var q *Promise
+			q, p.delayed, p.delayed[0] = p.delayed[0](ctx), p.delayed[1:], nil
+			stack = append(stack, p, q)
+		}
 	}
 	return false, nil
 }

@@ -2,13 +2,16 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/ichiban/prolog/engine"
 
@@ -26,8 +29,10 @@ var Version = "1pl/0.1"
 
 func main() {
 	var verbose, debug bool
+	var timeout time.Duration
 	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
 	pflag.BoolVarP(&debug, "debug", "d", false, `debug`)
+	pflag.DurationVarP(&timeout, "timeout", "t", 10*time.Second, `timeout`)
 	pflag.Parse()
 
 	oldState, err := terminal.MakeRaw(0)
@@ -95,71 +100,99 @@ func main() {
 		}
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	keys := bufio.NewReader(os.Stdin)
 	for {
-		line, err := t.ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			log.Printf("failed to read line: %v", err)
-		}
-
-		c := 0
-		sols, err := i.Query(line)
-		if err != nil {
-			log.Printf("failed to query: %v", err)
-			continue
-		}
-		for sols.Next() {
-			c++
-
-			m := map[string]term.Interface{}
-			if err := sols.Scan(m); err != nil {
-				log.Printf("failed to scan: %v", err)
-				break
-			}
-
-			vars := sols.Vars()
-			ls := make([]string, 0, len(vars))
-			for _, n := range vars {
-				v := m[n]
-				if _, ok := v.(*term.Variable); ok {
-					continue
-				}
-				ls = append(ls, fmt.Sprintf("%s = %s", n, v))
-			}
-			if len(ls) == 0 {
-				fmt.Fprintf(t, "%t.\n", true)
-				break
-			}
-
-			fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n"))
-
-			r, _, err := keys.ReadRune()
-			if err != nil {
-				log.Printf("failed to read rune: %v", err)
-				break
-			}
-			if r != ';' {
-				r = '.'
-			}
-
-			fmt.Fprintf(t, "%s\n", string(r))
-
-			if r == '.' {
-				break
-			}
-		}
-		sols.Close()
-
-		if err := sols.Err(); err != nil {
-			log.Printf("failed: %v", err)
-			continue
-		}
-
-		if c == 0 {
-			fmt.Fprintf(t, "%t.\n", false)
+		if err := handleLine(ctx, i, t, keys, timeout); err != nil {
+			log.Panic(err)
 		}
 	}
+}
+
+func handleLine(ctx context.Context, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader, timeout time.Duration) error {
+	if timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	line, err := t.ReadLine()
+	if err != nil {
+		if err == io.EOF {
+			return err
+		}
+		log.Printf("failed to read line: %v", err)
+		return nil
+	}
+
+	c := 0
+	sols, err := i.QueryContext(ctx, line)
+	if err != nil {
+		log.Printf("failed to query: %v", err)
+		return nil
+	}
+	for sols.Next() {
+		c++
+
+		m := map[string]term.Interface{}
+		if err := sols.Scan(m); err != nil {
+			log.Printf("failed to scan: %v", err)
+			break
+		}
+
+		vars := sols.Vars()
+		ls := make([]string, 0, len(vars))
+		for _, n := range vars {
+			v := m[n]
+			if _, ok := v.(*term.Variable); ok {
+				continue
+			}
+			ls = append(ls, fmt.Sprintf("%s = %s", n, v))
+		}
+		if len(ls) == 0 {
+			if _, err := fmt.Fprintf(t, "%t.\n", true); err != nil {
+				return err
+			}
+			break
+		}
+
+		if _, err := fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n")); err != nil {
+			return err
+		}
+
+		r, _, err := keys.ReadRune()
+		if err != nil {
+			log.Printf("failed to read rune: %v", err)
+			break
+		}
+		if r != ';' {
+			r = '.'
+		}
+
+		if _, err := fmt.Fprintf(t, "%s\n", string(r)); err != nil {
+			return err
+		}
+
+		if r == '.' {
+			break
+		}
+	}
+	if err := sols.Close(); err != nil {
+		return err
+	}
+
+	if err := sols.Err(); err != nil {
+		log.Printf("failed: %v", err)
+		return nil
+	}
+
+	if c == 0 {
+		if _, err := fmt.Fprintf(t, "%t.\n", false); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

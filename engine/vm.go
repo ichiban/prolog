@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -217,7 +218,7 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 		}
 	}
 
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *env
 		return p.Call(vm, args, k, &env)
 	})
@@ -311,7 +312,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	ok, err := Functor(arg, pi.name, pi.arity, func(e term.Env) *nondet.Promise {
 		r.env = &e
 		return nondet.Bool(true)
-	}, r.env).Force()
+	}, r.env).Force(context.Background())
 	if err != nil {
 		return nondet.Error(err)
 	}
@@ -327,7 +328,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	ok, err = Univ(arg, &cons2, func(e term.Env) *nondet.Promise {
 		r.env = &e
 		return nondet.Bool(true)
-	}, r.env).Force()
+	}, r.env).Force(context.Background())
 	if err != nil {
 		return nondet.Error(err)
 	}
@@ -376,7 +377,7 @@ func (vm *VM) execCall(r *registers) *nondet.Promise {
 		return nondet.Bool(false)
 	}
 	r.pc = r.pc[1:]
-	return nondet.Delay(func() *nondet.Promise {
+	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *r.env
 		return vm.arrive(pi, r.astack, func(env term.Env) *nondet.Promise {
 			v := term.NewVariable()
@@ -401,7 +402,7 @@ func (*VM) execExit(r *registers) *nondet.Promise {
 
 func (vm *VM) execCut(r *registers) *nondet.Promise {
 	r.pc = r.pc[1:]
-	return nondet.Cut(nondet.Delay(func() *nondet.Promise {
+	return nondet.Cut(nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *r.env
 		return vm.exec(registers{
 			pc:        r.pc,

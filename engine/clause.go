@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ichiban/prolog/nondet"
@@ -28,10 +29,10 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 	}
 
 	var p *nondet.Promise
-	ks := make([]func() *nondet.Promise, len(cs))
+	ks := make([]func(context.Context) *nondet.Promise, len(cs))
 	for i := range cs {
 		i, c := i, cs[i]
-		ks[i] = func() *nondet.Promise {
+		ks[i] = func(context.Context) *nondet.Promise {
 			if i == 0 {
 				vm.OnCall(c.pi.String(), args, *env)
 			} else {
@@ -41,7 +42,7 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 			for i := range c.vars {
 				vars[i] = term.NewVariable()
 			}
-			return nondet.Delay(func() *nondet.Promise {
+			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := *env
 				return vm.exec(registers{
 					pc:   c.bytecode,
@@ -57,7 +58,7 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 					env:       &env,
 					cutParent: p,
 				})
-			}, func() *nondet.Promise {
+			}, func(context.Context) *nondet.Promise {
 				env := *env
 				vm.OnFail(c.pi.String(), args, env)
 				return nondet.Bool(false)
