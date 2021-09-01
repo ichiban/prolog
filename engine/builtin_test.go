@@ -67,10 +67,7 @@ func TestVM_Call(t *testing.T) {
 		x := term.Variable("X")
 
 		ok, err := vm.Call(x, Success, &env).Force(context.Background())
-		assert.Equal(t, existenceErrorProcedure(&term.Compound{
-			Functor: "/",
-			Args:    []term.Interface{term.Atom("call"), term.Integer(1)},
-		}), err)
+		assert.Equal(t, instantiationError(x), err)
 		assert.False(t, ok)
 	})
 
@@ -1641,12 +1638,24 @@ func TestVM_Assertz(t *testing.T) {
 		var vm VM
 		ok, err := vm.Assertz(&term.Compound{
 			Functor: ":-",
-			Args: []term.Interface{term.Atom("foo"), &term.Compound{
-				Functor: ",",
-				Args:    []term.Interface{term.Atom("true"), term.Integer(0)},
-			}},
+			Args: []term.Interface{
+				term.Atom("foo"),
+				&term.Compound{
+					Functor: ",",
+					Args: []term.Interface{
+						term.Atom("true"),
+						term.Integer(0),
+					},
+				},
+			},
 		}, Success, &env).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(&term.Compound{
+			Functor: ",",
+			Args: []term.Interface{
+				term.Atom("true"),
+				term.Integer(0),
+			},
+		}), err)
 		assert.False(t, ok)
 	})
 
@@ -1811,12 +1820,22 @@ func TestVM_Asserta(t *testing.T) {
 		var vm VM
 		ok, err := vm.Asserta(&term.Compound{
 			Functor: ":-",
-			Args: []term.Interface{term.Atom("foo"), &term.Compound{
-				Functor: ",",
-				Args:    []term.Interface{term.Atom("true"), term.Integer(0)},
-			}},
+			Args: []term.Interface{
+				term.Atom("foo"),
+				&term.Compound{
+					Functor: ",",
+					Args: []term.Interface{
+						term.Atom("true"),
+						term.Integer(0)},
+				},
+			},
 		}, Success, &env).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
+		assert.Equal(t, typeErrorCallable(&term.Compound{
+			Functor: ",",
+			Args: []term.Interface{
+				term.Atom("true"),
+				term.Integer(0)},
+		}), err)
 		assert.False(t, ok)
 	})
 
