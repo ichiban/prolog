@@ -2626,10 +2626,10 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(term.Env) *nondet
 				}))
 			}
 		default:
-			return nondet.Error(domainErrorPrologFlag(flag))
+			return nondet.Error(domainErrorPrologFlag(f))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(flag))
+		return nondet.Error(typeErrorAtom(f))
 	}
 }
 
