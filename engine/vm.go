@@ -60,6 +60,7 @@ type VM struct {
 	operators       term.Operators
 	charConversions map[rune]rune
 	charConvEnabled bool
+	doubleQuotes    term.DoubleQuotes
 
 	// I/O
 	streams       map[term.Interface]*term.Stream
@@ -74,7 +75,7 @@ func (vm *VM) Parser(r io.Reader) *term.Parser {
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return term.NewParser(br, &vm.operators, vm.charConversions)
+	return term.NewParser(br, &vm.operators, vm.charConversions, vm.doubleQuotes)
 }
 
 // SetUserInput sets the given reader as a stream with an alias of user_input.

@@ -134,26 +134,30 @@ const (
 	// TokenSign represents a plus/minus.
 	TokenSign
 
+	// TokenDoubleQuoted represents a double-quoted string.
+	TokenDoubleQuoted
+
 	tokenLen
 )
 
 func (k TokenKind) String() string {
 	return [tokenLen]string{
-		TokenEOS:      "eos",
-		TokenVariable: "variable",
-		TokenFloat:    "float",
-		TokenInteger:  "integer",
-		TokenAtom:     "atom",
-		TokenComma:    "comma",
-		TokenPeriod:   "period",
-		TokenBar:      "bar",
-		TokenParenL:   "paren L",
-		TokenParenR:   "paren R",
-		TokenBracketL: "bracket L",
-		TokenBracketR: "bracket R",
-		TokenBraceL:   "brace L",
-		TokenBraceR:   "brace R",
-		TokenSign:     "sign",
+		TokenEOS:          "eos",
+		TokenVariable:     "variable",
+		TokenFloat:        "float",
+		TokenInteger:      "integer",
+		TokenAtom:         "atom",
+		TokenComma:        "comma",
+		TokenPeriod:       "period",
+		TokenBar:          "bar",
+		TokenParenL:       "paren L",
+		TokenParenR:       "paren R",
+		TokenBracketL:     "bracket L",
+		TokenBracketR:     "bracket R",
+		TokenBraceL:       "brace L",
+		TokenBraceR:       "brace R",
+		TokenSign:         "sign",
+		TokenDoubleQuoted: "double quoted",
 	}[k]
 }
 
@@ -218,6 +222,9 @@ func (l *Lexer) init(r rune) (lexState, error) {
 	case unicode.IsUpper(r), r == '_':
 		l.backup()
 		return l.variable, nil
+	case r == '"':
+		var b strings.Builder
+		return l.doubleQuoted(&b), nil
 	default:
 		l.backup()
 		return l.atom, nil
@@ -849,6 +856,24 @@ func (l *Lexer) multiLineCommentEnd(ctx lexState) (lexState, error) {
 			return l.multiLineCommentBody(ctx)
 		}
 	}, nil
+}
+
+func (l *Lexer) doubleQuoted(b *strings.Builder) func(r rune) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		r = l.conv(r)
+		switch r {
+		case etx:
+			return nil, ErrInsufficient
+		case '"':
+			l.emit(Token{Kind: TokenDoubleQuoted, Val: b.String()})
+			return nil, nil
+		default:
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuoted(b), nil
+		}
+	}
 }
 
 func isGraphic(r rune) bool {

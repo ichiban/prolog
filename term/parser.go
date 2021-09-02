@@ -14,13 +14,14 @@ import (
 
 // Parser turns bytes into Interface.
 type Parser struct {
-	Vars        []VariableWithCount
-	lexer       *syntax.Lexer
-	current     *syntax.Token
-	history     []syntax.Token
-	operators   *Operators
-	placeholder Atom
-	args        []Interface
+	Vars         []VariableWithCount
+	lexer        *syntax.Lexer
+	current      *syntax.Token
+	history      []syntax.Token
+	operators    *Operators
+	placeholder  Atom
+	args         []Interface
+	doubleQuotes DoubleQuotes
 }
 
 type VariableWithCount struct {
@@ -29,13 +30,14 @@ type VariableWithCount struct {
 }
 
 // NewParser creates a Parser.
-func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune) *Parser {
+func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune, doubleQuotes DoubleQuotes) *Parser {
 	if operators == nil {
 		operators = &Operators{}
 	}
 	p := Parser{
-		lexer:     syntax.NewLexer(input, charConversions),
-		operators: operators,
+		lexer:        syntax.NewLexer(input, charConversions),
+		operators:    operators,
+		doubleQuotes: doubleQuotes,
 	}
 	return &p
 }
@@ -315,6 +317,27 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		return n, nil
 	}
 
+	if v, err := p.accept(syntax.TokenDoubleQuoted); err == nil {
+		switch p.doubleQuotes {
+		case DoubleQuotesCodes:
+			var codes []Interface
+			for _, r := range v {
+				codes = append(codes, Integer(r))
+			}
+			return List(codes...), nil
+		case DoubleQuotesChars:
+			var chars []Interface
+			for _, r := range v {
+				chars = append(chars, Atom(r))
+			}
+			return List(chars...), nil
+		case DoubleQuotesAtom:
+			return Atom(v), nil
+		default:
+			return nil, fmt.Errorf("unknown double quote(%d)", p.doubleQuotes)
+		}
+	}
+
 	if a, err := p.acceptAtom(allowComma); err == nil {
 		if _, err := p.accept(syntax.TokenParenL); err != nil {
 			if p.placeholder != "" && p.placeholder == a {
@@ -419,6 +442,23 @@ func (o *Operator) bindingPowers() (int, int) {
 	default:
 		return 0, 0
 	}
+}
+
+type DoubleQuotes int
+
+const (
+	DoubleQuotesCodes DoubleQuotes = iota
+	DoubleQuotesChars
+	DoubleQuotesAtom
+	doubleQuotesLen
+)
+
+func (d DoubleQuotes) String() string {
+	return [doubleQuotesLen]string{
+		DoubleQuotesCodes: "codes",
+		DoubleQuotesChars: "chars",
+		DoubleQuotesAtom:  "atom",
+	}[d]
 }
 
 type UnexpectedTokenError struct {

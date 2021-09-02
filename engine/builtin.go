@@ -1220,7 +1220,7 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(term.E
 		return nondet.Error(errors.New("not a buffered stream"))
 	}
 
-	p := term.NewParser(br, &vm.operators, vm.charConversions)
+	p := vm.Parser(br)
 	t, err := p.Term()
 	if err != nil {
 		var (
@@ -1840,7 +1840,7 @@ func NumberChars(num, chars term.Interface, k func(term.Env) *nondet.Promise, en
 			return nondet.Error(err)
 		}
 
-		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil)
+		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil, term.DoubleQuotesCodes)
 		t, err := p.Number()
 		switch err {
 		case nil:
@@ -1895,7 +1895,7 @@ func NumberCodes(num, codes term.Interface, k func(term.Env) *nondet.Promise, en
 			return nondet.Error(err)
 		}
 
-		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil)
+		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil, term.DoubleQuotesCodes)
 		t, err := p.Number()
 		switch err {
 		case nil:
@@ -2625,6 +2625,33 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(term.Env) *nondet
 					Args:    []term.Interface{f, a},
 				}))
 			}
+		case "double_quotes":
+			switch a := env.Resolve(value).(type) {
+			case term.Variable:
+				return nondet.Error(instantiationError(value))
+			case term.Atom:
+				switch a {
+				case "codes":
+					vm.doubleQuotes = term.DoubleQuotesCodes
+					return k(*env)
+				case "chars":
+					vm.doubleQuotes = term.DoubleQuotesChars
+					return k(*env)
+				case "atom":
+					vm.doubleQuotes = term.DoubleQuotesAtom
+					return k(*env)
+				default:
+					return nondet.Error(domainErrorFlagValue(&term.Compound{
+						Functor: "+",
+						Args:    []term.Interface{f, a},
+					}))
+				}
+			default:
+				return nondet.Error(domainErrorFlagValue(&term.Compound{
+					Functor: "+",
+					Args:    []term.Interface{f, a},
+				}))
+			}
 		default:
 			return nondet.Error(domainErrorPrologFlag(f))
 		}
@@ -2640,13 +2667,13 @@ func (vm *VM) CurrentPrologFlag(flag, value term.Interface, k func(term.Env) *no
 		break
 	case term.Atom:
 		switch f {
-		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "char_conversion", "debug", "max_arity", "unknown":
+		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "char_conversion", "debug", "max_arity", "unknown", "double_quotes":
 			break
 		default:
-			return nondet.Error(domainErrorPrologFlag(flag))
+			return nondet.Error(domainErrorPrologFlag(f))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(flag))
+		return nondet.Error(typeErrorAtom(f))
 	}
 
 	pattern := term.Compound{Args: []term.Interface{flag, value}}
@@ -2659,6 +2686,7 @@ func (vm *VM) CurrentPrologFlag(flag, value term.Interface, k func(term.Env) *no
 		&term.Compound{Args: []term.Interface{term.Atom("debug"), onOff(vm.debug)}},
 		&term.Compound{Args: []term.Interface{term.Atom("max_arity"), term.Atom("unbounded")}},
 		&term.Compound{Args: []term.Interface{term.Atom("unknown"), term.Atom(vm.unknown.String())}},
+		&term.Compound{Args: []term.Interface{term.Atom("double_quotes"), term.Atom(vm.doubleQuotes.String())}},
 	}
 	ks := make([]func(context.Context) *nondet.Promise, len(flags))
 	for i := range flags {
