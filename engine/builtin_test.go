@@ -6386,6 +6386,9 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 			case 7:
 				assert.Equal(t, term.Atom("unknown"), env.Resolve(flag))
 				assert.Equal(t, term.Atom(vm.unknown.String()), env.Resolve(value))
+			case 8:
+				assert.Equal(t, term.Atom("double_quotes"), env.Resolve(flag))
+				assert.Equal(t, term.Atom(vm.doubleQuotes.String()), env.Resolve(value))
 			default:
 				assert.Fail(t, "unreachable")
 			}
@@ -6394,7 +6397,7 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 		}, &env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Equal(t, 8, c)
+		assert.Equal(t, 9, c)
 	})
 
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {

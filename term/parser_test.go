@@ -12,7 +12,7 @@ func TestParser_Term(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(nil,L,L).
-`)), nil, nil)
+`)), nil, nil, DoubleQuotesCodes)
 		c, err := p.Term()
 		assert.NoError(t, err)
 
@@ -33,7 +33,7 @@ append(nil,L,L).
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
-`)), &ops, nil)
+`)), &ops, nil, DoubleQuotesCodes)
 		c, err := p.Term()
 		assert.NoError(t, err)
 
@@ -77,7 +77,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			{Priority: 1200, Specifier: `xfx`, Name: `:-`},
 			{Priority: 1000, Specifier: `xfy`, Name: `,`},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), &ops, nil, DoubleQuotesCodes)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -106,7 +106,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			{Priority: 1000, Specifier: `xfy`, Name: `,`},
 			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), &ops, nil, DoubleQuotesCodes)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -137,7 +137,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			{Priority: 1000, Specifier: `xfy`, Name: `,`},
 			{Priority: 200, Specifier: `xfy`, Name: `^`},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), &ops, nil, DoubleQuotesCodes)
 		c, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -174,7 +174,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			{Priority: 500, Specifier: `yfx`, Name: `+`},
 			{Priority: 400, Specifier: `yfx`, Name: `*`},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)), &ops, nil, DoubleQuotesCodes)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, term, &Compound{
@@ -202,7 +202,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("list", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), nil, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), nil, nil, DoubleQuotesCodes)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, ListRest(Variable("X"), Atom("a"), Atom("b"), Atom("c")), term)
@@ -212,7 +212,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		ops := Operators{
 			{Priority: 400, Specifier: "yfx", Name: "/"},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2.`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2.`)), &ops, nil, DoubleQuotesCodes)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -230,7 +230,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		}
 
 		t.Run("unary", func(t *testing.T) {
-			p := NewParser(bufio.NewReader(strings.NewReader(`p(+).`)), &ops, nil)
+			p := NewParser(bufio.NewReader(strings.NewReader(`p(+).`)), &ops, nil, DoubleQuotesCodes)
 			term, err := p.Term()
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
@@ -242,7 +242,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		})
 
 		t.Run("binary", func(t *testing.T) {
-			p := NewParser(bufio.NewReader(strings.NewReader(`p(+, a).`)), &ops, nil)
+			p := NewParser(bufio.NewReader(strings.NewReader(`p(+, a).`)), &ops, nil, DoubleQuotesCodes)
 			term, err := p.Term()
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
@@ -260,7 +260,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			{Priority: 700, Specifier: `xfx`, Name: `is`},
 			{Priority: 500, Specifier: `yfx`, Name: `+`},
 		}
-		p := NewParser(bufio.NewReader(strings.NewReader(`X is +1 +1.`)), &ops, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`X is +1 +1.`)), &ops, nil, DoubleQuotesCodes)
 		term, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
@@ -277,11 +277,56 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			},
 		}, term)
 	})
+
+	t.Run("double quotes", func(t *testing.T) {
+		ops := Operators{
+			{Priority: 700, Specifier: `xfx`, Name: `=`},
+		}
+
+		t.Run("codes", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`X = "abc".`)), &ops, nil, DoubleQuotesCodes)
+			term, err := p.Term()
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{
+				Functor: "=",
+				Args: []Interface{
+					Variable("X"),
+					List(Integer(97), Integer(98), Integer(99)),
+				},
+			}, term)
+		})
+
+		t.Run("chars", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`X = "abc".`)), &ops, nil, DoubleQuotesChars)
+			term, err := p.Term()
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{
+				Functor: "=",
+				Args: []Interface{
+					Variable("X"),
+					List(Atom("a"), Atom("b"), Atom("c")),
+				},
+			}, term)
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`X = "abc".`)), &ops, nil, DoubleQuotesAtom)
+			term, err := p.Term()
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{
+				Functor: "=",
+				Args: []Interface{
+					Variable("X"),
+					Atom("abc"),
+				},
+			}, term)
+		})
+	})
 }
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil, DoubleQuotesCodes)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Interface{Atom("x")},
@@ -296,12 +341,12 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?].`)), nil, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?].`)), nil, nil, DoubleQuotesCodes)
 		assert.Error(t, p.Replace("?", []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil, DoubleQuotesCodes)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
@@ -309,7 +354,7 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil)
+		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil, nil, DoubleQuotesCodes)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Interface{Atom("x")},
