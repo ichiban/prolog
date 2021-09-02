@@ -675,45 +675,45 @@ func (vm *VM) Retract(t term.Interface, k func(term.Env) *nondet.Promise, env *t
 
 // Abolish removes the procedure indicated by pi from the database.
 func (vm *VM) Abolish(pi term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if _, ok := env.Resolve(pi).(term.Variable); ok {
+	switch pi := env.Resolve(pi).(type) {
+	case term.Variable:
 		return nondet.Error(instantiationError(pi))
-	}
+	case *term.Compound:
+		if pi.Functor != "/" || len(pi.Args) != 2 {
+			return nondet.Error(typeErrorPredicateIndicator(pi))
+		}
 
-	c, ok := env.Resolve(pi).(*term.Compound)
-	if !ok || c.Functor != "/" || len(c.Args) != 2 {
+		name, arity := pi.Args[0], pi.Args[1]
+
+		switch name := env.Resolve(name).(type) {
+		case term.Variable:
+			return nondet.Error(instantiationError(name))
+		case term.Atom:
+			switch arity := env.Resolve(arity).(type) {
+			case term.Variable:
+				return nondet.Error(instantiationError(arity))
+			case term.Integer:
+				if arity < 0 {
+					return nondet.Error(domainErrorNotLessThanZero(arity))
+				}
+				key := procedureIndicator{name: name, arity: arity}
+				if _, ok := vm.procedures[key].(clauses); !ok {
+					return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
+						Functor: "/",
+						Args:    []term.Interface{name, arity},
+					}))
+				}
+				delete(vm.procedures, key)
+				return k(*env)
+			default:
+				return nondet.Error(typeErrorInteger(arity))
+			}
+		default:
+			return nondet.Error(typeErrorAtom(name))
+		}
+	default:
 		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
-
-	if _, ok := env.Resolve(c.Args[0]).(term.Variable); ok {
-		return nondet.Error(instantiationError(c.Args[0]))
-	}
-
-	name, ok := env.Resolve(c.Args[0]).(term.Atom)
-	if !ok {
-		return nondet.Error(typeErrorAtom(c.Args[0]))
-	}
-
-	if _, ok := env.Resolve(c.Args[1]).(term.Variable); ok {
-		return nondet.Error(instantiationError(c.Args[1]))
-	}
-
-	arity, ok := env.Resolve(c.Args[1]).(term.Integer)
-	if !ok {
-		return nondet.Error(typeErrorInteger(c.Args[1]))
-	}
-	if arity < 0 {
-		return nondet.Error(domainErrorNotLessThanZero(c.Args[1]))
-	}
-
-	key := procedureIndicator{name: name, arity: arity}
-	if _, ok := vm.procedures[key].(clauses); !ok {
-		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
-			Functor: "/",
-			Args:    []term.Interface{name, arity},
-		}))
-	}
-	delete(vm.procedures, key)
-	return k(*env)
 }
 
 // CurrentInput unifies stream with the current input stream.
@@ -1744,14 +1744,14 @@ func AtomChars(atom, chars term.Interface, k func(term.Env) *nondet.Promise, env
 				return instantiationError(elem)
 			case term.Atom:
 				if len([]rune(e)) != 1 {
-					return typeErrorCharacter(elem)
+					return typeErrorCharacter(e)
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
 					return systemError(err)
 				}
 				return nil
 			default:
-				return typeErrorCharacter(elem)
+				return typeErrorCharacter(e)
 			}
 		}, *env); err != nil {
 			return nondet.Error(err)
@@ -1771,7 +1771,7 @@ func AtomChars(atom, chars term.Interface, k func(term.Env) *nondet.Promise, env
 			return Unify(chars, term.List(cs...), k, &env)
 		})
 	default:
-		return nondet.Error(typeErrorAtom(atom))
+		return nondet.Error(typeErrorAtom(a))
 	}
 }
 
@@ -2064,7 +2064,7 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 	case term.Variable:
 		return nil, instantiationError(expression)
 	case term.Atom:
-		return nil, typeErrorEvaluable(expression) // TODO: constants?
+		return nil, typeErrorEvaluable(t) // TODO: constants?
 	case term.Integer, term.Float:
 		return t, nil
 	case *term.Compound:
@@ -2072,7 +2072,13 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 		case 1:
 			f, ok := fs.Unary[t.Functor]
 			if !ok {
-				return nil, typeErrorEvaluable(expression)
+				return nil, typeErrorEvaluable(&term.Compound{
+					Functor: "/",
+					Args: []term.Interface{
+						t.Functor,
+						term.Integer(1),
+					},
+				})
 			}
 			x, err := fs.eval(t.Args[0], env)
 			if err != nil {
@@ -2082,7 +2088,13 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 		case 2:
 			f, ok := fs.Binary[t.Functor]
 			if !ok {
-				return nil, typeErrorEvaluable(expression)
+				return nil, typeErrorEvaluable(&term.Compound{
+					Functor: "/",
+					Args: []term.Interface{
+						t.Functor,
+						term.Integer(2),
+					},
+				})
 			}
 			x, err := fs.eval(t.Args[0], env)
 			if err != nil {
@@ -2094,10 +2106,10 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 			}
 			return f(x, y, env)
 		default:
-			return nil, typeErrorEvaluable(expression)
+			return nil, typeErrorEvaluable(t)
 		}
 	default:
-		return nil, typeErrorEvaluable(expression)
+		return nil, typeErrorEvaluable(t)
 	}
 }
 

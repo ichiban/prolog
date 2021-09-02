@@ -9,6 +9,7 @@ import (
 // Exception is an error represented by a prolog term.
 type Exception struct {
 	Term term.Interface
+	Env  term.Env
 }
 
 func (e *Exception) Error() string {

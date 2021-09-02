@@ -331,4 +331,11 @@ studies(alex, physics).
 		assert.NoError(t, err)
 		assert.False(t, sols.Next())
 	})
+
+	t.Run("atom_chars", func(t *testing.T) {
+		i := New(nil, nil)
+		sols, err := i.Query("atom_chars(f(a), L).")
+		assert.NoError(t, err)
+		assert.False(t, sols.Next())
+	})
 }
