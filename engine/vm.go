@@ -209,14 +209,14 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 			return nondet.Error(existenceErrorProcedure(&term.Compound{
 				Functor: "/",
 				Args:    []term.Interface{pi.name, pi.arity},
-			}))
+			}, *env))
 		case unknownWarning:
 			vm.OnUnknown(pi.String(), args, *env)
 			fallthrough
 		case unknownFail:
 			return nondet.Bool(false)
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown)))
+			return nondet.Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown), *env))
 		}
 	}
 
@@ -257,14 +257,14 @@ func (vm *VM) exec(r registers) *nondet.Promise {
 	for len(r.pc) != 0 {
 		op := jumpTable[r.pc[0].opcode]
 		if op == nil {
-			return nondet.Error(systemError(fmt.Errorf("unknown opcode: %d", r.pc[0].opcode)))
+			return nondet.Error(fmt.Errorf("unknown opcode: %d", r.pc[0].opcode))
 		}
 		p := op(&r)
 		if p != nil {
 			return p
 		}
 	}
-	return nondet.Error(systemError(errors.New("non-exit end of bytecode")))
+	return nondet.Error(errors.New("non-exit end of bytecode"))
 }
 
 func (*VM) execVoid(r *registers) *nondet.Promise {
@@ -518,22 +518,22 @@ func Each(list term.Interface, f func(elem term.Interface) error, env term.Env) 
 	for {
 		switch l := env.Resolve(list).(type) {
 		case term.Variable:
-			return instantiationError(whole)
+			return instantiationError(whole, env)
 		case term.Atom:
 			if l != "[]" {
-				return typeErrorList(l)
+				return typeErrorList(l, env)
 			}
 			return nil
 		case *term.Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return typeErrorList(l)
+				return typeErrorList(l, env)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return typeErrorList(l)
+			return typeErrorList(l, env)
 		}
 	}
 }
@@ -550,12 +550,12 @@ func (p *procedureIndicator) String() string {
 func piArgs(t term.Interface, env term.Env) (procedureIndicator, term.Interface, error) {
 	switch f := env.Resolve(t).(type) {
 	case term.Variable:
-		return procedureIndicator{}, nil, instantiationError(t)
+		return procedureIndicator{}, nil, instantiationError(t, env)
 	case term.Atom:
 		return procedureIndicator{name: f, arity: 0}, term.List(), nil
 	case *term.Compound:
 		return procedureIndicator{name: f.Functor, arity: term.Integer(len(f.Args))}, term.List(f.Args...), nil
 	default:
-		return procedureIndicator{}, nil, typeErrorCallable(t)
+		return procedureIndicator{}, nil, typeErrorCallable(t, env)
 	}
 }

@@ -84,7 +84,7 @@ func (c *clause) compile(t term.Interface, env term.Env) error {
 	c.raw = t
 	switch t := t.(type) {
 	case term.Variable:
-		return instantiationError(t)
+		return instantiationError(t, env)
 	case term.Atom:
 		return c.compileClause(t, nil, true, env)
 	case *term.Compound:
@@ -93,23 +93,23 @@ func (c *clause) compile(t term.Interface, env term.Env) error {
 		}
 		return c.compileClause(t, nil, true, env)
 	default:
-		return typeErrorCallable(t)
+		return typeErrorCallable(t, env)
 	}
 }
 
 func (c *clause) compileClause(head term.Interface, body term.Interface, allowVariablePred bool, env term.Env) error {
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
-		return instantiationError(head)
+		return instantiationError(head, env)
 	case term.Atom:
 	case *term.Compound:
 		for _, a := range head.Args {
-			if err := c.compileArg(a); err != nil {
+			if err := c.compileArg(a, env); err != nil {
 				return err
 			}
 		}
 	default:
-		return typeErrorCallable(head)
+		return typeErrorCallable(head, env)
 	}
 	if body != nil {
 		err := c.compileBody(body, allowVariablePred, env)
@@ -117,7 +117,7 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, allowVa
 		case nil:
 			break
 		case errNotCallable:
-			return typeErrorCallable(body)
+			return typeErrorCallable(body, env)
 		default:
 			return err
 		}
@@ -150,7 +150,7 @@ func (c *clause) compilePred(p term.Interface, allowVariablePred bool, env term.
 	switch p := env.Resolve(p).(type) {
 	case term.Variable:
 		if !allowVariablePred {
-			return instantiationError(p)
+			return instantiationError(p, env)
 		}
 		return c.compilePred(&term.Compound{
 			Functor: "call",
@@ -169,7 +169,7 @@ func (c *clause) compilePred(p term.Interface, allowVariablePred bool, env term.
 		return nil
 	case *term.Compound:
 		for _, a := range p.Args {
-			if err := c.compileArg(a); err != nil {
+			if err := c.compileArg(a, env); err != nil {
 				return err
 			}
 		}
@@ -180,7 +180,7 @@ func (c *clause) compilePred(p term.Interface, allowVariablePred bool, env term.
 	}
 }
 
-func (c *clause) compileArg(a term.Interface) error {
+func (c *clause) compileArg(a term.Interface, env term.Env) error {
 	switch a := a.(type) {
 	case term.Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
@@ -189,13 +189,13 @@ func (c *clause) compileArg(a term.Interface) error {
 	case *term.Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))})})
 		for _, n := range a.Args {
-			if err := c.compileArg(n); err != nil {
+			if err := c.compileArg(n, env); err != nil {
 				return err
 			}
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		return systemError(fmt.Errorf("unknown argument: %s", a))
+		return systemError(fmt.Errorf("unknown argument: %s", a), env)
 	}
 	return nil
 }
