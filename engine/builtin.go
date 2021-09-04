@@ -36,21 +36,26 @@ func (vm *VM) Negation(goal term.Interface, k func(term.Env) *nondet.Promise, en
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func (vm *VM) Call(goal term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	var c clause
-	if err := c.compileClause(term.Atom(""), goal, false, *env); err != nil {
-		return nondet.Error(err)
-	}
+	switch g := env.Resolve(goal).(type) {
+	case term.Variable:
+		return nondet.Error(instantiationError(goal, *env))
+	default:
+		var c clause
+		if err := c.compileClause(term.Atom(""), g, *env); err != nil {
+			return nondet.Error(err)
+		}
 
-	return vm.exec(registers{
-		pc:     c.bytecode,
-		xr:     c.xrTable,
-		vars:   c.vars,
-		cont:   k,
-		args:   term.List(),
-		astack: term.List(),
-		pi:     c.piTable,
-		env:    env,
-	})
+		return vm.exec(registers{
+			pc:     c.bytecode,
+			xr:     c.xrTable,
+			vars:   c.vars,
+			cont:   k,
+			args:   term.List(),
+			astack: term.List(),
+			pi:     c.piTable,
+			env:    env,
+		})
+	}
 }
 
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
