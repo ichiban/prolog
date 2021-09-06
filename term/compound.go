@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	"github.com/ichiban/prolog/syntax"
 )
@@ -110,7 +109,8 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error 
 			switch o.Specifier {
 			case `xfx`, `xfy`, `yfx`:
 				var lb, fb, rb bytes.Buffer
-				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
+				lt := env.Resolve(c.Args[0])
+				if err := lt.WriteTerm(&lb, opts, env); err != nil {
 					return err
 				}
 				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
@@ -124,13 +124,13 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error 
 				f := []rune(fb.String())
 				r := []rune(rb.String())
 				switch {
-				case syntax.IsExtendedGraphic(l[len(l)-1]) && syntax.IsExtendedGraphic(f[0]) && syntax.IsExtendedGraphic(f[len(f)-1]) && syntax.IsExtendedGraphic(r[0]):
+				case len(l) > 0 && syntax.IsExtendedGraphic(l[len(l)-1]) && len(f) > 0 && syntax.IsExtendedGraphic(f[0]) && syntax.IsExtendedGraphic(f[len(f)-1]) && len(r) > 0 && syntax.IsExtendedGraphic(r[0]):
 					_, err := fmt.Fprintf(w, "(%s)%s(%s)", string(l), string(f), string(r))
 					return err
-				case syntax.IsExtendedGraphic(l[len(l)-1]) && syntax.IsExtendedGraphic(f[0]):
+				case len(l) > 0 && syntax.IsExtendedGraphic(l[len(l)-1]) && len(f) > 0 && syntax.IsExtendedGraphic(f[0]):
 					_, err := fmt.Fprintf(w, "(%s)%s%s", string(l), string(f), string(r))
 					return err
-				case syntax.IsExtendedGraphic(f[len(f)-1]) && syntax.IsExtendedGraphic(r[0]):
+				case len(f) > 0 && syntax.IsExtendedGraphic(f[len(f)-1]) && len(r) > 0 && syntax.IsExtendedGraphic(r[0]):
 					_, err := fmt.Fprintf(w, "%s%s(%s)", string(l), string(f), string(r))
 					return err
 				default:
@@ -142,18 +142,15 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error 
 	}
 
 	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
-		switch arg := env.Resolve(c.Args[0]).(type) {
+		switch n := env.Resolve(c.Args[0]).(type) {
 		case Integer:
 			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			ls := []rune(letters)
-			var buf strings.Builder
-			for n := int(arg); n > 0; n = n / len(ls) {
-				m := n % len(ls)
-				if _, err := buf.WriteRune(ls[m-1]); err != nil {
-					return err
-				}
+			i, j := int(n)%len(letters), int(n)/len(letters)
+			if j == 0 {
+				_, err := fmt.Fprintf(w, "%s", string(letters[i]))
+				return err
 			}
-			_, err := fmt.Fprint(w, buf.String())
+			_, err := fmt.Fprintf(w, "%s%d", string(letters[i]), j)
 			return err
 		default:
 			return errors.New("not an integer")

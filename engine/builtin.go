@@ -215,7 +215,7 @@ func Univ(t, list term.Interface, k func(term.Env) *nondet.Promise, env *term.En
 			return nondet.Error(typeErrorList(list, *env))
 		}
 
-		f, ok := cons.Args[0].(term.Atom)
+		f, ok := env.Resolve(cons.Args[0]).(term.Atom)
 		if !ok {
 			return nondet.Error(typeErrorAtom(cons.Args[0], *env))
 		}
@@ -585,7 +585,8 @@ func Throw(ball term.Interface, _ func(term.Env) *nondet.Promise, env *term.Env)
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func (vm *VM) Catch(goal, catcher, recover term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		ok, err := vm.Call(goal, Success, env).Force(ctx)
+		env := *env
+		ok, err := vm.Call(goal, k, &env).Force(ctx)
 		if err != nil {
 			if ex, ok := err.(*Exception); ok {
 				env := ex.Env
@@ -597,10 +598,7 @@ func (vm *VM) Catch(goal, catcher, recover term.Interface, k func(term.Env) *non
 			}
 			return nondet.Error(err)
 		}
-		if !ok {
-			return nondet.Bool(false)
-		}
-		return k(*env)
+		return nondet.Bool(ok)
 	})
 }
 
@@ -1107,7 +1105,7 @@ func CharCode(char, code term.Interface, k func(term.Env) *nondet.Promise, env *
 	case term.Atom:
 		rs := []rune(ch)
 		if len(rs) != 1 {
-			return nondet.Error(typeErrorCharacter(char, *env))
+			return nondet.Error(typeErrorCharacter(ch, *env))
 		}
 
 		return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1115,7 +1113,7 @@ func CharCode(char, code term.Interface, k func(term.Env) *nondet.Promise, env *
 			return Unify(code, term.Integer(rs[0]), k, &env)
 		})
 	default:
-		return nondet.Error(typeErrorCharacter(char, *env))
+		return nondet.Error(typeErrorCharacter(ch, *env))
 	}
 }
 

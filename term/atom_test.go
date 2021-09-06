@@ -21,6 +21,7 @@ func TestAtom_String(t *testing.T) {
 	assert.Equal(t, `'\''`, Atom("'").String())
 	assert.Equal(t, `'\"'`, Atom("\"").String())
 	assert.Equal(t, "'\\`'", Atom("`").String())
+	assert.Equal(t, `''`, Atom("").String())
 }
 
 func TestAtom_WriteTerm(t *testing.T) {

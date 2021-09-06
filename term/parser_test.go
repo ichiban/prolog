@@ -24,7 +24,6 @@ append(nil,L,L).
 				Variable("L"),
 			},
 		}, c)
-
 	})
 
 	t.Run("rule", func(t *testing.T) {

@@ -403,7 +403,7 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("failed to parse: %v", p.current)
+	return nil, fmt.Errorf("failed to parse: %v, history=%#v", p.current, p.history)
 }
 
 // More checks if the parser has more tokens to read.

@@ -80,7 +80,7 @@ type clause struct {
 }
 
 func (c *clause) compile(t term.Interface, env term.Env) error {
-	t = env.Resolve(t)
+	t = env.Simplify(t)
 	c.raw = t
 	switch t := t.(type) {
 	case term.Variable:

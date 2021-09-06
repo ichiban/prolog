@@ -135,9 +135,10 @@ func TestCompound_WriteTerm(t *testing.T) {
 		c := Compound{
 			Functor: "f",
 			Args: []Interface{
+				&Compound{Functor: "$VAR", Args: []Interface{Integer(0)}},
 				&Compound{Functor: "$VAR", Args: []Interface{Integer(1)}},
-				&Compound{Functor: "$VAR", Args: []Interface{Integer(2)}},
-				&Compound{Functor: "$VAR", Args: []Interface{Integer(3)}},
+				&Compound{Functor: "$VAR", Args: []Interface{Integer(25)}},
+				&Compound{Functor: "$VAR", Args: []Interface{Integer(26)}},
 				&Compound{Functor: "$VAR", Args: []Interface{Integer(27)}},
 			},
 		}
@@ -145,13 +146,13 @@ func TestCompound_WriteTerm(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var buf bytes.Buffer
 			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: false}, nil))
-			assert.Equal(t, "f($VAR(1), $VAR(2), $VAR(3), $VAR(27))", buf.String())
+			assert.Equal(t, "f($VAR(0), $VAR(1), $VAR(25), $VAR(26), $VAR(27))", buf.String())
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var buf bytes.Buffer
 			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: true}, nil))
-			assert.Equal(t, "f(A, B, C, AA)", buf.String())
+			assert.Equal(t, "f(A, B, Z, A1, B1)", buf.String())
 		})
 	})
 }
