@@ -70,21 +70,37 @@ func main() {
 		}
 	})
 	if verbose {
-		i.OnCall = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("CALL %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
+		i.OnCall = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+			goal := &term.Compound{
+				Functor: pi.Name,
+				Args:    args,
+			}
+			log.Printf("CALL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnExit = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("EXIT %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
+		i.OnExit = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+			goal := &term.Compound{
+				Functor: pi.Name,
+				Args:    args,
+			}
+			log.Printf("EXIT %s", i.DescribeTerm(goal, env))
 		}
-		i.OnFail = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("FAIL %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
+		i.OnFail = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+			goal := &term.Compound{
+				Functor: pi.Name,
+				Args:    args,
+			}
+			log.Printf("FAIL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnRedo = func(pi string, args term.Interface, env term.Env) {
-			log.Printf("REDO %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
+		i.OnRedo = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+			goal := &term.Compound{
+				Functor: pi.Name,
+				Args:    args,
+			}
+			log.Printf("REDO %s", i.DescribeTerm(goal, env))
 		}
 	}
-	i.OnUnknown = func(pi string, args term.Interface, env term.Env) {
-		log.Printf("UNKNOWN %s %s", pi, i.DescribeTerm(env.Resolve(args), env))
+	i.OnUnknown = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+		log.Printf("UNKNOWN %s", pi)
 	}
 	i.Register1("version", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		if !t.Unify(term.Atom(Version), false, env) {

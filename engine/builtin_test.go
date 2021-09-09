@@ -36,7 +36,7 @@ func TestVM_Call(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	vm.procedures = map[procedureIndicator]procedure{{name: "foo", arity: 0}: clauses{}}
+	vm.procedures = map[ProcedureIndicator]procedure{{Name: "foo", Arity: 0}: clauses{}}
 
 	t.Run("defined atom", func(t *testing.T) {
 		env := term.Env{}
@@ -55,7 +55,7 @@ func TestVM_Call(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	vm.procedures = map[procedureIndicator]procedure{{name: "bar", arity: 2}: clauses{}}
+	vm.procedures = map[ProcedureIndicator]procedure{{Name: "bar", Arity: 2}: clauses{}}
 
 	t.Run("defined compound", func(t *testing.T) {
 		ok, err := vm.Call(&term.Compound{Functor: "bar", Args: []term.Interface{term.NewVariable(), term.NewVariable()}}, Success, &term.Env{}).Force(context.Background())
@@ -788,8 +788,8 @@ func TestVM_CurrentOp(t *testing.T) {
 func TestVM_BagOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 3}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 3}: clauses{
 					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opConst, operand: 1},
@@ -952,8 +952,8 @@ func TestVM_BagOf(t *testing.T) {
 func TestSetOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 3}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 3}: clauses{
 					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opConst, operand: 1},
@@ -1375,8 +1375,8 @@ func TestVM_CurrentPredicate(t *testing.T) {
 		env := term.Env{}
 		v := term.Variable("V")
 
-		vm := VM{procedures: map[procedureIndicator]procedure{
-			{name: "=", arity: 2}: nil,
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "=", Arity: 2}: nil,
 		}}
 		ok, err := vm.CurrentPredicate(v, func(env term.Env) *nondet.Promise {
 			assert.Equal(t, &term.Compound{
@@ -1472,9 +1472,9 @@ func TestVM_Assertz(t *testing.T) {
 
 		assert.Equal(t, clauses{
 			{
-				pi: procedureIndicator{
-					name:  "foo",
-					arity: 1,
+				pi: ProcedureIndicator{
+					Name:  "foo",
+					Arity: 1,
 				},
 				raw: &term.Compound{
 					Functor: "foo",
@@ -1487,9 +1487,9 @@ func TestVM_Assertz(t *testing.T) {
 				},
 			},
 			{
-				pi: procedureIndicator{
-					name:  "foo",
-					arity: 1,
+				pi: ProcedureIndicator{
+					Name:  "foo",
+					Arity: 1,
 				},
 				raw: &term.Compound{
 					Functor: "foo",
@@ -1501,9 +1501,9 @@ func TestVM_Assertz(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}, vm.procedures[procedureIndicator{
-			name:  "foo",
-			arity: 1,
+		}, vm.procedures[ProcedureIndicator{
+			Name:  "foo",
+			Arity: 1,
 		}])
 	})
 
@@ -1512,8 +1512,8 @@ func TestVM_Assertz(t *testing.T) {
 
 		var called bool
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "directive", Arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 					called = true
 					return k(*env)
 				}),
@@ -1625,8 +1625,8 @@ func TestVM_Assertz(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "static", Arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 					return k(*env)
 				}),
 			},
@@ -1664,7 +1664,7 @@ func TestVM_Asserta(t *testing.T) {
 
 		assert.Equal(t, clauses{
 			{
-				pi: procedureIndicator{name: "foo", arity: 1},
+				pi: ProcedureIndicator{Name: "foo", Arity: 1},
 				raw: &term.Compound{
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("b")},
@@ -1676,7 +1676,7 @@ func TestVM_Asserta(t *testing.T) {
 				},
 			},
 			{
-				pi: procedureIndicator{name: "foo", arity: 1},
+				pi: ProcedureIndicator{Name: "foo", Arity: 1},
 				raw: &term.Compound{
 					Functor: "foo",
 					Args:    []term.Interface{term.Atom("a")},
@@ -1687,15 +1687,15 @@ func TestVM_Asserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
+		}, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("directive", func(t *testing.T) {
 		env := term.Env{}
 		var called bool
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "directive", arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "directive", Arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 					called = true
 					return k(*env)
 				}),
@@ -1805,8 +1805,8 @@ func TestVM_Asserta(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "static", arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "static", Arity: 0}: predicate0(func(k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 					return k(*env)
 				}),
 			},
@@ -1828,8 +1828,8 @@ func TestVM_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
@@ -1847,14 +1847,14 @@ func TestVM_Retract(t *testing.T) {
 		assert.Equal(t, clauses{
 			{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}},
 			{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
-		}, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
+		}, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
@@ -1872,14 +1872,14 @@ func TestVM_Retract(t *testing.T) {
 		assert.Equal(t, clauses{
 			{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 			{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
-		}, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
+		}, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("retract all", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
@@ -1893,7 +1893,7 @@ func TestVM_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, ok)
 
-		assert.Empty(t, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
+		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -1929,8 +1929,8 @@ func TestVM_Retract(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 0}: predicate0(nil),
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: predicate0(nil),
 			},
 		}
 
@@ -1945,8 +1945,8 @@ func TestVM_Retract(t *testing.T) {
 	t.Run("exception in continuation", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 				},
 			},
@@ -1962,7 +1962,7 @@ func TestVM_Retract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, vm.procedures[procedureIndicator{name: "foo", arity: 1}])
+		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 }
 
@@ -1970,8 +1970,8 @@ func TestVM_Abolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("a")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("b")}}},
 					{raw: &term.Compound{Functor: "foo", Args: []term.Interface{term.Atom("c")}}},
@@ -1986,7 +1986,7 @@ func TestVM_Abolish(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.procedures[procedureIndicator{name: "foo", arity: 1}]
+		_, ok = vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}]
 		assert.False(t, ok)
 	})
 
@@ -2072,8 +2072,8 @@ func TestVM_Abolish(t *testing.T) {
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		env := term.Env{}
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "foo", arity: 0}: predicate0(nil),
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: predicate0(nil),
 			},
 		}
 		ok, err := vm.Abolish(&term.Compound{
@@ -3671,6 +3671,7 @@ foo(c).
 			ok, err := vm.ReadTerm(&term.Stream{Source: &mockReader{}}, term.NewVariable(), options, Success, &env).Force(context.Background())
 			assert.False(t, ok)
 			ex, ok := err.(*Exception)
+			assert.True(t, ok)
 			assert.Equal(t, instantiationError(options, env).Term, ex.Term)
 		})
 
@@ -4510,8 +4511,8 @@ func TestVM_Clause(t *testing.T) {
 		var c int
 
 		vm := VM{
-			procedures: map[procedureIndicator]procedure{
-				{name: "green", arity: 1}: clauses{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "green", Arity: 1}: clauses{
 					{raw: &term.Compound{
 						Functor: ":-", Args: []term.Interface{
 							&term.Compound{Functor: "green", Args: []term.Interface{x}},

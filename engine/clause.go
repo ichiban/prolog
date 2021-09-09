@@ -11,22 +11,22 @@ import (
 
 type clauses []clause
 
-func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (cs clauses) Call(vm *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	if len(cs) == 0 {
 		return nondet.Bool(false)
 	}
 
 	if vm.OnCall == nil {
-		vm.OnCall = func(pi string, args term.Interface, env term.Env) {}
+		vm.OnCall = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
 	}
 	if vm.OnExit == nil {
-		vm.OnExit = func(pi string, args term.Interface, env term.Env) {}
+		vm.OnExit = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
 	}
 	if vm.OnFail == nil {
-		vm.OnFail = func(pi string, args term.Interface, env term.Env) {}
+		vm.OnFail = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
 	}
 	if vm.OnRedo == nil {
-		vm.OnRedo = func(pi string, args term.Interface, env term.Env) {}
+		vm.OnRedo = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
 	}
 
 	var p *nondet.Promise
@@ -35,9 +35,9 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 		i, c := i, cs[i]
 		ks[i] = func(context.Context) *nondet.Promise {
 			if i == 0 {
-				vm.OnCall(c.pi.String(), args, *env)
+				vm.OnCall(c.pi, args, *env)
 			} else {
-				vm.OnRedo(c.pi.String(), args, *env)
+				vm.OnRedo(c.pi, args, *env)
 			}
 			vars := make([]term.Variable, len(c.vars))
 			for i := range c.vars {
@@ -50,10 +50,10 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 					xr:   c.xrTable,
 					vars: vars,
 					cont: func(env term.Env) *nondet.Promise {
-						vm.OnExit(c.pi.String(), args, env)
+						vm.OnExit(c.pi, args, env)
 						return k(env)
 					},
-					args:      args,
+					args:      term.List(args...),
 					astack:    term.List(),
 					pi:        c.piTable,
 					env:       &env,
@@ -61,7 +61,7 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 				})
 			}, func(context.Context) *nondet.Promise {
 				env := *env
-				vm.OnFail(c.pi.String(), args, env)
+				vm.OnFail(c.pi, args, env)
 				return nondet.Bool(false)
 			})
 		}
@@ -71,10 +71,10 @@ func (cs clauses) Call(vm *VM, args term.Interface, k func(term.Env) *nondet.Pro
 }
 
 type clause struct {
-	pi       procedureIndicator
+	pi       ProcedureIndicator
 	raw      term.Interface
 	xrTable  []term.Interface
-	piTable  []procedureIndicator
+	piTable  []ProcedureIndicator
 	vars     []term.Variable
 	bytecode bytecode
 }
@@ -162,7 +162,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 			c.bytecode = append(c.bytecode, instruction{opcode: opRepeat})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p, arity: 0})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p, Arity: 0})})
 		return nil
 	case *term.Compound:
 		for _, a := range p.Args {
@@ -170,7 +170,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 				return err
 			}
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(procedureIndicator{name: p.Functor, arity: term.Integer(len(p.Args))})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor, Arity: term.Integer(len(p.Args))})})
 		return nil
 	default:
 		return errNotCallable
@@ -184,7 +184,7 @@ func (c *clause) compileArg(a term.Interface, env term.Env) error {
 	case term.Float, term.Integer, term.Atom:
 		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *term.Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(procedureIndicator{name: a.Functor, arity: term.Integer(len(a.Args))})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: term.Integer(len(a.Args))})})
 		for _, n := range a.Args {
 			if err := c.compileArg(n, env); err != nil {
 				return err
@@ -218,7 +218,7 @@ func (c *clause) varOffset(o term.Variable) byte {
 	return byte(len(c.vars) - 1)
 }
 
-func (c *clause) piOffset(o procedureIndicator) byte {
+func (c *clause) piOffset(o ProcedureIndicator) byte {
 	for i, r := range c.piTable {
 		if r == o {
 			return byte(i)

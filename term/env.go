@@ -9,13 +9,20 @@ type Binding struct {
 	// attributes?
 }
 
+var (
+	Hit  = 0
+	Miss = 0
+)
+
 func (e Env) Lookup(v Variable) (Interface, bool) {
 	for i := len(e) - 1; i >= 0; i-- {
 		b := e[i]
 		if b.Variable == v {
+			Hit++
 			return b.Value, true
 		}
 	}
+	Miss++
 	return nil, false
 }
 

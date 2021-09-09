@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sync/atomic"
 )
 
 // Variable is a prolog variable.
 type Variable string
 
-var varCounter = 0
+var varCounter uint64
 
 func NewVariable() Variable {
-	varCounter++
+	atomic.AddUint64(&varCounter, 1)
 	return Variable(fmt.Sprintf("_%d", varCounter))
 }
 

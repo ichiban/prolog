@@ -38,22 +38,22 @@ const (
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 	// OnCall is a callback that is triggered when the VM reaches to the predicate.
-	OnCall func(pi string, args term.Interface, env term.Env)
+	OnCall func(pi ProcedureIndicator, args []term.Interface, env term.Env)
 
 	// OnExit is a callback that is triggered when the predicate succeeds and the VM continues.
-	OnExit func(pi string, args term.Interface, env term.Env)
+	OnExit func(pi ProcedureIndicator, args []term.Interface, env term.Env)
 
 	// OnFail is a callback that is triggered when the predicate fails and the VM backtracks.
-	OnFail func(pi string, args term.Interface, env term.Env)
+	OnFail func(pi ProcedureIndicator, args []term.Interface, env term.Env)
 
 	// OnRedo is a callback that is triggered when the VM retries the predicate as a result of backtrack.
-	OnRedo func(pi string, args term.Interface, env term.Env)
+	OnRedo func(pi ProcedureIndicator, args []term.Interface, env term.Env)
 
 	// OnUnknown is a callback that is triggered when the VM reaches to an unknown predicate and also current_prolog_flag(unknown, warning).
-	OnUnknown func(pi string, args term.Interface, env term.Env)
+	OnUnknown func(pi ProcedureIndicator, args []term.Interface, env term.Env)
 
 	// Core
-	procedures map[procedureIndicator]procedure
+	procedures map[ProcedureIndicator]procedure
 	unknown    unknownAction
 
 	// Internal/external expression
@@ -127,49 +127,49 @@ func (vm *VM) DescribeTerm(t term.Interface, env term.Env) string {
 // Register0 registers a predicate of arity 0.
 func (vm *VM) Register0(name string, p func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 0}] = predicate0(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 0}] = predicate0(p)
 }
 
 // Register1 registers a predicate of arity 1.
 func (vm *VM) Register1(name string, p func(term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 1}] = predicate1(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 1}] = predicate1(p)
 }
 
 // Register2 registers a predicate of arity 2.
 func (vm *VM) Register2(name string, p func(term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 2}] = predicate2(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 2}] = predicate2(p)
 }
 
 // Register3 registers a predicate of arity 3.
 func (vm *VM) Register3(name string, p func(term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 3}] = predicate3(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 3}] = predicate3(p)
 }
 
 // Register4 registers a predicate of arity 4.
 func (vm *VM) Register4(name string, p func(term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 4}] = predicate4(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 4}] = predicate4(p)
 }
 
 // Register5 registers a predicate of arity 5.
 func (vm *VM) Register5(name string, p func(term.Interface, term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[procedureIndicator{name: term.Atom(name), arity: 5}] = predicate5(p)
+	vm.procedures[ProcedureIndicator{Name: term.Atom(name), Arity: 5}] = predicate5(p)
 }
 
 type unknownAction int
@@ -194,12 +194,12 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	Call(*VM, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
+	Call(*VM, []term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 }
 
-func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (vm *VM) arrive(pi ProcedureIndicator, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	if vm.OnUnknown == nil {
-		vm.OnUnknown = func(string, term.Interface, term.Env) {}
+		vm.OnUnknown = func(ProcedureIndicator, []term.Interface, term.Env) {}
 	}
 
 	p := vm.procedures[pi]
@@ -208,10 +208,10 @@ func (vm *VM) arrive(pi procedureIndicator, args term.Interface, k func(term.Env
 		case unknownError:
 			return nondet.Error(existenceErrorProcedure(&term.Compound{
 				Functor: "/",
-				Args:    []term.Interface{pi.name, pi.arity},
+				Args:    []term.Interface{pi.Name, pi.Arity},
 			}, *env))
 		case unknownWarning:
-			vm.OnUnknown(pi.String(), args, *env)
+			vm.OnUnknown(pi, args, *env)
 			fallthrough
 		case unknownFail:
 			return nondet.Bool(false)
@@ -233,7 +233,7 @@ type registers struct {
 	cont         func(term.Env) *nondet.Promise
 	args, astack term.Interface
 
-	pi        []procedureIndicator
+	pi        []ProcedureIndicator
 	env       *term.Env
 	cutParent *nondet.Promise
 }
@@ -312,7 +312,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	if !r.args.Unify(&cons1, false, r.env) {
 		return nondet.Bool(false)
 	}
-	ok, err := Functor(arg, pi.name, pi.arity, func(e term.Env) *nondet.Promise {
+	ok, err := Functor(arg, pi.Name, pi.Arity, func(e term.Env) *nondet.Promise {
 		r.env = &e
 		return nondet.Bool(true)
 	}, r.env).Force(context.Background())
@@ -326,7 +326,7 @@ func (*VM) execFunctor(r *registers) *nondet.Promise {
 	r.args = term.NewVariable()
 	cons2 := term.Compound{
 		Functor: ".",
-		Args:    []term.Interface{pi.name, r.args},
+		Args:    []term.Interface{pi.Name, r.args},
 	}
 	ok, err = Univ(arg, &cons2, func(e term.Env) *nondet.Promise {
 		r.env = &e
@@ -382,7 +382,11 @@ func (vm *VM) execCall(r *registers) *nondet.Promise {
 	r.pc = r.pc[1:]
 	return nondet.Delay(func(context.Context) *nondet.Promise {
 		env := *r.env
-		return vm.arrive(pi, r.astack, func(env term.Env) *nondet.Promise {
+		args, err := Slice(r.astack, env)
+		if err != nil {
+			return nondet.Error(err)
+		}
+		return vm.arrive(pi, args, func(env term.Env) *nondet.Promise {
 			v := term.NewVariable()
 			return vm.exec(registers{
 				pc:        r.pc,
@@ -441,8 +445,8 @@ func (vm *VM) execRepeat(r *registers) *nondet.Promise {
 
 type predicate0 func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate0) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if !args.Unify(term.List(), false, env) {
+func (p predicate0) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 0 {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
@@ -451,57 +455,52 @@ func (p predicate0) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Pr
 
 type predicate1 func(term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate1) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	v1 := term.NewVariable()
-	if !args.Unify(term.List(v1), false, env) {
+func (p predicate1) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 1 {
 		return nondet.Error(fmt.Errorf("wrong number of arguments: %s", args))
 	}
 
-	return p(v1, k, env)
+	return p(args[0], k, env)
 }
 
 type predicate2 func(term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate2) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	v1, v2 := term.NewVariable(), term.NewVariable()
-	if !args.Unify(term.List(v1, v2), false, env) {
+func (p predicate2) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 2 {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(v1, v2, k, env)
+	return p(args[0], args[1], k, env)
 }
 
 type predicate3 func(term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate3) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	v1, v2, v3 := term.NewVariable(), term.NewVariable(), term.NewVariable()
-	if !args.Unify(term.List(v1, v2, v3), false, env) {
+func (p predicate3) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 3 {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(v1, v2, v3, k, env)
+	return p(args[0], args[1], args[2], k, env)
 }
 
 type predicate4 func(term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate4) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	v1, v2, v3, v4 := term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable()
-	if !args.Unify(term.List(v1, v2, v3, v4), false, env) {
+func (p predicate4) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 4 {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(v1, v2, v3, v4, k, env)
+	return p(args[0], args[1], args[2], args[3], k, env)
 }
 
 type predicate5 func(term.Interface, term.Interface, term.Interface, term.Interface, term.Interface, func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
-func (p predicate5) Call(_ *VM, args term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	v1, v2, v3, v4, v5 := term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable(), term.NewVariable()
-	if !args.Unify(term.List(v1, v2, v3, v4, v5), false, env) {
+func (p predicate5) Call(_ *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if len(args) != 5 {
 		return nondet.Error(errors.New("wrong number of arguments"))
 	}
 
-	return p(v1, v2, v3, v4, v5, k, env)
+	return p(args[0], args[1], args[2], args[3], args[4], k, env)
 }
 
 func Success(_ term.Env) *nondet.Promise {
@@ -538,24 +537,36 @@ func Each(list term.Interface, f func(elem term.Interface) error, env term.Env) 
 	}
 }
 
-type procedureIndicator struct {
-	name  term.Atom
-	arity term.Integer
+func Slice(list term.Interface, env term.Env) ([]term.Interface, error) {
+	var ret []term.Interface
+	if err := Each(list, func(elem term.Interface) error {
+		ret = append(ret, env.Resolve(elem))
+		return nil
+	}, env); err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
-func (p *procedureIndicator) String() string {
-	return fmt.Sprintf("%s/%d", p.name, p.arity)
+// ProcedureIndicator identifies procedure e.g. (=)/2.
+type ProcedureIndicator struct {
+	Name  term.Atom
+	Arity term.Integer
 }
 
-func piArgs(t term.Interface, env term.Env) (procedureIndicator, term.Interface, error) {
+func (p *ProcedureIndicator) String() string {
+	return fmt.Sprintf("%s/%d", p.Name, p.Arity)
+}
+
+func piArgs(t term.Interface, env term.Env) (ProcedureIndicator, []term.Interface, error) {
 	switch f := env.Resolve(t).(type) {
 	case term.Variable:
-		return procedureIndicator{}, nil, instantiationError(t, env)
+		return ProcedureIndicator{}, nil, instantiationError(t, env)
 	case term.Atom:
-		return procedureIndicator{name: f, arity: 0}, term.List(), nil
+		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
 	case *term.Compound:
-		return procedureIndicator{name: f.Functor, arity: term.Integer(len(f.Args))}, term.List(f.Args...), nil
+		return ProcedureIndicator{Name: f.Functor, Arity: term.Integer(len(f.Args))}, f.Args, nil
 	default:
-		return procedureIndicator{}, nil, typeErrorCallable(t, env)
+		return ProcedureIndicator{}, nil, typeErrorCallable(t, env)
 	}
 }

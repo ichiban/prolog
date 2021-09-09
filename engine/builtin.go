@@ -404,8 +404,8 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 	}
 
 	switch pi {
-	case procedureIndicator{name: ":-", arity: 1}: // directive
-		name, args, err := piArgs(args.(*term.Compound).Args[0], *env)
+	case ProcedureIndicator{Name: ":-", Arity: 1}: // directive
+		name, args, err := piArgs(args[0], *env)
 		if err != nil {
 			return nondet.Error(err)
 		}
@@ -413,15 +413,15 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 			env := *env
 			return vm.arrive(name, args, k, &env)
 		})
-	case procedureIndicator{name: ":-", arity: 2}:
-		pi, _, err = piArgs(args.(*term.Compound).Args[0], *env)
+	case ProcedureIndicator{Name: ":-", Arity: 2}:
+		pi, _, err = piArgs(args[0], *env)
 		if err != nil {
 			return nondet.Error(err)
 		}
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
 	p, ok := vm.procedures[pi]
 	if !ok {
@@ -432,7 +432,7 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 	if !ok {
 		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
-			Args:    []term.Interface{pi.name, pi.arity},
+			Args:    []term.Interface{pi.Name, pi.Arity},
 		}, *env))
 	}
 	c := clause{pi: pi}
@@ -623,7 +623,7 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(term.Env) *nondet.Promi
 
 	ks := make([]func(context.Context) *nondet.Promise, 0, len(vm.procedures))
 	for key := range vm.procedures {
-		c := term.Compound{Functor: "/", Args: []term.Interface{key.name, key.arity}}
+		c := term.Compound{Functor: "/", Args: []term.Interface{key.Name, key.Arity}}
 		ks = append(ks, func(context.Context) *nondet.Promise {
 			env := *env
 			return Unify(pi, &c, k, &env)
@@ -651,7 +651,7 @@ func (vm *VM) Retract(t term.Interface, k func(term.Env) *nondet.Promise, env *t
 	if !ok {
 		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
-			Args:    []term.Interface{pi.name, pi.arity},
+			Args:    []term.Interface{pi.Name, pi.Arity},
 		}, *env))
 	}
 
@@ -707,7 +707,7 @@ func (vm *VM) Abolish(pi term.Interface, k func(term.Env) *nondet.Promise, env *
 				if arity < 0 {
 					return nondet.Error(domainErrorNotLessThanZero(arity, *env))
 				}
-				key := procedureIndicator{name: name, arity: arity}
+				key := ProcedureIndicator{Name: name, Arity: arity}
 				if _, ok := vm.procedures[key].(clauses); !ok {
 					return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
 						Functor: "/",
@@ -2762,7 +2762,7 @@ func (vm *VM) Dynamic(pi term.Interface, k func(term.Env) *nondet.Promise, env *
 			case term.Variable:
 				return nondet.Error(instantiationError(pi, *env))
 			case term.Integer:
-				pi := procedureIndicator{name: f, arity: a}
+				pi := ProcedureIndicator{Name: f, Arity: a}
 				p, ok := vm.procedures[pi]
 				if !ok {
 					vm.procedures[pi] = clauses{}
