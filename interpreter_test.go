@@ -326,10 +326,38 @@ studies(alex, physics).
 	})
 
 	t.Run("repeat", func(t *testing.T) {
-		i := New(nil, nil)
-		sols, err := i.Query("repeat, !, fail.")
-		assert.NoError(t, err)
-		assert.False(t, sols.Next())
+		t.Run("cut", func(t *testing.T) {
+			i := New(nil, nil)
+			sols, err := i.Query("repeat, !, fail.")
+			assert.NoError(t, err)
+			assert.False(t, sols.Next())
+		})
+
+		t.Run("stream", func(t *testing.T) {
+			i := New(nil, nil)
+			sols, err := i.Query("repeat, (X = a; X = b).")
+			assert.NoError(t, err)
+
+			var s struct {
+				X string
+			}
+
+			assert.True(t, sols.Next())
+			assert.NoError(t, sols.Scan(&s))
+			assert.Equal(t, "a", s.X)
+
+			assert.True(t, sols.Next())
+			assert.NoError(t, sols.Scan(&s))
+			assert.Equal(t, "b", s.X)
+
+			assert.True(t, sols.Next())
+			assert.NoError(t, sols.Scan(&s))
+			assert.Equal(t, "a", s.X)
+
+			assert.True(t, sols.Next())
+			assert.NoError(t, sols.Scan(&s))
+			assert.Equal(t, "b", s.X)
+		})
 	})
 
 	t.Run("atom_chars", func(t *testing.T) {

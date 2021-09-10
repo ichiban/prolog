@@ -427,7 +427,7 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 
 func (vm *VM) execRepeat(r *registers) *nondet.Promise {
 	r.pc = r.pc[1:]
-	return nondet.Repeat(nondet.Delay(func(context.Context) *nondet.Promise {
+	return nondet.Repeat(func(context.Context) *nondet.Promise {
 		env := *r.env
 		return vm.exec(registers{
 			pc:        r.pc,
@@ -440,7 +440,7 @@ func (vm *VM) execRepeat(r *registers) *nondet.Promise {
 			env:       &env,
 			cutParent: r.cutParent,
 		})
-	}))
+	})
 }
 
 type predicate0 func(func(term.Env) *nondet.Promise, *term.Env) *nondet.Promise

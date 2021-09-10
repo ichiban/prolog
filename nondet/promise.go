@@ -42,14 +42,10 @@ func Cut(p, parent *Promise) *Promise {
 	}
 }
 
-func Repeat(p *Promise) *Promise {
+func Repeat(k func(context.Context) *Promise) *Promise {
 	return &Promise{
-		delayed: []func(context.Context) *Promise{
-			func(context.Context) *Promise {
-				return p
-			},
-		},
-		repeat: true,
+		delayed: []func(context.Context) *Promise{k},
+		repeat:  true,
 	}
 }
 
