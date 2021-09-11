@@ -40,21 +40,37 @@ func (vm *VM) Call(goal term.Interface, k func(term.Env) *nondet.Promise, env *t
 	case term.Variable:
 		return nondet.Error(instantiationError(goal, *env))
 	default:
-		var c clause
-		if err := c.compileClause(term.Atom(""), g, *env); err != nil {
+		cs, err := compile(&term.Compound{
+			Functor: ":-",
+			Args: []term.Interface{
+				term.Atom(""),
+				g,
+			},
+		}, *env)
+		if err != nil {
 			return nondet.Error(err)
 		}
 
-		return vm.exec(registers{
-			pc:     c.bytecode,
-			xr:     c.xrTable,
-			vars:   c.vars,
-			cont:   k,
-			args:   term.List(),
-			astack: term.List(),
-			pi:     c.piTable,
-			env:    env,
-		})
+		var p *nondet.Promise
+		ks := make([]func(ctx context.Context) *nondet.Promise, len(cs))
+		for i := range cs {
+			c := cs[i]
+			ks[i] = func(context.Context) *nondet.Promise {
+				return vm.exec(registers{
+					pc:        c.bytecode,
+					xr:        c.xrTable,
+					vars:      c.vars,
+					cont:      k,
+					args:      term.List(),
+					astack:    term.List(),
+					pi:        c.piTable,
+					env:       env,
+					cutParent: p,
+				})
+			}
+		}
+		p = nondet.Delay(ks...)
+		return p
 	}
 }
 
@@ -385,19 +401,19 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(ter
 
 // Assertz appends t to the database.
 func (vm *VM) Assertz(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return vm.assert(t, k, func(cs clauses, c clause) clauses {
-		return append(cs, c)
+	return vm.assert(t, k, func(existing clauses, new clauses) clauses {
+		return append(existing, new...)
 	}, env)
 }
 
 // Asserta prepends t to the database.
 func (vm *VM) Asserta(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return vm.assert(t, k, func(cs clauses, c clause) clauses {
-		return append(clauses{c}, cs...)
+	return vm.assert(t, k, func(existing clauses, new clauses) clauses {
+		return append(new, existing...)
 	}, env)
 }
 
-func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge func(clauses, clause) clauses, env *term.Env) *nondet.Promise {
+func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge func(clauses, clauses) clauses, env *term.Env) *nondet.Promise {
 	pi, args, err := piArgs(t, *env)
 	if err != nil {
 		return nondet.Error(err)
@@ -428,19 +444,20 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 		p = clauses{}
 	}
 
-	cs, ok := p.(clauses)
+	existing, ok := p.(clauses)
 	if !ok {
 		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
 			Functor: "/",
 			Args:    []term.Interface{pi.Name, pi.Arity},
 		}, *env))
 	}
-	c := clause{pi: pi}
-	if err := c.compile(t, *env); err != nil {
+
+	added, err := compile(t, *env)
+	if err != nil {
 		return nondet.Error(err)
 	}
 
-	vm.procedures[pi] = merge(cs, c)
+	vm.procedures[pi] = merge(existing, added)
 	return k(*env)
 }
 

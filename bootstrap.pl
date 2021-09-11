@@ -57,9 +57,8 @@ _ -> _; Else :- !, Else.
 If -> Then :- If, !, Then.
 
 % conjunction/disjunction
-P, Q :- P, Q.
-P; Q :- P.
-P; Q :- Q.
+P, Q :- call((P, Q)).
+P; Q :- call((P; Q)).
 
 % cut
 ! :- !.

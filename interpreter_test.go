@@ -323,6 +323,26 @@ studies(alex, physics).
 				assert.False(t, sols.Next())
 			})
 		})
+
+		t.Run("call/1 makes a difference", func(t *testing.T) {
+			t.Run("with", func(t *testing.T) {
+				i := New(nil, nil)
+				sols, err := i.Query(`call(!), fail; true.`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				assert.True(t, sols.Next())
+			})
+
+			t.Run("without", func(t *testing.T) {
+				i := New(nil, nil)
+				sols, err := i.Query(`!, fail; true.`)
+				assert.NoError(t, err)
+				defer sols.Close()
+
+				assert.False(t, sols.Next())
+			})
+		})
 	})
 
 	t.Run("repeat", func(t *testing.T) {

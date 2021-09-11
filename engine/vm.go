@@ -239,9 +239,6 @@ type registers struct {
 }
 
 func (vm *VM) exec(r registers) *nondet.Promise {
-	if r.cutParent == nil {
-		r.cutParent = &nondet.Promise{}
-	}
 	jumpTable := [256]func(r *registers) *nondet.Promise{
 		opVoid:    vm.execVoid,
 		opConst:   vm.execConst,
@@ -409,7 +406,7 @@ func (*VM) execExit(r *registers) *nondet.Promise {
 
 func (vm *VM) execCut(r *registers) *nondet.Promise {
 	r.pc = r.pc[1:]
-	return nondet.Cut(nondet.Delay(func(context.Context) *nondet.Promise {
+	return nondet.Cut(r.cutParent, func(context.Context) *nondet.Promise {
 		env := *r.env
 		return vm.exec(registers{
 			pc:        r.pc,
@@ -422,7 +419,7 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 			env:       &env,
 			cutParent: r.cutParent,
 		})
-	}), r.cutParent)
+	})
 }
 
 func (vm *VM) execRepeat(r *registers) *nondet.Promise {
@@ -554,7 +551,7 @@ type ProcedureIndicator struct {
 	Arity term.Integer
 }
 
-func (p *ProcedureIndicator) String() string {
+func (p ProcedureIndicator) String() string {
 	return fmt.Sprintf("%s/%d", p.Name, p.Arity)
 }
 

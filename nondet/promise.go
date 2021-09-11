@@ -28,16 +28,19 @@ func Bool(ok bool) *Promise {
 
 // Error returns a promise that simply returns false, err.
 func Error(err error) *Promise {
-	return &Promise{err: err}
+	return &Promise{
+		err: err,
+	}
 }
 
-func Cut(p, parent *Promise) *Promise {
+var dummyCutParent Promise
+
+func Cut(parent *Promise, k func(context.Context) *Promise) *Promise {
+	if parent == nil {
+		parent = &dummyCutParent
+	}
 	return &Promise{
-		delayed: []func(context.Context) *Promise{
-			func(context.Context) *Promise {
-				return p
-			},
-		},
+		delayed:   []func(context.Context) *Promise{k},
 		cutParent: parent,
 	}
 }
@@ -96,6 +99,6 @@ type promiseStack []*Promise
 
 func (s *promiseStack) pop() *Promise {
 	var p *Promise
-	p, *s, (*s)[len(*s)-1] = (*s)[len(*s)-1], (*s)[:len(*s)-1], &Promise{}
+	p, *s, (*s)[len(*s)-1] = (*s)[len(*s)-1], (*s)[:len(*s)-1], nil
 	return p
 }

@@ -79,37 +79,82 @@ type clause struct {
 	bytecode bytecode
 }
 
-func (c *clause) compile(t term.Interface, env term.Env) error {
+func compile(t term.Interface, env term.Env) ([]clause, error) {
 	t = env.Simplify(t)
-	c.raw = t
 	switch t := t.(type) {
 	case term.Variable:
-		return instantiationError(t, env)
+		return nil, instantiationError(t, env)
 	case term.Atom:
-		return c.compileClause(t, nil, env)
+		c, err := compileClause(t, nil, env)
+		if err != nil {
+			return nil, err
+		}
+		c.raw = t
+		return []clause{c}, nil
 	case *term.Compound:
 		if t.Functor == ":-" {
-			return c.compileClause(t.Args[0], t.Args[1], env)
+			var cs []clause
+			head, body := env.Resolve(t.Args[0]), env.Resolve(t.Args[1])
+			for {
+				b, ok := body.(*term.Compound)
+				if !ok {
+					break
+				}
+
+				if b.Functor != ";" || len(b.Args) != 2 {
+					break
+				}
+
+				// if-then-else construct
+				if if_, ok := b.Args[0].(*term.Compound); ok && if_.Functor == "->" && len(if_.Args) == 2 {
+					break
+				}
+
+				c, err := compileClause(head, b.Args[0], env)
+				if err != nil {
+					return nil, err
+				}
+				cs = append(cs, c)
+
+				body = env.Resolve(b.Args[1])
+			}
+
+			c, err := compileClause(head, body, env)
+			if err != nil {
+				return nil, err
+			}
+			c.raw = t
+			cs = append(cs, c)
+
+			return cs, nil
 		}
-		return c.compileClause(t, nil, env)
+		c, err := compileClause(t, nil, env)
+		if err != nil {
+			return nil, err
+		}
+		c.raw = t
+		return []clause{c}, nil
 	default:
-		return typeErrorCallable(t, env)
+		return nil, typeErrorCallable(t, env)
 	}
 }
 
-func (c *clause) compileClause(head term.Interface, body term.Interface, env term.Env) error {
+func compileClause(head term.Interface, body term.Interface, env term.Env) (clause, error) {
+	var c clause
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
-		return instantiationError(head, env)
+		return c, instantiationError(head, env)
 	case term.Atom:
+		c.pi = ProcedureIndicator{Name: head, Arity: 0}
 	case *term.Compound:
+		c.pi = ProcedureIndicator{Name: head.Functor, Arity: term.Integer(len(head.Args))}
 		for _, a := range head.Args {
 			if err := c.compileArg(a, env); err != nil {
-				return err
+				return c, err
 			}
 		}
 	default:
-		return typeErrorCallable(head, env)
+		return c, typeErrorCallable(head, env)
 	}
 	if body != nil {
 		err := c.compileBody(body, env)
@@ -117,13 +162,13 @@ func (c *clause) compileClause(head term.Interface, body term.Interface, env ter
 		case nil:
 			break
 		case errNotCallable:
-			return typeErrorCallable(body, env)
+			return c, typeErrorCallable(body, env)
 		default:
-			return err
+			return c, err
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})
-	return nil
+	return c, nil
 }
 
 func (c *clause) compileBody(body term.Interface, env term.Env) error {
@@ -181,7 +226,7 @@ func (c *clause) compileArg(a term.Interface, env term.Env) error {
 	switch a := a.(type) {
 	case term.Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
-	case term.Float, term.Integer, term.Atom:
+	case term.Float, term.Integer, term.Atom, *term.Stream:
 		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *term.Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: term.Integer(len(a.Args))})})
