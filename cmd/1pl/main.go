@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 
 	"github.com/ichiban/prolog/syntax"
 
@@ -31,11 +30,9 @@ var Version = "1pl/0.1"
 
 func main() {
 	var verbose, debug bool
-	var timeout time.Duration
 	var cd string
 	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
 	pflag.BoolVarP(&debug, "debug", "d", false, `debug`)
-	pflag.DurationVarP(&timeout, "timeout", "t", 10*time.Second, `timeout`)
 	pflag.StringVarP(&cd, "cd", "c", "", `cd`)
 	pflag.Parse()
 
@@ -126,13 +123,13 @@ func main() {
 	var buf strings.Builder
 	keys := bufio.NewReader(os.Stdin)
 	for {
-		if err := handleLine(ctx, &buf, i, t, keys, timeout); err != nil {
+		if err := handleLine(ctx, &buf, i, t, keys); err != nil {
 			log.Panic(err)
 		}
 	}
 }
 
-func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader, timeout time.Duration) error {
+func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) error {
 	if buf.Len() == 0 {
 		t.SetPrompt("?- ")
 	} else {
@@ -152,12 +149,6 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		log.Printf("failed to buffer: %v", err)
 		buf.Reset()
 		return nil
-	}
-
-	if timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
 	}
 
 	c := 0
