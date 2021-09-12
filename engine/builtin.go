@@ -446,10 +446,7 @@ func (vm *VM) assert(t term.Interface, k func(term.Env) *nondet.Promise, merge f
 
 	existing, ok := p.(clauses)
 	if !ok {
-		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
-			Functor: "/",
-			Args:    []term.Interface{pi.Name, pi.Arity},
-		}, *env))
+		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term(), *env))
 	}
 
 	added, err := compile(t, *env)
@@ -640,10 +637,10 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(term.Env) *nondet.Promi
 
 	ks := make([]func(context.Context) *nondet.Promise, 0, len(vm.procedures))
 	for key := range vm.procedures {
-		c := term.Compound{Functor: "/", Args: []term.Interface{key.Name, key.Arity}}
+		c := key.Term()
 		ks = append(ks, func(context.Context) *nondet.Promise {
 			env := *env
-			return Unify(pi, &c, k, &env)
+			return Unify(pi, c, k, &env)
 		})
 	}
 	return nondet.Delay(ks...)
@@ -666,10 +663,7 @@ func (vm *VM) Retract(t term.Interface, k func(term.Env) *nondet.Promise, env *t
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
-			Functor: "/",
-			Args:    []term.Interface{pi.Name, pi.Arity},
-		}, *env))
+		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term(), *env))
 	}
 
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {

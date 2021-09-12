@@ -206,10 +206,7 @@ func (vm *VM) arrive(pi ProcedureIndicator, args []term.Interface, k func(term.E
 	if p == nil {
 		switch vm.unknown {
 		case unknownError:
-			return nondet.Error(existenceErrorProcedure(&term.Compound{
-				Functor: "/",
-				Args:    []term.Interface{pi.Name, pi.Arity},
-			}, *env))
+			return nondet.Error(existenceErrorProcedure(pi.Term(), *env))
 		case unknownWarning:
 			vm.OnUnknown(pi, args, *env)
 			fallthrough
@@ -553,6 +550,32 @@ type ProcedureIndicator struct {
 
 func (p ProcedureIndicator) String() string {
 	return fmt.Sprintf("%s/%d", p.Name, p.Arity)
+}
+
+// Term returns p as term.
+func (p ProcedureIndicator) Term() term.Interface {
+	return &term.Compound{
+		Functor: "/",
+		Args: []term.Interface{
+			p.Name,
+			p.Arity,
+		},
+	}
+}
+
+// Apply applies p to args.
+func (p ProcedureIndicator) Apply(args []term.Interface) (term.Interface, error) {
+	switch p.Arity {
+	case 0:
+		return p.Name, nil
+	case term.Integer(len(args)):
+		return &term.Compound{
+			Functor: p.Name,
+			Args:    args,
+		}, nil
+	default:
+		return nil, errors.New("wrong number of arguments")
+	}
 }
 
 func piArgs(t term.Interface, env term.Env) (ProcedureIndicator, []term.Interface, error) {

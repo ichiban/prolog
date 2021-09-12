@@ -71,30 +71,30 @@ func main() {
 	})
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
-			goal := &term.Compound{
-				Functor: pi.Name,
-				Args:    args,
+			goal, err := pi.Apply(args)
+			if err != nil {
+				log.Print(err)
 			}
 			log.Printf("CALL %s", i.DescribeTerm(goal, env))
 		}
 		i.OnExit = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
-			goal := &term.Compound{
-				Functor: pi.Name,
-				Args:    args,
+			goal, err := pi.Apply(args)
+			if err != nil {
+				log.Print(err)
 			}
 			log.Printf("EXIT %s", i.DescribeTerm(goal, env))
 		}
 		i.OnFail = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
-			goal := &term.Compound{
-				Functor: pi.Name,
-				Args:    args,
+			goal, err := pi.Apply(args)
+			if err != nil {
+				log.Print(err)
 			}
 			log.Printf("FAIL %s", i.DescribeTerm(goal, env))
 		}
 		i.OnRedo = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
-			goal := &term.Compound{
-				Functor: pi.Name,
-				Args:    args,
+			goal, err := pi.Apply(args)
+			if err != nil {
+				log.Print(err)
 			}
 			log.Printf("REDO %s", i.DescribeTerm(goal, env))
 		}
