@@ -21,7 +21,7 @@ var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
 // WriteTerm writes the atom into w.
-func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ Env) error {
+func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ *Env) error {
 	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
 		_, err := fmt.Fprint(w, string(a))
 		return err
@@ -65,13 +65,13 @@ func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ Env) error {
 }
 
 // Unify unifies the atom with t.
-func (a Atom) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Atom:
-		return a == t
+		return env, a == t
 	case Variable:
 		return t.Unify(a, occursCheck, env)
 	default:
-		return false
+		return env, false
 	}
 }

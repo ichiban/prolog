@@ -17,19 +17,19 @@ func (i Integer) String() string {
 }
 
 // WriteTerm writes the integer into w.
-func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
+func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
 	return err
 }
 
 // Unify unifies the integer with t.
-func (i Integer) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (i Integer) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Integer:
-		return i == t
+		return env, i == t
 	case Variable:
 		return t.Unify(i, occursCheck, env)
 	default:
-		return false
+		return env, false
 	}
 }

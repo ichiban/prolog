@@ -13,7 +13,7 @@ func main() {
 	p := prolog.New(nil, nil)
 
 	// Define a custom predicate of arity 2.
-	p.Register2("get_status", func(url, status term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	p.Register2("get_status", func(url, status term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		// Check if the input arguments are of the types you expected.
 		u, ok := env.Resolve(url).(term.Atom)
 		if !ok {
@@ -27,15 +27,17 @@ func main() {
 		}
 
 		// Return values by unification with the output arguments.
-		if !status.Unify(term.Integer(resp.StatusCode), false, env) {
+		env, ok = status.Unify(term.Integer(resp.StatusCode), false, env)
+		if !ok {
 			return nondet.Bool(false)
 		}
 
 		// Tell Prolog to continue with the given continuation and environment.
-		return k(*env)
+		return k(env)
 	})
 
-	sols, err := p.Query(`get_status('https://httpbin.org/status/200', Status).`)
+	// Query with the custom predicate get_status/2 but parameterize the first argument.
+	sols, err := p.Query(`get_status(?, Status).`, "https://httpbin.org/status/200")
 	if err != nil {
 		panic(err)
 	}

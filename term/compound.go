@@ -23,7 +23,7 @@ func (c *Compound) String() string {
 }
 
 // WriteTerm writes the compound into w.
-func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
+func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
 	if c.Functor == "." && len(c.Args) == 2 { // list
 		if _, err := fmt.Fprint(w, "["); err != nil {
 			return err
@@ -179,25 +179,27 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error 
 }
 
 // Unify unifies the compound with t.
-func (c *Compound) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (c *Compound) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case *Compound:
 		if c.Functor != t.Functor {
-			return false
+			return env, false
 		}
 		if len(c.Args) != len(t.Args) {
-			return false
+			return env, false
 		}
+		var ok bool
 		for i := range c.Args {
-			if !c.Args[i].Unify(t.Args[i], occursCheck, env) {
-				return false
+			env, ok = c.Args[i].Unify(t.Args[i], occursCheck, env)
+			if !ok {
+				return env, false
 			}
 		}
-		return true
+		return env, true
 	case Variable:
 		return t.Unify(c, occursCheck, env)
 	default:
-		return false
+		return env, false
 	}
 }
 

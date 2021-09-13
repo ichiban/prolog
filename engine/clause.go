@@ -11,22 +11,22 @@ import (
 
 type clauses []clause
 
-func (cs clauses) Call(vm *VM, args []term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (cs clauses) Call(vm *VM, args []term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	if len(cs) == 0 {
 		return nondet.Bool(false)
 	}
 
 	if vm.OnCall == nil {
-		vm.OnCall = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
+		vm.OnCall = func(pi ProcedureIndicator, args []term.Interface, env *term.Env) {}
 	}
 	if vm.OnExit == nil {
-		vm.OnExit = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
+		vm.OnExit = func(pi ProcedureIndicator, args []term.Interface, env *term.Env) {}
 	}
 	if vm.OnFail == nil {
-		vm.OnFail = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
+		vm.OnFail = func(pi ProcedureIndicator, args []term.Interface, env *term.Env) {}
 	}
 	if vm.OnRedo == nil {
-		vm.OnRedo = func(pi ProcedureIndicator, args []term.Interface, env term.Env) {}
+		vm.OnRedo = func(pi ProcedureIndicator, args []term.Interface, env *term.Env) {}
 	}
 
 	var p *nondet.Promise
@@ -35,32 +35,32 @@ func (cs clauses) Call(vm *VM, args []term.Interface, k func(term.Env) *nondet.P
 		i, c := i, cs[i]
 		ks[i] = func(context.Context) *nondet.Promise {
 			if i == 0 {
-				vm.OnCall(c.pi, args, *env)
+				vm.OnCall(c.pi, args, env)
 			} else {
-				vm.OnRedo(c.pi, args, *env)
+				vm.OnRedo(c.pi, args, env)
 			}
 			vars := make([]term.Variable, len(c.vars))
 			for i := range c.vars {
 				vars[i] = term.NewVariable()
 			}
 			return nondet.Delay(func(context.Context) *nondet.Promise {
-				env := *env
+				env := env
 				return vm.exec(registers{
 					pc:   c.bytecode,
 					xr:   c.xrTable,
 					vars: vars,
-					cont: func(env term.Env) *nondet.Promise {
+					cont: func(env *term.Env) *nondet.Promise {
 						vm.OnExit(c.pi, args, env)
 						return k(env)
 					},
 					args:      term.List(args...),
 					astack:    term.List(),
 					pi:        c.piTable,
-					env:       &env,
+					env:       env,
 					cutParent: p,
 				})
 			}, func(context.Context) *nondet.Promise {
-				env := *env
+				env := env
 				vm.OnFail(c.pi, args, env)
 				return nondet.Bool(false)
 			})
@@ -79,7 +79,7 @@ type clause struct {
 	bytecode bytecode
 }
 
-func compile(t term.Interface, env term.Env) ([]clause, error) {
+func compile(t term.Interface, env *term.Env) ([]clause, error) {
 	t = env.Simplify(t)
 	switch t := t.(type) {
 	case term.Variable:
@@ -139,7 +139,7 @@ func compile(t term.Interface, env term.Env) ([]clause, error) {
 	}
 }
 
-func compileClause(head term.Interface, body term.Interface, env term.Env) (clause, error) {
+func compileClause(head term.Interface, body term.Interface, env *term.Env) (clause, error) {
 	var c clause
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
@@ -171,7 +171,7 @@ func compileClause(head term.Interface, body term.Interface, env term.Env) (clau
 	return c, nil
 }
 
-func (c *clause) compileBody(body term.Interface, env term.Env) error {
+func (c *clause) compileBody(body term.Interface, env *term.Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 	for {
 		p, ok := env.Resolve(body).(*term.Compound)
@@ -191,7 +191,7 @@ func (c *clause) compileBody(body term.Interface, env term.Env) error {
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(p term.Interface, env term.Env) error {
+func (c *clause) compilePred(p term.Interface, env *term.Env) error {
 	switch p := env.Resolve(p).(type) {
 	case term.Variable:
 		return c.compilePred(&term.Compound{
@@ -222,7 +222,7 @@ func (c *clause) compilePred(p term.Interface, env term.Env) error {
 	}
 }
 
-func (c *clause) compileArg(a term.Interface, env term.Env) error {
+func (c *clause) compileArg(a term.Interface, env *term.Env) error {
 	switch a := a.(type) {
 	case term.Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
@@ -243,9 +243,8 @@ func (c *clause) compileArg(a term.Interface, env term.Env) error {
 }
 
 func (c *clause) xrOffset(o term.Interface) byte {
-	env := term.Env{}
 	for i, r := range c.xrTable {
-		if r.Unify(o, false, &env) {
+		if _, ok := r.Unify(o, false, nil); ok {
 			return byte(i)
 		}
 	}

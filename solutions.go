@@ -13,10 +13,10 @@ import (
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	env  term.Env
+	env  *term.Env
 	vars []term.Variable
 	more chan<- bool
-	next <-chan term.Env
+	next <-chan *term.Env
 	err  error
 }
 
@@ -30,8 +30,9 @@ func (s *Solutions) Close() error {
 // or false if there's no further solutions or if there's an error.
 func (s *Solutions) Next() bool {
 	s.more <- true
-	s.env = <-s.next
-	return s.env != nil
+	var ok bool
+	s.env, ok = <-s.next
+	return ok
 }
 
 // Scan copies the variable values of the current solution into the specified struct/map.
@@ -91,7 +92,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t term.Interface, typ reflect.Type, env term.Env) (reflect.Value, error) {
+func convert(t term.Interface, typ reflect.Type, env *term.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*term.Interface)(nil)).Elem():
 		return reflect.ValueOf(t), nil

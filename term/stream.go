@@ -49,7 +49,7 @@ func (s *Stream) String() string {
 }
 
 // WriteTerm writes the stream into w.
-func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
+func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	if s.Alias != "" {
 		_, err := fmt.Fprintf(w, "<stream>(%s)", s.Alias)
 		return err
@@ -59,13 +59,13 @@ func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 }
 
 // Unify unifies the stream with t.
-func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case *Stream:
-		return s == t
+		return env, s == t
 	case Variable:
 		return t.Unify(s, occursCheck, env)
 	default:
-		return false
+		return env, false
 	}
 }

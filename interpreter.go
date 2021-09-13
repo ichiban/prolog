@@ -102,7 +102,6 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
-	env := term.Env{}
 	p := i.Parser(strings.NewReader(query))
 	if err := p.Replace("?", args...); err != nil {
 		return err
@@ -113,7 +112,7 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 
-		if _, err := i.Assertz(t, engine.Success, &env).Force(ctx); err != nil {
+		if _, err := i.Assertz(t, engine.Success, nil).Force(ctx); err != nil {
 			return err
 		}
 	}
@@ -136,10 +135,10 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		return nil, err
 	}
 
-	env := term.Env{}
+	var env *term.Env
 
 	more := make(chan bool, 1)
-	next := make(chan term.Env)
+	next := make(chan *term.Env)
 	sols := Solutions{
 		vars: env.FreeVariables(t),
 		more: more,
@@ -151,10 +150,10 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env term.Env) *nondet.Promise {
+		if _, err := i.Call(t, func(env *term.Env) *nondet.Promise {
 			next <- env
 			return nondet.Bool(!<-more)
-		}, &env).Force(ctx); err != nil {
+		}, env).Force(ctx); err != nil {
 			sols.err = err
 		}
 	}()

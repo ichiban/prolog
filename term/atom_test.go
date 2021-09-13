@@ -58,51 +58,52 @@ func TestAtom_Unify(t *testing.T) {
 	unit := Atom("foo")
 
 	t.Run("atom", func(t *testing.T) {
-		env := Env{}
-		assert.True(t, unit.Unify(Atom("foo"), false, &env))
-		assert.False(t, unit.Unify(Atom("bar"), false, &env))
+		env, ok := unit.Unify(Atom("foo"), false, nil)
+		assert.True(t, ok)
+		assert.Nil(t, env)
+
+		env, ok = unit.Unify(Atom("bar"), false, env)
+		assert.False(t, ok)
+		assert.Nil(t, env)
 	})
 
 	t.Run("integer", func(t *testing.T) {
-		env := Env{}
-		assert.False(t, unit.Unify(Integer(1), false, &env))
+		env, ok := unit.Unify(Integer(1), false, nil)
+		assert.False(t, ok)
+		assert.Nil(t, env)
 	})
 
 	t.Run("variable", func(t *testing.T) {
 		t.Run("free", func(t *testing.T) {
-			env := Env{}
 			v := Variable("X")
-			assert.True(t, unit.Unify(v, false, &env))
+
+			env, ok := unit.Unify(v, false, nil)
+			assert.True(t, ok)
 			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to the same value", func(t *testing.T) {
 			v := Variable("X")
-			env := Env{
-				{
-					Variable: v,
-					Value:    unit,
-				},
-			}
-			assert.True(t, unit.Unify(v, false, &env))
+			env := NewEnv().
+				Bind(v, unit)
+			env, ok := unit.Unify(v, false, env)
+			assert.True(t, ok)
 			assert.Equal(t, unit, env.Resolve(v))
 		})
 		t.Run("bound to a different value", func(t *testing.T) {
 			v := Variable("X")
-			env := Env{
-				{
-					Variable: v,
-					Value:    Atom("bar"),
-				},
-			}
-			assert.False(t, unit.Unify(v, false, &env))
+			env := NewEnv().
+				Bind(v, Atom("bar"))
+			env, ok := unit.Unify(v, false, env)
+			assert.False(t, ok)
 		})
 	})
 
 	t.Run("compound", func(t *testing.T) {
-		env := Env{}
-		assert.False(t, unit.Unify(&Compound{
+		env, ok := unit.Unify(&Compound{
 			Functor: "foo",
 			Args:    []Interface{Atom("foo")},
-		}, false, &env))
+		}, false, nil)
+		assert.False(t, ok)
+		assert.Nil(t, env)
 	})
 }

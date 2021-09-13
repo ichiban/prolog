@@ -9,8 +9,8 @@ import (
 // Interface is a prolog term.
 type Interface interface {
 	fmt.Stringer
-	WriteTerm(io.Writer, WriteTermOptions, Env) error
-	Unify(Interface, bool, *Env) bool
+	WriteTerm(io.Writer, WriteTermOptions, *Env) error
+	Unify(Interface, bool, *Env) (*Env, bool)
 }
 
 // Contains checks if t contains s.
@@ -41,7 +41,7 @@ func Contains(t, s Interface, env *Env) bool {
 }
 
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Interface, env Env) Interface {
+func Rulify(t Interface, env *Env) Interface {
 	t = env.Resolve(t)
 	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
 		return t

@@ -31,7 +31,7 @@ func (v Variable) String() string {
 }
 
 // WriteTerm writes the variable into w.
-func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
+func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
 	ref, ok := env.Lookup(v)
 	if ok && opts.Descriptive {
 		if v != "" {
@@ -46,7 +46,7 @@ func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env Env) error {
 }
 
 // Unify unifies the variable with t.
-func (v Variable) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (v Variable) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	r, t := env.Resolve(v), env.Resolve(t)
 	v, ok := r.(Variable)
 	if !ok {
@@ -54,11 +54,10 @@ func (v Variable) Unify(t Interface, occursCheck bool, env *Env) bool {
 	}
 	switch {
 	case v == t:
-		return true
+		return env, true
 	case occursCheck && Contains(t, v, env):
-		return false
+		return env, false
 	default:
-		*env = append(*env, Binding{Variable: v, Value: t})
-		return true
+		return env.Bind(v, t), true
 	}
 }

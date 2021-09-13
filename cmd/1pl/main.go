@@ -51,44 +51,44 @@ func main() {
 	log.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.Register1("halt", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	i.Register1("halt", func(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		restore()
 		return engine.Halt(t, k, env)
 	})
-	i.Register1("cd", func(dir term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	i.Register1("cd", func(dir term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 		switch dir := env.Resolve(dir).(type) {
 		case term.Atom:
 			if err := os.Chdir(string(dir)); err != nil {
 				return nondet.Error(err)
 			}
-			return k(*env)
+			return k(env)
 		default:
 			return nondet.Error(errors.New("not a dir"))
 		}
 	})
 	if verbose {
-		i.OnCall = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+		i.OnCall = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("CALL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnExit = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+		i.OnExit = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("EXIT %s", i.DescribeTerm(goal, env))
 		}
-		i.OnFail = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+		i.OnFail = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("FAIL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnRedo = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+		i.OnRedo = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
@@ -96,14 +96,15 @@ func main() {
 			log.Printf("REDO %s", i.DescribeTerm(goal, env))
 		}
 	}
-	i.OnUnknown = func(pi engine.ProcedureIndicator, args []term.Interface, env term.Env) {
+	i.OnUnknown = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
 		log.Printf("UNKNOWN %s", pi)
 	}
-	i.Register1("version", func(t term.Interface, k func(term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-		if !t.Unify(term.Atom(Version), false, env) {
+	i.Register1("version", func(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+		env, ok := t.Unify(term.Atom(Version), false, env)
+		if !ok {
 			return nondet.Bool(false)
 		}
-		return k(*env)
+		return k(env)
 	})
 
 	for _, a := range pflag.Args() {

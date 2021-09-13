@@ -18,7 +18,7 @@ func (f Float) String() string {
 }
 
 // WriteTerm writes the float into w.
-func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
+func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
 	if !strings.ContainsRune(s, '.') {
 		s += ".0"
@@ -28,13 +28,13 @@ func (f Float) WriteTerm(w io.Writer, _ WriteTermOptions, _ Env) error {
 }
 
 // Unify unifies the float with t.
-func (f Float) Unify(t Interface, occursCheck bool, env *Env) bool {
+func (f Float) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Float:
-		return f == t
+		return env, f == t
 	case Variable:
 		return t.Unify(f, occursCheck, env)
 	default:
-		return false
+		return env, false
 	}
 }
