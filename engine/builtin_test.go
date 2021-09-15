@@ -348,6 +348,22 @@ func TestFunctor(t *testing.T) {
 			assert.False(t, ok)
 		})
 
+		t.Run("name is not atomic", func(t *testing.T) {
+			ok, err := Functor(term.NewVariable(), &term.Compound{
+				Functor: "foo",
+				Args: []term.Interface{
+					term.Atom("a"),
+				},
+			}, term.Integer(1), Success, nil).Force(context.Background())
+			assert.Equal(t, typeErrorAtomic(&term.Compound{
+				Functor: "foo",
+				Args: []term.Interface{
+					term.Atom("a"),
+				},
+			}, nil), err)
+			assert.False(t, ok)
+		})
+
 		t.Run("name is not an atom", func(t *testing.T) {
 			ok, err := Functor(term.NewVariable(), term.Integer(0), term.Integer(2), Success, nil).Force(context.Background())
 			assert.Equal(t, typeErrorAtom(term.Integer(0), nil), err)

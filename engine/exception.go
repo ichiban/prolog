@@ -81,6 +81,10 @@ func typeErrorCompound(culprit term.Interface, env *term.Env) *Exception {
 	return typeError(term.Atom("compound"), culprit, term.Atom(fmt.Sprintf("%s is not a compound.", culprit)), env)
 }
 
+func typeErrorAtomic(culprit term.Interface, env *term.Env) *Exception {
+	return typeError(term.Atom("atomic"), culprit, term.Atom(fmt.Sprintf("%s is not atomic.", culprit)), env)
+}
+
 func typeError(validType, culprit, info term.Interface, env *term.Env) *Exception {
 	return &Exception{
 		Term: &term.Compound{

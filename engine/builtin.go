@@ -151,6 +151,8 @@ func Functor(t, name, arity term.Interface, k func(*term.Env) *nondet.Promise, e
 			switch name := env.Resolve(name).(type) {
 			case term.Variable:
 				return nondet.Error(instantiationError(name, env))
+			case *term.Compound:
+				return nondet.Error(typeErrorAtomic(name, env))
 			case term.Atom:
 				vs := make([]term.Interface, arity)
 				for i := range vs {

@@ -93,7 +93,7 @@ func TestAtom_Unify(t *testing.T) {
 			v := Variable("X")
 			env := NewEnv().
 				Bind(v, Atom("bar"))
-			env, ok := unit.Unify(v, false, env)
+			_, ok := unit.Unify(v, false, env)
 			assert.False(t, ok)
 		})
 	})
