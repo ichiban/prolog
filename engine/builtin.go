@@ -40,10 +40,15 @@ func (vm *VM) Call(goal term.Interface, k func(*term.Env) *nondet.Promise, env *
 	case term.Variable:
 		return nondet.Error(instantiationError(goal, env))
 	default:
+		fvs := env.FreeVariables(g)
+		args := make([]term.Interface, len(fvs))
+		for i, fv := range fvs {
+			args[i] = fv
+		}
 		cs, err := compile(&term.Compound{
 			Functor: ":-",
 			Args: []term.Interface{
-				term.Atom(""),
+				&term.Compound{Args: args},
 				g,
 			},
 		}, env)
@@ -51,26 +56,7 @@ func (vm *VM) Call(goal term.Interface, k func(*term.Env) *nondet.Promise, env *
 			return nondet.Error(err)
 		}
 
-		var p *nondet.Promise
-		ks := make([]func(ctx context.Context) *nondet.Promise, len(cs))
-		for i := range cs {
-			c := cs[i]
-			ks[i] = func(context.Context) *nondet.Promise {
-				return vm.exec(registers{
-					pc:        c.bytecode,
-					xr:        c.xrTable,
-					vars:      c.vars,
-					cont:      k,
-					args:      term.List(),
-					astack:    term.List(),
-					pi:        c.piTable,
-					env:       env,
-					cutParent: p,
-				})
-			}
-		}
-		p = nondet.Delay(ks...)
-		return p
+		return cs.Call(vm, args, k, env)
 	}
 }
 

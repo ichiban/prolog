@@ -181,11 +181,8 @@ func (e *Env) FreeVariables(ts ...Interface) []Variable {
 }
 
 func (e *Env) appendFreeVariables(fvs []Variable, t Interface) []Variable {
-	switch t := t.(type) {
+	switch t := e.Resolve(t).(type) {
 	case Variable:
-		if ref, ok := e.Lookup(t); ok {
-			return e.appendFreeVariables(fvs, ref)
-		}
 		for _, v := range fvs {
 			if v == t {
 				return fvs

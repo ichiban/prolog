@@ -33,7 +33,24 @@ const (
 
 	opCut
 	opRepeat
+
+	_opLen
 )
+
+func (o opcode) String() string {
+	return [_opLen]string{
+		opVoid:    "void",
+		opEnter:   "enter",
+		opCall:    "call",
+		opExit:    "exit",
+		opConst:   "const",
+		opVar:     "var",
+		opFunctor: "functor",
+		opPop:     "pop",
+		opCut:     "cut",
+		opRepeat:  "repeat",
+	}[o]
+}
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {

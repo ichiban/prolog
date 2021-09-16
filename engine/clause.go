@@ -40,7 +40,7 @@ func (cs clauses) Call(vm *VM, args []term.Interface, k func(*term.Env) *nondet.
 				vm.OnRedo(c.pi, args, env)
 			}
 			vars := make([]term.Variable, len(c.vars))
-			for i := range c.vars {
+			for i := range vars {
 				vars[i] = term.NewVariable()
 			}
 			return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -79,7 +79,7 @@ type clause struct {
 	bytecode bytecode
 }
 
-func compile(t term.Interface, env *term.Env) ([]clause, error) {
+func compile(t term.Interface, env *term.Env) (clauses, error) {
 	t = env.Simplify(t)
 	switch t := t.(type) {
 	case term.Variable:
