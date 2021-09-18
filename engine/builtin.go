@@ -174,37 +174,29 @@ func Functor(t, name, arity term.Interface, k func(*term.Env) *nondet.Promise, e
 
 // Arg extracts nth argument of term as arg, or finds the argument position of arg in term as nth.
 func Arg(nth, t, arg term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	c, ok := env.Resolve(t).(*term.Compound)
-	if !ok {
-		return nondet.Error(typeErrorCompound(t, env))
-	}
-
-	switch n := env.Resolve(nth).(type) {
+	switch c := env.Resolve(t).(type) {
 	case term.Variable:
-		pattern := term.Compound{Args: []term.Interface{n, arg}}
-		ks := make([]func(context.Context) *nondet.Promise, len(c.Args))
-		for i := range c.Args {
-			n := term.Integer(i + 1)
-			arg := c.Args[i]
-			ks[i] = func(context.Context) *nondet.Promise {
-				env := env
-				return Unify(&pattern, &term.Compound{Args: []term.Interface{n, arg}}, k, env)
+		return nondet.Error(instantiationError(t, env))
+	case *term.Compound:
+		switch n := env.Resolve(nth).(type) {
+		case term.Variable:
+			return nondet.Error(instantiationError(nth, env))
+		case term.Integer:
+			if n == 0 || int(n) >= len(c.Args) {
+				return nondet.Bool(false)
 			}
+			if n < 0 {
+				return nondet.Error(domainErrorNotLessThanZero(n, env))
+			}
+			return nondet.Delay(func(context.Context) *nondet.Promise {
+				env := env
+				return Unify(arg, c.Args[int(n)-1], k, env)
+			})
+		default:
+			return nondet.Error(typeErrorInteger(n, env))
 		}
-		return nondet.Delay(ks...)
-	case term.Integer:
-		if n == 0 || int(n) >= len(c.Args) {
-			return nondet.Bool(false)
-		}
-		if n < 0 {
-			return nondet.Error(domainErrorNotLessThanZero(n, env))
-		}
-		return nondet.Delay(func(context.Context) *nondet.Promise {
-			env := env
-			return Unify(arg, c.Args[int(n)-1], k, env)
-		})
 	default:
-		return nondet.Error(typeErrorInteger(n, env))
+		return nondet.Error(typeErrorCompound(t, env))
 	}
 }
 

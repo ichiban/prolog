@@ -392,6 +392,13 @@ func TestFunctor(t *testing.T) {
 }
 
 func TestArg(t *testing.T) {
+	t.Run("term is a variable", func(t *testing.T) {
+		v := term.NewVariable()
+		ok, err := Arg(term.NewVariable(), v, term.NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, instantiationError(v, nil), err)
+		assert.False(t, ok)
+	})
+
 	t.Run("term is not a compound", func(t *testing.T) {
 		ok, err := Arg(term.NewVariable(), term.Atom("foo"), term.NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, typeErrorCompound(term.Atom("foo"), nil), err)
@@ -399,27 +406,12 @@ func TestArg(t *testing.T) {
 	})
 
 	t.Run("nth is a variable", func(t *testing.T) {
-		var (
-			nth = term.NewVariable()
-			c   int
-		)
-		ok, err := Arg(nth, &term.Compound{
+		nth := term.NewVariable()
+		_, err := Arg(nth, &term.Compound{
 			Functor: "f",
 			Args:    []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("a")},
-		}, term.Atom("a"), func(env *term.Env) *nondet.Promise {
-			switch c {
-			case 0:
-				assert.Equal(t, term.Integer(1), env.Resolve(nth))
-			case 1:
-				assert.Equal(t, term.Integer(3), env.Resolve(nth))
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			c++
-			return nondet.Bool(false)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
+		}, term.Atom("a"), Success, nil).Force(context.Background())
+		assert.Equal(t, instantiationError(nth, nil), err)
 	})
 
 	t.Run("nth is an integer", func(t *testing.T) {
