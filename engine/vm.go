@@ -87,12 +87,16 @@ type VM struct {
 	debug bool
 }
 
-func (vm *VM) Parser(r io.Reader) *term.Parser {
+func (vm *VM) Parser(r io.Reader, vars *[]term.ParsedVariable) *term.Parser {
 	br, ok := r.(*bufio.Reader)
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return term.NewParser(br, &vm.operators, vm.charConversions, vm.doubleQuotes)
+	return term.NewParser(br, vm.charConversions,
+		term.WithOperators(&vm.operators),
+		term.WithDoubleQuotes(vm.doubleQuotes),
+		term.WithParsedVars(vars),
+	)
 }
 
 // SetUserInput sets the given reader as a stream with an alias of user_input.

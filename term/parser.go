@@ -14,7 +14,6 @@ import (
 
 // Parser turns bytes into Interface.
 type Parser struct {
-	Vars         []VariableWithCount
 	lexer        *syntax.Lexer
 	current      *syntax.Token
 	history      []syntax.Token
@@ -22,24 +21,49 @@ type Parser struct {
 	placeholder  Atom
 	args         []Interface
 	doubleQuotes DoubleQuotes
+	vars         *[]ParsedVariable
 }
 
-type VariableWithCount struct {
+// ParsedVariable is a set of information regarding a variable in a parsed term.
+type ParsedVariable struct {
+	Name     Atom
 	Variable Variable
 	Count    int
 }
 
 // NewParser creates a Parser.
-func NewParser(input *bufio.Reader, operators *Operators, charConversions map[rune]rune, doubleQuotes DoubleQuotes) *Parser {
-	if operators == nil {
-		operators = &Operators{}
-	}
+func NewParser(input *bufio.Reader, charConversions map[rune]rune, opts ...ParserOption) *Parser {
 	p := Parser{
-		lexer:        syntax.NewLexer(input, charConversions),
-		operators:    operators,
-		doubleQuotes: doubleQuotes,
+		lexer: syntax.NewLexer(input, charConversions),
+	}
+	for _, o := range opts {
+		o(&p)
 	}
 	return &p
+}
+
+// ParserOption is option for NewParser.
+type ParserOption func(p *Parser)
+
+// WithOperators sets operators for Parser.
+func WithOperators(operators *Operators) ParserOption {
+	return func(p *Parser) {
+		p.operators = operators
+	}
+}
+
+// WithDoubleQuotes sets how Parser handles double quotes.
+func WithDoubleQuotes(quotes DoubleQuotes) ParserOption {
+	return func(p *Parser) {
+		p.doubleQuotes = quotes
+	}
+}
+
+// WithParsedVars sets where Parser to store information regarding parsed variables.
+func WithParsedVars(vars *[]ParsedVariable) ParserOption {
+	return func(p *Parser) {
+		p.vars = vars
+	}
 }
 
 // Replace registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
@@ -114,6 +138,9 @@ func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 }
 
 func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
+	if p.operators == nil {
+		return nil, errors.New("no op")
+	}
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l < min {
@@ -130,6 +157,9 @@ func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
 }
 
 func (p *Parser) acceptPrefix(allowComma bool) (*Operator, error) {
+	if p.operators == nil {
+		return nil, errors.New("no op")
+	}
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
 		if l != 0 {
@@ -188,11 +218,13 @@ func (p *Parser) Term() (Interface, error) {
 		return nil, io.EOF
 	}
 
-	// reset Vars
-	for i := range p.Vars {
-		p.Vars[i] = VariableWithCount{}
+	if p.vars != nil {
+		// reset vars
+		for i := range *p.vars {
+			(*p.vars)[i] = ParsedVariable{}
+		}
+		*p.vars = (*p.vars)[:0]
 	}
-	p.Vars = p.Vars[:0]
 
 	t, err := p.expr(1, true)
 	if err != nil {
@@ -306,15 +338,20 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		if v == "_" {
 			return NewVariable(), nil
 		}
-		for i, e := range p.Vars {
-			if e.Variable == Variable(v) {
-				p.Vars[i].Count++
-				return e.Variable, nil
+		if p.vars == nil {
+			n := Variable(v)
+			return n, nil
+		}
+		n := Atom(v)
+		for i, v := range *p.vars {
+			if v.Name == n {
+				(*p.vars)[i].Count++
+				return v.Variable, nil
 			}
 		}
-		n := Variable(v)
-		p.Vars = append(p.Vars, VariableWithCount{Variable: n, Count: 1})
-		return n, nil
+		v := NewVariable()
+		*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: v, Count: 1})
+		return v, nil
 	}
 
 	if v, err := p.accept(syntax.TokenDoubleQuoted); err == nil {

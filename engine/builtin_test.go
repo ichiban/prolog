@@ -3273,16 +3273,19 @@ func TestVM_ReadTerm(t *testing.T) {
 			Functor: "singletons",
 			Args:    []term.Interface{singletons},
 		}), func(env *term.Env) *nondet.Promise {
-			assert.Equal(t, &term.Compound{
-				Functor: "f",
-				Args: []term.Interface{
-					term.Variable("X"),
-					term.Variable("X"),
-					term.Variable("Y"),
-				},
-			}, env.Resolve(v))
+			c, ok := env.Resolve(v).(*term.Compound)
+			assert.True(t, ok)
+			assert.Equal(t, term.Atom("f"), c.Functor)
+			assert.Len(t, c.Args, 3)
 
-			assert.Equal(t, term.List(term.Variable("Y")), env.Resolve(singletons))
+			x, ok := c.Args[0].(term.Variable)
+			assert.True(t, ok)
+			assert.Equal(t, x, c.Args[1])
+
+			y, ok := c.Args[2].(term.Variable)
+			assert.True(t, ok)
+
+			assert.Equal(t, term.List(y), env.Resolve(singletons))
 
 			return nondet.Bool(true)
 		}, nil).Force(context.Background())
@@ -3298,16 +3301,19 @@ func TestVM_ReadTerm(t *testing.T) {
 			Functor: "variables",
 			Args:    []term.Interface{variables},
 		}), func(env *term.Env) *nondet.Promise {
-			assert.Equal(t, &term.Compound{
-				Functor: "f",
-				Args: []term.Interface{
-					term.Variable("X"),
-					term.Variable("X"),
-					term.Variable("Y"),
-				},
-			}, env.Resolve(v))
+			c, ok := env.Resolve(v).(*term.Compound)
+			assert.True(t, ok)
+			assert.Equal(t, term.Atom("f"), c.Functor)
+			assert.Len(t, c.Args, 3)
 
-			assert.Equal(t, term.List(term.Variable("X"), term.Variable("Y")), env.Resolve(variables))
+			x, ok := c.Args[0].(term.Variable)
+			assert.True(t, ok)
+			assert.Equal(t, x, c.Args[1])
+
+			y, ok := c.Args[2].(term.Variable)
+			assert.True(t, ok)
+
+			assert.Equal(t, term.List(x, y), env.Resolve(variables))
 
 			return nondet.Bool(true)
 		}, nil).Force(context.Background())
@@ -3323,23 +3329,26 @@ func TestVM_ReadTerm(t *testing.T) {
 			Functor: "variable_names",
 			Args:    []term.Interface{variableNames},
 		}), func(env *term.Env) *nondet.Promise {
-			assert.Equal(t, &term.Compound{
-				Functor: "f",
-				Args: []term.Interface{
-					term.Variable("X"),
-					term.Variable("X"),
-					term.Variable("Y"),
-				},
-			}, env.Resolve(v))
+			c, ok := env.Resolve(v).(*term.Compound)
+			assert.True(t, ok)
+			assert.Equal(t, term.Atom("f"), c.Functor)
+			assert.Len(t, c.Args, 3)
+
+			x, ok := c.Args[0].(term.Variable)
+			assert.True(t, ok)
+			assert.Equal(t, x, c.Args[1])
+
+			y, ok := c.Args[2].(term.Variable)
+			assert.True(t, ok)
 
 			assert.Equal(t, term.List(
 				&term.Compound{
 					Functor: "=",
-					Args:    []term.Interface{term.Atom("X"), term.Variable("X")},
+					Args:    []term.Interface{term.Atom("X"), x},
 				},
 				&term.Compound{
 					Functor: "=",
-					Args:    []term.Interface{term.Atom("Y"), term.Variable("Y")},
+					Args:    []term.Interface{term.Atom("Y"), y},
 				},
 			), env.Resolve(variableNames))
 

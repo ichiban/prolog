@@ -1271,7 +1271,9 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 		return nondet.Error(errors.New("not a buffered stream"))
 	}
 
-	p := vm.Parser(br)
+	var vars []term.ParsedVariable
+	p := vm.Parser(br, &vars)
+
 	t, err := p.Term()
 	if err != nil {
 		var (
@@ -1308,16 +1310,15 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 	}
 
 	var singletons, variables, variableNames []term.Interface
-	for _, vc := range p.Vars {
-		if vc.Count == 1 {
-			singletons = append(singletons, vc.Variable)
+	for _, v := range vars {
+		if v.Count == 1 {
+			singletons = append(singletons, v.Variable)
 		}
-		variables = append(variables, vc.Variable)
+		variables = append(variables, v.Variable)
 		variableNames = append(variableNames, &term.Compound{
 			Functor: "=",
-			Args:    []term.Interface{term.Atom(vc.Variable), vc.Variable},
+			Args:    []term.Interface{v.Name, v.Variable},
 		})
-		vc.Variable = term.NewVariable()
 	}
 
 	if opts.singletons != nil {
@@ -1900,7 +1901,7 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 			return nondet.Error(err)
 		}
 
-		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil, term.DoubleQuotesCodes)
+		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
 		t, err := p.Number()
 		switch err {
 		case nil:
@@ -1955,7 +1956,7 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 			return nondet.Error(err)
 		}
 
-		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil, nil, term.DoubleQuotesCodes)
+		p := term.NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
 		t, err := p.Number()
 		switch err {
 		case nil:

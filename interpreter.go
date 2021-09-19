@@ -102,7 +102,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
-	p := i.Parser(strings.NewReader(query))
+	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 // QueryContext executes a prolog query and returns *Solutions with context.
 func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...interface{}) (*Solutions, error) {
-	p := i.Parser(strings.NewReader(query))
+	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
 		return nil, err
 	}
