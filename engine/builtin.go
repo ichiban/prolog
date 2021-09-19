@@ -38,7 +38,7 @@ func (vm *VM) Negation(goal term.Interface, k func(*term.Env) *nondet.Promise, e
 func (vm *VM) Call(goal term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch g := env.Resolve(goal).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(goal, env))
+		return nondet.Error(instantiationError(goal))
 	default:
 		fvs := env.FreeVariables(g)
 		args := make([]term.Interface, len(fvs))
@@ -125,20 +125,20 @@ func Functor(t, name, arity term.Interface, k func(*term.Env) *nondet.Promise, e
 	case term.Variable:
 		switch arity := env.Resolve(arity).(type) {
 		case term.Variable:
-			return nondet.Error(instantiationError(arity, env))
+			return nondet.Error(instantiationError(arity))
 		case term.Integer:
 			switch {
 			case arity < 0:
-				return nondet.Error(domainErrorNotLessThanZero(arity, env))
+				return nondet.Error(domainErrorNotLessThanZero(arity))
 			case arity == 0:
 				return Unify(t, name, k, env)
 			}
 
 			switch name := env.Resolve(name).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(name, env))
+				return nondet.Error(instantiationError(name))
 			case *term.Compound:
-				return nondet.Error(typeErrorAtomic(name, env))
+				return nondet.Error(typeErrorAtomic(name))
 			case term.Atom:
 				vs := make([]term.Interface, arity)
 				for i := range vs {
@@ -152,10 +152,10 @@ func Functor(t, name, arity term.Interface, k func(*term.Env) *nondet.Promise, e
 					}, k, env)
 				})
 			default:
-				return nondet.Error(typeErrorAtom(name, env))
+				return nondet.Error(typeErrorAtom(name))
 			}
 		default:
-			return nondet.Error(typeErrorInteger(arity, env))
+			return nondet.Error(typeErrorInteger(arity))
 		}
 	case *term.Compound:
 		pattern := term.Compound{Args: []term.Interface{name, arity}}
@@ -176,27 +176,27 @@ func Functor(t, name, arity term.Interface, k func(*term.Env) *nondet.Promise, e
 func Arg(nth, t, arg term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch c := env.Resolve(t).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(t, env))
+		return nondet.Error(instantiationError(t))
 	case *term.Compound:
 		switch n := env.Resolve(nth).(type) {
 		case term.Variable:
-			return nondet.Error(instantiationError(nth, env))
+			return nondet.Error(instantiationError(nth))
 		case term.Integer:
 			if n == 0 || int(n) >= len(c.Args) {
 				return nondet.Bool(false)
 			}
 			if n < 0 {
-				return nondet.Error(domainErrorNotLessThanZero(n, env))
+				return nondet.Error(domainErrorNotLessThanZero(n))
 			}
 			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := env
 				return Unify(arg, c.Args[int(n)-1], k, env)
 			})
 		default:
-			return nondet.Error(typeErrorInteger(n, env))
+			return nondet.Error(typeErrorInteger(n))
 		}
 	default:
-		return nondet.Error(typeErrorCompound(t, env))
+		return nondet.Error(typeErrorCompound(t))
 	}
 }
 
@@ -206,16 +206,16 @@ func Univ(t, list term.Interface, k func(*term.Env) *nondet.Promise, env *term.E
 	case term.Variable:
 		list = env.Resolve(list)
 		if list == term.Atom("[]") {
-			return nondet.Error(domainErrorNotEmptyList(list, env))
+			return nondet.Error(domainErrorNotEmptyList(list))
 		}
 		cons, ok := list.(*term.Compound)
 		if !ok || cons.Functor != "." || len(cons.Args) != 2 {
-			return nondet.Error(typeErrorList(list, env))
+			return nondet.Error(typeErrorList(list))
 		}
 
 		f, ok := env.Resolve(cons.Args[0]).(term.Atom)
 		if !ok {
-			return nondet.Error(typeErrorAtom(cons.Args[0], env))
+			return nondet.Error(typeErrorAtom(cons.Args[0]))
 		}
 
 		var args []term.Interface
@@ -281,26 +281,26 @@ func copyTerm(t term.Interface, vars map[term.Variable]term.Variable, env *term.
 func (vm *VM) Op(priority, specifier, operator term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	p, ok := env.Resolve(priority).(term.Integer)
 	if !ok {
-		return nondet.Error(typeErrorInteger(priority, env))
+		return nondet.Error(typeErrorInteger(priority))
 	}
 	if p < 0 || p > 1200 {
-		return nondet.Error(domainErrorOperatorPriority(priority, env))
+		return nondet.Error(domainErrorOperatorPriority(priority))
 	}
 
 	s, ok := env.Resolve(specifier).(term.Atom)
 	if !ok {
-		return nondet.Error(typeErrorAtom(specifier, env))
+		return nondet.Error(typeErrorAtom(specifier))
 	}
 	switch s {
 	case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
 		break
 	default:
-		return nondet.Error(domainErrorOperatorSpecifier(s, env))
+		return nondet.Error(domainErrorOperatorSpecifier(s))
 	}
 
 	o, ok := env.Resolve(operator).(term.Atom)
 	if !ok {
-		return nondet.Error(typeErrorAtom(operator, env))
+		return nondet.Error(typeErrorAtom(operator))
 	}
 
 	// already defined?
@@ -342,10 +342,10 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(*te
 		break
 	case term.Integer:
 		if p < 0 || p > 1200 {
-			return nondet.Error(domainErrorOperatorPriority(priority, env))
+			return nondet.Error(domainErrorOperatorPriority(priority))
 		}
 	default:
-		return nondet.Error(domainErrorOperatorPriority(priority, env))
+		return nondet.Error(domainErrorOperatorPriority(priority))
 	}
 
 	switch s := env.Resolve(specifier).(type) {
@@ -356,17 +356,17 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(*te
 		case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
 			break
 		default:
-			return nondet.Error(domainErrorOperatorSpecifier(s, env))
+			return nondet.Error(domainErrorOperatorSpecifier(s))
 		}
 	default:
-		return nondet.Error(domainErrorOperatorSpecifier(s, env))
+		return nondet.Error(domainErrorOperatorSpecifier(s))
 	}
 
 	switch env.Resolve(operator).(type) {
 	case term.Variable, term.Atom:
 		break
 	default:
-		return nondet.Error(typeErrorAtom(operator, env))
+		return nondet.Error(typeErrorAtom(operator))
 	}
 
 	pattern := term.Compound{Args: []term.Interface{priority, specifier, operator}}
@@ -428,7 +428,7 @@ func (vm *VM) assert(t term.Interface, k func(*term.Env) *nondet.Promise, merge 
 
 	existing, ok := p.(clauses)
 	if !ok {
-		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term(), env))
+		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term()))
 	}
 
 	added, err := compile(t, env)
@@ -452,7 +452,7 @@ func (vm *VM) SetOf(template, goal, instances term.Interface, k func(*term.Env) 
 
 func (vm *VM) collectionOf(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, agg func(...term.Interface) term.Interface, env *term.Env) *nondet.Promise {
 	if _, ok := env.Resolve(goal).(term.Variable); ok {
-		return nondet.Error(instantiationError(goal, env))
+		return nondet.Error(instantiationError(goal))
 	}
 
 	qualifier, body := term.NewVariable(), term.NewVariable()
@@ -548,10 +548,10 @@ func Compare(order, term1, term2 term.Interface, k func(*term.Env) *nondet.Promi
 		case "<", "=", ">":
 			break
 		default:
-			return nondet.Error(domainErrorOrder(order, env))
+			return nondet.Error(domainErrorOrder(order))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(order, env))
+		return nondet.Error(typeErrorAtom(order))
 	}
 
 	d := term.Compare(env.Resolve(term1), env.Resolve(term2))
@@ -568,30 +568,31 @@ func Compare(order, term1, term2 term.Interface, k func(*term.Env) *nondet.Promi
 // Throw throws ball as an exception.
 func Throw(ball term.Interface, _ func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	if _, ok := env.Resolve(ball).(term.Variable); ok {
-		return nondet.Error(instantiationError(ball, env))
+		return nondet.Error(instantiationError(ball))
 	}
 	return nondet.Error(&Exception{
 		Term: copyTerm(env.Resolve(ball), nil, env),
-		Env:  env,
 	})
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func (vm *VM) Catch(goal, catcher, recover term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		env := env
 		ok, err := vm.Call(goal, k, env).Force(ctx)
 		if err != nil {
-			if ex, ok := err.(*Exception); ok {
-				env := ex.Env
-				env, ok := catcher.Unify(ex.Term, false, env)
-				if ok {
-					return nondet.Delay(func(context.Context) *nondet.Promise {
-						return vm.Call(recover, k, env)
-					})
-				}
+			ex, ok := err.(*Exception)
+			if !ok {
+				return nondet.Error(err)
 			}
-			return nondet.Error(err)
+
+			env, ok := catcher.Unify(ex.Term, false, env)
+			if !ok {
+				return nondet.Error(err)
+			}
+
+			return nondet.Delay(func(context.Context) *nondet.Promise {
+				return vm.Call(recover, k, env)
+			})
 		}
 		return nondet.Bool(ok)
 	})
@@ -604,16 +605,16 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(*term.Env) *nondet.Prom
 		break
 	case *term.Compound:
 		if pi.Functor != "/" || len(pi.Args) != 2 {
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 		if _, ok := env.Resolve(pi.Args[0]).(term.Atom); !ok {
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 		if _, ok := env.Resolve(pi.Args[1]).(term.Integer); !ok {
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 	default:
-		return nondet.Error(typeErrorPredicateIndicator(pi, env))
+		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 
 	ks := make([]func(context.Context) *nondet.Promise, 0, len(vm.procedures))
@@ -644,7 +645,7 @@ func (vm *VM) Retract(t term.Interface, k func(*term.Env) *nondet.Promise, env *
 
 	cs, ok := p.(clauses)
 	if !ok {
-		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term(), env))
+		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term()))
 	}
 
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
@@ -681,42 +682,42 @@ func (vm *VM) Retract(t term.Interface, k func(*term.Env) *nondet.Promise, env *
 func (vm *VM) Abolish(pi term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch pi := env.Resolve(pi).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(pi, env))
+		return nondet.Error(instantiationError(pi))
 	case *term.Compound:
 		if pi.Functor != "/" || len(pi.Args) != 2 {
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 
 		name, arity := pi.Args[0], pi.Args[1]
 
 		switch name := env.Resolve(name).(type) {
 		case term.Variable:
-			return nondet.Error(instantiationError(name, env))
+			return nondet.Error(instantiationError(name))
 		case term.Atom:
 			switch arity := env.Resolve(arity).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(arity, env))
+				return nondet.Error(instantiationError(arity))
 			case term.Integer:
 				if arity < 0 {
-					return nondet.Error(domainErrorNotLessThanZero(arity, env))
+					return nondet.Error(domainErrorNotLessThanZero(arity))
 				}
 				key := ProcedureIndicator{Name: name, Arity: arity}
 				if _, ok := vm.procedures[key].(clauses); !ok {
 					return nondet.Error(permissionErrorModifyStaticProcedure(&term.Compound{
 						Functor: "/",
 						Args:    []term.Interface{name, arity},
-					}, env))
+					}))
 				}
 				delete(vm.procedures, key)
 				return k(env)
 			default:
-				return nondet.Error(typeErrorInteger(arity, env))
+				return nondet.Error(typeErrorInteger(arity))
 			}
 		default:
-			return nondet.Error(typeErrorAtom(name, env))
+			return nondet.Error(typeErrorAtom(name))
 		}
 	default:
-		return nondet.Error(typeErrorPredicateIndicator(pi, env))
+		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 }
 
@@ -726,7 +727,7 @@ func (vm *VM) CurrentInput(stream term.Interface, k func(*term.Env) *nondet.Prom
 	case term.Variable, *term.Stream:
 		break
 	default:
-		return nondet.Error(domainErrorStream(stream, env))
+		return nondet.Error(domainErrorStream(stream))
 	}
 
 	return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -741,7 +742,7 @@ func (vm *VM) CurrentOutput(stream term.Interface, k func(*term.Env) *nondet.Pro
 	case term.Variable, *term.Stream:
 		break
 	default:
-		return nondet.Error(domainErrorStream(stream, env))
+		return nondet.Error(domainErrorStream(stream))
 	}
 
 	return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -758,7 +759,7 @@ func (vm *VM) SetInput(streamOrAlias term.Interface, k func(*term.Env) *nondet.P
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	vm.input = s
@@ -773,7 +774,7 @@ func (vm *VM) SetOutput(streamOrAlias term.Interface, k func(*term.Env) *nondet.
 	}
 
 	if s.Sink == nil {
-		return nondet.Error(permissionErrorOutputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	vm.output = s
@@ -785,11 +786,11 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 	var n term.Atom
 	switch s := env.Resolve(SourceSink).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(SourceSink, env))
+		return nondet.Error(instantiationError(SourceSink))
 	case term.Atom:
 		n = s
 	default:
-		return nondet.Error(domainErrorSourceSink(SourceSink, env))
+		return nondet.Error(domainErrorSourceSink(SourceSink))
 	}
 
 	var (
@@ -801,7 +802,7 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 	)
 	switch m := env.Resolve(mode).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(mode, env))
+		return nondet.Error(instantiationError(mode))
 	case term.Atom:
 		switch m {
 		case "read":
@@ -817,30 +818,30 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 			flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 			perm = 0644
 		default:
-			return nondet.Error(domainErrorIOMode(m, env))
+			return nondet.Error(domainErrorIOMode(m))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(mode, env))
+		return nondet.Error(typeErrorAtom(mode))
 	}
 
 	if _, ok := env.Resolve(stream).(term.Variable); !ok {
-		return nondet.Error(typeErrorVariable(stream, env))
+		return nondet.Error(typeErrorVariable(stream))
 	}
 
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch o := env.Resolve(option).(type) {
 		case term.Variable:
-			return instantiationError(option, env)
+			return instantiationError(option)
 		case *term.Compound:
 			if len(o.Args) != 1 {
-				return domainErrorStreamOption(option, env)
+				return domainErrorStreamOption(option)
 			}
 			arg := o.Args[0]
 			switch o.Functor {
 			case "type":
 				switch t := env.Resolve(arg).(type) {
 				case term.Variable:
-					return instantiationError(arg, env)
+					return instantiationError(arg)
 				case term.Atom:
 					switch t {
 					case "text":
@@ -850,15 +851,15 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 						s.StreamType = term.StreamTypeBinary
 						return nil
 					default:
-						return domainErrorStreamOption(option, env)
+						return domainErrorStreamOption(option)
 					}
 				default:
-					return typeErrorAtom(arg, env)
+					return typeErrorAtom(arg)
 				}
 			case "reposition":
 				switch b := env.Resolve(arg).(type) {
 				case term.Variable:
-					return instantiationError(arg, env)
+					return instantiationError(arg)
 				case term.Atom:
 					switch b {
 					case "true":
@@ -868,28 +869,28 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 						s.Reposition = false
 						return nil
 					default:
-						return domainErrorStreamOption(option, env)
+						return domainErrorStreamOption(option)
 					}
 				default:
-					return typeErrorAtom(arg, env)
+					return typeErrorAtom(arg)
 				}
 			case "alias":
 				switch a := env.Resolve(arg).(type) {
 				case term.Variable:
-					return instantiationError(arg, env)
+					return instantiationError(arg)
 				case term.Atom:
 					if _, ok := vm.streams[a]; ok {
-						return permissionError(term.Atom("open"), term.Atom("source_sink"), option, term.Atom(fmt.Sprintf("%s is already defined as an alias.", a)), env)
+						return permissionError(term.Atom("open"), term.Atom("source_sink"), option, term.Atom(fmt.Sprintf("%s is already defined as an alias.", a)))
 					}
 					s.Alias = a
 					return nil
 				default:
-					return domainErrorStreamOption(option, env)
+					return domainErrorStreamOption(option)
 				}
 			case "eof_action":
 				switch a := env.Resolve(arg).(type) {
 				case term.Variable:
-					return instantiationError(arg, env)
+					return instantiationError(arg)
 				case term.Atom:
 					switch a {
 					case "error":
@@ -902,16 +903,16 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 						s.EofAction = term.EofActionReset
 						return nil
 					default:
-						return domainErrorStreamOption(option, env)
+						return domainErrorStreamOption(option)
 					}
 				default:
-					return domainErrorStreamOption(option, env)
+					return domainErrorStreamOption(option)
 				}
 			default:
-				return domainErrorStreamOption(option, env)
+				return domainErrorStreamOption(option)
 			}
 		default:
-			return domainErrorStreamOption(option, env)
+			return domainErrorStreamOption(option)
 		}
 	}, env); err != nil {
 		return nondet.Error(err)
@@ -921,11 +922,11 @@ func (vm *VM) Open(SourceSink, mode, stream, options term.Interface, k func(*ter
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
-			return nondet.Error(existenceErrorSourceSink(SourceSink, env))
+			return nondet.Error(existenceErrorSourceSink(SourceSink))
 		case os.IsPermission(err):
-			return nondet.Error(permissionError(term.Atom("open"), term.Atom("source_sink"), SourceSink, term.Atom(fmt.Sprintf("%s cannot be opened.", SourceSink)), env))
+			return nondet.Error(permissionError(term.Atom("open"), term.Atom("source_sink"), SourceSink, term.Atom(fmt.Sprintf("%s cannot be opened.", SourceSink))))
 		default:
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 	}
 
@@ -970,17 +971,17 @@ func (vm *VM) Close(streamOrAlias, options term.Interface, k func(*term.Env) *no
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch option := env.Resolve(option).(type) {
 		case term.Variable:
-			return instantiationError(option, env)
+			return instantiationError(option)
 		case *term.Compound:
 			switch option.Functor {
 			case "force":
 				if len(option.Args) != 1 {
-					return domainErrorStreamOption(option, env)
+					return domainErrorStreamOption(option)
 				}
 
 				switch v := env.Resolve(option.Args[0]).(type) {
 				case term.Variable:
-					return instantiationError(option.Args[0], env)
+					return instantiationError(option.Args[0])
 				case term.Atom:
 					switch v {
 					case "false":
@@ -988,22 +989,22 @@ func (vm *VM) Close(streamOrAlias, options term.Interface, k func(*term.Env) *no
 					case "true":
 						force = true
 					default:
-						return domainErrorStreamOption(option, env)
+						return domainErrorStreamOption(option)
 					}
 				default:
-					return domainErrorStreamOption(option, env)
+					return domainErrorStreamOption(option)
 				}
 			}
 			return nil
 		default:
-			return domainErrorStreamOption(option, env)
+			return domainErrorStreamOption(option)
 		}
 	}, env); err != nil {
 		return nondet.Error(err)
 	}
 
 	if err := s.Closer.Close(); err != nil && !force {
-		return nondet.Error(resourceError(streamOrAlias, term.Atom(err.Error()), env))
+		return nondet.Error(resourceError(streamOrAlias, term.Atom(err.Error())))
 	}
 
 	if s.Alias == "" {
@@ -1023,7 +1024,7 @@ func (vm *VM) FlushOutput(streamOrAlias term.Interface, k func(*term.Env) *nonde
 	}
 
 	if s.Sink == nil {
-		return nondet.Error(permissionErrorOutputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	type flusher interface {
@@ -1047,27 +1048,27 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 	}
 
 	if s.Sink == nil {
-		return nondet.Error(permissionErrorOutputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeBinary {
-		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
 	opts := term.WriteTermOptions{Ops: vm.operators}
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch option := env.Resolve(option).(type) {
 		case term.Variable:
-			return instantiationError(option, env)
+			return instantiationError(option)
 		case *term.Compound:
 			if len(option.Args) != 1 {
-				return domainErrorWriteOption(option, env)
+				return domainErrorWriteOption(option)
 			}
 
 			var b bool
 			switch v := env.Resolve(option.Args[0]).(type) {
 			case term.Variable:
-				return instantiationError(v, env)
+				return instantiationError(v)
 			case term.Atom:
 				switch v {
 				case "false":
@@ -1075,10 +1076,10 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 				case "true":
 					b = true
 				default:
-					return domainErrorWriteOption(option, env)
+					return domainErrorWriteOption(option)
 				}
 			default:
-				return domainErrorWriteOption(option, env)
+				return domainErrorWriteOption(option)
 			}
 
 			switch option.Functor {
@@ -1093,11 +1094,11 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 			case "numbervars":
 				opts.NumberVars = b
 			default:
-				return domainErrorWriteOption(option, env)
+				return domainErrorWriteOption(option)
 			}
 			return nil
 		default:
-			return domainErrorWriteOption(option, env)
+			return domainErrorWriteOption(option)
 		}
 	}, env); err != nil {
 		return nondet.Error(err)
@@ -1119,12 +1120,12 @@ func CharCode(char, code term.Interface, k func(*term.Env) *nondet.Promise, env 
 			return nondet.Error(instantiationError(&term.Compound{
 				Functor: ",",
 				Args:    []term.Interface{char, code},
-			}, env))
+			}))
 		case term.Integer:
 			r := rune(cd)
 
 			if !utf8.ValidRune(r) {
-				return nondet.Error(representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%d is not a valid unicode code point.", r)), env))
+				return nondet.Error(representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%d is not a valid unicode code point.", r))))
 			}
 
 			return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1132,12 +1133,12 @@ func CharCode(char, code term.Interface, k func(*term.Env) *nondet.Promise, env 
 				return Unify(ch, term.Atom(r), k, env)
 			})
 		default:
-			return nondet.Error(typeErrorInteger(code, env))
+			return nondet.Error(typeErrorInteger(code))
 		}
 	case term.Atom:
 		rs := []rune(ch)
 		if len(rs) != 1 {
-			return nondet.Error(typeErrorCharacter(ch, env))
+			return nondet.Error(typeErrorCharacter(ch))
 		}
 
 		return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1145,7 +1146,7 @@ func CharCode(char, code term.Interface, k func(*term.Env) *nondet.Promise, env 
 			return Unify(code, term.Integer(rs[0]), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorCharacter(ch, env))
+		return nondet.Error(typeErrorCharacter(ch))
 	}
 }
 
@@ -1157,28 +1158,28 @@ func (vm *VM) PutByte(streamOrAlias, byt term.Interface, k func(*term.Env) *nond
 	}
 
 	if s.Sink == nil {
-		return nondet.Error(permissionErrorOutputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeText {
-		return nondet.Error(permissionErrorOutputTextStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputTextStream(streamOrAlias))
 	}
 
 	switch b := env.Resolve(byt).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(byt, env))
+		return nondet.Error(instantiationError(byt))
 	case term.Integer:
 		if 0 > b || 255 < b {
-			return nondet.Error(typeErrorByte(byt, env))
+			return nondet.Error(typeErrorByte(byt))
 		}
 
 		if _, err := s.Sink.Write([]byte{byte(b)}); err != nil {
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 
 		return k(env)
 	default:
-		return nondet.Error(typeErrorByte(byt, env))
+		return nondet.Error(typeErrorByte(byt))
 	}
 }
 
@@ -1190,30 +1191,30 @@ func (vm *VM) PutCode(streamOrAlias, code term.Interface, k func(*term.Env) *non
 	}
 
 	if s.Sink == nil {
-		return nondet.Error(permissionErrorOutputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeBinary {
-		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
 	switch c := env.Resolve(code).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(code, env))
+		return nondet.Error(instantiationError(code))
 	case term.Integer:
 		r := rune(c)
 
 		if !utf8.ValidRune(r) {
-			return nondet.Error(representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%s is not a valid unicode code point.", c)), env))
+			return nondet.Error(representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%s is not a valid unicode code point.", c))))
 		}
 
 		if _, err := s.Sink.Write([]byte(string(r))); err != nil {
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 
 		return k(env)
 	default:
-		return nondet.Error(typeErrorInteger(code, env))
+		return nondet.Error(typeErrorInteger(code))
 	}
 }
 
@@ -1225,11 +1226,11 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeBinary {
-		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias))
 	}
 
 	var opts struct {
@@ -1240,10 +1241,10 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch option := env.Resolve(option).(type) {
 		case term.Variable:
-			return instantiationError(option, env)
+			return instantiationError(option)
 		case *term.Compound:
 			if len(option.Args) != 1 {
-				return domainErrorReadOption(option, env)
+				return domainErrorReadOption(option)
 			}
 
 			v := env.Resolve(option.Args[0])
@@ -1255,11 +1256,11 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 			case "variable_names":
 				opts.variableNames = v
 			default:
-				return domainErrorReadOption(option, env)
+				return domainErrorReadOption(option)
 			}
 			return nil
 		default:
-			return domainErrorReadOption(option, env)
+			return domainErrorReadOption(option)
 		}
 	}, env); err != nil {
 		return nondet.Error(err)
@@ -1281,7 +1282,7 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 		case errors.Is(err, io.EOF):
 			switch s.EofAction {
 			case term.EofActionError:
-				return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias, env))
+				return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 			case term.EofActionEOFCode:
 				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := env
@@ -1293,16 +1294,16 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options term.Interface, k func(*term.
 					return vm.ReadTerm(streamOrAlias, out, options, k, env)
 				})
 			default:
-				return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction), env))
+				return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
 			}
 		case errors.Is(err, syntax.ErrInsufficient):
-			return nondet.Error(syntaxErrorInsufficient(env))
+			return nondet.Error(syntaxErrorInsufficient())
 		case errors.As(err, &unexpectedRune):
-			return nondet.Error(syntaxErrorUnexpectedChar(term.Atom(err.Error()), env))
+			return nondet.Error(syntaxErrorUnexpectedChar(term.Atom(err.Error())))
 		case errors.As(err, &unexpectedToken):
-			return nondet.Error(syntaxErrorUnexpectedToken(term.Atom(err.Error()), env))
+			return nondet.Error(syntaxErrorUnexpectedToken(term.Atom(err.Error())))
 		default:
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 	}
 
@@ -1354,11 +1355,11 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *n
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeText {
-		return nondet.Error(permissionErrorInputTextStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputTextStream(streamOrAlias))
 	}
 
 	switch b := env.Resolve(inByte).(type) {
@@ -1366,10 +1367,10 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *n
 		break
 	case term.Integer:
 		if b < 0 || b > 255 {
-			nondet.Error(typeErrorInByte(inByte, env))
+			nondet.Error(typeErrorInByte(inByte))
 		}
 	default:
-		return nondet.Error(typeErrorInByte(inByte, env))
+		return nondet.Error(typeErrorInByte(inByte))
 	}
 
 	b := make([]byte, 1)
@@ -1383,7 +1384,7 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *n
 	case io.EOF:
 		switch s.EofAction {
 		case term.EofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias, env))
+			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
 			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := env
@@ -1395,7 +1396,7 @@ func (vm *VM) GetByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *n
 				return vm.GetByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction), env))
+			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
 		}
 	default:
 		return nondet.Error(err)
@@ -1410,16 +1411,16 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(*term.Env) *non
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeBinary {
-		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias))
 	}
 
 	br, ok := s.Source.(*bufio.Reader)
 	if !ok {
-		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := env.Resolve(char).(type) {
@@ -1427,17 +1428,17 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(*term.Env) *non
 		break
 	case term.Atom:
 		if len([]rune(c)) != 1 {
-			return nondet.Error(typeErrorInCharacter(char, env))
+			return nondet.Error(typeErrorInCharacter(char))
 		}
 	default:
-		return nondet.Error(typeErrorInCharacter(char, env))
+		return nondet.Error(typeErrorInCharacter(char))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
 		if r == unicode.ReplacementChar {
-			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character."), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character.")))
 		}
 
 		return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1447,7 +1448,7 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(*term.Env) *non
 	case io.EOF:
 		switch s.EofAction {
 		case term.EofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias, env))
+			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
 			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := env
@@ -1459,10 +1460,10 @@ func (vm *VM) GetChar(streamOrAlias, char term.Interface, k func(*term.Env) *non
 				return vm.GetChar(streamOrAlias, char, k, env)
 			})
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction), env))
+			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
 		}
 	default:
-		return nondet.Error(systemError(err, env))
+		return nondet.Error(systemError(err))
 	}
 }
 
@@ -1474,16 +1475,16 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeText {
-		return nondet.Error(permissionErrorInputTextStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputTextStream(streamOrAlias))
 	}
 
 	br, ok := s.Source.(*bufio.Reader)
 	if !ok {
-		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch b := env.Resolve(inByte).(type) {
@@ -1491,10 +1492,10 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *
 		break
 	case term.Integer:
 		if b < 0 || b > 255 {
-			return nondet.Error(typeErrorInByte(inByte, env))
+			return nondet.Error(typeErrorInByte(inByte))
 		}
 	default:
-		return nondet.Error(typeErrorInByte(inByte, env))
+		return nondet.Error(typeErrorInByte(inByte))
 	}
 
 	b, err := br.Peek(1)
@@ -1507,7 +1508,7 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *
 	case io.EOF:
 		switch s.EofAction {
 		case term.EofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias, env))
+			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
 			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := env
@@ -1519,10 +1520,10 @@ func (vm *VM) PeekByte(streamOrAlias, inByte term.Interface, k func(*term.Env) *
 				return vm.PeekByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction), env))
+			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
 		}
 	default:
-		return nondet.Error(systemError(err, env))
+		return nondet.Error(systemError(err))
 	}
 }
 
@@ -1534,16 +1535,16 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(*term.Env) *no
 	}
 
 	if s.Source == nil {
-		return nondet.Error(permissionErrorInputStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputStream(streamOrAlias))
 	}
 
 	if s.StreamType == term.StreamTypeBinary {
-		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBinaryStream(streamOrAlias))
 	}
 
 	br, ok := s.Source.(*bufio.Reader)
 	if !ok {
-		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias, env))
+		return nondet.Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := env.Resolve(char).(type) {
@@ -1551,21 +1552,21 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(*term.Env) *no
 		break
 	case term.Atom:
 		if len([]rune(c)) != 1 {
-			return nondet.Error(typeErrorInCharacter(char, env))
+			return nondet.Error(typeErrorInCharacter(char))
 		}
 	default:
-		return nondet.Error(typeErrorInCharacter(char, env))
+		return nondet.Error(typeErrorInCharacter(char))
 	}
 
 	r, _, err := br.ReadRune()
 	switch err {
 	case nil:
 		if err := br.UnreadRune(); err != nil {
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 
 		if r == unicode.ReplacementChar {
-			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character."), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom("invalid character.")))
 		}
 
 		return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1575,7 +1576,7 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(*term.Env) *no
 	case io.EOF:
 		switch s.EofAction {
 		case term.EofActionError:
-			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias, env))
+			return nondet.Error(permissionErrorInputPastEndOfStream(streamOrAlias))
 		case term.EofActionEOFCode:
 			return nondet.Delay(func(context.Context) *nondet.Promise {
 				env := env
@@ -1587,10 +1588,10 @@ func (vm *VM) PeekChar(streamOrAlias, char term.Interface, k func(*term.Env) *no
 				return vm.PeekChar(streamOrAlias, char, k, env)
 			})
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction), env))
+			return nondet.Error(systemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
 		}
 	default:
-		return nondet.Error(systemError(err, env))
+		return nondet.Error(systemError(err))
 	}
 }
 
@@ -1600,12 +1601,12 @@ var osExit = os.Exit
 func Halt(n term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch code := env.Resolve(n).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(n, env))
+		return nondet.Error(instantiationError(n))
 	case term.Integer:
 		osExit(int(code))
 		return k(env)
 	default:
-		return nondet.Error(typeErrorInteger(n, env))
+		return nondet.Error(typeErrorInteger(n))
 	}
 }
 
@@ -1620,7 +1621,7 @@ func (vm *VM) Clause(head, body term.Interface, k func(*term.Env) *nondet.Promis
 	case term.Variable, term.Atom, *term.Compound:
 		break
 	default:
-		return nondet.Error(typeErrorCallable(body, env))
+		return nondet.Error(typeErrorCallable(body))
 	}
 
 	cs, _ := vm.procedures[pi].(clauses)
@@ -1642,17 +1643,17 @@ func (vm *VM) Clause(head, body term.Interface, k func(*term.Env) *nondet.Promis
 func AtomLength(atom, length term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch a := env.Resolve(atom).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(atom, env))
+		return nondet.Error(instantiationError(atom))
 	case term.Atom:
 		switch l := env.Resolve(length).(type) {
 		case term.Variable:
 			break
 		case term.Integer:
 			if l < 0 {
-				return nondet.Error(domainErrorNotLessThanZero(length, env))
+				return nondet.Error(domainErrorNotLessThanZero(length))
 			}
 		default:
-			return nondet.Error(typeErrorInteger(length, env))
+			return nondet.Error(typeErrorInteger(length))
 		}
 
 		return nondet.Delay(func(context.Context) *nondet.Promise {
@@ -1660,7 +1661,7 @@ func AtomLength(atom, length term.Interface, k func(*term.Env) *nondet.Promise, 
 			return Unify(length, term.Integer(len([]rune(a))), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorAtom(atom, env))
+		return nondet.Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1673,38 +1674,38 @@ func AtomConcat(atom1, atom2, atom3 term.Interface, k func(*term.Env) *nondet.Pr
 			return nondet.Error(instantiationError(&term.Compound{
 				Functor: ",",
 				Args:    []term.Interface{atom1, atom3},
-			}, env))
+			}))
 		case term.Atom:
 			switch a2 := env.Resolve(atom2).(type) {
 			case term.Variable:
 				return nondet.Error(instantiationError(&term.Compound{
 					Functor: ",",
 					Args:    []term.Interface{atom2, atom3},
-				}, env))
+				}))
 			case term.Atom:
 				return nondet.Delay(func(context.Context) *nondet.Promise {
 					env := env
 					return Unify(a1+a2, a3, k, env)
 				})
 			default:
-				return nondet.Error(typeErrorAtom(atom2, env))
+				return nondet.Error(typeErrorAtom(atom2))
 			}
 		default:
-			return nondet.Error(typeErrorAtom(atom1, env))
+			return nondet.Error(typeErrorAtom(atom1))
 		}
 	case term.Atom:
 		switch env.Resolve(atom1).(type) {
 		case term.Variable, term.Atom:
 			break
 		default:
-			return nondet.Error(typeErrorAtom(atom1, env))
+			return nondet.Error(typeErrorAtom(atom1))
 		}
 
 		switch env.Resolve(atom2).(type) {
 		case term.Variable, term.Atom:
 			break
 		default:
-			return nondet.Error(typeErrorAtom(atom2, env))
+			return nondet.Error(typeErrorAtom(atom2))
 		}
 
 		pattern := term.Compound{Args: []term.Interface{atom1, atom2}}
@@ -1722,7 +1723,7 @@ func AtomConcat(atom1, atom2, atom3 term.Interface, k func(*term.Env) *nondet.Pr
 		})
 		return nondet.Delay(ks...)
 	default:
-		return nondet.Error(typeErrorAtom(atom3, env))
+		return nondet.Error(typeErrorAtom(atom3))
 	}
 }
 
@@ -1730,7 +1731,7 @@ func AtomConcat(atom1, atom2, atom3 term.Interface, k func(*term.Env) *nondet.Pr
 func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch whole := env.Resolve(atom).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(atom, env))
+		return nondet.Error(instantiationError(atom))
 	case term.Atom:
 		rs := []rune(whole)
 
@@ -1739,10 +1740,10 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.E
 			break
 		case term.Integer:
 			if b < 0 {
-				return nondet.Error(domainErrorNotLessThanZero(before, env))
+				return nondet.Error(domainErrorNotLessThanZero(before))
 			}
 		default:
-			return nondet.Error(typeErrorInteger(before, env))
+			return nondet.Error(typeErrorInteger(before))
 		}
 
 		switch l := env.Resolve(length).(type) {
@@ -1750,10 +1751,10 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.E
 			break
 		case term.Integer:
 			if l < 0 {
-				return nondet.Error(domainErrorNotLessThanZero(length, env))
+				return nondet.Error(domainErrorNotLessThanZero(length))
 			}
 		default:
-			return nondet.Error(typeErrorInteger(length, env))
+			return nondet.Error(typeErrorInteger(length))
 		}
 
 		switch a := env.Resolve(after).(type) {
@@ -1761,17 +1762,17 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.E
 			break
 		case term.Integer:
 			if a < 0 {
-				return nondet.Error(domainErrorNotLessThanZero(after, env))
+				return nondet.Error(domainErrorNotLessThanZero(after))
 			}
 		default:
-			return nondet.Error(typeErrorInteger(after, env))
+			return nondet.Error(typeErrorInteger(after))
 		}
 
 		switch env.Resolve(subAtom).(type) {
 		case term.Variable, term.Atom:
 			break
 		default:
-			return nondet.Error(typeErrorAtom(subAtom, env))
+			return nondet.Error(typeErrorAtom(subAtom))
 		}
 
 		pattern := term.Compound{Args: []term.Interface{before, length, after, subAtom}}
@@ -1787,7 +1788,7 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.E
 		}
 		return nondet.Delay(ks...)
 	default:
-		return nondet.Error(typeErrorAtom(atom, env))
+		return nondet.Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1800,17 +1801,17 @@ func AtomChars(atom, chars term.Interface, k func(*term.Env) *nondet.Promise, en
 		if err := Each(env.Resolve(chars), func(elem term.Interface) error {
 			switch e := env.Resolve(elem).(type) {
 			case term.Variable:
-				return instantiationError(elem, env)
+				return instantiationError(elem)
 			case term.Atom:
 				if len([]rune(e)) != 1 {
-					return typeErrorCharacter(e, env)
+					return typeErrorCharacter(e)
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return systemError(err, env)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return typeErrorCharacter(e, env)
+				return typeErrorCharacter(e)
 			}
 		}, env); err != nil {
 			return nondet.Error(err)
@@ -1830,7 +1831,7 @@ func AtomChars(atom, chars term.Interface, k func(*term.Env) *nondet.Promise, en
 			return Unify(chars, term.List(cs...), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorAtom(a, env))
+		return nondet.Error(typeErrorAtom(a))
 	}
 }
 
@@ -1843,14 +1844,14 @@ func AtomCodes(atom, codes term.Interface, k func(*term.Env) *nondet.Promise, en
 		if err := Each(env.Resolve(codes), func(elem term.Interface) error {
 			switch e := env.Resolve(elem).(type) {
 			case term.Variable:
-				return instantiationError(elem, env)
+				return instantiationError(elem)
 			case term.Integer:
 				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return systemError(err, env)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return representationError(term.Atom("character_code"), term.Atom("invalid character code."), env)
+				return representationError(term.Atom("character_code"), term.Atom("invalid character code."))
 			}
 		}, env); err != nil {
 			return nondet.Error(err)
@@ -1870,7 +1871,7 @@ func AtomCodes(atom, codes term.Interface, k func(*term.Env) *nondet.Promise, en
 			return Unify(codes, term.List(cs...), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorAtom(atom, env))
+		return nondet.Error(typeErrorAtom(atom))
 	}
 }
 
@@ -1883,17 +1884,17 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 		if err := Each(env.Resolve(chars), func(elem term.Interface) error {
 			switch e := env.Resolve(elem).(type) {
 			case term.Variable:
-				return instantiationError(elem, env)
+				return instantiationError(elem)
 			case term.Atom:
 				if len([]rune(e)) != 1 {
-					return typeErrorCharacter(elem, env)
+					return typeErrorCharacter(elem)
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return systemError(err, env)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return typeErrorCharacter(elem, env)
+				return typeErrorCharacter(elem)
 			}
 		}, env); err != nil {
 			return nondet.Error(err)
@@ -1905,9 +1906,9 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 		case nil:
 			break
 		case term.ErrNotANumber:
-			return nondet.Error(syntaxErrorNotANumber(env))
+			return nondet.Error(syntaxErrorNotANumber())
 		default:
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := env
@@ -1928,7 +1929,7 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 			return Unify(chars, term.List(cs...), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorNumber(num, env))
+		return nondet.Error(typeErrorNumber(num))
 	}
 }
 
@@ -1941,14 +1942,14 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 		if err := Each(env.Resolve(codes), func(elem term.Interface) error {
 			switch e := env.Resolve(elem).(type) {
 			case term.Variable:
-				return instantiationError(elem, env)
+				return instantiationError(elem)
 			case term.Integer:
 				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return systemError(err, env)
+					return systemError(err)
 				}
 				return nil
 			default:
-				return representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%s is not a valid character code.", elem)), env)
+				return representationError(term.Atom("character_code"), term.Atom(fmt.Sprintf("%s is not a valid character code.", elem)))
 			}
 		}, env); err != nil {
 			return nondet.Error(err)
@@ -1960,9 +1961,9 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 		case nil:
 			break
 		case term.ErrNotANumber:
-			return nondet.Error(syntaxErrorNotANumber(env))
+			return nondet.Error(syntaxErrorNotANumber())
 		default:
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 		return nondet.Delay(func(context.Context) *nondet.Promise {
 			env := env
@@ -1983,7 +1984,7 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 			return Unify(codes, term.List(cs...), k, env)
 		})
 	default:
-		return nondet.Error(typeErrorNumber(num, env))
+		return nondet.Error(typeErrorNumber(num))
 	}
 }
 
@@ -2084,7 +2085,7 @@ func (fs FunctionSet) compare(lhs, rhs term.Interface, k func(*term.Env) *nondet
 			}
 			return k(env)
 		default:
-			return nondet.Error(typeErrorEvaluable(r, env))
+			return nondet.Error(typeErrorEvaluable(r))
 		}
 	case term.Float:
 		switch r := r.(type) {
@@ -2099,10 +2100,10 @@ func (fs FunctionSet) compare(lhs, rhs term.Interface, k func(*term.Env) *nondet
 			}
 			return k(env)
 		default:
-			return nondet.Error(typeErrorEvaluable(r, env))
+			return nondet.Error(typeErrorEvaluable(r))
 		}
 	default:
-		return nondet.Error(typeErrorEvaluable(l, env))
+		return nondet.Error(typeErrorEvaluable(l))
 	}
 }
 
@@ -2111,7 +2112,7 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
 				if e.Error() == "runtime error: integer divide by zero" {
-					err = evaluationErrorZeroDivisor(env)
+					err = evaluationErrorZeroDivisor()
 					return
 				}
 			}
@@ -2121,9 +2122,9 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 
 	switch t := env.Resolve(expression).(type) {
 	case term.Variable:
-		return nil, instantiationError(expression, env)
+		return nil, instantiationError(expression)
 	case term.Atom:
-		return nil, typeErrorEvaluable(t, env) // TODO: constants?
+		return nil, typeErrorEvaluable(t) // TODO: constants?
 	case term.Integer, term.Float:
 		return t, nil
 	case *term.Compound:
@@ -2137,7 +2138,7 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 						t.Functor,
 						term.Integer(1),
 					},
-				}, env)
+				})
 			}
 			x, err := fs.eval(t.Args[0], env)
 			if err != nil {
@@ -2153,7 +2154,7 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 						t.Functor,
 						term.Integer(2),
 					},
-				}, env)
+				})
 			}
 			x, err := fs.eval(t.Args[0], env)
 			if err != nil {
@@ -2165,10 +2166,10 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 			}
 			return f(x, y, env)
 		default:
-			return nil, typeErrorEvaluable(t, env)
+			return nil, typeErrorEvaluable(t)
 		}
 	default:
-		return nil, typeErrorEvaluable(t, env)
+		return nil, typeErrorEvaluable(t)
 	}
 }
 
@@ -2228,7 +2229,7 @@ func unaryInteger(f func(i int64) int64) func(term.Interface, *term.Env) (term.I
 	return func(x term.Interface, env *term.Env) (term.Interface, error) {
 		i, ok := env.Resolve(x).(term.Integer)
 		if !ok {
-			return nil, typeErrorInteger(x, env)
+			return nil, typeErrorInteger(x)
 		}
 
 		return term.Integer(f(int64(i))), nil
@@ -2239,12 +2240,12 @@ func binaryInteger(f func(i, j int64) int64) func(term.Interface, term.Interface
 	return func(x, y term.Interface, env *term.Env) (term.Interface, error) {
 		i, ok := env.Resolve(x).(term.Integer)
 		if !ok {
-			return nil, typeErrorInteger(x, env)
+			return nil, typeErrorInteger(x)
 		}
 
 		j, ok := env.Resolve(y).(term.Integer)
 		if !ok {
-			return nil, typeErrorInteger(y, env)
+			return nil, typeErrorInteger(y)
 		}
 
 		return term.Integer(f(int64(i), int64(j))), nil
@@ -2259,7 +2260,7 @@ func unaryFloat(f func(n float64) float64) func(term.Interface, *term.Env) (term
 		case term.Float:
 			return term.Float(f(float64(x))), nil
 		default:
-			return nil, typeErrorEvaluable(x, env)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2274,7 +2275,7 @@ func binaryFloat(f func(n float64, m float64) float64) func(term.Interface, term
 			case term.Float:
 				return term.Float(f(float64(x), float64(y))), nil
 			default:
-				return nil, typeErrorEvaluable(y, env)
+				return nil, typeErrorEvaluable(y)
 			}
 		case term.Float:
 			switch y := env.Resolve(y).(type) {
@@ -2283,10 +2284,10 @@ func binaryFloat(f func(n float64, m float64) float64) func(term.Interface, term
 			case term.Float:
 				return term.Float(f(float64(x), float64(y))), nil
 			default:
-				return nil, typeErrorEvaluable(y, env)
+				return nil, typeErrorEvaluable(y)
 			}
 		default:
-			return nil, typeErrorEvaluable(x, env)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2299,7 +2300,7 @@ func unaryNumber(fi func(i int64) int64, ff func(n float64) float64) func(term.I
 		case term.Float:
 			return term.Float(ff(float64(x))), nil
 		default:
-			return nil, typeErrorEvaluable(x, env)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2314,7 +2315,7 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 			case term.Float:
 				return term.Float(ff(float64(x), float64(y))), nil
 			default:
-				return nil, typeErrorEvaluable(y, env)
+				return nil, typeErrorEvaluable(y)
 			}
 		case term.Float:
 			switch y := env.Resolve(y).(type) {
@@ -2323,10 +2324,10 @@ func binaryNumber(fi func(i, j int64) int64, ff func(n, m float64) float64) func
 			case term.Float:
 				return term.Float(ff(float64(x), float64(y))), nil
 			default:
-				return nil, typeErrorEvaluable(y, env)
+				return nil, typeErrorEvaluable(y)
 			}
 		default:
-			return nil, typeErrorEvaluable(x, env)
+			return nil, typeErrorEvaluable(x)
 		}
 	}
 }
@@ -2342,13 +2343,13 @@ func (vm *VM) StreamProperty(streamOrAlias, property term.Interface, k func(*ter
 	case term.Atom: // ISO standard stream_property/2 doesn't take an alias but why not?
 		v, ok := vm.streams[s]
 		if !ok {
-			return nondet.Error(existenceErrorStream(streamOrAlias, env))
+			return nondet.Error(existenceErrorStream(streamOrAlias))
 		}
 		streams = append(streams, v)
 	case *term.Stream:
 		streams = append(streams, s)
 	default:
-		return nondet.Error(domainErrorStreamOrAlias(streamOrAlias, env))
+		return nondet.Error(domainErrorStreamOrAlias(streamOrAlias))
 	}
 
 	switch p := env.Resolve(property).(type) {
@@ -2359,11 +2360,11 @@ func (vm *VM) StreamProperty(streamOrAlias, property term.Interface, k func(*ter
 		case "input", "output":
 			break
 		default:
-			return nondet.Error(domainErrorStreamProperty(property, env))
+			return nondet.Error(domainErrorStreamProperty(property))
 		}
 	case *term.Compound:
 		if len(p.Args) != 1 {
-			return nondet.Error(domainErrorStreamProperty(property, env))
+			return nondet.Error(domainErrorStreamProperty(property))
 		}
 		arg := p.Args[0]
 		switch p.Functor {
@@ -2372,23 +2373,23 @@ func (vm *VM) StreamProperty(streamOrAlias, property term.Interface, k func(*ter
 			case term.Variable, term.Atom:
 				break
 			default:
-				return nondet.Error(typeErrorAtom(arg, env))
+				return nondet.Error(typeErrorAtom(arg))
 			}
 		case "position":
 			if len(p.Args) != 1 {
-				return nondet.Error(domainErrorStreamProperty(property, env))
+				return nondet.Error(domainErrorStreamProperty(property))
 			}
 			switch env.Resolve(p.Args[0]).(type) {
 			case term.Variable, term.Integer:
 				break
 			default:
-				return nondet.Error(typeErrorAtom(arg, env))
+				return nondet.Error(typeErrorAtom(arg))
 			}
 		default:
-			return nondet.Error(domainErrorStreamProperty(property, env))
+			return nondet.Error(domainErrorStreamProperty(property))
 		}
 	default:
-		return nondet.Error(domainErrorStreamProperty(property, env))
+		return nondet.Error(domainErrorStreamProperty(property))
 	}
 
 	var ks []func(context.Context) *nondet.Promise
@@ -2497,15 +2498,15 @@ func (vm *VM) SetStreamPosition(streamOrAlias, position term.Interface, k func(*
 
 	switch p := env.Resolve(position).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(position, env))
+		return nondet.Error(instantiationError(position))
 	case term.Integer:
 		f, ok := s.Closer.(*os.File)
 		if !ok {
-			return nondet.Error(permissionError(term.Atom("reposition"), term.Atom("stream"), streamOrAlias, term.Atom(fmt.Sprintf("%s is not a file.", streamOrAlias)), env))
+			return nondet.Error(permissionError(term.Atom("reposition"), term.Atom("stream"), streamOrAlias, term.Atom(fmt.Sprintf("%s is not a file.", streamOrAlias))))
 		}
 
 		if _, err := f.Seek(int64(p), 0); err != nil {
-			return nondet.Error(systemError(err, env))
+			return nondet.Error(systemError(err))
 		}
 
 		if br, ok := s.Source.(*bufio.Reader); ok {
@@ -2514,7 +2515,7 @@ func (vm *VM) SetStreamPosition(streamOrAlias, position term.Interface, k func(*
 
 		return k(env)
 	default:
-		return nondet.Error(typeErrorInteger(position, env))
+		return nondet.Error(typeErrorInteger(position))
 	}
 }
 
@@ -2522,20 +2523,20 @@ func (vm *VM) SetStreamPosition(streamOrAlias, position term.Interface, k func(*
 func (vm *VM) CharConversion(inChar, outChar term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch in := env.Resolve(inChar).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(inChar, env))
+		return nondet.Error(instantiationError(inChar))
 	case term.Atom:
 		i := []rune(in)
 		if len(i) != 1 {
-			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar)), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar))))
 		}
 
 		switch out := env.Resolve(outChar).(type) {
 		case term.Variable:
-			return nondet.Error(instantiationError(outChar, env))
+			return nondet.Error(instantiationError(outChar))
 		case term.Atom:
 			o := []rune(out)
 			if len(o) != 1 {
-				return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar)), env))
+				return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
 			}
 
 			if vm.charConversions == nil {
@@ -2548,10 +2549,10 @@ func (vm *VM) CharConversion(inChar, outChar term.Interface, k func(*term.Env) *
 			vm.charConversions[i[0]] = o[0]
 			return k(env)
 		default:
-			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar)), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
 		}
 	default:
-		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar)), env))
+		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar))))
 	}
 }
 
@@ -2563,10 +2564,10 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(*term
 	case term.Atom:
 		i := []rune(in)
 		if len(i) != 1 {
-			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar)), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar))))
 		}
 	default:
-		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar)), env))
+		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", inChar))))
 	}
 
 	switch out := env.Resolve(outChar).(type) {
@@ -2575,10 +2576,10 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(*term
 	case term.Atom:
 		o := []rune(out)
 		if len(o) != 1 {
-			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar)), env))
+			return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
 		}
 	default:
-		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar)), env))
+		return nondet.Error(representationError(term.Atom("character"), term.Atom(fmt.Sprintf("%s is not a character.", outChar))))
 	}
 
 	if c1, ok := env.Resolve(inChar).(term.Atom); ok {
@@ -2616,15 +2617,15 @@ func (vm *VM) CurrentCharConversion(inChar, outChar term.Interface, k func(*term
 func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch f := env.Resolve(flag).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(flag, env))
+		return nondet.Error(instantiationError(flag))
 	case term.Atom:
 		switch f {
 		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "max_arity":
-			return nondet.Error(permissionError(term.Atom("modify"), term.Atom("flag"), f, term.Atom(fmt.Sprintf("%s is not modifiable.", f)), env))
+			return nondet.Error(permissionError(term.Atom("modify"), term.Atom("flag"), f, term.Atom(fmt.Sprintf("%s is not modifiable.", f))))
 		case "char_conversion":
 			switch a := env.Resolve(value).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(value, env))
+				return nondet.Error(instantiationError(value))
 			case term.Atom:
 				switch a {
 				case "on":
@@ -2637,18 +2638,18 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(*term.Env) *nonde
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
 						Args:    []term.Interface{f, a},
-					}, env))
+					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
 					Args:    []term.Interface{flag, value},
-				}, env))
+				}))
 			}
 		case "debug":
 			switch a := env.Resolve(value).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(value, env))
+				return nondet.Error(instantiationError(value))
 			case term.Atom:
 				switch a {
 				case "on":
@@ -2661,18 +2662,18 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(*term.Env) *nonde
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
 						Args:    []term.Interface{f, a},
-					}, env))
+					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
 					Args:    []term.Interface{f, a},
-				}, env))
+				}))
 			}
 		case "unknown":
 			switch a := env.Resolve(value).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(value, env))
+				return nondet.Error(instantiationError(value))
 			case term.Atom:
 				switch a {
 				case "error":
@@ -2688,18 +2689,18 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(*term.Env) *nonde
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
 						Args:    []term.Interface{f, a},
-					}, env))
+					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
 					Args:    []term.Interface{f, a},
-				}, env))
+				}))
 			}
 		case "double_quotes":
 			switch a := env.Resolve(value).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(value, env))
+				return nondet.Error(instantiationError(value))
 			case term.Atom:
 				switch a {
 				case "codes":
@@ -2715,19 +2716,19 @@ func (vm *VM) SetPrologFlag(flag, value term.Interface, k func(*term.Env) *nonde
 					return nondet.Error(domainErrorFlagValue(&term.Compound{
 						Functor: "+",
 						Args:    []term.Interface{f, a},
-					}, env))
+					}))
 				}
 			default:
 				return nondet.Error(domainErrorFlagValue(&term.Compound{
 					Functor: "+",
 					Args:    []term.Interface{f, a},
-				}, env))
+				}))
 			}
 		default:
-			return nondet.Error(domainErrorPrologFlag(f, env))
+			return nondet.Error(domainErrorPrologFlag(f))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(f, env))
+		return nondet.Error(typeErrorAtom(f))
 	}
 }
 
@@ -2741,10 +2742,10 @@ func (vm *VM) CurrentPrologFlag(flag, value term.Interface, k func(*term.Env) *n
 		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "char_conversion", "debug", "max_arity", "unknown", "double_quotes":
 			break
 		default:
-			return nondet.Error(domainErrorPrologFlag(f, env))
+			return nondet.Error(domainErrorPrologFlag(f))
 		}
 	default:
-		return nondet.Error(typeErrorAtom(f, env))
+		return nondet.Error(typeErrorAtom(f))
 	}
 
 	pattern := term.Compound{Args: []term.Interface{flag, value}}
@@ -2780,35 +2781,35 @@ func onOff(b bool) term.Atom {
 func (vm *VM) stream(streamOrAlias term.Interface, env *term.Env) (*term.Stream, error) {
 	switch s := env.Resolve(streamOrAlias).(type) {
 	case term.Variable:
-		return nil, instantiationError(streamOrAlias, env)
+		return nil, instantiationError(streamOrAlias)
 	case term.Atom:
 		v, ok := vm.streams[s]
 		if !ok {
-			return nil, existenceErrorStream(streamOrAlias, env)
+			return nil, existenceErrorStream(streamOrAlias)
 		}
 		return v, nil
 	case *term.Stream:
 		return s, nil
 	default:
-		return nil, domainErrorStreamOrAlias(streamOrAlias, env)
+		return nil, domainErrorStreamOrAlias(streamOrAlias)
 	}
 }
 
 func (vm *VM) Dynamic(pi term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	switch p := env.Resolve(pi).(type) {
 	case term.Variable:
-		return nondet.Error(instantiationError(pi, env))
+		return nondet.Error(instantiationError(pi))
 	case *term.Compound:
 		if p.Functor != "/" || len(p.Args) != 2 {
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 		switch f := env.Resolve(p.Args[0]).(type) {
 		case term.Variable:
-			return nondet.Error(instantiationError(pi, env))
+			return nondet.Error(instantiationError(pi))
 		case term.Atom:
 			switch a := env.Resolve(p.Args[1]).(type) {
 			case term.Variable:
-				return nondet.Error(instantiationError(pi, env))
+				return nondet.Error(instantiationError(pi))
 			case term.Integer:
 				pi := ProcedureIndicator{Name: f, Arity: a}
 				p, ok := vm.procedures[pi]
@@ -2821,12 +2822,12 @@ func (vm *VM) Dynamic(pi term.Interface, k func(*term.Env) *nondet.Promise, env 
 				}
 				return k(env)
 			default:
-				return nondet.Error(typeErrorPredicateIndicator(pi, env))
+				return nondet.Error(typeErrorPredicateIndicator(pi))
 			}
 		default:
-			return nondet.Error(typeErrorPredicateIndicator(pi, env))
+			return nondet.Error(typeErrorPredicateIndicator(pi))
 		}
 	default:
-		return nondet.Error(typeErrorPredicateIndicator(pi, env))
+		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 }

@@ -83,7 +83,7 @@ func compile(t term.Interface, env *term.Env) (clauses, error) {
 	t = env.Simplify(t)
 	switch t := t.(type) {
 	case term.Variable:
-		return nil, instantiationError(t, env)
+		return nil, instantiationError(t)
 	case term.Atom:
 		c, err := compileClause(t, nil, env)
 		if err != nil {
@@ -135,7 +135,7 @@ func compile(t term.Interface, env *term.Env) (clauses, error) {
 		c.raw = t
 		return []clause{c}, nil
 	default:
-		return nil, typeErrorCallable(t, env)
+		return nil, typeErrorCallable(t)
 	}
 }
 
@@ -143,7 +143,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 	var c clause
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
-		return c, instantiationError(head, env)
+		return c, instantiationError(head)
 	case term.Atom:
 		c.pi = ProcedureIndicator{Name: head, Arity: 0}
 	case *term.Compound:
@@ -154,7 +154,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 			}
 		}
 	default:
-		return c, typeErrorCallable(head, env)
+		return c, typeErrorCallable(head)
 	}
 	if body != nil {
 		err := c.compileBody(body, env)
@@ -162,7 +162,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 		case nil:
 			break
 		case errNotCallable:
-			return c, typeErrorCallable(body, env)
+			return c, typeErrorCallable(body)
 		default:
 			return c, err
 		}
@@ -237,7 +237,7 @@ func (c *clause) compileArg(a term.Interface, env *term.Env) error {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		return systemError(fmt.Errorf("unknown argument: %s", a), env)
+		return systemError(fmt.Errorf("unknown argument: %s", a))
 	}
 	return nil
 }

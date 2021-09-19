@@ -223,14 +223,14 @@ func (vm *VM) arrive(pi ProcedureIndicator, args []term.Interface, k func(*term.
 	if p == nil {
 		switch vm.unknown {
 		case unknownError:
-			return nondet.Error(existenceErrorProcedure(pi.Term(), env))
+			return nondet.Error(existenceErrorProcedure(pi.Term()))
 		case unknownWarning:
 			vm.OnUnknown(pi, args, env)
 			fallthrough
 		case unknownFail:
 			return nondet.Bool(false)
 		default:
-			return nondet.Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown), env))
+			return nondet.Error(systemError(fmt.Errorf("unknown unknown: %s", vm.unknown)))
 		}
 	}
 
@@ -542,22 +542,22 @@ func Each(list term.Interface, f func(elem term.Interface) error, env *term.Env)
 	for {
 		switch l := env.Resolve(list).(type) {
 		case term.Variable:
-			return instantiationError(whole, env)
+			return instantiationError(whole)
 		case term.Atom:
 			if l != "[]" {
-				return typeErrorList(l, env)
+				return typeErrorList(l)
 			}
 			return nil
 		case *term.Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return typeErrorList(l, env)
+				return typeErrorList(l)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return typeErrorList(l, env)
+			return typeErrorList(l)
 		}
 	}
 }
@@ -612,12 +612,12 @@ func (p ProcedureIndicator) Apply(args []term.Interface) (term.Interface, error)
 func piArgs(t term.Interface, env *term.Env) (ProcedureIndicator, []term.Interface, error) {
 	switch f := env.Resolve(t).(type) {
 	case term.Variable:
-		return ProcedureIndicator{}, nil, instantiationError(t, env)
+		return ProcedureIndicator{}, nil, instantiationError(t)
 	case term.Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
 	case *term.Compound:
 		return ProcedureIndicator{Name: f.Functor, Arity: term.Integer(len(f.Args))}, f.Args, nil
 	default:
-		return ProcedureIndicator{}, nil, typeErrorCallable(t, env)
+		return ProcedureIndicator{}, nil, typeErrorCallable(t)
 	}
 }
