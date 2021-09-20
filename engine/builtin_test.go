@@ -5201,6 +5201,15 @@ func TestFunctionSet_Is(t *testing.T) {
 		assert.Equal(t, instantiationError(expression), err)
 		assert.False(t, ok)
 	})
+
+	t.Run("unknown constant", func(t *testing.T) {
+		ok, err := DefaultFunctionSet.Is(term.Integer(0), term.Atom("foo"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorEvaluable(&term.Compound{
+			Functor: "/",
+			Args:    []term.Interface{term.Atom("foo"), term.Integer(0)},
+		}), err)
+		assert.False(t, ok)
+	})
 }
 
 func TestFunctionSet_Equal(t *testing.T) {

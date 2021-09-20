@@ -2157,8 +2157,11 @@ func (fs FunctionSet) eval(expression term.Interface, env *term.Env) (_ term.Int
 	switch t := env.Resolve(expression).(type) {
 	case term.Variable:
 		return nil, instantiationError(expression)
-	case term.Atom:
-		return nil, typeErrorEvaluable(t) // TODO: constants?
+	case term.Atom: // TODO: constants?
+		return nil, typeErrorEvaluable(&term.Compound{
+			Functor: "/",
+			Args:    []term.Interface{t, term.Integer(0)},
+		})
 	case term.Integer, term.Float:
 		return t, nil
 	case *term.Compound:
