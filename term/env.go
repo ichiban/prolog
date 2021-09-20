@@ -171,16 +171,26 @@ func (e *Env) Simplify(t Interface) Interface {
 	}
 }
 
+type Variables []Variable
+
+func (vs Variables) Terms() []Interface {
+	res := make([]Interface, len(vs))
+	for i, v := range vs {
+		res[i] = v
+	}
+	return res
+}
+
 // FreeVariables extracts variables in the given terms.
-func (e *Env) FreeVariables(ts ...Interface) []Variable {
-	var fvs []Variable
+func (e *Env) FreeVariables(ts ...Interface) Variables {
+	var fvs Variables
 	for _, t := range ts {
 		fvs = e.appendFreeVariables(fvs, t)
 	}
 	return fvs
 }
 
-func (e *Env) appendFreeVariables(fvs []Variable, t Interface) []Variable {
+func (e *Env) appendFreeVariables(fvs Variables, t Interface) Variables {
 	switch t := e.Resolve(t).(type) {
 	case Variable:
 		for _, v := range fvs {

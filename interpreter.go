@@ -45,6 +45,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3("arg", engine.Arg)
 	i.Register3("bagof", i.BagOf)
 	i.Register3("setof", i.SetOf)
+	i.Register3("findall", i.FindAll)
 	i.Register3("catch", i.Catch)
 	i.Register3("functor", engine.Functor)
 	i.Register3("op", i.Op)

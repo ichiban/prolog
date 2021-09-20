@@ -450,6 +450,39 @@ func (vm *VM) SetOf(template, goal, instances term.Interface, k func(*term.Env) 
 	return vm.collectionOf(template, goal, instances, k, term.Set, env)
 }
 
+// FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
+func (vm *VM) FindAll(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	if _, ok := env.Resolve(goal).(term.Variable); ok {
+		return nondet.Error(instantiationError(goal))
+	}
+
+	fvs := env.FreeVariables(goal)
+	if len(fvs) == 0 {
+		goal = &term.Compound{
+			Functor: "^",
+			Args:    []term.Interface{term.Atom(""), goal},
+		}
+	} else {
+		goal = &term.Compound{
+			Functor: "^",
+			Args:    []term.Interface{&term.Compound{Args: fvs.Terms()}, goal},
+		}
+	}
+
+	// bagof/3 fails when goal fails but findall/3 should succeed with an empty list.
+	var p *nondet.Promise
+	p = nondet.Delay(func(context.Context) *nondet.Promise {
+		return vm.collectionOf(template, goal, instances, func(env *term.Env) *nondet.Promise {
+			return nondet.Cut(p, func(context.Context) *nondet.Promise {
+				return k(env)
+			})
+		}, term.List, env)
+	}, func(context.Context) *nondet.Promise {
+		return Unify(instances, term.List(), k, env)
+	})
+	return p
+}
+
 func (vm *VM) collectionOf(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, agg func(...term.Interface) term.Interface, env *term.Env) *nondet.Promise {
 	if _, ok := env.Resolve(goal).(term.Variable); ok {
 		return nondet.Error(instantiationError(goal))

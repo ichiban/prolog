@@ -1082,6 +1082,102 @@ func TestSetOf(t *testing.T) {
 	})
 }
 
+func TestVM_FindAll(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 3}: clauses{
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("c")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("a"), term.Atom("b"), term.Atom("d")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("e")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("b"), term.Atom("c"), term.Atom("f")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+					{xrTable: []term.Interface{term.Atom("c"), term.Atom("c"), term.Atom("g")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opConst, operand: 1},
+						{opcode: opConst, operand: 2},
+						{opcode: opExit},
+					}},
+				},
+			},
+		}
+
+		var (
+			count       int
+			a, b, c, cs = term.Variable("A"), term.Variable("B"), term.Variable("C"), term.Variable("Cs")
+		)
+		ok, err := vm.FindAll(c, &term.Compound{
+			Functor: "foo",
+			Args:    []term.Interface{a, b, c},
+		}, cs, func(env *term.Env) *nondet.Promise {
+			switch count {
+			case 0:
+				_, ok := term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
+				assert.True(t, ok)
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			count++
+			return nondet.Bool(false)
+		}, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("goal is a variable", func(t *testing.T) {
+		goal := term.Variable("Goal")
+
+		var vm VM
+		ok, err := vm.FindAll(term.NewVariable(), goal, term.NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, instantiationError(&goal), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.FindAll(term.NewVariable(), term.Integer(0), term.NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("goal fails", func(t *testing.T) {
+		instances := term.Variable("instances")
+
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "fail", Arity: 0}: predicate0(func(f func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+					return nondet.Bool(false)
+				}),
+			},
+		}
+		ok, err := vm.FindAll(term.NewVariable(), term.Atom("fail"), instances, func(env *term.Env) *nondet.Promise {
+			assert.Equal(t, term.List(), env.Resolve(instances))
+			return nondet.Bool(true)
+		}, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+}
+
 func TestCompare(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		x, y := term.Variable("X"), term.Variable("Y")
