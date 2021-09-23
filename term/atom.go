@@ -75,3 +75,15 @@ func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 		return env, false
 	}
 }
+
+// Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
+// then returns itself.
+func (a Atom) Apply(args ...Interface) Interface {
+	if len(args) == 0 {
+		return a
+	}
+	return &Compound{
+		Functor: a,
+		Args:    args,
+	}
+}

@@ -181,6 +181,20 @@ func (vs Variables) Terms() []Interface {
 	return res
 }
 
+func (vs Variables) Except(ws Variables) Variables {
+	ret := make(Variables, 0, len(vs))
+vs:
+	for _, v := range vs {
+		for _, w := range ws {
+			if v == w {
+				continue vs
+			}
+		}
+		ret = append(ret, v)
+	}
+	return ret
+}
+
 // FreeVariables extracts variables in the given terms.
 func (e *Env) FreeVariables(ts ...Interface) Variables {
 	var fvs Variables

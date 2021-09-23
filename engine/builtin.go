@@ -442,132 +442,106 @@ func (vm *VM) assert(t term.Interface, k func(*term.Env) *nondet.Promise, merge 
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func (vm *VM) BagOf(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return vm.collectionOf(template, goal, instances, k, term.List, env)
+	return vm.collectionOf(term.List, template, goal, instances, k, env)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func (vm *VM) SetOf(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return vm.collectionOf(template, goal, instances, k, term.Set, env)
+	return vm.collectionOf(term.Set, template, goal, instances, k, env)
+}
+
+func (vm *VM) collectionOf(agg func(...term.Interface) term.Interface, template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	var qualifier, body term.Interface
+	switch goal := env.Resolve(goal).(type) {
+	case term.Variable:
+		return nondet.Error(instantiationError(goal))
+	case *term.Compound:
+		if goal.Functor != "^" || len(goal.Args) != 2 {
+			qualifier = term.Atom("")
+			body = goal
+			break
+		}
+		qualifier = goal.Args[0]
+		body = goal.Args[1]
+	default:
+		qualifier = term.Atom("")
+		body = goal
+	}
+
+	groupingVariables := env.FreeVariables(body).Except(env.FreeVariables(template, qualifier))
+
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		const (
+			hyphen  = term.Atom("-")
+			vars    = term.Atom("vars")
+			answers = term.Variable("Answers")
+		)
+
+		type solution struct {
+			vars      term.Interface
+			instances []term.Interface
+		}
+		var solutions []solution
+
+		template = hyphen.Apply(vars.Apply(groupingVariables.Terms()...), template)
+		if _, err := vm.FindAll(template, body, answers, func(env *term.Env) *nondet.Promise {
+			if err := Each(answers, func(elem term.Interface) error {
+				answer := elem.(*term.Compound)
+				vars, instance := answer.Args[0], answer.Args[1]
+				for i := range solutions {
+					if term.Compare(solutions[i].vars, vars) == 0 {
+						solutions[i].instances = append(solutions[i].instances, instance)
+						return nil
+					}
+				}
+				solutions = append(solutions, solution{vars: vars, instances: []term.Interface{instance}})
+				return nil
+			}, env); err != nil {
+				return nondet.Error(err)
+			}
+			return nondet.Bool(true)
+		}, env).Force(ctx); err != nil {
+			return nondet.Error(err)
+		}
+
+		sort.Slice(solutions, func(i, j int) bool {
+			return term.Compare(solutions[i].vars, solutions[j].vars) < 0
+		})
+
+		ks := make([]func(context.Context) *nondet.Promise, len(solutions))
+		for i, s := range solutions {
+			switch vars := s.vars.(type) {
+			case *term.Compound:
+				bag := s.instances
+				ks[i] = func(ctx context.Context) *nondet.Promise {
+					env := env
+					for j, v := range groupingVariables {
+						env = env.Bind(v, vars.Args[j])
+					}
+					return Unify(instances, agg(bag...), k, env)
+				}
+			default:
+				bag := s.instances
+				ks[i] = func(ctx context.Context) *nondet.Promise {
+					return Unify(instances, agg(bag...), k, env)
+				}
+			}
+		}
+		return nondet.Delay(ks...)
+	})
 }
 
 // FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func (vm *VM) FindAll(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	if _, ok := env.Resolve(goal).(term.Variable); ok {
-		return nondet.Error(instantiationError(goal))
-	}
-
-	fvs := env.FreeVariables(goal)
-	if len(fvs) == 0 {
-		goal = &term.Compound{
-			Functor: "^",
-			Args:    []term.Interface{term.Atom(""), goal},
-		}
-	} else {
-		goal = &term.Compound{
-			Functor: "^",
-			Args:    []term.Interface{&term.Compound{Args: fvs.Terms()}, goal},
-		}
-	}
-
-	// bagof/3 fails when goal fails but findall/3 should succeed with an empty list.
-	var p *nondet.Promise
-	p = nondet.Delay(func(context.Context) *nondet.Promise {
-		return vm.collectionOf(template, goal, instances, func(env *term.Env) *nondet.Promise {
-			return nondet.Cut(p, func(context.Context) *nondet.Promise {
-				return k(env)
-			})
-		}, term.List, env)
-	}, func(context.Context) *nondet.Promise {
-		return Unify(instances, term.List(), k, env)
-	})
-	return p
-}
-
-func (vm *VM) collectionOf(template, goal, instances term.Interface, k func(*term.Env) *nondet.Promise, agg func(...term.Interface) term.Interface, env *term.Env) *nondet.Promise {
-	if _, ok := env.Resolve(goal).(term.Variable); ok {
-		return nondet.Error(instantiationError(goal))
-	}
-
-	qualifier, body := term.NewVariable(), term.NewVariable()
-	env, ok := goal.Unify(&term.Compound{
-		Functor: "^",
-		Args:    []term.Interface{qualifier, body},
-	}, false, env)
-	if ok {
-		goal = body
-	}
-
-	fvs := env.FreeVariables(goal)
-
-	freeVariables := env.FreeVariables(template, qualifier)
-	groupingVariables := make([]term.Variable, 0, len(fvs))
-grouping:
-	for _, v := range fvs {
-		for _, w := range freeVariables {
-			if v == w {
-				continue grouping
-			}
-		}
-		groupingVariables = append(groupingVariables, v)
-	}
-
-	type solution struct {
-		snapshots []term.Interface // snapshot of grouping variable values
-		bag       []term.Interface
-	}
-
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		var solutions []solution
-		_, err := vm.Call(goal, func(env *term.Env) *nondet.Promise {
-			snapshots := make([]term.Interface, len(groupingVariables))
-			for i, v := range groupingVariables {
-				snapshots[i] = env.Resolve(v)
-			}
-
-		solutions:
-			for i, s := range solutions {
-				env := env
-				for i := range groupingVariables {
-					ok, err := Compare(term.Atom("="), s.snapshots[i], snapshots[i], Success, env).Force(ctx)
-					if err != nil {
-						return nondet.Error(err)
-					}
-					if !ok {
-						continue solutions
-					}
-				}
-				solutions[i].bag = append(s.bag, copyTerm(template, nil, env))
-				return nondet.Bool(false) // ask for more solutions
-			}
-
-			solutions = append(solutions, solution{
-				snapshots: snapshots,
-				bag:       []term.Interface{copyTerm(template, nil, env)},
-			})
+		var answers []term.Interface
+		if _, err := vm.Call(goal, func(env *term.Env) *nondet.Promise {
+			answers = append(answers, env.Simplify(template))
 			return nondet.Bool(false) // ask for more solutions
-		}, env).Force(ctx)
-		if err != nil {
+		}, env).Force(ctx); err != nil {
 			return nondet.Error(err)
 		}
-
-		if len(solutions) == 0 {
-			return nondet.Bool(false)
-		}
-
-		ks := make([]func(context.Context) *nondet.Promise, len(solutions))
-		for i := range solutions {
-			s := solutions[i]
-			ks[i] = func(context.Context) *nondet.Promise {
-				env := env
-				// revert to snapshot
-				for i, v := range groupingVariables {
-					env = env.Bind(v, s.snapshots[i])
-				}
-
-				return Unify(instances, agg(s.bag...), k, env)
-			}
-		}
-		return nondet.Delay(ks...)
+		return Unify(instances, term.List(answers...), k, env)
 	})
 }
 

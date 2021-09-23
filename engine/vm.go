@@ -312,7 +312,7 @@ func (*VM) execVar(r *registers) *nondet.Promise {
 		Args:    []term.Interface{v, arest},
 	}
 	var ok bool
-	r.env, ok = r.args.Unify(&cons, false, r.env)
+	r.env, ok = cons.Unify(r.args, false, r.env)
 	if !ok {
 		return nondet.Bool(false)
 	}

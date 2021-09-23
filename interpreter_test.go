@@ -52,9 +52,8 @@ func TestInterpreter_Query(t *testing.T) {
 		assert.NoError(t, sols.Scan(m))
 		assert.Len(t, m, 3)
 		assert.Equal(t, term.Atom("nil"), m["X"])
-		assert.True(t, m["Y"].(term.Variable).Anonymous())
-		assert.True(t, m["Z"].(term.Variable).Anonymous())
-		assert.Equal(t, m["Y"], m["Z"])
+		assert.Equal(t, term.Variable("Z"), m["Y"])
+		assert.Equal(t, term.Variable("Z"), m["Z"])
 	})
 
 	t.Run("rule", func(t *testing.T) {

@@ -184,7 +184,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		ls := make([]string, 0, len(vars))
 		for _, n := range vars {
 			v := m[n]
-			if _, ok := v.(*term.Variable); ok {
+			if _, ok := v.(term.Variable); ok {
 				continue
 			}
 			ls = append(ls, fmt.Sprintf("%s = %s", n, v))

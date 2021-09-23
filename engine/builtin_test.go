@@ -785,21 +785,15 @@ func TestVM_BagOf(t *testing.T) {
 				case 0:
 					assert.Equal(t, term.Atom("a"), env.Resolve(a))
 					assert.Equal(t, term.Atom("b"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("c"), term.Atom("d")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d")), env.Resolve(cs))
 				case 1:
 					assert.Equal(t, term.Atom("b"), env.Resolve(a))
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("e"), term.Atom("f")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("e"), term.Atom("f")), env.Resolve(cs))
 				case 2:
 					assert.Equal(t, term.Atom("c"), env.Resolve(a))
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -824,17 +818,11 @@ func TestVM_BagOf(t *testing.T) {
 			}, cs, func(env *term.Env) *nondet.Promise {
 				switch count {
 				case 0:
-					assert.True(t, env.Resolve(a).(term.Variable).Anonymous())
 					assert.Equal(t, term.Atom("b"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("c"), term.Atom("d")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d")), env.Resolve(cs))
 				case 1:
-					assert.True(t, env.Resolve(a).(term.Variable).Anonymous())
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("e"), term.Atom("f"), term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -865,11 +853,7 @@ func TestVM_BagOf(t *testing.T) {
 			}, cs, func(env *term.Env) *nondet.Promise {
 				switch count {
 				case 0:
-					assert.Equal(t, a, env.Resolve(a))
-					assert.Equal(t, b, env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -896,9 +880,97 @@ func TestVM_BagOf(t *testing.T) {
 		assert.Equal(t, typeErrorCallable(term.Integer(0)), err)
 		assert.False(t, ok)
 	})
+
+	t.Run("disjunction", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: predicate1(func(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+					return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+						return Unify(t, term.Atom("a"), k, env)
+					}, func(ctx context.Context) *nondet.Promise {
+						return Unify(t, term.Atom("b"), k, env)
+					})
+				}),
+			},
+		}
+
+		t.Run("variable", func(t *testing.T) {
+			x, xs := term.Variable("X"), term.Variable("Xs")
+			ok, err := vm.BagOf(x, &term.Compound{
+				Functor: "foo",
+				Args:    []term.Interface{x},
+			}, xs, func(env *term.Env) *nondet.Promise {
+				assert.Equal(t, term.List(term.Atom("a"), term.Atom("b")), env.Resolve(xs))
+				return nondet.Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("not variable", func(t *testing.T) {
+			count := 0
+			x, xs := term.Variable("X"), term.Variable("Xs")
+			ok, err := vm.BagOf(term.Atom("c"), &term.Compound{
+				Functor: "foo",
+				Args:    []term.Interface{x},
+			}, xs, func(env *term.Env) *nondet.Promise {
+				switch count {
+				case 0:
+					assert.Equal(t, term.Atom("a"), env.Resolve(x))
+					assert.Equal(t, term.List(term.Atom("c")), env.Resolve(xs))
+				case 1:
+					assert.Equal(t, term.Atom("b"), env.Resolve(x))
+					assert.Equal(t, term.List(term.Atom("c")), env.Resolve(xs))
+				default:
+					assert.Fail(t, "unreachable")
+				}
+				count++
+				return nondet.Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("complex", func(t *testing.T) {
+			// bagof(X, X = Y; X = Z; Y = a, Xs).
+			count := 0
+			x, y, z, xs := term.Variable("X"), term.Variable("Y"), term.Variable("Z"), term.Variable("Xs")
+			var vm VM
+			vm.Register2("=", Unify)
+			ok, err := vm.BagOf(x, &term.Compound{
+				Functor: ";",
+				Args: []term.Interface{
+					&term.Compound{Functor: "=", Args: []term.Interface{x, y}},
+					&term.Compound{
+						Functor: ";",
+						Args: []term.Interface{
+							&term.Compound{Functor: "=", Args: []term.Interface{x, z}},
+							&term.Compound{Functor: "=", Args: []term.Interface{y, term.Atom("a")}},
+						},
+					},
+				},
+			}, xs, func(env *term.Env) *nondet.Promise {
+				switch count {
+				case 0:
+					assert.Equal(t, term.List(y, z), env.Resolve(xs))
+				case 1:
+					assert.Equal(t, term.Atom("a"), env.Resolve(y))
+					v := term.NewVariable()
+					_, ok := term.List(v).Unify(xs, false, env)
+					assert.True(t, ok)
+				default:
+					assert.Fail(t, "unreachable")
+				}
+				count++
+				return nondet.Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+	})
 }
 
-func TestSetOf(t *testing.T) {
+func TestVM_SetOf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
@@ -968,22 +1040,15 @@ func TestSetOf(t *testing.T) {
 				case 0:
 					assert.Equal(t, term.Atom("a"), env.Resolve(a))
 					assert.Equal(t, term.Atom("b"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
 					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d")), env.Resolve(cs))
-					_, ok := term.List(term.Atom("c"), term.Atom("d")).Unify(cs, false, env)
-					assert.True(t, ok)
 				case 1:
 					assert.Equal(t, term.Atom("b"), env.Resolve(a))
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("e"), term.Atom("f")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("e"), term.Atom("f")), env.Resolve(cs))
 				case 2:
 					assert.Equal(t, term.Atom("c"), env.Resolve(a))
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -1008,17 +1073,11 @@ func TestSetOf(t *testing.T) {
 			}, cs, func(env *term.Env) *nondet.Promise {
 				switch count {
 				case 0:
-					assert.True(t, env.Resolve(a).(term.Variable).Anonymous())
 					assert.Equal(t, term.Atom("b"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("c"), term.Atom("d")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d")), env.Resolve(cs))
 				case 1:
-					assert.True(t, env.Resolve(a).(term.Variable).Anonymous())
 					assert.Equal(t, term.Atom("c"), env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("e"), term.Atom("f"), term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -1049,11 +1108,7 @@ func TestSetOf(t *testing.T) {
 			}, cs, func(env *term.Env) *nondet.Promise {
 				switch count {
 				case 0:
-					assert.Equal(t, a, env.Resolve(a))
-					assert.Equal(t, b, env.Resolve(b))
-					assert.Equal(t, c, env.Resolve(c))
-					_, ok := term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
-					assert.True(t, ok)
+					assert.Equal(t, term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")), env.Resolve(cs))
 				default:
 					assert.Fail(t, "unreachable")
 				}
@@ -1131,8 +1186,7 @@ func TestVM_FindAll(t *testing.T) {
 		}, cs, func(env *term.Env) *nondet.Promise {
 			switch count {
 			case 0:
-				_, ok := term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")).Unify(cs, false, env)
-				assert.True(t, ok)
+				assert.Equal(t, term.List(term.Atom("c"), term.Atom("d"), term.Atom("e"), term.Atom("f"), term.Atom("g")), env.Resolve(cs))
 			default:
 				assert.Fail(t, "unreachable")
 			}
