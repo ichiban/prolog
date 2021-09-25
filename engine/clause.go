@@ -95,32 +95,44 @@ func compile(t term.Interface, env *term.Env) (clauses, error) {
 		if t.Functor == ":-" {
 			var cs []clause
 			head, body := env.Resolve(t.Args[0]), env.Resolve(t.Args[1])
+			exp := body
 			for {
-				b, ok := body.(*term.Compound)
+				e, ok := exp.(*term.Compound)
 				if !ok {
 					break
 				}
 
-				if b.Functor != ";" || len(b.Args) != 2 {
+				if e.Functor != ";" || len(e.Args) != 2 {
 					break
 				}
 
 				// if-then-else construct
-				if if_, ok := b.Args[0].(*term.Compound); ok && if_.Functor == "->" && len(if_.Args) == 2 {
+				if if_, ok := e.Args[0].(*term.Compound); ok && if_.Functor == "->" && len(if_.Args) == 2 {
 					break
 				}
 
-				c, err := compileClause(head, b.Args[0], env)
-				if err != nil {
+				c, err := compileClause(head, e.Args[0], env)
+				switch err {
+				case nil:
+					break
+				case errNotCallable:
+					return nil, typeErrorCallable(body)
+				default:
 					return nil, err
 				}
+				c.raw = t
 				cs = append(cs, c)
 
-				body = env.Resolve(b.Args[1])
+				exp = env.Resolve(e.Args[1])
 			}
 
-			c, err := compileClause(head, body, env)
-			if err != nil {
+			c, err := compileClause(head, exp, env)
+			switch err {
+			case nil:
+				break
+			case errNotCallable:
+				return nil, typeErrorCallable(body)
+			default:
 				return nil, err
 			}
 			c.raw = t
@@ -129,7 +141,12 @@ func compile(t term.Interface, env *term.Env) (clauses, error) {
 			return cs, nil
 		}
 		c, err := compileClause(t, nil, env)
-		if err != nil {
+		switch err {
+		case nil:
+			break
+		case errNotCallable:
+			return nil, typeErrorCallable(t)
+		default:
 			return nil, err
 		}
 		c.raw = t
@@ -154,7 +171,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 			}
 		}
 	default:
-		return c, typeErrorCallable(head)
+		return c, errNotCallable
 	}
 	if body != nil {
 		err := c.compileBody(body, env)
@@ -162,7 +179,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 		case nil:
 			break
 		case errNotCallable:
-			return c, typeErrorCallable(body)
+			return c, errNotCallable
 		default:
 			return c, err
 		}

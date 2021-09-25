@@ -94,21 +94,41 @@ func TestVM_Call(t *testing.T) {
 		})
 
 		t.Run("multiple predicates", func(t *testing.T) {
-			ok, err := vm.Call(&term.Compound{
-				Functor: ",",
-				Args: []term.Interface{
-					term.Atom("true"),
-					term.Integer(0),
-				},
-			}, Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorCallable(&term.Compound{
-				Functor: ",",
-				Args: []term.Interface{
-					term.Atom("true"),
-					term.Integer(0),
-				},
-			}), err)
-			assert.False(t, ok)
+			t.Run("conjunction", func(t *testing.T) {
+				ok, err := vm.Call(&term.Compound{
+					Functor: ",",
+					Args: []term.Interface{
+						term.Atom("true"),
+						term.Integer(0),
+					},
+				}, Success, nil).Force(context.Background())
+				assert.Equal(t, typeErrorCallable(&term.Compound{
+					Functor: ",",
+					Args: []term.Interface{
+						term.Atom("true"),
+						term.Integer(0),
+					},
+				}), err)
+				assert.False(t, ok)
+			})
+
+			t.Run("disjunction", func(t *testing.T) {
+				ok, err := vm.Call(&term.Compound{
+					Functor: ";",
+					Args: []term.Interface{
+						term.Integer(1),
+						term.Atom("true"),
+					},
+				}, Success, nil).Force(context.Background())
+				assert.Equal(t, typeErrorCallable(&term.Compound{
+					Functor: ";",
+					Args: []term.Interface{
+						term.Integer(1),
+						term.Atom("true"),
+					},
+				}), err)
+				assert.False(t, ok)
+			})
 		})
 	})
 }
