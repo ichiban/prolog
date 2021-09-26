@@ -1783,14 +1783,14 @@ func SubAtom(atom, before, length, after, subAtom term.Interface, k func(*term.E
 			return nondet.Error(typeErrorAtom(subAtom))
 		}
 
-		pattern := term.Compound{Args: []term.Interface{before, length, after, subAtom}}
+		const subAtomPattern = term.Atom("$sub_atom_pattern")
+		pattern := subAtomPattern.Apply(before, length, after, subAtom)
 		var ks []func(context.Context) *nondet.Promise
 		for i := 0; i <= len(rs); i++ {
 			for j := i; j <= len(rs); j++ {
 				before, length, after, subAtom := term.Integer(i), term.Integer(j-i), term.Integer(len(rs)-j), term.Atom(rs[i:j])
 				ks = append(ks, func(context.Context) *nondet.Promise {
-					env := env
-					return Unify(&pattern, &term.Compound{Args: []term.Interface{before, length, after, subAtom}}, k, env)
+					return Unify(pattern, subAtomPattern.Apply(before, length, after, subAtom), k, env)
 				})
 			}
 		}
