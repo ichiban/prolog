@@ -626,10 +626,12 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(*term.Env) *nondet.Prom
 	}
 
 	ks := make([]func(context.Context) *nondet.Promise, 0, len(vm.procedures))
-	for key := range vm.procedures {
+	for key, p := range vm.procedures {
+		if _, ok := p.(clauses); !ok {
+			continue
+		}
 		c := key.Term()
 		ks = append(ks, func(context.Context) *nondet.Promise {
-			env := env
 			return Unify(pi, c, k, env)
 		})
 	}

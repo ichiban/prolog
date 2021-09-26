@@ -1475,26 +1475,68 @@ func TestVM_Catch(t *testing.T) {
 }
 
 func TestVM_CurrentPredicate(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
+	t.Run("user defined predicate", func(t *testing.T) {
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "foo", Arity: 1}: clauses{},
+		}}
+		ok, err := vm.CurrentPredicate(&term.Compound{
+			Functor: "/",
+			Args: []term.Interface{
+				term.Atom("foo"),
+				term.Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("variable", func(t *testing.T) {
+		var foo, bar, baz bool
+
 		v := term.Variable("V")
 
 		vm := VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "=", Arity: 2}: nil,
+			{Name: "foo", Arity: 1}: clauses{},
+			{Name: "bar", Arity: 1}: clauses{},
+			{Name: "baz", Arity: 1}: clauses{},
 		}}
 		ok, err := vm.CurrentPredicate(v, func(env *term.Env) *nondet.Promise {
-			assert.Equal(t, &term.Compound{
-				Functor: "/",
-				Args: []term.Interface{
-					term.Atom("="),
-					term.Integer(2),
-				},
-			}, env.Resolve(v))
-			return nondet.Bool(true)
+			c, ok := env.Resolve(v).(*term.Compound)
+			assert.True(t, ok)
+			assert.Equal(t, term.Atom("/"), c.Functor)
+			assert.Len(t, c.Args, 2)
+			assert.Equal(t, term.Integer(1), c.Args[1])
+			switch c.Args[0] {
+			case term.Atom("foo"):
+				foo = true
+			case term.Atom("bar"):
+				bar = true
+			case term.Atom("baz"):
+				baz = true
+			default:
+				assert.Fail(t, "unreachable")
+			}
+			return nondet.Bool(false)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
-		assert.True(t, ok)
+		assert.False(t, ok)
 
-		ok, err = vm.CurrentPredicate(v, Failure, nil).Force(context.Background())
+		assert.True(t, foo)
+		assert.True(t, bar)
+		assert.True(t, baz)
+	})
+
+	t.Run("builtin predicate", func(t *testing.T) {
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "=", Arity: 2}: predicate2(Unify),
+		}}
+		ok, err := vm.CurrentPredicate(&term.Compound{
+			Functor: "/",
+			Args: []term.Interface{
+				term.Atom("="),
+				term.Integer(2),
+			},
+		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
