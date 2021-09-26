@@ -204,6 +204,10 @@ func permissionErrorModifyStaticProcedure(culprit term.Interface) *Exception {
 	return permissionError(term.Atom("modify"), term.Atom("static_procedure"), culprit, term.Atom(fmt.Sprintf("%s is static.", culprit)))
 }
 
+func permissionErrorAccessPrivateProcedure(culprit term.Interface) *Exception {
+	return permissionError(term.Atom("access"), term.Atom("private_procedure"), culprit, term.Atom(fmt.Sprintf("%s is private.", culprit)))
+}
+
 func permissionErrorOutputStream(culprit term.Interface) *Exception {
 	return permissionError(term.Atom("output"), term.Atom("stream"), culprit, term.Atom(fmt.Sprintf("%s is not an output stream.", culprit)))
 }

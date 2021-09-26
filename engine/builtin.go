@@ -1632,7 +1632,16 @@ func (vm *VM) Clause(head, body term.Interface, k func(*term.Env) *nondet.Promis
 		return nondet.Error(typeErrorCallable(body))
 	}
 
-	cs, _ := vm.procedures[pi].(clauses)
+	p, ok := vm.procedures[pi]
+	if !ok {
+		return nondet.Bool(false)
+	}
+
+	cs, ok := p.(clauses)
+	if !ok {
+		return nondet.Error(permissionErrorAccessPrivateProcedure(pi.Term()))
+	}
+
 	ks := make([]func(context.Context) *nondet.Promise, len(cs))
 	for i := range cs {
 		r := term.Rulify(copyTerm(cs[i].raw, nil, env), env)

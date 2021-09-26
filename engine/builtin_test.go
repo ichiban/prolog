@@ -4354,7 +4354,24 @@ func TestVM_Clause(t *testing.T) {
 	})
 
 	t.Run("the predicate indicator Pred of Head is that of a private (ie. Not public) procedure", func(t *testing.T) {
-		// TODO: we haven't introduced the concept of private procedure yet.
+		what, body := term.Variable("What"), term.Variable("Body")
+
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "green", Arity: 1}: predicate1(func(t term.Interface, f func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+					return nondet.Bool(true)
+				}),
+			},
+		}
+		ok, err := vm.Clause(&term.Compound{
+			Functor: "green",
+			Args:    []term.Interface{what},
+		}, body, Success, nil).Force(context.Background())
+		assert.Equal(t, permissionErrorAccessPrivateProcedure(&term.Compound{
+			Functor: "/",
+			Args:    []term.Interface{term.Atom("green"), term.Integer(1)},
+		}), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("body is neither a variable nor a callable term", func(t *testing.T) {
