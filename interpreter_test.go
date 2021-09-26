@@ -385,4 +385,11 @@ studies(alex, physics).
 		assert.NoError(t, err)
 		assert.False(t, sols.Next())
 	})
+
+	t.Run("term_eq", func(t *testing.T) {
+		i := New(nil, nil)
+		sols, err := i.Query("f(a) == f(a).")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+	})
 }

@@ -66,32 +66,31 @@ var DefaultWriteTermOptions = WriteTermOptions{
 	NumberVars: false,
 }
 
-func Compare(a, b Interface) int64 {
-	switch a := a.(type) {
+func Compare(a, b Interface, env *Env) int64 {
+	switch a := env.Resolve(a).(type) {
 	case Variable:
-		switch b := b.(type) {
+		switch b := env.Resolve(b).(type) {
 		case Variable:
 			return int64(strings.Compare(string(a), string(b)))
 		default:
 			return -1
 		}
 	case Float:
-		switch b := b.(type) {
+		switch b := env.Resolve(b).(type) {
 		case Variable:
 			return 1
 		case Float:
 			return int64(a - b)
 		case Integer:
-			d := int64(a - Float(b))
-			if d == 0 {
-				return -1
+			if d := int64(a - Float(b)); d != 0 {
+				return d
 			}
-			return d
+			return -1
 		default:
 			return -1
 		}
 	case Integer:
-		switch b := b.(type) {
+		switch b := env.Resolve(b).(type) {
 		case Variable:
 			return 1
 		case Float:
@@ -106,7 +105,7 @@ func Compare(a, b Interface) int64 {
 			return -1
 		}
 	case Atom:
-		switch b := b.(type) {
+		switch b := env.Resolve(b).(type) {
 		case Variable, Float, Integer:
 			return 1
 		case Atom:
@@ -117,19 +116,16 @@ func Compare(a, b Interface) int64 {
 	case *Compound:
 		switch b := b.(type) {
 		case *Compound:
-			d := len(a.Args) - len(b.Args)
-			if d != 0 {
-				return int64(d)
+			if d := Compare(a.Functor, b.Functor, env); d != 0 {
+				return d
 			}
 
-			d = strings.Compare(string(a.Functor), string(b.Functor))
-			if d != 0 {
+			if d := len(a.Args) - len(b.Args); d != 0 {
 				return int64(d)
 			}
 
 			for i := range a.Args {
-				d := Compare(a.Args[i], b.Args[i])
-				if d != 0 {
+				if d := Compare(a.Args[i], b.Args[i], env); d != 0 {
 					return d
 				}
 			}

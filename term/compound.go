@@ -233,11 +233,11 @@ func Set(ts ...Interface) Interface {
 	us := make([]Interface, len(ts))
 	copy(us, ts)
 	sort.Slice(us, func(i, j int) bool {
-		return Compare(us[i], us[j]) < 0
+		return Compare(us[i], us[j], nil) < 0
 	})
 	n := 1
 	for _, u := range us[1:] {
-		if Compare(us[n-1], u) == 0 {
+		if Compare(us[n-1], u, nil) == 0 {
 			continue
 		}
 		us[n] = u

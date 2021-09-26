@@ -45,10 +45,11 @@ func (vm *VM) Call(goal term.Interface, k func(*term.Env) *nondet.Promise, env *
 		for i, fv := range fvs {
 			args[i] = fv
 		}
+		const call = term.Atom("$call")
 		cs, err := compile(&term.Compound{
 			Functor: ":-",
 			Args: []term.Interface{
-				&term.Compound{Args: args},
+				call.Apply(args...),
 				g,
 			},
 		}, env)
@@ -489,7 +490,7 @@ func (vm *VM) collectionOf(agg func(...term.Interface) term.Interface, template,
 				answer := elem.(*term.Compound)
 				vars, instance := answer.Args[0], answer.Args[1]
 				for i := range solutions {
-					if term.Compare(solutions[i].vars, vars) == 0 {
+					if term.Compare(solutions[i].vars, vars, env) == 0 {
 						solutions[i].instances = append(solutions[i].instances, instance)
 						return nil
 					}
@@ -505,7 +506,7 @@ func (vm *VM) collectionOf(agg func(...term.Interface) term.Interface, template,
 		}
 
 		sort.Slice(solutions, func(i, j int) bool {
-			return term.Compare(solutions[i].vars, solutions[j].vars) < 0
+			return term.Compare(solutions[i].vars, solutions[j].vars, env) < 0
 		})
 
 		ks := make([]func(context.Context) *nondet.Promise, len(solutions))
@@ -561,7 +562,7 @@ func Compare(order, term1, term2 term.Interface, k func(*term.Env) *nondet.Promi
 		return nondet.Error(typeErrorAtom(order))
 	}
 
-	d := term.Compare(env.Resolve(term1), env.Resolve(term2))
+	d := term.Compare(env.Resolve(term1), env.Resolve(term2), env)
 	switch {
 	case d < 0:
 		return Unify(term.Atom("<"), order, k, env)
@@ -738,7 +739,6 @@ func (vm *VM) CurrentInput(stream term.Interface, k func(*term.Env) *nondet.Prom
 	}
 
 	return nondet.Delay(func(context.Context) *nondet.Promise {
-		env := env
 		return Unify(stream, vm.input, k, env)
 	})
 }

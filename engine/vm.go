@@ -600,17 +600,10 @@ func (p ProcedureIndicator) Term() term.Interface {
 
 // Apply applies p to args.
 func (p ProcedureIndicator) Apply(args []term.Interface) (term.Interface, error) {
-	switch p.Arity {
-	case 0:
-		return p.Name, nil
-	case term.Integer(len(args)):
-		return &term.Compound{
-			Functor: p.Name,
-			Args:    args,
-		}, nil
-	default:
+	if p.Arity != term.Integer(len(args)) {
 		return nil, errors.New("wrong number of arguments")
 	}
+	return p.Name.Apply(args...), nil
 }
 
 func piArgs(t term.Interface, env *term.Env) (ProcedureIndicator, []term.Interface, error) {
