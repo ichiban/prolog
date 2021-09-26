@@ -4883,6 +4883,26 @@ func TestNumberCodes(t *testing.T) {
 		assert.True(t, ok)
 	})
 
+	t.Run("both provided", func(t *testing.T) {
+		t.Run("33.0", func(t *testing.T) {
+			ok, err := NumberCodes(term.Float(33.0), term.List(term.Integer(51), term.Integer(51), term.Integer(46), term.Integer(48)), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("33", func(t *testing.T) {
+			ok, err := NumberCodes(term.Float(33.0), term.List(term.Integer(51), term.Integer(51)), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("3.3E+01", func(t *testing.T) {
+			ok, err := NumberCodes(term.Float(33.0), term.List(term.Integer(51), term.Integer(46), term.Integer(51), term.Integer(69), term.Integer(43), term.Integer(48), term.Integer(49)), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
 	t.Run("num is a variable and codes is a partial list or list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			codes := term.ListRest(term.Variable("Rest"),

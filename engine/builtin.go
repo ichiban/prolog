@@ -1955,8 +1955,17 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 // NumberCodes breaks up an atom representation of a number num into a list of runes and unifies it with codes, or
 // constructs a number from a list of runes codes and unifies it with num.
 func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	switch n := env.Resolve(num).(type) {
+	switch codes := env.Resolve(codes).(type) {
 	case term.Variable:
+		break
+	default:
+		switch n := env.Resolve(num).(type) {
+		case term.Variable, term.Integer, term.Float:
+			break
+		default:
+			return nondet.Error(typeErrorNumber(n))
+		}
+
 		var sb strings.Builder
 		if err := Each(env.Resolve(codes), func(elem term.Interface) error {
 			switch e := env.Resolve(elem).(type) {
@@ -1984,10 +1993,15 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 		default:
 			return nondet.Error(systemError(err))
 		}
+
 		return nondet.Delay(func(context.Context) *nondet.Promise {
-			env := env
 			return Unify(num, t, k, env)
 		})
+	}
+
+	switch n := env.Resolve(num).(type) {
+	case term.Variable:
+		return nondet.Error(instantiationError(num))
 	case term.Integer, term.Float:
 		var buf bytes.Buffer
 		if err := n.WriteTerm(&buf, term.DefaultWriteTermOptions, env); err != nil {
@@ -1999,7 +2013,6 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 			cs[i] = term.Integer(r)
 		}
 		return nondet.Delay(func(context.Context) *nondet.Promise {
-			env := env
 			return Unify(codes, term.List(cs...), k, env)
 		})
 	default:
