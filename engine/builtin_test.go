@@ -4815,6 +4815,20 @@ func TestNumberChars(t *testing.T) {
 		assert.True(t, ok)
 	})
 
+	t.Run("both provided", func(t *testing.T) {
+		t.Run("3.3", func(t *testing.T) {
+			ok, err := NumberChars(term.Float(3.3), term.List(term.Atom("3"), term.Atom("."), term.Atom("3")), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("3.3E+0", func(t *testing.T) {
+			ok, err := NumberChars(term.Float(3.3), term.List(term.Atom("3"), term.Atom("."), term.Atom("3"), term.Atom("E"), term.Atom("+"), term.Atom("0")), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
 	t.Run("num is a variable and chars is a partial list or list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			codes := term.ListRest(term.Variable("Rest"),
