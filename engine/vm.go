@@ -32,7 +32,6 @@ const (
 	opPop
 
 	opCut
-	opRepeat
 
 	_opLen
 )
@@ -48,7 +47,6 @@ func (o opcode) String() string {
 		opFunctor: "functor",
 		opPop:     "pop",
 		opCut:     "cut",
-		opRepeat:  "repeat",
 	}[o]
 }
 
@@ -267,7 +265,6 @@ func (vm *VM) exec(r registers) *nondet.Promise {
 		opCall:    vm.execCall,
 		opExit:    vm.execExit,
 		opCut:     vm.execCut,
-		opRepeat:  vm.execRepeat,
 	}
 	for len(r.pc) != 0 {
 		op := jumpTable[r.pc[0].opcode]

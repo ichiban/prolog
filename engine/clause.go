@@ -220,9 +220,6 @@ func (c *clause) compilePred(p term.Interface, env *term.Env) error {
 		case "!":
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
-		case "repeat":
-			c.bytecode = append(c.bytecode, instruction{opcode: opRepeat})
-			return nil
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p, Arity: 0})})
 		return nil

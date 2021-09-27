@@ -20,6 +20,12 @@ import (
 	"github.com/ichiban/prolog/syntax"
 )
 
+func (vm *VM) Repeat(k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	return nondet.Repeat(func(ctx context.Context) *nondet.Promise {
+		return k(env)
+	})
+}
+
 func (vm *VM) Negation(goal term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
 		env := env

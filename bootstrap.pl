@@ -63,9 +63,6 @@ P; Q :- call((P; Q)).
 % cut
 ! :- !.
 
-% repeat
-repeat :- repeat.
-
 % logic and control
 once(P) :- P, !.
 
