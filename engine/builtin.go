@@ -1151,6 +1151,13 @@ func CharCode(char, code term.Interface, k func(*term.Env) *nondet.Promise, env 
 			return nondet.Error(typeErrorInteger(code))
 		}
 	case term.Atom:
+		switch code := env.Resolve(code).(type) {
+		case term.Variable, term.Integer:
+			break
+		default:
+			return nondet.Error(typeErrorInteger(code))
+		}
+
 		rs := []rune(ch)
 		if len(rs) != 1 {
 			return nondet.Error(typeErrorCharacter(ch))

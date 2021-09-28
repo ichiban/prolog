@@ -3193,9 +3193,17 @@ func TestCharCode(t *testing.T) {
 	})
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := CharCode(term.NewVariable(), term.Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
-		assert.False(t, ok)
+		t.Run("char is variable", func(t *testing.T) {
+			ok, err := CharCode(term.NewVariable(), term.Atom("foo"), Success, nil).Force(context.Background())
+			assert.Equal(t, typeErrorInteger(term.Atom("foo")), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("char is a character", func(t *testing.T) {
+			ok, err := CharCode(term.Atom("a"), term.Atom("x"), Success, nil).Force(context.Background())
+			assert.Equal(t, typeErrorInteger(term.Atom("x")), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("code is neither a variable nor a character-code", func(t *testing.T) {
