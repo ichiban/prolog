@@ -408,7 +408,7 @@ func (l *Lexer) quotedAtomSlashCode(b *strings.Builder, base int, val *strings.B
 		switch {
 		case r == etx:
 			return nil, ErrInsufficient
-		case unicode.IsNumber(r):
+		case base == 8 && isOctal(r), base == 16 && isHex(r):
 			if _, err := val.WriteRune(r); err != nil {
 				return nil, err
 			}
@@ -552,8 +552,8 @@ func (l *Lexer) integerZero(b *strings.Builder) (lexState, error) {
 func (l *Lexer) integerOctal(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
-		switch r {
-		case '0', '1', '2', '3', '4', '5', '6', '7':
+		switch {
+		case isOctal(r):
 			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
@@ -569,8 +569,8 @@ func (l *Lexer) integerOctal(b *strings.Builder) (lexState, error) {
 func (l *Lexer) integerHex(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
-		switch unicode.ToUpper(r) {
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F':
+		switch {
+		case isHex(r):
 			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
@@ -874,6 +874,14 @@ func (l *Lexer) doubleQuoted(b *strings.Builder) func(r rune) (lexState, error) 
 			return l.doubleQuoted(b), nil
 		}
 	}
+}
+
+func isOctal(r rune) bool {
+	return strings.ContainsRune("01234567", r)
+}
+
+func isHex(r rune) bool {
+	return strings.ContainsRune("0123456789ABCDEF", unicode.ToUpper(r))
 }
 
 func isGraphic(r rune) bool {

@@ -452,11 +452,11 @@ an atom'.`)), nil)
 		})
 
 		t.Run("hex code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x23\'.`)), nil)
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xa3\'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "#"}, token)
+			assert.Equal(t, Token{Kind: TokenAtom, Val: "£"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
