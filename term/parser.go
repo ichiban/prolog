@@ -246,6 +246,16 @@ var ErrNotANumber = errors.New("not a number")
 
 // Number parses a number term.
 func (p *Parser) Number() (Interface, error) {
+	n, err := p.number()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.accept(syntax.TokenEOS)
+	return n, err
+}
+
+func (p *Parser) number() (Interface, error) {
 	sign, _ := p.accept(syntax.TokenSign)
 
 	if f, err := p.accept(syntax.TokenFloat); err == nil {
@@ -318,7 +328,7 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		return lhs, nil
 	}
 
-	if t, err := p.Number(); err == nil {
+	if t, err := p.number(); err == nil {
 		return t, nil
 	}
 

@@ -363,3 +363,86 @@ func TestParser_Replace(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestParser_Number(t *testing.T) {
+	t.Run("extra token", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`33 three`)), nil)
+		_, err := p.Number()
+		assert.Error(t, err)
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		p := NewParser(bufio.NewReader(strings.NewReader(`three`)), nil)
+		_, err := p.Number()
+		assert.Error(t, err)
+	})
+
+	t.Run("integer", func(t *testing.T) {
+		t.Run("without sign", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`33`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(33), n)
+		})
+
+		t.Run("with plus", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`+33`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(33), n)
+		})
+
+		t.Run("with minus", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`-33`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(-33), n)
+		})
+
+		t.Run("char", func(t *testing.T) {
+			t.Run("without sign", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`0'!`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(33), n)
+			})
+
+			t.Run("with plus", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`+0'!`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(33), n)
+			})
+
+			t.Run("with minus", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`-0'!`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(-33), n)
+			})
+		})
+	})
+
+	t.Run("float", func(t *testing.T) {
+		t.Run("without sign", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`3.3`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Float(3.3), n)
+		})
+
+		t.Run("with plus", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`+3.3`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Float(3.3), n)
+		})
+
+		t.Run("with minus", func(t *testing.T) {
+			p := NewParser(bufio.NewReader(strings.NewReader(`-3.3`)), nil)
+			n, err := p.Number()
+			assert.NoError(t, err)
+			assert.Equal(t, Float(-3.3), n)
+		})
+	})
+}
