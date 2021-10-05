@@ -451,24 +451,6 @@ func (vm *VM) execCut(r *registers) *nondet.Promise {
 	})
 }
 
-func (vm *VM) execRepeat(r *registers) *nondet.Promise {
-	r.pc = r.pc[1:]
-	return nondet.Repeat(func(context.Context) *nondet.Promise {
-		env := r.env
-		return vm.exec(registers{
-			pc:        r.pc,
-			xr:        r.xr,
-			vars:      r.vars,
-			cont:      r.cont,
-			args:      r.args,
-			astack:    r.astack,
-			pi:        r.pi,
-			env:       env,
-			cutParent: r.cutParent,
-		})
-	})
-}
-
 type predicate0 func(func(*term.Env) *nondet.Promise, *term.Env) *nondet.Promise
 
 func (p predicate0) Call(_ *VM, args []term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
