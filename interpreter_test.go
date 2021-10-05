@@ -392,4 +392,26 @@ studies(alex, physics).
 		assert.NoError(t, err)
 		assert.True(t, sols.Next())
 	})
+
+	t.Run("call cut", func(t *testing.T) {
+		i := New(nil, nil)
+		assert.NoError(t, i.Exec("foo :- call(true), !."))
+		assert.NoError(t, i.Exec("foo :- throw(unreachable)."))
+		sols, err := i.Query("foo.")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.False(t, sols.Next())
+		assert.NoError(t, sols.Err())
+	})
+
+	t.Run("catch cut", func(t *testing.T) {
+		i := New(nil, nil)
+		assert.NoError(t, i.Exec("foo :- catch(true, _, true), !."))
+		assert.NoError(t, i.Exec("foo :- throw(unreachable)."))
+		sols, err := i.Query("foo.")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.False(t, sols.Next())
+		assert.NoError(t, sols.Err())
+	})
 }

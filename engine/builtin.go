@@ -591,24 +591,20 @@ func Throw(ball term.Interface, _ func(*term.Env) *nondet.Promise, env *term.Env
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func (vm *VM) Catch(goal, catcher, recover term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		ok, err := vm.Call(goal, k, env).Force(ctx)
-		if err != nil {
-			ex, ok := err.(*Exception)
-			if !ok {
-				return nondet.Error(err)
-			}
-
-			env, ok := catcher.Unify(ex.Term, false, env)
-			if !ok {
-				return nondet.Error(err)
-			}
-
-			return nondet.Delay(func(context.Context) *nondet.Promise {
-				return vm.Call(recover, k, env)
-			})
+	return nondet.Catch(func(err error) *nondet.Promise {
+		var e *Exception
+		if !errors.As(err, &e) {
+			return nil
 		}
-		return nondet.Bool(ok)
+
+		env, ok := catcher.Unify(e.Term, false, env)
+		if !ok {
+			return nil
+		}
+
+		return vm.Call(recover, k, env)
+	}, func(ctx context.Context) *nondet.Promise {
+		return vm.Call(goal, k, env)
 	})
 }
 
