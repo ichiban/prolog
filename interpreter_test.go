@@ -414,4 +414,42 @@ studies(alex, physics).
 		assert.False(t, sols.Next())
 		assert.NoError(t, sols.Err())
 	})
+
+	t.Run("counter", func(t *testing.T) {
+		i := New(nil, nil)
+		assert.NoError(t, i.Exec(":- dynamic(count/1)."))
+		assert.NoError(t, i.Exec("count(0)."))
+		assert.NoError(t, i.Exec("next(N) :- retract(count(X)), N is X + 1, asserta(count(N))."))
+
+		var s struct {
+			X int
+		}
+
+		sols, err := i.Query("next(X).")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Equal(t, 1, s.X)
+		assert.False(t, sols.Next())
+		assert.NoError(t, sols.Err())
+		assert.NoError(t, sols.Close())
+
+		sols, err = i.Query("next(X).")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Equal(t, 2, s.X)
+		assert.False(t, sols.Next())
+		assert.NoError(t, sols.Err())
+		assert.NoError(t, sols.Close())
+
+		sols, err = i.Query("next(X).")
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Equal(t, 3, s.X)
+		assert.False(t, sols.Next())
+		assert.NoError(t, sols.Err())
+		assert.NoError(t, sols.Close())
+	})
 }

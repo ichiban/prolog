@@ -640,7 +640,7 @@ func (vm *VM) CurrentPredicate(pi term.Interface, k func(*term.Env) *nondet.Prom
 	return nondet.Delay(ks...)
 }
 
-// Retract removes a clause which matches with t.
+// Retract removes the first clause that matches with t.
 func (vm *VM) Retract(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
 	t = term.Rulify(t, env)
 
@@ -660,34 +660,22 @@ func (vm *VM) Retract(t term.Interface, k func(*term.Env) *nondet.Promise, env *
 		return nondet.Error(permissionErrorModifyStaticProcedure(pi.Term()))
 	}
 
-	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
-		updated := make(clauses, 0, len(cs))
-		defer func() { vm.procedures[pi] = updated }()
-
-		for i, c := range cs {
-			env := env
-
-			raw := term.Rulify(c.raw, env)
-
-			env, ok := t.Unify(raw, false, env)
-			if !ok {
-				updated = append(updated, c)
-				continue
-			}
-
-			ok, err := k(env).Force(ctx)
-			if err != nil {
-				updated = append(updated, cs[i+1:]...)
-				return nondet.Error(err)
-			}
-			if ok {
-				updated = append(updated, cs[i+1:]...)
-				return nondet.Bool(true)
-			}
+	deleted := 0
+	ks := make([]func(context.Context) *nondet.Promise, len(cs))
+	for i, c := range cs {
+		i := i
+		raw := term.Rulify(c.raw, env)
+		ks[i] = func(_ context.Context) *nondet.Promise {
+			return Unify(t, raw, func(env *term.Env) *nondet.Promise {
+				j := i - deleted
+				cs, cs[len(cs)-1] = append(cs[:j], cs[j+1:]...), clause{}
+				deleted++
+				vm.procedures[pi] = cs
+				return k(env)
+			}, env)
 		}
-
-		return nondet.Bool(false)
-	})
+	}
+	return nondet.Delay(ks...)
 }
 
 // Abolish removes the procedure indicated by pi from the database.

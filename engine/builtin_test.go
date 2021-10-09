@@ -2003,13 +2003,13 @@ func TestVM_Retract(t *testing.T) {
 				},
 			},
 		}
+
 		ok, err := vm.Retract(&term.Compound{
 			Functor: "foo",
 			Args:    []term.Interface{term.Variable("X")},
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-
 		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
