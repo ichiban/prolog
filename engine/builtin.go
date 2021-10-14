@@ -298,9 +298,22 @@ func (vm *VM) Op(priority, specifier, operator term.Interface, k func(*term.Env)
 	if !ok {
 		return nondet.Error(typeErrorAtom(specifier))
 	}
+	var spec term.OperatorSpecifier
 	switch s {
-	case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
-		break
+	case "fx":
+		spec = term.OperatorSpecifierFX
+	case "fy":
+		spec = term.OperatorSpecifierFY
+	case "xf":
+		spec = term.OperatorSpecifierXF
+	case "yf":
+		spec = term.OperatorSpecifierYF
+	case "xfx":
+		spec = term.OperatorSpecifierXFX
+	case "xfy":
+		spec = term.OperatorSpecifierXFY
+	case "yfx":
+		spec = term.OperatorSpecifierYFX
 	default:
 		return nondet.Error(domainErrorOperatorSpecifier(s))
 	}
@@ -312,7 +325,7 @@ func (vm *VM) Op(priority, specifier, operator term.Interface, k func(*term.Env)
 
 	// already defined?
 	for i, op := range vm.operators {
-		if op.Specifier != s || op.Name != o {
+		if op.Specifier != spec || op.Name != o {
 			continue
 		}
 
@@ -335,7 +348,7 @@ func (vm *VM) Op(priority, specifier, operator term.Interface, k func(*term.Env)
 	copy(vm.operators[i+1:], vm.operators[i:])
 	vm.operators[i] = term.Operator{
 		Priority:  p,
-		Specifier: s,
+		Specifier: spec,
 		Name:      o,
 	}
 
@@ -382,7 +395,7 @@ func (vm *VM) CurrentOp(priority, specifier, operator term.Interface, k func(*te
 		op := vm.operators[i]
 		ks[i] = func(context.Context) *nondet.Promise {
 			env := env
-			return Unify(&pattern, &term.Compound{Args: []term.Interface{op.Priority, op.Specifier, op.Name}}, k, env)
+			return Unify(&pattern, &term.Compound{Args: []term.Interface{op.Priority, op.Specifier.Term(), op.Name}}, k, env)
 		}
 	}
 	return nondet.Delay(ks...)
@@ -1054,7 +1067,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
-	opts := term.WriteTermOptions{Ops: vm.operators}
+	var opts term.WriteTermOptions
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch option := env.Resolve(option).(type) {
 		case term.Variable:

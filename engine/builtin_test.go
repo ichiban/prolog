@@ -548,12 +548,12 @@ func TestVM_Op(t *testing.T) {
 			operators: term.Operators{
 				{
 					Priority:  900,
-					Specifier: "xfx",
+					Specifier: term.OperatorSpecifierXFX,
 					Name:      "+++",
 				},
 				{
 					Priority:  1100,
-					Specifier: "xfx",
+					Specifier: term.OperatorSpecifierXFX,
 					Name:      "+",
 				},
 			},
@@ -565,17 +565,17 @@ func TestVM_Op(t *testing.T) {
 		assert.Equal(t, term.Operators{
 			{
 				Priority:  900,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+++",
 			},
 			{
 				Priority:  1000,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "++",
 			},
 			{
 				Priority:  1100,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+",
 			},
 		}, vm.operators)
@@ -586,17 +586,17 @@ func TestVM_Op(t *testing.T) {
 			operators: term.Operators{
 				{
 					Priority:  900,
-					Specifier: "xfx",
+					Specifier: term.OperatorSpecifierXFX,
 					Name:      "+++",
 				},
 				{
 					Priority:  1000,
-					Specifier: "xfx",
+					Specifier: term.OperatorSpecifierXFX,
 					Name:      "++",
 				},
 				{
 					Priority:  1100,
-					Specifier: "xfx",
+					Specifier: term.OperatorSpecifierXFX,
 					Name:      "+",
 				},
 			},
@@ -608,12 +608,12 @@ func TestVM_Op(t *testing.T) {
 		assert.Equal(t, term.Operators{
 			{
 				Priority:  900,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+++",
 			},
 			{
 				Priority:  1100,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+",
 			},
 		}, vm.operators)
@@ -667,17 +667,17 @@ func TestVM_CurrentOp(t *testing.T) {
 		operators: term.Operators{
 			{
 				Priority:  900,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+++",
 			},
 			{
 				Priority:  1000,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "++",
 			},
 			{
 				Priority:  1100,
-				Specifier: "xfx",
+				Specifier: term.OperatorSpecifierXFX,
 				Name:      "+",
 			},
 		},
@@ -2909,8 +2909,8 @@ func TestVM_WriteTerm(t *testing.T) {
 	s := term.Stream{Sink: &w}
 
 	ops := term.Operators{
-		{Priority: 500, Specifier: "yfx", Name: "+"},
-		{Priority: 200, Specifier: "fy", Name: "-"},
+		{Priority: 500, Specifier: term.OperatorSpecifierYFX, Name: "+"},
+		{Priority: 200, Specifier: term.OperatorSpecifierFY, Name: "-"},
 	}
 
 	vm := VM{
@@ -2923,7 +2923,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{}, (*term.Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(), Success, nil).Force(context.Background())
@@ -2933,7 +2933,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("ng", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops}, (*term.Env)(nil)).Return(errors.New("")).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{}, (*term.Env)(nil)).Return(errors.New("")).Once()
 			defer m.AssertExpectations(t)
 
 			_, err := vm.WriteTerm(&s, &m, term.List(), Success, nil).Force(context.Background())
@@ -2944,7 +2944,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: false, Ops: ops}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: false}, (*term.Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -2957,7 +2957,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: true, Ops: ops}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: true}, (*term.Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -3000,7 +3000,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops, NumberVars: false}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{NumberVars: false}, (*term.Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -3013,7 +3013,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops, NumberVars: true}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("WriteTerm", s.Sink, term.WriteTermOptions{NumberVars: true}, (*term.Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{

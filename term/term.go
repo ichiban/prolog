@@ -60,8 +60,8 @@ type WriteTermOptions struct {
 var DefaultWriteTermOptions = WriteTermOptions{
 	Quoted: true,
 	Ops: Operators{
-		{Priority: 500, Specifier: "yfx", Name: "+"}, // for flag+value
-		{Priority: 400, Specifier: "yfx", Name: "/"}, // for principal functors
+		{Priority: 500, Specifier: OperatorSpecifierYFX, Name: "+"}, // for flag+value
+		{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"}, // for principal functors
 	},
 	NumberVars: false,
 }

@@ -459,33 +459,60 @@ func (p *Parser) More() bool {
 	return err != nil
 }
 
+type OperatorSpecifier uint8
+
+const (
+	OperatorSpecifierNone OperatorSpecifier = iota
+	OperatorSpecifierFX
+	OperatorSpecifierFY
+	OperatorSpecifierXF
+	OperatorSpecifierYF
+	OperatorSpecifierXFX
+	OperatorSpecifierXFY
+	OperatorSpecifierYFX
+
+	operatorSpecifierLen
+)
+
+func (s OperatorSpecifier) Term() Interface {
+	return [operatorSpecifierLen]Interface{
+		OperatorSpecifierFX:  Atom("fx"),
+		OperatorSpecifierFY:  Atom("fy"),
+		OperatorSpecifierXF:  Atom("xf"),
+		OperatorSpecifierYF:  Atom("yf"),
+		OperatorSpecifierXFX: Atom("xfx"),
+		OperatorSpecifierXFY: Atom("xfy"),
+		OperatorSpecifierYFX: Atom("yfx"),
+	}[s]
+}
+
 // Operators are a list of operators sorted in a descending order of precedence.
 type Operators []Operator
 
 // Operator is an operator definition.
 type Operator struct {
 	Priority  Integer // 1 ~ 1200
-	Specifier Atom    // xf, yf, xfx, xfy, yfx, fx, or fy
+	Specifier OperatorSpecifier
 	Name      Atom
 }
 
 func (o *Operator) bindingPowers() (int, int) {
 	bp := 1201 - int(o.Priority) // 1 ~ 1200
 	switch o.Specifier {
-	case "xf":
-		return bp + 1, 0
-	case "yf":
-		return bp, -1
-	case "xfx":
-		return bp + 1, bp + 1
-	case "xfy":
-		return bp + 1, bp
-	case "yfx":
-		return bp, bp + 1
-	case "fx":
+	case OperatorSpecifierFX:
 		return 0, bp + 1
-	case "fy":
+	case OperatorSpecifierFY:
 		return 0, bp
+	case OperatorSpecifierXF:
+		return bp + 1, 0
+	case OperatorSpecifierYF:
+		return bp, -1
+	case OperatorSpecifierXFX:
+		return bp + 1, bp + 1
+	case OperatorSpecifierXFY:
+		return bp + 1, bp
+	case OperatorSpecifierYFX:
+		return bp, bp + 1
 	default:
 		return 0, 0
 	}

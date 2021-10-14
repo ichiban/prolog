@@ -116,8 +116,8 @@ func TestCompound_WriteTerm(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			ops := Operators{
-				{Priority: 500, Specifier: "yfx", Name: "+"},
-				{Priority: 200, Specifier: "fy", Name: "-"},
+				{Priority: 500, Specifier: OperatorSpecifierYFX, Name: "+"},
+				{Priority: 200, Specifier: OperatorSpecifierFY, Name: "-"},
 			}
 
 			var buf bytes.Buffer

@@ -137,7 +137,6 @@ func (vm *VM) DescribeTerm(t term.Interface, env *term.Env) string {
 	var buf bytes.Buffer
 	_ = t.WriteTerm(&buf, term.WriteTermOptions{
 		Quoted:      true,
-		Ops:         vm.operators,
 		Descriptive: true,
 	}, env)
 	return buf.String()

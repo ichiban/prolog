@@ -60,29 +60,9 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error
 
 	switch len(c.Args) {
 	case 1:
-		for _, o := range opts.Ops {
-			if o.Name != c.Functor {
-				continue
-			}
-			switch o.Specifier {
-			case `xf`, `yf`:
-				var lb, fb bytes.Buffer
-				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
-					return err
-				}
-				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
-					return err
-				}
-
-				l := []rune(lb.String())
-				f := []rune(fb.String())
-				if syntax.IsExtendedGraphic(l[len(l)-1]) && syntax.IsExtendedGraphic(f[0]) {
-					_, err := fmt.Fprintf(w, "(%s)%s", string(l), string(f))
-					return err
-				}
-				_, err := fmt.Fprintf(w, "%s%s", string(l), string(f))
-				return err
-			case `fx`, `fy`:
+		for _, op := range opts.Ops {
+			switch op.Specifier {
+			case OperatorSpecifierFX, OperatorSpecifierFY:
 				var fb, rb bytes.Buffer
 				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
 					return err
@@ -99,15 +79,29 @@ func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error
 				}
 				_, err := fmt.Fprintf(w, "%s%s", string(f), string(r))
 				return err
+			case OperatorSpecifierXF, OperatorSpecifierYF:
+				var lb, fb bytes.Buffer
+				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
+					return err
+				}
+				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
+					return err
+				}
+
+				l := []rune(lb.String())
+				f := []rune(fb.String())
+				if syntax.IsExtendedGraphic(l[len(l)-1]) && syntax.IsExtendedGraphic(f[0]) {
+					_, err := fmt.Fprintf(w, "(%s)%s", string(l), string(f))
+					return err
+				}
+				_, err := fmt.Fprintf(w, "%s%s", string(l), string(f))
+				return err
 			}
 		}
 	case 2:
-		for _, o := range opts.Ops {
-			if o.Name != c.Functor {
-				continue
-			}
-			switch o.Specifier {
-			case `xfx`, `xfy`, `yfx`:
+		for _, op := range opts.Ops {
+			switch op.Specifier {
+			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
 				var lb, fb, rb bytes.Buffer
 				lt := env.Resolve(c.Args[0])
 				if err := lt.WriteTerm(&lb, opts, env); err != nil {
