@@ -135,9 +135,11 @@ func (vm *VM) SetUserOutput(w io.Writer) {
 
 func (vm *VM) DescribeTerm(t term.Interface, env *term.Env) string {
 	var buf bytes.Buffer
-	_ = t.WriteTerm(&buf, term.WriteTermOptions{
+	_ = term.Write(&buf, t, term.WriteTermOptions{
+		Ops:         vm.operators,
 		Quoted:      true,
 		Descriptive: true,
+		Priority:    1200,
 	}, env)
 	return buf.String()
 }

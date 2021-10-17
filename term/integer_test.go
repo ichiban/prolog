@@ -3,6 +3,8 @@ package term
 import (
 	"testing"
 
+	"github.com/ichiban/prolog/syntax"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,5 +56,28 @@ func TestInteger_Unify(t *testing.T) {
 			Args:    []Interface{Atom("foo")},
 		}, false, nil)
 		assert.False(t, ok)
+	})
+}
+
+func TestInteger_Unparse(t *testing.T) {
+	t.Run("positive", func(t *testing.T) {
+		var tokens []syntax.Token
+		Integer(33).Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenInteger, Val: "33"},
+		}, tokens)
+	})
+
+	t.Run("negative", func(t *testing.T) {
+		var tokens []syntax.Token
+		Integer(-33).Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenSign, Val: "-"},
+			{Kind: syntax.TokenInteger, Val: "33"},
+		}, tokens)
 	})
 }

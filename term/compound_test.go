@@ -1,8 +1,9 @@
 package term
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -83,34 +84,48 @@ func TestCompound_Unify(t *testing.T) {
 	})
 }
 
-func TestCompound_String(t *testing.T) {
-	t.Run("no parenthesises", func(t *testing.T) {
+func TestCompound_Unparse(t *testing.T) {
+	t.Run("operator precedence", func(t *testing.T) {
 		c := Compound{
-			Functor: "/",
-			Args:    []Interface{Atom("append"), Integer(3)},
+			Functor: "*",
+			Args: []Interface{
+				Integer(2),
+				&Compound{
+					Functor: "+",
+					Args: []Interface{
+						Integer(2),
+						Integer(2),
+					},
+				},
+			},
 		}
-		assert.Equal(t, "append/3", c.String())
+
+		ops := Operators{
+			{Priority: 500, Specifier: OperatorSpecifierYFX, Name: `+`},
+			{Priority: 400, Specifier: OperatorSpecifierYFX, Name: `*`},
+		}
+
+		var tokens []syntax.Token
+		c.Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenInteger, Val: "2"},
+			{Kind: syntax.TokenAtom, Val: "*"},
+			{Kind: syntax.TokenParenL, Val: "("},
+			{Kind: syntax.TokenInteger, Val: "2"},
+			{Kind: syntax.TokenAtom, Val: "+"},
+			{Kind: syntax.TokenInteger, Val: "2"},
+			{Kind: syntax.TokenParenR, Val: ")"},
+		}, tokens)
 	})
 
-	t.Run("parenthesises", func(t *testing.T) {
-		c := Compound{
-			Functor: "/",
-			Args:    []Interface{Atom("=="), Integer(2)},
-		}
-		assert.Equal(t, "(==)/2", c.String())
-	})
-}
-
-func TestCompound_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		c := Compound{
 			Functor: "+",
 			Args: []Interface{
 				Integer(2),
-				&Compound{
-					Functor: "-",
-					Args:    []Interface{Integer(2)},
-				},
+				Integer(-2),
 			},
 		}
 
@@ -120,15 +135,32 @@ func TestCompound_WriteTerm(t *testing.T) {
 				{Priority: 200, Specifier: OperatorSpecifierFY, Name: "-"},
 			}
 
-			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: ops}, nil))
-			assert.Equal(t, "2+(-2)", buf.String())
+			var tokens []syntax.Token
+			c.Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenInteger, Val: "2"},
+				{Kind: syntax.TokenAtom, Val: "+"},
+				{Kind: syntax.TokenSign, Val: "-"},
+				{Kind: syntax.TokenInteger, Val: "2"},
+			}, tokens)
 		})
 
 		t.Run("true", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{Ops: nil}, nil))
-			assert.Equal(t, "+(2, -(2))", buf.String())
+			var tokens []syntax.Token
+			c.Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: nil, Priority: 1200}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: "+"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "2"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenSign, Val: "-"},
+				{Kind: syntax.TokenInteger, Val: "2"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+			}, tokens)
 		})
 	})
 
@@ -145,15 +177,60 @@ func TestCompound_WriteTerm(t *testing.T) {
 		}
 
 		t.Run("false", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: false}, nil))
-			assert.Equal(t, "f($VAR(0), $VAR(1), $VAR(25), $VAR(26), $VAR(27))", buf.String())
+			var tokens []syntax.Token
+			c.Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{NumberVars: false, Priority: 1200}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: "f"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "0"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "1"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "25"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "26"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenInteger, Val: "27"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+			}, tokens)
 		})
 
 		t.Run("true", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, c.WriteTerm(&buf, WriteTermOptions{NumberVars: true}, nil))
-			assert.Equal(t, "f(A, B, Z, A1, B1)", buf.String())
+			var tokens []syntax.Token
+			c.Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{NumberVars: true, Priority: 1200}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: "f"},
+				{Kind: syntax.TokenParenL, Val: "("},
+				{Kind: syntax.TokenVariable, Val: "A"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenVariable, Val: "B"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenVariable, Val: "Z"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenVariable, Val: "A1"},
+				{Kind: syntax.TokenComma, Val: ","},
+				{Kind: syntax.TokenVariable, Val: "B1"},
+				{Kind: syntax.TokenParenR, Val: ")"},
+			}, tokens)
 		})
 	})
 }

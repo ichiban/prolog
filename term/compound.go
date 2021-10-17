@@ -1,11 +1,9 @@
 package term
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"sort"
+	"strings"
 
 	"github.com/ichiban/prolog/syntax"
 )
@@ -17,159 +15,9 @@ type Compound struct {
 }
 
 func (c *Compound) String() string {
-	var buf bytes.Buffer
-	_ = c.WriteTerm(&buf, DefaultWriteTermOptions, nil)
-	return buf.String()
-}
-
-// WriteTerm writes the compound into w.
-func (c *Compound) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
-	if c.Functor == "." && len(c.Args) == 2 { // list
-		if _, err := fmt.Fprint(w, "["); err != nil {
-			return err
-		}
-		if err := env.Resolve(c.Args[0]).WriteTerm(w, opts, env); err != nil {
-			return err
-		}
-		t := env.Resolve(c.Args[1])
-		for {
-			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-				if _, err := fmt.Fprint(w, ", "); err != nil {
-					return err
-				}
-				if err := env.Resolve(l.Args[0]).WriteTerm(w, opts, env); err != nil {
-					return err
-				}
-				t = env.Resolve(l.Args[1])
-				continue
-			}
-			if a, ok := t.(Atom); ok && a == "[]" {
-				break
-			}
-			if _, err := fmt.Fprint(w, "|"); err != nil {
-				return err
-			}
-			if err := t.WriteTerm(w, opts, env); err != nil {
-				return err
-			}
-			break
-		}
-		_, err := fmt.Fprint(w, "]")
-		return err
-	}
-
-	switch len(c.Args) {
-	case 1:
-		for _, op := range opts.Ops {
-			switch op.Specifier {
-			case OperatorSpecifierFX, OperatorSpecifierFY:
-				var fb, rb bytes.Buffer
-				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
-					return err
-				}
-				if err := env.Resolve(c.Args[0]).WriteTerm(&rb, opts, env); err != nil {
-					return err
-				}
-
-				f := []rune(fb.String())
-				r := []rune(rb.String())
-				if syntax.IsExtendedGraphic(f[len(f)-1]) && syntax.IsExtendedGraphic(r[0]) {
-					_, err := fmt.Fprintf(w, "%s(%s)", string(f), string(r))
-					return err
-				}
-				_, err := fmt.Fprintf(w, "%s%s", string(f), string(r))
-				return err
-			case OperatorSpecifierXF, OperatorSpecifierYF:
-				var lb, fb bytes.Buffer
-				if err := env.Resolve(c.Args[0]).WriteTerm(&lb, opts, env); err != nil {
-					return err
-				}
-				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
-					return err
-				}
-
-				l := []rune(lb.String())
-				f := []rune(fb.String())
-				if syntax.IsExtendedGraphic(l[len(l)-1]) && syntax.IsExtendedGraphic(f[0]) {
-					_, err := fmt.Fprintf(w, "(%s)%s", string(l), string(f))
-					return err
-				}
-				_, err := fmt.Fprintf(w, "%s%s", string(l), string(f))
-				return err
-			}
-		}
-	case 2:
-		for _, op := range opts.Ops {
-			switch op.Specifier {
-			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
-				var lb, fb, rb bytes.Buffer
-				lt := env.Resolve(c.Args[0])
-				if err := lt.WriteTerm(&lb, opts, env); err != nil {
-					return err
-				}
-				if err := c.Functor.WriteTerm(&fb, opts, env); err != nil {
-					return err
-				}
-				if err := env.Resolve(c.Args[1]).WriteTerm(&rb, opts, env); err != nil {
-					return err
-				}
-
-				l := []rune(lb.String())
-				f := []rune(fb.String())
-				r := []rune(rb.String())
-				switch {
-				case len(l) > 0 && syntax.IsExtendedGraphic(l[len(l)-1]) && len(f) > 0 && syntax.IsExtendedGraphic(f[0]) && syntax.IsExtendedGraphic(f[len(f)-1]) && len(r) > 0 && syntax.IsExtendedGraphic(r[0]):
-					_, err := fmt.Fprintf(w, "(%s)%s(%s)", string(l), string(f), string(r))
-					return err
-				case len(l) > 0 && syntax.IsExtendedGraphic(l[len(l)-1]) && len(f) > 0 && syntax.IsExtendedGraphic(f[0]):
-					_, err := fmt.Fprintf(w, "(%s)%s%s", string(l), string(f), string(r))
-					return err
-				case len(f) > 0 && syntax.IsExtendedGraphic(f[len(f)-1]) && len(r) > 0 && syntax.IsExtendedGraphic(r[0]):
-					_, err := fmt.Fprintf(w, "%s%s(%s)", string(l), string(f), string(r))
-					return err
-				default:
-					_, err := fmt.Fprintf(w, "%s%s%s", string(l), string(f), string(r))
-					return err
-				}
-			}
-		}
-	}
-
-	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
-		switch n := env.Resolve(c.Args[0]).(type) {
-		case Integer:
-			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			i, j := int(n)%len(letters), int(n)/len(letters)
-			if j == 0 {
-				_, err := fmt.Fprintf(w, "%s", string(letters[i]))
-				return err
-			}
-			_, err := fmt.Fprintf(w, "%s%d", string(letters[i]), j)
-			return err
-		default:
-			return errors.New("not an integer")
-		}
-	}
-
-	if err := c.Functor.WriteTerm(w, opts, env); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprint(w, "("); err != nil {
-		return err
-	}
-	if err := env.Resolve(c.Args[0]).WriteTerm(w, opts, env); err != nil {
-		return err
-	}
-	for _, arg := range c.Args[1:] {
-		if _, err := fmt.Fprint(w, ", "); err != nil {
-			return err
-		}
-		if err := env.Resolve(arg).WriteTerm(w, opts, env); err != nil {
-			return err
-		}
-	}
-	_, err := fmt.Fprint(w, ")")
-	return err
+	var sb strings.Builder
+	_ = Write(&sb, c, defaultWriteTermOptions, nil)
+	return sb.String()
 }
 
 // Unify unifies the compound with t.
@@ -195,6 +43,116 @@ func (c *Compound) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	default:
 		return env, false
 	}
+}
+
+// Unparse emits tokens that represent the compound.
+func (c *Compound) Unparse(emit func(syntax.Token), opts WriteTermOptions, env *Env) {
+	if c.Functor == "." && len(c.Args) == 2 { // list
+		emit(syntax.Token{Kind: syntax.TokenBracketL, Val: "["})
+		env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+		t := env.Resolve(c.Args[1])
+		for {
+			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+				emit(syntax.Token{Kind: syntax.TokenComma, Val: ","})
+				env.Resolve(l.Args[0]).Unparse(emit, opts, env)
+				t = env.Resolve(l.Args[1])
+				continue
+			}
+			if a, ok := t.(Atom); ok && a == "[]" {
+				break
+			}
+			emit(syntax.Token{Kind: syntax.TokenBar, Val: "|"})
+			t.Unparse(emit, opts, env)
+			break
+		}
+		emit(syntax.Token{Kind: syntax.TokenBracketR, Val: "]"})
+		return
+	}
+
+	switch len(c.Args) {
+	case 1:
+		for _, op := range opts.Ops {
+			if op.Name != c.Functor {
+				continue
+			}
+			switch op.Specifier {
+			case OperatorSpecifierFX, OperatorSpecifierFY:
+				if int(op.Priority) > opts.Priority {
+					emit(syntax.Token{Kind: syntax.TokenParenL, Val: "("})
+					defer emit(syntax.Token{Kind: syntax.TokenParenR, Val: ")"})
+				}
+				c.Functor.Unparse(emit, opts, env)
+				{
+					opts := opts
+					opts.Priority = int(op.Priority)
+					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+				}
+				return
+			case OperatorSpecifierXF, OperatorSpecifierYF:
+				if int(op.Priority) > opts.Priority {
+					emit(syntax.Token{Kind: syntax.TokenParenL, Val: "("})
+					defer emit(syntax.Token{Kind: syntax.TokenParenR, Val: ")"})
+				}
+				{
+					opts := opts
+					opts.Priority = int(op.Priority)
+					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+				}
+				c.Functor.Unparse(emit, opts, env)
+				return
+			}
+		}
+	case 2:
+		for _, op := range opts.Ops {
+			if op.Name != c.Functor {
+				continue
+			}
+			switch op.Specifier {
+			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
+				if int(op.Priority) > opts.Priority {
+					emit(syntax.Token{Kind: syntax.TokenParenL, Val: "("})
+					defer emit(syntax.Token{Kind: syntax.TokenParenR, Val: ")"})
+				}
+				{
+					opts := opts
+					opts.Priority = int(op.Priority)
+					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+				}
+				c.Functor.Unparse(emit, opts, env)
+				{
+					opts := opts
+					opts.Priority = int(op.Priority)
+					env.Resolve(c.Args[1]).Unparse(emit, opts, env)
+				}
+				return
+			}
+		}
+	}
+
+	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
+		switch n := env.Resolve(c.Args[0]).(type) {
+		case Integer:
+			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			i, j := int(n)%len(letters), int(n)/len(letters)
+			if j == 0 {
+				s := string(letters[i])
+				emit(syntax.Token{Kind: syntax.TokenVariable, Val: s})
+				return
+			}
+			s := fmt.Sprintf("%s%d", string(letters[i]), j)
+			emit(syntax.Token{Kind: syntax.TokenVariable, Val: s})
+			return
+		}
+	}
+
+	c.Functor.Unparse(emit, opts, env)
+	emit(syntax.Token{Kind: syntax.TokenParenL, Val: "("})
+	env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+	for _, arg := range c.Args[1:] {
+		emit(syntax.Token{Kind: syntax.TokenComma, Val: ","})
+		env.Resolve(arg).Unparse(emit, opts, env)
+	}
+	emit(syntax.Token{Kind: syntax.TokenParenR, Val: ")"})
 }
 
 // Cons returns a list consists of a first element car and the rest cdr.

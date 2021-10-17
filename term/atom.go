@@ -1,30 +1,54 @@
 package term
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
+
+	"github.com/ichiban/prolog/syntax"
 )
 
 // Atom is a prolog atom.
 type Atom string
 
 func (a Atom) String() string {
-	var buf bytes.Buffer
-	_ = a.WriteTerm(&buf, DefaultWriteTermOptions, nil)
-	return buf.String()
+	var sb strings.Builder
+	_ = Write(&sb, a, defaultWriteTermOptions, nil)
+	return sb.String()
+}
+
+// Unify unifies the atom with t.
+func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+	switch t := env.Resolve(t).(type) {
+	case Atom:
+		return env, a == t
+	case Variable:
+		return t.Unify(a, occursCheck, env)
+	default:
+		return env, false
+	}
+}
+
+// Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
+// then returns itself.
+func (a Atom) Apply(args ...Interface) Interface {
+	if len(args) == 0 {
+		return a
+	}
+	return &Compound{
+		Functor: a,
+		Args:    args,
+	}
 }
 
 var unquotedAtomPattern = regexp.MustCompile(`\A(?:[a-z]\w*|[#$&*+\-./:<=>?@^~\\]+|\[])\z`)
 var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 
-// WriteTerm writes the atom into w.
-func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ *Env) error {
+// Unparse emits tokens that represent the atom.
+func (a Atom) Unparse(emit func(syntax.Token), opts WriteTermOptions, _ *Env) {
 	if !opts.Quoted || unquotedAtomPattern.MatchString(string(a)) {
-		_, err := fmt.Fprint(w, string(a))
-		return err
+		emit(syntax.Token{Kind: syntax.TokenAtom, Val: string(a)}) // TODO: quoted atoms, graphical tokens.
+		return
 	}
 
 	s := quotedAtomEscapePattern.ReplaceAllStringFunc(string(a), func(s string) string {
@@ -59,31 +83,5 @@ func (a Atom) WriteTerm(w io.Writer, opts WriteTermOptions, _ *Env) error {
 			return strings.Join(ret, "")
 		}
 	})
-
-	_, err := fmt.Fprintf(w, "'%s'", s)
-	return err
-}
-
-// Unify unifies the atom with t.
-func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case Atom:
-		return env, a == t
-	case Variable:
-		return t.Unify(a, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
-// Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
-// then returns itself.
-func (a Atom) Apply(args ...Interface) Interface {
-	if len(args) == 0 {
-		return a
-	}
-	return &Compound{
-		Functor: a,
-		Args:    args,
-	}
+	emit(syntax.Token{Kind: syntax.TokenAtom, Val: fmt.Sprintf("'%s'", s)}) // TODO: graphical tokens.
 }

@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ichiban/prolog/syntax"
 )
 
 // Interface is a prolog term.
 type Interface interface {
 	fmt.Stringer
-	WriteTerm(io.Writer, WriteTermOptions, *Env) error
 	Unify(Interface, bool, *Env) (*Env, bool)
+	Unparse(func(syntax.Token), WriteTermOptions, *Env)
 }
 
 // Contains checks if t contains s.
@@ -55,15 +57,17 @@ type WriteTermOptions struct {
 	Ops         Operators
 	NumberVars  bool
 	Descriptive bool
+
+	Priority int
 }
 
-var DefaultWriteTermOptions = WriteTermOptions{
+var defaultWriteTermOptions = WriteTermOptions{
 	Quoted: true,
 	Ops: Operators{
 		{Priority: 500, Specifier: OperatorSpecifierYFX, Name: "+"}, // for flag+value
 		{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"}, // for principal functors
 	},
-	NumberVars: false,
+	Priority: 1200,
 }
 
 func Compare(a, b Interface, env *Env) int64 {
@@ -137,4 +141,34 @@ func Compare(a, b Interface, env *Env) int64 {
 	default:
 		return 1
 	}
+}
+
+// Some token kinds require spaces between them. TODO:
+var spacing = [syntax.TokenKindLen][syntax.TokenKindLen]bool{
+	syntax.TokenAtom: {
+		syntax.TokenAtom: true,
+	},
+}
+
+// Write outputs one of the external representations of the term.
+func Write(w io.Writer, t Interface, opts WriteTermOptions, env *Env) error {
+	var (
+		err  error
+		last syntax.TokenKind
+	)
+	env.Resolve(t).Unparse(func(token syntax.Token) {
+		if err != nil {
+			return
+		}
+		if spacing[last][token.Kind] {
+			if _, err = fmt.Fprint(w, " "); err != nil {
+				return
+			}
+		}
+		if _, err = fmt.Fprint(w, token.Val); err != nil {
+			return
+		}
+		last = token.Kind
+	}, opts, env)
+	return err
 }

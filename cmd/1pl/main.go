@@ -187,7 +187,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 			if _, ok := v.(term.Variable); ok {
 				continue
 			}
-			ls = append(ls, fmt.Sprintf("%s = %s", n, v))
+			ls = append(ls, fmt.Sprintf("%s = %s", n, i.DescribeTerm(v, nil)))
 		}
 		if len(ls) == 0 {
 			if _, err := fmt.Fprintf(t, "%t.\n", true); err != nil {

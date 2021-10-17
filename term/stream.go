@@ -1,9 +1,11 @@
 package term
 
 import (
-	"bytes"
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/ichiban/prolog/syntax"
 )
 
 type StreamMode int
@@ -43,19 +45,9 @@ type Stream struct {
 }
 
 func (s *Stream) String() string {
-	var buf bytes.Buffer
-	_ = s.WriteTerm(&buf, DefaultWriteTermOptions, nil)
-	return buf.String()
-}
-
-// WriteTerm writes the stream into w.
-func (s *Stream) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
-	if s.Alias != "" {
-		_, err := fmt.Fprintf(w, "<stream>(%s)", s.Alias)
-		return err
-	}
-	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
-	return err
+	var sb strings.Builder
+	_ = Write(&sb, s, defaultWriteTermOptions, nil)
+	return sb.String()
 }
 
 // Unify unifies the stream with t.
@@ -68,4 +60,13 @@ func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	default:
 		return env, false
 	}
+}
+
+// Unparse emits tokens that represent the stream.
+func (s *Stream) Unparse(emit func(syntax.Token), _ WriteTermOptions, _ *Env) {
+	if s.Alias != "" {
+		emit(syntax.Token{Kind: syntax.TokenAtom, Val: string(s.Alias)})
+		return
+	}
+	emit(syntax.Token{Kind: syntax.TokenAtom, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }

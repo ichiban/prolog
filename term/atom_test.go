@@ -1,58 +1,12 @@
 package term
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestAtom_String(t *testing.T) {
-	assert.Equal(t, `abc`, Atom("abc").String())
-	assert.Equal(t, `'\a'`, Atom("\a").String())
-	assert.Equal(t, `'\b'`, Atom("\b").String())
-	assert.Equal(t, `'\f'`, Atom("\f").String())
-	assert.Equal(t, `'\n'`, Atom("\n").String())
-	assert.Equal(t, `'\r'`, Atom("\r").String())
-	assert.Equal(t, `'\t'`, Atom("\t").String())
-	assert.Equal(t, `'\v'`, Atom("\v").String())
-	assert.Equal(t, `'\x0\'`, Atom("\x00").String())
-	assert.Equal(t, `'\\\a'`, Atom("\\\a").String()) // '\' by itself doesn't require quotation.
-	assert.Equal(t, `'\''`, Atom("'").String())
-	assert.Equal(t, `'\"'`, Atom("\"").String())
-	assert.Equal(t, "'\\`'", Atom("`").String())
-	assert.Equal(t, `''`, Atom("").String())
-}
-
-func TestAtom_WriteTerm(t *testing.T) {
-	t.Run("not quoted", func(t *testing.T) {
-		t.Run("no need to quote", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: false}, nil))
-			assert.Equal(t, `a`, buf.String())
-		})
-
-		t.Run("need to quote", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: false}, nil))
-			assert.Equal(t, "\a\b\f\n\r\t\v\x00\\'\"`", buf.String())
-		})
-	})
-
-	t.Run("quoted", func(t *testing.T) {
-		t.Run("no need to quote", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, Atom("a").WriteTerm(&buf, WriteTermOptions{Quoted: true}, nil))
-			assert.Equal(t, `a`, buf.String())
-		})
-
-		t.Run("need to quote", func(t *testing.T) {
-			var buf bytes.Buffer
-			assert.NoError(t, Atom("\a\b\f\n\r\t\v\x00\\'\"`").WriteTerm(&buf, WriteTermOptions{Quoted: true}, nil))
-			assert.Equal(t, "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'", buf.String())
-		})
-	})
-}
 
 func TestAtom_Unify(t *testing.T) {
 	unit := Atom("foo")
@@ -105,5 +59,51 @@ func TestAtom_Unify(t *testing.T) {
 		}, false, nil)
 		assert.False(t, ok)
 		assert.Nil(t, env)
+	})
+}
+
+func TestAtom_Unparse(t *testing.T) {
+	t.Run("not quoted", func(t *testing.T) {
+		t.Run("no need to quote", func(t *testing.T) {
+			var tokens []syntax.Token
+			Atom("a").Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Quoted: false}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: `a`},
+			}, tokens)
+		})
+
+		t.Run("need to quote", func(t *testing.T) {
+			var tokens []syntax.Token
+			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Quoted: false}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
+			}, tokens)
+		})
+	})
+
+	t.Run("quoted", func(t *testing.T) {
+		t.Run("no need to quote", func(t *testing.T) {
+			var tokens []syntax.Token
+			Atom("a").Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Quoted: true}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: `a`},
+			}, tokens)
+		})
+
+		t.Run("need to quote", func(t *testing.T) {
+			var tokens []syntax.Token
+			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token syntax.Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Quoted: true}, nil)
+			assert.Equal(t, []syntax.Token{
+				{Kind: syntax.TokenAtom, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+			}, tokens)
+		})
 	})
 }

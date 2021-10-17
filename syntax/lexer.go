@@ -137,11 +137,13 @@ const (
 	// TokenDoubleQuoted represents a double-quoted string.
 	TokenDoubleQuoted
 
-	tokenLen
+	tokenKindLen
 )
 
+const TokenKindLen = int(tokenKindLen)
+
 func (k TokenKind) String() string {
-	return [tokenLen]string{
+	return [tokenKindLen]string{
 		TokenEOS:          "eos",
 		TokenVariable:     "variable",
 		TokenFloat:        "float",

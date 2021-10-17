@@ -1,11 +1,12 @@
 package term
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"regexp"
+	"strings"
 	"sync/atomic"
+
+	"github.com/ichiban/prolog/syntax"
 )
 
 // Variable is a prolog variable.
@@ -25,24 +26,9 @@ func (v Variable) Anonymous() bool {
 }
 
 func (v Variable) String() string {
-	var buf bytes.Buffer
-	_ = v.WriteTerm(&buf, DefaultWriteTermOptions, nil)
-	return buf.String()
-}
-
-// WriteTerm writes the variable into w.
-func (v Variable) WriteTerm(w io.Writer, opts WriteTermOptions, env *Env) error {
-	ref, ok := env.Lookup(v)
-	if ok && opts.Descriptive {
-		if v != "" {
-			if _, err := fmt.Fprintf(w, "%s = ", v); err != nil {
-				return err
-			}
-		}
-		return ref.WriteTerm(w, opts, env)
-	}
-	_, err := fmt.Fprint(w, string(v))
-	return err
+	var sb strings.Builder
+	_ = Write(&sb, v, defaultWriteTermOptions, nil)
+	return sb.String()
 }
 
 // Unify unifies the variable with t.
@@ -59,5 +45,15 @@ func (v Variable) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 		return env, false
 	default:
 		return env.Bind(v, t), true
+	}
+}
+
+// Unparse emits tokens that represent the variable.
+func (v Variable) Unparse(emit func(token syntax.Token), opts WriteTermOptions, env *Env) {
+	switch v := env.Resolve(v).(type) {
+	case Variable:
+		emit(syntax.Token{Kind: syntax.TokenVariable, Val: string(v)})
+	default:
+		v.Unparse(emit, opts, env)
 	}
 }

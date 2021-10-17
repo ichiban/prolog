@@ -1,19 +1,21 @@
 package term
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
+
+	"github.com/ichiban/prolog/syntax"
 )
 
 // Integer is a prolog integer.
 type Integer int64
 
 func (i Integer) String() string {
-	var buf bytes.Buffer
-	_ = i.WriteTerm(&buf, DefaultWriteTermOptions, nil)
-	return buf.String()
+	var sb strings.Builder
+	_ = Write(&sb, i, defaultWriteTermOptions, nil)
+	return sb.String()
 }
 
 // WriteTerm writes the integer into w.
@@ -32,4 +34,14 @@ func (i Integer) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 	default:
 		return env, false
 	}
+}
+
+// Unparse emits tokens that represent the integer.
+func (i Integer) Unparse(emit func(token syntax.Token), _ WriteTermOptions, _ *Env) {
+	if i < 0 {
+		emit(syntax.Token{Kind: syntax.TokenSign, Val: "-"})
+		i *= -1
+	}
+	s := strconv.FormatInt(int64(i), 10)
+	emit(syntax.Token{Kind: syntax.TokenInteger, Val: s})
 }

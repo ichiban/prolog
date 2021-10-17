@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1067,7 +1066,10 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 		return nondet.Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
-	var opts term.WriteTermOptions
+	opts := term.WriteTermOptions{
+		Ops:      vm.operators,
+		Priority: 1200,
+	}
 	if err := Each(env.Resolve(options), func(option term.Interface) error {
 		switch option := env.Resolve(option).(type) {
 		case term.Variable:
@@ -1116,7 +1118,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options term.Interface, k func(*term.E
 		return nondet.Error(err)
 	}
 
-	if err := env.Resolve(t).WriteTerm(s.Sink, opts, env); err != nil {
+	if err := term.Write(s.Sink, env.Resolve(t), opts, env); err != nil {
 		return nondet.Error(err)
 	}
 
@@ -1957,11 +1959,7 @@ func NumberChars(num, chars term.Interface, k func(*term.Env) *nondet.Promise, e
 	case term.Variable:
 		return nondet.Error(instantiationError(num))
 	case term.Integer, term.Float:
-		var buf bytes.Buffer
-		if err := n.WriteTerm(&buf, term.DefaultWriteTermOptions, env); err != nil {
-			return nondet.Error(err)
-		}
-		rs := []rune(buf.String())
+		rs := []rune(n.String())
 		cs := make([]term.Interface, len(rs))
 		for i, r := range rs {
 			cs[i] = term.Atom(r)
@@ -2025,11 +2023,7 @@ func NumberCodes(num, codes term.Interface, k func(*term.Env) *nondet.Promise, e
 	case term.Variable:
 		return nondet.Error(instantiationError(num))
 	case term.Integer, term.Float:
-		var buf bytes.Buffer
-		if err := n.WriteTerm(&buf, term.DefaultWriteTermOptions, env); err != nil {
-			return nondet.Error(err)
-		}
-		rs := []rune(buf.String())
+		rs := []rune(n.String())
 		cs := make([]term.Interface, len(rs))
 		for i, r := range rs {
 			cs[i] = term.Integer(r)

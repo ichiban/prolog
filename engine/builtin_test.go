@@ -15,6 +15,8 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/ichiban/prolog/syntax"
+
 	"github.com/ichiban/prolog/nondet"
 	"github.com/ichiban/prolog/term"
 
@@ -2921,30 +2923,19 @@ func TestVM_WriteTerm(t *testing.T) {
 	}
 
 	t.Run("without options", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{}, (*term.Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
+		var m mockTerm
+		m.On("Unparse", mock.Anything, term.WriteTermOptions{Ops: ops, Priority: 1200}, (*term.Env)(nil)).Once()
+		defer m.AssertExpectations(t)
 
-			ok, err := vm.WriteTerm(&s, &m, term.List(), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("ng", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{}, (*term.Env)(nil)).Return(errors.New("")).Once()
-			defer m.AssertExpectations(t)
-
-			_, err := vm.WriteTerm(&s, &m, term.List(), Success, nil).Force(context.Background())
-			assert.Error(t, err)
-		})
+		ok, err := vm.WriteTerm(&s, &m, term.List(), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
 	})
 
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: false}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Quoted: false, Ops: ops, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -2957,7 +2948,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Quoted: true}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Quoted: true, Ops: ops, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -2972,7 +2963,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: ops}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Ops: ops, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -2985,7 +2976,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{Ops: nil}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Ops: nil, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -3000,7 +2991,7 @@ func TestVM_WriteTerm(t *testing.T) {
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{NumberVars: false}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Ops: ops, NumberVars: false, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -3013,7 +3004,7 @@ func TestVM_WriteTerm(t *testing.T) {
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("WriteTerm", s.Sink, term.WriteTermOptions{NumberVars: true}, (*term.Env)(nil)).Return(nil).Once()
+			m.On("Unparse", mock.Anything, term.WriteTermOptions{Ops: ops, NumberVars: true, Priority: 1200}, (*term.Env)(nil)).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := vm.WriteTerm(&s, &m, term.List(&term.Compound{
@@ -3118,19 +3109,13 @@ func (m *mockTerm) String() string {
 	return args.String(0)
 }
 
-func (m *mockTerm) WriteTerm(w io.Writer, opts term.WriteTermOptions, env *term.Env) error {
-	args := m.Called(w, opts, env)
-	return args.Error(0)
-}
-
 func (m *mockTerm) Unify(t term.Interface, occursCheck bool, env *term.Env) (*term.Env, bool) {
 	args := m.Called(t, occursCheck, env)
 	return args.Get(0).(*term.Env), args.Bool(1)
 }
 
-func (m *mockTerm) Copy() term.Interface {
-	args := m.Called()
-	return args.Get(0).(term.Interface)
+func (m *mockTerm) Unparse(emit func(syntax.Token), opts term.WriteTermOptions, env *term.Env) {
+	_ = m.Called(emit, opts, env)
 }
 
 func TestCharCode(t *testing.T) {

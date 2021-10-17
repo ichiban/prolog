@@ -1,8 +1,9 @@
 package term
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -25,22 +26,26 @@ func TestVariable_Unify(t *testing.T) {
 	assert.Equal(t, Atom("bar"), env.Resolve(v4))
 }
 
-func TestVariable_WriteTerm(t *testing.T) {
+func TestVariable_Unparse(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
 		v := Variable("X")
-		env := NewEnv().
-			Bind(v, Integer(1))
-		var buf bytes.Buffer
-		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
-		assert.Equal(t, "X", buf.String())
+		var tokens []syntax.Token
+		v.Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenVariable, Val: "X"},
+		}, tokens)
 	})
 
 	t.Run("unnamed", func(t *testing.T) {
 		v := NewVariable()
-		env := NewEnv().
-			Bind(v, Integer(1))
-		var buf bytes.Buffer
-		assert.NoError(t, v.WriteTerm(&buf, WriteTermOptions{}, env))
-		assert.Regexp(t, `\A_\d+\z`, buf.String())
+		var tokens []syntax.Token
+		v.Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{}, nil)
+		assert.Len(t, tokens, 1)
+		assert.Equal(t, syntax.TokenVariable, tokens[0].Kind)
+		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
 	})
 }
