@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -101,8 +100,14 @@ const (
 	// TokenInteger represents an integer token.
 	TokenInteger
 
-	// TokenAtom represents an atom token.
-	TokenAtom
+	// TokenIdent represents an identifier token.
+	TokenIdent
+
+	// TokenQuotedIdent represents a quoted identifier token.
+	TokenQuotedIdent
+
+	// TokenGraphic represents a graphical token.
+	TokenGraphic
 
 	// TokenComma represents a comma.
 	TokenComma
@@ -140,15 +145,15 @@ const (
 	tokenKindLen
 )
 
-const TokenKindLen = int(tokenKindLen)
-
 func (k TokenKind) String() string {
 	return [tokenKindLen]string{
 		TokenEOS:          "eos",
 		TokenVariable:     "variable",
 		TokenFloat:        "float",
 		TokenInteger:      "integer",
-		TokenAtom:         "atom",
+		TokenIdent:        "ident",
+		TokenQuotedIdent:  "quoted ident",
+		TokenGraphic:      "graphical",
 		TokenComma:        "comma",
 		TokenPeriod:       "period",
 		TokenBar:          "bar",
@@ -229,7 +234,7 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return l.doubleQuoted(&b), nil
 	default:
 		l.backup()
-		return l.atom, nil
+		return l.ident, nil
 	}
 }
 
@@ -246,7 +251,7 @@ func (l *Lexer) period(b *strings.Builder) (lexState, error) {
 	}, nil
 }
 
-func (l *Lexer) atom(r rune) (lexState, error) {
+func (l *Lexer) ident(r rune) (lexState, error) {
 	r = l.conv(r)
 	switch {
 	case unicode.IsLower(r):
@@ -262,7 +267,7 @@ func (l *Lexer) atom(r rune) (lexState, error) {
 		}
 		return l.graphic(&b)
 	case r == ';', r == '!':
-		l.emit(Token{Kind: TokenAtom, Val: string(r)})
+		l.emit(Token{Kind: TokenIdent, Val: string(r)})
 		return nil, nil
 	case r == '[':
 		return l.squareBracket, nil
@@ -270,7 +275,10 @@ func (l *Lexer) atom(r rune) (lexState, error) {
 		return l.curlyBracket, nil
 	case r == '\'':
 		var b strings.Builder
-		return l.quotedAtom(&b)
+		if _, err := b.WriteRune(r); err != nil {
+			return nil, err
+		}
+		return l.quotedIdent(&b)
 	default:
 		l.backup()
 		return nil, UnexpectedRuneError{rune: r}
@@ -288,142 +296,112 @@ func (l *Lexer) normalAtom(b *strings.Builder) (lexState, error) {
 			return l.normalAtom(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenAtom, Val: b.String()})
+			l.emit(Token{Kind: TokenIdent, Val: b.String()})
 			return nil, nil
 		}
 	}, nil
 }
 
-func (l *Lexer) quotedAtom(b *strings.Builder) (lexState, error) {
+func (l *Lexer) quotedIdent(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch r {
 		case etx:
 			return nil, ErrInsufficient
 		case '\'':
-			return l.quotedAtomQuote(b)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.quotedIdentQuote(b)
 		case '\\':
-			return l.quotedAtomSlash(b)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.quotedIdentSlash(b)
 		default:
 			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtom(b)
+			return l.quotedIdent(b)
 		}
 	}, nil
 }
 
-func (l *Lexer) quotedAtomQuote(b *strings.Builder) (lexState, error) {
+func (l *Lexer) quotedIdentQuote(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch r {
 		case '\'':
 			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtom(b)
+			return l.quotedIdent(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenAtom, Val: b.String()})
+			l.emit(Token{Kind: TokenQuotedIdent, Val: b.String()})
 			return nil, nil
 		}
 	}, nil
 }
 
-func (l *Lexer) quotedAtomSlash(b *strings.Builder) (lexState, error) {
+func (l *Lexer) quotedIdentSlash(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch {
 		case r == etx:
 			return nil, ErrInsufficient
-		case r == '\n':
-			return l.quotedAtom(b)
 		case r == 'x':
-			var val strings.Builder
-			return l.quotedAtomSlashCode(b, 16, &val)
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.quotedIdentSlashHex(b)
 		case unicode.IsNumber(r):
-			var val strings.Builder
-			if _, err := val.WriteRune(r); err != nil {
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtomSlashCode(b, 8, &val)
-		case r == 'a':
-			if _, err := b.WriteRune('\a'); err != nil {
+			return l.quotedIdentSlashOctal(b)
+		default:
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtom(b)
-		case r == 'b':
-			if _, err := b.WriteRune('\b'); err != nil {
+			return l.quotedIdent(b)
+		}
+	}, nil
+}
+
+func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		switch {
+		case r == etx:
+			return nil, ErrInsufficient
+		case isHex(r):
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtom(b)
-		case r == 'f':
-			if _, err := b.WriteRune('\f'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == 'n':
-			if _, err := b.WriteRune('\n'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == 'r':
-			if _, err := b.WriteRune('\r'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == 't':
-			if _, err := b.WriteRune('\t'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == 'v':
-			if _, err := b.WriteRune('\v'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
+			return l.quotedIdentSlashHex(b)
 		case r == '\\':
-			if _, err := b.WriteRune('\\'); err != nil {
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtom(b)
-		case r == '\'':
-			if _, err := b.WriteRune('\''); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == '"':
-			if _, err := b.WriteRune('"'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
-		case r == '`':
-			if _, err := b.WriteRune('`'); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
+			return l.quotedIdent(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
 		}
 	}, nil
 }
 
-func (l *Lexer) quotedAtomSlashCode(b *strings.Builder, base int, val *strings.Builder) (lexState, error) {
+func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch {
 		case r == etx:
 			return nil, ErrInsufficient
-		case base == 8 && isOctal(r), base == 16 && isHex(r):
-			if _, err := val.WriteRune(r); err != nil {
+		case isOctal(r):
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.quotedAtomSlashCode(b, base, val)
+			return l.quotedIdentSlashOctal(b)
 		case r == '\\':
-			i, err := strconv.ParseInt(val.String(), base, 4*8) // rune is up to 4 bytes
-			if err != nil {
+			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			if _, err := b.WriteRune(rune(i)); err != nil {
-				return nil, err
-			}
-			return l.quotedAtom(b)
+			return l.quotedIdent(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
 		}
@@ -434,7 +412,7 @@ func (l *Lexer) squareBracket(r rune) (lexState, error) {
 	r = l.conv(r)
 	switch {
 	case r == ']':
-		l.emit(Token{Kind: TokenAtom, Val: "[]"})
+		l.emit(Token{Kind: TokenIdent, Val: "[]"})
 		return nil, nil
 	default:
 		l.backup()
@@ -447,7 +425,7 @@ func (l *Lexer) curlyBracket(r rune) (lexState, error) {
 	r = l.conv(r)
 	switch {
 	case r == '}':
-		l.emit(Token{Kind: TokenAtom, Val: "{}"})
+		l.emit(Token{Kind: TokenIdent, Val: "{}"})
 		return nil, nil
 	default:
 		l.backup()
@@ -744,7 +722,7 @@ func (l *Lexer) sign(b *strings.Builder) (lexState, error) {
 			return l.graphic(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenAtom, Val: b.String()})
+			l.emit(Token{Kind: TokenIdent, Val: b.String()})
 			return nil, nil
 		}
 	}, nil
@@ -793,7 +771,7 @@ func (l *Lexer) graphic(b *strings.Builder) (lexState, error) {
 			return l.graphic(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenAtom, Val: b.String()})
+			l.emit(Token{Kind: TokenGraphic, Val: b.String()})
 			return nil, nil
 		}
 	}, nil
@@ -826,7 +804,7 @@ func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx lexState) (lexStat
 			return l.graphic(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenAtom, Val: "/"})
+			l.emit(Token{Kind: TokenIdent, Val: "/"})
 			return nil, nil
 		}
 	}, nil
@@ -905,4 +883,45 @@ type UnexpectedRuneError struct {
 
 func (e UnexpectedRuneError) Error() string {
 	return fmt.Sprintf("unexpected char: %s", string(e.rune))
+}
+
+// Spacing describes which token kinds require spaces between them.
+var Spacing = [tokenKindLen][tokenKindLen]bool{
+	TokenVariable: {
+		TokenVariable: true,
+		TokenInteger:  true,
+		TokenFloat:    true,
+		TokenIdent:    true,
+	},
+	TokenIdent: {
+		TokenVariable: true,
+		TokenInteger:  true,
+		TokenFloat:    true,
+		TokenIdent:    true,
+	},
+	TokenGraphic: {
+		TokenGraphic: true,
+		TokenSign:    true,
+	},
+	TokenComma: {
+		TokenVariable:    true,
+		TokenFloat:       true,
+		TokenInteger:     true,
+		TokenIdent:       true,
+		TokenQuotedIdent: true,
+		TokenGraphic:     true,
+		TokenComma:       true,
+		TokenPeriod:      true,
+		TokenBar:         true,
+		TokenParenL:      true,
+		TokenParenR:      true,
+		TokenBracketL:    true,
+		TokenBracketR:    true,
+		TokenBraceL:      true,
+		TokenBraceR:      true,
+		TokenSign:        true,
+	},
+	TokenSign: {
+		TokenGraphic: true,
+	},
 }

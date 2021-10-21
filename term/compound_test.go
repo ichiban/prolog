@@ -111,10 +111,10 @@ func TestCompound_Unparse(t *testing.T) {
 		}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
 		assert.Equal(t, []syntax.Token{
 			{Kind: syntax.TokenInteger, Val: "2"},
-			{Kind: syntax.TokenAtom, Val: "*"},
+			{Kind: syntax.TokenGraphic, Val: "*"},
 			{Kind: syntax.TokenParenL, Val: "("},
 			{Kind: syntax.TokenInteger, Val: "2"},
-			{Kind: syntax.TokenAtom, Val: "+"},
+			{Kind: syntax.TokenGraphic, Val: "+"},
 			{Kind: syntax.TokenInteger, Val: "2"},
 			{Kind: syntax.TokenParenR, Val: ")"},
 		}, tokens)
@@ -141,7 +141,7 @@ func TestCompound_Unparse(t *testing.T) {
 			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
 			assert.Equal(t, []syntax.Token{
 				{Kind: syntax.TokenInteger, Val: "2"},
-				{Kind: syntax.TokenAtom, Val: "+"},
+				{Kind: syntax.TokenGraphic, Val: "+"},
 				{Kind: syntax.TokenSign, Val: "-"},
 				{Kind: syntax.TokenInteger, Val: "2"},
 			}, tokens)
@@ -153,7 +153,7 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Ops: nil, Priority: 1200}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: "+"},
+				{Kind: syntax.TokenGraphic, Val: "+"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "2"},
 				{Kind: syntax.TokenComma, Val: ","},
@@ -182,29 +182,29 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{NumberVars: false, Priority: 1200}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: "f"},
+				{Kind: syntax.TokenIdent, Val: "f"},
 				{Kind: syntax.TokenParenL, Val: "("},
-				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenIdent, Val: "$VAR"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "0"},
 				{Kind: syntax.TokenParenR, Val: ")"},
 				{Kind: syntax.TokenComma, Val: ","},
-				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenIdent, Val: "$VAR"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "1"},
 				{Kind: syntax.TokenParenR, Val: ")"},
 				{Kind: syntax.TokenComma, Val: ","},
-				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenIdent, Val: "$VAR"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "25"},
 				{Kind: syntax.TokenParenR, Val: ")"},
 				{Kind: syntax.TokenComma, Val: ","},
-				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenIdent, Val: "$VAR"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "26"},
 				{Kind: syntax.TokenParenR, Val: ")"},
 				{Kind: syntax.TokenComma, Val: ","},
-				{Kind: syntax.TokenAtom, Val: "$VAR"},
+				{Kind: syntax.TokenIdent, Val: "$VAR"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenInteger, Val: "27"},
 				{Kind: syntax.TokenParenR, Val: ")"},
@@ -218,7 +218,7 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{NumberVars: true, Priority: 1200}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: "f"},
+				{Kind: syntax.TokenIdent, Val: "f"},
 				{Kind: syntax.TokenParenL, Val: "("},
 				{Kind: syntax.TokenVariable, Val: "A"},
 				{Kind: syntax.TokenComma, Val: ","},

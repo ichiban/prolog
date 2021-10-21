@@ -70,7 +70,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: false}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: `a`},
+				{Kind: syntax.TokenIdent, Val: `a`},
 			}, tokens)
 		})
 
@@ -80,7 +80,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: false}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
+				{Kind: syntax.TokenIdent, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
 			}, tokens)
 		})
 	})
@@ -92,7 +92,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: true}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: `a`},
+				{Kind: syntax.TokenIdent, Val: `a`},
 			}, tokens)
 		})
 
@@ -102,7 +102,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: true}, nil)
 			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenAtom, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+				{Kind: syntax.TokenQuotedIdent, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
 			}, tokens)
 		})
 	})

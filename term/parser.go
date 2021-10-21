@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -122,8 +123,17 @@ func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
+var quotedIdentEscapePattern = regexp.MustCompile("''|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+
 func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
-	if v, err := p.accept(syntax.TokenAtom, vals...); err == nil {
+	if v, err := p.accept(syntax.TokenIdent, vals...); err == nil {
+		return Atom(v), nil
+	}
+	if v, err := p.accept(syntax.TokenQuotedIdent, vals...); err == nil {
+		s := quotedIdentEscapePattern.ReplaceAllStringFunc(v[1:len(v)-1], quotedIdentUnescape)
+		return Atom(s), nil
+	}
+	if v, err := p.accept(syntax.TokenGraphic, vals...); err == nil {
 		return Atom(v), nil
 	}
 	if allowComma {
@@ -135,6 +145,48 @@ func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 		return Atom(v), nil
 	}
 	return "", errors.New("not an atom")
+}
+
+func quotedIdentUnescape(s string) string {
+	switch s {
+	case "''":
+		return "'"
+	case "\\\n":
+		return ""
+	case `\a`:
+		return "\a"
+	case `\b`:
+		return "\b"
+	case `\f`:
+		return "\f"
+	case `\n`:
+		return "\n"
+	case `\r`:
+		return "\r"
+	case `\t`:
+		return "\t"
+	case `\v`:
+		return "\v"
+	case `\\`:
+		return `\`
+	case `\'`:
+		return `'`
+	case `\"`:
+		return `"`
+	case "\\`":
+		return "`"
+	default: // `\x23\` or `\23\`
+		s = s[1 : len(s)-1] // `x23` or `23`
+		base := 8
+
+		if s[0] == 'x' {
+			s = s[1:]
+			base = 16
+		}
+
+		r, _ := strconv.ParseInt(s, base, 4*8) // rune is up to 4 bytes
+		return string(rune(r))
+	}
 }
 
 func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {

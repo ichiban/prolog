@@ -3706,14 +3706,14 @@ foo(c).
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
 		var vm VM
 		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("foo bar baz."))}, term.NewVariable(), term.List(), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom bar>")), err)
+		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <ident bar>")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
 		var vm VM
 		ok, err := vm.ReadTerm(&term.Stream{Source: bufio.NewReader(strings.NewReader("X = a."))}, term.NewVariable(), term.List(), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <atom =>")), err)
+		assert.Equal(t, syntaxErrorUnexpectedToken(term.Atom("unexpected token: <graphical =>")), err)
 		assert.False(t, ok)
 	})
 }

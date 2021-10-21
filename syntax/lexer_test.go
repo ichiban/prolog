@@ -14,7 +14,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "append"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "append"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -22,7 +22,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "nil"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "nil"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -58,7 +58,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "p"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "p"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -122,7 +122,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "[]"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "[]"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -138,7 +138,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "a"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -146,7 +146,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "b"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -154,7 +154,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "c"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -178,7 +178,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "x"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "x"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -186,7 +186,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "y"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "y"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "p"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -206,7 +206,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "x"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "x"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -226,7 +226,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "q"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "q"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -262,7 +262,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "foo"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -278,7 +278,7 @@ func TestLexer_Next(t *testing.T) {
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "foo"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -289,13 +289,13 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOS}, token)
 	})
 
-	t.Run("quoted atom", func(t *testing.T) {
+	t.Run("quoted ident", func(t *testing.T) {
 		t.Run("no escape", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'abc'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "abc"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'abc'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -307,11 +307,11 @@ func TestLexer_Next(t *testing.T) {
 		})
 
 		t.Run("double single quotes", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'dont''t panic'.`)), nil)
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'don''t panic'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "dont't panic"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'don''t panic'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -324,11 +324,11 @@ func TestLexer_Next(t *testing.T) {
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'this is \
-an atom'.`)), nil)
+a quoted ident'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "this is an atom"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'this is \\\na quoted ident'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -344,7 +344,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\a"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\a'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -360,7 +360,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\b"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\b'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -376,7 +376,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\f"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\f'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -392,7 +392,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\n"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\n'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -408,7 +408,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\r"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\r'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -424,7 +424,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\t"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\t'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -440,7 +440,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "\v"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\v'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -456,7 +456,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "£"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\xa3\\'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -472,7 +472,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "#"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\43\\'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -488,7 +488,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: `\`}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\\'`}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -504,7 +504,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: `'`}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\''`}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -520,7 +520,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: `"`}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\"'`}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -536,7 +536,7 @@ an atom'.`)), nil)
 
 			token, err := l.Next()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenAtom, Val: "`"}, token)
+			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\`'"}, token)
 
 			token, err = l.Next()
 			assert.NoError(t, err)
@@ -898,7 +898,7 @@ an atom'.`)), nil)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "is"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "is"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -906,7 +906,7 @@ an atom'.`)), nil)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "+"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "+"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -930,7 +930,7 @@ foo(c).
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "foo"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -938,7 +938,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "a"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -950,7 +950,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "foo"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -958,7 +958,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "b"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -970,7 +970,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "foo"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -978,7 +978,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "c"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -996,7 +996,7 @@ foo(c).
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "aac"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "aac"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1004,7 +1004,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "abc"}, token)
+		assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'abc'"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1020,11 +1020,11 @@ foo(c).
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: ":-"}, token)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: ":-"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "op"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "op"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1040,7 +1040,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "xfx"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "xfx"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1048,7 +1048,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "<--"}, token)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: "<--"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1072,7 +1072,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "<--"}, token)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: "<--"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1093,7 +1093,7 @@ foo(c).
 
 		token, err := l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "del_item"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "del_item"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1141,11 +1141,11 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: ":-"}, token)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: ":-"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "same_subst"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "same_subst"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)
@@ -1173,7 +1173,7 @@ foo(c).
 
 		token, err = l.Next()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenAtom, Val: "!"}, token)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "!"}, token)
 
 		token, err = l.Next()
 		assert.NoError(t, err)

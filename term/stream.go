@@ -65,8 +65,8 @@ func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 // Unparse emits tokens that represent the stream.
 func (s *Stream) Unparse(emit func(syntax.Token), _ WriteTermOptions, _ *Env) {
 	if s.Alias != "" {
-		emit(syntax.Token{Kind: syntax.TokenAtom, Val: string(s.Alias)})
+		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(s.Alias)})
 		return
 	}
-	emit(syntax.Token{Kind: syntax.TokenAtom, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
+	emit(syntax.Token{Kind: syntax.TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }

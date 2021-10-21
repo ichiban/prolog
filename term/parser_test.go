@@ -9,6 +9,124 @@ import (
 )
 
 func TestParser_Term(t *testing.T) {
+	t.Run("atom", func(t *testing.T) {
+		t.Run("quoted", func(t *testing.T) {
+			t.Run("no escape", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'abc'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("abc"), a)
+			})
+
+			t.Run("double single quotes", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'don''t panic'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("don't panic"), a)
+			})
+
+			t.Run("backslash at the very end of the line", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'this is \
+a quoted ident'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("this is a quoted ident"), a)
+			})
+
+			t.Run("alert", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\a'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\a"), a)
+			})
+
+			t.Run("backspace", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\b'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\b"), a)
+			})
+
+			t.Run("formfeed", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\f'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\f"), a)
+			})
+
+			t.Run("newline", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\n'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\n"), a)
+			})
+
+			t.Run("return", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\r'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\r"), a)
+			})
+
+			t.Run("tab", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\t'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\t"), a)
+			})
+
+			t.Run("vertical tab", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\v'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\v"), a)
+			})
+
+			t.Run("hex code", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\xa3\'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("£"), a)
+			})
+
+			t.Run("oct code", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\43\'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("#"), a)
+			})
+
+			t.Run("backslash", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\\'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`\`), a)
+			})
+
+			t.Run("single quote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\''.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`'`), a)
+			})
+
+			t.Run("double quote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`'\"'.`)), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`"`), a)
+			})
+
+			t.Run("backquote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader("'\\`'.")), nil)
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("`"), a)
+			})
+
+		})
+	})
+
 	t.Run("fact", func(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(nil,L,L).

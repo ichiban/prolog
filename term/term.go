@@ -143,13 +143,6 @@ func Compare(a, b Interface, env *Env) int64 {
 	}
 }
 
-// Some token kinds require spaces between them. TODO:
-var spacing = [syntax.TokenKindLen][syntax.TokenKindLen]bool{
-	syntax.TokenAtom: {
-		syntax.TokenAtom: true,
-	},
-}
-
 // Write outputs one of the external representations of the term.
 func Write(w io.Writer, t Interface, opts WriteTermOptions, env *Env) error {
 	var (
@@ -160,7 +153,7 @@ func Write(w io.Writer, t Interface, opts WriteTermOptions, env *Env) error {
 		if err != nil {
 			return
 		}
-		if spacing[last][token.Kind] {
+		if syntax.Spacing[last][token.Kind] {
 			if _, err = fmt.Fprint(w, " "); err != nil {
 				return
 			}
