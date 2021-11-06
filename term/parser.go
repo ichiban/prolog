@@ -380,6 +380,22 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		return lhs, nil
 	}
 
+	if _, err := p.accept(syntax.TokenBraceL); err == nil {
+		lhs, err := p.expr(1, true)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.accept(syntax.TokenBraceR); err != nil {
+			return nil, err
+		}
+
+		return &Compound{
+			Functor: "{}",
+			Args:    []Interface{lhs},
+		}, nil
+	}
+
 	if t, err := p.number(); err == nil {
 		return t, nil
 	}

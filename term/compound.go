@@ -69,6 +69,13 @@ func (c *Compound) Unparse(emit func(syntax.Token), opts WriteTermOptions, env *
 		return
 	}
 
+	if c.Functor == "{}" && len(c.Args) == 1 { // block
+		emit(syntax.Token{Kind: syntax.TokenBraceL, Val: "{"})
+		env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+		emit(syntax.Token{Kind: syntax.TokenBraceR, Val: "}"})
+		return
+	}
+
 	switch len(c.Args) {
 	case 1:
 		for _, op := range opts.Ops {

@@ -106,4 +106,34 @@ func TestAtom_Unparse(t *testing.T) {
 			}, tokens)
 		})
 	})
+
+	t.Run("comma", func(t *testing.T) {
+		var tokens []syntax.Token
+		Atom(",").Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{Quoted: true}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenComma, Val: ","},
+		}, tokens)
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		var tokens []syntax.Token
+		Atom("[]").Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{Quoted: true}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenIdent, Val: "[]"},
+		}, tokens)
+	})
+
+	t.Run("empty block", func(t *testing.T) {
+		var tokens []syntax.Token
+		Atom("{}").Unparse(func(token syntax.Token) {
+			tokens = append(tokens, token)
+		}, WriteTermOptions{Quoted: true}, nil)
+		assert.Equal(t, []syntax.Token{
+			{Kind: syntax.TokenIdent, Val: "{}"},
+		}, tokens)
+	})
 }

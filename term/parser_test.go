@@ -325,6 +325,33 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.Equal(t, ListRest(Variable("X"), Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
+	t.Run("block", func(t *testing.T) {
+		ops := Operators{
+			{Priority: 1000, Specifier: OperatorSpecifierXFY, Name: `,`},
+		}
+		p := NewParser(bufio.NewReader(strings.NewReader(`{a, b, c}.`)), nil, WithOperators(&ops))
+		term, err := p.Term()
+		assert.NoError(t, err)
+		assert.Equal(t, &Compound{
+			Functor: "{}",
+			Args: []Interface{
+				&Compound{
+					Functor: ",",
+					Args: []Interface{
+						Atom("a"),
+						&Compound{
+							Functor: ",",
+							Args: []Interface{
+								Atom("b"),
+								Atom("c"),
+							},
+						},
+					},
+				},
+			},
+		}, term)
+	})
+
 	t.Run("principal functor", func(t *testing.T) {
 		ops := Operators{
 			{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"},

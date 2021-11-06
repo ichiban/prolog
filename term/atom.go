@@ -48,6 +48,10 @@ var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 // Unparse emits tokens that represent the atom.
 func (a Atom) Unparse(emit func(syntax.Token), opts WriteTermOptions, _ *Env) {
 	switch {
+	case a == ",":
+		emit(syntax.Token{Kind: syntax.TokenComma, Val: ","})
+	case a == "[]", a == "{}":
+		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(a)})
 	case graphicalAtomPattern.MatchString(string(a)):
 		emit(syntax.Token{Kind: syntax.TokenGraphic, Val: string(a)})
 	case opts.Quoted && !unquotedAtomPattern.MatchString(string(a)):

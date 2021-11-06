@@ -129,6 +129,18 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOS}, token)
 	})
 
+	t.Run("empty block", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("{}")), nil)
+
+		token, err := l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "{}"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenEOS}, token)
+	})
+
 	t.Run("list", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("[a, b|c]")), nil)
 
