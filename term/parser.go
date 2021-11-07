@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -123,15 +122,12 @@ func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
-var quotedIdentEscapePattern = regexp.MustCompile("''|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
-
 func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 	if v, err := p.accept(syntax.TokenIdent, vals...); err == nil {
 		return Atom(v), nil
 	}
-	if v, err := p.accept(syntax.TokenQuotedIdent, vals...); err == nil {
-		s := quotedIdentEscapePattern.ReplaceAllStringFunc(v[1:len(v)-1], quotedIdentUnescape)
-		return Atom(s), nil
+	if v, err := p.accept(syntax.TokenQuotedIdent, quoteSlice(vals)...); err == nil {
+		return Atom(unquote(v)), nil
 	}
 	if v, err := p.accept(syntax.TokenGraphic, vals...); err == nil {
 		return Atom(v), nil

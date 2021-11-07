@@ -8,6 +8,13 @@ import (
 	"github.com/ichiban/prolog/syntax"
 )
 
+var (
+	unquotedAtomPattern      = regexp.MustCompile(`\A[a-z]\w*\z`)
+	graphicalAtomPattern     = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
+	quotedAtomEscapePattern  = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
+	quotedIdentEscapePattern = regexp.MustCompile("''|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+)
+
 // Atom is a prolog atom.
 type Atom string
 
@@ -41,10 +48,6 @@ func (a Atom) Apply(args ...Interface) Interface {
 	}
 }
 
-var unquotedAtomPattern = regexp.MustCompile(`\A[a-z]\w*\z`)
-var graphicalAtomPattern = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
-var quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
-
 // Unparse emits tokens that represent the atom.
 func (a Atom) Unparse(emit func(syntax.Token), opts WriteTermOptions, _ *Env) {
 	switch {
@@ -55,11 +58,26 @@ func (a Atom) Unparse(emit func(syntax.Token), opts WriteTermOptions, _ *Env) {
 	case graphicalAtomPattern.MatchString(string(a)):
 		emit(syntax.Token{Kind: syntax.TokenGraphic, Val: string(a)})
 	case opts.Quoted && !unquotedAtomPattern.MatchString(string(a)):
-		s := quotedAtomEscapePattern.ReplaceAllStringFunc(string(a), quotedIdentEscape)
-		emit(syntax.Token{Kind: syntax.TokenQuotedIdent, Val: fmt.Sprintf("'%s'", s)})
+		emit(syntax.Token{Kind: syntax.TokenQuotedIdent, Val: quote(string(a))})
 	default:
 		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(a)})
 	}
+}
+
+func quote(s string) string {
+	return fmt.Sprintf("'%s'", quotedAtomEscapePattern.ReplaceAllStringFunc(s, quotedIdentEscape))
+}
+
+func quoteSlice(ss []string) []string {
+	ret := make([]string, len(ss))
+	for i, s := range ss {
+		ret[i] = quote(s)
+	}
+	return ret
+}
+
+func unquote(s string) string {
+	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
 }
 
 func quotedIdentEscape(s string) string {
