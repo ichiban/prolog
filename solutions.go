@@ -76,10 +76,6 @@ func (s *Solutions) Scan(dest interface{}) error {
 		}
 
 		for _, v := range s.vars {
-			if v.Anonymous() {
-				continue
-			}
-
 			val, err := convert(s.env.Simplify(v), t.Elem(), s.env)
 			if err != nil {
 				return err
@@ -135,9 +131,12 @@ func (s *Solutions) Err() error {
 
 // Vars returns variable names.
 func (s *Solutions) Vars() []string {
-	ns := make([]string, len(s.vars))
-	for i, v := range s.vars {
-		ns[i] = string(v)
+	ns := make([]string, 0, len(s.vars))
+	for _, v := range s.vars {
+		if v.Generated() {
+			continue
+		}
+		ns = append(ns, string(v))
 	}
 	return ns
 }

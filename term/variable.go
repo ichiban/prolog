@@ -19,10 +19,10 @@ func NewVariable() Variable {
 	return Variable(fmt.Sprintf("_%d", varCounter))
 }
 
-var anonVarPattern = regexp.MustCompile(`\A_\d+\z`)
+var generatedPattern = regexp.MustCompile(`\A_\d+\z`)
 
-func (v Variable) Anonymous() bool {
-	return anonVarPattern.MatchString(string(v))
+func (v Variable) Generated() bool {
+	return generatedPattern.MatchString(string(v))
 }
 
 func (v Variable) String() string {

@@ -351,8 +351,8 @@ func TestFunctor(t *testing.T) {
 				assert.True(t, ok)
 				assert.Equal(t, term.Atom("f"), c.Functor)
 				assert.Len(t, c.Args, 2)
-				assert.True(t, c.Args[0].(term.Variable).Anonymous())
-				assert.True(t, c.Args[1].(term.Variable).Anonymous())
+				assert.True(t, c.Args[0].(term.Variable).Generated())
+				assert.True(t, c.Args[1].(term.Variable).Generated())
 				return nondet.Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -4353,12 +4353,12 @@ func TestVM_Clause(t *testing.T) {
 		}, body, func(env *term.Env) *nondet.Promise {
 			switch c {
 			case 0:
-				assert.True(t, env.Resolve(what).(term.Variable).Anonymous())
+				assert.True(t, env.Resolve(what).(term.Variable).Generated())
 				b, ok := env.Resolve(body).(*term.Compound)
 				assert.True(t, ok)
 				assert.Equal(t, term.Atom("moldy"), b.Functor)
 				assert.Len(t, b.Args, 1)
-				assert.True(t, b.Args[0].(term.Variable).Anonymous())
+				assert.True(t, b.Args[0].(term.Variable).Generated())
 			case 1:
 				assert.Equal(t, term.Atom("kermit"), env.Resolve(what))
 				assert.Equal(t, term.Atom("true"), env.Resolve(body))
