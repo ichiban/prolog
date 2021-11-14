@@ -2882,3 +2882,20 @@ func (vm *VM) Dynamic(pi term.Interface, k func(*term.Env) *nondet.Promise, env 
 		return nondet.Error(typeErrorPredicateIndicator(pi))
 	}
 }
+
+// ExpandTerm transforms term1 according to term_expansion/2 and unifies with term2.
+func (vm *VM) ExpandTerm(term1, term2 term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	const termExpansion = "term_expansion"
+	return nondet.Delay(func(ctx context.Context) *nondet.Promise {
+		if _, ok := vm.procedures[ProcedureIndicator{Name: termExpansion, Arity: 2}]; !ok {
+			return nondet.Bool(false)
+		}
+
+		return vm.Call(&term.Compound{
+			Functor: termExpansion,
+			Args:    []term.Interface{term1, term2},
+		}, k, env)
+	}, func(ctx context.Context) *nondet.Promise {
+		return Unify(term1, term2, k, env)
+	})
+}

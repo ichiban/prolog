@@ -15,6 +15,9 @@ import (
 //go:embed bootstrap.pl
 var bootstrap string
 
+//go:embed dcg.pl
+var dcg string
+
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
 	engine.VM
@@ -91,9 +94,16 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("set_prolog_flag", i.SetPrologFlag)
 	i.Register2("current_prolog_flag", i.CurrentPrologFlag)
 	i.Register1("dynamic", i.Dynamic)
-	if err := i.Exec(bootstrap); err != nil {
-		panic(err)
+	i.Register2("expand_term", i.ExpandTerm)
+	for _, s := range []string{
+		bootstrap,
+		dcg,
+	} {
+		if err := i.Exec(s); err != nil {
+			panic(err)
+		}
 	}
+
 	return &i
 }
 
@@ -114,7 +124,10 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 
-		if _, err := i.Assertz(t, engine.Success, nil).Force(ctx); err != nil {
+		v := term.NewVariable()
+		if _, err := i.ExpandTerm(t, v, func(env *term.Env) *nondet.Promise {
+			return i.Assertz(v, engine.Success, env)
+		}, nil).Force(ctx); err != nil {
 			return err
 		}
 	}

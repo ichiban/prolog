@@ -6130,3 +6130,61 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestVM_ExpandTerm(t *testing.T) {
+	t.Run("term_expansion/2 is undefined", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.ExpandTerm(&term.Compound{
+			Functor: "f",
+			Args:    []term.Interface{term.Atom("a")},
+		}, &term.Compound{
+			Functor: "f",
+			Args:    []term.Interface{term.Atom("a")},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("term_expansion/2 is defined", func(t *testing.T) {
+		t.Run("not applicable", func(t *testing.T) {
+			vm := VM{
+				procedures: map[ProcedureIndicator]procedure{
+					{Name: "term_expansion", Arity: 2}: predicate2(func(term.Interface, term.Interface, func(*term.Env) *nondet.Promise, *term.Env) *nondet.Promise {
+						return nondet.Bool(false)
+					}),
+				},
+			}
+			ok, err := vm.ExpandTerm(&term.Compound{
+				Functor: "f",
+				Args:    []term.Interface{term.Atom("a")},
+			}, &term.Compound{
+				Functor: "f",
+				Args:    []term.Interface{term.Atom("a")},
+			}, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("applicable", func(t *testing.T) {
+			vm := VM{
+				procedures: map[ProcedureIndicator]procedure{
+					{Name: "term_expansion", Arity: 2}: predicate2(func(t1, t2 term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+						return Unify(t2, &term.Compound{
+							Functor: "g",
+							Args:    []term.Interface{term.Atom("b")},
+						}, k, env)
+					}),
+				},
+			}
+			ok, err := vm.ExpandTerm(&term.Compound{
+				Functor: "f",
+				Args:    []term.Interface{term.Atom("a")},
+			}, &term.Compound{
+				Functor: "g",
+				Args:    []term.Interface{term.Atom("b")},
+			}, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+}

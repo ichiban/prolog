@@ -140,6 +140,9 @@ func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 	if v, err := p.accept(syntax.TokenSign, vals...); err == nil {
 		return Atom(v), nil
 	}
+	if v, err := p.accept(syntax.TokenBar, vals...); err == nil {
+		return Atom(v), nil
+	}
 	return "", errors.New("not an atom")
 }
 
