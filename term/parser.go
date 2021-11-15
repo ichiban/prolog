@@ -122,7 +122,7 @@ func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
 	return v, nil
 }
 
-func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
+func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, error) {
 	if v, err := p.accept(syntax.TokenIdent, vals...); err == nil {
 		return Atom(v), nil
 	}
@@ -137,10 +137,12 @@ func (p *Parser) acceptAtom(allowComma bool, vals ...string) (Atom, error) {
 			return Atom(v), nil
 		}
 	}
-	if v, err := p.accept(syntax.TokenSign, vals...); err == nil {
-		return Atom(v), nil
+	if allowBar {
+		if v, err := p.accept(syntax.TokenBar, vals...); err == nil {
+			return Atom(v), nil
+		}
 	}
-	if v, err := p.accept(syntax.TokenBar, vals...); err == nil {
+	if v, err := p.accept(syntax.TokenSign, vals...); err == nil {
 		return Atom(v), nil
 	}
 	return "", errors.New("not an atom")
@@ -188,7 +190,7 @@ func quotedIdentUnescape(s string) string {
 	}
 }
 
-func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
+func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*Operator, error) {
 	if p.operators == nil {
 		return nil, errors.New("no op")
 	}
@@ -198,7 +200,7 @@ func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
 			continue
 		}
 
-		if _, err := p.acceptAtom(allowComma, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, allowBar, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -207,7 +209,7 @@ func (p *Parser) acceptOp(min int, allowComma bool) (*Operator, error) {
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) acceptPrefix(allowComma bool) (*Operator, error) {
+func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*Operator, error) {
 	if p.operators == nil {
 		return nil, errors.New("no op")
 	}
@@ -217,7 +219,7 @@ func (p *Parser) acceptPrefix(allowComma bool) (*Operator, error) {
 			continue
 		}
 
-		if _, err := p.acceptAtom(allowComma, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, allowBar, string(op.Name)); err != nil {
 			continue
 		}
 
@@ -277,7 +279,7 @@ func (p *Parser) Term() (Interface, error) {
 		*p.vars = (*p.vars)[:0]
 	}
 
-	t, err := p.expr(1, true)
+	t, err := p.expr(1, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -334,20 +336,20 @@ func (p *Parser) number() (Interface, error) {
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(min int, allowComma bool) (Interface, error) {
-	lhs, err := p.lhs(allowComma)
+func (p *Parser) expr(min int, allowComma, allowBar bool) (Interface, error) {
+	lhs, err := p.lhs(allowComma, allowBar)
 	if err != nil {
 		return nil, err
 	}
 
 	for {
-		op, err := p.acceptOp(min, allowComma)
+		op, err := p.acceptOp(min, allowComma, allowBar)
 		if err != nil {
 			break
 		}
 
 		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma)
+		rhs, err := p.expr(r, allowComma, allowBar)
 		if err != nil {
 			return nil, err
 		}
@@ -361,13 +363,13 @@ func (p *Parser) expr(min int, allowComma bool) (Interface, error) {
 	return lhs, nil
 }
 
-func (p *Parser) lhs(allowComma bool) (Interface, error) {
+func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 	if _, err := p.accept(syntax.TokenEOS); err == nil {
 		return nil, syntax.ErrInsufficient
 	}
 
 	if _, err := p.accept(syntax.TokenParenL); err == nil {
-		lhs, err := p.expr(1, true)
+		lhs, err := p.expr(1, true, true)
 		if err != nil {
 			return nil, err
 		}
@@ -380,7 +382,7 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 	}
 
 	if _, err := p.accept(syntax.TokenBraceL); err == nil {
-		lhs, err := p.expr(1, true)
+		lhs, err := p.expr(1, true, true)
 		if err != nil {
 			return nil, err
 		}
@@ -399,9 +401,9 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		return t, nil
 	}
 
-	if op, err := p.acceptPrefix(allowComma); err == nil {
+	if op, err := p.acceptPrefix(allowComma, allowBar); err == nil {
 		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma)
+		rhs, err := p.expr(r, allowComma, allowBar)
 		if err != nil {
 			return op.Name, nil
 		}
@@ -452,7 +454,7 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 		}
 	}
 
-	if a, err := p.acceptAtom(allowComma); err == nil {
+	if a, err := p.acceptAtom(allowComma, allowBar); err == nil {
 		if _, err := p.accept(syntax.TokenParenL); err != nil {
 			if p.placeholder != "" && p.placeholder == a {
 				if len(p.args) == 0 {
@@ -467,7 +469,7 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 
 		var args []Interface
 		for {
-			t, err := p.expr(1, false)
+			t, err := p.expr(1, false, true)
 			if err != nil {
 				return nil, err
 			}
@@ -488,14 +490,14 @@ func (p *Parser) lhs(allowComma bool) (Interface, error) {
 	if _, err := p.accept(syntax.TokenBracketL); err == nil {
 		var es []Interface
 		for {
-			e, err := p.expr(1, false)
+			e, err := p.expr(1, false, false)
 			if err != nil {
 				return nil, err
 			}
 			es = append(es, e)
 
 			if _, err := p.accept(syntax.TokenBar); err == nil {
-				rest, err := p.expr(1, true)
+				rest, err := p.expr(1, true, true)
 				if err != nil {
 					return nil, err
 				}

@@ -319,9 +319,14 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("list", func(t *testing.T) {
-		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), nil)
+		ops := Operators{
+			{Priority: 1105, Specifier: OperatorSpecifierXFY, Name: `|`},
+		}
+		p := NewParser(bufio.NewReader(strings.NewReader(`[a, b, c|X].`)), nil, WithOperators(&ops))
 		term, err := p.Term()
 		assert.NoError(t, err)
+
+		// A bar in list is not an operator but a separator.
 		assert.Equal(t, ListRest(Variable("X"), Atom("a"), Atom("b"), Atom("c")), term)
 	})
 
