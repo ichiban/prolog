@@ -15,8 +15,9 @@ import (
 //go:embed bootstrap.pl
 var bootstrap string
 
+// DCG is a script that enables definite clause grammar. It contains phrase/2, phrase/3, and term expansion for -->/2.
 //go:embed dcg.pl
-var dcg string
+var DCG string
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
@@ -95,13 +96,8 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("current_prolog_flag", i.CurrentPrologFlag)
 	i.Register1("dynamic", i.Dynamic)
 	i.Register2("expand_term", i.ExpandTerm)
-	for _, s := range []string{
-		bootstrap,
-		dcg,
-	} {
-		if err := i.Exec(s); err != nil {
-			panic(err)
-		}
+	if err := i.Exec(bootstrap); err != nil {
+		panic(err)
 	}
 
 	return &i
