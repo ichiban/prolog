@@ -231,7 +231,10 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return l.variable, nil
 	case r == '"':
 		var b strings.Builder
-		return l.doubleQuoted(&b), nil
+		if _, err := b.WriteRune(r); err != nil {
+			return nil, err
+		}
+		return l.doubleQuoted(&b)
 	default:
 		l.backup()
 		return l.ident, nil
@@ -838,22 +841,111 @@ func (l *Lexer) multiLineCommentEnd(ctx lexState) (lexState, error) {
 	}, nil
 }
 
-func (l *Lexer) doubleQuoted(b *strings.Builder) func(r rune) (lexState, error) {
+func (l *Lexer) doubleQuoted(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
 		switch r {
 		case etx:
 			return nil, ErrInsufficient
 		case '"':
-			l.emit(Token{Kind: TokenDoubleQuoted, Val: b.String()})
-			return nil, nil
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedDoubleQuote(b)
+		case '\\':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedSlash(b)
 		default:
 			if _, err := b.WriteRune(r); err != nil {
 				return nil, err
 			}
-			return l.doubleQuoted(b), nil
+			return l.doubleQuoted(b)
 		}
-	}
+	}, nil
+}
+
+func (l *Lexer) doubleQuotedDoubleQuote(b *strings.Builder) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		switch r {
+		case '"':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuoted(b)
+		default:
+			l.backup()
+			l.emit(Token{Kind: TokenDoubleQuoted, Val: b.String()})
+			return nil, nil
+		}
+	}, nil
+}
+
+func (l *Lexer) doubleQuotedSlash(b *strings.Builder) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		switch {
+		case r == etx:
+			return nil, ErrInsufficient
+		case r == 'x':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedSlashHex(b)
+		case unicode.IsNumber(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedSlashOctal(b)
+		default:
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuoted(b)
+		}
+	}, nil
+}
+
+func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		switch {
+		case r == etx:
+			return nil, ErrInsufficient
+		case isHex(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedSlashHex(b)
+		case r == '\\':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuoted(b)
+		default:
+			return nil, UnexpectedRuneError{rune: r}
+		}
+	}, nil
+}
+
+func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) (lexState, error) {
+	return func(r rune) (lexState, error) {
+		switch {
+		case r == etx:
+			return nil, ErrInsufficient
+		case isOctal(r):
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuotedSlashOctal(b)
+		case r == '\\':
+			if _, err := b.WriteRune(r); err != nil {
+				return nil, err
+			}
+			return l.doubleQuoted(b)
+		default:
+			return nil, UnexpectedRuneError{rune: r}
+		}
+	}, nil
 }
 
 func isOctal(r rune) bool {

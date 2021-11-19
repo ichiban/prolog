@@ -3,6 +3,7 @@ package term
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ichiban/prolog/syntax"
@@ -68,18 +69,6 @@ func quote(s string) string {
 	return fmt.Sprintf("'%s'", quotedAtomEscapePattern.ReplaceAllStringFunc(s, quotedIdentEscape))
 }
 
-func quoteSlice(ss []string) []string {
-	ret := make([]string, len(ss))
-	for i, s := range ss {
-		ret[i] = quote(s)
-	}
-	return ret
-}
-
-func unquote(s string) string {
-	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
-}
-
 func quotedIdentEscape(s string) string {
 	switch s {
 	case "\a":
@@ -110,5 +99,59 @@ func quotedIdentEscape(s string) string {
 			ret = append(ret, fmt.Sprintf(`\x%x\`, r))
 		}
 		return strings.Join(ret, "")
+	}
+}
+
+func quoteSlice(ss []string) []string {
+	ret := make([]string, len(ss))
+	for i, s := range ss {
+		ret[i] = quote(s)
+	}
+	return ret
+}
+
+func unquote(s string) string {
+	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
+}
+
+func quotedIdentUnescape(s string) string {
+	switch s {
+	case "''":
+		return "'"
+	case "\\\n":
+		return ""
+	case `\a`:
+		return "\a"
+	case `\b`:
+		return "\b"
+	case `\f`:
+		return "\f"
+	case `\n`:
+		return "\n"
+	case `\r`:
+		return "\r"
+	case `\t`:
+		return "\t"
+	case `\v`:
+		return "\v"
+	case `\\`:
+		return `\`
+	case `\'`:
+		return `'`
+	case `\"`:
+		return `"`
+	case "\\`":
+		return "`"
+	default: // `\x23\` or `\23\`
+		s = s[1 : len(s)-1] // `x23` or `23`
+		base := 8
+
+		if s[0] == 'x' {
+			s = s[1:]
+			base = 16
+		}
+
+		r, _ := strconv.ParseInt(s, base, 4*8) // rune is up to 4 bytes
+		return string(rune(r))
 	}
 }

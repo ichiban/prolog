@@ -123,7 +123,6 @@ a quoted ident'.`)), nil)
 				assert.NoError(t, err)
 				assert.Equal(t, Atom("`"), a)
 			})
-
 		})
 	})
 
@@ -469,6 +468,114 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 					Atom("abc"),
 				},
 			}, term)
+		})
+
+		t.Run("escape", func(t *testing.T) {
+			t.Run("double double quotes", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"don""t panic".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("don\"t panic"), a)
+			})
+
+			t.Run("backslash at the very end of the line", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"this is \
+a double-quoted string".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("this is a double-quoted string"), a)
+			})
+
+			t.Run("alert", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\a".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\a"), a)
+			})
+
+			t.Run("backspace", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\b".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\b"), a)
+			})
+
+			t.Run("formfeed", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\f".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\f"), a)
+			})
+
+			t.Run("newline", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\n".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\n"), a)
+			})
+
+			t.Run("return", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\r".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\r"), a)
+			})
+
+			t.Run("tab", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\t".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\t"), a)
+			})
+
+			t.Run("vertical tab", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\v".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("\v"), a)
+			})
+
+			t.Run("hex code", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("£"), a)
+			})
+
+			t.Run("oct code", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\43\".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("#"), a)
+			})
+
+			t.Run("backslash", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\\".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`\`), a)
+			})
+
+			t.Run("single quote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\'".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`'`), a)
+			})
+
+			t.Run("double quote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader(`"\"".`)), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom(`"`), a)
+			})
+
+			t.Run("backquote", func(t *testing.T) {
+				p := NewParser(bufio.NewReader(strings.NewReader("\"\\`\".")), nil, WithDoubleQuotes(DoubleQuotesAtom))
+				a, err := p.Term()
+				assert.NoError(t, err)
+				assert.Equal(t, Atom("`"), a)
+			})
 		})
 	})
 }
