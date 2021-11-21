@@ -5,16 +5,18 @@ import (
 	"fmt"
 
 	"github.com/ichiban/prolog"
+	_ "github.com/ichiban/prolog/dcg" // import this to enable `:- [library(dcg)].`
 )
 
 // This example explains how to parse a simple English sentence with DCG (Definite Clause Grammar).
 // You can check if it parses a sentence with `go run examples/dcg/main.go <SENTENCE>`. If it does, the program returns
-// `true` or `false`. Also, you can generate every possible sentence by providing a prefix
+// `true` otherwise `false`. Also, you can generate every possible sentence by providing a prefix
 // `go run examples/dcg/main.go -prefix <PREFIX>`.
 //
 // e.g.)
 //   $ go run examples/dcg/main.go the cat chases the mouse
 //   $ go run examples/dcg/main.go -prefix the cat
+
 func main() {
 	var prefix bool
 	flag.BoolVar(&prefix, "prefix", false, "prefix search mode")
@@ -23,13 +25,12 @@ func main() {
 	// First, create a Prolog interpreter.
 	i := prolog.New(nil, nil)
 
-	// Then, enable DCG.
-	if err := i.Exec(prolog.DCG); err != nil {
-		panic(err)
-	}
-
-	// Now, we can define DCG rules with -->/2.
+	// Then, define DCG rules with -->/2.
+	// Note that we've imported "github.com/ichiban/prolog/dcg" to load `library(dcg)`.
 	if err := i.Exec(`
+% We need to consult library(dcg) to enable DCG.
+:- [library(dcg)].
+
 s --> np, vp.
 np --> det, n.
 vp --> v, np.

@@ -164,3 +164,5 @@ member(X, [_|Xs]) :- member(X, Xs).
 
 length([], 0).
 length([_|Xs], N) :- length(Xs, L), N is L + 1.
+
+[H|T] :- consult([H|T]).

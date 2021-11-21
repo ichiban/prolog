@@ -15,7 +15,8 @@ func (e *Exception) Error() string {
 	return e.Term.String()
 }
 
-func instantiationError(culprit term.Interface) *Exception {
+// InstantiationError creates a new instantiation error excdption.
+func InstantiationError(culprit term.Interface) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",
@@ -28,62 +29,63 @@ func instantiationError(culprit term.Interface) *Exception {
 }
 
 func typeErrorAtom(culprit term.Interface) *Exception {
-	return typeError(term.Atom("atom"), culprit, term.Atom(fmt.Sprintf("%s is not an atom.", culprit)))
+	return TypeError("atom", culprit, "%s is not an atom.", culprit)
 }
 
 func typeErrorByte(culprit term.Interface) *Exception {
-	return typeError(term.Atom("byte"), culprit, term.Atom(fmt.Sprintf("%s is not a byte.", culprit)))
+	return TypeError("byte", culprit, "%s is not a byte.", culprit)
 }
 
 func typeErrorCallable(culprit term.Interface) *Exception {
-	return typeError(term.Atom("callable"), culprit, term.Atom(fmt.Sprintf("%s is not callable.", culprit)))
+	return TypeError("callable", culprit, "%s is not callable.", culprit)
 }
 
 func typeErrorCharacter(culprit term.Interface) *Exception {
-	return typeError(term.Atom("character"), culprit, term.Atom(fmt.Sprintf("%s is not a character.", culprit)))
+	return TypeError("character", culprit, "%s is not a character.", culprit)
 }
 
 func typeErrorInByte(culprit term.Interface) *Exception {
-	return typeError(term.Atom("in_byte"), culprit, term.Atom(fmt.Sprintf("%s is not a byte.", culprit)))
+	return TypeError("in_byte", culprit, "%s is not a byte.", culprit)
 }
 
 func typeErrorInCharacter(culprit term.Interface) *Exception {
-	return typeError(term.Atom("in_character"), culprit, term.Atom(fmt.Sprintf("%s is not a character.", culprit)))
+	return TypeError("in_character", culprit, "%s is not a character.", culprit)
 }
 
 func typeErrorEvaluable(culprit term.Interface) *Exception {
-	return typeError(term.Atom("evaluable"), culprit, term.Atom(fmt.Sprintf("%s is not evaluable.", culprit)))
+	return TypeError("evaluable", culprit, "%s is not evaluable.", culprit)
 }
 
 func typeErrorInteger(culprit term.Interface) *Exception {
-	return typeError(term.Atom("integer"), culprit, term.Atom(fmt.Sprintf("%s is not an integer.", culprit)))
+	return TypeError("integer", culprit, "%s is not an integer.", culprit)
 }
 
 func typeErrorList(culprit term.Interface) *Exception {
-	return typeError(term.Atom("list"), culprit, term.Atom(fmt.Sprintf("%s is not a list.", culprit)))
+	return TypeError("list", culprit, "%s is not a list.", culprit)
 }
 
 func typeErrorNumber(culprit term.Interface) *Exception {
-	return typeError(term.Atom("number"), culprit, term.Atom(fmt.Sprintf("%s is not a number.", culprit)))
+	return TypeError("number", culprit, "%s is not a number.", culprit)
 }
 
 func typeErrorPredicateIndicator(culprit term.Interface) *Exception {
-	return typeError(term.Atom("predicate_indicator"), culprit, term.Atom(fmt.Sprintf("%s is not a predicate indicator.", culprit)))
+	return TypeError("predicate_indicator", culprit, "%s is not a predicate indicator.", culprit)
 }
 
 func typeErrorVariable(culprit term.Interface) *Exception {
-	return typeError(term.Atom("variable"), culprit, term.Atom(fmt.Sprintf("%s is not a variable.", culprit)))
+	return TypeError("variable", culprit, "%s is not a variable.", culprit)
 }
 
 func typeErrorCompound(culprit term.Interface) *Exception {
-	return typeError(term.Atom("compound"), culprit, term.Atom(fmt.Sprintf("%s is not a compound.", culprit)))
+	return TypeError("compound", culprit, "%s is not a compound.", culprit)
 }
 
 func typeErrorAtomic(culprit term.Interface) *Exception {
-	return typeError(term.Atom("atomic"), culprit, term.Atom(fmt.Sprintf("%s is not atomic.", culprit)))
+	return TypeError("atomic", culprit, "%s is not atomic.", culprit)
 }
 
-func typeError(validType, culprit, info term.Interface) *Exception {
+// TypeError creates a new type error exception.
+func TypeError(validType term.Atom, culprit term.Interface, format string, args ...interface{}) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",
@@ -92,73 +94,74 @@ func typeError(validType, culprit, info term.Interface) *Exception {
 					Functor: "type_error",
 					Args:    []term.Interface{validType, culprit},
 				},
-				info,
+				term.Atom(fmt.Sprintf(format, args...)),
 			},
 		},
 	}
 }
 
 func domainErrorFlagValue(culprit term.Interface) *Exception {
-	return domainError(term.Atom("flag_value"), culprit, term.Atom(fmt.Sprintf("%s is not a flag value.", culprit)))
+	return DomainError("flag_value", culprit, "%s is not a flag value.", culprit)
 }
 
 func domainErrorIOMode(culprit term.Interface) *Exception {
-	return domainError(term.Atom("io_mode"), culprit, term.Atom(fmt.Sprintf("%s is not an I/O mode.", culprit)))
+	return DomainError("io_mode", culprit, "%s is not an I/O mode.", culprit)
 }
 
 func domainErrorNotEmptyList(culprit term.Interface) *Exception {
-	return domainError(term.Atom("not_empty_list"), culprit, term.Atom(fmt.Sprintf("%s is an empty list.", culprit)))
+	return DomainError("not_empty_list", culprit, "%s is an empty list.", culprit)
 }
 
 func domainErrorNotLessThanZero(culprit term.Interface) *Exception {
-	return domainError(term.Atom("not_less_than_zero"), culprit, term.Atom(fmt.Sprintf("%s is less than zero.", culprit)))
+	return DomainError("not_less_than_zero", culprit, "%s is less than zero.", culprit)
 }
 
 func domainErrorOperatorPriority(culprit term.Interface) *Exception {
-	return domainError(term.Atom("operator_priority"), culprit, term.Atom(fmt.Sprintf("%s is not between 0 and 1200.", culprit)))
+	return DomainError("operator_priority", culprit, "%s is not between 0 and 1200.", culprit)
 }
 
 func domainErrorOperatorSpecifier(culprit term.Interface) *Exception {
-	return domainError(term.Atom("operator_specifier"), culprit, term.Atom(fmt.Sprintf("%s is neither xf, yf, xfx, xfy, yfx, fx, nor fy.", culprit)))
+	return DomainError("operator_specifier", culprit, "%s is neither xf, yf, xfx, xfy, yfx, fx, nor fy.", culprit)
 }
 
 func domainErrorPrologFlag(culprit term.Interface) *Exception {
-	return domainError(term.Atom("prolog_flag"), culprit, term.Atom(fmt.Sprintf("%s is not a prolog flag.", culprit)))
+	return DomainError("prolog_flag", culprit, "%s is not a prolog flag.", culprit)
 }
 
 func domainErrorReadOption(culprit term.Interface) *Exception {
-	return domainError(term.Atom("read_option"), culprit, term.Atom(fmt.Sprintf("%s is not a read option.", culprit)))
+	return DomainError("read_option", culprit, "%s is not a read option.", culprit)
 }
 
 func domainErrorSourceSink(culprit term.Interface) *Exception {
-	return domainError(term.Atom("source_sink"), culprit, term.Atom(fmt.Sprintf("%s is not a source/sink.", culprit)))
+	return DomainError("source_sink", culprit, "%s is not a source/sink.", culprit)
 }
 
 func domainErrorStream(culprit term.Interface) *Exception {
-	return domainError(term.Atom("stream"), culprit, term.Atom(fmt.Sprintf("%s is not a stream.", culprit)))
+	return DomainError("stream", culprit, "%s is not a stream.", culprit)
 }
 
 func domainErrorStreamOption(culprit term.Interface) *Exception {
-	return domainError(term.Atom("stream_option"), culprit, term.Atom(fmt.Sprintf("%s is not a stream option.", culprit)))
+	return DomainError("stream_option", culprit, "%s is not a stream option.", culprit)
 }
 
 func domainErrorStreamOrAlias(culprit term.Interface) *Exception {
-	return domainError(term.Atom("stream_or_alias"), culprit, term.Atom(fmt.Sprintf("%s is neither a stream nor an alias.", culprit)))
+	return DomainError("stream_or_alias", culprit, "%s is neither a stream nor an alias.", culprit)
 }
 
 func domainErrorStreamProperty(culprit term.Interface) *Exception {
-	return domainError(term.Atom("stream_property"), culprit, term.Atom(fmt.Sprintf("%s is not a stream property.", culprit)))
+	return DomainError("stream_property", culprit, "%s is not a stream property.", culprit)
 }
 
 func domainErrorWriteOption(culprit term.Interface) *Exception {
-	return domainError(term.Atom("write_option"), culprit, term.Atom(fmt.Sprintf("%s is not a write option.", culprit)))
+	return DomainError("write_option", culprit, "%s is not a write option.", culprit)
 }
 
 func domainErrorOrder(culprit term.Interface) *Exception {
-	return domainError(term.Atom("order"), culprit, term.Atom(fmt.Sprintf("%s is neither <, =, nor >.", culprit)))
+	return DomainError("order", culprit, "%s is neither <, =, nor >.", culprit)
 }
 
-func domainError(validDomain, culprit, info term.Interface) *Exception {
+// DomainError creates a new domain error exception.
+func DomainError(validDomain term.Atom, culprit term.Interface, format string, args ...interface{}) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",
@@ -167,25 +170,26 @@ func domainError(validDomain, culprit, info term.Interface) *Exception {
 					Functor: "domain_error",
 					Args:    []term.Interface{validDomain, culprit},
 				},
-				info,
+				term.Atom(fmt.Sprintf(format, args...)),
 			},
 		},
 	}
 }
 
 func existenceErrorProcedure(culprit term.Interface) *Exception {
-	return existenceError(term.Atom("procedure"), culprit, term.Atom(fmt.Sprintf("procedure %s is not defined.", culprit)))
+	return ExistenceError("procedure", culprit, "procedure %s is not defined.", culprit)
 }
 
 func existenceErrorSourceSink(culprit term.Interface) *Exception {
-	return existenceError(term.Atom("source_sink"), culprit, term.Atom(fmt.Sprintf("file %s doesn't exist.", culprit)))
+	return ExistenceError("source_sink", culprit, "file %s doesn't exist.", culprit)
 }
 
 func existenceErrorStream(culprit term.Interface) *Exception {
-	return existenceError(term.Atom("stream"), culprit, term.Atom(fmt.Sprintf("stream %s doesn't exist.", culprit)))
+	return ExistenceError("stream", culprit, "stream %s doesn't exist.", culprit)
 }
 
-func existenceError(objectType, culprit, info term.Interface) *Exception {
+// ExistenceError creates a new existence error exception.
+func ExistenceError(objectType term.Atom, culprit term.Interface, format string, args ...interface{}) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",
@@ -194,53 +198,54 @@ func existenceError(objectType, culprit, info term.Interface) *Exception {
 					Functor: "existence_error",
 					Args:    []term.Interface{objectType, culprit},
 				},
-				info,
+				term.Atom(fmt.Sprintf(format, args...)),
 			},
 		},
 	}
 }
 
 func permissionErrorModifyStaticProcedure(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("modify"), term.Atom("static_procedure"), culprit, term.Atom(fmt.Sprintf("%s is static.", culprit)))
+	return PermissionError("modify", "static_procedure", culprit, "%s is static.", culprit)
 }
 
 func permissionErrorAccessPrivateProcedure(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("access"), term.Atom("private_procedure"), culprit, term.Atom(fmt.Sprintf("%s is private.", culprit)))
+	return PermissionError("access", "private_procedure", culprit, "%s is private.", culprit)
 }
 
 func permissionErrorOutputStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("output"), term.Atom("stream"), culprit, term.Atom(fmt.Sprintf("%s is not an output stream.", culprit)))
+	return PermissionError("output", "stream", culprit, "%s is not an output stream.", culprit)
 }
 
 func permissionErrorOutputBinaryStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("output"), term.Atom("binary_stream"), culprit, term.Atom(fmt.Sprintf("%s is a binary stream.", culprit)))
+	return PermissionError("output", "binary_stream", culprit, "%s is a binary stream.", culprit)
 }
 
 func permissionErrorOutputTextStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("output"), term.Atom("text_stream"), culprit, term.Atom(fmt.Sprintf("%s is a text stream.", culprit)))
+	return PermissionError("output", "text_stream", culprit, "%s is a text stream.", culprit)
 }
 
 func permissionErrorInputStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("input"), term.Atom("stream"), culprit, term.Atom(fmt.Sprintf("%s is not an input stream.", culprit)))
+	return PermissionError("input", "stream", culprit, "%s is not an input stream.", culprit)
 }
 
 func permissionErrorInputBufferedStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("input"), term.Atom("buffered_stream"), culprit, term.Atom(fmt.Sprintf("%s is not a buffered stream.", culprit)))
+	return PermissionError("input", "buffered_stream", culprit, "%s is not a buffered stream.", culprit)
 }
 
 func permissionErrorInputBinaryStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("input"), term.Atom("binary_stream"), culprit, term.Atom(fmt.Sprintf("%s is a binary stream.", culprit)))
+	return PermissionError("input", "binary_stream", culprit, "%s is a binary stream.", culprit)
 }
 
 func permissionErrorInputTextStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("input"), term.Atom("text_stream"), culprit, term.Atom(fmt.Sprintf("%s is a text stream.", culprit)))
+	return PermissionError("input", "text_stream", culprit, "%s is a text stream.", culprit)
 }
 
 func permissionErrorInputPastEndOfStream(culprit term.Interface) *Exception {
-	return permissionError(term.Atom("input"), term.Atom("past_end_of_stream"), culprit, term.Atom(fmt.Sprintf("%s has past end of stream.", culprit)))
+	return PermissionError("input", "past_end_of_stream", culprit, "%s has past end of stream.", culprit)
 }
 
-func permissionError(operation, permissionType, culprit, info term.Interface) *Exception {
+// PermissionError creates a new permission error exception.
+func PermissionError(operation, permissionType term.Atom, culprit term.Interface, format string, args ...interface{}) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",
@@ -249,7 +254,7 @@ func permissionError(operation, permissionType, culprit, info term.Interface) *E
 					Functor: "permission_error",
 					Args:    []term.Interface{operation, permissionType, culprit},
 				},
-				info,
+				term.Atom(fmt.Sprintf(format, args...)),
 			},
 		},
 	}
@@ -335,7 +340,7 @@ func syntaxError(detail, info term.Interface) *Exception {
 	}
 }
 
-func systemError(err error) *Exception {
+func SystemError(err error) *Exception {
 	return &Exception{
 		Term: &term.Compound{
 			Functor: "error",

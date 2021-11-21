@@ -4,20 +4,20 @@ import (
 	"context"
 	_ "embed"
 	"io"
+	"io/ioutil"
+	"os"
 	"strings"
 
+	"github.com/ichiban/prolog/engine"
 	"github.com/ichiban/prolog/nondet"
 	"github.com/ichiban/prolog/term"
-
-	"github.com/ichiban/prolog/engine"
 )
 
 //go:embed bootstrap.pl
 var bootstrap string
 
-// DCG is a script that enables definite clause grammar. It contains phrase/2, phrase/3, and term expansion for -->/2.
-//go:embed dcg.pl
-var DCG string
+// Libraries is a map of Prolog libraries.
+var Libraries = map[string]func(*Interpreter) error{}
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
@@ -96,6 +96,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("current_prolog_flag", i.CurrentPrologFlag)
 	i.Register1("dynamic", i.Dynamic)
 	i.Register2("expand_term", i.ExpandTerm)
+	i.Register1("consult", i.consult)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}
@@ -170,4 +171,77 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 	}()
 
 	return &sols, nil
+}
+
+func (i *Interpreter) consult(files term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	switch f := env.Resolve(files).(type) {
+	case term.Variable:
+		return nondet.Error(engine.InstantiationError(files))
+	case *term.Compound:
+		if f.Functor == "." && len(f.Args) == 2 {
+			if err := engine.Each(f, func(elem term.Interface) error {
+				return i.consultOne(elem, env)
+			}, env); err != nil {
+				return nondet.Error(err)
+			}
+			return k(env)
+		}
+		if err := i.consultOne(f, env); err != nil {
+			return nondet.Error(err)
+		}
+		return k(env)
+	default:
+		if err := i.consultOne(f, env); err != nil {
+			return nondet.Error(err)
+		}
+		return k(env)
+	}
+}
+
+func (i *Interpreter) consultOne(file term.Interface, env *term.Env) error {
+	switch f := env.Resolve(file).(type) {
+	case term.Variable:
+		return engine.InstantiationError(file)
+	case term.Atom:
+		for _, f := range []string{string(f), string(f) + ".pl"} {
+			file, err := os.Open(f)
+			if err != nil {
+				continue
+			}
+
+			b, err := ioutil.ReadAll(file)
+			if err != nil {
+				return engine.SystemError(err)
+			}
+
+			if err := i.Exec(string(b)); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return engine.SystemError(err)
+			}
+
+			return nil
+		}
+		return engine.DomainError("source_sink", file, "%s does not exist.", file)
+	case *term.Compound:
+		if f.Functor != "library" || len(f.Args) != 1 {
+			return engine.TypeError("atom", file, "%s is not an atom.", file)
+		}
+
+		library, ok := env.Resolve(f.Args[0]).(term.Atom)
+		if !ok {
+			return engine.TypeError("atom", f.Args[0], "%s is not an atom.", f.Args[0])
+		}
+
+		l, ok := Libraries[string(library)]
+		if !ok {
+			return engine.ExistenceError("library", library, "%s is not a library.", library)
+		}
+
+		return l(i)
+	default:
+		return engine.TypeError("atom", file, "%s is not an atom.", file)
+	}
 }

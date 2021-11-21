@@ -12,17 +12,15 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/ichiban/prolog/syntax"
-
-	"github.com/ichiban/prolog/engine"
-
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/term"
-
-	"github.com/ichiban/prolog"
-
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/ichiban/prolog"
+	_ "github.com/ichiban/prolog/dcg"
+	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/nondet"
+	"github.com/ichiban/prolog/syntax"
+	"github.com/ichiban/prolog/term"
 )
 
 // Version is a version of this build.

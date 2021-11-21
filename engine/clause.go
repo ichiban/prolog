@@ -83,7 +83,7 @@ func compile(t term.Interface, env *term.Env) (clauses, error) {
 	t = env.Simplify(t)
 	switch t := t.(type) {
 	case term.Variable:
-		return nil, instantiationError(t)
+		return nil, InstantiationError(t)
 	case term.Atom:
 		c, err := compileClause(t, nil, env)
 		if err != nil {
@@ -160,7 +160,7 @@ func compileClause(head term.Interface, body term.Interface, env *term.Env) (cla
 	var c clause
 	switch head := env.Resolve(head).(type) {
 	case term.Variable:
-		return c, instantiationError(head)
+		return c, InstantiationError(head)
 	case term.Atom:
 		c.pi = ProcedureIndicator{Name: head, Arity: 0}
 	case *term.Compound:
@@ -251,7 +251,7 @@ func (c *clause) compileArg(a term.Interface, env *term.Env) error {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		return systemError(fmt.Errorf("unknown argument: %s", a))
+		return SystemError(fmt.Errorf("unknown argument: %s", a))
 	}
 	return nil
 }
