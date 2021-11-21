@@ -1,18 +1,33 @@
 # ichiban/prolog
 
-A Go embeddable Prolog.
+The only reasonable scripting engine for Go.
 
-## Getting Started
+- **Easy to reason about:** based on first-order logic
+- **Easy to adopt:** `database/sql`-like Go API
+- **Intelligent:** full-featured Prolog implementation
+- **Declarative:** forget about json, yaml, toml, etc
 
-### Prerequisites
+[![Go Reference](https://pkg.go.dev/badge/github.com/ichiban/prolog.svg)](https://pkg.go.dev/github.com/ichiban/prolog)
+[![Actions Status](https://github.com/ichiban/prolog/actions/workflows/go.yml/badge.svg)](https://github.com/ichiban/prolog/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ichiban/prolog)](https://goreportcard.com/report/github.com/ichiban/prolog)
 
-You need Go 1.6 or above installed.
-
-### Installation
+## Installation
 
 ```console
 go get -u github.com/ichiban/prolog@latest
 ```
+
+## **prolog** vs [otto](https://github.com/robertkrimen/otto) vs [toml](https://github.com/BurntSushi/toml)
+
+|                              | **prolog**          | otto            | toml                 |
+| ---------------------------- | ------------------- | --------------- | -------------------- |
+| Language                     | ISO Prolog          | ECMA Script     | TOML                 |
+| Paradigm                     | Logic               | Object-oriented | Configuration        |
+| Go API                       | `database/sql`-like | original        | `encoding/json`-like |
+| Turing complete?             | ✅                  | ✅              | ❌                   |
+| Declarative?                 | ✅                  | ❌              | ✅                   |
+| Easy to set a value from Go? | ✅                  | ✅              | ✅                   |
+| Easy to get a value to Go?   | ✅                  | ❌              | ✅                   |
 
 ## Usage
 
