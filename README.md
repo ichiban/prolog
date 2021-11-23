@@ -1,185 +1,118 @@
-# ichiban/prolog
-
-The only reasonable scripting engine for Go.
-
-- **Easy to reason about:** based on first-order logic
-- **Easy to adopt:** `database/sql`-like Go API
-- **Intelligent:** full-featured Prolog implementation
-- **Declarative:** forget about json, yaml, toml, etc
+# ![prolog - the only reasonable scripting engine for Go](prolog.gif)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ichiban/prolog.svg)](https://pkg.go.dev/github.com/ichiban/prolog)
 [![Actions Status](https://github.com/ichiban/prolog/actions/workflows/go.yml/badge.svg)](https://github.com/ichiban/prolog/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ichiban/prolog)](https://goreportcard.com/report/github.com/ichiban/prolog)
 
-## Installation
+## What is this?
+
+`ichiban/prolog` is an embeddable scripting language for Go.
+Unlike any other scripting engines, `ichiban/prolog` implements logic programming language Prolog.
+
+- **Easy to reason about:** based on first-order logic
+- **Easy to adopt:** `database/sql`-like Go API
+- **Intelligent:** full-featured Prolog implementation
+- **Highly customizable:** sandboxing, custom predicates 
+
+## `ichiban/prolog` vs [otto](https://github.com/robertkrimen/otto) vs [go-lua](https://github.com/Shopify/go-lua)
+
+|                              | **prolog**          | otto            | go-lua               |
+| ---------------------------- | ------------------- | --------------- | -------------------- |
+| Language                     | ISO Prolog          | ECMA Script     | Lua                  |
+| Paradigm                     | Logic               | Object-oriented | Object-oriented      |
+| Go API                       | `database/sql`-like | original        | original             |
+| Declarative?                 | ✅                  | ❌              | ❌                   |
+| Easy to set a value from Go? | ✅                  | ✅              | ✅                   |
+| Easy to get a value to Go?   | ✅                  | ❌              | ✅                   |
+| Sandboxing                   | ✅                  | ❌              | ✅                   |
+
+## Getting started
+
+### Install latest version
 
 ```console
 go get -u github.com/ichiban/prolog@latest
 ```
 
-## **prolog** vs [otto](https://github.com/robertkrimen/otto) vs [toml](https://github.com/BurntSushi/toml)
+### Usage
 
-|                              | **prolog**          | otto            | toml                 |
-| ---------------------------- | ------------------- | --------------- | -------------------- |
-| Language                     | ISO Prolog          | ECMA Script     | TOML                 |
-| Paradigm                     | Logic               | Object-oriented | Configuration        |
-| Go API                       | `database/sql`-like | original        | `encoding/json`-like |
-| Turing complete?             | ✅                  | ✅              | ❌                   |
-| Declarative?                 | ✅                  | ❌              | ✅                   |
-| Easy to set a value from Go? | ✅                  | ✅              | ✅                   |
-| Easy to get a value to Go?   | ✅                  | ❌              | ✅                   |
-
-## Usage
-
-### Embed Prolog into Go
+#### Instantiate an interpreter
 
 ```go
-package main
+p := prolog.New(nil, nil)
+```
 
-import (
-	"fmt"
+Or, if you want to expose standard input/output to your interpreter:
 
-	"github.com/ichiban/prolog"
-)
+```go
+p := prolog.New(os.Stdin, os.Stdout)
+```
 
-// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
-func main() {
-	p := prolog.New(nil, nil)
-	if err := p.Exec(`
-teaches(dr_fred, history).
-teaches(dr_fred, english).
-teaches(dr_fred, drama).
-teaches(dr_fiona, physics).
+Or, if you want a secure interpreter without any builtin predicates:
 
-studies(alice, english).
-studies(angus, english).
-studies(amelia, drama).
-studies(alex, physics).
+```go
+p := &prolog.Interpreter{}
+```
+
+#### Load a Prolog program
+
+```go
+if err := p.Exec(`
+	% This is a comment.
+	human(socrates).       % This is a fact.
+	mortal(X) :- human(X). % This is a rule.
 `); err != nil {
-		panic(err)
-	}
-
-	for _, q := range []string{
-		`teaches(dr_fred, Course), studies(Student, Course).`,
-		`teaches(dr_fred, Course), !, studies(Student, Course).`,
-		`teaches(dr_fred, Course), studies(Student, Course), !.`,
-		`!, teaches(dr_fred, Course), studies(Student, Course).`,
-	} {
-		fmt.Printf("%s\n", q)
-
-		sols, err := p.Query(q)
-		if err != nil {
-			panic(err)
-		}
-
-		for sols.Next() {
-			var s struct {
-				Course  string
-				Student string
-			}
-			if err := sols.Scan(&s); err != nil {
-				panic(err)
-			}
-			fmt.Printf("\t%+v\n", s)
-		}
-
-		fmt.Printf("\n")
-		if err := sols.Close(); err != nil {
-			panic(err)
-		}
-	}
+	panic(err)
 }
 ```
 
-```console
-$ go run examples/embed_prolog_into_go/main.go 
-teaches(dr_fred, Course), studies(Student, Course).
-        {Course:english Student:alice}
-        {Course:english Student:angus}
-        {Course:drama Student:amelia}
-
-teaches(dr_fred, Course), !, studies(Student, Course).
-
-teaches(dr_fred, Course), studies(Student, Course), !.
-        {Course:english Student:alice}
-
-!, teaches(dr_fred, Course), studies(Student, Course).
-        {Course:english Student:alice}
-        {Course:english Student:angus}
-        {Course:drama Student:amelia}
-
-```
-
-### Call Go from Prolog
+Or, from a file:
 
 ```go
-package main
+// Load file `abc` or `abc.pl` in the current directory.
+if err := p.Exec(`:- [abc].`); err != nil {
+	panic(err)
+}
+```
 
-import (
-	"fmt"
-	"net/http"
+```go
+// Load file `/path/to/abc` or `/path/to/abc.pl`.
+// You need to quote to contain / in the path.
+if err := p.Exec(`:- ['/path/to/abc'].`); err != nil {
+	panic(err)
+}
+```
 
-	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/term"
-)
+Or, from a library:
 
-func main() {
-	p := prolog.New(nil, nil)
+```go
+// See examples/dcg/main.go for a complete example.
+if err := p.Exec(`:- [library(dcg)].`); err != nil {
+panic(err)
+}
+```
 
-	// Define a custom predicate of arity 2.
-	p.Register2("get_status", func(url, status term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-		// Check if the input arguments are of the types you expected.
-		u, ok := env.Resolve(url).(term.Atom)
-		if !ok {
-			return nondet.Error(fmt.Errorf("%s is not an atom", url))
-		}
+#### Run the Prolog program
 
-		// Do whatever you want with the given inputs.
-		resp, err := http.Get(string(u))
-		if err != nil {
-			return nondet.Error(err)
-		}
+```go
+// Prolog program invocation takes a form of query.
+sols, err := p.Query(`mortal(Who).`)
+if err != nil {
+	panic(err)
+}
+defer sols.Close()
 
-		// Return values by unification with the output arguments.
-		env, ok = status.Unify(term.Integer(resp.StatusCode), false, env)
-		if !ok {
-			return nondet.Bool(false)
-		}
-
-		// Tell Prolog to continue with the given continuation and environment.
-		return k(env)
-	})
-
-	// Query with the custom predicate get_status/2 but parameterize the first argument.
-	sols, err := p.Query(`get_status(?, Status).`, "https://httpbin.org/status/200")
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := sols.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	if !sols.Next() {
-		panic("no solutions")
-	}
-
+// Iterates over every possibility of solutions.
+for sols.Next() {
 	var s struct {
-		Status int
+		Who string
 	}
 	if err := sols.Scan(&s); err != nil {
 		panic(err)
 	}
-
-	fmt.Printf("%+v\n", s)
+	fmt.Printf("Who = %s\n", s.Who)
+	// ==> "Who = socrates\n"
 }
-```
-
-```console
-$ go run examples/call_go_from_prolog/main.go 
-{Status:200}
 ```
 
 ## License
