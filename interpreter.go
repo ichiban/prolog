@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/ichiban/prolog/engine"
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/term"
 )
 
 //go:embed bootstrap.pl
@@ -121,8 +119,8 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 
-		v := term.NewVariable()
-		if _, err := i.ExpandTerm(t, v, func(env *term.Env) *nondet.Promise {
+		v := engine.NewVariable()
+		if _, err := i.ExpandTerm(t, v, func(env *engine.Env) *engine.Promise {
 			return i.Assertz(v, engine.Success, env)
 		}, nil).Force(ctx); err != nil {
 			return err
@@ -147,10 +145,10 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		return nil, err
 	}
 
-	var env *term.Env
+	var env *engine.Env
 
 	more := make(chan bool, 1)
-	next := make(chan *term.Env)
+	next := make(chan *engine.Env)
 	sols := Solutions{
 		vars: env.FreeVariables(t),
 		more: more,
@@ -162,9 +160,9 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env *term.Env) *nondet.Promise {
+		if _, err := i.Call(t, func(env *engine.Env) *engine.Promise {
 			next <- env
-			return nondet.Bool(!<-more)
+			return engine.Bool(!<-more)
 		}, env).Force(ctx); err != nil {
 			sols.err = err
 		}
@@ -173,36 +171,36 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 	return &sols, nil
 }
 
-func (i *Interpreter) consult(files term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 	switch f := env.Resolve(files).(type) {
-	case term.Variable:
-		return nondet.Error(engine.InstantiationError(files))
-	case *term.Compound:
+	case engine.Variable:
+		return engine.Error(engine.InstantiationError(files))
+	case *engine.Compound:
 		if f.Functor == "." && len(f.Args) == 2 {
-			if err := engine.Each(f, func(elem term.Interface) error {
+			if err := engine.Each(f, func(elem engine.Term) error {
 				return i.consultOne(elem, env)
 			}, env); err != nil {
-				return nondet.Error(err)
+				return engine.Error(err)
 			}
 			return k(env)
 		}
 		if err := i.consultOne(f, env); err != nil {
-			return nondet.Error(err)
+			return engine.Error(err)
 		}
 		return k(env)
 	default:
 		if err := i.consultOne(f, env); err != nil {
-			return nondet.Error(err)
+			return engine.Error(err)
 		}
 		return k(env)
 	}
 }
 
-func (i *Interpreter) consultOne(file term.Interface, env *term.Env) error {
+func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 	switch f := env.Resolve(file).(type) {
-	case term.Variable:
+	case engine.Variable:
 		return engine.InstantiationError(file)
-	case term.Atom:
+	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
 			file, err := os.Open(f)
 			if err != nil {
@@ -225,12 +223,12 @@ func (i *Interpreter) consultOne(file term.Interface, env *term.Env) error {
 			return nil
 		}
 		return engine.DomainError("source_sink", file, "%s does not exist.", file)
-	case *term.Compound:
+	case *engine.Compound:
 		if f.Functor != "library" || len(f.Args) != 1 {
 			return engine.TypeError("atom", file, "%s is not an atom.", file)
 		}
 
-		library, ok := env.Resolve(f.Args[0]).(term.Atom)
+		library, ok := env.Resolve(f.Args[0]).(engine.Atom)
 		if !ok {
 			return engine.TypeError("atom", f.Args[0], "%s is not an atom.", f.Args[0])
 		}

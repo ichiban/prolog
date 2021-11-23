@@ -1,9 +1,7 @@
-package term
+package engine
 
 import (
 	"testing"
-
-	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,23 +27,23 @@ func TestVariable_Unify(t *testing.T) {
 func TestVariable_Unparse(t *testing.T) {
 	t.Run("named", func(t *testing.T) {
 		v := Variable("X")
-		var tokens []syntax.Token
-		v.Unparse(func(token syntax.Token) {
+		var tokens []Token
+		v.Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenVariable, Val: "X"},
+		assert.Equal(t, []Token{
+			{Kind: TokenVariable, Val: "X"},
 		}, tokens)
 	})
 
 	t.Run("unnamed", func(t *testing.T) {
 		v := NewVariable()
-		var tokens []syntax.Token
-		v.Unparse(func(token syntax.Token) {
+		var tokens []Token
+		v.Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{}, nil)
 		assert.Len(t, tokens, 1)
-		assert.Equal(t, syntax.TokenVariable, tokens[0].Kind)
+		assert.Equal(t, TokenVariable, tokens[0].Kind)
 		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
 	})
 }

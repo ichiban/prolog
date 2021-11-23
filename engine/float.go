@@ -1,10 +1,8 @@
-package term
+package engine
 
 import (
 	"strconv"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
 // Float is a prolog floating-point number.
@@ -17,7 +15,7 @@ func (f Float) String() string {
 }
 
 // Unify unifies the float with t.
-func (f Float) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Float:
 		return env, f == t
@@ -29,14 +27,14 @@ func (f Float) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the float.
-func (f Float) Unparse(emit func(syntax.Token), _ WriteTermOptions, _ *Env) {
+func (f Float) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
 	if f < 0 {
-		emit(syntax.Token{Kind: syntax.TokenSign, Val: "-"})
+		emit(Token{Kind: TokenSign, Val: "-"})
 		f *= -1
 	}
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
 	if !strings.ContainsRune(s, '.') {
 		s += ".0"
 	}
-	emit(syntax.Token{Kind: syntax.TokenFloat, Val: s})
+	emit(Token{Kind: TokenFloat, Val: s})
 }

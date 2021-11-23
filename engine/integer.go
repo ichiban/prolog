@@ -1,12 +1,10 @@
-package term
+package engine
 
 import (
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
 // Integer is a prolog integer.
@@ -25,7 +23,7 @@ func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
 }
 
 // Unify unifies the integer with t.
-func (i Integer) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Integer:
 		return env, i == t
@@ -37,11 +35,11 @@ func (i Integer) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the integer.
-func (i Integer) Unparse(emit func(token syntax.Token), _ WriteTermOptions, _ *Env) {
+func (i Integer) Unparse(emit func(token Token), _ WriteTermOptions, _ *Env) {
 	if i < 0 {
-		emit(syntax.Token{Kind: syntax.TokenSign, Val: "-"})
+		emit(Token{Kind: TokenSign, Val: "-"})
 		i *= -1
 	}
 	s := strconv.FormatInt(int64(i), 10)
-	emit(syntax.Token{Kind: syntax.TokenInteger, Val: s})
+	emit(Token{Kind: TokenInteger, Val: s})
 }

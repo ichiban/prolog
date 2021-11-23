@@ -1,4 +1,4 @@
-package term
+package engine
 
 type color uint8
 
@@ -17,7 +17,7 @@ type Env struct {
 
 type binding struct {
 	variable Variable
-	value    Interface
+	value    Term
 	// attributes?
 }
 
@@ -27,7 +27,7 @@ func NewEnv() *Env {
 }
 
 // Lookup returns a term that the given variable is bound to.
-func (e *Env) Lookup(k Variable) (Interface, bool) {
+func (e *Env) Lookup(k Variable) (Term, bool) {
 	node := e
 	for {
 		if node == nil {
@@ -45,13 +45,13 @@ func (e *Env) Lookup(k Variable) (Interface, bool) {
 }
 
 // Bind adds a new entry to the environment.
-func (e *Env) Bind(k Variable, v Interface) *Env {
+func (e *Env) Bind(k Variable, v Term) *Env {
 	ret := *e.insert(k, v)
 	ret.color = black
 	return &ret
 }
 
-func (e *Env) insert(k Variable, v Interface) *Env {
+func (e *Env) insert(k Variable, v Term) *Env {
 	if e == nil {
 		return &Env{color: red, binding: binding{variable: k, value: v}}
 	}
@@ -131,7 +131,7 @@ func (e *Env) balance() {
 }
 
 // Resolve follows the variable chain and returns the first non-variable term or the last free variable.
-func (e *Env) Resolve(t Interface) Interface {
+func (e *Env) Resolve(t Term) Term {
 	var stop []Variable
 	for t != nil {
 		switch v := t.(type) {
@@ -155,12 +155,12 @@ func (e *Env) Resolve(t Interface) Interface {
 }
 
 // Simplify trys to remove as many variables as possible from term t.
-func (e *Env) Simplify(t Interface) Interface {
+func (e *Env) Simplify(t Term) Term {
 	switch t := e.Resolve(t).(type) {
 	case *Compound:
 		c := Compound{
 			Functor: t.Functor,
-			Args:    make([]Interface, len(t.Args)),
+			Args:    make([]Term, len(t.Args)),
 		}
 		for i := 0; i < len(c.Args); i++ {
 			c.Args[i] = e.Simplify(t.Args[i])
@@ -173,8 +173,8 @@ func (e *Env) Simplify(t Interface) Interface {
 
 type Variables []Variable
 
-func (vs Variables) Terms() []Interface {
-	res := make([]Interface, len(vs))
+func (vs Variables) Terms() []Term {
+	res := make([]Term, len(vs))
 	for i, v := range vs {
 		res[i] = v
 	}
@@ -196,7 +196,7 @@ vs:
 }
 
 // FreeVariables extracts variables in the given terms.
-func (e *Env) FreeVariables(ts ...Interface) Variables {
+func (e *Env) FreeVariables(ts ...Term) Variables {
 	var fvs Variables
 	for _, t := range ts {
 		fvs = e.appendFreeVariables(fvs, t)
@@ -204,7 +204,7 @@ func (e *Env) FreeVariables(ts ...Interface) Variables {
 	return fvs
 }
 
-func (e *Env) appendFreeVariables(fvs Variables, t Interface) Variables {
+func (e *Env) appendFreeVariables(fvs Variables, t Term) Variables {
 	switch t := e.Resolve(t).(type) {
 	case Variable:
 		for _, v := range fvs {

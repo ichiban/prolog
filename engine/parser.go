@@ -1,4 +1,4 @@
-package term
+package engine
 
 import (
 	"bufio"
@@ -9,18 +9,16 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
-// Parser turns bytes into Interface.
+// Parser turns bytes into Term.
 type Parser struct {
-	lexer        *syntax.Lexer
-	current      *syntax.Token
-	history      []syntax.Token
+	lexer        *Lexer
+	current      *Token
+	history      []Token
 	operators    *Operators
 	placeholder  Atom
-	args         []Interface
+	args         []Term
 	doubleQuotes DoubleQuotes
 	vars         *[]ParsedVariable
 }
@@ -35,7 +33,7 @@ type ParsedVariable struct {
 // NewParser creates a Parser.
 func NewParser(input *bufio.Reader, charConversions map[rune]rune, opts ...ParserOption) *Parser {
 	p := Parser{
-		lexer: syntax.NewLexer(input, charConversions),
+		lexer: NewLexer(input, charConversions),
 	}
 	for _, o := range opts {
 		o(&p)
@@ -71,7 +69,7 @@ func WithParsedVars(vars *[]ParsedVariable) ParserOption {
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
 func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
 	p.placeholder = placeholder
-	p.args = make([]Interface, len(args))
+	p.args = make([]Term, len(args))
 	for i, a := range args {
 		var err error
 		p.args[i], err = termOf(reflect.ValueOf(a))
@@ -82,8 +80,8 @@ func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
 	return nil
 }
 
-func termOf(o reflect.Value) (Interface, error) {
-	if t, ok := o.Interface().(Interface); ok {
+func termOf(o reflect.Value) (Term, error) {
+	if t, ok := o.Interface().(Term); ok {
 		return t, nil
 	}
 
@@ -96,7 +94,7 @@ func termOf(o reflect.Value) (Interface, error) {
 		return Atom(o.String()), nil
 	case reflect.Array, reflect.Slice:
 		l := o.Len()
-		es := make([]Interface, l)
+		es := make([]Term, l)
 		for i := 0; i < l; i++ {
 			var err error
 			es[i], err = termOf(o.Index(i))
@@ -110,7 +108,7 @@ func termOf(o reflect.Value) (Interface, error) {
 	}
 }
 
-func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
+func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 	v, err := p.expect(k, vals...)
 	if err != nil {
 		return "", err
@@ -124,26 +122,26 @@ func (p *Parser) accept(k syntax.TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, error) {
-	if v, err := p.accept(syntax.TokenIdent, vals...); err == nil {
+	if v, err := p.accept(TokenIdent, vals...); err == nil {
 		return Atom(v), nil
 	}
-	if v, err := p.accept(syntax.TokenQuotedIdent, quoteSlice(vals)...); err == nil {
+	if v, err := p.accept(TokenQuotedIdent, quoteSlice(vals)...); err == nil {
 		return Atom(unquote(v)), nil
 	}
-	if v, err := p.accept(syntax.TokenGraphic, vals...); err == nil {
+	if v, err := p.accept(TokenGraphic, vals...); err == nil {
 		return Atom(v), nil
 	}
 	if allowComma {
-		if v, err := p.accept(syntax.TokenComma, vals...); err == nil {
+		if v, err := p.accept(TokenComma, vals...); err == nil {
 			return Atom(v), nil
 		}
 	}
 	if allowBar {
-		if v, err := p.accept(syntax.TokenBar, vals...); err == nil {
+		if v, err := p.accept(TokenBar, vals...); err == nil {
 			return Atom(v), nil
 		}
 	}
-	if v, err := p.accept(syntax.TokenSign, vals...); err == nil {
+	if v, err := p.accept(TokenSign, vals...); err == nil {
 		return Atom(v), nil
 	}
 	return "", errors.New("not an atom")
@@ -187,7 +185,7 @@ func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*Operator, error) {
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
+func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
 		t, err := p.lexer.Next()
 		if err != nil {
@@ -212,9 +210,9 @@ func (p *Parser) expect(k syntax.TokenKind, vals ...string) (string, error) {
 	return p.current.Val, nil
 }
 
-func (p *Parser) expectationError(k syntax.TokenKind, vals []string) error {
-	if p.current.Kind == syntax.TokenEOS {
-		return syntax.ErrInsufficient
+func (p *Parser) expectationError(k TokenKind, vals []string) error {
+	if p.current.Kind == TokenEOS {
+		return ErrInsufficient
 	}
 	return &UnexpectedTokenError{
 		ExpectedKind: k,
@@ -225,8 +223,8 @@ func (p *Parser) expectationError(k syntax.TokenKind, vals []string) error {
 }
 
 // Term parses a term followed by a full stop.
-func (p *Parser) Term() (Interface, error) {
-	if _, err := p.accept(syntax.TokenEOS); err == nil {
+func (p *Parser) Term() (Term, error) {
+	if _, err := p.accept(TokenEOS); err == nil {
 		return nil, io.EOF
 	}
 
@@ -243,7 +241,7 @@ func (p *Parser) Term() (Interface, error) {
 		return nil, err
 	}
 
-	if _, err := p.accept(syntax.TokenPeriod); err != nil {
+	if _, err := p.accept(TokenPeriod); err != nil {
 		return nil, err
 	}
 
@@ -257,26 +255,26 @@ func (p *Parser) Term() (Interface, error) {
 var ErrNotANumber = errors.New("not a number")
 
 // Number parses a number term.
-func (p *Parser) Number() (Interface, error) {
+func (p *Parser) Number() (Term, error) {
 	n, err := p.number()
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = p.accept(syntax.TokenEOS)
+	_, err = p.accept(TokenEOS)
 	return n, err
 }
 
-func (p *Parser) number() (Interface, error) {
-	sign, _ := p.accept(syntax.TokenSign)
+func (p *Parser) number() (Term, error) {
+	sign, _ := p.accept(TokenSign)
 
-	if f, err := p.accept(syntax.TokenFloat); err == nil {
+	if f, err := p.accept(TokenFloat); err == nil {
 		f = sign + f
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
 	}
 
-	if i, err := p.accept(syntax.TokenInteger); err == nil {
+	if i, err := p.accept(TokenInteger); err == nil {
 		i = sign + i
 		switch {
 		case strings.HasPrefix(i, "0'"):
@@ -295,7 +293,7 @@ func (p *Parser) number() (Interface, error) {
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(min int, allowComma, allowBar bool) (Interface, error) {
+func (p *Parser) expr(min int, allowComma, allowBar bool) (Term, error) {
 	lhs, err := p.lhs(allowComma, allowBar)
 	if err != nil {
 		return nil, err
@@ -315,44 +313,44 @@ func (p *Parser) expr(min int, allowComma, allowBar bool) (Interface, error) {
 
 		lhs = &Compound{
 			Functor: op.Name,
-			Args:    []Interface{lhs, rhs},
+			Args:    []Term{lhs, rhs},
 		}
 	}
 
 	return lhs, nil
 }
 
-func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
-	if _, err := p.accept(syntax.TokenEOS); err == nil {
-		return nil, syntax.ErrInsufficient
+func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
+	if _, err := p.accept(TokenEOS); err == nil {
+		return nil, ErrInsufficient
 	}
 
-	if _, err := p.accept(syntax.TokenParenL); err == nil {
+	if _, err := p.accept(TokenParenL); err == nil {
 		lhs, err := p.expr(1, true, true)
 		if err != nil {
 			return nil, err
 		}
 
-		if _, err := p.accept(syntax.TokenParenR); err != nil {
+		if _, err := p.accept(TokenParenR); err != nil {
 			return nil, err
 		}
 
 		return lhs, nil
 	}
 
-	if _, err := p.accept(syntax.TokenBraceL); err == nil {
+	if _, err := p.accept(TokenBraceL); err == nil {
 		lhs, err := p.expr(1, true, true)
 		if err != nil {
 			return nil, err
 		}
 
-		if _, err := p.accept(syntax.TokenBraceR); err != nil {
+		if _, err := p.accept(TokenBraceR); err != nil {
 			return nil, err
 		}
 
 		return &Compound{
 			Functor: "{}",
-			Args:    []Interface{lhs},
+			Args:    []Term{lhs},
 		}, nil
 	}
 
@@ -368,11 +366,11 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 		}
 		return &Compound{
 			Functor: op.Name,
-			Args:    []Interface{rhs},
+			Args:    []Term{rhs},
 		}, nil
 	}
 
-	if v, err := p.accept(syntax.TokenVariable); err == nil {
+	if v, err := p.accept(TokenVariable); err == nil {
 		if v == "_" {
 			return NewVariable(), nil
 		}
@@ -392,17 +390,17 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 		return v, nil
 	}
 
-	if v, err := p.accept(syntax.TokenDoubleQuoted); err == nil {
+	if v, err := p.accept(TokenDoubleQuoted); err == nil {
 		v = unDoubleQuote(v)
 		switch p.doubleQuotes {
 		case DoubleQuotesCodes:
-			var codes []Interface
+			var codes []Term
 			for _, r := range v {
 				codes = append(codes, Integer(r))
 			}
 			return List(codes...), nil
 		case DoubleQuotesChars:
-			var chars []Interface
+			var chars []Term
 			for _, r := range v {
 				chars = append(chars, Atom(r))
 			}
@@ -415,19 +413,19 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 	}
 
 	if a, err := p.acceptAtom(allowComma, allowBar); err == nil {
-		if _, err := p.accept(syntax.TokenParenL); err != nil {
+		if _, err := p.accept(TokenParenL); err != nil {
 			if p.placeholder != "" && p.placeholder == a {
 				if len(p.args) == 0 {
 					return nil, errors.New("not enough arguments for placeholders")
 				}
-				var t Interface
+				var t Term
 				t, p.args = p.args[0], p.args[1:]
 				return t, nil
 			}
 			return a, nil
 		}
 
-		var args []Interface
+		var args []Term
 		for {
 			t, err := p.expr(1, false, true)
 			if err != nil {
@@ -435,11 +433,11 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 			}
 			args = append(args, t)
 
-			if _, err := p.accept(syntax.TokenParenR); err == nil {
+			if _, err := p.accept(TokenParenR); err == nil {
 				break
 			}
 
-			if _, err := p.accept(syntax.TokenComma); err != nil {
+			if _, err := p.accept(TokenComma); err != nil {
 				return nil, fmt.Errorf("lhs: %w", err)
 			}
 		}
@@ -447,8 +445,8 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 		return &Compound{Functor: a, Args: args}, nil
 	}
 
-	if _, err := p.accept(syntax.TokenBracketL); err == nil {
-		var es []Interface
+	if _, err := p.accept(TokenBracketL); err == nil {
+		var es []Term
 		for {
 			e, err := p.expr(1, false, false)
 			if err != nil {
@@ -456,24 +454,24 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 			}
 			es = append(es, e)
 
-			if _, err := p.accept(syntax.TokenBar); err == nil {
+			if _, err := p.accept(TokenBar); err == nil {
 				rest, err := p.expr(1, true, true)
 				if err != nil {
 					return nil, err
 				}
 
-				if _, err := p.accept(syntax.TokenBracketR); err != nil {
+				if _, err := p.accept(TokenBracketR); err != nil {
 					return nil, err
 				}
 
 				return ListRest(rest, es...), nil
 			}
 
-			if _, err := p.accept(syntax.TokenBracketR); err == nil {
+			if _, err := p.accept(TokenBracketR); err == nil {
 				return List(es...), nil
 			}
 
-			if _, err := p.accept(syntax.TokenComma); err != nil {
+			if _, err := p.accept(TokenComma); err != nil {
 				return nil, err
 			}
 		}
@@ -484,7 +482,7 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Interface, error) {
 
 // More checks if the parser has more tokens to read.
 func (p *Parser) More() bool {
-	_, err := p.accept(syntax.TokenEOS)
+	_, err := p.accept(TokenEOS)
 	return err != nil
 }
 
@@ -503,8 +501,8 @@ const (
 	operatorSpecifierLen
 )
 
-func (s OperatorSpecifier) Term() Interface {
-	return [operatorSpecifierLen]Interface{
+func (s OperatorSpecifier) Term() Term {
+	return [operatorSpecifierLen]Term{
 		OperatorSpecifierFX:  Atom("fx"),
 		OperatorSpecifierFY:  Atom("fy"),
 		OperatorSpecifierXF:  Atom("xf"),
@@ -565,10 +563,10 @@ func (d DoubleQuotes) String() string {
 }
 
 type UnexpectedTokenError struct {
-	ExpectedKind syntax.TokenKind
+	ExpectedKind TokenKind
 	ExpectedVals []string
-	Actual       syntax.Token
-	History      []syntax.Token
+	Actual       Token
+	History      []Token
 }
 
 func (e UnexpectedTokenError) Error() string {

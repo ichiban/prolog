@@ -1,12 +1,10 @@
-package term
+package engine
 
 import (
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
 var (
@@ -26,7 +24,7 @@ func (a Atom) String() string {
 }
 
 // Unify unifies the atom with t.
-func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+func (a Atom) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case Atom:
 		return env, a == t
@@ -39,7 +37,7 @@ func (a Atom) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 
 // Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
 // then returns itself.
-func (a Atom) Apply(args ...Interface) Interface {
+func (a Atom) Apply(args ...Term) Term {
 	if len(args) == 0 {
 		return a
 	}
@@ -50,18 +48,18 @@ func (a Atom) Apply(args ...Interface) Interface {
 }
 
 // Unparse emits tokens that represent the atom.
-func (a Atom) Unparse(emit func(syntax.Token), opts WriteTermOptions, _ *Env) {
+func (a Atom) Unparse(emit func(Token), opts WriteTermOptions, _ *Env) {
 	switch {
 	case a == ",":
-		emit(syntax.Token{Kind: syntax.TokenComma, Val: ","})
+		emit(Token{Kind: TokenComma, Val: ","})
 	case a == "[]", a == "{}":
-		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(a)})
+		emit(Token{Kind: TokenIdent, Val: string(a)})
 	case graphicalAtomPattern.MatchString(string(a)):
-		emit(syntax.Token{Kind: syntax.TokenGraphic, Val: string(a)})
+		emit(Token{Kind: TokenGraphic, Val: string(a)})
 	case opts.Quoted && !unquotedAtomPattern.MatchString(string(a)):
-		emit(syntax.Token{Kind: syntax.TokenQuotedIdent, Val: quote(string(a))})
+		emit(Token{Kind: TokenQuotedIdent, Val: quote(string(a))})
 	default:
-		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(a)})
+		emit(Token{Kind: TokenIdent, Val: string(a)})
 	}
 }
 

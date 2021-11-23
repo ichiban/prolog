@@ -1,22 +1,20 @@
-package term
+package engine
 
 import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
-// Interface is a prolog term.
-type Interface interface {
+// Term is a prolog term.
+type Term interface {
 	fmt.Stringer
-	Unify(Interface, bool, *Env) (*Env, bool)
-	Unparse(func(syntax.Token), WriteTermOptions, *Env)
+	Unify(Term, bool, *Env) (*Env, bool)
+	Unparse(func(Token), WriteTermOptions, *Env)
 }
 
 // Contains checks if t contains s.
-func Contains(t, s Interface, env *Env) bool {
+func Contains(t, s Term, env *Env) bool {
 	switch t := t.(type) {
 	case Variable:
 		if t == s {
@@ -43,12 +41,12 @@ func Contains(t, s Interface, env *Env) bool {
 }
 
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Interface, env *Env) Interface {
+func Rulify(t Term, env *Env) Term {
 	t = env.Resolve(t)
 	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
 		return t
 	}
-	return &Compound{Functor: ":-", Args: []Interface{t, Atom("true")}}
+	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
 // WriteTermOptions describes options to write terms.
@@ -70,7 +68,7 @@ var defaultWriteTermOptions = WriteTermOptions{
 	Priority: 1200,
 }
 
-func Compare(a, b Interface, env *Env) int64 {
+func compare(a, b Term, env *Env) int64 {
 	switch a := env.Resolve(a).(type) {
 	case Variable:
 		switch b := env.Resolve(b).(type) {
@@ -120,7 +118,7 @@ func Compare(a, b Interface, env *Env) int64 {
 	case *Compound:
 		switch b := b.(type) {
 		case *Compound:
-			if d := Compare(a.Functor, b.Functor, env); d != 0 {
+			if d := compare(a.Functor, b.Functor, env); d != 0 {
 				return d
 			}
 
@@ -129,7 +127,7 @@ func Compare(a, b Interface, env *Env) int64 {
 			}
 
 			for i := range a.Args {
-				if d := Compare(a.Args[i], b.Args[i], env); d != 0 {
+				if d := compare(a.Args[i], b.Args[i], env); d != 0 {
 					return d
 				}
 			}
@@ -144,16 +142,16 @@ func Compare(a, b Interface, env *Env) int64 {
 }
 
 // Write outputs one of the external representations of the term.
-func Write(w io.Writer, t Interface, opts WriteTermOptions, env *Env) error {
+func Write(w io.Writer, t Term, opts WriteTermOptions, env *Env) error {
 	var (
 		err  error
-		last syntax.TokenKind
+		last TokenKind
 	)
-	env.Resolve(t).Unparse(func(token syntax.Token) {
+	env.Resolve(t).Unparse(func(token Token) {
 		if err != nil {
 			return
 		}
-		if syntax.Spacing[last][token.Kind] {
+		if spacing[last][token.Kind] {
 			if _, err = fmt.Fprint(w, " "); err != nil {
 				return
 			}

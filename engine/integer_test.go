@@ -1,9 +1,7 @@
-package term
+package engine
 
 import (
 	"testing"
-
-	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -53,7 +51,7 @@ func TestInteger_Unify(t *testing.T) {
 	t.Run("compound", func(t *testing.T) {
 		_, ok := unit.Unify(&Compound{
 			Functor: "foo",
-			Args:    []Interface{Atom("foo")},
+			Args:    []Term{Atom("foo")},
 		}, false, nil)
 		assert.False(t, ok)
 	})
@@ -61,23 +59,23 @@ func TestInteger_Unify(t *testing.T) {
 
 func TestInteger_Unparse(t *testing.T) {
 	t.Run("positive", func(t *testing.T) {
-		var tokens []syntax.Token
-		Integer(33).Unparse(func(token syntax.Token) {
+		var tokens []Token
+		Integer(33).Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenInteger, Val: "33"},
+		assert.Equal(t, []Token{
+			{Kind: TokenInteger, Val: "33"},
 		}, tokens)
 	})
 
 	t.Run("negative", func(t *testing.T) {
-		var tokens []syntax.Token
-		Integer(-33).Unparse(func(token syntax.Token) {
+		var tokens []Token
+		Integer(-33).Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenSign, Val: "-"},
-			{Kind: syntax.TokenInteger, Val: "33"},
+		assert.Equal(t, []Token{
+			{Kind: TokenSign, Val: "-"},
+			{Kind: TokenInteger, Val: "33"},
 		}, tokens)
 	})
 }

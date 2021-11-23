@@ -4,16 +4,15 @@
 
 This library consists of several packages:
 
-- `prolog` high-level interface for interpreter
-- `prolog/term` Prolog data structures
-- `prolog/engine` virtual machine
-- `prolog/syntax` lexer
-- `prolog/nondet` nondeterministic lazy evaluation
-- `prolog/cmd/1pl` toplevel
+- **`prolog`:** `database/sql`-like high-level interface for interpreter
+- **`prolog/engine`:** virtual machine and other implementation details
+- **`prolog/dcg`:** Definite Clause Grammar library
+- **`prolog/cmd/1pl`:** simple toplevel
+- **`prolog/examples`:** example programs
 
 ## Virtual Machine
 
-We based our VM on one described in [A PORTABLE PROLOG COMPILER (Bowem et al. 83)](http://www.softwarepreservation.org/projects/prolog/lisbon/lpw83/p74-Bowen.pdf) which is presumably referred as ZIP by others.
+We based our VM on one described in [A PORTABLE PROLOG COMPILER (Bowen et al. 83)](http://www.softwarepreservation.org/projects/prolog/lisbon/lpw83/p74-Bowen.pdf) which is presumably referred as ZIP by others.
 
 ZIP is a high-level VM written in Prolog.
 Thus, we had to bring missing control features in Go like nondeterminism and cut.

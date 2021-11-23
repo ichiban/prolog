@@ -5,31 +5,30 @@ import (
 	"net/http"
 
 	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/term"
+	"github.com/ichiban/prolog/engine"
 )
 
 func main() {
 	p := prolog.New(nil, nil)
 
 	// Define a custom predicate of arity 2.
-	p.Register2("get_status", func(url, status term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	p.Register2("get_status", func(url, status engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		// Check if the input arguments are of the types you expected.
-		u, ok := env.Resolve(url).(term.Atom)
+		u, ok := env.Resolve(url).(engine.Atom)
 		if !ok {
-			return nondet.Error(fmt.Errorf("%s is not an atom", url))
+			return engine.Error(fmt.Errorf("%s is not an atom", url))
 		}
 
 		// Do whatever you want with the given inputs.
 		resp, err := http.Get(string(u))
 		if err != nil {
-			return nondet.Error(err)
+			return engine.Error(err)
 		}
 
 		// Return values by unification with the output arguments.
-		env, ok = status.Unify(term.Integer(resp.StatusCode), false, env)
+		env, ok = status.Unify(engine.Integer(resp.StatusCode), false, env)
 		if !ok {
-			return nondet.Bool(false)
+			return engine.Bool(false)
 		}
 
 		// Tell Prolog to continue with the given continuation and environment.

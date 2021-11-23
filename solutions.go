@@ -6,17 +6,15 @@ import (
 	"reflect"
 
 	"github.com/ichiban/prolog/engine"
-
-	"github.com/ichiban/prolog/term"
 )
 
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	env  *term.Env
-	vars []term.Variable
+	env  *engine.Env
+	vars []engine.Variable
 	more chan<- bool
-	next <-chan *term.Env
+	next <-chan *engine.Env
 	err  error
 }
 
@@ -88,28 +86,28 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-func convert(t term.Interface, typ reflect.Type, env *term.Env) (reflect.Value, error) {
+func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
 	switch typ {
-	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*term.Interface)(nil)).Elem():
+	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
 		return reflect.ValueOf(t), nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
-		if f, ok := t.(term.Float); ok {
+		if f, ok := t.(engine.Float); ok {
 			return reflect.ValueOf(f).Convert(typ), nil
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if i, ok := t.(term.Integer); ok {
+		if i, ok := t.(engine.Integer); ok {
 			return reflect.ValueOf(i).Convert(typ), nil
 		}
 	case reflect.String:
-		if a, ok := t.(term.Atom); ok {
+		if a, ok := t.(engine.Atom); ok {
 			return reflect.ValueOf(string(a)), nil
 		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		if err := engine.Each(t, func(elem term.Interface) error {
+		if err := engine.Each(t, func(elem engine.Term) error {
 			e, err := convert(elem, typ.Elem(), env)
 			if err != nil {
 				return err

@@ -1,4 +1,4 @@
-package syntax
+package engine
 
 import (
 	"bufio"

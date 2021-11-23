@@ -3,7 +3,7 @@ package prolog
 import (
 	"testing"
 
-	"github.com/ichiban/prolog/term"
+	"github.com/ichiban/prolog/engine"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -46,14 +46,14 @@ func TestInterpreter_Query(t *testing.T) {
 			assert.NoError(t, sols.Close())
 		}()
 
-		m := map[string]term.Interface{}
+		m := map[string]engine.Term{}
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
 		assert.Len(t, m, 3)
-		assert.Equal(t, term.Atom("nil"), m["X"])
-		assert.Equal(t, term.Variable("Z"), m["Y"])
-		assert.Equal(t, term.Variable("Z"), m["Z"])
+		assert.Equal(t, engine.Atom("nil"), m["X"])
+		assert.Equal(t, engine.Variable("Z"), m["Y"])
+		assert.Equal(t, engine.Variable("Z"), m["Z"])
 	})
 
 	t.Run("rule", func(t *testing.T) {
@@ -63,22 +63,22 @@ func TestInterpreter_Query(t *testing.T) {
 			assert.NoError(t, sols.Close())
 		}()
 
-		m := map[string]term.Interface{}
+		m := map[string]engine.Term{}
 
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]term.Interface{
-			"X": &term.Compound{
+		assert.Equal(t, map[string]engine.Term{
+			"X": &engine.Compound{
 				Functor: "cons",
-				Args: []term.Interface{
-					term.Atom("a"),
-					&term.Compound{
+				Args: []engine.Term{
+					engine.Atom("a"),
+					&engine.Compound{
 						Functor: "cons",
-						Args: []term.Interface{
-							term.Atom("b"),
-							&term.Compound{
+						Args: []engine.Term{
+							engine.Atom("b"),
+							&engine.Compound{
 								Functor: "cons",
-								Args:    []term.Interface{term.Atom("c"), term.Atom("nil")},
+								Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
 							},
 						},
 					},

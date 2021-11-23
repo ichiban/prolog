@@ -1,4 +1,4 @@
-package term
+package engine
 
 import (
 	"bufio"
@@ -135,7 +135,7 @@ append(nil,L,L).
 
 		assert.Equal(t, &Compound{
 			Functor: "append",
-			Args: []Interface{
+			Args: []Term{
 				Atom("nil"),
 				Variable("L"),
 				Variable("L"),
@@ -155,13 +155,13 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 		assert.Equal(t, &Compound{
 			Functor: ":-",
-			Args: []Interface{
+			Args: []Term{
 				&Compound{
 					Functor: "append",
-					Args: []Interface{
+					Args: []Term{
 						&Compound{
 							Functor: "cons",
-							Args: []Interface{
+							Args: []Term{
 								Variable("X"),
 								Variable("L1"),
 							},
@@ -169,7 +169,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 						Variable("L2"),
 						&Compound{
 							Functor: "cons",
-							Args: []Interface{
+							Args: []Term{
 								Variable("X"),
 								Variable("L3"),
 							},
@@ -178,7 +178,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 				},
 				&Compound{
 					Functor: "append",
-					Args: []Interface{
+					Args: []Term{
 						Variable("L1"),
 						Variable("L2"),
 						Variable("L3"),
@@ -198,17 +198,17 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: ":-",
-			Args: []Interface{
+			Args: []Term{
 				&Compound{
 					Functor: ",",
-					Args: []Interface{
+					Args: []Term{
 						Variable("P"),
 						Variable("Q"),
 					},
 				},
 				&Compound{
 					Functor: ",",
-					Args: []Interface{
+					Args: []Term{
 						Variable("P"),
 						Variable("Q"),
 					},
@@ -227,15 +227,15 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
-			Args: []Interface{
+			Args: []Term{
 				Variable("C"),
 				&Compound{
 					Functor: "^",
-					Args: []Interface{
+					Args: []Term{
 						Variable("A"),
 						&Compound{
 							Functor: "foo",
-							Args: []Interface{
+							Args: []Term{
 								Variable("A"),
 								Variable("B"),
 								Variable("C"),
@@ -258,21 +258,21 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "bagof",
-			Args: []Interface{
+			Args: []Term{
 				Variable("C"),
 				&Compound{
 					Functor: "^",
-					Args: []Interface{
+					Args: []Term{
 						&Compound{
 							Functor: ",",
-							Args: []Interface{
+							Args: []Term{
 								Variable("A"),
 								Variable("B"),
 							},
 						},
 						&Compound{
 							Functor: "foo",
-							Args: []Interface{
+							Args: []Term{
 								Variable("A"),
 								Variable("B"),
 								Variable("C"),
@@ -295,17 +295,17 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, term, &Compound{
 			Functor: "+",
-			Args: []Interface{
+			Args: []Term{
 				&Compound{
 					Functor: "+",
-					Args: []Interface{
+					Args: []Term{
 						Atom("a"),
 						&Compound{
 							Functor: "*",
-							Args: []Interface{
+							Args: []Term{
 								&Compound{
 									Functor: "*",
-									Args:    []Interface{Atom("b"), Atom("c")},
+									Args:    []Term{Atom("b"), Atom("c")},
 								},
 								Atom("d"),
 							},
@@ -338,14 +338,14 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "{}",
-			Args: []Interface{
+			Args: []Term{
 				&Compound{
 					Functor: ",",
-					Args: []Interface{
+					Args: []Term{
 						Atom("a"),
 						&Compound{
 							Functor: ",",
-							Args: []Interface{
+							Args: []Term{
 								Atom("b"),
 								Atom("c"),
 							},
@@ -365,7 +365,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "/",
-			Args: []Interface{
+			Args: []Term{
 				Atom("=="),
 				Integer(2),
 			},
@@ -383,7 +383,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
 				Functor: "p",
-				Args: []Interface{
+				Args: []Term{
 					Atom("+"),
 				},
 			}, term)
@@ -395,7 +395,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
 				Functor: "p",
-				Args: []Interface{
+				Args: []Term{
 					Atom("+"),
 					Atom("a"),
 				},
@@ -413,11 +413,11 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		assert.NoError(t, err)
 		assert.Equal(t, &Compound{
 			Functor: "is",
-			Args: []Interface{
+			Args: []Term{
 				Variable("X"),
 				&Compound{
 					Functor: "+",
-					Args: []Interface{
+					Args: []Term{
 						Integer(1),
 						Integer(1),
 					},
@@ -437,7 +437,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
 				Functor: "=",
-				Args: []Interface{
+				Args: []Term{
 					Variable("X"),
 					List(Integer(97), Integer(98), Integer(99)),
 				},
@@ -450,7 +450,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
 				Functor: "=",
-				Args: []Interface{
+				Args: []Term{
 					Variable("X"),
 					List(Atom("a"), Atom("b"), Atom("c")),
 				},
@@ -463,7 +463,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
 				Functor: "=",
-				Args: []Interface{
+				Args: []Term{
 					Variable("X"),
 					Atom("abc"),
 				},
@@ -585,14 +585,14 @@ func TestParser_Replace(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
-			Args:    []Interface{Atom("x")},
+			Args:    []Term{Atom("x")},
 		}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
 		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), &Compound{
 			Functor: "f",
-			Args:    []Interface{Atom("x")},
+			Args:    []Term{Atom("x")},
 		}), list)
 	})
 
@@ -613,7 +613,7 @@ func TestParser_Replace(t *testing.T) {
 		p := NewParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)), nil)
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
-			Args:    []Interface{Atom("x")},
+			Args:    []Term{Atom("x")},
 		}, "extra"))
 
 		_, err := p.Term()

@@ -1,12 +1,10 @@
-package term
+package engine
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 	"sync/atomic"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
 // Variable is a prolog variable.
@@ -32,7 +30,7 @@ func (v Variable) String() string {
 }
 
 // Unify unifies the variable with t.
-func (v Variable) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	r, t := env.Resolve(v), env.Resolve(t)
 	v, ok := r.(Variable)
 	if !ok {
@@ -49,10 +47,10 @@ func (v Variable) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the variable.
-func (v Variable) Unparse(emit func(token syntax.Token), opts WriteTermOptions, env *Env) {
+func (v Variable) Unparse(emit func(token Token), opts WriteTermOptions, env *Env) {
 	switch v := env.Resolve(v).(type) {
 	case Variable:
-		emit(syntax.Token{Kind: syntax.TokenVariable, Val: string(v)})
+		emit(Token{Kind: TokenVariable, Val: string(v)})
 	default:
 		v.Unparse(emit, opts, env)
 	}

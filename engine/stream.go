@@ -1,11 +1,9 @@
-package term
+package engine
 
 import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/ichiban/prolog/syntax"
 )
 
 type StreamMode int
@@ -51,7 +49,7 @@ func (s *Stream) String() string {
 }
 
 // Unify unifies the stream with t.
-func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
+func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {
 	case *Stream:
 		return env, s == t
@@ -63,10 +61,10 @@ func (s *Stream) Unify(t Interface, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the stream.
-func (s *Stream) Unparse(emit func(syntax.Token), _ WriteTermOptions, _ *Env) {
+func (s *Stream) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
 	if s.Alias != "" {
-		emit(syntax.Token{Kind: syntax.TokenIdent, Val: string(s.Alias)})
+		emit(Token{Kind: TokenIdent, Val: string(s.Alias)})
 		return
 	}
-	emit(syntax.Token{Kind: syntax.TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
+	emit(Token{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }

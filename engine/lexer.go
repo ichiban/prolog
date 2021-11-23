@@ -1,4 +1,4 @@
-package syntax
+package engine
 
 import (
 	"bufio"
@@ -960,11 +960,6 @@ func isGraphic(r rune) bool {
 	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
 }
 
-// IsExtendedGraphic checks if the rune is a graphic token, comma, or semicolon.
-func IsExtendedGraphic(r rune) bool {
-	return strings.ContainsRune(",;", r) || isGraphic(r)
-}
-
 // ErrInsufficient represents an error which is raised when the given input is insufficient for a term.
 var ErrInsufficient = errors.New("insufficient input")
 
@@ -977,8 +972,7 @@ func (e UnexpectedRuneError) Error() string {
 	return fmt.Sprintf("unexpected char: %s", string(e.rune))
 }
 
-// Spacing describes which token kinds require spaces between them.
-var Spacing = [tokenKindLen][tokenKindLen]bool{
+var spacing = [tokenKindLen][tokenKindLen]bool{
 	TokenVariable: {
 		TokenVariable: true,
 		TokenInteger:  true,

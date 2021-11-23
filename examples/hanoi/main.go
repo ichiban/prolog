@@ -5,8 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/term"
+	"github.com/ichiban/prolog/engine"
 )
 
 func main() {
@@ -28,7 +27,7 @@ move(N, X, Y, Z) :-
 		panic(err)
 	}
 
-	i.Register2("actuate", func(x term.Interface, y term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	i.Register2("actuate", func(x engine.Term, y engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		fmt.Printf("move a disk from %s to %s.\n", env.Resolve(x), env.Resolve(y))
 		return k(env)
 	})

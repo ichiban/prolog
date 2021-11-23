@@ -1,9 +1,7 @@
-package term
+package engine
 
 import (
 	"testing"
-
-	"github.com/ichiban/prolog/syntax"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -55,7 +53,7 @@ func TestAtom_Unify(t *testing.T) {
 	t.Run("compound", func(t *testing.T) {
 		env, ok := unit.Unify(&Compound{
 			Functor: "foo",
-			Args:    []Interface{Atom("foo")},
+			Args:    []Term{Atom("foo")},
 		}, false, nil)
 		assert.False(t, ok)
 		assert.Nil(t, env)
@@ -65,75 +63,75 @@ func TestAtom_Unify(t *testing.T) {
 func TestAtom_Unparse(t *testing.T) {
 	t.Run("not quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
-			var tokens []syntax.Token
-			Atom("a").Unparse(func(token syntax.Token) {
+			var tokens []Token
+			Atom("a").Unparse(func(token Token) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: false}, nil)
-			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenIdent, Val: `a`},
+			assert.Equal(t, []Token{
+				{Kind: TokenIdent, Val: `a`},
 			}, tokens)
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
-			var tokens []syntax.Token
-			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token syntax.Token) {
+			var tokens []Token
+			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: false}, nil)
-			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenIdent, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
+			assert.Equal(t, []Token{
+				{Kind: TokenIdent, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
 			}, tokens)
 		})
 	})
 
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("no need to quote", func(t *testing.T) {
-			var tokens []syntax.Token
-			Atom("a").Unparse(func(token syntax.Token) {
+			var tokens []Token
+			Atom("a").Unparse(func(token Token) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: true}, nil)
-			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenIdent, Val: `a`},
+			assert.Equal(t, []Token{
+				{Kind: TokenIdent, Val: `a`},
 			}, tokens)
 		})
 
 		t.Run("need to quote", func(t *testing.T) {
-			var tokens []syntax.Token
-			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token syntax.Token) {
+			var tokens []Token
+			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
 				tokens = append(tokens, token)
 			}, WriteTermOptions{Quoted: true}, nil)
-			assert.Equal(t, []syntax.Token{
-				{Kind: syntax.TokenQuotedIdent, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+			assert.Equal(t, []Token{
+				{Kind: TokenQuotedIdent, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
 			}, tokens)
 		})
 	})
 
 	t.Run("comma", func(t *testing.T) {
-		var tokens []syntax.Token
-		Atom(",").Unparse(func(token syntax.Token) {
+		var tokens []Token
+		Atom(",").Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{Quoted: true}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenComma, Val: ","},
+		assert.Equal(t, []Token{
+			{Kind: TokenComma, Val: ","},
 		}, tokens)
 	})
 
 	t.Run("nil", func(t *testing.T) {
-		var tokens []syntax.Token
-		Atom("[]").Unparse(func(token syntax.Token) {
+		var tokens []Token
+		Atom("[]").Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{Quoted: true}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenIdent, Val: "[]"},
+		assert.Equal(t, []Token{
+			{Kind: TokenIdent, Val: "[]"},
 		}, tokens)
 	})
 
 	t.Run("empty block", func(t *testing.T) {
-		var tokens []syntax.Token
-		Atom("{}").Unparse(func(token syntax.Token) {
+		var tokens []Token
+		Atom("{}").Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, WriteTermOptions{Quoted: true}, nil)
-		assert.Equal(t, []syntax.Token{
-			{Kind: syntax.TokenIdent, Val: "{}"},
+		assert.Equal(t, []Token{
+			{Kind: TokenIdent, Val: "{}"},
 		}, tokens)
 	})
 }

@@ -18,9 +18,6 @@ import (
 	"github.com/ichiban/prolog"
 	_ "github.com/ichiban/prolog/dcg"
 	"github.com/ichiban/prolog/engine"
-	"github.com/ichiban/prolog/nondet"
-	"github.com/ichiban/prolog/syntax"
-	"github.com/ichiban/prolog/term"
 )
 
 // Version is a version of this build.
@@ -49,44 +46,44 @@ func main() {
 	log.SetOutput(t)
 
 	i := prolog.New(bufio.NewReader(os.Stdin), t)
-	i.Register1("halt", func(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	i.Register1("halt", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		restore()
 		return engine.Halt(t, k, env)
 	})
-	i.Register1("cd", func(dir term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
+	i.Register1("cd", func(dir engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		switch dir := env.Resolve(dir).(type) {
-		case term.Atom:
+		case engine.Atom:
 			if err := os.Chdir(string(dir)); err != nil {
-				return nondet.Error(err)
+				return engine.Error(err)
 			}
 			return k(env)
 		default:
-			return nondet.Error(errors.New("not a dir"))
+			return engine.Error(errors.New("not a dir"))
 		}
 	})
 	if verbose {
-		i.OnCall = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
+		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("CALL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnExit = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
+		i.OnExit = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("EXIT %s", i.DescribeTerm(goal, env))
 		}
-		i.OnFail = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
+		i.OnFail = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
 			}
 			log.Printf("FAIL %s", i.DescribeTerm(goal, env))
 		}
-		i.OnRedo = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
+		i.OnRedo = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
 			goal, err := pi.Apply(args)
 			if err != nil {
 				log.Print(err)
@@ -94,13 +91,13 @@ func main() {
 			log.Printf("REDO %s", i.DescribeTerm(goal, env))
 		}
 	}
-	i.OnUnknown = func(pi engine.ProcedureIndicator, args []term.Interface, env *term.Env) {
+	i.OnUnknown = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
 		log.Printf("UNKNOWN %s", pi)
 	}
-	i.Register1("version", func(t term.Interface, k func(*term.Env) *nondet.Promise, env *term.Env) *nondet.Promise {
-		env, ok := t.Unify(term.Atom(Version), false, env)
+	i.Register1("version", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		env, ok := t.Unify(engine.Atom(Version), false, env)
 		if !ok {
-			return nondet.Bool(false)
+			return engine.Bool(false)
 		}
 		return k(env)
 	})
@@ -155,7 +152,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	switch err {
 	case nil:
 		break
-	case syntax.ErrInsufficient:
+	case engine.ErrInsufficient:
 		if _, err := buf.WriteRune('\n'); err != nil {
 			log.Printf("failed to buffer: %v", err)
 			buf.Reset()
@@ -172,7 +169,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	for sols.Next() {
 		c++
 
-		m := map[string]term.Interface{}
+		m := map[string]engine.Term{}
 		if err := sols.Scan(m); err != nil {
 			log.Printf("failed to scan: %v", err)
 			break
@@ -182,7 +179,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		ls := make([]string, 0, len(vars))
 		for _, n := range vars {
 			v := m[n]
-			if _, ok := v.(term.Variable); ok {
+			if _, ok := v.(engine.Variable); ok {
 				continue
 			}
 			ls = append(ls, fmt.Sprintf("%s = %s", n, i.DescribeTerm(v, nil)))
