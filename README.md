@@ -16,15 +16,13 @@ Unlike any other scripting engines, `ichiban/prolog` implements logic programmin
 
 ## `ichiban/prolog` vs [otto](https://github.com/robertkrimen/otto) vs [go-lua](https://github.com/Shopify/go-lua)
 
-|                              | **prolog**          | otto            | go-lua               |
-| ---------------------------- | ------------------- | --------------- | -------------------- |
-| Language                     | ISO Prolog          | ECMA Script     | Lua                  |
-| Paradigm                     | Logic               | Object-oriented | Object-oriented      |
-| Go API                       | `database/sql`-like | original        | original             |
-| Declarative?                 | ✅                  | ❌              | ❌                   |
-| Easy to set a value from Go? | ✅                  | ✅              | ✅                   |
-| Easy to get a value to Go?   | ✅                  | ❌              | ✅                   |
-| Sandboxing                   | ✅                  | ❌              | ✅                   |
+|             | **prolog**             | otto            | go-lua          |
+| ----------- | ---------------------- | --------------- | --------------- |
+| Language    | ISO Prolog             | ECMA Script     | Lua             |
+| Paradigm    | 🎓 Logic               | Object-oriented | Object-oriented |
+| Go API      | 😻 `database/sql`-like | original        | original        |
+| Declarative | ✅                     | ❌              | ❌              |
+| Sandboxing  | ✅                     | ❌              | ✅              |
 
 ## Getting started
 
@@ -51,44 +49,26 @@ p := prolog.New(os.Stdin, os.Stdout)
 Or, if you want a secure interpreter without any builtin predicates:
 
 ```go
-p := &prolog.Interpreter{}
+// See examples/sandboxing/main.go for details.
+p := new(prolog.Interpreter)
 ```
 
 #### Load a Prolog program
 
 ```go
 if err := p.Exec(`
-	% This is a comment.
+	:- [abc].              % Load file 'abc' or 'abc.pl'.
+
+	:- ['/path/to/abc'].   % Load file '/path/to/abc' or '/path/to/abc.pl'.
+	                       % You need to quote to contain / in the path.
+
+	:- [library(dcg)].     % Load library 'library(dcg)'.
+	                       % See examples/dcg/main.go for a complete example.
+
 	human(socrates).       % This is a fact.
 	mortal(X) :- human(X). % This is a rule.
 `); err != nil {
 	panic(err)
-}
-```
-
-Or, from a file:
-
-```go
-// Load file `abc` or `abc.pl` in the current directory.
-if err := p.Exec(`:- [abc].`); err != nil {
-	panic(err)
-}
-```
-
-```go
-// Load file `/path/to/abc` or `/path/to/abc.pl`.
-// You need to quote to contain / in the path.
-if err := p.Exec(`:- ['/path/to/abc'].`); err != nil {
-	panic(err)
-}
-```
-
-Or, from a library:
-
-```go
-// See examples/dcg/main.go for a complete example.
-if err := p.Exec(`:- [library(dcg)].`); err != nil {
-panic(err)
 }
 ```
 
@@ -102,8 +82,9 @@ if err != nil {
 }
 defer sols.Close()
 
-// Iterates over every possibility of solutions.
+// Iterates over solutions.
 for sols.Next() {
+	// Prepare a struct with fields which name corresponds with a variable in the query.
 	var s struct {
 		Who string
 	}
@@ -111,7 +92,7 @@ for sols.Next() {
 		panic(err)
 	}
 	fmt.Printf("Who = %s\n", s.Who)
-	// ==> "Who = socrates\n"
+	// ==> Who = socrates
 }
 ```
 
