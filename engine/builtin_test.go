@@ -1753,17 +1753,33 @@ func TestVM_Assertz(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: "static", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
-					return k(env)
-				}),
+				{Name: "foo", Arity: 0}: static{},
 			},
 		}
 
-		ok, err := vm.Assertz(Atom("static"), Success, nil).Force(context.Background())
+		ok, err := vm.Assertz(Atom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args: []Term{
-				Atom("static"),
+				Atom("foo"),
+				Integer(0),
+			},
+		}), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("built-in", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: builtin{},
+			},
+		}
+
+		ok, err := vm.Assertz(Atom("foo"), Success, nil).Force(context.Background())
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
 				Integer(0),
 			},
 		}), err)
@@ -1923,17 +1939,255 @@ func TestVM_Asserta(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: "static", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
+				{Name: "foo", Arity: 0}: static{},
+			},
+		}
+
+		ok, err := vm.Asserta(Atom("foo"), Success, nil).Force(context.Background())
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(0),
+			},
+		}), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("built-in", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: builtin{},
+			},
+		}
+
+		ok, err := vm.Asserta(Atom("foo"), Success, nil).Force(context.Background())
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(0),
+			},
+		}), err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_AssertStatic(t *testing.T) {
+	t.Run("append", func(t *testing.T) {
+		var vm VM
+
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: "foo",
+			Args:    []Term{Atom("a")},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = vm.AssertStatic(&Compound{
+			Functor: "foo",
+			Args:    []Term{Atom("b")},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, static{clauses{
+			{
+				pi: ProcedureIndicator{
+					Name:  "foo",
+					Arity: 1,
+				},
+				raw: &Compound{
+					Functor: "foo",
+					Args:    []Term{Atom("a")},
+				},
+				xrTable: []Term{Atom("a")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
+			},
+			{
+				pi: ProcedureIndicator{
+					Name:  "foo",
+					Arity: 1,
+				},
+				raw: &Compound{
+					Functor: "foo",
+					Args:    []Term{Atom("b")},
+				},
+				xrTable: []Term{Atom("b")},
+				bytecode: bytecode{
+					{opcode: opConst, operand: 0},
+					{opcode: opExit},
+				},
+			},
+		}}, vm.procedures[ProcedureIndicator{
+			Name:  "foo",
+			Arity: 1,
+		}])
+	})
+
+	t.Run("directive", func(t *testing.T) {
+		var called bool
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "directive", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
+					called = true
 					return k(env)
 				}),
 			},
 		}
 
-		ok, err := vm.Asserta(Atom("static"), Success, nil).Force(context.Background())
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args:    []Term{Atom("directive")},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.True(t, called)
+	})
+
+	t.Run("clause is a variable", func(t *testing.T) {
+		clause := Variable("Term")
+
+		var vm VM
+		ok, err := vm.AssertStatic(clause, Success, nil).Force(context.Background())
+		assert.Equal(t, InstantiationError(&clause), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.AssertStatic(Integer(0), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("head is a variable", func(t *testing.T) {
+		head := Variable("Head")
+
+		var vm VM
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args:    []Term{head, Atom("true")},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, InstantiationError(&head), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args:    []Term{Integer(0), Atom("true")},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("directive is a variable", func(t *testing.T) {
+		directive := Variable("Directive")
+
+		var vm VM
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args:    []Term{directive},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, InstantiationError(directive), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("directive is neither a variable, nor callable", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args:    []Term{Integer(0)},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("body contains a term which is not callable", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.AssertStatic(&Compound{
+			Functor: ":-",
+			Args: []Term{
+				Atom("foo"),
+				&Compound{
+					Functor: ",",
+					Args: []Term{
+						Atom("true"),
+						Integer(0),
+					},
+				},
+			},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(&Compound{
+			Functor: ",",
+			Args: []Term{
+				Atom("true"),
+				Integer(0),
+			},
+		}), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("static", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: static{},
+			},
+		}
+
+		ok, err := vm.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Len(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(static).clauses, 1)
+	})
+
+	t.Run("dynamic", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: clauses{},
+			},
+		}
+
+		ok, err := vm.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Len(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(clauses), 1)
+	})
+
+	t.Run("builtin", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: builtin{},
+			},
+		}
+
+		ok, err := vm.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Len(t, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(builtin).clauses, 1)
+	})
+
+	t.Run("foreign", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: predicate0(nil),
+			},
+		}
+
+		ok, err := vm.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args: []Term{
-				Atom("static"),
+				Atom("foo"),
 				Integer(0),
 			},
 		}), err)
@@ -2040,7 +2294,7 @@ func TestVM_Retract(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: "foo", Arity: 0}: predicate0(nil),
+				{Name: "foo", Arity: 0}: static{},
 			},
 		}
 
@@ -2173,7 +2427,7 @@ func TestVM_Abolish(t *testing.T) {
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: "foo", Arity: 0}: predicate0(nil),
+				{Name: "foo", Arity: 0}: static{},
 			},
 		}
 		ok, err := vm.Abolish(&Compound{
@@ -6122,6 +6376,122 @@ func TestVM_CurrentPrologFlag(t *testing.T) {
 		var vm VM
 		ok, err := vm.CurrentPrologFlag(Atom("foo"), Atom("error"), Success, nil).Force(context.Background())
 		assert.Equal(t, domainErrorPrologFlag(Atom("foo")), err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Dynamic(t *testing.T) {
+	t.Run("not a procedure indicator", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.Dynamic(Atom("foo"), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("procedure is not defined", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.Dynamic(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.IsType(t, clauses{}, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+	})
+
+	t.Run("procedure is already dynamic", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{},
+			},
+		}
+		ok, err := vm.Dynamic(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("procedure is already static", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: static{},
+			},
+		}
+		ok, err := vm.Dynamic(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_BuiltIn(t *testing.T) {
+	t.Run("not a procedure indicator", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.BuiltIn(Atom("foo"), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("procedure is not defined", func(t *testing.T) {
+		var vm VM
+		ok, err := vm.BuiltIn(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.IsType(t, builtin{}, vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+	})
+
+	t.Run("procedure is already built-in", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: builtin{},
+			},
+		}
+		ok, err := vm.BuiltIn(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("procedure is already dynamic", func(t *testing.T) {
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 1}: clauses{},
+			},
+		}
+		ok, err := vm.BuiltIn(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 }

@@ -397,19 +397,26 @@ func (vm *VM) CurrentOp(priority, specifier, operator Term, k func(*Env) *Promis
 
 // Assertz appends t to the database.
 func (vm *VM) Assertz(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	return vm.assert(t, k, func(existing clauses, new clauses) clauses {
+	return vm.assert(t, false, func(existing clauses, new clauses) clauses {
 		return append(existing, new...)
-	}, env)
+	}, k, env)
 }
 
 // Asserta prepends t to the database.
 func (vm *VM) Asserta(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	return vm.assert(t, k, func(existing clauses, new clauses) clauses {
+	return vm.assert(t, false, func(existing clauses, new clauses) clauses {
 		return append(new, existing...)
-	}, env)
+	}, k, env)
 }
 
-func (vm *VM) assert(t Term, k func(*Env) *Promise, merge func(clauses, clauses) clauses, env *Env) *Promise {
+// AssertStatic prepends t to the database.
+func (vm *VM) AssertStatic(t Term, k func(*Env) *Promise, env *Env) *Promise {
+	return vm.assert(t, true, func(existing clauses, new clauses) clauses {
+		return append(existing, new...)
+	}, k, env)
+}
+
+func (vm *VM) assert(t Term, force bool, merge func(clauses, clauses) clauses, k func(*Env) *Promise, env *Env) *Promise {
 	pi, args, err := piArgs(t, env)
 	if err != nil {
 		return Error(err)
@@ -422,7 +429,6 @@ func (vm *VM) assert(t Term, k func(*Env) *Promise, merge func(clauses, clauses)
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return vm.arrive(name, args, k, env)
 		})
 	case ProcedureIndicator{Name: ":-", Arity: 2}:
@@ -437,12 +443,11 @@ func (vm *VM) assert(t Term, k func(*Env) *Promise, merge func(clauses, clauses)
 	}
 	p, ok := vm.procedures[pi]
 	if !ok {
-		p = clauses{}
-	}
-
-	existing, ok := p.(clauses)
-	if !ok {
-		return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+		if force {
+			p = static{}
+		} else {
+			p = clauses{}
+		}
 	}
 
 	added, err := compile(t, env)
@@ -450,8 +455,25 @@ func (vm *VM) assert(t Term, k func(*Env) *Promise, merge func(clauses, clauses)
 		return Error(err)
 	}
 
-	vm.procedures[pi] = merge(existing, added)
-	return k(env)
+	switch existing := p.(type) {
+	case clauses:
+		vm.procedures[pi] = merge(existing, added)
+		return k(env)
+	case builtin:
+		if !force {
+			return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+		}
+		vm.procedures[pi] = builtin{merge(existing.clauses, added)}
+		return k(env)
+	case static:
+		if !force {
+			return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+		}
+		vm.procedures[pi] = static{merge(existing.clauses, added)}
+		return k(env)
+	default:
+		return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+	}
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
@@ -636,7 +658,9 @@ func (vm *VM) CurrentPredicate(pi Term, k func(*Env) *Promise, env *Env) *Promis
 
 	ks := make([]func(context.Context) *Promise, 0, len(vm.procedures))
 	for key, p := range vm.procedures {
-		if _, ok := p.(clauses); !ok {
+		switch p.(type) {
+		case clauses, static:
+		default:
 			continue
 		}
 		c := key.Term()
@@ -2841,41 +2865,44 @@ func (vm *VM) stream(streamOrAlias Term, env *Env) (*Stream, error) {
 	}
 }
 
+// Dynamic declares a procedure indicated by pi is user-defined dynamic.
 func (vm *VM) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	switch p := env.Resolve(pi).(type) {
-	case Variable:
-		return Error(InstantiationError(pi))
-	case *Compound:
-		if p.Functor != "/" || len(p.Args) != 2 {
-			return Error(typeErrorPredicateIndicator(pi))
-		}
-		switch f := env.Resolve(p.Args[0]).(type) {
-		case Variable:
-			return Error(InstantiationError(pi))
-		case Atom:
-			switch a := env.Resolve(p.Args[1]).(type) {
-			case Variable:
-				return Error(InstantiationError(pi))
-			case Integer:
-				pi := ProcedureIndicator{Name: f, Arity: a}
-				p, ok := vm.procedures[pi]
-				if !ok {
-					vm.procedures[pi] = clauses{}
-					return k(env)
-				}
-				if _, ok := p.(clauses); !ok {
-					return Bool(false)
-				}
-				return k(env)
-			default:
-				return Error(typeErrorPredicateIndicator(pi))
-			}
-		default:
-			return Error(typeErrorPredicateIndicator(pi))
-		}
-	default:
-		return Error(typeErrorPredicateIndicator(pi))
+	key, err := NewProcedureIndicator(pi, env)
+	if err != nil {
+		return Error(err)
 	}
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
+	}
+	p, ok := vm.procedures[key]
+	if !ok {
+		vm.procedures[key] = clauses{}
+		return k(env)
+	}
+	if _, ok := p.(clauses); !ok {
+		return Bool(false)
+	}
+	return k(env)
+}
+
+// BuiltIn declares a procedure indicated by pi is built-in and static.
+func (vm *VM) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
+	key, err := NewProcedureIndicator(pi, env)
+	if err != nil {
+		return Error(err)
+	}
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
+	}
+	p, ok := vm.procedures[key]
+	if !ok {
+		vm.procedures[key] = builtin{}
+		return k(env)
+	}
+	if _, ok := p.(builtin); !ok {
+		return Bool(false)
+	}
+	return k(env)
 }
 
 // ExpandTerm transforms term1 according to term_expansion/2 and unifies with term2.

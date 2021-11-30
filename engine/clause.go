@@ -67,6 +67,13 @@ func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Pr
 	return p
 }
 
+// some variants of clauses.
+// clauses itself is user-defined dynamic.
+type (
+	builtin struct{ clauses } // builtin static.
+	static  struct{ clauses } // user-defined static.
+)
+
 type clause struct {
 	pi       ProcedureIndicator
 	raw      Term

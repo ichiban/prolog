@@ -2,13 +2,17 @@
 
 :- op(1105,xfy,'|').
 
+:- built_in(phrase/2).
 phrase(GRBody, S0) :- phrase(GRBody, S0, []).
+
+:- built_in(phrase/3).
 phrase(GRBody, S0, S) :-
     dcg_body(GRBody, S0, S, Goal),
     call(Goal).
 
 % Expands a DCG rule into a Prolog rule, when no error condition applies.
 
+:- built_in(dcg_rule/2).
 dcg_rule(( NonTerminal, Terminals --> GRBody ), ( Head :- Body )) :-
     dcg_non_terminal(NonTerminal, S0, S, Head),
     dcg_body(GRBody, S0, S1, Goal1),
@@ -19,14 +23,17 @@ dcg_rule(( NonTerminal --> GRBody ), ( Head :- Body )) :-
     dcg_non_terminal(NonTerminal, S0, S, Head),
     dcg_body(GRBody, S0, S, Body).
 
+:- built_in(dcg_non_terminal/4).
 dcg_non_terminal(NonTerminal, S0, S, Goal) :-
     NonTerminal =.. NonTerminalUniv,
     append(NonTerminalUniv, [S0, S], GoalUniv),
     Goal =.. GoalUniv.
 
+:- built_in(dcg_terminals/4).
 dcg_terminals(Terminals, S0, S, S0 = List) :-
     append(Terminals, S, List).
 
+:- built_in(dcg_body/4).
 dcg_body(Var, S0, S, Body) :-
     var(Var),
     Body = phrase(Var, S0, S).
@@ -43,6 +50,7 @@ dcg_body(NonTerminal, S0, S, Goal) :-
 % The following constructs in a grammar rule body
 % are defined in the corresponding subclauses.
 
+:- built_in(dcg_constr/1).
 dcg_constr([]).
 dcg_constr([_|_]).
 dcg_constr(( _, _ )).
@@ -57,6 +65,7 @@ dcg_constr(\+ _).
 % The principal functor of the first argument indicates
 % the construct to be expanded.
 
+:- built_in(dcg_cbody/4).
 dcg_cbody([], S0, S, S0 = S ).
 dcg_cbody([T|Ts], S0, S, Goal) :-
     dcg_terminals([T|Ts], S0, S, Goal).
@@ -85,5 +94,5 @@ dcg_cbody(( GRIf -> GRThen ), S0, S, ( If -> Then )) :-
     dcg_body(GRThen, S1, S, Then).
 
 % register dcg_rule/2 as term expansion.
-
+:- dynamic(term_expansion/2).
 term_expansion(X, Y) :- dcg_rule(X, Y).

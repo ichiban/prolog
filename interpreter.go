@@ -93,6 +93,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("set_prolog_flag", i.SetPrologFlag)
 	i.Register2("current_prolog_flag", i.CurrentPrologFlag)
 	i.Register1("dynamic", i.Dynamic)
+	i.Register1("built_in", i.BuiltIn)
 	i.Register2("expand_term", i.ExpandTerm)
 	i.Register1("consult", i.consult)
 	if err := i.Exec(bootstrap); err != nil {
@@ -121,7 +122,7 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 
 		v := engine.NewVariable()
 		if _, err := i.ExpandTerm(t, v, func(env *engine.Env) *engine.Promise {
-			return i.Assertz(v, engine.Success, env)
+			return i.AssertStatic(v, engine.Success, env)
 		}, nil).Force(ctx); err != nil {
 			return err
 		}

@@ -235,7 +235,6 @@ func (vm *VM) arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 	}
 
 	return Delay(func(context.Context) *Promise {
-		env := env
 		return p.Call(vm, args, k, env)
 	})
 }
@@ -558,6 +557,36 @@ func Slice(list Term, env *Env) ([]Term, error) {
 type ProcedureIndicator struct {
 	Name  Atom
 	Arity Integer
+}
+
+// NewProcedureIndicator creates a new ProcedureIndicator from a term that matches Name/Arity.
+func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
+	switch p := env.Resolve(pi).(type) {
+	case Variable:
+		return ProcedureIndicator{}, InstantiationError(pi)
+	case *Compound:
+		if p.Functor != "/" || len(p.Args) != 2 {
+			return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+		}
+		switch f := env.Resolve(p.Args[0]).(type) {
+		case Variable:
+			return ProcedureIndicator{}, InstantiationError(pi)
+		case Atom:
+			switch a := env.Resolve(p.Args[1]).(type) {
+			case Variable:
+				return ProcedureIndicator{}, InstantiationError(pi)
+			case Integer:
+				pi := ProcedureIndicator{Name: f, Arity: a}
+				return pi, nil
+			default:
+				return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+			}
+		default:
+			return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+		}
+	default:
+		return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+	}
 }
 
 func (p ProcedureIndicator) String() string {
