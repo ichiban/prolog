@@ -177,6 +177,42 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOS}, token)
 	})
 
+	t.Run("block", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("{a, b, c}")), nil)
+
+		token, err := l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenBraceL, Val: "{"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenBraceR, Val: "}"}, token)
+
+		token, err = l.Next()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenEOS}, token)
+	})
+
 	t.Run("comma", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,)).")), nil)
 
