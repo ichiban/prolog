@@ -189,9 +189,7 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return l.singleLineComment(l.init)
 	case r == '/':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.multiLineCommentBegin(&b, l.init)
 	case r == '(':
 		l.emit(Token{Kind: TokenParenL, Val: string(r)})
@@ -204,9 +202,7 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return nil, nil
 	case r == '.':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.period(&b)
 	case r == '|':
 		l.emit(Token{Kind: TokenBar, Val: string(r)})
@@ -219,9 +215,7 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return nil, nil
 	case r == '+' || r == '-':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.sign(&b)
 	case unicode.IsNumber(r):
 		l.backup()
@@ -231,9 +225,7 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		return l.variable, nil
 	case r == '"':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.doubleQuoted(&b)
 	default:
 		l.backup()
@@ -259,15 +251,11 @@ func (l *Lexer) ident(r rune) (lexState, error) {
 	switch {
 	case unicode.IsLower(r):
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.normalAtom(&b)
 	case isGraphic(r):
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.graphic(&b)
 	case r == ';', r == '!':
 		l.emit(Token{Kind: TokenIdent, Val: string(r)})
@@ -278,9 +266,7 @@ func (l *Lexer) ident(r rune) (lexState, error) {
 		return l.curlyBracket, nil
 	case r == '\'':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.quotedIdent(&b)
 	default:
 		l.backup()
@@ -293,9 +279,7 @@ func (l *Lexer) normalAtom(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.normalAtom(b)
 		default:
 			l.backup()
@@ -311,19 +295,13 @@ func (l *Lexer) quotedIdent(b *strings.Builder) (lexState, error) {
 		case etx:
 			return nil, ErrInsufficient
 		case '\'':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentQuote(b)
 		case '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentSlash(b)
 		default:
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdent(b)
 		}
 	}, nil
@@ -333,9 +311,7 @@ func (l *Lexer) quotedIdentQuote(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch r {
 		case '\'':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdent(b)
 		default:
 			l.backup()
@@ -351,19 +327,13 @@ func (l *Lexer) quotedIdentSlash(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case r == 'x':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentSlashHex(b)
 		case unicode.IsNumber(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentSlashOctal(b)
 		default:
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdent(b)
 		}
 	}, nil
@@ -375,14 +345,10 @@ func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case isHex(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentSlashHex(b)
 		case r == '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdent(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
@@ -396,14 +362,10 @@ func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case isOctal(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdentSlashOctal(b)
 		case r == '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.quotedIdent(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
@@ -442,14 +404,10 @@ func (l *Lexer) floatMantissa(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.floatMantissa(b)
 		case r == 'E' || r == 'e':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.floatE(b)
 		default:
 			l.backup()
@@ -466,9 +424,7 @@ func (l *Lexer) floatE(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case unicode.IsNumber(r), r == '+', r == '-':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.floatExponent(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
@@ -481,9 +437,7 @@ func (l *Lexer) floatExponent(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.floatExponent(b)
 		default:
 			l.backup()
@@ -498,29 +452,19 @@ func (l *Lexer) integerZero(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case r == 'o':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerOctal(b)
 		case r == 'x':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerHex(b)
 		case r == 'b':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerBinary(b)
 		case r == '\'':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerChar(b)
 		case unicode.IsDigit(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerDecimal(b)
 		case r == '.':
 			return l.integerDot(b)
@@ -537,9 +481,7 @@ func (l *Lexer) integerOctal(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case isOctal(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerOctal(b)
 		default:
 			l.backup()
@@ -554,9 +496,7 @@ func (l *Lexer) integerHex(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case isHex(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerHex(b)
 		default:
 			l.backup()
@@ -571,9 +511,7 @@ func (l *Lexer) integerBinary(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch r {
 		case '0', '1':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerBinary(b)
 		default:
 			l.backup()
@@ -592,9 +530,7 @@ func (l *Lexer) integerChar(b *strings.Builder) (lexState, error) {
 		case '\\':
 			return l.integerCharEscape(b)
 		default:
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			l.emit(Token{Kind: TokenInteger, Val: b.String()})
 			return nil, nil
 		}
@@ -656,9 +592,7 @@ func (l *Lexer) integerDecimal(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case unicode.IsNumber(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.integerDecimal(b)
 		case r == '.':
 			return l.integerDot(b)
@@ -678,9 +612,7 @@ func (l *Lexer) integerDot(b *strings.Builder) (lexState, error) {
 			if _, err := b.WriteRune('.'); err != nil {
 				return nil, err
 			}
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.floatMantissa(b)
 		default:
 			l.emit(Token{Kind: TokenInteger, Val: b.String()})
@@ -696,15 +628,11 @@ func (l *Lexer) number(r rune) (lexState, error) {
 	switch {
 	case r == '0':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.integerZero(&b)
 	case unicode.IsNumber(r):
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.integerDecimal(&b)
 	default:
 		l.backup()
@@ -736,9 +664,7 @@ func (l *Lexer) variable(r rune) (lexState, error) {
 	switch {
 	case unicode.IsUpper(r), r == '_':
 		var b strings.Builder
-		if _, err := b.WriteRune(r); err != nil {
-			return nil, err
-		}
+		_, _ = b.WriteRune(r)
 		return l.variableName(&b)
 	default:
 		l.backup()
@@ -751,9 +677,7 @@ func (l *Lexer) variableName(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.variableName(b)
 		default:
 			l.backup()
@@ -768,9 +692,7 @@ func (l *Lexer) graphic(b *strings.Builder) (lexState, error) {
 		r = l.conv(r)
 		switch {
 		case isGraphic(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.graphic(b)
 		default:
 			l.backup()
@@ -801,9 +723,7 @@ func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx lexState) (lexStat
 		case r == '*':
 			return l.multiLineCommentBody(ctx)
 		case isGraphic(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.graphic(b)
 		default:
 			l.backup()
@@ -848,19 +768,13 @@ func (l *Lexer) doubleQuoted(b *strings.Builder) (lexState, error) {
 		case etx:
 			return nil, ErrInsufficient
 		case '"':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedDoubleQuote(b)
 		case '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedSlash(b)
 		default:
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuoted(b)
 		}
 	}, nil
@@ -870,9 +784,7 @@ func (l *Lexer) doubleQuotedDoubleQuote(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		switch r {
 		case '"':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuoted(b)
 		default:
 			l.backup()
@@ -888,19 +800,13 @@ func (l *Lexer) doubleQuotedSlash(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case r == 'x':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedSlashHex(b)
 		case unicode.IsNumber(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedSlashOctal(b)
 		default:
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuoted(b)
 		}
 	}, nil
@@ -912,14 +818,10 @@ func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case isHex(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedSlashHex(b)
 		case r == '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuoted(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
@@ -933,14 +835,10 @@ func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) (lexState, error) {
 		case r == etx:
 			return nil, ErrInsufficient
 		case isOctal(r):
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuotedSlashOctal(b)
 		case r == '\\':
-			if _, err := b.WriteRune(r); err != nil {
-				return nil, err
-			}
+			_, _ = b.WriteRune(r)
 			return l.doubleQuoted(b)
 		default:
 			return nil, UnexpectedRuneError{rune: r}
