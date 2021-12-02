@@ -107,7 +107,7 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		if err := engine.Each(t, func(elem engine.Term) error {
+		if err := engine.EachList(t, func(elem engine.Term) error {
 			e, err := convert(elem, typ.Elem(), env)
 			if err != nil {
 				return err

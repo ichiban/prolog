@@ -178,7 +178,7 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		return engine.Error(engine.InstantiationError(files))
 	case *engine.Compound:
 		if f.Functor == "." && len(f.Args) == 2 {
-			if err := engine.Each(f, func(elem engine.Term) error {
+			if err := engine.EachList(f, func(elem engine.Term) error {
 				return i.consultOne(elem, env)
 			}, env); err != nil {
 				return engine.Error(err)

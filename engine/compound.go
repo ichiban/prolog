@@ -205,3 +205,71 @@ func Set(ts ...Term) Term {
 	}
 	return List(us[:n]...)
 }
+
+// EachList iterates over list.
+func EachList(list Term, f func(elem Term) error, env *Env) error {
+	whole := list
+	for {
+		switch l := env.Resolve(list).(type) {
+		case Variable:
+			return InstantiationError(whole)
+		case Atom:
+			if l != "[]" {
+				return typeErrorList(l)
+			}
+			return nil
+		case *Compound:
+			if l.Functor != "." || len(l.Args) != 2 {
+				return typeErrorList(l)
+			}
+			if err := f(l.Args[0]); err != nil {
+				return err
+			}
+			list = l.Args[1]
+		default:
+			return typeErrorList(l)
+		}
+	}
+}
+
+func Slice(list Term, env *Env) (ret []Term, err error) {
+	err = EachList(list, func(elem Term) error {
+		ret = append(ret, env.Resolve(elem))
+		return nil
+	}, env)
+	return
+}
+
+// Seq returns a sequence of ts separated by seq.
+func Seq(sep Atom, ts ...Term) Term {
+	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
+	for i := len(ts) - 1; i >= 0; i-- {
+		s = &Compound{
+			Functor: sep,
+			Args:    []Term{ts[i], s},
+		}
+	}
+	return s
+}
+
+// EachSeq iterates over a sequence seq separated by sep.
+func EachSeq(seq Term, sep Atom, f func(elem Term) error, env *Env) error {
+	for {
+		p, ok := env.Resolve(seq).(*Compound)
+		if !ok || p.Functor != sep || len(p.Args) != 2 {
+			break
+		}
+		if err := f(p.Args[0]); err != nil {
+			return err
+		}
+		seq = p.Args[1]
+	}
+	return f(seq)
+}
+
+func Each(any Term, f func(elem Term) error, env *Env) error {
+	if c, ok := env.Resolve(any).(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
+		return EachList(any, f, env)
+	}
+	return EachSeq(any, ",", f, env)
+}

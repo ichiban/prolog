@@ -194,20 +194,9 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 
 func (c *clause) compileBody(body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-	for {
-		p, ok := env.Resolve(body).(*Compound)
-		if !ok || p.Functor != "," || len(p.Args) != 2 {
-			break
-		}
-		if err := c.compilePred(p.Args[0], env); err != nil {
-			return err
-		}
-		body = p.Args[1]
-	}
-	if err := c.compilePred(body, env); err != nil {
-		return err
-	}
-	return nil
+	return EachSeq(body, ",", func(elem Term) error {
+		return c.compilePred(elem, env)
+	}, env)
 }
 
 var errNotCallable = errors.New("not callable")

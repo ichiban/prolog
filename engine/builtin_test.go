@@ -6433,7 +6433,13 @@ func TestVM_Dynamic(t *testing.T) {
 				Integer(1),
 			},
 		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}), err)
 		assert.False(t, ok)
 	})
 }
@@ -6491,7 +6497,13 @@ func TestVM_BuiltIn(t *testing.T) {
 				Integer(1),
 			},
 		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
+		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}), err)
 		assert.False(t, ok)
 	})
 }

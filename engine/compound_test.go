@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -238,4 +239,134 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, List(Atom("a")), Set(Atom("a")))
 	assert.Equal(t, List(Atom("a")), Set(Atom("a"), Atom("a"), Atom("a")))
 	assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), Set(Atom("c"), Atom("b"), Atom("a")))
+}
+
+func TestEachList(t *testing.T) {
+	t.Run("variable", func(t *testing.T) {
+		var ret []Term
+		assert.Equal(t, InstantiationError(Variable("X")), EachList(Variable("X"), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Empty(t, ret)
+	})
+
+	t.Run("atom", func(t *testing.T) {
+		var ret []Term
+		assert.Equal(t, typeErrorList(Atom("a")), EachList(Atom("a"), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Empty(t, ret)
+	})
+
+	t.Run("compound", func(t *testing.T) {
+		var ret []Term
+		assert.Equal(t, typeErrorList(&Compound{
+			Functor: "f",
+			Args:    []Term{Atom("a")},
+		}), EachList(&Compound{
+			Functor: "f",
+			Args:    []Term{Atom("a")},
+		}, func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Empty(t, ret)
+	})
+
+	t.Run("integer", func(t *testing.T) {
+		var ret []Term
+		assert.Equal(t, typeErrorList(Integer(1)), EachList(Integer(1), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Empty(t, ret)
+	})
+
+	t.Run("proper list", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, EachList(List(Atom("a"), Atom("b"), Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Atom("a"), Atom("b"), Atom("c")}, ret)
+	})
+
+	t.Run("failed callback", func(t *testing.T) {
+		errSomething := errors.New("something")
+
+		var ret []Term
+		assert.Equal(t, errSomething, EachList(List(Atom("a"), Atom("b"), Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return errSomething
+		}, nil))
+		assert.Equal(t, []Term{Atom("a")}, ret)
+	})
+}
+
+func TestSeq(t *testing.T) {
+	assert.Equal(t, Atom("a"), Seq(",", Atom("a")))
+	assert.Equal(t, &Compound{
+		Functor: ",",
+		Args: []Term{
+			Atom("a"),
+			Atom("b"),
+		},
+	}, Seq(",", Atom("a"), Atom("b")))
+	assert.Equal(t, &Compound{
+		Functor: ",",
+		Args: []Term{
+			Atom("a"),
+			&Compound{
+				Functor: ",",
+				Args: []Term{
+					Atom("b"),
+					Atom("c"),
+				},
+			},
+		},
+	}, Seq(",", Atom("a"), Atom("b"), Atom("c")))
+}
+
+func TestEachSeq(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, EachSeq(Seq(",", Atom("a"), Atom("b"), Atom("c")), ",", func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Atom("a"), Atom("b"), Atom("c")}, ret)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		errSomething := errors.New("something")
+
+		var ret []Term
+		assert.Equal(t, errSomething, EachSeq(Seq(",", Atom("a"), Atom("b"), Atom("c")), ",", func(elem Term) error {
+			ret = append(ret, elem)
+			return errSomething
+		}, nil))
+		assert.Equal(t, []Term{Atom("a")}, ret)
+	})
+}
+
+func TestEach(t *testing.T) {
+	t.Run("sequence", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, Each(Seq(",", Atom("a"), Atom("b"), Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Atom("a"), Atom("b"), Atom("c")}, ret)
+	})
+
+	t.Run("list", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, Each(List(Atom("a"), Atom("b"), Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Atom("a"), Atom("b"), Atom("c")}, ret)
+	})
 }

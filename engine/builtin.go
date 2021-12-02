@@ -220,7 +220,7 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var args []Term
-		if err := Each(cons.Args[1], func(elem Term) error {
+		if err := EachList(cons.Args[1], func(elem Term) error {
 			args = append(args, elem)
 			return nil
 		}, env); err != nil {
@@ -521,7 +521,7 @@ func (vm *VM) collectionOf(agg func(...Term) Term, template, goal, instances Ter
 
 		template = hyphen.Apply(vars.Apply(groupingVariables.Terms()...), template)
 		if _, err := vm.FindAll(template, body, answers, func(env *Env) *Promise {
-			if err := Each(answers, func(elem Term) error {
+			if err := EachList(answers, func(elem Term) error {
 				answer := elem.(*Compound)
 				vars, instance := answer.Args[0], answer.Args[1]
 				for i := range solutions {
@@ -858,7 +858,7 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 		return Error(typeErrorVariable(stream))
 	}
 
-	if err := Each(env.Resolve(options), func(option Term) error {
+	if err := EachList(env.Resolve(options), func(option Term) error {
 		switch o := env.Resolve(option).(type) {
 		case Variable:
 			return InstantiationError(option)
@@ -998,7 +998,7 @@ func (vm *VM) Close(streamOrAlias, options Term, k func(*Env) *Promise, env *Env
 	}
 
 	var force bool
-	if err := Each(env.Resolve(options), func(option Term) error {
+	if err := EachList(env.Resolve(options), func(option Term) error {
 		switch option := env.Resolve(option).(type) {
 		case Variable:
 			return InstantiationError(option)
@@ -1089,7 +1089,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Promise, e
 		Ops:      vm.operators,
 		Priority: 1200,
 	}
-	if err := Each(env.Resolve(options), func(option Term) error {
+	if err := EachList(env.Resolve(options), func(option Term) error {
 		switch option := env.Resolve(option).(type) {
 		case Variable:
 			return InstantiationError(option)
@@ -1278,7 +1278,7 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 		variables     Term
 		variableNames Term
 	}
-	if err := Each(env.Resolve(options), func(option Term) error {
+	if err := EachList(env.Resolve(options), func(option Term) error {
 		switch option := env.Resolve(option).(type) {
 		case Variable:
 			return InstantiationError(option)
@@ -1848,7 +1848,7 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
-		if err := Each(env.Resolve(chars), func(elem Term) error {
+		if err := EachList(env.Resolve(chars), func(elem Term) error {
 			switch e := env.Resolve(elem).(type) {
 			case Variable:
 				return InstantiationError(elem)
@@ -1891,7 +1891,7 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
-		if err := Each(env.Resolve(codes), func(elem Term) error {
+		if err := EachList(env.Resolve(codes), func(elem Term) error {
 			switch e := env.Resolve(elem).(type) {
 			case Variable:
 				return InstantiationError(elem)
@@ -1940,7 +1940,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var sb strings.Builder
-		if err := Each(env.Resolve(chars), func(elem Term) error {
+		if err := EachList(env.Resolve(chars), func(elem Term) error {
 			switch e := env.Resolve(elem).(type) {
 			case Variable:
 				return InstantiationError(elem)
@@ -2006,7 +2006,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var sb strings.Builder
-		if err := Each(env.Resolve(codes), func(elem Term) error {
+		if err := EachList(env.Resolve(codes), func(elem Term) error {
 			switch e := env.Resolve(elem).(type) {
 			case Variable:
 				return InstantiationError(elem)
@@ -2867,40 +2867,50 @@ func (vm *VM) stream(streamOrAlias Term, env *Env) (*Stream, error) {
 
 // Dynamic declares a procedure indicated by pi is user-defined dynamic.
 func (vm *VM) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	key, err := NewProcedureIndicator(pi, env)
-	if err != nil {
+	if err := Each(pi, func(elem Term) error {
+		key, err := NewProcedureIndicator(elem, env)
+		if err != nil {
+			return err
+		}
+		if vm.procedures == nil {
+			vm.procedures = map[ProcedureIndicator]procedure{}
+		}
+		p, ok := vm.procedures[key]
+		if !ok {
+			vm.procedures[key] = clauses{}
+			return nil
+		}
+		if _, ok := p.(clauses); !ok {
+			return permissionErrorModifyStaticProcedure(elem)
+		}
+		return nil
+	}, env); err != nil {
 		return Error(err)
-	}
-	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
-	}
-	p, ok := vm.procedures[key]
-	if !ok {
-		vm.procedures[key] = clauses{}
-		return k(env)
-	}
-	if _, ok := p.(clauses); !ok {
-		return Bool(false)
 	}
 	return k(env)
 }
 
 // BuiltIn declares a procedure indicated by pi is built-in and static.
 func (vm *VM) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	key, err := NewProcedureIndicator(pi, env)
-	if err != nil {
+	if err := Each(pi, func(elem Term) error {
+		key, err := NewProcedureIndicator(elem, env)
+		if err != nil {
+			return err
+		}
+		if vm.procedures == nil {
+			vm.procedures = map[ProcedureIndicator]procedure{}
+		}
+		p, ok := vm.procedures[key]
+		if !ok {
+			vm.procedures[key] = builtin{}
+			return nil
+		}
+		if _, ok := p.(builtin); !ok {
+			return permissionErrorModifyStaticProcedure(elem)
+		}
+		return nil
+	}, env); err != nil {
 		return Error(err)
-	}
-	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
-	}
-	p, ok := vm.procedures[key]
-	if !ok {
-		vm.procedures[key] = builtin{}
-		return k(env)
-	}
-	if _, ok := p.(builtin); !ok {
-		return Bool(false)
 	}
 	return k(env)
 }

@@ -516,43 +516,6 @@ func Failure(_ *Env) *Promise {
 	return Bool(false)
 }
 
-// Each iterates over list.
-func Each(list Term, f func(elem Term) error, env *Env) error {
-	whole := list
-	for {
-		switch l := env.Resolve(list).(type) {
-		case Variable:
-			return InstantiationError(whole)
-		case Atom:
-			if l != "[]" {
-				return typeErrorList(l)
-			}
-			return nil
-		case *Compound:
-			if l.Functor != "." || len(l.Args) != 2 {
-				return typeErrorList(l)
-			}
-			if err := f(l.Args[0]); err != nil {
-				return err
-			}
-			list = l.Args[1]
-		default:
-			return typeErrorList(l)
-		}
-	}
-}
-
-func Slice(list Term, env *Env) ([]Term, error) {
-	var ret []Term
-	if err := Each(list, func(elem Term) error {
-		ret = append(ret, env.Resolve(elem))
-		return nil
-	}, env); err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 // ProcedureIndicator identifies procedure e.g. (=)/2.
 type ProcedureIndicator struct {
 	Name  Atom
