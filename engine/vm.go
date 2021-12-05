@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 )
 
 type bytecode []instruction
@@ -95,39 +96,25 @@ func (vm *VM) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 }
 
 // SetUserInput sets the given reader as a stream with an alias of user_input.
-func (vm *VM) SetUserInput(r io.Reader) {
-	const userInput = Atom("user_input")
-
-	s := Stream{
-		Source: r,
-		Mode:   StreamModeRead,
-		Alias:  userInput,
-	}
-
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[userInput] = &s
-
-	vm.input = &s
+func (vm *VM) SetUserInput(f *os.File) {
+	s := NewStream(f, StreamModeRead)
+	vm.setStreamAlias("user_input", s)
+	vm.input = s
 }
 
 // SetUserOutput sets the given writer as a stream with an alias of user_output.
-func (vm *VM) SetUserOutput(w io.Writer) {
-	const userOutput = Atom("user_output")
+func (vm *VM) SetUserOutput(f *os.File) {
+	s := NewStream(f, StreamModeWrite)
+	vm.setStreamAlias("user_output", s)
+	vm.output = s
+}
 
-	s := Stream{
-		Sink:  w,
-		Mode:  StreamModeWrite,
-		Alias: userOutput,
-	}
-
+func (vm *VM) setStreamAlias(alias Atom, s *Stream) {
+	s.alias = alias
 	if vm.streams == nil {
 		vm.streams = map[Term]*Stream{}
 	}
-	vm.streams[userOutput] = &s
-
-	vm.output = &s
+	vm.streams[alias] = s
 }
 
 func (vm *VM) DescribeTerm(t Term, env *Env) string {

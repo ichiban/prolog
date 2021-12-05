@@ -1,45 +1,127 @@
 package engine
 
 import (
+	"bufio"
 	"fmt"
-	"io"
+	"io/fs"
+	"os"
 	"strings"
 )
 
+// StreamMode describes what operations you can perform on the stream.
 type StreamMode int
 
 const (
-	StreamModeRead StreamMode = iota
-	StreamModeWrite
-	StreamModeAppend
+	// StreamModeRead means you can read from the stream.
+	StreamModeRead = StreamMode(os.O_RDONLY)
+	// StreamModeWrite means you can write to the stream.
+	StreamModeWrite = StreamMode(os.O_CREATE | os.O_WRONLY)
+	// StreamModeAppend means you can append to the stream.
+	StreamModeAppend = StreamMode(os.O_APPEND) | StreamModeWrite
 )
 
-type EofAction int
+// EOFAction describes what happens when you reached to the end of the stream.
+type EOFAction int
 
 const (
-	EofActionEOFCode EofAction = iota
-	EofActionError
-	EofActionReset
+	// EOFActionEOFCode means either an atom `end_of_file`, or an integer `-1` will be returned.
+	EOFActionEOFCode EOFAction = iota
+	// EOFActionError means an error will be raised.
+	EOFActionError
+	// EOFActionReset means another attempt will be made.
+	EOFActionReset
 )
 
+// StreamType describes what will be transferred in the stream, either text or binary.
 type StreamType int
 
 const (
+	// StreamTypeText means text.
 	StreamTypeText StreamType = iota
+	// StreamTypeBinary means binary.
 	StreamTypeBinary
 )
 
 // Stream is a prolog stream.
 type Stream struct {
-	Source io.Reader
-	Sink   io.Writer
-	Closer io.Closer
+	file       *os.File
+	buf        *bufio.Reader
+	mode       StreamMode
+	alias      Atom
+	eofAction  EOFAction
+	reposition bool
+	streamType StreamType
+}
 
-	Mode       StreamMode
-	Alias      Atom
-	EofAction  EofAction
-	Reposition bool
-	StreamType StreamType
+// NewStream creates a new stream from an opened file.
+func NewStream(f *os.File, mode StreamMode, opts ...StreamOption) *Stream {
+	s := Stream{
+		file: f,
+		buf:  bufio.NewReader(f),
+		mode: mode,
+	}
+	if stat, err := f.Stat(); err == nil {
+		s.reposition = stat.Mode()&fs.ModeType == 0
+	}
+	for _, opt := range opts {
+		opt(&s)
+	}
+	return &s
+}
+
+// StreamOption describes an option on stream creation.
+type StreamOption func(*Stream)
+
+// WithAlias sets an alias for the stream.
+func WithAlias(vm *VM, alias Atom) StreamOption {
+	return func(s *Stream) {
+		vm.setStreamAlias(alias, s)
+	}
+}
+
+// WithEOFAction sets eof_action for the stream.
+func WithEOFAction(eofAction EOFAction) StreamOption {
+	return func(s *Stream) {
+		s.eofAction = eofAction
+	}
+}
+
+// WithReposition sets if the stream is random access.
+func WithReposition(b bool) StreamOption {
+	return func(s *Stream) {
+		s.reposition = b
+	}
+}
+
+// WithStreamType sets type of the stream.
+func WithStreamType(streamType StreamType) StreamOption {
+	return func(s *Stream) {
+		s.streamType = streamType
+	}
+}
+
+// Open opens a file and creates a new stream out of it.
+func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
+	f, err := os.OpenFile(string(name), int(mode), 0644)
+	if err != nil {
+		switch {
+		case os.IsNotExist(err):
+			return nil, existenceErrorSourceSink(name)
+		case os.IsPermission(err):
+			return nil, PermissionError("open", "source_sink", name, "%s cannot be opened.", name)
+		default:
+			return nil, SystemError(err)
+		}
+	}
+
+	return NewStream(f, mode, opts...), nil
+}
+
+var closeFile = (*os.File).Close
+
+// Close closes the underlying file of the stream.
+func (s *Stream) Close() error {
+	return closeFile(s.file)
 }
 
 func (s *Stream) String() string {
@@ -62,8 +144,8 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 // Unparse emits tokens that represent the stream.
 func (s *Stream) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
-	if s.Alias != "" {
-		emit(Token{Kind: TokenIdent, Val: string(s.Alias)})
+	if s.alias != "" {
+		emit(Token{Kind: TokenIdent, Val: string(s.alias)})
 		return
 	}
 	emit(Token{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?

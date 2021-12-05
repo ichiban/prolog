@@ -226,10 +226,6 @@ func permissionErrorInputStream(culprit Term) *Exception {
 	return PermissionError("input", "stream", culprit, "%s is not an input stream.", culprit)
 }
 
-func permissionErrorInputBufferedStream(culprit Term) *Exception {
-	return PermissionError("input", "buffered_stream", culprit, "%s is not a buffered stream.", culprit)
-}
-
 func permissionErrorInputBinaryStream(culprit Term) *Exception {
 	return PermissionError("input", "binary_stream", culprit, "%s is a binary stream.", culprit)
 }

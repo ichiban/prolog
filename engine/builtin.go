@@ -22,7 +22,6 @@ func (vm *VM) Repeat(k func(*Env) *Promise, env *Env) *Promise {
 
 func (vm *VM) Negation(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Delay(func(ctx context.Context) *Promise {
-		env := env
 		ok, err := vm.Call(goal, Success, env).Force(ctx)
 		if err != nil {
 			return Error(err)
@@ -146,7 +145,6 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 					vs[i] = NewVariable()
 				}
 				return Delay(func(context.Context) *Promise {
-					env := env
 					return Unify(t, &Compound{
 						Functor: name,
 						Args:    vs,
@@ -161,13 +159,11 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 	case *Compound:
 		pattern := Compound{Args: []Term{name, arity}}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, &Compound{Args: []Term{t.Functor, Integer(len(t.Args))}}, k, env)
 		})
 	default: // atomic
 		pattern := Compound{Args: []Term{name, arity}}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, &Compound{Args: []Term{t, Integer(0)}}, k, env)
 		})
 	}
@@ -190,7 +186,6 @@ func Arg(nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(domainErrorNotLessThanZero(n))
 			}
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(arg, c.Args[int(n)-1], k, env)
 			})
 		default:
@@ -228,7 +223,6 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(t, &Compound{
 				Functor: f,
 				Args:    args,
@@ -236,12 +230,10 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		})
 	case *Compound:
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(list, List(append([]Term{t.Functor}, t.Args...)...), k, env)
 		})
 	default:
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(list, List(t), k, env)
 		})
 	}
@@ -388,7 +380,6 @@ func (vm *VM) CurrentOp(priority, specifier, operator Term, k func(*Env) *Promis
 	for i := range vm.operators {
 		op := vm.operators[i]
 		ks[i] = func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, &Compound{Args: []Term{op.Priority, op.Specifier.Term(), op.Name}}, k, env)
 		}
 	}
@@ -776,7 +767,6 @@ func (vm *VM) CurrentOutput(stream Term, k func(*Env) *Promise, env *Env) *Promi
 	}
 
 	return Delay(func(context.Context) *Promise {
-		env := env
 		return Unify(stream, vm.output, k, env)
 	})
 }
@@ -788,7 +778,7 @@ func (vm *VM) SetInput(streamOrAlias Term, k func(*Env) *Promise, env *Env) *Pro
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
@@ -803,7 +793,7 @@ func (vm *VM) SetOutput(streamOrAlias Term, k func(*Env) *Promise, env *Env) *Pr
 		return Error(err)
 	}
 
-	if s.Sink == nil {
+	if s.mode != StreamModeWrite && s.mode != StreamModeAppend {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
@@ -823,30 +813,18 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 		return Error(domainErrorSourceSink(SourceSink))
 	}
 
-	var (
-		s Stream
-
-		flag   int
-		perm   os.FileMode
-		buffer bool
-	)
+	var streamMode StreamMode
 	switch m := env.Resolve(mode).(type) {
 	case Variable:
 		return Error(InstantiationError(mode))
 	case Atom:
 		switch m {
 		case "read":
-			s.Mode = StreamModeRead
-			flag = os.O_RDONLY
-			buffer = true
+			streamMode = StreamModeRead
 		case "write":
-			s.Mode = StreamModeWrite
-			flag = os.O_CREATE | os.O_WRONLY
-			perm = 0644
+			streamMode = StreamModeWrite
 		case "append":
-			s.Mode = StreamModeAppend
-			flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
-			perm = 0644
+			streamMode = StreamModeAppend
 		default:
 			return Error(domainErrorIOMode(m))
 		}
@@ -858,6 +836,7 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 		return Error(typeErrorVariable(stream))
 	}
 
+	var opts []StreamOption
 	if err := EachList(env.Resolve(options), func(option Term) error {
 		switch o := env.Resolve(option).(type) {
 		case Variable:
@@ -875,10 +854,10 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 				case Atom:
 					switch t {
 					case "text":
-						s.StreamType = StreamTypeText
+						opts = append(opts, WithStreamType(StreamTypeText))
 						return nil
 					case "binary":
-						s.StreamType = StreamTypeBinary
+						opts = append(opts, WithStreamType(StreamTypeBinary))
 						return nil
 					default:
 						return domainErrorStreamOption(option)
@@ -893,10 +872,10 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 				case Atom:
 					switch b {
 					case "true":
-						s.Reposition = true
+						opts = append(opts, WithReposition(true))
 						return nil
 					case "false":
-						s.Reposition = false
+						opts = append(opts, WithReposition(false))
 						return nil
 					default:
 						return domainErrorStreamOption(option)
@@ -912,7 +891,7 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 					if _, ok := vm.streams[a]; ok {
 						return PermissionError("open", "source_sink", option, "%s is already defined as an alias.", a)
 					}
-					s.Alias = a
+					opts = append(opts, WithAlias(vm, a))
 					return nil
 				default:
 					return domainErrorStreamOption(option)
@@ -924,13 +903,13 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 				case Atom:
 					switch a {
 					case "error":
-						s.EofAction = EofActionError
+						opts = append(opts, WithEOFAction(EOFActionError))
 						return nil
 					case "eof_code":
-						s.EofAction = EofActionEOFCode
+						opts = append(opts, WithEOFAction(EOFActionEOFCode))
 						return nil
 					case "reset":
-						s.EofAction = EofActionReset
+						opts = append(opts, WithEOFAction(EOFActionReset))
 						return nil
 					default:
 						return domainErrorStreamOption(option)
@@ -948,45 +927,13 @@ func (vm *VM) Open(SourceSink, mode, stream, options Term, k func(*Env) *Promise
 		return Error(err)
 	}
 
-	f, err := os.OpenFile(string(n), flag, perm)
+	s, err := Open(n, streamMode, opts...)
 	if err != nil {
-		switch {
-		case os.IsNotExist(err):
-			return Error(existenceErrorSourceSink(SourceSink))
-		case os.IsPermission(err):
-			return Error(PermissionError("open", "source_sink", SourceSink, "%s cannot be opened.", SourceSink))
-		default:
-			return Error(SystemError(err))
-		}
-	}
-
-	switch s.Mode {
-	case StreamModeRead:
-		s.Source = f
-		if buffer {
-			s.Source = bufio.NewReader(s.Source)
-		}
-	case StreamModeWrite, StreamModeAppend:
-		s.Sink = f
-		if buffer {
-			s.Sink = bufio.NewWriter(s.Sink)
-		}
-	}
-	s.Closer = f
-
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	if s.Alias == "" {
-		// we can't use alias for the key but all the open streams should be in streams map anyways.
-		vm.streams[&s] = &s
-	} else {
-		vm.streams[s.Alias] = &s
+		return Error(err)
 	}
 
 	return Delay(func(context.Context) *Promise {
-		env := env
-		return Unify(stream, &s, k, env)
+		return Unify(stream, s, k, env)
 	})
 }
 
@@ -1033,18 +980,20 @@ func (vm *VM) Close(streamOrAlias, options Term, k func(*Env) *Promise, env *Env
 		return Error(err)
 	}
 
-	if err := s.Closer.Close(); err != nil && !force {
+	if err := s.Close(); err != nil && !force {
 		return Error(resourceError(streamOrAlias, Atom(err.Error())))
 	}
 
-	if s.Alias == "" {
+	if s.alias == "" {
 		delete(vm.streams, s)
 	} else {
-		delete(vm.streams, s.Alias)
+		delete(vm.streams, s.alias)
 	}
 
 	return k(env)
 }
+
+var sync = (*os.File).Sync
 
 // FlushOutput sends any buffered output to the stream.
 func (vm *VM) FlushOutput(streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1053,18 +1002,12 @@ func (vm *VM) FlushOutput(streamOrAlias Term, k func(*Env) *Promise, env *Env) *
 		return Error(err)
 	}
 
-	if s.Sink == nil {
+	if s.mode != StreamModeWrite && s.mode != StreamModeAppend {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	type flusher interface {
-		Flush() error
-	}
-
-	if f, ok := s.Sink.(flusher); ok {
-		if err := f.Flush(); err != nil {
-			return Error(err)
-		}
+	if err := sync(s.file); err != nil {
+		return Error(err)
 	}
 
 	return k(env)
@@ -1077,11 +1020,11 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Promise, e
 		return Error(err)
 	}
 
-	if s.Sink == nil {
+	if s.mode != StreamModeWrite && s.mode != StreamModeAppend {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeBinary {
+	if s.streamType == StreamTypeBinary {
 		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
@@ -1137,7 +1080,7 @@ func (vm *VM) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Promise, e
 		return Error(err)
 	}
 
-	if err := Write(s.Sink, env.Resolve(t), opts, env); err != nil {
+	if err := Write(s.file, env.Resolve(t), opts, env); err != nil {
 		return Error(err)
 	}
 
@@ -1162,7 +1105,6 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 			}
 
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(ch, Atom(r), k, env)
 			})
 		default:
@@ -1182,13 +1124,14 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(code, Integer(rs[0]), k, env)
 		})
 	default:
 		return Error(typeErrorCharacter(ch))
 	}
 }
+
+var write = (*os.File).Write
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
 func (vm *VM) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1197,11 +1140,11 @@ func (vm *VM) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) 
 		return Error(err)
 	}
 
-	if s.Sink == nil {
+	if s.mode != StreamModeWrite && s.mode != StreamModeAppend {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeText {
+	if s.streamType == StreamTypeText {
 		return Error(permissionErrorOutputTextStream(streamOrAlias))
 	}
 
@@ -1213,7 +1156,7 @@ func (vm *VM) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) 
 			return Error(typeErrorByte(byt))
 		}
 
-		if _, err := s.Sink.Write([]byte{byte(b)}); err != nil {
+		if _, err := write(s.file, []byte{byte(b)}); err != nil {
 			return Error(SystemError(err))
 		}
 
@@ -1230,11 +1173,11 @@ func (vm *VM) PutCode(streamOrAlias, code Term, k func(*Env) *Promise, env *Env)
 		return Error(err)
 	}
 
-	if s.Sink == nil {
+	if s.mode != StreamModeWrite && s.mode != StreamModeAppend {
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeBinary {
+	if s.streamType == StreamTypeBinary {
 		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
@@ -1248,7 +1191,7 @@ func (vm *VM) PutCode(streamOrAlias, code Term, k func(*Env) *Promise, env *Env)
 			return Error(representationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid unicode code point.", c))))
 		}
 
-		if _, err := s.Sink.Write([]byte(string(r))); err != nil {
+		if _, err := write(s.file, []byte(string(r))); err != nil {
 			return Error(SystemError(err))
 		}
 
@@ -1265,11 +1208,11 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeBinary {
+	if s.streamType == StreamTypeBinary {
 		return Error(permissionErrorInputBinaryStream(streamOrAlias))
 	}
 
@@ -1306,13 +1249,8 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 		return Error(err)
 	}
 
-	br, ok := s.Source.(*bufio.Reader)
-	if !ok {
-		return Error(errors.New("not a buffered stream"))
-	}
-
 	var vars []ParsedVariable
-	p := vm.Parser(br, &vars)
+	p := vm.Parser(s.buf, &vars)
 
 	t, err := p.Term()
 	if err != nil {
@@ -1322,21 +1260,19 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 		)
 		switch {
 		case errors.Is(err, io.EOF):
-			switch s.EofAction {
-			case EofActionError:
+			switch s.eofAction {
+			case EOFActionError:
 				return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-			case EofActionEOFCode:
+			case EOFActionEOFCode:
 				return Delay(func(context.Context) *Promise {
-					env := env
 					return Unify(out, Atom("end_of_file"), k, env)
 				})
-			case EofActionReset:
+			case EOFActionReset:
 				return Delay(func(context.Context) *Promise {
-					env := env
 					return vm.ReadTerm(streamOrAlias, out, options, k, env)
 				})
 			default:
-				return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
+				return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 			}
 		case errors.Is(err, ErrInsufficient):
 			return Error(syntaxErrorInsufficient())
@@ -1361,20 +1297,19 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 		})
 	}
 
+	var ok bool
 	if opts.singletons != nil {
 		env, ok = opts.singletons.Unify(List(singletons...), false, env)
 		if !ok {
 			return Bool(false)
 		}
 	}
-
 	if opts.variables != nil {
 		env, ok = opts.variables.Unify(List(variables...), false, env)
 		if !ok {
 			return Bool(false)
 		}
 	}
-
 	if opts.variableNames != nil {
 		env, ok = opts.variableNames.Unify(List(variableNames...), false, env)
 		if !ok {
@@ -1383,10 +1318,11 @@ func (vm *VM) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, 
 	}
 
 	return Delay(func(context.Context) *Promise {
-		env := env
 		return Unify(out, t, k, env)
 	})
 }
+
+var readByte = (*bufio.Reader).ReadByte
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func (vm *VM) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1395,11 +1331,11 @@ func (vm *VM) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeText {
+	if s.streamType == StreamTypeText {
 		return Error(permissionErrorInputTextStream(streamOrAlias))
 	}
 
@@ -1414,35 +1350,33 @@ func (vm *VM) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 		return Error(typeErrorInByte(inByte))
 	}
 
-	b := make([]byte, 1)
-	_, err = s.Source.Read(b)
+	b, err := readByte(s.buf)
 	switch err {
 	case nil:
 		return Delay(func(context.Context) *Promise {
-			env := env
-			return Unify(inByte, Integer(b[0]), k, env)
+			return Unify(inByte, Integer(b), k, env)
 		})
 	case io.EOF:
-		switch s.EofAction {
-		case EofActionError:
+		switch s.eofAction {
+		case EOFActionError:
 			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case EofActionEOFCode:
+		case EOFActionEOFCode:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(inByte, Integer(-1), k, env)
 			})
-		case EofActionReset:
+		case EOFActionReset:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return vm.GetByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
+			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 		}
 	default:
 		return Error(err)
 	}
 }
+
+var readRune = (*bufio.Reader).ReadRune
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
 func (vm *VM) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1451,17 +1385,12 @@ func (vm *VM) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeBinary {
+	if s.streamType == StreamTypeBinary {
 		return Error(permissionErrorInputBinaryStream(streamOrAlias))
-	}
-
-	br, ok := s.Source.(*bufio.Reader)
-	if !ok {
-		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := env.Resolve(char).(type) {
@@ -1475,7 +1404,7 @@ func (vm *VM) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 		return Error(typeErrorInCharacter(char))
 	}
 
-	r, _, err := br.ReadRune()
+	r, _, err := readRune(s.buf)
 	switch err {
 	case nil:
 		if r == unicode.ReplacementChar {
@@ -1483,30 +1412,29 @@ func (vm *VM) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 		}
 
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(char, Atom(r), k, env)
 		})
 	case io.EOF:
-		switch s.EofAction {
-		case EofActionError:
+		switch s.eofAction {
+		case EOFActionError:
 			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case EofActionEOFCode:
+		case EOFActionEOFCode:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(char, Atom("end_of_file"), k, env)
 			})
-		case EofActionReset:
+		case EOFActionReset:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return vm.GetChar(streamOrAlias, char, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
+			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 		}
 	default:
 		return Error(SystemError(err))
 	}
 }
+
+var peek = (*bufio.Reader).Peek
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1515,17 +1443,12 @@ func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *E
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeText {
+	if s.streamType == StreamTypeText {
 		return Error(permissionErrorInputTextStream(streamOrAlias))
-	}
-
-	br, ok := s.Source.(*bufio.Reader)
-	if !ok {
-		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch b := env.Resolve(inByte).(type) {
@@ -1539,34 +1462,33 @@ func (vm *VM) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, env *E
 		return Error(typeErrorInByte(inByte))
 	}
 
-	b, err := br.Peek(1)
+	b, err := peek(s.buf, 1)
 	switch err {
 	case nil:
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(inByte, Integer(b[0]), k, env)
 		})
 	case io.EOF:
-		switch s.EofAction {
-		case EofActionError:
+		switch s.eofAction {
+		case EOFActionError:
 			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case EofActionEOFCode:
+		case EOFActionEOFCode:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(inByte, Integer(-1), k, env)
 			})
-		case EofActionReset:
+		case EOFActionReset:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return vm.PeekByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
+			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 		}
 	default:
 		return Error(SystemError(err))
 	}
 }
+
+var unreadRune = (*bufio.Reader).UnreadRune
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
 func (vm *VM) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1575,17 +1497,12 @@ func (vm *VM) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env
 		return Error(err)
 	}
 
-	if s.Source == nil {
+	if s.mode != StreamModeRead {
 		return Error(permissionErrorInputStream(streamOrAlias))
 	}
 
-	if s.StreamType == StreamTypeBinary {
+	if s.streamType == StreamTypeBinary {
 		return Error(permissionErrorInputBinaryStream(streamOrAlias))
-	}
-
-	br, ok := s.Source.(*bufio.Reader)
-	if !ok {
-		return Error(permissionErrorInputBufferedStream(streamOrAlias))
 	}
 
 	switch c := env.Resolve(char).(type) {
@@ -1599,10 +1516,10 @@ func (vm *VM) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env
 		return Error(typeErrorInCharacter(char))
 	}
 
-	r, _, err := br.ReadRune()
+	r, _, err := readRune(s.buf)
 	switch err {
 	case nil:
-		if err := br.UnreadRune(); err != nil {
+		if err := unreadRune(s.buf); err != nil {
 			return Error(SystemError(err))
 		}
 
@@ -1611,25 +1528,22 @@ func (vm *VM) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, env *Env
 		}
 
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(char, Atom(r), k, env)
 		})
 	case io.EOF:
-		switch s.EofAction {
-		case EofActionError:
+		switch s.eofAction {
+		case EOFActionError:
 			return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-		case EofActionEOFCode:
+		case EOFActionEOFCode:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(char, Atom("end_of_file"), k, env)
 			})
-		case EofActionReset:
+		case EOFActionReset:
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return vm.PeekChar(streamOrAlias, char, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.EofAction)))
+			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
 		}
 	default:
 		return Error(SystemError(err))
@@ -1679,7 +1593,6 @@ func (vm *VM) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Promise 
 	for i := range cs {
 		r := Rulify(copyTerm(cs[i].raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
-			env := env
 			return Unify(&Compound{
 				Functor: ":-",
 				Args:    []Term{head, body},
@@ -1707,7 +1620,6 @@ func AtomLength(atom, length Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(length, Integer(len([]rune(a))), k, env)
 		})
 	default:
@@ -1734,7 +1646,6 @@ func AtomConcat(atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Prom
 				}))
 			case Atom:
 				return Delay(func(context.Context) *Promise {
-					env := env
 					return Unify(a1+a2, a3, k, env)
 				})
 			default:
@@ -1763,12 +1674,10 @@ func AtomConcat(atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Prom
 		for i := range a3 {
 			a1, a2 := a3[:i], a3[i:]
 			ks = append(ks, func(context.Context) *Promise {
-				env := env
 				return Unify(&pattern, &Compound{Args: []Term{a1, a2}}, k, env)
 			})
 		}
 		ks = append(ks, func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, &Compound{Args: []Term{a3, Atom("")}}, k, env)
 		})
 		return Delay(ks...)
@@ -1867,7 +1776,6 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(atom, Atom(sb.String()), k, env)
 		})
 	case Atom:
@@ -1877,7 +1785,6 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			cs[i] = Atom(r)
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(chars, List(cs...), k, env)
 		})
 	default:
@@ -1907,7 +1814,6 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(atom, Atom(sb.String()), k, env)
 		})
 	case Atom:
@@ -1917,7 +1823,6 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			cs[i] = Integer(r)
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(codes, List(cs...), k, env)
 		})
 	default:
@@ -2068,7 +1973,6 @@ func (fs FunctionSet) Is(result, expression Term, k func(*Env) *Promise, env *En
 		return Error(err)
 	}
 	return Delay(func(context.Context) *Promise {
-		env := env
 		return Unify(result, v, k, env)
 	})
 }
@@ -2466,7 +2370,7 @@ func (vm *VM) StreamProperty(streamOrAlias, property Term, k func(*Env) *Promise
 	for _, s := range streams {
 		var properties []Term
 
-		switch s.Mode {
+		switch s.mode {
 		case StreamModeRead:
 			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("read")}})
 		case StreamModeWrite:
@@ -2475,73 +2379,51 @@ func (vm *VM) StreamProperty(streamOrAlias, property Term, k func(*Env) *Promise
 			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("append")}})
 		}
 
-		if s.Alias != "" {
-			properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.Alias}})
+		if s.alias != "" {
+			properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
 		}
 
-		switch s.EofAction {
-		case EofActionError:
+		switch s.eofAction {
+		case EOFActionError:
 			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}})
-		case EofActionEOFCode:
+		case EOFActionEOFCode:
 			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}})
-		case EofActionReset:
+		case EOFActionReset:
 			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("reset")}})
 		}
 
-		if s.Source != nil {
-			properties = append(properties, Atom("input"))
-			if _, ok := s.Source.(*bufio.Reader); ok {
-				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
-			} else {
-				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
-			}
+		pos, err := s.file.Seek(0, 1)
+		if err != nil {
+			return Error(err)
+		}
+		pos -= int64(s.buf.Buffered())
+
+		fi, err := s.file.Stat()
+		if err != nil {
+			return Error(err)
 		}
 
-		if s.Sink != nil {
-			properties = append(properties, Atom("output"))
-			if _, ok := s.Sink.(*bufio.Writer); ok {
-				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("true")}})
-			} else {
-				properties = append(properties, &Compound{Functor: "buffer", Args: []Term{Atom("false")}})
-			}
+		eos := "not"
+		switch {
+		case pos == fi.Size():
+			eos = "at"
+		case pos > fi.Size():
+			eos = "past"
 		}
 
-		if f, ok := s.Closer.(*os.File); ok {
-			pos, err := f.Seek(0, 1)
-			if err != nil {
-				return Error(err)
-			}
-			if br, ok := s.Source.(*bufio.Reader); ok {
-				pos -= int64(br.Buffered())
-			}
+		properties = append(properties,
+			&Compound{Functor: "file_name", Args: []Term{Atom(s.file.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+		)
 
-			fi, err := f.Stat()
-			if err != nil {
-				return Error(err)
-			}
-
-			eos := "not"
-			switch {
-			case pos == fi.Size():
-				eos = "at"
-			case pos > fi.Size():
-				eos = "past"
-			}
-
-			properties = append(properties,
-				&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-				&Compound{Functor: "position", Args: []Term{Integer(pos)}},
-				&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
-			)
-		}
-
-		if s.Reposition {
+		if s.reposition {
 			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
 		} else {
 			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
 		}
 
-		switch s.StreamType {
+		switch s.streamType {
 		case StreamTypeText:
 			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("text")}})
 		case StreamTypeBinary:
@@ -2551,7 +2433,6 @@ func (vm *VM) StreamProperty(streamOrAlias, property Term, k func(*Env) *Promise
 		for i := range properties {
 			p := properties[i]
 			ks = append(ks, func(context.Context) *Promise {
-				env := env
 				return Unify(property, p, k, env)
 			})
 		}
@@ -2566,22 +2447,19 @@ func (vm *VM) SetStreamPosition(streamOrAlias, position Term, k func(*Env) *Prom
 		return Error(err)
 	}
 
+	if !s.reposition {
+		return Error(PermissionError("reposition", "stream", streamOrAlias, "%s is not repositionable.", streamOrAlias))
+	}
+
 	switch p := env.Resolve(position).(type) {
 	case Variable:
 		return Error(InstantiationError(position))
 	case Integer:
-		f, ok := s.Closer.(*os.File)
-		if !ok {
-			return Error(PermissionError("reposition", "stream", streamOrAlias, "%s is not a file.", streamOrAlias))
-		}
-
-		if _, err := f.Seek(int64(p), 0); err != nil {
+		if _, err := s.file.Seek(int64(p), 0); err != nil {
 			return Error(SystemError(err))
 		}
 
-		if br, ok := s.Source.(*bufio.Reader); ok {
-			br.Reset(f)
-		}
+		s.buf.Reset(s.file)
 
 		return k(env)
 	default:
@@ -2656,12 +2534,10 @@ func (vm *VM) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Promise,
 		r := []rune(c1)
 		if r, ok := vm.charConversions[r[0]]; ok {
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return Unify(outChar, Atom(r), k, env)
 			})
 		}
 		return Delay(func(context.Context) *Promise {
-			env := env
 			return Unify(outChar, c1, k, env)
 		})
 	}
@@ -2676,7 +2552,6 @@ func (vm *VM) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Promise,
 		}
 
 		ks[i] = func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, &Compound{Args: []Term{Atom(r), Atom(cr)}}, k, env)
 		}
 	}
@@ -2834,7 +2709,6 @@ func (vm *VM) CurrentPrologFlag(flag, value Term, k func(*Env) *Promise, env *En
 	for i := range flags {
 		f := flags[i]
 		ks[i] = func(context.Context) *Promise {
-			env := env
 			return Unify(&pattern, f, k, env)
 		}
 	}

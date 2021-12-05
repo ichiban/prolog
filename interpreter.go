@@ -3,7 +3,6 @@ package prolog
 import (
 	"context"
 	_ "embed"
-	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -23,7 +22,7 @@ type Interpreter struct {
 }
 
 // New creates a new Prolog interpreter with predefined predicates/operators.
-func New(in io.Reader, out io.Writer) *Interpreter {
+func New(in, out *os.File) *Interpreter {
 	var i Interpreter
 	i.SetUserInput(in)
 	i.SetUserOutput(out)

@@ -45,7 +45,7 @@ func main() {
 
 	log.SetOutput(t)
 
-	i := prolog.New(bufio.NewReader(os.Stdin), t)
+	i := prolog.New(os.Stdin, os.Stdout)
 	i.Register1("halt", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		restore()
 		return engine.Halt(t, k, env)
