@@ -30,6 +30,7 @@ func TestVariable_Unparse(t *testing.T) {
 		var tokens []Token
 		v.Unparse(func(token Token) {
 			tokens = append(tokens, token)
+			return
 		}, WriteTermOptions{}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenVariable, Val: "X"},

@@ -198,26 +198,15 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 
 func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 	switch f := env.Resolve(file).(type) {
-	case engine.Variable:
-		return engine.InstantiationError(file)
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
-			file, err := os.Open(f)
+			b, err := ioutil.ReadFile(f)
 			if err != nil {
 				continue
 			}
 
-			b, err := ioutil.ReadAll(file)
-			if err != nil {
-				return engine.SystemError(err)
-			}
-
 			if err := i.Exec(string(b)); err != nil {
 				return err
-			}
-
-			if err := file.Close(); err != nil {
-				return engine.SystemError(err)
 			}
 
 			return nil

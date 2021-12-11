@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,8 +19,7 @@ type instruction struct {
 type opcode byte
 
 const (
-	opVoid opcode = iota
-	opEnter
+	opEnter opcode = iota
 	opCall
 	opExit
 	opConst
@@ -33,20 +31,6 @@ const (
 
 	_opLen
 )
-
-func (o opcode) String() string {
-	return [_opLen]string{
-		opVoid:    "void",
-		opEnter:   "enter",
-		opCall:    "call",
-		opExit:    "exit",
-		opConst:   "const",
-		opVar:     "var",
-		opFunctor: "functor",
-		opPop:     "pop",
-		opCut:     "cut",
-	}[o]
-}
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
@@ -117,17 +101,6 @@ func (vm *VM) setStreamAlias(alias Atom, s *Stream) {
 	vm.streams[alias] = s
 }
 
-func (vm *VM) DescribeTerm(t Term, env *Env) string {
-	var buf bytes.Buffer
-	_ = Write(&buf, t, WriteTermOptions{
-		Ops:         vm.operators,
-		Quoted:      true,
-		Descriptive: true,
-		Priority:    1200,
-	}, env)
-	return buf.String()
-}
-
 // Register0 registers a predicate of arity 0.
 func (vm *VM) Register0(name string, p func(func(*Env) *Promise, *Env) *Promise) {
 	if vm.procedures == nil {
@@ -182,32 +155,29 @@ const (
 	unknownError unknownAction = iota
 	unknownFail
 	unknownWarning
+	_unknownActionLen
 )
 
 func (u unknownAction) String() string {
-	switch u {
-	case unknownError:
-		return "error"
-	case unknownFail:
-		return "fail"
-	case unknownWarning:
-		return "warning"
-	default:
-		return fmt.Sprintf("unknown(%d)", u)
-	}
+	return [_unknownActionLen]string{
+		unknownError:   "error",
+		unknownFail:    "fail",
+		unknownWarning: "warning",
+	}[u]
 }
 
 type procedure interface {
 	Call(*VM, []Term, func(*Env) *Promise, *Env) *Promise
 }
 
-func (vm *VM) arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+// Arrive is the entry point of the VM.
+func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if vm.OnUnknown == nil {
 		vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {}
 	}
 
-	p := vm.procedures[pi]
-	if p == nil {
+	p, ok := vm.procedures[pi]
+	if !ok {
 		switch vm.unknown {
 		case unknownError:
 			return Error(existenceErrorProcedure(pi.Term()))
@@ -239,8 +209,7 @@ type registers struct {
 }
 
 func (vm *VM) exec(r registers) *Promise {
-	jumpTable := [256]func(r *registers) *Promise{
-		opVoid:    vm.execVoid,
+	jumpTable := [_opLen]func(r *registers) *Promise{
 		opConst:   vm.execConst,
 		opVar:     vm.execVar,
 		opFunctor: vm.execFunctor,
@@ -252,20 +221,12 @@ func (vm *VM) exec(r registers) *Promise {
 	}
 	for len(r.pc) != 0 {
 		op := jumpTable[r.pc[0].opcode]
-		if op == nil {
-			return Error(fmt.Errorf("unknown opcode: %d", r.pc[0].opcode))
-		}
 		p := op(&r)
 		if p != nil {
 			return p
 		}
 	}
 	return Error(errors.New("non-exit end of bytecode"))
-}
-
-func (*VM) execVoid(r *registers) *Promise {
-	r.pc = r.pc[1:]
-	return nil
 }
 
 func (*VM) execConst(r *registers) *Promise {
@@ -396,7 +357,7 @@ func (vm *VM) execCall(r *registers) *Promise {
 		if err != nil {
 			return Error(err)
 		}
-		return vm.arrive(pi, args, func(env *Env) *Promise {
+		return vm.Arrive(pi, args, func(env *Env) *Promise {
 			v := NewVariable()
 			return vm.exec(registers{
 				pc:        r.pc,
@@ -555,7 +516,7 @@ func (p ProcedureIndicator) Term() Term {
 }
 
 // Apply applies p to args.
-func (p ProcedureIndicator) Apply(args []Term) (Term, error) {
+func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
 	if p.Arity != Integer(len(args)) {
 		return nil, errors.New("wrong number of arguments")
 	}

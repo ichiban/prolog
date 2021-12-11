@@ -11,22 +11,33 @@ import (
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	env  *engine.Env
-	vars []engine.Variable
-	more chan<- bool
-	next <-chan *engine.Env
-	err  error
+	env    *engine.Env
+	vars   []engine.Variable
+	more   chan<- bool
+	next   <-chan *engine.Env
+	err    error
+	closed bool
 }
+
+// ErrClosed indicates the Solutions are already closed and unable to perform the operation.
+var ErrClosed = errors.New("closed")
 
 // Close closes the Solutions and terminates the search for other solutions.
 func (s *Solutions) Close() error {
+	if s.closed {
+		return ErrClosed
+	}
 	close(s.more)
+	s.closed = true
 	return nil
 }
 
 // Next prepares the next solution for reading with the Scan method. It returns true if it finds another solution,
 // or false if there's no further solutions or if there's an error.
 func (s *Solutions) Next() bool {
+	if s.closed {
+		return false
+	}
 	s.more <- true
 	var ok bool
 	s.env, ok = <-s.next
@@ -107,17 +118,12 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		if err := engine.EachList(t, func(elem engine.Term) error {
+		err := engine.EachList(t, func(elem engine.Term) error {
 			e, err := convert(elem, typ.Elem(), env)
-			if err != nil {
-				return err
-			}
 			r = reflect.Append(r, e)
-			return nil
-		}, env); err != nil {
-			return reflect.Value{}, err
-		}
-		return r, nil
+			return err
+		}, env)
+		return r, err
 	}
 	return reflect.Value{}, fmt.Errorf("failed to convert: %s", typ)
 }

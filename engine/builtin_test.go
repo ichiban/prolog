@@ -1267,6 +1267,10 @@ func TestCompare(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
+		ok, err = Compare(Atom("<"), NewVariable(), Float(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
 		ok, err = Compare(Atom("<"), NewVariable(), Integer(0), Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1276,6 +1280,38 @@ func TestCompare(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = Compare(Atom("<"), NewVariable(), &Compound{}, Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), Float(0), NewVariable(), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom("<"), Float(0), Float(1), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom("="), Float(0), Float(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), Float(1), Float(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom("<"), Float(0), Integer(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), Float(1), Integer(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom("<"), Float(0), Atom(""), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom("<"), Float(0), &Compound{}, Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1295,6 +1331,14 @@ func TestCompare(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
+		ok, err = Compare(Atom(">"), Integer(0), Float(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), Integer(1), Float(0), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
 		ok, err = Compare(Atom("<"), Integer(0), Atom(""), Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -1304,6 +1348,10 @@ func TestCompare(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = Compare(Atom(">"), Atom(""), NewVariable(), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), Atom(""), Float(0), Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -1328,6 +1376,10 @@ func TestCompare(t *testing.T) {
 		assert.True(t, ok)
 
 		ok, err = Compare(Atom(">"), &Compound{}, NewVariable(), Success, env).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = Compare(Atom(">"), &Compound{}, Float(0), Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 

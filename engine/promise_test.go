@@ -24,7 +24,9 @@ func TestPromise_Force(t *testing.T) {
 				return Bool(false)
 			}, func(context.Context) *Promise {
 				res = append(res, 6)
-				return Bool(false)
+				return Cut(nil, func(context.Context) *Promise {
+					return Bool(true)
+				})
 			}, func(context.Context) *Promise {
 				res = append(res, 7)
 				return Bool(false)
@@ -38,9 +40,36 @@ func TestPromise_Force(t *testing.T) {
 		return Bool(true)
 	})
 
-	ok, err := k.Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
+	t.Run("ok", func(t *testing.T) {
+		res = nil
+		ok, err := k.Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
 
-	assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, res)
+		assert.Equal(t, []int{1, 2, 3, 4, 5, 6}, res)
+	})
+
+	t.Run("canceled", func(t *testing.T) {
+		res = nil
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		ok, err := k.Force(ctx)
+		assert.Error(t, err)
+		assert.False(t, ok)
+
+		assert.Empty(t, res)
+	})
+
+	t.Run("repeat", func(t *testing.T) {
+		count := 0
+		k := Repeat(func(context.Context) *Promise {
+			count++
+			return Bool(count >= 10)
+		})
+
+		ok, err := k.Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, 10, count)
+	})
 }

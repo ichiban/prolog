@@ -3,9 +3,9 @@ package prolog
 import (
 	"testing"
 
-	"github.com/ichiban/prolog/engine"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/ichiban/prolog/engine"
 )
 
 func TestNew(t *testing.T) {
@@ -29,6 +29,64 @@ func TestInterpreter_Exec(t *testing.T) {
 	t.Run("bindvars", func(t *testing.T) {
 		var i Interpreter
 		assert.NoError(t, i.Exec("foo(?, ?, ?, ?).", "a", 1, 2.0, []string{"abc", "def"}))
+	})
+
+	t.Run("consult", func(t *testing.T) {
+		i := New(nil, nil)
+
+		t.Run("variable", func(t *testing.T) {
+			assert.Error(t, i.Exec(":- consult(X)."))
+		})
+
+		t.Run("non-proper list", func(t *testing.T) {
+			assert.Error(t, i.Exec(":- consult([foo|_])."))
+		})
+
+		t.Run("proper list", func(t *testing.T) {
+			assert.NoError(t, i.Exec(":- consult([?]).", "testdata/empty.txt"))
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				assert.NoError(t, i.Exec(":- consult(?).", "testdata/empty.txt"))
+			})
+
+			t.Run("ng", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult(?).", "testdata/abc.txt"))
+			})
+		})
+
+		t.Run("non-library compound", func(t *testing.T) {
+			assert.Error(t, i.Exec(":- consult(foo(a, b, c))."))
+		})
+
+		t.Run("library", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				var called bool
+				Libraries = map[string]func(*Interpreter) error{
+					"foo": func(in *Interpreter) error {
+						assert.Equal(t, i, in)
+						called = true
+						return nil
+					},
+				}
+
+				assert.NoError(t, i.Exec(":- consult(library(foo))."))
+				assert.True(t, called)
+			})
+
+			t.Run("variable", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult(library(X))."))
+			})
+
+			t.Run("not defined", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult(library(not_defined))."))
+			})
+		})
+
+		t.Run("neither atom nor library", func(t *testing.T) {
+			assert.Error(t, i.Exec(":- consult(1)."))
+		})
 	})
 }
 

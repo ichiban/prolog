@@ -24,11 +24,8 @@ import (
 var Version = "1pl/0.1"
 
 func main() {
-	var verbose, debug bool
-	var cd string
+	var verbose bool
 	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
-	pflag.BoolVarP(&debug, "debug", "d", false, `debug`)
-	pflag.StringVarP(&cd, "cd", "c", "", `cd`)
 	pflag.Parse()
 
 	oldState, err := terminal.MakeRaw(0)
@@ -63,32 +60,32 @@ func main() {
 	})
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args)
+			goal, err := pi.Apply(args...)
 			if err != nil {
 				log.Print(err)
 			}
-			log.Printf("CALL %s", i.DescribeTerm(goal, env))
+			log.Printf("CALL %s", env.Simplify(goal))
 		}
 		i.OnExit = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args)
+			goal, err := pi.Apply(args...)
 			if err != nil {
 				log.Print(err)
 			}
-			log.Printf("EXIT %s", i.DescribeTerm(goal, env))
+			log.Printf("EXIT %s", env.Simplify(goal))
 		}
 		i.OnFail = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args)
+			goal, err := pi.Apply(args...)
 			if err != nil {
 				log.Print(err)
 			}
-			log.Printf("FAIL %s", i.DescribeTerm(goal, env))
+			log.Printf("FAIL %s", env.Simplify(goal))
 		}
 		i.OnRedo = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args)
+			goal, err := pi.Apply(args...)
 			if err != nil {
 				log.Print(err)
 			}
-			log.Printf("REDO %s", i.DescribeTerm(goal, env))
+			log.Printf("REDO %s", env.Simplify(goal))
 		}
 	}
 	i.OnUnknown = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
@@ -182,7 +179,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 			if _, ok := v.(engine.Variable); ok {
 				continue
 			}
-			ls = append(ls, fmt.Sprintf("%s = %s", n, i.DescribeTerm(v, nil)))
+			ls = append(ls, fmt.Sprintf("%s = %s", n, v))
 		}
 		if len(ls) == 0 {
 			if _, err := fmt.Fprintf(t, "%t.\n", true); err != nil {

@@ -516,6 +516,34 @@ func (s OperatorSpecifier) Term() Term {
 // Operators are a list of operators sorted in a descending order of precedence.
 type Operators []Operator
 
+func (ops Operators) find(name Atom, arity int) *Operator {
+	switch arity {
+	case 1:
+		for _, op := range ops {
+			if op.Name != name {
+				continue
+			}
+			switch op.Specifier {
+			case OperatorSpecifierFX, OperatorSpecifierFY, OperatorSpecifierXF, OperatorSpecifierYF:
+				return &op
+			}
+		}
+	case 2:
+		for _, op := range ops {
+			if op.Name != name {
+				continue
+			}
+			switch op.Specifier {
+			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
+				return &op
+			}
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
 // Operator is an operator definition.
 type Operator struct {
 	Priority  Integer // 1 ~ 1200

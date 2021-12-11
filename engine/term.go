@@ -51,12 +51,17 @@ func Rulify(t Term, env *Env) Term {
 
 // WriteTermOptions describes options to write terms.
 type WriteTermOptions struct {
-	Quoted      bool
-	Ops         Operators
-	NumberVars  bool
-	Descriptive bool
+	Quoted     bool
+	Ops        Operators
+	NumberVars bool
 
 	Priority int
+}
+
+func (o WriteTermOptions) withPriority(p int) WriteTermOptions {
+	ret := o
+	ret.Priority = p
+	return ret
 }
 
 var defaultWriteTermOptions = WriteTermOptions{
@@ -144,22 +149,20 @@ func compare(a, b Term, env *Env) int64 {
 // Write outputs one of the external representations of the term.
 func Write(w io.Writer, t Term, opts WriteTermOptions, env *Env) error {
 	var (
-		err  error
 		last TokenKind
+		err  error
 	)
 	env.Resolve(t).Unparse(func(token Token) {
 		if err != nil {
 			return
 		}
+		var sb strings.Builder
 		if spacing[last][token.Kind] {
-			if _, err = fmt.Fprint(w, " "); err != nil {
-				return
-			}
+			_, _ = sb.WriteString(" ")
 		}
-		if _, err = fmt.Fprint(w, token.Val); err != nil {
-			return
-		}
+		_, _ = sb.WriteString(token.Val)
 		last = token.Kind
+		_, err = fmt.Fprint(w, sb.String())
 	}, opts, env)
 	return err
 }

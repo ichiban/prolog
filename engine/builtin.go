@@ -420,7 +420,7 @@ func (vm *VM) assert(t Term, force bool, merge func(clauses, clauses) clauses, k
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
-			return vm.arrive(name, args, k, env)
+			return vm.Arrive(name, args, k, env)
 		})
 	case ProcedureIndicator{Name: ":-", Arity: 2}:
 		pi, _, err = piArgs(args[0], env)

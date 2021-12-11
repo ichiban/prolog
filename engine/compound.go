@@ -45,111 +45,143 @@ func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 // Unparse emits tokens that represent the compound.
 func (c *Compound) Unparse(emit func(Token), opts WriteTermOptions, env *Env) {
-	if c.Functor == "." && len(c.Args) == 2 { // list
-		emit(Token{Kind: TokenBracketL, Val: "["})
-		env.Resolve(c.Args[0]).Unparse(emit, opts, env)
-		t := env.Resolve(c.Args[1])
-		for {
-			if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-				emit(Token{Kind: TokenComma, Val: ","})
-				env.Resolve(l.Args[0]).Unparse(emit, opts, env)
-				t = env.Resolve(l.Args[1])
-				continue
-			}
-			if a, ok := t.(Atom); ok && a == "[]" {
-				break
-			}
-			emit(Token{Kind: TokenBar, Val: "|"})
-			t.Unparse(emit, opts, env)
+	if c.Functor == "." && len(c.Args) == 2 {
+		c.unparseList(emit, opts, env)
+		return
+	}
+
+	if c.Functor == "{}" && len(c.Args) == 1 {
+		c.unparseBlock(emit, opts, env)
+		return
+	}
+
+	if op := opts.Ops.find(c.Functor, len(c.Args)); op != nil {
+		[operatorSpecifierLen]func(Operator, func(Token), WriteTermOptions, *Env){
+			OperatorSpecifierFX:  c.unparseFX,
+			OperatorSpecifierFY:  c.unparseFY,
+			OperatorSpecifierXF:  c.unparseXF,
+			OperatorSpecifierYF:  c.unparseYF,
+			OperatorSpecifierXFX: c.unparseXFX,
+			OperatorSpecifierXFY: c.unparseXFY,
+			OperatorSpecifierYFX: c.unparseYFX,
+		}[op.Specifier](*op, emit, opts, env)
+		return
+	}
+
+	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
+		c.unparseNumberVar(n, emit)
+		return
+	}
+
+	c.unparse(emit, opts, env)
+}
+
+func (c *Compound) unparseFX(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	c.Functor.Unparse(emit, opts, env)
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+}
+
+func (c *Compound) unparseFY(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	c.Functor.Unparse(emit, opts, env)
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)), env)
+}
+
+func (c *Compound) unparseXF(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+	c.Functor.Unparse(emit, opts, env)
+}
+
+func (c *Compound) unparseYF(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)), env)
+	c.Functor.Unparse(emit, opts, env)
+}
+
+func (c *Compound) unparseXFX(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+	c.Functor.Unparse(emit, opts, env)
+	env.Resolve(c.Args[1]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+}
+
+func (c *Compound) unparseXFY(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+	c.Functor.Unparse(emit, opts, env)
+	env.Resolve(c.Args[1]).Unparse(emit, opts.withPriority(int(op.Priority)), env)
+}
+
+func (c *Compound) unparseYFX(op Operator, emit func(Token), opts WriteTermOptions, env *Env) {
+	if int(op.Priority) > opts.Priority {
+		emit(Token{Kind: TokenParenL, Val: "("})
+		defer emit(Token{Kind: TokenParenR, Val: ")"})
+	}
+	env.Resolve(c.Args[0]).Unparse(emit, opts.withPriority(int(op.Priority)), env)
+	c.Functor.Unparse(emit, opts, env)
+	env.Resolve(c.Args[1]).Unparse(emit, opts.withPriority(int(op.Priority)-1), env)
+}
+
+func (c *Compound) unparseList(emit func(Token), opts WriteTermOptions, env *Env) {
+	emit(Token{Kind: TokenBracketL, Val: "["})
+	env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+	t := env.Resolve(c.Args[1])
+	for {
+		if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+			emit(Token{Kind: TokenComma, Val: ","})
+			env.Resolve(l.Args[0]).Unparse(emit, opts, env)
+			t = env.Resolve(l.Args[1])
+			continue
+		}
+		if a, ok := t.(Atom); ok && a == "[]" {
 			break
 		}
-		emit(Token{Kind: TokenBracketR, Val: "]"})
+		emit(Token{Kind: TokenBar, Val: "|"})
+		t.Unparse(emit, opts, env)
+		break
+	}
+	emit(Token{Kind: TokenBracketR, Val: "]"})
+}
+
+func (c *Compound) unparseBlock(emit func(Token), opts WriteTermOptions, env *Env) {
+	emit(Token{Kind: TokenBraceL, Val: "{"})
+	env.Resolve(c.Args[0]).Unparse(emit, opts, env)
+	emit(Token{Kind: TokenBraceR, Val: "}"})
+}
+
+func (c *Compound) unparseNumberVar(n Integer, emit func(Token)) {
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	i, j := int(n)%len(letters), int(n)/len(letters)
+	if j == 0 {
+		s := string(letters[i])
+		emit(Token{Kind: TokenVariable, Val: s})
 		return
 	}
+	s := fmt.Sprintf("%s%d", string(letters[i]), j)
+	emit(Token{Kind: TokenVariable, Val: s})
+}
 
-	if c.Functor == "{}" && len(c.Args) == 1 { // block
-		emit(Token{Kind: TokenBraceL, Val: "{"})
-		env.Resolve(c.Args[0]).Unparse(emit, opts, env)
-		emit(Token{Kind: TokenBraceR, Val: "}"})
-		return
-	}
-
-	switch len(c.Args) {
-	case 1:
-		for _, op := range opts.Ops {
-			if op.Name != c.Functor {
-				continue
-			}
-			switch op.Specifier {
-			case OperatorSpecifierFX, OperatorSpecifierFY:
-				if int(op.Priority) > opts.Priority {
-					emit(Token{Kind: TokenParenL, Val: "("})
-					defer emit(Token{Kind: TokenParenR, Val: ")"})
-				}
-				c.Functor.Unparse(emit, opts, env)
-				{
-					opts := opts
-					opts.Priority = int(op.Priority)
-					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
-				}
-				return
-			case OperatorSpecifierXF, OperatorSpecifierYF:
-				if int(op.Priority) > opts.Priority {
-					emit(Token{Kind: TokenParenL, Val: "("})
-					defer emit(Token{Kind: TokenParenR, Val: ")"})
-				}
-				{
-					opts := opts
-					opts.Priority = int(op.Priority)
-					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
-				}
-				c.Functor.Unparse(emit, opts, env)
-				return
-			}
-		}
-	case 2:
-		for _, op := range opts.Ops {
-			if op.Name != c.Functor {
-				continue
-			}
-			switch op.Specifier {
-			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
-				if int(op.Priority) > opts.Priority {
-					emit(Token{Kind: TokenParenL, Val: "("})
-					defer emit(Token{Kind: TokenParenR, Val: ")"})
-				}
-				{
-					opts := opts
-					opts.Priority = int(op.Priority)
-					env.Resolve(c.Args[0]).Unparse(emit, opts, env)
-				}
-				c.Functor.Unparse(emit, opts, env)
-				{
-					opts := opts
-					opts.Priority = int(op.Priority)
-					env.Resolve(c.Args[1]).Unparse(emit, opts, env)
-				}
-				return
-			}
-		}
-	}
-
-	if opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
-		switch n := env.Resolve(c.Args[0]).(type) {
-		case Integer:
-			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			i, j := int(n)%len(letters), int(n)/len(letters)
-			if j == 0 {
-				s := string(letters[i])
-				emit(Token{Kind: TokenVariable, Val: s})
-				return
-			}
-			s := fmt.Sprintf("%s%d", string(letters[i]), j)
-			emit(Token{Kind: TokenVariable, Val: s})
-			return
-		}
-	}
-
+func (c *Compound) unparse(emit func(Token), opts WriteTermOptions, env *Env) {
 	c.Functor.Unparse(emit, opts, env)
 	emit(Token{Kind: TokenParenL, Val: "("})
 	env.Resolve(c.Args[0]).Unparse(emit, opts, env)

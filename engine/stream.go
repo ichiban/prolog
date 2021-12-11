@@ -100,9 +100,11 @@ func WithStreamType(streamType StreamType) StreamOption {
 	}
 }
 
+var openFile = os.OpenFile
+
 // Open opens a file and creates a new stream out of it.
 func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
-	f, err := os.OpenFile(string(name), int(mode), 0644)
+	f, err := openFile(string(name), int(mode), 0644)
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):

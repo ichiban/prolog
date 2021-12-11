@@ -84,39 +84,289 @@ func TestCompound_Unify(t *testing.T) {
 }
 
 func TestCompound_Unparse(t *testing.T) {
-	t.Run("operator precedence", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
+		t.Run("proper", func(t *testing.T) {
+			var ret []Token
+			List(Atom("a"), Atom("b"), Atom("c")).Unparse(func(token Token) {
+				ret = append(ret, token)
+			}, WriteTermOptions{}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenBracketL, Val: "["},
+				{Kind: TokenIdent, Val: "a"},
+				{Kind: TokenComma, Val: ","},
+				{Kind: TokenIdent, Val: "b"},
+				{Kind: TokenComma, Val: ","},
+				{Kind: TokenIdent, Val: "c"},
+				{Kind: TokenBracketR, Val: "]"},
+			}, ret)
+		})
+
+		t.Run("rest", func(t *testing.T) {
+			var ret []Token
+			ListRest(Atom("rest"), Atom("a"), Atom("b")).Unparse(func(token Token) {
+				ret = append(ret, token)
+			}, WriteTermOptions{}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenBracketL, Val: "["},
+				{Kind: TokenIdent, Val: "a"},
+				{Kind: TokenComma, Val: ","},
+				{Kind: TokenIdent, Val: "b"},
+				{Kind: TokenBar, Val: "|"},
+				{Kind: TokenIdent, Val: "rest"},
+				{Kind: TokenBracketR, Val: "]"},
+			}, ret)
+		})
+	})
+
+	t.Run("block", func(t *testing.T) {
+		var ret []Token
 		c := Compound{
-			Functor: "*",
-			Args: []Term{
-				Integer(2),
-				&Compound{
-					Functor: "+",
-					Args: []Term{
-						Integer(2),
-						Integer(2),
+			Functor: "{}",
+			Args:    []Term{Atom("foo")},
+		}
+		c.Unparse(func(token Token) {
+			ret = append(ret, token)
+		}, WriteTermOptions{}, nil)
+		assert.Equal(t, []Token{
+			{Kind: TokenBraceL, Val: "{"},
+			{Kind: TokenIdent, Val: "foo"},
+			{Kind: TokenBraceR, Val: "}"},
+		}, ret)
+	})
+
+	t.Run("unary operator", func(t *testing.T) {
+		t.Run("FX", func(t *testing.T) {
+			c := Compound{
+				Functor: ":-",
+				Args: []Term{
+					&Compound{
+						Functor: ":-",
+						Args: []Term{
+							Atom("foo"),
+						},
 					},
 				},
-			},
-		}
+			}
+			ops := Operators{
+				{Priority: 1200, Specifier: OperatorSpecifierFX, Name: `:-`},
+			}
 
-		ops := Operators{
-			{Priority: 500, Specifier: OperatorSpecifierYFX, Name: `+`},
-			{Priority: 400, Specifier: OperatorSpecifierYFX, Name: `*`},
-		}
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenGraphic, Val: ":-"},
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenGraphic, Val: ":-"},
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenParenR, Val: ")"},
+			}, tokens)
+		})
 
-		var tokens []Token
-		c.Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenInteger, Val: "2"},
-			{Kind: TokenGraphic, Val: "*"},
-			{Kind: TokenParenL, Val: "("},
-			{Kind: TokenInteger, Val: "2"},
-			{Kind: TokenGraphic, Val: "+"},
-			{Kind: TokenInteger, Val: "2"},
-			{Kind: TokenParenR, Val: ")"},
-		}, tokens)
+		t.Run("FY", func(t *testing.T) {
+			c := Compound{
+				Functor: "\\+",
+				Args: []Term{
+					&Compound{
+						Functor: "-",
+						Args: []Term{
+							&Compound{
+								Functor: "\\+",
+								Args: []Term{
+									Atom("foo"),
+								},
+							},
+						},
+					},
+				},
+			}
+			ops := Operators{
+				{Priority: 900, Specifier: OperatorSpecifierFY, Name: `\+`},
+				{Priority: 200, Specifier: OperatorSpecifierFY, Name: `-`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenGraphic, Val: "\\+"},
+				{Kind: TokenGraphic, Val: "-"},
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenGraphic, Val: "\\+"},
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenParenR, Val: ")"},
+			}, tokens)
+		})
+
+		t.Run("XF", func(t *testing.T) {
+			c := Compound{
+				Functor: "-:",
+				Args: []Term{
+					&Compound{
+						Functor: "-:",
+						Args: []Term{
+							Atom("foo"),
+						},
+					},
+				},
+			}
+			ops := Operators{
+				{Priority: 1200, Specifier: OperatorSpecifierXF, Name: `-:`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenGraphic, Val: "-:"},
+				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenGraphic, Val: "-:"},
+			}, tokens)
+		})
+
+		t.Run("YF", func(t *testing.T) {
+			c := Compound{
+				Functor: "+/",
+				Args: []Term{
+					&Compound{
+						Functor: "-",
+						Args: []Term{
+							&Compound{
+								Functor: "+/",
+								Args: []Term{
+									Atom("foo"),
+								},
+							},
+						},
+					},
+				},
+			}
+			ops := Operators{
+				{Priority: 900, Specifier: OperatorSpecifierYF, Name: `+/`},
+				{Priority: 200, Specifier: OperatorSpecifierYF, Name: `-`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenGraphic, Val: "+/"},
+				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenGraphic, Val: "-"},
+				{Kind: TokenGraphic, Val: "+/"},
+			}, tokens)
+		})
+	})
+
+	t.Run("binary operator", func(t *testing.T) {
+		t.Run("XFX", func(t *testing.T) {
+			c := Compound{
+				Functor: ":-",
+				Args: []Term{
+					Atom("foo"),
+					&Compound{
+						Functor: ":-",
+						Args: []Term{
+							Atom("bar"),
+							Atom("baz"),
+						},
+					},
+				},
+			}
+			ops := Operators{
+				{Priority: 1200, Specifier: OperatorSpecifierXFX, Name: `:-`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenGraphic, Val: ":-"},
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenIdent, Val: "bar"},
+				{Kind: TokenGraphic, Val: ":-"},
+				{Kind: TokenIdent, Val: "baz"},
+				{Kind: TokenParenR, Val: ")"},
+			}, tokens)
+		})
+
+		t.Run("XFY", func(t *testing.T) {
+			c := Compound{
+				Functor: ";",
+				Args: []Term{
+					&Compound{
+						Functor: ";",
+						Args: []Term{
+							Atom("foo"),
+							Atom("bar"),
+						},
+					},
+					Atom("baz"),
+				},
+			}
+			ops := Operators{
+				{Priority: 1200, Specifier: OperatorSpecifierXFY, Name: `;`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenIdent, Val: ";"},
+				{Kind: TokenIdent, Val: "bar"},
+				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenIdent, Val: ";"},
+				{Kind: TokenIdent, Val: "baz"},
+			}, tokens)
+		})
+
+		t.Run("YFX", func(t *testing.T) {
+			c := Compound{
+				Functor: "*",
+				Args: []Term{
+					Integer(2),
+					&Compound{
+						Functor: "+",
+						Args: []Term{
+							Integer(2),
+							Integer(2),
+						},
+					},
+				},
+			}
+
+			ops := Operators{
+				{Priority: 500, Specifier: OperatorSpecifierYFX, Name: `+`},
+				{Priority: 400, Specifier: OperatorSpecifierYFX, Name: `*`},
+			}
+
+			var tokens []Token
+			c.Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, WriteTermOptions{Ops: ops, Priority: 1200}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenInteger, Val: "2"},
+				{Kind: TokenGraphic, Val: "*"},
+				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenInteger, Val: "2"},
+				{Kind: TokenGraphic, Val: "+"},
+				{Kind: TokenInteger, Val: "2"},
+				{Kind: TokenParenR, Val: ")"},
+			}, tokens)
+		})
 	})
 
 	t.Run("ignore_ops", func(t *testing.T) {
