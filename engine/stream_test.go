@@ -27,8 +27,8 @@ func TestNewStream(t *testing.T) {
 	})
 
 	t.Run("with alias", func(t *testing.T) {
-		var vm VM
-		s := NewStream(f, StreamModeAppend, WithAlias(&vm, "foo"))
+		var state State
+		s := NewStream(f, StreamModeAppend, WithAlias(&state, "foo"))
 		assert.Equal(t, f, s.file)
 		assert.Equal(t, Atom("foo"), s.alias)
 		assert.Equal(t, EOFActionEOFCode, s.eofAction)
@@ -36,7 +36,7 @@ func TestNewStream(t *testing.T) {
 		assert.True(t, s.reposition)
 		assert.Equal(t, StreamTypeText, s.streamType)
 
-		assert.Equal(t, s, vm.streams[Atom("foo")])
+		assert.Equal(t, s, state.streams[Atom("foo")])
 	})
 
 	t.Run("with EOF action", func(t *testing.T) {

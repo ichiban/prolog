@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 )
 
 type bytecode []instruction
@@ -34,6 +31,7 @@ const (
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
+
 	// OnCall is a callback that is triggered when the VM reaches to the predicate.
 	OnCall func(pi ProcedureIndicator, args []Term, env *Env)
 
@@ -49,56 +47,8 @@ type VM struct {
 	// OnUnknown is a callback that is triggered when the VM reaches to an unknown predicate and also current_prolog_flag(unknown, warning).
 	OnUnknown func(pi ProcedureIndicator, args []Term, env *Env)
 
-	// Core
 	procedures map[ProcedureIndicator]procedure
 	unknown    unknownAction
-
-	// Internal/external expression
-	operators       Operators
-	charConversions map[rune]rune
-	charConvEnabled bool
-	doubleQuotes    DoubleQuotes
-
-	// I/O
-	streams       map[Term]*Stream
-	input, output *Stream
-
-	// Misc
-	debug bool
-}
-
-func (vm *VM) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
-	br, ok := r.(*bufio.Reader)
-	if !ok {
-		br = bufio.NewReader(r)
-	}
-	return NewParser(br, vm.charConversions,
-		WithOperators(&vm.operators),
-		WithDoubleQuotes(vm.doubleQuotes),
-		WithParsedVars(vars),
-	)
-}
-
-// SetUserInput sets the given reader as a stream with an alias of user_input.
-func (vm *VM) SetUserInput(f *os.File) {
-	s := NewStream(f, StreamModeRead)
-	vm.setStreamAlias("user_input", s)
-	vm.input = s
-}
-
-// SetUserOutput sets the given writer as a stream with an alias of user_output.
-func (vm *VM) SetUserOutput(f *os.File) {
-	s := NewStream(f, StreamModeWrite)
-	vm.setStreamAlias("user_output", s)
-	vm.output = s
-}
-
-func (vm *VM) setStreamAlias(alias Atom, s *Stream) {
-	s.alias = alias
-	if vm.streams == nil {
-		vm.streams = map[Term]*Stream{}
-	}
-	vm.streams[alias] = s
 }
 
 // Register0 registers a predicate of arity 0.

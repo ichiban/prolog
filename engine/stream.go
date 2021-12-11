@@ -73,9 +73,9 @@ func NewStream(f *os.File, mode StreamMode, opts ...StreamOption) *Stream {
 type StreamOption func(*Stream)
 
 // WithAlias sets an alias for the stream.
-func WithAlias(vm *VM, alias Atom) StreamOption {
+func WithAlias(state *State, alias Atom) StreamOption {
 	return func(s *Stream) {
-		vm.setStreamAlias(alias, s)
+		state.setStreamAlias(alias, s)
 	}
 }
 
