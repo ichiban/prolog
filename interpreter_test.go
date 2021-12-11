@@ -8,6 +8,17 @@ import (
 	"github.com/ichiban/prolog/engine"
 )
 
+func TestRegister(t *testing.T) {
+	Register("foo", func(*Interpreter) error {
+		return nil
+	})
+	assert.Panics(t, func() {
+		Register("foo", func(*Interpreter) error {
+			return nil
+		})
+	})
+}
+
 func TestNew(t *testing.T) {
 	i := New(nil, nil)
 	assert.NotNil(t, i)
@@ -63,7 +74,7 @@ func TestInterpreter_Exec(t *testing.T) {
 		t.Run("library", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				var called bool
-				Libraries = map[string]func(*Interpreter) error{
+				libraries = map[string]func(*Interpreter) error{
 					"foo": func(in *Interpreter) error {
 						assert.Equal(t, i, in)
 						called = true

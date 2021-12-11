@@ -10,7 +10,7 @@ import (
 var dcg string
 
 func init() {
-	prolog.Libraries["dcg"] = install
+	prolog.Register("dcg", install)
 }
 
 func install(i *prolog.Interpreter) error {
