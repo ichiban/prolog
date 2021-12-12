@@ -4,8 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"os"
 	"strings"
 
 	"github.com/ichiban/prolog/engine"
@@ -31,7 +31,7 @@ type Interpreter struct {
 }
 
 // New creates a new Prolog interpreter with predefined predicates/operators.
-func New(in, out *os.File) *Interpreter {
+func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.SetUserInput(in)
 	i.SetUserOutput(out)

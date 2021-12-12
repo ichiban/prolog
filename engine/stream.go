@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"strings"
@@ -44,7 +45,7 @@ const (
 
 // Stream is a prolog stream.
 type Stream struct {
-	file       *os.File
+	file       io.ReadWriteCloser
 	buf        *bufio.Reader
 	mode       StreamMode
 	alias      Atom
@@ -54,17 +55,23 @@ type Stream struct {
 }
 
 // NewStream creates a new stream from an opened file.
-func NewStream(f *os.File, mode StreamMode, opts ...StreamOption) *Stream {
+func NewStream(f io.ReadWriteCloser, mode StreamMode, opts ...StreamOption) *Stream {
 	s := Stream{
 		file: f,
-		buf:  bufio.NewReader(f),
 		mode: mode,
 	}
-	if stat, err := f.Stat(); err == nil {
-		s.reposition = stat.Mode()&fs.ModeType == 0
+	if f, ok := f.(*os.File); ok {
+		if stat, err := f.Stat(); err == nil {
+			s.reposition = stat.Mode()&fs.ModeType == 0
+		}
 	}
 	for _, opt := range opts {
 		opt(&s)
+	}
+	if a, ok := f.(*rwc); ok && a.r != nil {
+		s.buf = bufio.NewReader(a.r)
+	} else {
+		s.buf = bufio.NewReader(f)
 	}
 	return &s
 }
@@ -75,7 +82,11 @@ type StreamOption func(*Stream)
 // WithAlias sets an alias for the stream.
 func WithAlias(state *State, alias Atom) StreamOption {
 	return func(s *Stream) {
-		state.setStreamAlias(alias, s)
+		s.alias = alias
+		if state.streams == nil {
+			state.streams = map[Term]*Stream{}
+		}
+		state.streams[alias] = s
 	}
 }
 
@@ -119,7 +130,7 @@ func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
 	return NewStream(f, mode, opts...), nil
 }
 
-var closeFile = (*os.File).Close
+var closeFile = io.Closer.Close
 
 // Close closes the underlying file of the stream.
 func (s *Stream) Close() error {

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -137,13 +138,13 @@ func TestStream_Close(t *testing.T) {
 		file: &f,
 	}
 	var called bool
-	closeFile = func(file *os.File) error {
+	closeFile = func(file io.Closer) error {
 		assert.Equal(t, &f, file)
 		called = true
 		return nil
 	}
 	defer func() {
-		closeFile = (*os.File).Close
+		closeFile = io.Closer.Close
 	}()
 	assert.NoError(t, s.Close())
 	assert.True(t, called)

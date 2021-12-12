@@ -5,16 +5,159 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+func TestState_SetUserInput(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		var state State
+		state.SetUserInput(os.Stdin)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdin, s.file)
+	})
+
+	t.Run("ReadCloser", func(t *testing.T) {
+		var r struct {
+			mockReader
+			mockCloser
+		}
+		r.mockReader.On("Read", mock.Anything).Return(0, nil).Once()
+		defer r.mockReader.AssertExpectations(t)
+		r.mockCloser.On("Close").Return(nil).Once()
+		defer r.mockCloser.AssertExpectations(t)
+
+		var state State
+		state.SetUserInput(&r)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+
+		n, err := s.file.Read(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		_, err = s.file.Write(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		assert.NoError(t, s.file.Close())
+	})
+
+	t.Run("Reader", func(t *testing.T) {
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, nil).Once()
+		defer r.AssertExpectations(t)
+
+		var state State
+		state.SetUserInput(&r)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+
+		n, err := s.file.Read(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		_, err = s.file.Write(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		assert.Equal(t, errNotSupported, s.file.Close())
+	})
+}
+
+func TestState_SetUserOutput(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		var state State
+		state.SetUserOutput(os.Stdout)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdout, s.file)
+	})
+
+	t.Run("WriteCloser", func(t *testing.T) {
+		var w struct {
+			mockWriter
+			mockCloser
+		}
+		w.mockWriter.On("Write", mock.Anything).Return(0, nil).Once()
+		defer w.mockWriter.AssertExpectations(t)
+		w.mockCloser.On("Close").Return(nil).Once()
+		defer w.mockCloser.AssertExpectations(t)
+
+		var state State
+		state.SetUserOutput(&w)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+
+		_, err := s.file.Read(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		n, err := s.file.Write(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		assert.NoError(t, s.file.Close())
+	})
+
+	t.Run("Writer", func(t *testing.T) {
+		var w mockWriter
+		w.On("Write", mock.Anything).Return(0, nil).Once()
+		defer w.AssertExpectations(t)
+
+		var state State
+		state.SetUserOutput(&w)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+
+		_, err := s.file.Read(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		n, err := s.file.Write(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		assert.Equal(t, errNotSupported, s.file.Close())
+	})
+}
+
+type mockReader struct {
+	mock.Mock
+}
+
+func (m *mockReader) Read(p []byte) (int, error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(p []byte) (int, error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+type mockCloser struct {
+	mock.Mock
+}
+
+func (m *mockCloser) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
 func TestState_Call(t *testing.T) {
 	var state State
@@ -2977,11 +3120,11 @@ func TestState_Close(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f *os.File) error {
+			closeFile = func(f io.Closer) error {
 				return errors.New("ng")
 			}
 			defer func() {
-				closeFile = (*os.File).Close
+				closeFile = io.Closer.Close
 			}()
 
 			s, err := Open(Atom(f.Name()), StreamModeRead)
@@ -3011,11 +3154,11 @@ func TestState_Close(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f *os.File) error {
+			closeFile = func(f io.Closer) error {
 				return errors.New("ng")
 			}
 			defer func() {
-				closeFile = (*os.File).Close
+				closeFile = io.Closer.Close
 			}()
 
 			s, err := Open(Atom(f.Name()), StreamModeRead)
@@ -3049,11 +3192,11 @@ func TestState_Close(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f *os.File) error {
+			closeFile = func(f io.Closer) error {
 				return errors.New("ng")
 			}
 			defer func() {
-				closeFile = (*os.File).Close
+				closeFile = io.Closer.Close
 			}()
 
 			s, err := Open(Atom(f.Name()), StreamModeRead)
@@ -3517,12 +3660,12 @@ func TestCharCode(t *testing.T) {
 
 func TestState_PutByte(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{97}, b)
 			return 1, nil
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -3535,12 +3678,12 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{97}, b)
 			return 0, errors.New("")
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -3552,12 +3695,12 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{97}, b)
 			return 1, nil
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -3636,12 +3779,12 @@ func TestState_PutByte(t *testing.T) {
 
 func TestState_PutCode(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
 			return 1, nil
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -3653,12 +3796,12 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
 			return 0, errors.New("")
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -3669,12 +3812,12 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		write = func(f *os.File, b []byte) (int, error) {
+		write = func(f io.Writer, b []byte) (int, error) {
 			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
 			return 1, nil
 		}
 		defer func() {
-			write = (*os.File).Write
+			write = io.Writer.Write
 		}()
 
 		s := NewStream(os.Stdout, StreamModeWrite)
@@ -6140,15 +6283,8 @@ func TestState_StreamProperty(t *testing.T) {
 }
 
 func TestState_SetStreamPosition(t *testing.T) {
-	f, err := ioutil.TempFile("", "")
-	assert.NoError(t, err)
-
-	defer func() {
-		assert.NoError(t, os.Remove(f.Name()))
-	}()
-
 	t.Run("ok", func(t *testing.T) {
-		s, err := Open(Atom(f.Name()), StreamModeRead)
+		s, err := Open("testdata/empty.txt", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())
@@ -6158,6 +6294,26 @@ func TestState_SetStreamPosition(t *testing.T) {
 		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
+
+	t.Run("seek failed", func(t *testing.T) {
+		seek = func(f io.Seeker, offset int64, whence int) (int64, error) {
+			return 0, errors.New("failed")
+		}
+		defer func() {
+			seek = io.Seeker.Seek
+		}()
+
+		s, err := Open("testdata/empty.txt", StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
@@ -6170,7 +6326,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 	})
 
 	t.Run("position is a variable", func(t *testing.T) {
-		s, err := Open(Atom(f.Name()), StreamModeRead)
+		s, err := Open("testdata/empty.txt", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())
