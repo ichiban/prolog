@@ -20,31 +20,57 @@ func TestState_SetUserInput(t *testing.T) {
 	t.Run("file", func(t *testing.T) {
 		var state State
 		state.SetUserInput(os.Stdin)
-		assert.Equal(t, os.Stdin, state.streams[Atom("user_input")].file)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdin, s.file)
 	})
 
 	t.Run("ReadCloser", func(t *testing.T) {
-		var state State
 		var r struct {
-			io.Reader
-			io.Closer
+			mockReader
+			mockCloser
 		}
-		{
-		}
+		r.mockReader.On("Read", mock.Anything).Return(0, nil).Once()
+		defer r.mockReader.AssertExpectations(t)
+		r.mockCloser.On("Close").Return(nil).Once()
+		defer r.mockCloser.AssertExpectations(t)
+
+		var state State
 		state.SetUserInput(&r)
-		assert.Equal(t, &r, state.streams[Atom("user_input")].file.(*rwc).r)
-		assert.Equal(t, &r, state.streams[Atom("user_input")].file.(*rwc).c)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+
+		n, err := s.file.Read(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		_, err = s.file.Write(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		assert.NoError(t, s.file.Close())
 	})
 
 	t.Run("Reader", func(t *testing.T) {
+		var r mockReader
+		r.On("Read", mock.Anything).Return(0, nil).Once()
+		defer r.AssertExpectations(t)
+
 		var state State
-		var r struct {
-			io.Reader
-		}
-		{
-		}
 		state.SetUserInput(&r)
-		assert.Equal(t, &r, state.streams[Atom("user_input")].file.(*rwc).r)
+
+		s, ok := state.streams[Atom("user_input")]
+		assert.True(t, ok)
+
+		n, err := s.file.Read(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		_, err = s.file.Write(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		assert.Equal(t, errNotSupported, s.file.Close())
 	})
 }
 
@@ -52,32 +78,85 @@ func TestState_SetUserOutput(t *testing.T) {
 	t.Run("file", func(t *testing.T) {
 		var state State
 		state.SetUserOutput(os.Stdout)
-		assert.Equal(t, os.Stdout, state.streams[Atom("user_output")].file)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdout, s.file)
 	})
 
 	t.Run("WriteCloser", func(t *testing.T) {
-		var state State
 		var w struct {
-			io.Writer
-			io.Closer
+			mockWriter
+			mockCloser
 		}
-		{
-		}
+		w.mockWriter.On("Write", mock.Anything).Return(0, nil).Once()
+		defer w.mockWriter.AssertExpectations(t)
+		w.mockCloser.On("Close").Return(nil).Once()
+		defer w.mockCloser.AssertExpectations(t)
+
+		var state State
 		state.SetUserOutput(&w)
-		assert.Equal(t, &w, state.streams[Atom("user_output")].file.(*rwc).w)
-		assert.Equal(t, &w, state.streams[Atom("user_output")].file.(*rwc).c)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+
+		_, err := s.file.Read(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		n, err := s.file.Write(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		assert.NoError(t, s.file.Close())
 	})
 
 	t.Run("Writer", func(t *testing.T) {
+		var w mockWriter
+		w.On("Write", mock.Anything).Return(0, nil).Once()
+		defer w.AssertExpectations(t)
+
 		var state State
-		var w struct {
-			io.Writer
-		}
-		{
-		}
 		state.SetUserOutput(&w)
-		assert.Equal(t, &w, state.streams[Atom("user_output")].file.(*rwc).w)
+
+		s, ok := state.streams[Atom("user_output")]
+		assert.True(t, ok)
+
+		_, err := s.file.Read(nil)
+		assert.Equal(t, errNotSupported, err)
+
+		n, err := s.file.Write(nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		assert.Equal(t, errNotSupported, s.file.Close())
 	})
+}
+
+type mockReader struct {
+	mock.Mock
+}
+
+func (m *mockReader) Read(p []byte) (int, error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(p []byte) (int, error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+type mockCloser struct {
+	mock.Mock
+}
+
+func (m *mockCloser) Close() error {
+	args := m.Called()
+	return args.Error(0)
 }
 
 func TestState_Call(t *testing.T) {
