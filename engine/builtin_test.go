@@ -6283,15 +6283,8 @@ func TestState_StreamProperty(t *testing.T) {
 }
 
 func TestState_SetStreamPosition(t *testing.T) {
-	f, err := ioutil.TempFile("", "")
-	assert.NoError(t, err)
-
-	defer func() {
-		assert.NoError(t, os.Remove(f.Name()))
-	}()
-
 	t.Run("ok", func(t *testing.T) {
-		s, err := Open(Atom(f.Name()), StreamModeRead)
+		s, err := Open("testdata/empty.txt", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())
@@ -6301,6 +6294,26 @@ func TestState_SetStreamPosition(t *testing.T) {
 		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
+
+	t.Run("seek failed", func(t *testing.T) {
+		seek = func(f io.Seeker, offset int64, whence int) (int64, error) {
+			return 0, errors.New("failed")
+		}
+		defer func() {
+			seek = io.Seeker.Seek
+		}()
+
+		s, err := Open("testdata/empty.txt", StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
@@ -6313,7 +6326,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 	})
 
 	t.Run("position is a variable", func(t *testing.T) {
-		s, err := Open(Atom(f.Name()), StreamModeRead)
+		s, err := Open("testdata/empty.txt", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())

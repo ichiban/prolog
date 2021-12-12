@@ -2526,6 +2526,8 @@ func (state *State) StreamProperty(streamOrAlias, property Term, k func(*Env) *P
 	return Delay(ks...)
 }
 
+var seek = io.Seeker.Seek
+
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
 func (state *State) SetStreamPosition(streamOrAlias, position Term, k func(*Env) *Promise, env *Env) *Promise {
 	s, err := state.stream(streamOrAlias, env)
@@ -2542,7 +2544,7 @@ func (state *State) SetStreamPosition(streamOrAlias, position Term, k func(*Env)
 		return Error(InstantiationError(position))
 	case Integer:
 		if f, ok := s.file.(io.Seeker); ok {
-			if _, err := f.Seek(int64(p), 0); err != nil {
+			if _, err := seek(f, int64(p), 0); err != nil {
 				return Error(SystemError(err))
 			}
 
