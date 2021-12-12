@@ -1,37 +1,124 @@
-## Welcome to GitHub Pages
+## Built-in Predicates
 
-You can use the [editor on GitHub](https://github.com/ichiban/prolog/edit/main/docs/index.md) to maintain and preview the content for your website in Markdown files.
+- `!/0`
+- `(,)/2`
+- `(->)/2`
+- `(.)/2`
+- `(;)/2`
+- `(<)/2`
+- `(=)/2`
+- `(=..)/2`
+- `(=:=)/2`
+- `(=<)/2`
+- `(==)/2`
+- `(=\\=)/2`
+- `(>)/2`
+- `(>=)/2`
+- `(@<)/2`
+- `(@=<)/2`
+- `(@>)/2`
+- `(@>=)/2`
+- `(\+)/1`
+- `(\=)/2`
+- `(\==)/2`
+- `abolish/1`
+- `append/3`
+- `arg/3`
+- `asserta/1`
+- `assertz/1`
+- `at_end_of_stream/0`
+- `at_end_of_stream/1`
+- `atom/1`
+- `atom_chars/2`
+- `atom_codes/2`
+- `atom_concat/3`
+- `atom_length/2`
+- `atomic/1`
+- `bagof/3`
+- `built_in/1`
+- `call/1`
+- `catch/3`
+- `char_code/2`
+- `char_conversion/2`
+- `clause/2`
+- `close/1`
+- `close/2`
+- `compare/3`
+- `compound/1`
+- `consult/1`
+- `copy_term/2`
+- `current_char_conversion/2`
+- `current_input/1`
+- `current_op/3`
+- `current_output/1`
+- `current_predicate/1`
+- `current_prolog_flag/2`
+- `dynamic/1`
+- `expand_term/2`
+- `fail/0`
+- `false/0`
+- `findall/3`
+- `float/1`
+- `flush_output/0`
+- `flush_output/1`
+- `functor/3`
+- `get_byte/1`
+- `get_byte/2`
+- `get_char/1`
+- `get_char/2`
+- `get_code/1`
+- `get_code/2`
+- `halt/0`
+- `halt/1`
+- `integer/1`
+- `is/2`
+- `length/2`
+- `member/2`
+- `nl/0`
+- `nl/1`
+- `nonvar/1`
+- `number/1`
+- `number_chars/2`
+- `number_codes/2`
+- `once/1`
+- `op/3`
+- `open/3`
+- `open/4`
+- `peek_byte/1`
+- `peek_byte/2`
+- `peek_char/1`
+- `peek_char/2`
+- `peek_code/1`
+- `peek_code/2`
+- `put_byte/1`
+- `put_byte/2`
+- `put_char/1`
+- `put_char/2`
+- `put_code/1`
+- `put_code/2`
+- `read/1`
+- `read/2`
+- `read_term/2`
+- `read_term/3`
+- `repeat/0`
+- `retract/1`
+- `set_input/1`
+- `set_output/1`
+- `set_prolog_flag/2`
+- `set_stream_position/2`
+- `setof/3`
+- `stream_property/2`
+- `sub_atom/5`
+- `throw/1`
+- `true/0`
+- `unify_with_occurs_check/2`
+- `var/1`
+- `write/1`
+- `write/2`
+- `write_canonical/1`
+- `write_canonical/2`
+- `write_term/2`
+- `write_term/3`
+- `writeq/1`
+- `writeq/2`
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
-
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [Basic writing and formatting syntax](https://docs.github.com/en/github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/ichiban/prolog/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
