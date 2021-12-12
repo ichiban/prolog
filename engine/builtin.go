@@ -32,26 +32,56 @@ type State struct {
 	debug bool
 }
 
+var errNotSupported = errors.New("not supported")
+
+type rwc struct {
+	r io.Reader
+	w io.Writer
+	c io.Closer
+}
+
+func (a *rwc) Read(p []byte) (int, error) {
+	if a.r == nil {
+		return 0, errNotSupported
+	}
+	return a.r.Read(p)
+}
+
+func (a *rwc) Write(p []byte) (int, error) {
+	if a.w == nil {
+		return 0, errNotSupported
+	}
+	return a.w.Write(p)
+}
+
+func (a *rwc) Close() error {
+	if a.c == nil {
+		return errNotSupported
+	}
+	return a.c.Close()
+}
+
+func readWriteCloser(i interface{}) io.ReadWriteCloser {
+	if f, ok := i.(io.ReadWriteCloser); ok {
+		return f
+	}
+	var f rwc
+	f.r, _ = i.(io.Reader)
+	f.w, _ = i.(io.Writer)
+	f.c, _ = i.(io.Closer)
+	return &f
+}
+
 // SetUserInput sets the given reader as a stream with an alias of user_input.
-func (state *State) SetUserInput(f *os.File) {
-	s := NewStream(f, StreamModeRead)
-	state.setStreamAlias("user_input", s)
-	state.input = s
+func (state *State) SetUserInput(r io.Reader, opts ...StreamOption) {
+	opts = append(opts, WithAlias(state, "user_input"))
+	state.input = NewStream(readWriteCloser(r), StreamModeRead, opts...)
 }
 
 // SetUserOutput sets the given writer as a stream with an alias of user_output.
-func (state *State) SetUserOutput(f *os.File) {
-	s := NewStream(f, StreamModeWrite)
-	state.setStreamAlias("user_output", s)
-	state.output = s
-}
-
-func (state *State) setStreamAlias(alias Atom, s *Stream) {
-	s.alias = alias
-	if state.streams == nil {
-		state.streams = map[Term]*Stream{}
-	}
-	state.streams[alias] = s
+func (state *State) SetUserOutput(w io.Writer, opts ...StreamOption) {
+	opts = append(opts, WithAlias(state, "user_output"))
+	state.output = NewStream(readWriteCloser(w), StreamModeWrite, opts...)
 }
 
 func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
@@ -1058,8 +1088,10 @@ func (state *State) FlushOutput(streamOrAlias Term, k func(*Env) *Promise, env *
 		return Error(permissionErrorOutputStream(streamOrAlias))
 	}
 
-	if err := sync(s.file); err != nil {
-		return Error(err)
+	if f, ok := s.file.(*os.File); ok {
+		if err := sync(f); err != nil {
+			return Error(err)
+		}
 	}
 
 	return k(env)
@@ -1183,7 +1215,7 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 	}
 }
 
-var write = (*os.File).Write
+var write = io.Writer.Write
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
 func (state *State) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -2444,30 +2476,32 @@ func (state *State) StreamProperty(streamOrAlias, property Term, k func(*Env) *P
 			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("reset")}})
 		}
 
-		pos, err := s.file.Seek(0, 1)
-		if err != nil {
-			return Error(err)
-		}
-		pos -= int64(s.buf.Buffered())
+		if f, ok := s.file.(*os.File); ok {
+			pos, err := f.Seek(0, 1)
+			if err != nil {
+				return Error(err)
+			}
+			pos -= int64(s.buf.Buffered())
 
-		fi, err := s.file.Stat()
-		if err != nil {
-			return Error(err)
-		}
+			fi, err := f.Stat()
+			if err != nil {
+				return Error(err)
+			}
 
-		eos := "not"
-		switch {
-		case pos == fi.Size():
-			eos = "at"
-		case pos > fi.Size():
-			eos = "past"
-		}
+			eos := "not"
+			switch {
+			case pos == fi.Size():
+				eos = "at"
+			case pos > fi.Size():
+				eos = "past"
+			}
 
-		properties = append(properties,
-			&Compound{Functor: "file_name", Args: []Term{Atom(s.file.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
-		)
+			properties = append(properties,
+				&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+				&Compound{Functor: "position", Args: []Term{Integer(pos)}},
+				&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+			)
+		}
 
 		if s.reposition {
 			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
@@ -2507,11 +2541,13 @@ func (state *State) SetStreamPosition(streamOrAlias, position Term, k func(*Env)
 	case Variable:
 		return Error(InstantiationError(position))
 	case Integer:
-		if _, err := s.file.Seek(int64(p), 0); err != nil {
-			return Error(SystemError(err))
-		}
+		if f, ok := s.file.(io.Seeker); ok {
+			if _, err := f.Seek(int64(p), 0); err != nil {
+				return Error(SystemError(err))
+			}
 
-		s.buf.Reset(s.file)
+			s.buf.Reset(s.file)
+		}
 
 		return k(env)
 	default:
