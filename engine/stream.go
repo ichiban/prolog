@@ -58,7 +58,6 @@ type Stream struct {
 func NewStream(f io.ReadWriteCloser, mode StreamMode, opts ...StreamOption) *Stream {
 	s := Stream{
 		file: f,
-		buf:  bufio.NewReader(f),
 		mode: mode,
 	}
 	if f, ok := f.(*os.File); ok {
@@ -68,6 +67,11 @@ func NewStream(f io.ReadWriteCloser, mode StreamMode, opts ...StreamOption) *Str
 	}
 	for _, opt := range opts {
 		opt(&s)
+	}
+	if a, ok := f.(*rwc); ok && a.r != nil {
+		s.buf = bufio.NewReader(a.r)
+	} else {
+		s.buf = bufio.NewReader(f)
 	}
 	return &s
 }
