@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,7 +13,6 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/spf13/pflag"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/ichiban/prolog"
@@ -25,8 +25,8 @@ var Version = "1pl/0.1"
 
 func main() {
 	var verbose bool
-	pflag.BoolVarP(&verbose, "verbose", "v", false, `verbose`)
-	pflag.Parse()
+	flag.BoolVar(&verbose, "v", false, `verbose`)
+	flag.Parse()
 
 	oldState, err := terminal.MakeRaw(0)
 	if err != nil {
@@ -99,7 +99,7 @@ func main() {
 		return k(env)
 	})
 
-	for _, a := range pflag.Args() {
+	for _, a := range flag.Args() {
 		b, err := ioutil.ReadFile(a)
 		if err != nil {
 			log.Panicf("failed to read %s: %v", a, err)
