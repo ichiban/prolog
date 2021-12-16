@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -19,9 +20,6 @@ import (
 	_ "github.com/ichiban/prolog/dcg"
 	"github.com/ichiban/prolog/engine"
 )
-
-// Version is a version of this build.
-var Version = "1pl/0.1"
 
 func main() {
 	var verbose bool
@@ -92,10 +90,16 @@ func main() {
 		log.Printf("UNKNOWN %s", pi)
 	}
 	i.Register1("version", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-		env, ok := t.Unify(engine.Atom(Version), false, env)
+		info, ok := debug.ReadBuildInfo()
 		if !ok {
 			return engine.Bool(false)
 		}
+
+		env, ok = t.Unify(engine.Atom(info.Main.Version), false, env)
+		if !ok {
+			return engine.Bool(false)
+		}
+
 		return k(env)
 	})
 
