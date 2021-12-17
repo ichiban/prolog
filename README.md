@@ -105,7 +105,7 @@ for sols.Next() {
 |--------------------|-----------------------------|:----:|--------------------------------------------------------------------------------------------|
 | Control Constructs | `true/0`                    |  *   | Always succeeds.                                                                           |
 |                    | `fail/0`                    |  *   | Always fails.                                                                              |
-|                    | `false/0`                   |      | Synonym for fail/0.                                                                        |
+|                    | `false/0`                   |      | Synonym for `fail/0`.                                                                      |
 |                    | `call/1`                    |  *   | https://pkg.go.dev/github.com/ichiban/prolog/engine#State.Call                             |
 |                    | `!/0`                       |  *   | Cut.                                                                                       |
 |                    | `(,)/2`                     |  *   | Conjunction.                                                                               |
@@ -221,6 +221,7 @@ for sols.Next() {
 | List Processing    | `append/3`                  |      | `append(ListA, ListB, ListAB)` means `ListAB` is the concatination of `ListA` and `ListB`. |
 |                    | `member/2`                  |      | `member(Elem, List)` means `Elem` is a member of `List`.                                   |
 |                    | `length/2`                  |      | `length(List, N)` means `N` is the length of `List`.                                       |
+| Term Expansion     | `expand_term/2`             |      | https://pkg.go.dev/github.com/ichiban/prolog/engine#State.ExpandTerm                       |
 
 
 ## License
