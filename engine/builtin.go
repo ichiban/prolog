@@ -84,6 +84,8 @@ func (state *State) SetUserOutput(w io.Writer, opts ...StreamOption) {
 	state.output = NewStream(readWriteCloser(w), StreamModeWrite, opts...)
 }
 
+// Parser creates a new parser from the current State and io.Reader.
+// If non-nil, vars will hold the information on variables it parses.
 func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	br, ok := r.(*bufio.Reader)
 	if !ok {
@@ -96,12 +98,14 @@ func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	)
 }
 
+// Repeat repeats the continuation until it succeeds.
 func (state *State) Repeat(k func(*Env) *Promise, env *Env) *Promise {
 	return Repeat(func(ctx context.Context) *Promise {
 		return k(env)
 	})
 }
 
+// Negation calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
 func (state *State) Negation(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Delay(func(ctx context.Context) *Promise {
 		ok, err := state.Call(goal, Success, env).Force(ctx)
@@ -577,7 +581,7 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 		body = goal
 	}
 
-	groupingVariables := env.FreeVariables(body).Except(env.FreeVariables(template, qualifier))
+	groupingVariables := variables(env.FreeVariables(body)).except(env.FreeVariables(template, qualifier))
 
 	return Delay(func(ctx context.Context) *Promise {
 		const (
@@ -592,7 +596,7 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 		}
 		var solutions []solution
 
-		template = hyphen.Apply(vars.Apply(groupingVariables.Terms()...), template)
+		template = hyphen.Apply(vars.Apply(groupingVariables.terms()...), template)
 		if _, err := state.FindAll(template, body, answers, func(env *Env) *Promise {
 			if err := EachList(answers, func(elem Term) error {
 				answer := elem.(*Compound)
@@ -1340,7 +1344,7 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 	if err != nil {
 		var (
 			unexpectedRune  *UnexpectedRuneError
-			unexpectedToken *UnexpectedTokenError
+			unexpectedToken *unexpectedTokenError
 		)
 		switch {
 		case errors.Is(err, io.EOF):
@@ -1953,7 +1957,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		switch err {
 		case nil:
 			break
-		case ErrNotANumber:
+		case errNotANumber:
 			return Error(syntaxErrorNotANumber())
 		default:
 			return Error(SystemError(err))
@@ -2016,7 +2020,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		switch err {
 		case nil:
 			break
-		case ErrNotANumber:
+		case errNotANumber:
 			return Error(syntaxErrorNotANumber())
 		default:
 			return Error(SystemError(err))

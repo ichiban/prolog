@@ -12,6 +12,7 @@ type Variable string
 
 var varCounter uint64
 
+// NewVariable creates a new generated variable.
 func NewVariable() Variable {
 	atomic.AddUint64(&varCounter, 1)
 	return Variable(fmt.Sprintf("_%d", varCounter))
@@ -19,6 +20,7 @@ func NewVariable() Variable {
 
 var generatedPattern = regexp.MustCompile(`\A_\d+\z`)
 
+// Generated checks if the variable is generated.
 func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
 }

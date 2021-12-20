@@ -13,7 +13,7 @@ func (e *Exception) Error() string {
 	return e.Term.String()
 }
 
-// InstantiationError creates a new instantiation error excdption.
+// InstantiationError creates a new instantiation error exception.
 func InstantiationError(culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
@@ -334,6 +334,7 @@ func syntaxError(detail, info Term) *Exception {
 	}
 }
 
+// SystemError creates a new system error exception.
 func SystemError(err error) *Exception {
 	return &Exception{
 		Term: &Compound{
