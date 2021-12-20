@@ -406,11 +406,13 @@ func (p predicate5) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *P
 	return p(args[0], args[1], args[2], args[3], args[4], k, env)
 }
 
-func Success(_ *Env) *Promise {
+// Success is a continuation that leads to true.
+func Success(*Env) *Promise {
 	return Bool(true)
 }
 
-func Failure(_ *Env) *Promise {
+// Failure is a continuation that leads to false.
+func Failure(*Env) *Promise {
 	return Bool(false)
 }
 

@@ -214,7 +214,7 @@ func (p *Parser) expectationError(k TokenKind, vals []string) error {
 	if p.current.Kind == TokenEOS {
 		return ErrInsufficient
 	}
-	return &UnexpectedTokenError{
+	return &unexpectedTokenError{
 		ExpectedKind: k,
 		ExpectedVals: vals,
 		Actual:       *p.current,
@@ -252,7 +252,7 @@ func (p *Parser) Term() (Term, error) {
 	return t, nil
 }
 
-var ErrNotANumber = errors.New("not a number")
+var errNotANumber = errors.New("not a number")
 
 // Number parses a number term.
 func (p *Parser) Number() (Term, error) {
@@ -289,7 +289,7 @@ func (p *Parser) number() (Term, error) {
 		}
 	}
 
-	return nil, ErrNotANumber
+	return nil, errNotANumber
 }
 
 // based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
@@ -489,8 +489,7 @@ func (p *Parser) More() bool {
 type OperatorSpecifier uint8
 
 const (
-	OperatorSpecifierNone OperatorSpecifier = iota
-	OperatorSpecifierFX
+	OperatorSpecifierFX OperatorSpecifier = iota
 	OperatorSpecifierFY
 	OperatorSpecifierXF
 	OperatorSpecifierYF
@@ -513,7 +512,7 @@ func (s OperatorSpecifier) Term() Term {
 	}[s]
 }
 
-// Operators are a list of operators sorted in a descending order of precedence.
+// Operators are a list of operators sorted in descending order of precedence.
 type Operators []Operator
 
 func (ops Operators) find(name Atom, arity int) *Operator {
@@ -573,11 +572,15 @@ func (o *Operator) bindingPowers() (int, int) {
 	}
 }
 
+// DoubleQuotes describes how the parser handles double-quoted strings.
 type DoubleQuotes int
 
 const (
+	// DoubleQuotesCodes parses a double-quoted string into a list of integers.
 	DoubleQuotesCodes DoubleQuotes = iota
+	// DoubleQuotesChars parses a double-quoted string into a list of single-character atoms.
 	DoubleQuotesChars
+	// DoubleQuotesAtom parses a double-quoted string into an atom.
 	DoubleQuotesAtom
 	doubleQuotesLen
 )
@@ -590,14 +593,14 @@ func (d DoubleQuotes) String() string {
 	}[d]
 }
 
-type UnexpectedTokenError struct {
+type unexpectedTokenError struct {
 	ExpectedKind TokenKind
 	ExpectedVals []string
 	Actual       Token
 	History      []Token
 }
 
-func (e UnexpectedTokenError) Error() string {
+func (e unexpectedTokenError) Error() string {
 	return fmt.Sprintf("unexpected token: %s", e.Actual)
 }
 

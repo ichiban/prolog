@@ -111,7 +111,7 @@ func compile(t Term, env *Env) (clauses, error) {
 				}
 
 				// if-then-else construct
-				if if_, ok := e.Args[0].(*Compound); ok && if_.Functor == "->" && len(if_.Args) == 2 {
+				if c, ok := e.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
 					break
 				}
 

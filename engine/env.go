@@ -171,9 +171,9 @@ func (e *Env) Simplify(t Term) Term {
 	}
 }
 
-type Variables []Variable
+type variables []Variable
 
-func (vs Variables) Terms() []Term {
+func (vs variables) terms() []Term {
 	res := make([]Term, len(vs))
 	for i, v := range vs {
 		res[i] = v
@@ -181,8 +181,8 @@ func (vs Variables) Terms() []Term {
 	return res
 }
 
-func (vs Variables) Except(ws Variables) Variables {
-	ret := make(Variables, 0, len(vs))
+func (vs variables) except(ws variables) variables {
+	ret := make(variables, 0, len(vs))
 vs:
 	for _, v := range vs {
 		for _, w := range ws {
@@ -196,15 +196,15 @@ vs:
 }
 
 // FreeVariables extracts variables in the given terms.
-func (e *Env) FreeVariables(ts ...Term) Variables {
-	var fvs Variables
+func (e *Env) FreeVariables(ts ...Term) []Variable {
+	var fvs variables
 	for _, t := range ts {
 		fvs = e.appendFreeVariables(fvs, t)
 	}
 	return fvs
 }
 
-func (e *Env) appendFreeVariables(fvs Variables, t Term) Variables {
+func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
 	switch t := e.Resolve(t).(type) {
 	case Variable:
 		for _, v := range fvs {

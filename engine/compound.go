@@ -264,6 +264,8 @@ func EachList(list Term, f func(elem Term) error, env *Env) error {
 	}
 }
 
+// Slice returns a Term slice containing the elements of list.
+// It errors if the given Term is not a list.
 func Slice(list Term, env *Env) (ret []Term, err error) {
 	err = EachList(list, func(elem Term) error {
 		ret = append(ret, env.Resolve(elem))
@@ -272,7 +274,7 @@ func Slice(list Term, env *Env) (ret []Term, err error) {
 	return
 }
 
-// Seq returns a sequence of ts separated by seq.
+// Seq returns a sequence of ts separated by sep.
 func Seq(sep Atom, ts ...Term) Term {
 	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
 	for i := len(ts) - 1; i >= 0; i-- {
@@ -299,6 +301,7 @@ func EachSeq(seq Term, sep Atom, f func(elem Term) error, env *Env) error {
 	return f(seq)
 }
 
+// Each iterates over either a list or comma-delimited sequence.
 func Each(any Term, f func(elem Term) error, env *Env) error {
 	if c, ok := env.Resolve(any).(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
 		return EachList(any, f, env)
