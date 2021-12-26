@@ -21,6 +21,14 @@ const (
 	StreamModeAppend = StreamMode(os.O_APPEND) | StreamModeWrite
 )
 
+func (m StreamMode) String() string {
+	return [...]string{
+		StreamModeRead:   "read",
+		StreamModeWrite:  "write",
+		StreamModeAppend: "append",
+	}[m]
+}
+
 // EOFAction describes what happens when you reached to the end of the stream.
 type EOFAction int
 
@@ -33,6 +41,14 @@ const (
 	EOFActionReset
 )
 
+func (a EOFAction) String() string {
+	return [...]string{
+		EOFActionError:   "error",
+		EOFActionEOFCode: "eof_code",
+		EOFActionReset:   "reset",
+	}[a]
+}
+
 // StreamType describes what will be transferred in the stream, either text or binary.
 type StreamType int
 
@@ -42,6 +58,13 @@ const (
 	// StreamTypeBinary means binary.
 	StreamTypeBinary
 )
+
+func (t StreamType) String() string {
+	return [...]string{
+		StreamTypeText:   "text",
+		StreamTypeBinary: "false",
+	}[t]
+}
 
 // Stream is a prolog stream.
 type Stream struct {
@@ -175,4 +198,53 @@ func (s *Stream) Compare(t Term, env *Env) int64 {
 	default:
 		return 1
 	}
+}
+
+func (s *Stream) properties() ([]Term, error) {
+	var properties []Term
+
+	properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom(s.mode.String())}})
+
+	if s.alias != "" {
+		properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
+	}
+
+	properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom(s.eofAction.String())}})
+
+	if f, ok := s.file.(*os.File); ok {
+		pos, err := f.Seek(0, 1)
+		if err != nil {
+			return nil, err
+		}
+		pos -= int64(s.buf.Buffered())
+
+		fi, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+
+		eos := "not"
+		switch {
+		case pos == fi.Size():
+			eos = "at"
+		case pos > fi.Size():
+			eos = "past"
+		}
+
+		properties = append(properties,
+			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+		)
+	}
+
+	if s.reposition {
+		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
+	} else {
+		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
+	}
+
+	properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom(s.streamType.String())}})
+
+	return properties, nil
 }
