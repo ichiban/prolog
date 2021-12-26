@@ -57,3 +57,18 @@ func (v Variable) Unparse(emit func(token Token), opts WriteTermOptions, env *En
 		v.Unparse(emit, opts, env)
 	}
 }
+
+// Compare compares the variable to another term.
+func (v Variable) Compare(t Term, env *Env) int64 {
+	switch v := env.Resolve(v).(type) {
+	case Variable:
+		switch t := env.Resolve(t).(type) {
+		case Variable:
+			return int64(strings.Compare(string(v), string(t)))
+		default:
+			return -1
+		}
+	default:
+		return v.Compare(t, env)
+	}
+}

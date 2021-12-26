@@ -163,3 +163,16 @@ func (s *Stream) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
 	}
 	emit(Token{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }
+
+// Compare compares the stream to another term.
+func (s *Stream) Compare(t Term, env *Env) int64 {
+	switch t := env.Resolve(t).(type) {
+	case *Stream:
+		if s == t {
+			return 0
+		}
+		return 1
+	default:
+		return 1
+	}
+}

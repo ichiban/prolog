@@ -43,3 +43,21 @@ func (i Integer) Unparse(emit func(token Token), _ WriteTermOptions, _ *Env) {
 	s := strconv.FormatInt(int64(i), 10)
 	emit(Token{Kind: TokenInteger, Val: s})
 }
+
+// Compare compares the integer to another term.
+func (i Integer) Compare(t Term, env *Env) int64 {
+	switch t := env.Resolve(t).(type) {
+	case Variable:
+		return 1
+	case Float:
+		d := int64(Float(i) - t)
+		if d == 0 {
+			return 1
+		}
+		return d
+	case Integer:
+		return int64(i - t)
+	default:
+		return -1
+	}
+}

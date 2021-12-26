@@ -63,6 +63,18 @@ func (a Atom) Unparse(emit func(Token), opts WriteTermOptions, _ *Env) {
 	}
 }
 
+// Compare compares the atom to another term.
+func (a Atom) Compare(t Term, env *Env) int64 {
+	switch t := env.Resolve(t).(type) {
+	case Variable, Float, Integer:
+		return 1
+	case Atom:
+		return int64(strings.Compare(string(a), string(t)))
+	default:
+		return -1
+	}
+}
+
 func quote(s string) string {
 	return fmt.Sprintf("'%s'", quotedAtomEscapePattern.ReplaceAllStringFunc(s, quotedIdentEscape))
 }
