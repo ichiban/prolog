@@ -602,7 +602,7 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 				answer := elem.(*Compound)
 				vars, instance := answer.Args[0], answer.Args[1]
 				for i := range solutions {
-					if compare(solutions[i].vars, vars, env) == 0 {
+					if solutions[i].vars.Compare(vars, env) == 0 {
 						solutions[i].instances = append(solutions[i].instances, instance)
 						return nil
 					}
@@ -618,7 +618,7 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 		}
 
 		sort.Slice(solutions, func(i, j int) bool {
-			return compare(solutions[i].vars, solutions[j].vars, env) < 0
+			return solutions[i].vars.Compare(solutions[j].vars, env) < 0
 		})
 
 		ks := make([]func(context.Context) *Promise, len(solutions))
@@ -674,7 +674,7 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 		return Error(typeErrorAtom(order))
 	}
 
-	d := compare(env.Resolve(term1), env.Resolve(term2), env)
+	d := term1.Compare(term2, env)
 	switch {
 	case d < 0:
 		return Unify(Atom("<"), order, k, env)

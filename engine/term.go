@@ -11,6 +11,7 @@ type Term interface {
 	fmt.Stringer
 	Unify(Term, bool, *Env) (*Env, bool)
 	Unparse(func(Token), WriteTermOptions, *Env)
+	Compare(Term, *Env) int64
 }
 
 // Contains checks if t contains s.
@@ -71,79 +72,6 @@ var defaultWriteTermOptions = WriteTermOptions{
 		{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"}, // for principal functors
 	},
 	Priority: 1200,
-}
-
-func compare(a, b Term, env *Env) int64 {
-	switch a := env.Resolve(a).(type) {
-	case Variable:
-		switch b := env.Resolve(b).(type) {
-		case Variable:
-			return int64(strings.Compare(string(a), string(b)))
-		default:
-			return -1
-		}
-	case Float:
-		switch b := env.Resolve(b).(type) {
-		case Variable:
-			return 1
-		case Float:
-			return int64(a - b)
-		case Integer:
-			if d := int64(a - Float(b)); d != 0 {
-				return d
-			}
-			return -1
-		default:
-			return -1
-		}
-	case Integer:
-		switch b := env.Resolve(b).(type) {
-		case Variable:
-			return 1
-		case Float:
-			d := int64(Float(a) - b)
-			if d == 0 {
-				return 1
-			}
-			return d
-		case Integer:
-			return int64(a - b)
-		default:
-			return -1
-		}
-	case Atom:
-		switch b := env.Resolve(b).(type) {
-		case Variable, Float, Integer:
-			return 1
-		case Atom:
-			return int64(strings.Compare(string(a), string(b)))
-		default:
-			return -1
-		}
-	case *Compound:
-		switch b := b.(type) {
-		case *Compound:
-			if d := compare(a.Functor, b.Functor, env); d != 0 {
-				return d
-			}
-
-			if d := len(a.Args) - len(b.Args); d != 0 {
-				return int64(d)
-			}
-
-			for i := range a.Args {
-				if d := compare(a.Args[i], b.Args[i], env); d != 0 {
-					return d
-				}
-			}
-
-			return 0
-		default:
-			return 1
-		}
-	default:
-		return 1
-	}
 }
 
 // Write outputs one of the external representations of the term.

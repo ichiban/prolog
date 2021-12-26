@@ -3,6 +3,8 @@ package engine
 import (
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,5 +48,26 @@ func TestVariable_Unparse(t *testing.T) {
 		assert.Len(t, tokens, 1)
 		assert.Equal(t, TokenVariable, tokens[0].Kind)
 		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
+	})
+}
+
+func TestVariable_Compare(t *testing.T) {
+	t.Run("free", func(t *testing.T) {
+		var m mockTerm
+		defer m.AssertExpectations(t)
+
+		assert.Equal(t, int64(-1), Variable("Y").Compare(&m, nil))
+		assert.Equal(t, int64(-1), Variable("X").Compare(Variable("Y"), nil))
+		assert.Equal(t, int64(0), Variable("X").Compare(Variable("X"), nil))
+		assert.Equal(t, int64(1), Variable("Y").Compare(Variable("X"), nil))
+	})
+
+	t.Run("bound", func(t *testing.T) {
+		var m mockTerm
+		m.On("Compare", mock.Anything, mock.Anything).Return(int64(123))
+		defer m.AssertExpectations(t)
+
+		env := NewEnv().Bind("X", &m)
+		assert.Equal(t, int64(123), Variable("X").Compare(Variable("Y"), env))
 	})
 }

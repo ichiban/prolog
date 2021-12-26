@@ -223,3 +223,14 @@ func TestStream_Unparse(t *testing.T) {
 		}, ret)
 	})
 }
+
+func TestStream_Compare(t *testing.T) {
+	var m mockTerm
+	defer m.AssertExpectations(t)
+
+	var s1, s2 Stream
+	assert.Equal(t, int64(0), s1.Compare(&s1, nil))
+	assert.Equal(t, int64(1), s1.Compare(&s2, nil))
+	assert.Equal(t, int64(1), s2.Compare(&s1, nil))
+	assert.Equal(t, int64(1), s1.Compare(&m, nil))
+}

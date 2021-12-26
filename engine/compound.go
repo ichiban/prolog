@@ -192,6 +192,30 @@ func (c *Compound) unparse(emit func(Token), opts WriteTermOptions, env *Env) {
 	emit(Token{Kind: TokenParenR, Val: ")"})
 }
 
+// Compare compares the compound to another term.
+func (c *Compound) Compare(t Term, env *Env) int64 {
+	switch t := env.Resolve(t).(type) {
+	case *Compound:
+		if d := c.Functor.Compare(t.Functor, env); d != 0 {
+			return d
+		}
+
+		if d := len(c.Args) - len(t.Args); d != 0 {
+			return int64(d)
+		}
+
+		for i := range c.Args {
+			if d := c.Args[i].Compare(t.Args[i], env); d != 0 {
+				return d
+			}
+		}
+
+		return 0
+	default:
+		return 1
+	}
+}
+
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
 	return &Compound{
@@ -222,11 +246,11 @@ func Set(ts ...Term) Term {
 	us := make([]Term, len(ts))
 	copy(us, ts)
 	sort.Slice(us, func(i, j int) bool {
-		return compare(us[i], us[j], nil) < 0
+		return us[i].Compare(us[j], nil) < 0
 	})
 	n := 1
 	for _, u := range us[1:] {
-		if compare(us[n-1], u, nil) == 0 {
+		if us[n-1].Compare(u, nil) == 0 {
 			continue
 		}
 		us[n] = u

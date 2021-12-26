@@ -1399,180 +1399,35 @@ func TestState_FindAll(t *testing.T) {
 }
 
 func TestCompare(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		x, y := Variable("X"), Variable("Y")
-		ok, err := Compare(Atom("<"), x, y, Success, nil).Force(context.Background())
+	t.Run("less than", func(t *testing.T) {
+		var x, y mockTerm
+		x.On("Compare", &y, (*Env)(nil)).Return(int64(-1))
+		defer x.AssertExpectations(t)
+		defer y.AssertExpectations(t)
+
+		ok, err := Compare(Atom("<"), &x, &y, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
 
-		ok, err = Compare(Atom("="), x, x, Success, nil).Force(context.Background())
+	t.Run("greater than", func(t *testing.T) {
+		var x, y mockTerm
+		x.On("Compare", &y, (*Env)(nil)).Return(int64(1))
+		defer x.AssertExpectations(t)
+		defer y.AssertExpectations(t)
+
+		ok, err := Compare(Atom(">"), &x, &y, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
 
-		ok, err = Compare(Atom(">"), y, x, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+	t.Run("equals to", func(t *testing.T) {
+		var x, y mockTerm
+		x.On("Compare", &y, (*Env)(nil)).Return(int64(0))
+		defer x.AssertExpectations(t)
+		defer y.AssertExpectations(t)
 
-		env := NewEnv().
-			Bind(x, Atom("b")).
-			Bind(y, Atom("a"))
-		ok, err = Compare(Atom(">"), x, y, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), NewVariable(), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), NewVariable(), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), NewVariable(), Atom(""), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), NewVariable(), &Compound{}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Float(0), NewVariable(), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Float(0), Float(1), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("="), Float(0), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Float(1), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Float(0), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Float(1), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Float(0), Atom(""), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Float(0), &Compound{}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Integer(0), NewVariable(), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Integer(0), Integer(1), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("="), Integer(0), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Integer(1), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Integer(0), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Integer(1), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Integer(0), Atom(""), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Integer(0), &Compound{}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Atom(""), NewVariable(), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Atom(""), Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Atom(""), Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Atom("a"), Atom("b"), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("="), Atom("a"), Atom("a"), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), Atom("b"), Atom("a"), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), Atom(""), &Compound{}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{}, NewVariable(), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{}, Float(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{}, Integer(0), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{}, Atom(""), Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), &Compound{Functor: "a"}, &Compound{Functor: "b"}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("="), &Compound{Functor: "a"}, &Compound{Functor: "a"}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{Functor: "b"}, &Compound{Functor: "a"}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f"}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("="), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), &Compound{Functor: "f"}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom(">"), &Compound{Functor: "f", Args: []Term{Atom("b")}}, &Compound{Functor: "f", Args: []Term{Atom("a")}}, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = Compare(Atom("<"), &Compound{Functor: "f", Args: []Term{Atom("a")}}, &Compound{Functor: "f", Args: []Term{Atom("b")}}, Success, env).Force(context.Background())
+		ok, err := Compare(Atom("="), &x, &y, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3576,6 +3431,11 @@ func (m *mockTerm) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 func (m *mockTerm) Unparse(emit func(Token), opts WriteTermOptions, env *Env) {
 	_ = m.Called(emit, opts, env)
+}
+
+func (m *mockTerm) Compare(t Term, env *Env) int64 {
+	args := m.Called(t, env)
+	return args.Get(0).(int64)
 }
 
 func TestCharCode(t *testing.T) {
