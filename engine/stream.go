@@ -207,6 +207,13 @@ func (s *Stream) properties() ([]Term, error) {
 
 	properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom(s.mode.String())}})
 
+	switch s.mode {
+	case StreamModeRead:
+		properties = append(properties, Atom("input"))
+	case StreamModeWrite, StreamModeAppend:
+		properties = append(properties, Atom("output"))
+	}
+
 	if s.alias != "" {
 		properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
 	}

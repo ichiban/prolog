@@ -6041,6 +6041,7 @@ func TestState_StreamProperty(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		expected := []Term{
 			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			Atom("input"),
 			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
 			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
 			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
@@ -6072,6 +6073,7 @@ func TestState_StreamProperty(t *testing.T) {
 	t.Run("reposition false", func(t *testing.T) {
 		expected := []Term{
 			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			Atom("input"),
 			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
 			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
 			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
@@ -6104,6 +6106,7 @@ func TestState_StreamProperty(t *testing.T) {
 	t.Run("stream alias", func(t *testing.T) {
 		expected := []Term{
 			&Compound{Functor: "mode", Args: []Term{Atom("write")}},
+			Atom("output"),
 			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
 			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
 			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
@@ -6137,19 +6140,50 @@ func TestState_StreamProperty(t *testing.T) {
 	})
 
 	t.Run("correct property value", func(t *testing.T) {
-		s, err := Open(Atom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		t.Run("input", func(t *testing.T) {
+			s, err := Open(Atom(f.Name()), StreamModeRead)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, s.Close())
+			}()
 
-		var state State
-		ok, err := state.StreamProperty(s, &Compound{
-			Functor: "mode",
-			Args:    []Term{Atom("read")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+			var state State
+			ok, err := state.StreamProperty(s, Atom("input"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("mode", func(t *testing.T) {
+			s, err := Open(Atom(f.Name()), StreamModeRead)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, s.Close())
+			}()
+
+			var state State
+			ok, err := state.StreamProperty(s, &Compound{
+				Functor: "mode",
+				Args:    []Term{Atom("read")},
+			}, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("position", func(t *testing.T) {
+			s, err := Open(Atom(f.Name()), StreamModeRead)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, s.Close())
+			}()
+
+			var state State
+			ok, err := state.StreamProperty(s, &Compound{
+				Functor: "position",
+				Args:    []Term{Integer(0)},
+			}, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable, a stream-term, nor an alias", func(t *testing.T) {
@@ -6240,6 +6274,84 @@ func TestState_StreamProperty(t *testing.T) {
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+	})
+
+	t.Run("unknown atom", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, Atom("foo"), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("unknown compound", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{Functor: "foo", Args: []Term{NewVariable()}}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("wrong arity", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{Functor: "mode", Args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("integer", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, Integer(0), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("non-atom for atom property", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{Functor: "mode", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("non-integer for integer property", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{Functor: "position", Args: []Term{Atom("foo")}}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
 	})
 }
 
