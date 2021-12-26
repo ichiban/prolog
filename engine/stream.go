@@ -200,6 +200,8 @@ func (s *Stream) Compare(t Term, env *Env) int64 {
 	}
 }
 
+var fileStat = (*os.File).Stat
+
 func (s *Stream) properties() ([]Term, error) {
 	var properties []Term
 
@@ -212,13 +214,13 @@ func (s *Stream) properties() ([]Term, error) {
 	properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom(s.eofAction.String())}})
 
 	if f, ok := s.file.(*os.File); ok {
-		pos, err := f.Seek(0, 1)
+		pos, err := seek(f, 0, 1)
 		if err != nil {
 			return nil, err
 		}
 		pos -= int64(s.buf.Buffered())
 
-		fi, err := f.Stat()
+		fi, err := fileStat(f)
 		if err != nil {
 			return nil, err
 		}

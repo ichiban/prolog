@@ -6069,6 +6069,38 @@ func TestState_StreamProperty(t *testing.T) {
 		assert.False(t, ok)
 	})
 
+	t.Run("reposition false", func(t *testing.T) {
+		expected := []Term{
+			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
+			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
+			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
+			&Compound{Functor: "position", Args: []Term{Integer(0)}},
+			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
+			&Compound{Functor: "reposition", Args: []Term{Atom("false")}},
+			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+		}
+
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		s.reposition = false
+		assert.NoError(t, err)
+		s.alias = "null"
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		v := Variable("V")
+		c := 0
+		var state State
+		ok, err := state.StreamProperty(s, v, func(env *Env) *Promise {
+			assert.Equal(t, expected[c], env.Resolve(v))
+			c++
+			return Bool(false)
+		}, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
 	t.Run("stream alias", func(t *testing.T) {
 		expected := []Term{
 			&Compound{Functor: "mode", Args: []Term{Atom("write")}},
@@ -6139,6 +6171,75 @@ func TestState_StreamProperty(t *testing.T) {
 		ok, err := state.StreamProperty(Atom("foo"), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, existenceErrorStream(Atom("foo")), err)
 		assert.False(t, ok)
+	})
+
+	t.Run("seek failed", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		seek = func(s io.Seeker, offset int64, whence int) (int64, error) {
+			return 0, errors.New("failed")
+		}
+		defer func() {
+			seek = io.Seeker.Seek
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{
+			Functor: "mode",
+			Args:    []Term{Atom("read")},
+		}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("stat failed", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		fileStat = func(f *os.File) (os.FileInfo, error) {
+			return nil, errors.New("fialed")
+		}
+		defer func() {
+			fileStat = (*os.File).Stat
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{
+			Functor: "mode",
+			Args:    []Term{Atom("read")},
+		}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("end_of_stream past", func(t *testing.T) {
+		s, err := Open(Atom(f.Name()), StreamModeRead)
+		assert.NoError(t, err)
+		defer func() {
+			assert.NoError(t, s.Close())
+		}()
+
+		seek = func(s io.Seeker, offset int64, whence int) (int64, error) {
+			return 1000, nil
+		}
+		defer func() {
+			seek = io.Seeker.Seek
+		}()
+
+		var state State
+		ok, err := state.StreamProperty(s, &Compound{
+			Functor: "end_of_stream",
+			Args:    []Term{Atom("past")},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
 	})
 }
 
