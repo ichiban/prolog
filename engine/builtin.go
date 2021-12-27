@@ -957,7 +957,7 @@ func streamOption(state *State, option Term, env *Env) (StreamOption, error) {
 		if len(o.Args) != 1 {
 			return nil, domainErrorStreamOption(option)
 		}
-		switch a := o.Args[0].(type) {
+		switch a := env.Resolve(o.Args[0]).(type) {
 		case Variable:
 			return nil, InstantiationError(a)
 		case Atom:

@@ -2713,27 +2713,199 @@ func TestState_Open(t *testing.T) {
 
 		assert.NoError(t, f.Close())
 
-		v := Variable("Stream")
+		t.Run("alias", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "alias",
+				Args:    []Term{Atom("input")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
 
-		ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-			Functor: "alias",
-			Args:    []Term{Atom("input")},
-		}), func(env *Env) *Promise {
-			ref, ok := env.Lookup(v)
-			assert.True(t, ok)
-			s, ok := ref.(*Stream)
-			assert.True(t, ok)
+				assert.Equal(t, state.streams[Atom("input")], s)
 
-			assert.Equal(t, state.streams[Atom("input")], s)
+				b, err := ioutil.ReadAll(s.buf)
+				assert.NoError(t, err)
+				assert.Equal(t, "test\n", string(b))
 
-			b, err := ioutil.ReadAll(s.buf)
+				return Bool(true)
+			}, nil).Force(context.Background())
 			assert.NoError(t, err)
-			assert.Equal(t, "test\n", string(b))
+			assert.True(t, ok)
+		})
 
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		t.Run("type text", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "type",
+				Args:    []Term{Atom("text")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.Equal(t, StreamTypeText, s.streamType)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("type binary", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "type",
+				Args:    []Term{Atom("binary")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.Equal(t, StreamTypeBinary, s.streamType)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("reposition true", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "reposition",
+				Args:    []Term{Atom("true")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.True(t, s.reposition)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("reposition true", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "reposition",
+				Args:    []Term{Atom("false")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.False(t, s.reposition)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("eof_action error", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "eof_action",
+				Args:    []Term{Atom("error")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.Equal(t, EOFActionError, s.eofAction)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("eof_action eof_code", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "eof_action",
+				Args:    []Term{Atom("eof_code")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.Equal(t, EOFActionEOFCode, s.eofAction)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("eof_action reset", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "eof_action",
+				Args:    []Term{Atom("reset")},
+			}), func(env *Env) *Promise {
+				ref, ok := env.Lookup(v)
+				assert.True(t, ok)
+				s, ok := ref.(*Stream)
+				assert.True(t, ok)
+				assert.Equal(t, EOFActionReset, s.eofAction)
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("unknown option", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "unknown",
+				Args:    []Term{Atom("option")},
+			}), func(env *Env) *Promise {
+				assert.Fail(t, "unreachable")
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("wrong arity", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "type",
+				Args:    []Term{Atom("a"), Atom("b")},
+			}), func(env *Env) *Promise {
+				assert.Fail(t, "unreachable")
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("variable arg", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "type",
+				Args:    []Term{NewVariable()},
+			}), func(env *Env) *Promise {
+				assert.Fail(t, "unreachable")
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("non-atom arg", func(t *testing.T) {
+			v := Variable("Stream")
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
+				Functor: "type",
+				Args:    []Term{Integer(0)},
+			}), func(env *Env) *Promise {
+				assert.Fail(t, "unreachable")
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("write", func(t *testing.T) {
@@ -2952,10 +3124,6 @@ func TestState_Open(t *testing.T) {
 			Args:    []Term{Atom("foo")},
 		}, "foo is already defined as an alias."), err)
 		assert.False(t, ok)
-	})
-
-	t.Run("an element E of the options list is reposition(true) and it is not possible to reposition", func(t *testing.T) {
-		// TODO:
 	})
 }
 
