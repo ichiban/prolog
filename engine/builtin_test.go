@@ -6813,6 +6813,13 @@ func TestState_SetPrologFlag(t *testing.T) {
 			assert.True(t, ok)
 			assert.False(t, state.charConvEnabled)
 		})
+
+		t.Run("unknown", func(t *testing.T) {
+			state := State{charConvEnabled: true}
+			ok, err := state.SetPrologFlag(Atom("char_conversion"), Atom("foo"), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("debug", func(t *testing.T) {
@@ -6830,6 +6837,13 @@ func TestState_SetPrologFlag(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.False(t, state.debug)
+		})
+
+		t.Run("unknown", func(t *testing.T) {
+			state := State{debug: true}
+			ok, err := state.SetPrologFlag(Atom("debug"), Atom("foo"), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
 		})
 	})
 
@@ -6863,6 +6877,46 @@ func TestState_SetPrologFlag(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 			assert.Equal(t, unknownFail, state.unknown)
+		})
+
+		t.Run("fail", func(t *testing.T) {
+			var state State
+			ok, err := state.SetPrologFlag(Atom("unknown"), Atom("foo"), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
+	})
+
+	t.Run("double_quotes", func(t *testing.T) {
+		t.Run("codes", func(t *testing.T) {
+			var state State
+			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("codes"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, DoubleQuotesCodes, state.doubleQuotes)
+		})
+
+		t.Run("chars", func(t *testing.T) {
+			var state State
+			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("chars"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, DoubleQuotesChars, state.doubleQuotes)
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			var state State
+			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("atom"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, DoubleQuotesAtom, state.doubleQuotes)
+		})
+
+		t.Run("unknown", func(t *testing.T) {
+			var state State
+			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("foo"), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
 		})
 	})
 
