@@ -118,6 +118,11 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
+	// Ignore shebang line.
+	if i := strings.Index(query, "\n"); query[:2] == "#!" && i > 0 {
+		query = query[i:]
+	}
+
 	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
 		return err
