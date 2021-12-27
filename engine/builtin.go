@@ -370,23 +370,17 @@ func (state *State) Op(priority, specifier, operator Term, k func(*Env) *Promise
 	if !ok {
 		return Error(typeErrorAtom(specifier))
 	}
-	var spec OperatorSpecifier
-	switch s {
-	case "fx":
-		spec = OperatorSpecifierFX
-	case "fy":
-		spec = OperatorSpecifierFY
-	case "xf":
-		spec = OperatorSpecifierXF
-	case "yf":
-		spec = OperatorSpecifierYF
-	case "xfx":
-		spec = OperatorSpecifierXFX
-	case "xfy":
-		spec = OperatorSpecifierXFY
-	case "yfx":
-		spec = OperatorSpecifierYFX
-	default:
+
+	spec, ok := map[Atom]OperatorSpecifier{
+		"fx":  OperatorSpecifierFX,
+		"fy":  OperatorSpecifierFY,
+		"xf":  OperatorSpecifierXF,
+		"yf":  OperatorSpecifierYF,
+		"xfx": OperatorSpecifierXFX,
+		"xfy": OperatorSpecifierXFY,
+		"yfx": OperatorSpecifierYFX,
+	}[s]
+	if !ok {
 		return Error(domainErrorOperatorSpecifier(s))
 	}
 
@@ -444,10 +438,15 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 	case Variable:
 		break
 	case Atom:
-		switch s {
-		case "xf", "yf", "xfx", "xfy", "yfx", "fx", "fy":
-			break
-		default:
+		if _, ok := map[Atom]struct{}{
+			"xf":  {},
+			"yf":  {},
+			"xfx": {},
+			"xfy": {},
+			"yfx": {},
+			"fx":  {},
+			"fy":  {},
+		}[s]; !ok {
 			return Error(domainErrorOperatorSpecifier(s))
 		}
 	default:
@@ -904,14 +903,13 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 	case Variable:
 		return Error(InstantiationError(mode))
 	case Atom:
-		switch m {
-		case "read":
-			streamMode = StreamModeRead
-		case "write":
-			streamMode = StreamModeWrite
-		case "append":
-			streamMode = StreamModeAppend
-		default:
+		var ok bool
+		streamMode, ok = map[Atom]StreamMode{
+			"read":   StreamModeRead,
+			"write":  StreamModeWrite,
+			"append": StreamModeAppend,
+		}[m]
+		if !ok {
 			return Error(domainErrorIOMode(m))
 		}
 	default:
@@ -924,91 +922,13 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 
 	var opts []StreamOption
 	if err := EachList(env.Resolve(options), func(option Term) error {
-		switch o := env.Resolve(option).(type) {
-		case Variable:
-			return InstantiationError(option)
-		case *Compound:
-			if len(o.Args) != 1 {
-				return domainErrorStreamOption(option)
-			}
-			arg := o.Args[0]
-			switch o.Functor {
-			case "type":
-				switch t := env.Resolve(arg).(type) {
-				case Variable:
-					return InstantiationError(arg)
-				case Atom:
-					switch t {
-					case "text":
-						opts = append(opts, WithStreamType(StreamTypeText))
-						return nil
-					case "binary":
-						opts = append(opts, WithStreamType(StreamTypeBinary))
-						return nil
-					default:
-						return domainErrorStreamOption(option)
-					}
-				default:
-					return typeErrorAtom(arg)
-				}
-			case "reposition":
-				switch b := env.Resolve(arg).(type) {
-				case Variable:
-					return InstantiationError(arg)
-				case Atom:
-					switch b {
-					case "true":
-						opts = append(opts, WithReposition(true))
-						return nil
-					case "false":
-						opts = append(opts, WithReposition(false))
-						return nil
-					default:
-						return domainErrorStreamOption(option)
-					}
-				default:
-					return typeErrorAtom(arg)
-				}
-			case "alias":
-				switch a := env.Resolve(arg).(type) {
-				case Variable:
-					return InstantiationError(arg)
-				case Atom:
-					if _, ok := state.streams[a]; ok {
-						return PermissionError("open", "source_sink", option, "%s is already defined as an alias.", a)
-					}
-					opts = append(opts, WithAlias(state, a))
-					return nil
-				default:
-					return domainErrorStreamOption(option)
-				}
-			case "eof_action":
-				switch a := env.Resolve(arg).(type) {
-				case Variable:
-					return InstantiationError(arg)
-				case Atom:
-					switch a {
-					case "error":
-						opts = append(opts, WithEOFAction(EOFActionError))
-						return nil
-					case "eof_code":
-						opts = append(opts, WithEOFAction(EOFActionEOFCode))
-						return nil
-					case "reset":
-						opts = append(opts, WithEOFAction(EOFActionReset))
-						return nil
-					default:
-						return domainErrorStreamOption(option)
-					}
-				default:
-					return domainErrorStreamOption(option)
-				}
-			default:
-				return domainErrorStreamOption(option)
-			}
-		default:
-			return domainErrorStreamOption(option)
+		opt, err := streamOption(state, option, env)
+		if err != nil {
+			return err
 		}
+
+		opts = append(opts, opt)
+		return nil
 	}, env); err != nil {
 		return Error(err)
 	}
@@ -1021,6 +941,64 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 	return Delay(func(context.Context) *Promise {
 		return Unify(stream, s, k, env)
 	})
+}
+
+func streamOption(state *State, option Term, env *Env) (StreamOption, error) {
+	type optionIndicator struct {
+		functor Atom
+		arg     Atom
+	}
+
+	var oi optionIndicator
+	switch o := env.Resolve(option).(type) {
+	case Variable:
+		return nil, InstantiationError(option)
+	case *Compound:
+		if len(o.Args) != 1 {
+			return nil, domainErrorStreamOption(option)
+		}
+		switch a := env.Resolve(o.Args[0]).(type) {
+		case Variable:
+			return nil, InstantiationError(a)
+		case Atom:
+			oi = optionIndicator{
+				functor: o.Functor,
+				arg:     a,
+			}
+		default:
+			return nil, typeErrorAtom(a)
+		}
+	default:
+		return nil, domainErrorStreamOption(option)
+	}
+
+	// alias is a bit different.
+	if oi.functor == "alias" {
+		if _, ok := state.streams[oi.arg]; ok {
+			return nil, PermissionError("open", "source_sink", option, "%s is already defined as an alias.", oi.arg)
+		}
+
+		return WithAlias(state, oi.arg), nil
+	}
+
+	switch oi {
+	case optionIndicator{functor: "type", arg: "text"}:
+		return WithStreamType(StreamTypeText), nil
+	case optionIndicator{functor: "type", arg: "binary"}:
+		return WithStreamType(StreamTypeBinary), nil
+	case optionIndicator{functor: "reposition", arg: "true"}:
+		return WithReposition(true), nil
+	case optionIndicator{functor: "reposition", arg: "false"}:
+		return WithReposition(false), nil
+	case optionIndicator{functor: "eof_action", arg: "error"}:
+		return WithEOFAction(EOFActionError), nil
+	case optionIndicator{functor: "eof_action", arg: "eof_code"}:
+		return WithEOFAction(EOFActionEOFCode), nil
+	case optionIndicator{functor: "eof_action", arg: "reset"}:
+		return WithEOFAction(EOFActionReset), nil
+	default:
+		return nil, domainErrorStreamOption(option)
+	}
 }
 
 // Close closes a stream specified by streamOrAlias.
@@ -1121,49 +1099,7 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 		Priority: 1200,
 	}
 	if err := EachList(env.Resolve(options), func(option Term) error {
-		switch option := env.Resolve(option).(type) {
-		case Variable:
-			return InstantiationError(option)
-		case *Compound:
-			if len(option.Args) != 1 {
-				return domainErrorWriteOption(option)
-			}
-
-			var b bool
-			switch v := env.Resolve(option.Args[0]).(type) {
-			case Variable:
-				return InstantiationError(v)
-			case Atom:
-				switch v {
-				case "false":
-					b = false
-				case "true":
-					b = true
-				default:
-					return domainErrorWriteOption(option)
-				}
-			default:
-				return domainErrorWriteOption(option)
-			}
-
-			switch option.Functor {
-			case "quoted":
-				opts.Quoted = b
-			case "ignore_ops":
-				if b {
-					opts.Ops = nil
-				} else {
-					opts.Ops = state.operators
-				}
-			case "numbervars":
-				opts.NumberVars = b
-			default:
-				return domainErrorWriteOption(option)
-			}
-			return nil
-		default:
-			return domainErrorWriteOption(option)
-		}
+		return writeTermOption(&opts, state, option, env)
 	}, env); err != nil {
 		return Error(err)
 	}
@@ -1173,6 +1109,52 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 	}
 
 	return k(env)
+}
+
+func writeTermOption(opts *WriteTermOptions, state *State, option Term, env *Env) error {
+	type optionIndicator struct {
+		functor, arg Atom
+	}
+
+	var oi optionIndicator
+	switch option := env.Resolve(option).(type) {
+	case Variable:
+		return InstantiationError(option)
+	case *Compound:
+		if len(option.Args) != 1 {
+			return domainErrorWriteOption(option)
+		}
+
+		switch v := env.Resolve(option.Args[0]).(type) {
+		case Variable:
+			return InstantiationError(v)
+		case Atom:
+			oi = optionIndicator{functor: option.Functor, arg: v}
+		default:
+			return domainErrorWriteOption(option)
+		}
+	default:
+		return domainErrorWriteOption(option)
+	}
+
+	switch oi {
+	case optionIndicator{functor: "quoted", arg: "true"}:
+		opts.Quoted = true
+	case optionIndicator{functor: "quoted", arg: "false"}:
+		opts.Quoted = false
+	case optionIndicator{functor: "ignore_ops", arg: "true"}:
+		opts.Ops = nil
+	case optionIndicator{functor: "ignore_ops", arg: "false"}:
+		opts.Ops = state.operators
+	case optionIndicator{functor: "numbervars", arg: "true"}:
+		opts.NumberVars = true
+	case optionIndicator{functor: "numbervars", arg: "false"}:
+		opts.NumberVars = false
+	default:
+		return domainErrorWriteOption(option)
+	}
+
+	return nil
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
@@ -1289,6 +1271,12 @@ func (state *State) PutCode(streamOrAlias, code Term, k func(*Env) *Promise, env
 	}
 }
 
+type readTermOptions struct {
+	singletons    Term
+	variables     Term
+	variableNames Term
+}
+
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
 func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Promise, env *Env) *Promise {
 	s, err := state.stream(streamOrAlias, env)
@@ -1304,35 +1292,13 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		return Error(permissionErrorInputBinaryStream(streamOrAlias))
 	}
 
-	var opts struct {
-		singletons    Term
-		variables     Term
-		variableNames Term
+	opts := readTermOptions{
+		singletons:    NewVariable(),
+		variables:     NewVariable(),
+		variableNames: NewVariable(),
 	}
 	if err := EachList(env.Resolve(options), func(option Term) error {
-		switch option := env.Resolve(option).(type) {
-		case Variable:
-			return InstantiationError(option)
-		case *Compound:
-			if len(option.Args) != 1 {
-				return domainErrorReadOption(option)
-			}
-
-			v := env.Resolve(option.Args[0])
-			switch option.Functor {
-			case "singletons":
-				opts.singletons = v
-			case "variables":
-				opts.variables = v
-			case "variable_names":
-				opts.variableNames = v
-			default:
-				return domainErrorReadOption(option)
-			}
-			return nil
-		default:
-			return domainErrorReadOption(option)
-		}
+		return readTermOption(&opts, option, env)
 	}, env); err != nil {
 		return Error(err)
 	}
@@ -1385,29 +1351,48 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		})
 	}
 
-	var ok bool
-	if opts.singletons != nil {
-		env, ok = opts.singletons.Unify(List(singletons...), false, env)
-		if !ok {
-			return Bool(false)
-		}
-	}
-	if opts.variables != nil {
-		env, ok = opts.variables.Unify(List(variables...), false, env)
-		if !ok {
-			return Bool(false)
-		}
-	}
-	if opts.variableNames != nil {
-		env, ok = opts.variableNames.Unify(List(variableNames...), false, env)
-		if !ok {
-			return Bool(false)
-		}
+	env, ok := (&Compound{Args: []Term{
+		opts.singletons,
+		opts.variables,
+		opts.variableNames,
+	}}).Unify(&Compound{Args: []Term{
+		List(singletons...),
+		List(variables...),
+		List(variableNames...),
+	}}, false, env)
+	if !ok {
+		return Bool(false)
 	}
 
 	return Delay(func(context.Context) *Promise {
 		return Unify(out, t, k, env)
 	})
+}
+
+func readTermOption(opts *readTermOptions, option Term, env *Env) error {
+	switch option := env.Resolve(option).(type) {
+	case Variable:
+		return InstantiationError(option)
+	case *Compound:
+		if len(option.Args) != 1 {
+			return domainErrorReadOption(option)
+		}
+
+		v := env.Resolve(option.Args[0])
+		switch option.Functor {
+		case "singletons":
+			opts.singletons = v
+		case "variables":
+			opts.variables = v
+		case "variable_names":
+			opts.variableNames = v
+		default:
+			return domainErrorReadOption(option)
+		}
+		return nil
+	default:
+		return domainErrorReadOption(option)
+	}
 }
 
 var readByte = (*bufio.Reader).ReadByte
@@ -1782,37 +1767,16 @@ func SubAtom(atom, before, length, after, subAtom Term, k func(*Env) *Promise, e
 	case Atom:
 		rs := []rune(whole)
 
-		switch b := env.Resolve(before).(type) {
-		case Variable:
-			break
-		case Integer:
-			if b < 0 {
-				return Error(domainErrorNotLessThanZero(before))
-			}
-		default:
-			return Error(typeErrorInteger(before))
+		if err := checkPositiveInteger(before, env); err != nil {
+			return Error(err)
 		}
 
-		switch l := env.Resolve(length).(type) {
-		case Variable:
-			break
-		case Integer:
-			if l < 0 {
-				return Error(domainErrorNotLessThanZero(length))
-			}
-		default:
-			return Error(typeErrorInteger(length))
+		if err := checkPositiveInteger(length, env); err != nil {
+			return Error(err)
 		}
 
-		switch a := env.Resolve(after).(type) {
-		case Variable:
-			break
-		case Integer:
-			if a < 0 {
-				return Error(domainErrorNotLessThanZero(after))
-			}
-		default:
-			return Error(typeErrorInteger(after))
+		if err := checkPositiveInteger(after, env); err != nil {
+			return Error(err)
 		}
 
 		switch env.Resolve(subAtom).(type) {
@@ -1836,6 +1800,20 @@ func SubAtom(atom, before, length, after, subAtom Term, k func(*Env) *Promise, e
 		return Delay(ks...)
 	default:
 		return Error(typeErrorAtom(atom))
+	}
+}
+
+func checkPositiveInteger(n Term, env *Env) error {
+	switch b := env.Resolve(n).(type) {
+	case Variable:
+		return nil
+	case Integer:
+		if b < 0 {
+			return domainErrorNotLessThanZero(n)
+		}
+		return nil
+	default:
+		return typeErrorInteger(n)
 	}
 }
 
@@ -2169,11 +2147,9 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func(*Env) *Promise, pi func(Inte
 func (fs FunctionSet) eval(expression Term, env *Env) (_ Term, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				if e.Error() == "runtime error: integer divide by zero" {
-					err = evaluationErrorZeroDivisor()
-					return
-				}
+			if e, _ := r.(error); e.Error() == "runtime error: integer divide by zero" {
+				err = evaluationErrorZeroDivisor()
+				return
 			}
 			panic(r)
 		}
@@ -2227,12 +2203,9 @@ func (fs FunctionSet) eval(expression Term, env *Env) (_ Term, err error) {
 				return nil, err
 			}
 			return f(x, y, env)
-		default:
-			return nil, typeErrorEvaluable(t)
 		}
-	default:
-		return nil, typeErrorEvaluable(t)
 	}
+	return nil, typeErrorEvaluable(expression)
 }
 
 // DefaultFunctionSet is a FunctionSet with builtin functions.
@@ -2414,110 +2387,15 @@ func (state *State) StreamProperty(streamOrAlias, property Term, k func(*Env) *P
 		return Error(domainErrorStreamOrAlias(streamOrAlias))
 	}
 
-	switch p := env.Resolve(property).(type) {
-	case Variable:
-		break
-	case Atom:
-		switch p {
-		case "input", "output":
-			break
-		default:
-			return Error(domainErrorStreamProperty(property))
-		}
-	case *Compound:
-		if len(p.Args) != 1 {
-			return Error(domainErrorStreamProperty(property))
-		}
-		arg := p.Args[0]
-		switch p.Functor {
-		case "file_name", "mode", "alias", "end_of_stream", "eof_action", "reposition":
-			switch env.Resolve(arg).(type) {
-			case Variable, Atom:
-				break
-			default:
-				return Error(typeErrorAtom(arg))
-			}
-		case "position":
-			if len(p.Args) != 1 {
-				return Error(domainErrorStreamProperty(property))
-			}
-			switch env.Resolve(p.Args[0]).(type) {
-			case Variable, Integer:
-				break
-			default:
-				return Error(typeErrorAtom(arg))
-			}
-		default:
-			return Error(domainErrorStreamProperty(property))
-		}
-	default:
-		return Error(domainErrorStreamProperty(property))
+	if err := checkStreamProperty(property, env); err != nil {
+		return Error(err)
 	}
 
 	var ks []func(context.Context) *Promise
 	for _, s := range streams {
-		var properties []Term
-
-		switch s.mode {
-		case StreamModeRead:
-			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("read")}})
-		case StreamModeWrite:
-			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("write")}})
-		case StreamModeAppend:
-			properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom("append")}})
-		}
-
-		if s.alias != "" {
-			properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
-		}
-
-		switch s.eofAction {
-		case EOFActionError:
-			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("error")}})
-		case EOFActionEOFCode:
-			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}})
-		case EOFActionReset:
-			properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom("reset")}})
-		}
-
-		if f, ok := s.file.(*os.File); ok {
-			pos, err := f.Seek(0, 1)
-			if err != nil {
-				return Error(err)
-			}
-			pos -= int64(s.buf.Buffered())
-
-			fi, err := f.Stat()
-			if err != nil {
-				return Error(err)
-			}
-
-			eos := "not"
-			switch {
-			case pos == fi.Size():
-				eos = "at"
-			case pos > fi.Size():
-				eos = "past"
-			}
-
-			properties = append(properties,
-				&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-				&Compound{Functor: "position", Args: []Term{Integer(pos)}},
-				&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
-			)
-		}
-
-		if s.reposition {
-			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
-		} else {
-			properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
-		}
-
-		switch s.streamType {
-		case StreamTypeText:
-			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("text")}})
-		case StreamTypeBinary:
-			properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom("false")}})
+		properties, err := s.properties()
+		if err != nil {
+			return Error(err)
 		}
 
 		for i := range properties {
@@ -2528,6 +2406,53 @@ func (state *State) StreamProperty(streamOrAlias, property Term, k func(*Env) *P
 		}
 	}
 	return Delay(ks...)
+}
+
+func checkStreamProperty(property Term, env *Env) error {
+	switch p := env.Resolve(property).(type) {
+	case Variable:
+		return nil
+	case Atom:
+		switch p {
+		case "input", "output":
+			return nil
+		default:
+			return domainErrorStreamProperty(property)
+		}
+	case *Compound:
+		if len(p.Args) != 1 {
+			return domainErrorStreamProperty(property)
+		}
+		arg := p.Args[0]
+		switch p.Functor {
+		case "file_name", "mode", "alias", "end_of_stream", "eof_action", "reposition":
+			return checkAtom(arg, env)
+		case "position":
+			return checkInteger(arg, env)
+		default:
+			return domainErrorStreamProperty(property)
+		}
+	default:
+		return domainErrorStreamProperty(property)
+	}
+}
+
+func checkAtom(t Term, env *Env) error {
+	switch env.Resolve(t).(type) {
+	case Variable, Atom:
+		return nil
+	default:
+		return typeErrorAtom(t)
+	}
+}
+
+func checkInteger(t Term, env *Env) error {
+	switch env.Resolve(t).(type) {
+	case Variable, Integer:
+		return nil
+	default:
+		return typeErrorAtom(t)
+	}
 }
 
 var seek = io.Seeker.Seek
@@ -2658,117 +2583,103 @@ func (state *State) SetPrologFlag(flag, value Term, k func(*Env) *Promise, env *
 	case Variable:
 		return Error(InstantiationError(flag))
 	case Atom:
+		var modify func(value Atom) error
 		switch f {
 		case "bounded", "max_integer", "min_integer", "integer_rounding_function", "max_arity":
 			return Error(PermissionError("modify", "flag", f, "%s is not modifiable.", f))
 		case "char_conversion":
-			switch a := env.Resolve(value).(type) {
-			case Variable:
-				return Error(InstantiationError(value))
-			case Atom:
-				switch a {
-				case "on":
-					state.charConvEnabled = true
-					return k(env)
-				case "off":
-					state.charConvEnabled = false
-					return k(env)
-				default:
-					return Error(domainErrorFlagValue(&Compound{
-						Functor: "+",
-						Args:    []Term{f, a},
-					}))
-				}
-			default:
-				return Error(domainErrorFlagValue(&Compound{
-					Functor: "+",
-					Args:    []Term{flag, value},
-				}))
-			}
+			modify = state.modifyCharConversion
 		case "debug":
-			switch a := env.Resolve(value).(type) {
-			case Variable:
-				return Error(InstantiationError(value))
-			case Atom:
-				switch a {
-				case "on":
-					state.debug = true
-					return k(env)
-				case "off":
-					state.debug = false
-					return k(env)
-				default:
-					return Error(domainErrorFlagValue(&Compound{
-						Functor: "+",
-						Args:    []Term{f, a},
-					}))
-				}
-			default:
-				return Error(domainErrorFlagValue(&Compound{
-					Functor: "+",
-					Args:    []Term{f, a},
-				}))
-			}
+			modify = state.modifyDebug
 		case "unknown":
-			switch a := env.Resolve(value).(type) {
-			case Variable:
-				return Error(InstantiationError(value))
-			case Atom:
-				switch a {
-				case "error":
-					state.unknown = unknownError
-					return k(env)
-				case "warning":
-					state.unknown = unknownWarning
-					return k(env)
-				case "fail":
-					state.unknown = unknownFail
-					return k(env)
-				default:
-					return Error(domainErrorFlagValue(&Compound{
-						Functor: "+",
-						Args:    []Term{f, a},
-					}))
-				}
-			default:
-				return Error(domainErrorFlagValue(&Compound{
-					Functor: "+",
-					Args:    []Term{f, a},
-				}))
-			}
+			modify = state.modifyUnknown
 		case "double_quotes":
-			switch a := env.Resolve(value).(type) {
-			case Variable:
-				return Error(InstantiationError(value))
-			case Atom:
-				switch a {
-				case "codes":
-					state.doubleQuotes = DoubleQuotesCodes
-					return k(env)
-				case "chars":
-					state.doubleQuotes = DoubleQuotesChars
-					return k(env)
-				case "atom":
-					state.doubleQuotes = DoubleQuotesAtom
-					return k(env)
-				default:
-					return Error(domainErrorFlagValue(&Compound{
-						Functor: "+",
-						Args:    []Term{f, a},
-					}))
-				}
-			default:
-				return Error(domainErrorFlagValue(&Compound{
-					Functor: "+",
-					Args:    []Term{f, a},
-				}))
-			}
+			modify = state.modifyDoubleQuotes
 		default:
 			return Error(domainErrorPrologFlag(f))
+		}
+
+		switch v := env.Resolve(value).(type) {
+		case Variable:
+			return Error(InstantiationError(value))
+		case Atom:
+			if err := modify(v); err != nil {
+				return Error(err)
+			}
+			return k(env)
+		default:
+			return Error(domainErrorFlagValue(&Compound{
+				Functor: "+",
+				Args:    []Term{flag, value},
+			}))
 		}
 	default:
 		return Error(typeErrorAtom(f))
 	}
+}
+
+func (state *State) modifyCharConversion(value Atom) error {
+	switch value {
+	case "on":
+		state.charConvEnabled = true
+	case "off":
+		state.charConvEnabled = false
+	default:
+		return domainErrorFlagValue(&Compound{
+			Functor: "+",
+			Args:    []Term{Atom("char_conversion"), value},
+		})
+	}
+	return nil
+}
+
+func (state *State) modifyDebug(value Atom) error {
+	switch value {
+	case "on":
+		state.debug = true
+	case "off":
+		state.debug = false
+	default:
+		return domainErrorFlagValue(&Compound{
+			Functor: "+",
+			Args:    []Term{Atom("debug"), value},
+		})
+	}
+	return nil
+}
+
+func (state *State) modifyUnknown(value Atom) error {
+	switch value {
+	case "error":
+		state.unknown = unknownError
+	case "warning":
+		state.unknown = unknownWarning
+	case "fail":
+		state.unknown = unknownFail
+	default:
+		return domainErrorFlagValue(&Compound{
+			Functor: "+",
+			Args:    []Term{Atom("unknown"), value},
+		})
+	}
+	return nil
+}
+
+func (state *State) modifyDoubleQuotes(value Atom) error {
+	switch value {
+	case "codes":
+		state.doubleQuotes = DoubleQuotesCodes
+	case "chars":
+		state.doubleQuotes = DoubleQuotesChars
+	case "atom":
+		state.doubleQuotes = DoubleQuotesAtom
+	default:
+		return domainErrorFlagValue(&Compound{
+			Functor: "+",
+			Args:    []Term{Atom("double_quotes"), value},
+		})
+	}
+	return nil
 }
 
 // CurrentPrologFlag succeeds iff flag is set to value.
