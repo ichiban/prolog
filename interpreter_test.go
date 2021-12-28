@@ -575,5 +575,8 @@ foo(c, d).
 		})
 		sol := i.QuerySolution(`error.`)
 		assert.Equal(t, err, sol.Err())
+
+		var s struct{}
+		assert.Error(t, sol.Scan(&s))
 	})
 }
