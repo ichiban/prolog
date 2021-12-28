@@ -42,6 +42,19 @@ func TestInterpreter_Exec(t *testing.T) {
 		assert.NoError(t, i.Exec("foo(?, ?, ?, ?).", "a", 1, 2.0, []string{"abc", "def"}))
 	})
 
+	t.Run("shebang", func(t *testing.T) {
+		t.Run("multiple lines", func(t *testing.T) {
+			var i Interpreter
+			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl
+append(nil, L, L).`))
+		})
+
+		t.Run("only shebang line", func(t *testing.T) {
+			var i Interpreter
+			assert.Equal(t, engine.ErrInsufficient, i.Exec(`#!/usr/bin/env 1pl`))
+		})
+	})
+
 	t.Run("consult", func(t *testing.T) {
 		i := New(nil, nil)
 
