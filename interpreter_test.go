@@ -43,9 +43,16 @@ func TestInterpreter_Exec(t *testing.T) {
 	})
 
 	t.Run("shebang", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl
+		t.Run("multiple lines", func(t *testing.T) {
+			var i Interpreter
+			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl
 append(nil, L, L).`))
+		})
+
+		t.Run("only shebang line", func(t *testing.T) {
+			var i Interpreter
+			assert.Equal(t, engine.ErrInsufficient, i.Exec(`#!/usr/bin/env 1pl`))
+		})
 	})
 
 	t.Run("consult", func(t *testing.T) {
