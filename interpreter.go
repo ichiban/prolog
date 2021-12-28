@@ -3,6 +3,7 @@ package prolog
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -187,6 +188,31 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 	}()
 
 	return &sols, nil
+}
+
+// ErrNoSolutions indicates there's no solutions for the query.
+var ErrNoSolutions = errors.New("no solutions")
+
+// QuerySolution executes a Prolog query for the first solution.
+func (i *Interpreter) QuerySolution(query string, args ...interface{}) *Solution {
+	return i.QuerySolutionContext(context.Background(), query, args...)
+}
+
+// QuerySolutionContext executes a Prolog query with context.
+func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, args ...interface{}) *Solution {
+	sols, err := i.QueryContext(ctx, query, args...)
+	if err != nil {
+		return &Solution{err: err}
+	}
+
+	if !sols.Next() {
+		if err := sols.Err(); err != nil {
+			return &Solution{err: err}
+		}
+		return &Solution{err: ErrNoSolutions}
+	}
+
+	return &Solution{sols: sols, err: sols.Close()}
 }
 
 func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {

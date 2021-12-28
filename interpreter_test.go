@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -533,5 +534,62 @@ studies(alex, physics).
 		assert.False(t, sols.Next())
 		assert.NoError(t, sols.Err())
 		assert.NoError(t, sols.Close())
+	})
+}
+
+func TestInterpreter_QuerySolution(t *testing.T) {
+	var i Interpreter
+	assert.NoError(t, i.Exec(`
+foo(a, b).
+foo(b, c).
+foo(c, d).
+`))
+
+	t.Run("ok", func(t *testing.T) {
+		t.Run("struct", func(t *testing.T) {
+			sol := i.QuerySolution(`foo(X, Y).`)
+
+			var s struct {
+				X   string
+				Foo string `prolog:"Y"`
+			}
+			assert.NoError(t, sol.Scan(&s))
+			assert.Equal(t, "a", s.X)
+			assert.Equal(t, "b", s.Foo)
+		})
+
+		t.Run("map", func(t *testing.T) {
+			sol := i.QuerySolution(`foo(X, Y).`)
+
+			m := map[string]string{}
+			assert.NoError(t, sol.Scan(m))
+			assert.Equal(t, []string{"X", "Y"}, sol.Vars())
+			assert.Equal(t, "a", m["X"])
+			assert.Equal(t, "b", m["Y"])
+		})
+	})
+
+	t.Run("invalid query", func(t *testing.T) {
+		sol := i.QuerySolution(``)
+		assert.Error(t, sol.Err())
+	})
+
+	t.Run("no solutions", func(t *testing.T) {
+		sol := i.QuerySolution(`foo(e, f).`)
+		assert.Equal(t, ErrNoSolutions, sol.Err())
+		assert.Empty(t, sol.Vars())
+	})
+
+	t.Run("runtime error", func(t *testing.T) {
+		err := errors.New("something went wrong")
+
+		i.Register0("error", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+			return engine.Error(err)
+		})
+		sol := i.QuerySolution(`error.`)
+		assert.Equal(t, err, sol.Err())
+
+		var s struct{}
+		assert.Error(t, sol.Scan(&s))
 	})
 }
