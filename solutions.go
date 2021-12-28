@@ -144,3 +144,30 @@ func (s *Solutions) Vars() []string {
 	}
 	return ns
 }
+
+// Solution is the single result of a query.
+type Solution struct {
+	sols *Solutions
+	err  error
+}
+
+// Scan copies the variable values of the solution into the specified struct/map.
+func (s *Solution) Scan(dest interface{}) error {
+	if err := s.err; err != nil {
+		return err
+	}
+	return s.sols.Scan(dest)
+}
+
+// Err returns an error that occurred while querying for the Solution, if any.
+func (s *Solution) Err() error {
+	return s.err
+}
+
+// Vars returns variable names.
+func (s *Solution) Vars() []string {
+	if s.sols == nil {
+		return nil
+	}
+	return s.sols.Vars()
+}
