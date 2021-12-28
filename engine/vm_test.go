@@ -7,6 +7,126 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestVM_Register0(t *testing.T) {
+	var vm VM
+	vm.Register0("foo", func(k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 0}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Register1(t *testing.T) {
+	var vm VM
+	vm.Register1("foo", func(a Term, k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 1}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a")}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Register2(t *testing.T) {
+	var vm VM
+	vm.Register2("foo", func(a, b Term, k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 2}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b")}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Register3(t *testing.T) {
+	var vm VM
+	vm.Register3("foo", func(a, b, c Term, k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 3}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c")}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c"), Atom("d")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Register4(t *testing.T) {
+	var vm VM
+	vm.Register4("foo", func(a, b, c, d Term, k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 4}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c"), Atom("d")}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
+func TestVM_Register5(t *testing.T) {
+	var vm VM
+	vm.Register5("foo", func(a, b, c, d, e Term, k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	p := vm.procedures[ProcedureIndicator{Name: "foo", Arity: 5}]
+
+	t.Run("ok", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e")}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("wrong number of arguments", func(t *testing.T) {
+		ok, err := p.Call(&vm, []Term{Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+}
+
 func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
