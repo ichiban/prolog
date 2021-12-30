@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 type clauses []clause
@@ -164,9 +163,7 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 	case *Compound:
 		c.pi = ProcedureIndicator{Name: head.Functor, Arity: Integer(len(head.Args))}
 		for _, a := range head.Args {
-			if err := c.compileArg(a, env); err != nil {
-				return c, err
-			}
+			c.compileArg(a, env)
 		}
 	default:
 		return c, errNotCallable
@@ -212,9 +209,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 		return nil
 	case *Compound:
 		for _, a := range p.Args {
-			if err := c.compileArg(a, env); err != nil {
-				return err
-			}
+			c.compileArg(a, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor, Arity: Integer(len(p.Args))})})
 		return nil
@@ -223,24 +218,19 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	}
 }
 
-func (c *clause) compileArg(a Term, env *Env) error {
+func (c *clause) compileArg(a Term, env *Env) {
 	switch a := a.(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
-	case Float, Integer, Atom, *Stream:
-		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: Integer(len(a.Args))})})
 		for _, n := range a.Args {
-			if err := c.compileArg(n, env); err != nil {
-				return err
-			}
+			c.compileArg(n, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		return SystemError(fmt.Errorf("unknown argument: %s", a))
+		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	}
-	return nil
 }
 
 func (c *clause) xrOffset(o Term) byte {
