@@ -179,6 +179,19 @@ type lexState func(rune) (lexState, error)
 
 func (l *Lexer) init(r rune) (lexState, error) {
 	r = l.conv(r)
+
+	if k := [...]TokenKind{
+		'(': TokenParenL,
+		')': TokenParenR,
+		',': TokenComma,
+		'|': TokenBar,
+		']': TokenBracketR,
+		'}': TokenBraceR,
+	}[r]; k != TokenEOS {
+		l.emit(Token{Kind: k, Val: string(r)})
+		return nil, nil
+	}
+
 	switch {
 	case r == etx:
 		l.emit(Token{Kind: TokenEOS})
@@ -191,28 +204,10 @@ func (l *Lexer) init(r rune) (lexState, error) {
 		var b strings.Builder
 		_, _ = b.WriteRune(r)
 		return l.multiLineCommentBegin(&b, l.init)
-	case r == '(':
-		l.emit(Token{Kind: TokenParenL, Val: string(r)})
-		return nil, nil
-	case r == ')':
-		l.emit(Token{Kind: TokenParenR, Val: string(r)})
-		return nil, nil
-	case r == ',':
-		l.emit(Token{Kind: TokenComma, Val: string(r)})
-		return nil, nil
 	case r == '.':
 		var b strings.Builder
 		_, _ = b.WriteRune(r)
 		return l.period(&b)
-	case r == '|':
-		l.emit(Token{Kind: TokenBar, Val: string(r)})
-		return nil, nil
-	case r == ']':
-		l.emit(Token{Kind: TokenBracketR, Val: string(r)})
-		return nil, nil
-	case r == '}':
-		l.emit(Token{Kind: TokenBraceR, Val: string(r)})
-		return nil, nil
 	case r == '+' || r == '-':
 		var b strings.Builder
 		_, _ = b.WriteRune(r)
@@ -540,48 +535,28 @@ func (l *Lexer) integerChar(b *strings.Builder) (lexState, error) {
 func (l *Lexer) integerCharEscape(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
-		switch r {
-		case etx:
+
+		if r == etx {
 			return nil, ErrInsufficient
-		case 'a':
-			if _, err := b.WriteRune('\a'); err != nil {
-				return nil, err
-			}
-		case 'b':
-			if _, err := b.WriteRune('\b'); err != nil {
-				return nil, err
-			}
-		case 'f':
-			if _, err := b.WriteRune('\f'); err != nil {
-				return nil, err
-			}
-		case 'n':
-			if _, err := b.WriteRune('\n'); err != nil {
-				return nil, err
-			}
-		case 'r':
-			if _, err := b.WriteRune('\r'); err != nil {
-				return nil, err
-			}
-		case 't':
-			if _, err := b.WriteRune('\t'); err != nil {
-				return nil, err
-			}
-		case 'v':
-			if _, err := b.WriteRune('\v'); err != nil {
-				return nil, err
-			}
-		case '\\':
-			if _, err := b.WriteRune('\\'); err != nil {
-				return nil, err
-			}
-		case '\'':
-			if _, err := b.WriteRune('\''); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, UnexpectedRuneError{rune: r}
 		}
+
+		switch r := [...]rune{
+			'a':  '\a',
+			'b':  '\b',
+			'f':  '\f',
+			'n':  '\n',
+			'r':  '\r',
+			't':  '\t',
+			'v':  '\v',
+			'\\': '\\',
+			'\'': '\'',
+		}[r]; r {
+		case 0:
+			return nil, UnexpectedRuneError{rune: r}
+		default:
+			_, _ = b.WriteRune(r)
+		}
+
 		l.emit(Token{Kind: TokenInteger, Val: b.String()})
 		return nil, nil
 	}, nil

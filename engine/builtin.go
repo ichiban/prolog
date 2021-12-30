@@ -1314,20 +1314,15 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		)
 		switch {
 		case errors.Is(err, io.EOF):
-			switch s.eofAction {
-			case EOFActionError:
-				return Error(permissionErrorInputPastEndOfStream(streamOrAlias))
-			case EOFActionEOFCode:
-				return Delay(func(context.Context) *Promise {
+			return [...]*Promise{
+				EOFActionError: Error(permissionErrorInputPastEndOfStream(streamOrAlias)),
+				EOFActionEOFCode: Delay(func(context.Context) *Promise {
 					return Unify(out, Atom("end_of_file"), k, env)
-				})
-			case EOFActionReset:
-				return Delay(func(context.Context) *Promise {
+				}),
+				EOFActionReset: Delay(func(context.Context) *Promise {
 					return state.ReadTerm(streamOrAlias, out, options, k, env)
-				})
-			default:
-				return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
-			}
+				}),
+			}[s.eofAction]
 		case errors.Is(err, ErrInsufficient):
 			return Error(syntaxErrorInsufficient())
 		case errors.As(err, &unexpectedRune):
@@ -1869,9 +1864,7 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			case Variable:
 				return InstantiationError(elem)
 			case Integer:
-				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return SystemError(err)
-				}
+				_, _ = sb.WriteRune(rune(e))
 				return nil
 			default:
 				return representationError(Atom("character_code"), Atom("invalid character code."))
@@ -1982,9 +1975,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			case Variable:
 				return InstantiationError(elem)
 			case Integer:
-				if _, err := sb.WriteRune(rune(e)); err != nil {
-					return SystemError(err)
-				}
+				_, _ = sb.WriteRune(rune(e))
 				return nil
 			default:
 				return representationError(Atom("character_code"), Atom(fmt.Sprintf("%s is not a valid character code.", elem)))

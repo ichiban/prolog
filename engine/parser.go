@@ -325,159 +325,218 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
 		return nil, ErrInsufficient
 	}
 
-	if _, err := p.accept(TokenParenL); err == nil {
-		lhs, err := p.expr(1, true, true)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := p.accept(TokenParenR); err != nil {
-			return nil, err
-		}
-
-		return lhs, nil
+	if p, err := p.paren(); err == nil {
+		return p, nil
 	}
 
-	if _, err := p.accept(TokenBraceL); err == nil {
-		lhs, err := p.expr(1, true, true)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := p.accept(TokenBraceR); err != nil {
-			return nil, err
-		}
-
-		return &Compound{
-			Functor: "{}",
-			Args:    []Term{lhs},
-		}, nil
+	if b, err := p.block(); err == nil {
+		return b, nil
 	}
 
 	if t, err := p.number(); err == nil {
 		return t, nil
 	}
 
-	if op, err := p.acceptPrefix(allowComma, allowBar); err == nil {
-		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma, allowBar)
-		if err != nil {
-			return op.Name, nil
-		}
-		return &Compound{
-			Functor: op.Name,
-			Args:    []Term{rhs},
-		}, nil
-	}
-
-	if v, err := p.accept(TokenVariable); err == nil {
-		if v == "_" {
-			return NewVariable(), nil
-		}
-		if p.vars == nil {
-			n := Variable(v)
-			return n, nil
-		}
-		n := Atom(v)
-		for i, v := range *p.vars {
-			if v.Name == n {
-				(*p.vars)[i].Count++
-				return v.Variable, nil
-			}
-		}
-		v := NewVariable()
-		*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: v, Count: 1})
+	if v, err := p.variable(); err == nil {
 		return v, nil
 	}
 
-	if v, err := p.accept(TokenDoubleQuoted); err == nil {
-		v = unDoubleQuote(v)
-		switch p.doubleQuotes {
-		case DoubleQuotesCodes:
-			var codes []Term
-			for _, r := range v {
-				codes = append(codes, Integer(r))
-			}
-			return List(codes...), nil
-		case DoubleQuotesChars:
-			var chars []Term
-			for _, r := range v {
-				chars = append(chars, Atom(r))
-			}
-			return List(chars...), nil
-		case DoubleQuotesAtom:
-			return Atom(v), nil
-		default:
-			return nil, fmt.Errorf("unknown double quote(%d)", p.doubleQuotes)
-		}
+	if d, err := p.acceptDoubleQuoted(); err == nil {
+		return d, nil
 	}
 
-	if a, err := p.acceptAtom(allowComma, allowBar); err == nil {
-		if _, err := p.accept(TokenParenL); err != nil {
-			if p.placeholder != "" && p.placeholder == a {
-				if len(p.args) == 0 {
-					return nil, errors.New("not enough arguments for placeholders")
-				}
-				var t Term
-				t, p.args = p.args[0], p.args[1:]
-				return t, nil
-			}
-			return a, nil
-		}
-
-		var args []Term
-		for {
-			t, err := p.expr(1, false, true)
-			if err != nil {
-				return nil, err
-			}
-			args = append(args, t)
-
-			if _, err := p.accept(TokenParenR); err == nil {
-				break
-			}
-
-			if _, err := p.accept(TokenComma); err != nil {
-				return nil, fmt.Errorf("lhs: %w", err)
-			}
-		}
-
-		return &Compound{Functor: a, Args: args}, nil
+	if l, err := p.list(); err == nil {
+		return l, nil
 	}
 
-	if _, err := p.accept(TokenBracketL); err == nil {
-		var es []Term
-		for {
-			e, err := p.expr(1, false, false)
-			if err != nil {
-				return nil, err
-			}
-			es = append(es, e)
+	if p, err := p.prefix(allowComma, allowBar); err == nil {
+		return p, nil
+	}
 
-			if _, err := p.accept(TokenBar); err == nil {
-				rest, err := p.expr(1, true, true)
-				if err != nil {
-					return nil, err
-				}
-
-				if _, err := p.accept(TokenBracketR); err != nil {
-					return nil, err
-				}
-
-				return ListRest(rest, es...), nil
-			}
-
-			if _, err := p.accept(TokenBracketR); err == nil {
-				return List(es...), nil
-			}
-
-			if _, err := p.accept(TokenComma); err != nil {
-				return nil, err
-			}
-		}
+	if t, err := p.atomOrCompound(allowComma, allowBar); err == nil {
+		return t, nil
 	}
 
 	return nil, fmt.Errorf("failed to parse: %v, history=%#v", p.current, p.history)
+}
+
+func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {
+	a, err := p.acceptAtom(allowComma, allowBar)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.accept(TokenParenL); err != nil {
+		if p.placeholder != "" && p.placeholder == a {
+			if len(p.args) == 0 {
+				return nil, errors.New("not enough arguments for placeholders")
+			}
+			var t Term
+			t, p.args = p.args[0], p.args[1:]
+			return t, nil
+		}
+		return a, nil
+	}
+
+	var args []Term
+	for {
+		t, err := p.expr(1, false, true)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, t)
+
+		if _, err := p.accept(TokenParenR); err == nil {
+			break
+		}
+
+		if _, err := p.accept(TokenComma); err != nil {
+			return nil, fmt.Errorf("lhs: %w", err)
+		}
+	}
+
+	return &Compound{Functor: a, Args: args}, nil
+}
+
+func (p *Parser) prefix(allowComma bool, allowBar bool) (Term, error) {
+	op, err := p.acceptPrefix(allowComma, allowBar)
+	if err != nil {
+		return nil, err
+	}
+	_, r := op.bindingPowers()
+	rhs, err := p.expr(r, allowComma, allowBar)
+	if err != nil {
+		return op.Name, nil
+	}
+	return &Compound{
+		Functor: op.Name,
+		Args:    []Term{rhs},
+	}, nil
+}
+
+func (p *Parser) paren() (Term, error) {
+	if _, err := p.accept(TokenParenL); err != nil {
+		return nil, err
+	}
+
+	lhs, err := p.expr(1, true, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.accept(TokenParenR); err != nil {
+		return nil, err
+	}
+
+	return lhs, nil
+}
+
+func (p *Parser) variable() (Term, error) {
+	v, err := p.accept(TokenVariable)
+	if err != nil {
+		return nil, err
+	}
+
+	if v == "_" {
+		return NewVariable(), nil
+	}
+
+	if p.vars == nil {
+		n := Variable(v)
+		return n, nil
+	}
+
+	n := Atom(v)
+	for i, v := range *p.vars {
+		if v.Name == n {
+			(*p.vars)[i].Count++
+			return v.Variable, nil
+		}
+	}
+	w := NewVariable()
+	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
+	return w, nil
+}
+
+func (p *Parser) block() (Term, error) {
+	if _, err := p.accept(TokenBraceL); err != nil {
+		return nil, err
+	}
+	lhs, err := p.expr(1, true, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.accept(TokenBraceR); err != nil {
+		return nil, err
+	}
+
+	return &Compound{
+		Functor: "{}",
+		Args:    []Term{lhs},
+	}, nil
+}
+
+func (p *Parser) list() (Term, error) {
+	if _, err := p.accept(TokenBracketL); err != nil {
+		return nil, err
+	}
+
+	var es []Term
+	for {
+		e, err := p.expr(1, false, false)
+		if err != nil {
+			return nil, err
+		}
+		es = append(es, e)
+
+		if _, err := p.accept(TokenBar); err == nil {
+			rest, err := p.expr(1, true, true)
+			if err != nil {
+				return nil, err
+			}
+
+			if _, err := p.accept(TokenBracketR); err != nil {
+				return nil, err
+			}
+
+			return ListRest(rest, es...), nil
+		}
+
+		if _, err := p.accept(TokenBracketR); err == nil {
+			return List(es...), nil
+		}
+
+		if _, err := p.accept(TokenComma); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func (p *Parser) acceptDoubleQuoted() (Term, error) {
+	v, err := p.accept(TokenDoubleQuoted)
+	if err != nil {
+		return nil, err
+	}
+	v = unDoubleQuote(v)
+	switch p.doubleQuotes {
+	case DoubleQuotesCodes:
+		var codes []Term
+		for _, r := range v {
+			codes = append(codes, Integer(r))
+		}
+		return List(codes...), nil
+	case DoubleQuotesChars:
+		var chars []Term
+		for _, r := range v {
+			chars = append(chars, Atom(r))
+		}
+		return List(chars...), nil
+	case DoubleQuotesAtom:
+		return Atom(v), nil
+	default:
+		return nil, fmt.Errorf("unknown double quote(%d)", p.doubleQuotes)
+	}
 }
 
 // More checks if the parser has more tokens to read.
