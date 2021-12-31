@@ -1850,7 +1850,7 @@ func TestState_Assertz(t *testing.T) {
 }
 
 func TestState_Asserta(t *testing.T) {
-	t.Run("prepend", func(t *testing.T) {
+	t.Run("fact", func(t *testing.T) {
 		var state State
 		ok, err := state.Asserta(&Compound{
 			Functor: "foo",
@@ -1892,6 +1892,93 @@ func TestState_Asserta(t *testing.T) {
 				},
 			},
 		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+	})
+
+	t.Run("rule", func(t *testing.T) {
+		var state State
+		ok, err := state.Asserta(&Compound{
+			Functor: ":-",
+			Args: []Term{
+				Atom("foo"),
+				&Compound{
+					Functor: "p",
+					Args:    []Term{Atom("b")},
+				},
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = state.Asserta(&Compound{
+			Functor: ":-",
+			Args: []Term{
+				Atom("foo"),
+				&Compound{
+					Functor: ",",
+					Args: []Term{
+						&Compound{
+							Functor: "p",
+							Args:    []Term{Atom("a")},
+						},
+						Atom("!"),
+					},
+				},
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		assert.Equal(t, clauses{
+			{
+				pi: ProcedureIndicator{Name: "foo", Arity: 0},
+				raw: &Compound{
+					Functor: ":-",
+					Args: []Term{
+						Atom("foo"),
+						&Compound{
+							Functor: ",",
+							Args: []Term{
+								&Compound{
+									Functor: "p",
+									Args:    []Term{Atom("a")},
+								},
+								Atom("!"),
+							},
+						},
+					},
+				},
+				xrTable: []Term{Atom("a")},
+				piTable: []ProcedureIndicator{{Name: "p", Arity: 1}},
+				bytecode: bytecode{
+					{opcode: opEnter},
+					{opcode: opConst, operand: 0},
+					{opcode: opCall, operand: 0},
+					{opcode: opCut},
+					{opcode: opExit},
+				},
+			},
+			{
+				pi: ProcedureIndicator{Name: "foo", Arity: 0},
+				raw: &Compound{
+					Functor: ":-",
+					Args: []Term{
+						Atom("foo"),
+						&Compound{
+							Functor: "p",
+							Args:    []Term{Atom("b")},
+						},
+					},
+				},
+				xrTable: []Term{Atom("b")},
+				piTable: []ProcedureIndicator{{Name: "p", Arity: 1}},
+				bytecode: bytecode{
+					{opcode: opEnter},
+					{opcode: opConst, operand: 0},
+					{opcode: opCall, operand: 0},
+					{opcode: opExit},
+				},
+			},
+		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}])
 	})
 
 	t.Run("directive", func(t *testing.T) {
@@ -1950,6 +2037,16 @@ func TestState_Asserta(t *testing.T) {
 		ok, err := state.Asserta(&Compound{
 			Functor: ":-",
 			Args:    []Term{Integer(0), Atom("true")},
+		}, Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(0)), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("body is not callable", func(t *testing.T) {
+		var state State
+		ok, err := state.Asserta(&Compound{
+			Functor: ":-",
+			Args:    []Term{Atom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
@@ -2038,6 +2135,19 @@ func TestState_Asserta(t *testing.T) {
 			},
 		}), err)
 		assert.False(t, ok)
+	})
+
+	t.Run("cut", func(t *testing.T) {
+		var state State
+		ok, err := state.Asserta(&Compound{
+			Functor: ":-",
+			Args: []Term{
+				Atom("foo"),
+				Atom("!"),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
 	})
 }
 

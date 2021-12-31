@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -19,6 +19,11 @@ import (
 	"github.com/ichiban/prolog"
 	_ "github.com/ichiban/prolog/dcg"
 	"github.com/ichiban/prolog/engine"
+)
+
+const (
+	prompt     = "?- "
+	contPrompt = "|- "
 )
 
 func main() {
@@ -35,7 +40,7 @@ func main() {
 	}
 	defer restore()
 
-	t := terminal.NewTerminal(os.Stdin, "?- ")
+	t := terminal.NewTerminal(os.Stdin, prompt)
 	defer fmt.Printf("\r\n")
 
 	log.SetOutput(t)
@@ -58,31 +63,19 @@ func main() {
 	})
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args...)
-			if err != nil {
-				log.Print(err)
-			}
+			goal, _ := pi.Apply(args...)
 			log.Printf("CALL %s", env.Simplify(goal))
 		}
 		i.OnExit = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args...)
-			if err != nil {
-				log.Print(err)
-			}
+			goal, _ := pi.Apply(args...)
 			log.Printf("EXIT %s", env.Simplify(goal))
 		}
 		i.OnFail = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args...)
-			if err != nil {
-				log.Print(err)
-			}
+			goal, _ := pi.Apply(args...)
 			log.Printf("FAIL %s", env.Simplify(goal))
 		}
 		i.OnRedo = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, err := pi.Apply(args...)
-			if err != nil {
-				log.Print(err)
-			}
+			goal, _ := pi.Apply(args...)
 			log.Printf("REDO %s", env.Simplify(goal))
 		}
 	}
@@ -126,109 +119,80 @@ func main() {
 	}
 }
 
-func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) error {
-	if buf.Len() == 0 {
-		t.SetPrompt("?- ")
-	} else {
-		t.SetPrompt("|  ")
-	}
-
+func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) (err error) {
 	line, err := t.ReadLine()
 	if err != nil {
-		if err == io.EOF {
-			return err
-		}
-		log.Printf("failed to read line: %v", err)
-		buf.Reset()
-		return nil
+		return err
 	}
-	if _, err := buf.WriteString(line); err != nil {
-		log.Printf("failed to buffer: %v", err)
-		buf.Reset()
-		return nil
-	}
+	_, _ = buf.WriteString(line)
 
-	c := 0
 	sols, err := i.QueryContext(ctx, buf.String())
 	switch err {
-	case nil:
-		break
 	case engine.ErrInsufficient:
-		if _, err := buf.WriteRune('\n'); err != nil {
-			log.Printf("failed to buffer: %v", err)
-			buf.Reset()
-		}
-
+		_, _ = buf.WriteRune('\n')
 		// Returns without resetting buf.
+		t.SetPrompt(contPrompt)
 		return nil
+	case nil:
+		buf.Reset()
+		t.SetPrompt(prompt)
 	default:
 		log.Printf("failed to query: %v", err)
 		buf.Reset()
+		t.SetPrompt(prompt)
 		return nil
 	}
+	defer func() {
+		_ = sols.Close()
+	}()
 
+	var exists bool
 	for sols.Next() {
-		c++
+		exists = true
+
+		if err := sols.Err(); err != nil {
+			log.Printf("unhandled exception: %v", err)
+			break
+		}
 
 		m := map[string]engine.Term{}
-		if err := sols.Scan(m); err != nil {
-			log.Printf("failed to scan: %v", err)
-			break
-		}
+		_ = sols.Scan(m)
 
+		var buf bytes.Buffer
 		vars := sols.Vars()
-		ls := make([]string, 0, len(vars))
-		for _, n := range vars {
-			v := m[n]
-			if _, ok := v.(engine.Variable); ok {
-				continue
+		if len(vars) == 0 {
+			_, _ = fmt.Fprintf(&buf, "%t", true)
+		} else {
+			ls := make([]string, len(vars))
+			for i, v := range vars {
+				ls[i] = fmt.Sprintf("%s = %s", v, m[v])
 			}
-			ls = append(ls, fmt.Sprintf("%s = %s", n, v))
+			_, _ = fmt.Fprintf(&buf, strings.Join(ls, ",\n"))
 		}
-		if len(ls) == 0 {
-			if _, err := fmt.Fprintf(t, "%t.\n", true); err != nil {
-				return err
-			}
-			break
-		}
-
-		if _, err := fmt.Fprintf(t, "%s ", strings.Join(ls, ",\n")); err != nil {
+		if _, err := t.Write(buf.Bytes()); err != nil {
 			return err
 		}
 
 		r, _, err := keys.ReadRune()
 		if err != nil {
-			log.Printf("failed to read rune: %v", err)
-			break
+			return err
 		}
 		if r != ';' {
 			r = '.'
 		}
-
 		if _, err := fmt.Fprintf(t, "%s\n", string(r)); err != nil {
 			return err
 		}
-
 		if r == '.' {
 			break
 		}
 	}
-	if err := sols.Close(); err != nil {
-		return err
-	}
 
-	if err := sols.Err(); err != nil {
-		log.Printf("failed: %v", err)
-		buf.Reset()
-		return nil
-	}
-
-	if c == 0 {
+	if !exists {
 		if _, err := fmt.Fprintf(t, "%t.\n", false); err != nil {
 			return err
 		}
 	}
 
-	buf.Reset()
 	return nil
 }

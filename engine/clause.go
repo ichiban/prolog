@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 type clauses []clause
@@ -89,75 +88,69 @@ func compile(t Term, env *Env) (clauses, error) {
 	case Variable:
 		return nil, InstantiationError(t)
 	case Atom:
-		c, err := compileClause(t, nil, env)
-		if err != nil {
-			return nil, err
-		}
-		c.raw = t
-		return []clause{c}, nil
+		break
 	case *Compound:
-		if t.Functor == ":-" {
-			var cs []clause
-			head, body := env.Resolve(t.Args[0]), env.Resolve(t.Args[1])
-			exp := body
-			for {
-				e, ok := exp.(*Compound)
-				if !ok {
-					break
-				}
+		if t.Functor != ":-" {
+			break
+		}
 
-				if e.Functor != ";" || len(e.Args) != 2 {
-					break
-				}
-
-				// if-then-else construct
-				if c, ok := e.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
-					break
-				}
-
-				c, err := compileClause(head, e.Args[0], env)
-				switch err {
-				case nil:
-					break
-				case errNotCallable:
-					return nil, typeErrorCallable(body)
-				default:
-					return nil, err
-				}
-				c.raw = t
-				cs = append(cs, c)
-
-				exp = env.Resolve(e.Args[1])
+		var cs []clause
+		head, body := env.Resolve(t.Args[0]), env.Resolve(t.Args[1])
+		exp := body
+		for {
+			e, ok := exp.(*Compound)
+			if !ok || !disjunction(e) {
+				break
 			}
 
-			c, err := compileClause(head, exp, env)
-			switch err {
+			switch c, err := compileClause(head, e.Args[0], env); err {
 			case nil:
-				break
+				c.raw = t
+				cs = append(cs, c)
 			case errNotCallable:
 				return nil, typeErrorCallable(body)
 			default:
 				return nil, err
 			}
-			c.raw = t
-			cs = append(cs, c)
 
-			return cs, nil
+			exp = env.Resolve(e.Args[1])
 		}
-		c, err := compileClause(t, nil, env)
-		switch err {
+
+		switch c, err := compileClause(head, exp, env); err {
 		case nil:
-			break
+			c.raw = t
+			return append(cs, c), nil
 		case errNotCallable:
-			return nil, typeErrorCallable(t)
+			return nil, typeErrorCallable(body)
 		default:
 			return nil, err
 		}
-		c.raw = t
-		return []clause{c}, nil
 	default:
 		return nil, typeErrorCallable(t)
 	}
+
+	switch c, err := compileClause(t, nil, env); err {
+	case nil:
+		c.raw = t
+		return []clause{c}, nil
+	case errNotCallable:
+		return nil, typeErrorCallable(t)
+	default:
+		return nil, err
+	}
+}
+
+func disjunction(e *Compound) bool {
+	if e.Functor != ";" || len(e.Args) != 2 {
+		return false
+	}
+
+	// if-then-else construct
+	if c, ok := e.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
+		return false
+	}
+
+	return true
 }
 
 func compileClause(head Term, body Term, env *Env) (clause, error) {
@@ -170,9 +163,7 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 	case *Compound:
 		c.pi = ProcedureIndicator{Name: head.Functor, Arity: Integer(len(head.Args))}
 		for _, a := range head.Args {
-			if err := c.compileArg(a, env); err != nil {
-				return c, err
-			}
+			c.compileArg(a, env)
 		}
 	default:
 		return c, errNotCallable
@@ -218,9 +209,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 		return nil
 	case *Compound:
 		for _, a := range p.Args {
-			if err := c.compileArg(a, env); err != nil {
-				return err
-			}
+			c.compileArg(a, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor, Arity: Integer(len(p.Args))})})
 		return nil
@@ -229,24 +218,19 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	}
 }
 
-func (c *clause) compileArg(a Term, env *Env) error {
+func (c *clause) compileArg(a Term, env *Env) {
 	switch a := a.(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
-	case Float, Integer, Atom, *Stream:
-		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	case *Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: Integer(len(a.Args))})})
 		for _, n := range a.Args {
-			if err := c.compileArg(n, env); err != nil {
-				return err
-			}
+			c.compileArg(n, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		return SystemError(fmt.Errorf("unknown argument: %s", a))
+		c.bytecode = append(c.bytecode, instruction{opcode: opConst, operand: c.xrOffset(a)})
 	}
-	return nil
 }
 
 func (c *clause) xrOffset(o Term) byte {
