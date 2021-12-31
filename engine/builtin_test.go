@@ -7372,3 +7372,31 @@ func TestState_ExpandTerm(t *testing.T) {
 		})
 	})
 }
+
+func TestEnviron(t *testing.T) {
+	os.Clearenv()
+	assert.NoError(t, os.Setenv("FOO", "foo"))
+	assert.NoError(t, os.Setenv("BAR", "bar"))
+
+	var (
+		count = 0
+		key   = Variable("Key")
+		value = Variable("Value")
+	)
+	ok, err := Environ(key, value, func(env *Env) *Promise {
+		count++
+		switch count {
+		case 1:
+			assert.Equal(t, Atom("FOO"), env.Resolve(key))
+			assert.Equal(t, Atom("foo"), env.Resolve(value))
+		case 2:
+			assert.Equal(t, Atom("BAR"), env.Resolve(key))
+			assert.Equal(t, Atom("bar"), env.Resolve(value))
+		default:
+			assert.Fail(t, "unreachable")
+		}
+		return Bool(true)
+	}, nil).Force(context.Background())
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
