@@ -105,6 +105,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("built_in", i.BuiltIn)
 	i.Register2("expand_term", i.ExpandTerm)
 	i.Register1("consult", i.consult)
+	i.Register2("environ", engine.Environ)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}

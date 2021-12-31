@@ -2801,3 +2801,20 @@ func (state *State) ExpandTerm(term1, term2 Term, k func(*Env) *Promise, env *En
 		return Unify(term1, term2, k, env)
 	})
 }
+
+// Environ succeeds if an environment variable key has value.
+func Environ(key, value Term, k func(*Env) *Promise, env *Env) *Promise {
+	lines := os.Environ()
+	ks := make([]func(ctx context.Context) *Promise, len(lines))
+	for i, l := range lines {
+		kv := strings.SplitN(l, "=", 2)
+		ks[i] = func(ctx context.Context) *Promise {
+			return Unify(&Compound{
+				Args: []Term{key, value},
+			}, &Compound{
+				Args: []Term{Atom(kv[0]), Atom(kv[1])},
+			}, k, env)
+		}
+	}
+	return Delay(ks...)
+}
