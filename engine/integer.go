@@ -12,12 +12,12 @@ type Integer int64
 
 func (i Integer) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, i, defaultWriteTermOptions, nil)
+	_ = Write(&sb, i, nil)
 	return sb.String()
 }
 
 // WriteTerm writes the integer into w.
-func (i Integer) WriteTerm(w io.Writer, _ WriteTermOptions, _ *Env) error {
+func (i Integer) WriteTerm(w io.Writer, _ writeTermOptions, _ *Env) error {
 	_, err := fmt.Fprint(w, strconv.FormatInt(int64(i), 10))
 	return err
 }
@@ -35,7 +35,7 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the integer.
-func (i Integer) Unparse(emit func(token Token), _ WriteTermOptions, _ *Env) {
+func (i Integer) Unparse(emit func(token Token), _ *Env, _ ...WriteOption) {
 	if i < 0 {
 		emit(Token{Kind: TokenSign, Val: "-"})
 		i *= -1

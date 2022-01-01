@@ -66,7 +66,7 @@ func TestAtom_Unparse(t *testing.T) {
 			var tokens []Token
 			Atom("a").Unparse(func(token Token) {
 				tokens = append(tokens, token)
-			}, WriteTermOptions{Quoted: false}, nil)
+			}, nil, WithQuoted(false))
 			assert.Equal(t, []Token{
 				{Kind: TokenIdent, Val: `a`},
 			}, tokens)
@@ -76,7 +76,7 @@ func TestAtom_Unparse(t *testing.T) {
 			var tokens []Token
 			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
 				tokens = append(tokens, token)
-			}, WriteTermOptions{Quoted: false}, nil)
+			}, nil, WithQuoted(false))
 			assert.Equal(t, []Token{
 				{Kind: TokenIdent, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
 			}, tokens)
@@ -88,7 +88,7 @@ func TestAtom_Unparse(t *testing.T) {
 			var tokens []Token
 			Atom("a").Unparse(func(token Token) {
 				tokens = append(tokens, token)
-			}, WriteTermOptions{Quoted: true}, nil)
+			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
 				{Kind: TokenIdent, Val: `a`},
 			}, tokens)
@@ -98,7 +98,7 @@ func TestAtom_Unparse(t *testing.T) {
 			var tokens []Token
 			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
 				tokens = append(tokens, token)
-			}, WriteTermOptions{Quoted: true}, nil)
+			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
 				{Kind: TokenQuotedIdent, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
 			}, tokens)
@@ -109,7 +109,7 @@ func TestAtom_Unparse(t *testing.T) {
 		var tokens []Token
 		Atom(",").Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{Quoted: true}, nil)
+		}, nil, WithQuoted(true))
 		assert.Equal(t, []Token{
 			{Kind: TokenComma, Val: ","},
 		}, tokens)
@@ -119,7 +119,7 @@ func TestAtom_Unparse(t *testing.T) {
 		var tokens []Token
 		Atom("[]").Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{Quoted: true}, nil)
+		}, nil, WithQuoted(true))
 		assert.Equal(t, []Token{
 			{Kind: TokenIdent, Val: "[]"},
 		}, tokens)
@@ -129,7 +129,7 @@ func TestAtom_Unparse(t *testing.T) {
 		var tokens []Token
 		Atom("{}").Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{Quoted: true}, nil)
+		}, nil, WithQuoted(true))
 		assert.Equal(t, []Token{
 			{Kind: TokenIdent, Val: "{}"},
 		}, tokens)

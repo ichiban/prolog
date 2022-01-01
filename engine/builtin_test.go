@@ -681,16 +681,16 @@ func TestCopyTerm(t *testing.T) {
 func TestState_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		state := State{
-			operators: Operators{
+			operators: operators{
 				{
-					Priority:  900,
-					Specifier: OperatorSpecifierXFX,
-					Name:      "+++",
+					priority:  900,
+					specifier: operatorSpecifierXFX,
+					name:      "+++",
 				},
 				{
-					Priority:  1100,
-					Specifier: OperatorSpecifierXFX,
-					Name:      "+",
+					priority:  1100,
+					specifier: operatorSpecifierXFX,
+					name:      "+",
 				},
 			},
 		}
@@ -698,42 +698,42 @@ func TestState_Op(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, Operators{
+		assert.Equal(t, operators{
 			{
-				Priority:  900,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+++",
+				priority:  900,
+				specifier: operatorSpecifierXFX,
+				name:      "+++",
 			},
 			{
-				Priority:  1000,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "++",
+				priority:  1000,
+				specifier: operatorSpecifierXFX,
+				name:      "++",
 			},
 			{
-				Priority:  1100,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+",
+				priority:  1100,
+				specifier: operatorSpecifierXFX,
+				name:      "+",
 			},
 		}, state.operators)
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		state := State{
-			operators: Operators{
+			operators: operators{
 				{
-					Priority:  900,
-					Specifier: OperatorSpecifierXFX,
-					Name:      "+++",
+					priority:  900,
+					specifier: operatorSpecifierXFX,
+					name:      "+++",
 				},
 				{
-					Priority:  1000,
-					Specifier: OperatorSpecifierXFX,
-					Name:      "++",
+					priority:  1000,
+					specifier: operatorSpecifierXFX,
+					name:      "++",
 				},
 				{
-					Priority:  1100,
-					Specifier: OperatorSpecifierXFX,
-					Name:      "+",
+					priority:  1100,
+					specifier: operatorSpecifierXFX,
+					name:      "+",
 				},
 			},
 		}
@@ -741,16 +741,16 @@ func TestState_Op(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, Operators{
+		assert.Equal(t, operators{
 			{
-				Priority:  900,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+++",
+				priority:  900,
+				specifier: operatorSpecifierXFX,
+				name:      "+++",
 			},
 			{
-				Priority:  1100,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+",
+				priority:  1100,
+				specifier: operatorSpecifierXFX,
+				name:      "+",
 			},
 		}, state.operators)
 	})
@@ -800,21 +800,21 @@ func TestState_Op(t *testing.T) {
 
 func TestState_CurrentOp(t *testing.T) {
 	state := State{
-		operators: Operators{
+		operators: operators{
 			{
-				Priority:  900,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+++",
+				priority:  900,
+				specifier: operatorSpecifierXFX,
+				name:      "+++",
 			},
 			{
-				Priority:  1000,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "++",
+				priority:  1000,
+				specifier: operatorSpecifierXFX,
+				name:      "++",
 			},
 			{
-				Priority:  1100,
-				Specifier: OperatorSpecifierXFX,
-				Name:      "+",
+				priority:  1100,
+				specifier: operatorSpecifierXFX,
+				name:      "+",
 			},
 		},
 	}
@@ -3502,9 +3502,9 @@ func TestState_FlushOutput(t *testing.T) {
 func TestState_WriteTerm(t *testing.T) {
 	s := NewStream(os.Stdout, StreamModeWrite)
 
-	ops := Operators{
-		{Priority: 500, Specifier: OperatorSpecifierYFX, Name: "+"},
-		{Priority: 200, Specifier: OperatorSpecifierFY, Name: "-"},
+	ops := operators{
+		{priority: 500, specifier: operatorSpecifierYFX, name: "+"},
+		{priority: 200, specifier: operatorSpecifierFY, name: "-"},
 	}
 
 	state := State{
@@ -3516,18 +3516,21 @@ func TestState_WriteTerm(t *testing.T) {
 
 	t.Run("without options", func(t *testing.T) {
 		var m mockTerm
-		m.On("Unparse", mock.Anything, WriteTermOptions{Ops: ops, Priority: 1200}, (*Env)(nil)).Once()
+		m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 		defer m.AssertExpectations(t)
 
 		ok, err := state.WriteTerm(s, &m, List(), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
+
+		assert.Equal(t, state.operators, m.ops)
+		assert.Equal(t, 1200, m.priority)
 	})
 
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Quoted: false, Ops: ops, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3536,11 +3539,15 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.False(t, m.quoted)
+			assert.Equal(t, ops, m.ops)
+			assert.Equal(t, 1200, m.priority)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Quoted: true, Ops: ops, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3549,13 +3556,17 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.True(t, m.quoted)
+			assert.Equal(t, ops, m.ops)
+			assert.Equal(t, 1200, m.priority)
 		})
 	})
 
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Ops: ops, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3564,11 +3575,14 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.Equal(t, ops, m.ops)
+			assert.Equal(t, 1200, m.priority)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Ops: nil, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3577,13 +3591,17 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.Nil(t, m.ops)
+			assert.Equal(t, 1200, m.priority)
+
 		})
 	})
 
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Ops: ops, NumberVars: false, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3592,11 +3610,15 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.Equal(t, ops, m.ops)
+			assert.False(t, m.numberVars)
+			assert.Equal(t, 1200, m.priority)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, WriteTermOptions{Ops: ops, NumberVars: true, Priority: 1200}, (*Env)(nil)).Once()
+			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3605,6 +3627,10 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.Equal(t, ops, m.ops)
+			assert.True(t, m.numberVars)
+			assert.Equal(t, 1200, m.priority)
 		})
 	})
 
@@ -3695,6 +3721,7 @@ func TestState_WriteTerm(t *testing.T) {
 
 type mockTerm struct {
 	mock.Mock
+	writeTermOptions
 }
 
 func (m *mockTerm) String() string {
@@ -3707,8 +3734,11 @@ func (m *mockTerm) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	return args.Get(0).(*Env), args.Bool(1)
 }
 
-func (m *mockTerm) Unparse(emit func(Token), opts WriteTermOptions, env *Env) {
-	_ = m.Called(emit, opts, env)
+func (m *mockTerm) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
+	_ = m.Called(emit, env, opts)
+	for _, o := range opts {
+		o(&m.writeTermOptions)
+	}
 }
 
 func (m *mockTerm) Compare(t Term, env *Env) int64 {

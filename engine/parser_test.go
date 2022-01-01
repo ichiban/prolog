@@ -186,8 +186,8 @@ append(nil,L,L).
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1200, Specifier: OperatorSpecifierXFX, Name: `:-`},
+		ops := operators{
+			{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`
 append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
@@ -231,9 +231,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1200, Specifier: OperatorSpecifierXFX, Name: `:-`},
-			{Priority: 1000, Specifier: OperatorSpecifierXFY, Name: `,`},
+		ops := operators{
+			{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
+			{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`P, Q :- P, Q.`)), nil, WithOperators(&ops))
 		c, err := p.Term()
@@ -260,9 +260,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("qualifier", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1000, Specifier: OperatorSpecifierXFY, Name: `,`},
-			{Priority: 200, Specifier: OperatorSpecifierXFY, Name: `^`},
+		ops := operators{
+			{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
+			{priority: 200, specifier: operatorSpecifierXFY, name: `^`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, A^foo(A, B, C), Cs).`)), nil, WithOperators(&ops))
 		c, err := p.Term()
@@ -291,9 +291,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("multiple qualifiers", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1000, Specifier: OperatorSpecifierXFY, Name: `,`},
-			{Priority: 200, Specifier: OperatorSpecifierXFY, Name: `^`},
+		ops := operators{
+			{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
+			{priority: 200, specifier: operatorSpecifierXFY, name: `^`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`bagof(C, (A, B)^foo(A, B, C), Cs).`)), nil, WithOperators(&ops))
 		c, err := p.Term()
@@ -328,9 +328,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("expression", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 500, Specifier: OperatorSpecifierYFX, Name: `+`},
-			{Priority: 400, Specifier: OperatorSpecifierYFX, Name: `*`},
+		ops := operators{
+			{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
+			{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`a + b * c * d + e.`)), nil, WithOperators(&ops))
 		term, err := p.Term()
@@ -360,8 +360,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("prefix", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 200, Specifier: OperatorSpecifierFY, Name: `-`},
+		ops := operators{
+			{priority: 200, specifier: operatorSpecifierFY, name: `-`},
 		}
 
 		t.Run("ok", func(t *testing.T) {
@@ -406,8 +406,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("list", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1105, Specifier: OperatorSpecifierXFY, Name: `|`},
+		ops := operators{
+			{priority: 1105, specifier: operatorSpecifierXFY, name: `|`},
 		}
 
 		t.Run("ok", func(t *testing.T) {
@@ -459,8 +459,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("block", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 1000, Specifier: OperatorSpecifierXFY, Name: `,`},
+		ops := operators{
+			{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
 		}
 
 		t.Run("ok", func(t *testing.T) {
@@ -501,8 +501,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("principal functor", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"},
+		ops := operators{
+			{priority: 400, specifier: operatorSpecifierYFX, name: "/"},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`(==)/2.`)), nil, WithOperators(&ops))
 		term, err := p.Term()
@@ -517,8 +517,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("prefix as an arg", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 200, Specifier: OperatorSpecifierFY, Name: "+"},
+		ops := operators{
+			{priority: 200, specifier: operatorSpecifierFY, name: "+"},
 		}
 
 		t.Run("unary", func(t *testing.T) {
@@ -548,9 +548,9 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("ambiguous sign", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 700, Specifier: OperatorSpecifierXFX, Name: `is`},
-			{Priority: 500, Specifier: OperatorSpecifierYFX, Name: `+`},
+		ops := operators{
+			{priority: 700, specifier: operatorSpecifierXFX, name: `is`},
+			{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
 		}
 		p := NewParser(bufio.NewReader(strings.NewReader(`X is +1 +1.`)), nil, WithOperators(&ops))
 		term, err := p.Term()
@@ -571,8 +571,8 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 	})
 
 	t.Run("double quotes", func(t *testing.T) {
-		ops := Operators{
-			{Priority: 700, Specifier: OperatorSpecifierXFX, Name: `=`},
+		ops := operators{
+			{priority: 700, specifier: operatorSpecifierXFX, name: `=`},
 		}
 
 		t.Run("codes", func(t *testing.T) {

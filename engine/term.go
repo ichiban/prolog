@@ -10,7 +10,7 @@ import (
 type Term interface {
 	fmt.Stringer
 	Unify(Term, bool, *Env) (*Env, bool)
-	Unparse(func(Token), WriteTermOptions, *Env)
+	Unparse(func(Token), *Env, ...WriteOption)
 	Compare(Term, *Env) int64
 }
 
@@ -50,32 +50,64 @@ func Rulify(t Term, env *Env) Term {
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
-// WriteTermOptions describes options to write terms.
-type WriteTermOptions struct {
-	Quoted     bool
-	Ops        Operators
-	NumberVars bool
-
-	Priority int
+type writeTermOptions struct {
+	quoted     bool
+	ops        operators
+	numberVars bool
+	priority   int
 }
 
-func (o WriteTermOptions) withPriority(p int) WriteTermOptions {
-	ret := o
-	ret.Priority = p
-	return ret
-}
-
-var defaultWriteTermOptions = WriteTermOptions{
-	Quoted: true,
-	Ops: Operators{
-		{Priority: 500, Specifier: OperatorSpecifierYFX, Name: "+"}, // for flag+value
-		{Priority: 400, Specifier: OperatorSpecifierYFX, Name: "/"}, // for principal functors
+var defaultWriteTermOptions = writeTermOptions{
+	quoted: true,
+	ops: operators{
+		{priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
+		{priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
 	},
-	Priority: 1200,
+	numberVars: false,
+	priority:   1200,
+}
+
+// WriteOption is an option for Write.
+type WriteOption func(*writeTermOptions)
+
+// WithQuoted sets if atoms are quoted as needed.
+func WithQuoted(b bool) WriteOption {
+	return func(options *writeTermOptions) {
+		options.quoted = b
+	}
+}
+
+// WithIgnoreOps sets if the operator notation is used.
+func (state *State) WithIgnoreOps(b bool) WriteOption {
+	if b {
+		return withOps(nil)
+	}
+
+	return withOps(state.operators)
+}
+
+func withOps(ops operators) WriteOption {
+	return func(options *writeTermOptions) {
+		options.ops = ops
+	}
+}
+
+// WithNumberVars sets if a compound `'$VAR'(N)` where N is an integer is written as a variable.
+func WithNumberVars(b bool) WriteOption {
+	return func(options *writeTermOptions) {
+		options.numberVars = b
+	}
+}
+
+// WithPriority sets priority which determines if an expression is enclosed by a pair of parentheses.
+func WithPriority(p int) WriteOption {
+	return func(options *writeTermOptions) {
+		options.priority = p
+	}
 }
 
 // Write outputs one of the external representations of the term.
-func Write(w io.Writer, t Term, opts WriteTermOptions, env *Env) error {
+func Write(w io.Writer, t Term, env *Env, opts ...WriteOption) error {
 	var (
 		last TokenKind
 		err  error
@@ -91,6 +123,6 @@ func Write(w io.Writer, t Term, opts WriteTermOptions, env *Env) error {
 		_, _ = sb.WriteString(token.Val)
 		last = token.Kind
 		_, err = fmt.Fprint(w, sb.String())
-	}, opts, env)
+	}, env, opts...)
 	return err
 }

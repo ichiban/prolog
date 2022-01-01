@@ -16,7 +16,7 @@ type Parser struct {
 	lexer        *Lexer
 	current      *Token
 	history      []Token
-	operators    *Operators
+	operators    *operators
 	placeholder  Atom
 	args         []Term
 	doubleQuotes DoubleQuotes
@@ -45,7 +45,7 @@ func NewParser(input *bufio.Reader, charConversions map[rune]rune, opts ...Parse
 type ParserOption func(p *Parser)
 
 // WithOperators sets operators for Parser.
-func WithOperators(operators *Operators) ParserOption {
+func WithOperators(operators *operators) ParserOption {
 	return func(p *Parser) {
 		p.operators = operators
 	}
@@ -147,7 +147,7 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 	return "", errors.New("not an atom")
 }
 
-func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*Operator, error) {
+func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*operator, error) {
 	if p.operators == nil {
 		return nil, errors.New("no op")
 	}
@@ -157,7 +157,7 @@ func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*Operator, error)
 			continue
 		}
 
-		if _, err := p.acceptAtom(allowComma, allowBar, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, allowBar, string(op.name)); err != nil {
 			continue
 		}
 
@@ -166,7 +166,7 @@ func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*Operator, error)
 	return nil, errors.New("no op")
 }
 
-func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*Operator, error) {
+func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*operator, error) {
 	if p.operators == nil {
 		return nil, errors.New("no op")
 	}
@@ -176,7 +176,7 @@ func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*Operator, error) {
 			continue
 		}
 
-		if _, err := p.acceptAtom(allowComma, allowBar, string(op.Name)); err != nil {
+		if _, err := p.acceptAtom(allowComma, allowBar, string(op.name)); err != nil {
 			continue
 		}
 
@@ -312,7 +312,7 @@ func (p *Parser) expr(min int, allowComma, allowBar bool) (Term, error) {
 		}
 
 		lhs = &Compound{
-			Functor: op.Name,
+			Functor: op.name,
 			Args:    []Term{lhs, rhs},
 		}
 	}
@@ -406,10 +406,10 @@ func (p *Parser) prefix(allowComma bool, allowBar bool) (Term, error) {
 	_, r := op.bindingPowers()
 	rhs, err := p.expr(r, allowComma, allowBar)
 	if err != nil {
-		return op.Name, nil
+		return op.name, nil
 	}
 	return &Compound{
-		Functor: op.Name,
+		Functor: op.name,
 		Args:    []Term{rhs},
 	}, nil
 }
@@ -545,54 +545,51 @@ func (p *Parser) More() bool {
 	return err != nil
 }
 
-type OperatorSpecifier uint8
+type operatorSpecifier uint8
 
 const (
-	OperatorSpecifierFX OperatorSpecifier = iota
-	OperatorSpecifierFY
-	OperatorSpecifierXF
-	OperatorSpecifierYF
-	OperatorSpecifierXFX
-	OperatorSpecifierXFY
-	OperatorSpecifierYFX
-
-	operatorSpecifierLen
+	operatorSpecifierFX operatorSpecifier = iota
+	operatorSpecifierFY
+	operatorSpecifierXF
+	operatorSpecifierYF
+	operatorSpecifierXFX
+	operatorSpecifierXFY
+	operatorSpecifierYFX
 )
 
-func (s OperatorSpecifier) Term() Term {
-	return [operatorSpecifierLen]Term{
-		OperatorSpecifierFX:  Atom("fx"),
-		OperatorSpecifierFY:  Atom("fy"),
-		OperatorSpecifierXF:  Atom("xf"),
-		OperatorSpecifierYF:  Atom("yf"),
-		OperatorSpecifierXFX: Atom("xfx"),
-		OperatorSpecifierXFY: Atom("xfy"),
-		OperatorSpecifierYFX: Atom("yfx"),
+func (s operatorSpecifier) term() Term {
+	return [...]Term{
+		operatorSpecifierFX:  Atom("fx"),
+		operatorSpecifierFY:  Atom("fy"),
+		operatorSpecifierXF:  Atom("xf"),
+		operatorSpecifierYF:  Atom("yf"),
+		operatorSpecifierXFX: Atom("xfx"),
+		operatorSpecifierXFY: Atom("xfy"),
+		operatorSpecifierYFX: Atom("yfx"),
 	}[s]
 }
 
-// Operators are a list of operators sorted in descending order of precedence.
-type Operators []Operator
+type operators []operator
 
-func (ops Operators) find(name Atom, arity int) *Operator {
+func (ops operators) find(name Atom, arity int) *operator {
 	switch arity {
 	case 1:
 		for _, op := range ops {
-			if op.Name != name {
+			if op.name != name {
 				continue
 			}
-			switch op.Specifier {
-			case OperatorSpecifierFX, OperatorSpecifierFY, OperatorSpecifierXF, OperatorSpecifierYF:
+			switch op.specifier {
+			case operatorSpecifierFX, operatorSpecifierFY, operatorSpecifierXF, operatorSpecifierYF:
 				return &op
 			}
 		}
 	case 2:
 		for _, op := range ops {
-			if op.Name != name {
+			if op.name != name {
 				continue
 			}
-			switch op.Specifier {
-			case OperatorSpecifierXFX, OperatorSpecifierXFY, OperatorSpecifierYFX:
+			switch op.specifier {
+			case operatorSpecifierXFX, operatorSpecifierXFY, operatorSpecifierYFX:
 				return &op
 			}
 		}
@@ -602,29 +599,28 @@ func (ops Operators) find(name Atom, arity int) *Operator {
 	return nil
 }
 
-// Operator is an operator definition.
-type Operator struct {
-	Priority  Integer // 1 ~ 1200
-	Specifier OperatorSpecifier
-	Name      Atom
+type operator struct {
+	priority  Integer // 1 ~ 1200
+	specifier operatorSpecifier
+	name      Atom
 }
 
-func (o *Operator) bindingPowers() (int, int) {
-	bp := 1201 - int(o.Priority) // 1 ~ 1200
-	switch o.Specifier {
-	case OperatorSpecifierFX:
+func (o *operator) bindingPowers() (int, int) {
+	bp := 1201 - int(o.priority) // 1 ~ 1200
+	switch o.specifier {
+	case operatorSpecifierFX:
 		return 0, bp + 1
-	case OperatorSpecifierFY:
+	case operatorSpecifierFY:
 		return 0, bp
-	case OperatorSpecifierXF:
+	case operatorSpecifierXF:
 		return bp + 1, 0
-	case OperatorSpecifierYF:
+	case operatorSpecifierYF:
 		return bp, -1
-	case OperatorSpecifierXFX:
+	case operatorSpecifierXFX:
 		return bp + 1, bp + 1
-	case OperatorSpecifierXFY:
+	case operatorSpecifierXFY:
 		return bp + 1, bp
-	case OperatorSpecifierYFX:
+	case operatorSpecifierYFX:
 		return bp, bp + 1
 	default:
 		return 0, 0

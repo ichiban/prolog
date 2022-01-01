@@ -11,7 +11,7 @@ func TestFloat_Unparse(t *testing.T) {
 		var tokens []Token
 		Float(33.0).Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenFloat, Val: "33.0"},
 		}, tokens)
@@ -21,7 +21,7 @@ func TestFloat_Unparse(t *testing.T) {
 		var tokens []Token
 		Float(-33.0).Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenSign, Val: "-"},
 			{Kind: TokenFloat, Val: "33.0"},

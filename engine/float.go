@@ -10,7 +10,7 @@ type Float float64
 
 func (f Float) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, f, defaultWriteTermOptions, nil)
+	_ = Write(&sb, f, nil)
 	return sb.String()
 }
 
@@ -27,7 +27,7 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the float.
-func (f Float) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
+func (f Float) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if f < 0 {
 		emit(Token{Kind: TokenSign, Val: "-"})
 		f *= -1

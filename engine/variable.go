@@ -27,7 +27,7 @@ func (v Variable) Generated() bool {
 
 func (v Variable) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, v, defaultWriteTermOptions, nil)
+	_ = Write(&sb, v, nil)
 	return sb.String()
 }
 
@@ -49,12 +49,12 @@ func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the variable.
-func (v Variable) Unparse(emit func(token Token), opts WriteTermOptions, env *Env) {
+func (v Variable) Unparse(emit func(token Token), env *Env, opts ...WriteOption) {
 	switch v := env.Resolve(v).(type) {
 	case Variable:
 		emit(Token{Kind: TokenVariable, Val: string(v)})
 	default:
-		v.Unparse(emit, opts, env)
+		v.Unparse(emit, env, opts...)
 	}
 }
 
