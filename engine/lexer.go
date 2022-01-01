@@ -177,19 +177,23 @@ func (l *Lexer) conv(r rune) rune {
 
 type lexState func(rune) (lexState, error)
 
+var initSingleRunes = [...]TokenKind{
+	'(': TokenParenL,
+	')': TokenParenR,
+	',': TokenComma,
+	'|': TokenBar,
+	']': TokenBracketR,
+	'}': TokenBraceR,
+}
+
 func (l *Lexer) init(r rune) (lexState, error) {
 	r = l.conv(r)
 
-	if k := [...]TokenKind{
-		'(': TokenParenL,
-		')': TokenParenR,
-		',': TokenComma,
-		'|': TokenBar,
-		']': TokenBracketR,
-		'}': TokenBraceR,
-	}[r]; k != TokenEOS {
-		l.emit(Token{Kind: k, Val: string(r)})
-		return nil, nil
+	if int(r) < len(initSingleRunes) { // A rune can be bigger than the size of the array.
+		if k := initSingleRunes[r]; k != TokenEOS {
+			l.emit(Token{Kind: k, Val: string(r)})
+			return nil, nil
+		}
 	}
 
 	switch {
@@ -532,6 +536,18 @@ func (l *Lexer) integerChar(b *strings.Builder) (lexState, error) {
 	}, nil
 }
 
+var integerCharEscapeRunes = [...]rune{
+	'a':  '\a',
+	'b':  '\b',
+	'f':  '\f',
+	'n':  '\n',
+	'r':  '\r',
+	't':  '\t',
+	'v':  '\v',
+	'\\': '\\',
+	'\'': '\'',
+}
+
 func (l *Lexer) integerCharEscape(b *strings.Builder) (lexState, error) {
 	return func(r rune) (lexState, error) {
 		r = l.conv(r)
@@ -540,22 +556,10 @@ func (l *Lexer) integerCharEscape(b *strings.Builder) (lexState, error) {
 			return nil, ErrInsufficient
 		}
 
-		switch r := [...]rune{
-			'a':  '\a',
-			'b':  '\b',
-			'f':  '\f',
-			'n':  '\n',
-			'r':  '\r',
-			't':  '\t',
-			'v':  '\v',
-			'\\': '\\',
-			'\'': '\'',
-		}[r]; r {
-		case 0:
+		if int(r) > len(integerCharEscapeRunes) || integerCharEscapeRunes[r] == 0 {
 			return nil, UnexpectedRuneError{rune: r}
-		default:
-			_, _ = b.WriteRune(r)
 		}
+		_, _ = b.WriteRune(integerCharEscapeRunes[r])
 
 		l.emit(Token{Kind: TokenInteger, Val: b.String()})
 		return nil, nil

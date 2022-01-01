@@ -799,6 +799,18 @@ a quoted ident'.`)), nil)
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
 				})
+
+				t.Run("unknown", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\q`)), nil)
+					_, err := l.Next()
+					assert.Equal(t, UnexpectedRuneError{rune: 'q'}, err)
+				})
+
+				t.Run("really big", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\😀`)), nil)
+					_, err := l.Next()
+					assert.Equal(t, UnexpectedRuneError{rune: '😀'}, err)
+				})
 			})
 		})
 
