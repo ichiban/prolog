@@ -14,7 +14,7 @@ type Compound struct {
 
 func (c *Compound) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, c, nil)
+	_ = Write(&sb, c, nil, WithQuoted(true))
 	return sb.String()
 }
 

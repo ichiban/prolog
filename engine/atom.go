@@ -19,7 +19,7 @@ type Atom string
 
 func (a Atom) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, a, nil)
+	_ = Write(&sb, a, nil, WithQuoted(true))
 	return sb.String()
 }
 

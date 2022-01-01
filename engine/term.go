@@ -58,7 +58,7 @@ type writeTermOptions struct {
 }
 
 var defaultWriteTermOptions = writeTermOptions{
-	quoted: true,
+	quoted: false,
 	ops: operators{
 		{priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
 		{priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
