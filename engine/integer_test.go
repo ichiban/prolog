@@ -62,7 +62,7 @@ func TestInteger_Unparse(t *testing.T) {
 		var tokens []Token
 		Integer(33).Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenInteger, Val: "33"},
 		}, tokens)
@@ -72,7 +72,7 @@ func TestInteger_Unparse(t *testing.T) {
 		var tokens []Token
 		Integer(-33).Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenSign, Val: "-"},
 			{Kind: TokenInteger, Val: "33"},

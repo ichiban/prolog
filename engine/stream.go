@@ -162,7 +162,7 @@ func (s *Stream) Close() error {
 
 func (s *Stream) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, s, defaultWriteTermOptions, nil)
+	_ = Write(&sb, s, nil)
 	return sb.String()
 }
 
@@ -179,7 +179,7 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 // Unparse emits tokens that represent the stream.
-func (s *Stream) Unparse(emit func(Token), _ WriteTermOptions, _ *Env) {
+func (s *Stream) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if s.alias != "" {
 		emit(Token{Kind: TokenIdent, Val: string(s.alias)})
 		return

@@ -19,7 +19,7 @@ type Atom string
 
 func (a Atom) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, a, defaultWriteTermOptions, nil)
+	_ = Write(&sb, a, nil, WithQuoted(true))
 	return sb.String()
 }
 
@@ -48,15 +48,20 @@ func (a Atom) Apply(args ...Term) Term {
 }
 
 // Unparse emits tokens that represent the atom.
-func (a Atom) Unparse(emit func(Token), opts WriteTermOptions, _ *Env) {
+func (a Atom) Unparse(emit func(Token), _ *Env, opts ...WriteOption) {
+	wto := defaultWriteTermOptions
+	for _, o := range opts {
+		o(&wto)
+	}
+
 	switch {
 	case a == ",":
 		emit(Token{Kind: TokenComma, Val: ","})
-	case a == "[]", a == "{}":
+	case a == "[]", a == "{}", a == ";", a == "!":
 		emit(Token{Kind: TokenIdent, Val: string(a)})
 	case graphicalAtomPattern.MatchString(string(a)):
 		emit(Token{Kind: TokenGraphic, Val: string(a)})
-	case opts.Quoted && !unquotedAtomPattern.MatchString(string(a)):
+	case wto.quoted && !unquotedAtomPattern.MatchString(string(a)):
 		emit(Token{Kind: TokenQuotedIdent, Val: quote(string(a))})
 	default:
 		emit(Token{Kind: TokenIdent, Val: string(a)})

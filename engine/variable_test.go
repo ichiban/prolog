@@ -33,7 +33,7 @@ func TestVariable_Unparse(t *testing.T) {
 		v.Unparse(func(token Token) {
 			tokens = append(tokens, token)
 			return
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenVariable, Val: "X"},
 		}, tokens)
@@ -44,10 +44,19 @@ func TestVariable_Unparse(t *testing.T) {
 		var tokens []Token
 		v.Unparse(func(token Token) {
 			tokens = append(tokens, token)
-		}, WriteTermOptions{}, nil)
+		}, nil)
 		assert.Len(t, tokens, 1)
 		assert.Equal(t, TokenVariable, tokens[0].Kind)
 		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
+	})
+
+	t.Run("not a variable", func(t *testing.T) {
+		var m mockTerm
+		m.On("Unparse", mock.Anything, mock.Anything, mock.Anything).Return().Once()
+		defer m.AssertExpectations(t)
+
+		v := Variable("X")
+		v.Unparse(func(token Token) {}, NewEnv().Bind(v, &m))
 	})
 }
 

@@ -19,7 +19,7 @@ type State struct {
 	VM
 
 	// Internal/external expression
-	operators       Operators
+	operators       operators
 	charConversions map[rune]rune
 	charConvEnabled bool
 	doubleQuotes    DoubleQuotes
@@ -357,7 +357,7 @@ func copyTerm(t Term, vars map[Variable]Variable, env *Env) Term {
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
-func (state *State) Op(priority, specifier, operator Term, k func(*Env) *Promise, env *Env) *Promise {
+func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	p, ok := env.Resolve(priority).(Integer)
 	if !ok {
 		return Error(typeErrorInteger(priority))
@@ -371,33 +371,33 @@ func (state *State) Op(priority, specifier, operator Term, k func(*Env) *Promise
 		return Error(typeErrorAtom(specifier))
 	}
 
-	spec, ok := map[Atom]OperatorSpecifier{
-		"fx":  OperatorSpecifierFX,
-		"fy":  OperatorSpecifierFY,
-		"xf":  OperatorSpecifierXF,
-		"yf":  OperatorSpecifierYF,
-		"xfx": OperatorSpecifierXFX,
-		"xfy": OperatorSpecifierXFY,
-		"yfx": OperatorSpecifierYFX,
+	spec, ok := map[Atom]operatorSpecifier{
+		"fx":  operatorSpecifierFX,
+		"fy":  operatorSpecifierFY,
+		"xf":  operatorSpecifierXF,
+		"yf":  operatorSpecifierYF,
+		"xfx": operatorSpecifierXFX,
+		"xfy": operatorSpecifierXFY,
+		"yfx": operatorSpecifierYFX,
 	}[s]
 	if !ok {
 		return Error(domainErrorOperatorSpecifier(s))
 	}
 
-	o, ok := env.Resolve(operator).(Atom)
+	o, ok := env.Resolve(op).(Atom)
 	if !ok {
-		return Error(typeErrorAtom(operator))
+		return Error(typeErrorAtom(op))
 	}
 
 	// already defined?
 	for i, op := range state.operators {
-		if op.Specifier != spec || op.Name != o {
+		if op.specifier != spec || op.name != o {
 			continue
 		}
 
 		// remove it first so that we can insert it again in the right position
 		copy(state.operators[i:], state.operators[i+1:])
-		state.operators[len(state.operators)-1] = Operator{}
+		state.operators[len(state.operators)-1] = operator{}
 		state.operators = state.operators[:len(state.operators)-1]
 
 		// or keep it removed.
@@ -408,14 +408,14 @@ func (state *State) Op(priority, specifier, operator Term, k func(*Env) *Promise
 
 	// insert
 	i := sort.Search(len(state.operators), func(i int) bool {
-		return state.operators[i].Priority >= p
+		return state.operators[i].priority >= p
 	})
-	state.operators = append(state.operators, Operator{})
+	state.operators = append(state.operators, operator{})
 	copy(state.operators[i+1:], state.operators[i:])
-	state.operators[i] = Operator{
-		Priority:  p,
-		Specifier: spec,
-		Name:      o,
+	state.operators[i] = operator{
+		priority:  p,
+		specifier: spec,
+		name:      o,
 	}
 
 	return k(env)
@@ -465,7 +465,7 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 	for i := range state.operators {
 		op := state.operators[i]
 		ks[i] = func(context.Context) *Promise {
-			return Unify(&pattern, &Compound{Args: []Term{op.Priority, op.Specifier.Term(), op.Name}}, k, env)
+			return Unify(&pattern, &Compound{Args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
 		}
 	}
 	return Delay(ks...)
@@ -1094,24 +1094,23 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 		return Error(permissionErrorOutputBinaryStream(streamOrAlias))
 	}
 
-	opts := WriteTermOptions{
-		Ops:      state.operators,
-		Priority: 1200,
-	}
+	opts := []WriteOption{withOps(state.operators), WithPriority(1200)}
 	if err := EachList(env.Resolve(options), func(option Term) error {
-		return writeTermOption(&opts, state, option, env)
+		opt, err := writeTermOption(state, option, env)
+		opts = append(opts, opt)
+		return err
 	}, env); err != nil {
 		return Error(err)
 	}
 
-	if err := Write(s.file, env.Resolve(t), opts, env); err != nil {
+	if err := Write(s.file, env.Resolve(t), env, opts...); err != nil {
 		return Error(err)
 	}
 
 	return k(env)
 }
 
-func writeTermOption(opts *WriteTermOptions, state *State, option Term, env *Env) error {
+func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 	type optionIndicator struct {
 		functor, arg Atom
 	}
@@ -1119,42 +1118,40 @@ func writeTermOption(opts *WriteTermOptions, state *State, option Term, env *Env
 	var oi optionIndicator
 	switch option := env.Resolve(option).(type) {
 	case Variable:
-		return InstantiationError(option)
+		return nil, InstantiationError(option)
 	case *Compound:
 		if len(option.Args) != 1 {
-			return domainErrorWriteOption(option)
+			return nil, domainErrorWriteOption(option)
 		}
 
 		switch v := env.Resolve(option.Args[0]).(type) {
 		case Variable:
-			return InstantiationError(v)
+			return nil, InstantiationError(v)
 		case Atom:
 			oi = optionIndicator{functor: option.Functor, arg: v}
 		default:
-			return domainErrorWriteOption(option)
+			return nil, domainErrorWriteOption(option)
 		}
 	default:
-		return domainErrorWriteOption(option)
+		return nil, domainErrorWriteOption(option)
 	}
 
 	switch oi {
 	case optionIndicator{functor: "quoted", arg: "true"}:
-		opts.Quoted = true
+		return WithQuoted(true), nil
 	case optionIndicator{functor: "quoted", arg: "false"}:
-		opts.Quoted = false
+		return WithQuoted(false), nil
 	case optionIndicator{functor: "ignore_ops", arg: "true"}:
-		opts.Ops = nil
+		return state.WithIgnoreOps(true), nil
 	case optionIndicator{functor: "ignore_ops", arg: "false"}:
-		opts.Ops = state.operators
+		return state.WithIgnoreOps(false), nil
 	case optionIndicator{functor: "numbervars", arg: "true"}:
-		opts.NumberVars = true
+		return WithNumberVars(true), nil
 	case optionIndicator{functor: "numbervars", arg: "false"}:
-		opts.NumberVars = false
+		return WithNumberVars(false), nil
 	default:
-		return domainErrorWriteOption(option)
+		return nil, domainErrorWriteOption(option)
 	}
-
-	return nil
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
