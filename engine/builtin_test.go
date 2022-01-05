@@ -7033,7 +7033,7 @@ func TestState_SetPrologFlag(t *testing.T) {
 			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("codes"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, DoubleQuotesCodes, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesCodes, state.doubleQuotes)
 		})
 
 		t.Run("chars", func(t *testing.T) {
@@ -7041,7 +7041,7 @@ func TestState_SetPrologFlag(t *testing.T) {
 			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("chars"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, DoubleQuotesChars, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesChars, state.doubleQuotes)
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -7049,7 +7049,7 @@ func TestState_SetPrologFlag(t *testing.T) {
 			ok, err := state.SetPrologFlag(Atom("double_quotes"), Atom("atom"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, DoubleQuotesAtom, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesAtom, state.doubleQuotes)
 		})
 
 		t.Run("unknown", func(t *testing.T) {

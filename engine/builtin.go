@@ -22,7 +22,7 @@ type State struct {
 	operators       operators
 	charConversions map[rune]rune
 	charConvEnabled bool
-	doubleQuotes    DoubleQuotes
+	doubleQuotes    doubleQuotes
 
 	// I/O
 	streams       map[Term]*Stream
@@ -91,10 +91,10 @@ func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return NewParser(br, state.charConversions,
-		WithOperators(&state.operators),
-		WithDoubleQuotes(state.doubleQuotes),
-		WithParsedVars(vars),
+	return newParser(br, state.charConversions,
+		withOperators(&state.operators),
+		withDoubleQuotes(state.doubleQuotes),
+		withParsedVars(vars),
 	)
 }
 
@@ -1920,7 +1920,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
 		t, err := p.Number()
 		switch err {
 		case nil:
@@ -1981,7 +1981,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := NewParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
 		t, err := p.Number()
 		switch err {
 		case nil:
@@ -2656,11 +2656,11 @@ func (state *State) modifyUnknown(value Atom) error {
 func (state *State) modifyDoubleQuotes(value Atom) error {
 	switch value {
 	case "codes":
-		state.doubleQuotes = DoubleQuotesCodes
+		state.doubleQuotes = doubleQuotesCodes
 	case "chars":
-		state.doubleQuotes = DoubleQuotesChars
+		state.doubleQuotes = doubleQuotesChars
 	case "atom":
-		state.doubleQuotes = DoubleQuotesAtom
+		state.doubleQuotes = doubleQuotesAtom
 	default:
 		return domainErrorFlagValue(&Compound{
 			Functor: "+",

@@ -19,7 +19,7 @@ type Parser struct {
 	operators    *operators
 	placeholder  Atom
 	args         []Term
-	doubleQuotes DoubleQuotes
+	doubleQuotes doubleQuotes
 	vars         *[]ParsedVariable
 }
 
@@ -30,8 +30,7 @@ type ParsedVariable struct {
 	Count    int
 }
 
-// NewParser creates a Parser.
-func NewParser(input *bufio.Reader, charConversions map[rune]rune, opts ...ParserOption) *Parser {
+func newParser(input *bufio.Reader, charConversions map[rune]rune, opts ...parserOption) *Parser {
 	p := Parser{
 		lexer: NewLexer(input, charConversions),
 	}
@@ -41,25 +40,21 @@ func NewParser(input *bufio.Reader, charConversions map[rune]rune, opts ...Parse
 	return &p
 }
 
-// ParserOption is option for NewParser.
-type ParserOption func(p *Parser)
+type parserOption func(p *Parser)
 
-// WithOperators sets operators for Parser.
-func WithOperators(operators *operators) ParserOption {
+func withOperators(operators *operators) parserOption {
 	return func(p *Parser) {
 		p.operators = operators
 	}
 }
 
-// WithDoubleQuotes sets how Parser handles double quotes.
-func WithDoubleQuotes(quotes DoubleQuotes) ParserOption {
+func withDoubleQuotes(quotes doubleQuotes) parserOption {
 	return func(p *Parser) {
 		p.doubleQuotes = quotes
 	}
 }
 
-// WithParsedVars sets where Parser to store information regarding parsed variables.
-func WithParsedVars(vars *[]ParsedVariable) ParserOption {
+func withParsedVars(vars *[]ParsedVariable) parserOption {
 	return func(p *Parser) {
 		p.vars = vars
 	}
@@ -520,19 +515,19 @@ func (p *Parser) acceptDoubleQuoted() (Term, error) {
 	}
 	v = unDoubleQuote(v)
 	switch p.doubleQuotes {
-	case DoubleQuotesCodes:
+	case doubleQuotesCodes:
 		var codes []Term
 		for _, r := range v {
 			codes = append(codes, Integer(r))
 		}
 		return List(codes...), nil
-	case DoubleQuotesChars:
+	case doubleQuotesChars:
 		var chars []Term
 		for _, r := range v {
 			chars = append(chars, Atom(r))
 		}
 		return List(chars...), nil
-	case DoubleQuotesAtom:
+	case doubleQuotesAtom:
 		return Atom(v), nil
 	default:
 		return nil, fmt.Errorf("unknown double quote(%d)", p.doubleQuotes)
@@ -627,24 +622,19 @@ func (o *operator) bindingPowers() (int, int) {
 	}
 }
 
-// DoubleQuotes describes how the parser handles double-quoted strings.
-type DoubleQuotes int
+type doubleQuotes int
 
 const (
-	// DoubleQuotesCodes parses a double-quoted string into a list of integers.
-	DoubleQuotesCodes DoubleQuotes = iota
-	// DoubleQuotesChars parses a double-quoted string into a list of single-character atoms.
-	DoubleQuotesChars
-	// DoubleQuotesAtom parses a double-quoted string into an atom.
-	DoubleQuotesAtom
-	doubleQuotesLen
+	doubleQuotesCodes doubleQuotes = iota
+	doubleQuotesChars
+	doubleQuotesAtom
 )
 
-func (d DoubleQuotes) String() string {
-	return [doubleQuotesLen]string{
-		DoubleQuotesCodes: "codes",
-		DoubleQuotesChars: "chars",
-		DoubleQuotesAtom:  "atom",
+func (d doubleQuotes) String() string {
+	return [...]string{
+		doubleQuotesCodes: "codes",
+		doubleQuotesChars: "chars",
+		doubleQuotesAtom:  "atom",
 	}[d]
 }
 
