@@ -223,5 +223,12 @@ member(X, [_|Xs]) :- member(X, Xs).
 length([], 0).
 length([_|Xs], N) :- length(Xs, L), N is L + 1.
 
+:- built_in(nth/3).
+nth(1, [Elem|_], Elem) :- !.
+nth(N, [_|Rest], Elem) :-
+  N > 1,
+  M is N - 1,
+  nth(M, Rest, Elem).
+
 :- built_in('.'/2).
 [H|T] :- consult([H|T]).
