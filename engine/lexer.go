@@ -345,7 +345,7 @@ func (l *Lexer) quotedIdentSlash(b *strings.Builder) error {
 	case r == 'x':
 		_, _ = b.WriteRune(r)
 		return l.quotedIdentSlashHex(b)
-	case unicode.IsNumber(r):
+	case isOctal(r):
 		_, _ = b.WriteRune(r)
 		return l.quotedIdentSlashOctal(b)
 	default:
@@ -590,21 +590,6 @@ func (l *Lexer) integerPeriod(b *strings.Builder) (Token, error) {
 	}
 }
 
-func (l *Lexer) number() (Token, error) {
-	var b strings.Builder
-	r := l.next()
-	switch {
-	case r == '0':
-		_, _ = b.WriteRune(r)
-		return l.integerZero(&b)
-	case unicode.IsNumber(r):
-		_, _ = b.WriteRune(r)
-		return l.integerDecimal(&b)
-	default:
-		return Token{}, UnexpectedRuneError{rune: r}
-	}
-}
-
 func (l *Lexer) sign(b *strings.Builder) (Token, error) {
 	r := l.next()
 	switch {
@@ -650,9 +635,7 @@ func (l *Lexer) singleLineComment(*strings.Builder) (Token, error) {
 	for {
 		r := l.next()
 		switch r {
-		case utf8.RuneError:
-			return Token{}, ErrInsufficient
-		case '\n':
+		case '\n', utf8.RuneError:
 			return l.Token()
 		}
 	}
@@ -668,7 +651,7 @@ func (l *Lexer) multiLineCommentBegin(b *strings.Builder) (Token, error) {
 		return l.graphic(b)
 	default:
 		l.backup()
-		return Token{Kind: TokenIdent, Val: b.String()}, nil
+		return Token{Kind: TokenGraphic, Val: b.String()}, nil
 	}
 }
 
@@ -679,27 +662,16 @@ func (l *Lexer) multiLineCommentBody() (Token, error) {
 		case utf8.RuneError:
 			return Token{}, ErrInsufficient
 		case '*':
-			ok, err := l.multiLineCommentEnd()
-			if err != nil {
-				return Token{}, err
-			}
-			if ok {
+			if l.multiLineCommentEnd() {
 				return l.Token()
 			}
 		}
 	}
 }
 
-func (l *Lexer) multiLineCommentEnd() (bool, error) {
+func (l *Lexer) multiLineCommentEnd() bool {
 	r := l.next()
-	switch r {
-	case utf8.RuneError:
-		return false, ErrInsufficient
-	case '/':
-		return true, nil
-	default:
-		return false, nil
-	}
+	return r == '/'
 }
 
 func (l *Lexer) doubleQuoted(b *strings.Builder) (Token, error) {

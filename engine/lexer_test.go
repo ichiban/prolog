@@ -8,7 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLexer_Next(t *testing.T) {
+func TestLexer_Token(t *testing.T) {
+	t.Run("invalid init rune", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("\000")), nil)
+
+		_, err := l.Token()
+		assert.Equal(t, UnexpectedRuneError{rune: '\000'}, err)
+	})
+
 	t.Run("clause", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("append(nil,L,L).")), nil)
 
@@ -305,6 +312,26 @@ func TestLexer_Next(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
+	t.Run("period", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("X = .. .")), nil)
+
+		token, err := l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: "="}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: ".."}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+	})
+
 	t.Run("single line comment", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("% comment\nfoo.")), nil)
 
@@ -322,19 +349,28 @@ func TestLexer_Next(t *testing.T) {
 	})
 
 	t.Run("multi line comment", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
+		t.Run("ok", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
 
-		token, err := l.Token()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Token()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+			token, err = l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Token()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOF}, token)
+			token, err = l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
+		})
+
+		t.Run("insufficient in body", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment ")), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
 	})
 
 	t.Run("quoted ident", func(t *testing.T) {
@@ -594,6 +630,48 @@ a quoted ident'.`)), nil)
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
+
+		t.Run("insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("insufficient after slash", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("insufficient after hex", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("unexpected rune after hex", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xG`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: 'G'}, err)
+		})
+
+		t.Run("insufficient after octal", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\0`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("unexpected rune after octal", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\08`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
+		})
 	})
 
 	t.Run("integer", func(t *testing.T) {
@@ -770,6 +848,12 @@ a quoted ident'.`)), nil)
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0''"}, token)
 				})
+
+				t.Run("insufficient", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'`)), nil)
+					_, err := l.Token()
+					assert.Equal(t, ErrInsufficient, err)
+				})
 			})
 
 			t.Run("escape sequence", func(t *testing.T) {
@@ -798,6 +882,12 @@ a quoted ident'.`)), nil)
 					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
+				})
+
+				t.Run("insufficient", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\`)), nil)
+					_, err := l.Token()
+					assert.Equal(t, ErrInsufficient, err)
 				})
 
 				t.Run("unknown", func(t *testing.T) {
@@ -939,6 +1029,18 @@ a quoted ident'.`)), nil)
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E-10"}, token)
 			})
+		})
+
+		t.Run("with e and insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E`)), nil)
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("with e and unexpected rune", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E*`)), nil)
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: '*'}, err)
 		})
 
 		t.Run("begins with 0", func(t *testing.T) {
@@ -1404,35 +1506,67 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("hex code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil)
+			t.Run("ok", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil)
 
-			token, err := l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\xa3\"`}, token)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\xa3\"`}, token)
 
-			token, err = l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOF}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenEOF}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, ErrInsufficient, err)
+			})
+
+			t.Run("not hex", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3g`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, UnexpectedRuneError{rune: 'g'}, err)
+			})
 		})
 
 		t.Run("oct code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\43\".`)), nil)
+			t.Run("ok", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43\".`)), nil)
 
-			token, err := l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\43\"`}, token)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\43\"`}, token)
 
-			token, err = l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Token()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOF}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenEOF}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, ErrInsufficient, err)
+			})
+
+			t.Run("not octal", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\438`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
+			})
 		})
 
 		t.Run("backslash", func(t *testing.T) {
@@ -1498,5 +1632,59 @@ a quoted ident"`}, token)
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
+
+		t.Run("insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`"`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("escape then insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`"\`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
 	})
+
+	t.Run("graphic token begins with sign", func(t *testing.T) {
+		t.Run("plus", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`++`)), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: `++`}, token)
+		})
+
+		t.Run("minus", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`--`)), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: `--`}, token)
+		})
+	})
+
+	t.Run("graphic token begins with slash", func(t *testing.T) {
+		t.Run("single", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/")), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: "/"}, token)
+		})
+
+		t.Run("multi", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("//")), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: "//"}, token)
+		})
+	})
+}
+
+func TestUnexpectedRuneError_Error(t *testing.T) {
+	assert.Equal(t, "unexpected rune: a(0x61)", UnexpectedRuneError{rune: 'a'}.Error())
 }
