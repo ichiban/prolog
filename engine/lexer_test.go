@@ -8,591 +8,669 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLexer_Next(t *testing.T) {
+func TestLexer_Token(t *testing.T) {
+	t.Run("invalid init rune", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("\000")), nil)
+
+		_, err := l.Token()
+		assert.Equal(t, UnexpectedRuneError{rune: '\000'}, err)
+	})
+
 	t.Run("clause", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("append(nil,L,L).")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "append"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "nil"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "L"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "L"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("p(X, Y), p(Y, X).")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "Y"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token) // operator
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "Y"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("nil", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("[]")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "[]"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("empty block", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("{}")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "{}"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("list", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("[a, b|c]")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketL, Val: "["}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBar, Val: "|"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketR, Val: "]"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("block", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("{a, b, c}")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBraceL, Val: "{"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBraceR, Val: "}"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("comma", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,)).")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "x"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "y"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "p"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "x"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "q"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
+	})
+
+	t.Run("period", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("X = .. .")), nil)
+
+		token, err := l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: "="}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenGraphic, Val: ".."}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
 
 	t.Run("single line comment", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("% comment\nfoo.")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("multi line comment", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
+		t.Run("ok", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
 
-		token, err := l.Next()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Next()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+			token, err = l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+			token, err = l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
+		})
+
+		t.Run("insufficient in body", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment ")), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
 	})
 
 	t.Run("quoted ident", func(t *testing.T) {
 		t.Run("no escape", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'abc'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'abc'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("double single quotes", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'don''t panic'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'don''t panic'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'this is \
 a quoted ident'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'this is \\\na quoted ident'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("alert", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\a'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\a'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backspace", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\b'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\b'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("formfeed", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\f'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\f'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("newline", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\n'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\n'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("return", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\r'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\r'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("tab", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\t'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\t'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("vertical tab", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\v'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\v'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("hex code", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xa3\'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\xa3\\'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("oct code", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\43\'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\43\\'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backslash", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\\'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\\'`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("single quote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\''.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\''`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("double quote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\"'.`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: `'\"'`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backquote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader("'\\`'.")), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'\\`'"}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
+		})
+
+		t.Run("insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("insufficient after slash", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("insufficient after hex", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("unexpected rune after hex", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xG`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: 'G'}, err)
+		})
+
+		t.Run("insufficient after octal", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\0`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("unexpected rune after octal", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`'\08`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
 		})
 	})
 
@@ -600,27 +678,27 @@ a quoted ident'.`)), nil)
 		t.Run("decimal", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`012345`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "012345"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+012345`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "012345"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-012345`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "012345"}, token)
 			})
@@ -629,27 +707,27 @@ a quoted ident'.`)), nil)
 		t.Run("octal", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`0o567`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+0o567`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-0o567`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
 			})
@@ -658,27 +736,27 @@ a quoted ident'.`)), nil)
 		t.Run("hexadecimal", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`0x89ABC`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+0x89ABC`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-0x89ABC`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
 			})
@@ -687,27 +765,27 @@ a quoted ident'.`)), nil)
 		t.Run("binary", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`0b10110101`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+0b10110101`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-0b10110101`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
 			})
@@ -717,27 +795,27 @@ a quoted ident'.`)), nil)
 			t.Run("normal", func(t *testing.T) {
 				t.Run("no sign", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'a`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'a"}, token)
 				})
 
 				t.Run("plus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`+0'a`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'a"}, token)
 				})
 
 				t.Run("minus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`-0'a`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'a"}, token)
 				})
@@ -746,69 +824,81 @@ a quoted ident'.`)), nil)
 			t.Run("quote", func(t *testing.T) {
 				t.Run("no sign", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0''`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0''"}, token)
 				})
 
 				t.Run("plus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`+0''`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0''"}, token)
 				})
 
 				t.Run("minus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`-0''`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0''"}, token)
+				})
+
+				t.Run("insufficient", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'`)), nil)
+					_, err := l.Token()
+					assert.Equal(t, ErrInsufficient, err)
 				})
 			})
 
 			t.Run("escape sequence", func(t *testing.T) {
 				t.Run("no sign", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\n`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
 				})
 
 				t.Run("plus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`+0'\n`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
 				})
 
 				t.Run("minus", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`-0'\n`)), nil)
-					token, err := l.Next()
+					token, err := l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-					token, err = l.Next()
+					token, err = l.Token()
 					assert.NoError(t, err)
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'\n"}, token)
 				})
 
+				t.Run("insufficient", func(t *testing.T) {
+					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\`)), nil)
+					_, err := l.Token()
+					assert.Equal(t, ErrInsufficient, err)
+				})
+
 				t.Run("unknown", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\q`)), nil)
-					_, err := l.Next()
+					_, err := l.Token()
 					assert.Equal(t, UnexpectedRuneError{rune: 'q'}, err)
 				})
 
 				t.Run("really big", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\😀`)), nil)
-					_, err := l.Next()
+					_, err := l.Token()
 					assert.Equal(t, UnexpectedRuneError{rune: '😀'}, err)
 				})
 			})
@@ -817,7 +907,7 @@ a quoted ident'.`)), nil)
 		t.Run("misc", func(t *testing.T) {
 			t.Run("just 0", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`0`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0"}, token)
 			})
@@ -828,27 +918,27 @@ a quoted ident'.`)), nil)
 		t.Run("without e", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34"}, token)
 			})
@@ -857,27 +947,27 @@ a quoted ident'.`)), nil)
 		t.Run("with e and no sign", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E5"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E5"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E5"}, token)
 			})
@@ -886,27 +976,27 @@ a quoted ident'.`)), nil)
 		t.Run("with e and plus", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E+5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E+5"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E+5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E+5"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E+5`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E+5"}, token)
 			})
@@ -915,35 +1005,47 @@ a quoted ident'.`)), nil)
 		t.Run("with e and minus", func(t *testing.T) {
 			t.Run("no sign", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E-10`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E-10"}, token)
 			})
 
 			t.Run("plus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`+2.34E-10`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "+"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E-10"}, token)
 			})
 
 			t.Run("minus", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`-2.34E-10`)), nil)
-				token, err := l.Next()
+				token, err := l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenSign, Val: "-"}, token)
-				token, err = l.Next()
+				token, err = l.Token()
 				assert.NoError(t, err)
 				assert.Equal(t, Token{Kind: TokenFloat, Val: "2.34E-10"}, token)
 			})
 		})
 
+		t.Run("with e and insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E`)), nil)
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("with e and unexpected rune", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E*`)), nil)
+			_, err := l.Token()
+			assert.Equal(t, UnexpectedRuneError{rune: '*'}, err)
+		})
+
 		t.Run("begins with 0", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`0.333`)), nil)
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenFloat, Val: "0.333"}, token)
 		})
@@ -952,33 +1054,33 @@ a quoted ident'.`)), nil)
 	t.Run("integer then period", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("X is 1 + 2.")), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "is"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenInteger, Val: "1"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "+"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenInteger, Val: "2"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
-		assert.Equal(t, Token{Kind: TokenEOS}, token)
+		assert.Equal(t, Token{Kind: TokenEOF}, token)
 	})
 
 	t.Run("multiple terms", func(t *testing.T) {
@@ -988,63 +1090,63 @@ foo(b).
 foo(c).
 `)), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "a"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "b"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "foo"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "c"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
@@ -1054,23 +1156,23 @@ foo(c).
 			'b': 'a',
 		})
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "aac"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'abc'"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
@@ -1078,43 +1180,43 @@ foo(c).
 	t.Run("trailing space in args", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader(`:- op( 20, xfx, <-- ).`)), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenGraphic, Val: ":-"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "op"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenInteger, Val: "20"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "xfx"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenGraphic, Val: "<--"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
@@ -1122,27 +1224,27 @@ foo(c).
 	t.Run("elems", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader(`[V<--Ans].`)), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketL, Val: "["}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "V"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenGraphic, Val: "<--"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "Ans"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketR, Val: "]"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
@@ -1151,91 +1253,91 @@ foo(c).
 		l := NewLexer(bufio.NewReader(strings.NewReader(`del_item(Item, [It |R], R) :-
       same_subst(Item, It), ! .`)), nil)
 
-		token, err := l.Next()
+		token, err := l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "del_item"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "Item"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketL, Val: "["}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "It"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBar, Val: "|"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "R"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenBracketR, Val: "]"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "R"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenGraphic, Val: ":-"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "same_subst"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenL, Val: "("}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "Item"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "It"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenParenR, Val: ")"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenIdent, Val: "!"}, token)
 
-		token, err = l.Next()
+		token, err = l.Token()
 		assert.NoError(t, err)
 		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 	})
@@ -1244,259 +1346,345 @@ foo(c).
 		t.Run("no escape", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"abc".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"abc"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("double double quotes", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"don""t panic".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"don""t panic"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"this is \
 a quoted ident".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"this is \
 a quoted ident"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("alert", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\a".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\a"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backspace", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\b".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\b"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("formfeed", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\f".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\f"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("newline", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\n".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\n"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("return", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\r".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\r"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("tab", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\t".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\t"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("vertical tab", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\v".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\v"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("hex code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil)
+			t.Run("ok", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil)
 
-			token, err := l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\xa3\"`}, token)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\xa3\"`}, token)
 
-			token, err = l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenEOF}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, ErrInsufficient, err)
+			})
+
+			t.Run("not hex", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3g`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, UnexpectedRuneError{rune: 'g'}, err)
+			})
 		})
 
 		t.Run("oct code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\43\".`)), nil)
+			t.Run("ok", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43\".`)), nil)
 
-			token, err := l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\43\"`}, token)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\43\"`}, token)
 
-			token, err = l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
-			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+				token, err = l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenEOF}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, ErrInsufficient, err)
+			})
+
+			t.Run("not octal", func(t *testing.T) {
+				l := NewLexer(bufio.NewReader(strings.NewReader(`"\438`)), nil)
+
+				_, err := l.Token()
+				assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
+			})
 		})
 
 		t.Run("backslash", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\\".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\\"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("single quote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\'".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\'"`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("double quote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`"\"".`)), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: `"\""`}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
 		})
 
 		t.Run("backquote", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader("\"\\`\".")), nil)
 
-			token, err := l.Next()
+			token, err := l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenDoubleQuoted, Val: "\"\\`\""}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
 			assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
 
-			token, err = l.Next()
+			token, err = l.Token()
 			assert.NoError(t, err)
-			assert.Equal(t, Token{Kind: TokenEOS}, token)
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
+		})
+
+		t.Run("insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`"`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
+		})
+
+		t.Run("escape then insufficient", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`"\`)), nil)
+
+			_, err := l.Token()
+			assert.Equal(t, ErrInsufficient, err)
 		})
 	})
+
+	t.Run("graphic token begins with sign", func(t *testing.T) {
+		t.Run("plus", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`++`)), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: `++`}, token)
+		})
+
+		t.Run("minus", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader(`--`)), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: `--`}, token)
+		})
+	})
+
+	t.Run("graphic token begins with slash", func(t *testing.T) {
+		t.Run("single", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("/")), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: "/"}, token)
+		})
+
+		t.Run("multi", func(t *testing.T) {
+			l := NewLexer(bufio.NewReader(strings.NewReader("//")), nil)
+
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenGraphic, Val: "//"}, token)
+		})
+	})
+}
+
+func TestUnexpectedRuneError_Error(t *testing.T) {
+	assert.Equal(t, "unexpected rune: a(0x61)", UnexpectedRuneError{rune: 'a'}.Error())
 }

@@ -182,7 +182,7 @@ func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*operator, error) {
 
 func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	if p.current == nil {
-		t, err := p.lexer.Next()
+		t, err := p.lexer.Token()
 		if err != nil {
 			return "", err
 		}
@@ -206,7 +206,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) expectationError(k TokenKind, vals []string) error {
-	if p.current.Kind == TokenEOS {
+	if p.current.Kind == TokenEOF {
 		return ErrInsufficient
 	}
 	return &unexpectedTokenError{
@@ -219,7 +219,7 @@ func (p *Parser) expectationError(k TokenKind, vals []string) error {
 
 // Term parses a term followed by a full stop.
 func (p *Parser) Term() (Term, error) {
-	if _, err := p.accept(TokenEOS); err == nil {
+	if _, err := p.accept(TokenEOF); err == nil {
 		return nil, io.EOF
 	}
 
@@ -256,7 +256,7 @@ func (p *Parser) Number() (Term, error) {
 		return nil, err
 	}
 
-	_, err = p.accept(TokenEOS)
+	_, err = p.accept(TokenEOF)
 	return n, err
 }
 
@@ -316,7 +316,7 @@ func (p *Parser) expr(min int, allowComma, allowBar bool) (Term, error) {
 }
 
 func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
-	if _, err := p.accept(TokenEOS); err == nil {
+	if _, err := p.accept(TokenEOF); err == nil {
 		return nil, ErrInsufficient
 	}
 
@@ -536,7 +536,7 @@ func (p *Parser) acceptDoubleQuoted() (Term, error) {
 
 // More checks if the parser has more tokens to read.
 func (p *Parser) More() bool {
-	_, err := p.accept(TokenEOS)
+	_, err := p.accept(TokenEOF)
 	return err != nil
 }
 

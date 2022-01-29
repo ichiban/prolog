@@ -4,18 +4,118 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
+
+var initDispatch [256]func(*Lexer, *strings.Builder) (Token, error)
+
+func init() {
+	initDispatch = [256]func(*Lexer, *strings.Builder) (Token, error){
+		'!':  initDispatchSingle(TokenIdent),
+		'"':  (*Lexer).doubleQuoted,
+		'#':  (*Lexer).graphic,
+		'$':  (*Lexer).graphic,
+		'%':  (*Lexer).singleLineComment,
+		'&':  (*Lexer).graphic,
+		'\'': (*Lexer).quotedIdent,
+		'(':  initDispatchSingle(TokenParenL),
+		')':  initDispatchSingle(TokenParenR),
+		'*':  (*Lexer).graphic,
+		'+':  (*Lexer).sign,
+		',':  initDispatchSingle(TokenComma),
+		'-':  (*Lexer).sign,
+		'.':  (*Lexer).period,
+		'/':  (*Lexer).multiLineCommentBegin,
+		'0':  (*Lexer).integerZero,
+		'1':  (*Lexer).integerDecimal,
+		'2':  (*Lexer).integerDecimal,
+		'3':  (*Lexer).integerDecimal,
+		'4':  (*Lexer).integerDecimal,
+		'5':  (*Lexer).integerDecimal,
+		'6':  (*Lexer).integerDecimal,
+		'7':  (*Lexer).integerDecimal,
+		'8':  (*Lexer).integerDecimal,
+		'9':  (*Lexer).integerDecimal,
+		':':  (*Lexer).graphic,
+		';':  initDispatchSingle(TokenIdent),
+		'<':  (*Lexer).graphic,
+		'=':  (*Lexer).graphic,
+		'>':  (*Lexer).graphic,
+		'?':  (*Lexer).graphic,
+		'@':  (*Lexer).graphic,
+		'A':  (*Lexer).variable,
+		'B':  (*Lexer).variable,
+		'C':  (*Lexer).variable,
+		'D':  (*Lexer).variable,
+		'E':  (*Lexer).variable,
+		'F':  (*Lexer).variable,
+		'G':  (*Lexer).variable,
+		'H':  (*Lexer).variable,
+		'I':  (*Lexer).variable,
+		'J':  (*Lexer).variable,
+		'K':  (*Lexer).variable,
+		'L':  (*Lexer).variable,
+		'M':  (*Lexer).variable,
+		'N':  (*Lexer).variable,
+		'O':  (*Lexer).variable,
+		'P':  (*Lexer).variable,
+		'Q':  (*Lexer).variable,
+		'R':  (*Lexer).variable,
+		'S':  (*Lexer).variable,
+		'T':  (*Lexer).variable,
+		'U':  (*Lexer).variable,
+		'V':  (*Lexer).variable,
+		'W':  (*Lexer).variable,
+		'X':  (*Lexer).variable,
+		'Y':  (*Lexer).variable,
+		'Z':  (*Lexer).variable,
+		'[':  (*Lexer).squareBracket,
+		'\\': (*Lexer).graphic,
+		']':  initDispatchSingle(TokenBracketR),
+		'^':  (*Lexer).graphic,
+		'_':  (*Lexer).variable,
+		'a':  (*Lexer).normalAtom,
+		'b':  (*Lexer).normalAtom,
+		'c':  (*Lexer).normalAtom,
+		'd':  (*Lexer).normalAtom,
+		'e':  (*Lexer).normalAtom,
+		'f':  (*Lexer).normalAtom,
+		'g':  (*Lexer).normalAtom,
+		'h':  (*Lexer).normalAtom,
+		'i':  (*Lexer).normalAtom,
+		'j':  (*Lexer).normalAtom,
+		'k':  (*Lexer).normalAtom,
+		'l':  (*Lexer).normalAtom,
+		'm':  (*Lexer).normalAtom,
+		'n':  (*Lexer).normalAtom,
+		'o':  (*Lexer).normalAtom,
+		'p':  (*Lexer).normalAtom,
+		'q':  (*Lexer).normalAtom,
+		'r':  (*Lexer).normalAtom,
+		's':  (*Lexer).normalAtom,
+		't':  (*Lexer).normalAtom,
+		'u':  (*Lexer).normalAtom,
+		'v':  (*Lexer).normalAtom,
+		'w':  (*Lexer).normalAtom,
+		'x':  (*Lexer).normalAtom,
+		'y':  (*Lexer).normalAtom,
+		'z':  (*Lexer).normalAtom,
+		'{':  (*Lexer).curlyBracket,
+		'|':  initDispatchSingle(TokenBar),
+		'}':  initDispatchSingle(TokenBraceR),
+		'~':  (*Lexer).graphic,
+	}
+}
 
 // Lexer turns bytes into tokens.
 type Lexer struct {
 	input           *bufio.Reader
 	charConversions map[rune]rune
-	tokens          []Token
 	pos             int
 	width           int
+	reserved        Token
 }
 
 // NewLexer create a lexer with an input and char conversions.
@@ -24,54 +124,60 @@ func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
 	return &l
 }
 
-// Next returns the next token.
-func (l *Lexer) Next() (Token, error) {
-	state := l.init
-	for state != nil && len(l.tokens) == 0 {
-		r, err := l.next()
-		if err != nil {
-			return Token{}, err
-		}
-		state, err = state(r)
-		if err != nil {
-			return Token{}, err
-		}
-	}
-
-	if len(l.tokens) > 0 {
-		var t Token
-		t, l.tokens = l.tokens[0], l.tokens[1:]
+// Token returns the next token.
+func (l *Lexer) Token() (Token, error) {
+	if l.reserved != (Token{}) {
+		t := l.reserved
+		l.reserved = Token{}
 		return t, nil
 	}
 
-	return Token{}, errors.New("no match")
+	r := l.next()
+	for unicode.IsSpace(r) {
+		r = l.next()
+	}
+
+	if r == utf8.RuneError {
+		return Token{Kind: TokenEOF}, nil
+	}
+
+	var b strings.Builder
+	_, _ = b.WriteRune(r)
+	if int(r) < len(initDispatch) { // A rune can be bigger than the size of the array.
+		f := initDispatch[r]
+		if f != nil {
+			return f(l, &b)
+		}
+	}
+	l.backup()
+	return Token{}, UnexpectedRuneError{rune: r}
 }
 
-const etx = 0x2
+func initDispatchSingle(k TokenKind) func(*Lexer, *strings.Builder) (Token, error) {
+	return func(_ *Lexer, b *strings.Builder) (Token, error) {
+		return Token{Kind: k, Val: b.String()}, nil
+	}
+}
 
-func (l *Lexer) next() (rune, error) {
+func (l *Lexer) next() rune {
+	r := l.rawNext()
+	return l.conv(r)
+}
+
+func (l *Lexer) rawNext() rune {
 	r, w, err := l.input.ReadRune()
-	switch err {
-	case nil:
-		break
-	case io.EOF:
-		r = etx
+	if err != nil {
+		r = utf8.RuneError
 		w = 1
-	default:
-		return 0, err
 	}
 	l.width = w
 	l.pos += l.width
-	return r, nil
+	return r
 }
 
 func (l *Lexer) backup() {
 	_ = l.input.UnreadRune()
 	l.pos -= l.width
-}
-
-func (l *Lexer) emit(t Token) {
-	l.tokens = append(l.tokens, t)
 }
 
 // Token is a smallest meaningful unit of prolog program.
@@ -88,8 +194,8 @@ func (t Token) String() string {
 type TokenKind byte
 
 const (
-	// TokenEOS represents an end of token stream.
-	TokenEOS TokenKind = iota
+	// TokenEOF represents an end of token stream.
+	TokenEOF TokenKind = iota
 
 	// TokenVariable represents a variable token.
 	TokenVariable
@@ -147,7 +253,7 @@ const (
 
 func (k TokenKind) String() string {
 	return [tokenKindLen]string{
-		TokenEOS:          "eos",
+		TokenEOF:          "eos",
 		TokenVariable:     "variable",
 		TokenFloat:        "float",
 		TokenInteger:      "integer",
@@ -175,365 +281,257 @@ func (l *Lexer) conv(r rune) rune {
 	return r
 }
 
-type lexState func(rune) (lexState, error)
-
-var initSingleRunes = [...]TokenKind{
-	'(': TokenParenL,
-	')': TokenParenR,
-	',': TokenComma,
-	'|': TokenBar,
-	']': TokenBracketR,
-	'}': TokenBraceR,
-}
-
-func (l *Lexer) init(r rune) (lexState, error) {
-	r = l.conv(r)
-
-	if int(r) < len(initSingleRunes) { // A rune can be bigger than the size of the array.
-		if k := initSingleRunes[r]; k != TokenEOS {
-			l.emit(Token{Kind: k, Val: string(r)})
-			return nil, nil
-		}
-	}
-
+func (l *Lexer) period(b *strings.Builder) (Token, error) {
+	r := l.next()
 	switch {
-	case r == etx:
-		l.emit(Token{Kind: TokenEOS})
-		return nil, nil
-	case unicode.IsSpace(r):
-		return l.init, nil
-	case r == '%':
-		return l.singleLineComment(l.init)
-	case r == '/':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.multiLineCommentBegin(&b, l.init)
-	case r == '.':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.period(&b)
-	case r == '+' || r == '-':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.sign(&b)
-	case unicode.IsNumber(r):
-		l.backup()
-		return l.number, nil
-	case unicode.IsUpper(r), r == '_':
-		l.backup()
-		return l.variable, nil
-	case r == '"':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.doubleQuoted(&b)
+	case r == utf8.RuneError, unicode.IsSpace(r):
+		return Token{Kind: TokenPeriod, Val: b.String()}, nil
 	default:
-		l.backup()
-		return l.ident, nil
+		_, _ = b.WriteRune(r)
+		return l.graphic(b)
 	}
 }
 
-func (l *Lexer) period(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch {
-		case r == etx, unicode.IsSpace(r):
-			l.emit(Token{Kind: TokenPeriod, Val: b.String()})
-			return nil, nil
-		default:
-			l.backup()
-			return l.graphic(b)
-		}
-	}, nil
-}
-
-func (l *Lexer) ident(r rune) (lexState, error) {
-	r = l.conv(r)
-	switch {
-	case unicode.IsLower(r):
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.normalAtom(&b)
-	case isGraphic(r):
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.graphic(&b)
-	case r == ';', r == '!':
-		l.emit(Token{Kind: TokenIdent, Val: string(r)})
-		return nil, nil
-	case r == '[':
-		return l.squareBracket, nil
-	case r == '{':
-		return l.curlyBracket, nil
-	case r == '\'':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.quotedIdent(&b)
-	default:
-		l.backup()
-		return nil, UnexpectedRuneError{rune: r}
-	}
-}
-
-func (l *Lexer) normalAtom(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) normalAtom(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
 			_, _ = b.WriteRune(r)
-			return l.normalAtom(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenIdent, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenIdent, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) quotedIdent(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch r {
-		case etx:
-			return nil, ErrInsufficient
+func (l *Lexer) quotedIdent(b *strings.Builder) (Token, error) {
+	for {
+		switch r := l.rawNext(); r {
+		case utf8.RuneError:
+			return Token{}, ErrInsufficient
 		case '\'':
 			_, _ = b.WriteRune(r)
-			return l.quotedIdentQuote(b)
+			if l.quotedIdentEnd(b) {
+				return Token{Kind: TokenQuotedIdent, Val: b.String()}, nil
+			}
 		case '\\':
 			_, _ = b.WriteRune(r)
-			return l.quotedIdentSlash(b)
+			if err := l.quotedIdentSlash(b); err != nil {
+				return Token{}, err
+			}
 		default:
 			_, _ = b.WriteRune(r)
-			return l.quotedIdent(b)
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) quotedIdentQuote(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch r {
-		case '\'':
-			_, _ = b.WriteRune(r)
-			return l.quotedIdent(b)
-		default:
-			l.backup()
-			l.emit(Token{Kind: TokenQuotedIdent, Val: b.String()})
-			return nil, nil
-		}
-	}, nil
+func (l *Lexer) quotedIdentEnd(b *strings.Builder) bool {
+	switch r := l.next(); r {
+	case '\'':
+		_, _ = b.WriteRune(r)
+		return false
+	default:
+		l.backup()
+		return true
+	}
 }
 
-func (l *Lexer) quotedIdentSlash(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
+func (l *Lexer) quotedIdentSlash(b *strings.Builder) error {
+	r := l.next()
+	switch {
+	case r == utf8.RuneError:
+		return ErrInsufficient
+	case r == 'x':
+		_, _ = b.WriteRune(r)
+		return l.quotedIdentSlashHex(b)
+	case isOctal(r):
+		_, _ = b.WriteRune(r)
+		return l.quotedIdentSlashOctal(b)
+	default:
+		_, _ = b.WriteRune(r)
+		return nil
+	}
+}
+
+func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) error {
+	for {
+		r := l.next()
 		switch {
-		case r == etx:
-			return nil, ErrInsufficient
-		case r == 'x':
-			_, _ = b.WriteRune(r)
-			return l.quotedIdentSlashHex(b)
-		case unicode.IsNumber(r):
-			_, _ = b.WriteRune(r)
-			return l.quotedIdentSlashOctal(b)
-		default:
-			_, _ = b.WriteRune(r)
-			return l.quotedIdent(b)
-		}
-	}, nil
-}
-
-func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch {
-		case r == etx:
-			return nil, ErrInsufficient
+		case r == utf8.RuneError:
+			return ErrInsufficient
 		case isHex(r):
 			_, _ = b.WriteRune(r)
-			return l.quotedIdentSlashHex(b)
 		case r == '\\':
 			_, _ = b.WriteRune(r)
-			return l.quotedIdent(b)
+			return nil
 		default:
-			return nil, UnexpectedRuneError{rune: r}
+			return UnexpectedRuneError{rune: r}
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
+func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) error {
+	for {
+		r := l.next()
 		switch {
-		case r == etx:
-			return nil, ErrInsufficient
+		case r == utf8.RuneError:
+			return ErrInsufficient
 		case isOctal(r):
 			_, _ = b.WriteRune(r)
-			return l.quotedIdentSlashOctal(b)
 		case r == '\\':
 			_, _ = b.WriteRune(r)
-			return l.quotedIdent(b)
+			return nil
 		default:
-			return nil, UnexpectedRuneError{rune: r}
+			return UnexpectedRuneError{rune: r}
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) squareBracket(r rune) (lexState, error) {
-	r = l.conv(r)
+func (l *Lexer) squareBracket(b *strings.Builder) (Token, error) {
+	r := l.next()
 	switch {
 	case r == ']':
-		l.emit(Token{Kind: TokenIdent, Val: "[]"})
-		return nil, nil
+		_, _ = b.WriteRune(r)
+		return Token{Kind: TokenIdent, Val: b.String()}, nil
 	default:
 		l.backup()
-		l.emit(Token{Kind: TokenBracketL, Val: "["})
-		return nil, nil
+		return Token{Kind: TokenBracketL, Val: b.String()}, nil
 	}
 }
 
-func (l *Lexer) curlyBracket(r rune) (lexState, error) {
-	r = l.conv(r)
+func (l *Lexer) curlyBracket(b *strings.Builder) (Token, error) {
+	r := l.next()
 	switch {
 	case r == '}':
-		l.emit(Token{Kind: TokenIdent, Val: "{}"})
-		return nil, nil
+		_, _ = b.WriteRune(r)
+		return Token{Kind: TokenIdent, Val: b.String()}, nil
 	default:
 		l.backup()
-		l.emit(Token{Kind: TokenBraceL, Val: "{"})
-		return nil, nil
+		return Token{Kind: TokenBraceL, Val: "{"}, nil
 	}
 }
 
-func (l *Lexer) floatMantissa(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) floatMantissa(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case unicode.IsNumber(r):
 			_, _ = b.WriteRune(r)
-			return l.floatMantissa(b)
 		case r == 'E' || r == 'e':
 			_, _ = b.WriteRune(r)
 			return l.floatE(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenFloat, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenFloat, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) floatE(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch {
-		case r == etx:
-			return nil, ErrInsufficient
-		case unicode.IsNumber(r), r == '+', r == '-':
-			_, _ = b.WriteRune(r)
-			return l.floatExponent(b)
-		default:
-			return nil, UnexpectedRuneError{rune: r}
-		}
-	}, nil
+func (l *Lexer) floatE(b *strings.Builder) (Token, error) {
+	r := l.next()
+	switch {
+	case r == utf8.RuneError:
+		return Token{}, ErrInsufficient
+	case unicode.IsNumber(r), r == '+', r == '-':
+		_, _ = b.WriteRune(r)
+		return l.floatExponent(b)
+	default:
+		return Token{}, UnexpectedRuneError{rune: r}
+	}
 }
 
-func (l *Lexer) floatExponent(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) floatExponent(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case unicode.IsNumber(r):
 			_, _ = b.WriteRune(r)
-			return l.floatExponent(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenFloat, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenFloat, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) integerZero(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch {
-		case r == 'o':
-			_, _ = b.WriteRune(r)
-			return l.integerOctal(b)
-		case r == 'x':
-			_, _ = b.WriteRune(r)
-			return l.integerHex(b)
-		case r == 'b':
-			_, _ = b.WriteRune(r)
-			return l.integerBinary(b)
-		case r == '\'':
-			_, _ = b.WriteRune(r)
-			return l.integerChar(b)
-		case unicode.IsDigit(r):
-			_, _ = b.WriteRune(r)
-			return l.integerDecimal(b)
-		case r == '.':
-			return l.integerDot(b)
-		default:
-			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
-		}
-	}, nil
+func (l *Lexer) integerZero(b *strings.Builder) (Token, error) {
+	r := l.next()
+	switch {
+	case r == 'o':
+		_, _ = b.WriteRune(r)
+		return l.integerOctal(b)
+	case r == 'x':
+		_, _ = b.WriteRune(r)
+		return l.integerHex(b)
+	case r == 'b':
+		_, _ = b.WriteRune(r)
+		return l.integerBinary(b)
+	case r == '\'':
+		_, _ = b.WriteRune(r)
+		return l.integerChar(b)
+	case unicode.IsDigit(r):
+		_, _ = b.WriteRune(r)
+		return l.integerDecimal(b)
+	case r == '.':
+		return l.integerPeriod(b)
+	default:
+		l.backup()
+		return Token{Kind: TokenInteger, Val: b.String()}, nil
+	}
 }
 
-func (l *Lexer) integerOctal(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerOctal(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case isOctal(r):
 			_, _ = b.WriteRune(r)
-			return l.integerOctal(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenInteger, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) integerHex(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerHex(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case isHex(r):
 			_, _ = b.WriteRune(r)
-			return l.integerHex(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenInteger, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) integerBinary(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerBinary(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch r {
 		case '0', '1':
 			_, _ = b.WriteRune(r)
-			return l.integerBinary(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenInteger, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) integerChar(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerChar(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch r {
-		case etx:
-			return nil, ErrInsufficient
+		case utf8.RuneError:
+			return Token{}, ErrInsufficient
 		case '\\':
 			return l.integerCharEscape(b)
 		default:
 			_, _ = b.WriteRune(r)
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenInteger, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
 var integerCharEscapeRunes = [...]rune{
@@ -548,281 +546,215 @@ var integerCharEscapeRunes = [...]rune{
 	'\'': '\'',
 }
 
-func (l *Lexer) integerCharEscape(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerCharEscape(b *strings.Builder) (Token, error) {
+	r := l.next()
 
-		if r == etx {
-			return nil, ErrInsufficient
-		}
+	if r == utf8.RuneError {
+		return Token{}, ErrInsufficient
+	}
 
-		if int(r) > len(integerCharEscapeRunes) || integerCharEscapeRunes[r] == 0 {
-			return nil, UnexpectedRuneError{rune: r}
-		}
-		_, _ = b.WriteRune(integerCharEscapeRunes[r])
+	if int(r) > len(integerCharEscapeRunes) || integerCharEscapeRunes[r] == 0 {
+		return Token{}, UnexpectedRuneError{rune: r}
+	}
+	_, _ = b.WriteRune(integerCharEscapeRunes[r])
 
-		l.emit(Token{Kind: TokenInteger, Val: b.String()})
-		return nil, nil
-	}, nil
+	return Token{Kind: TokenInteger, Val: b.String()}, nil
 }
 
-func (l *Lexer) integerDecimal(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) integerDecimal(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case unicode.IsNumber(r):
 			_, _ = b.WriteRune(r)
-			return l.integerDecimal(b)
 		case r == '.':
-			return l.integerDot(b)
+			return l.integerPeriod(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenInteger, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) integerDot(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch {
-		case unicode.IsDigit(r):
-			if _, err := b.WriteRune('.'); err != nil {
-				return nil, err
-			}
-			_, _ = b.WriteRune(r)
-			return l.floatMantissa(b)
-		default:
-			l.emit(Token{Kind: TokenInteger, Val: b.String()})
-			l.emit(Token{Kind: TokenPeriod, Val: "."})
-			l.backup()
-			return nil, nil
-		}
-	}, nil
-}
-
-func (l *Lexer) number(r rune) (lexState, error) {
-	r = l.conv(r)
+func (l *Lexer) integerPeriod(b *strings.Builder) (Token, error) {
+	r := l.next()
 	switch {
-	case r == '0':
-		var b strings.Builder
+	case unicode.IsDigit(r):
+		_, _ = b.WriteRune('.')
 		_, _ = b.WriteRune(r)
-		return l.integerZero(&b)
+		return l.floatMantissa(b)
+	default:
+		l.backup()
+		l.reserved = Token{Kind: TokenPeriod, Val: "."}
+		return Token{Kind: TokenInteger, Val: b.String()}, nil
+	}
+}
+
+func (l *Lexer) sign(b *strings.Builder) (Token, error) {
+	r := l.next()
+	switch {
 	case unicode.IsNumber(r):
-		var b strings.Builder
+		l.backup()
+		return Token{Kind: TokenSign, Val: b.String()}, nil
+	case isGraphic(r):
 		_, _ = b.WriteRune(r)
-		return l.integerDecimal(&b)
+		return l.graphic(b)
 	default:
 		l.backup()
-		return nil, UnexpectedRuneError{rune: r}
+		return Token{Kind: TokenIdent, Val: b.String()}, nil
 	}
 }
 
-func (l *Lexer) sign(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch {
-		case unicode.IsNumber(r):
-			l.backup()
-			l.emit(Token{Kind: TokenSign, Val: b.String()})
-			return nil, nil
-		case isGraphic(r):
-			l.backup()
-			return l.graphic(b)
-		default:
-			l.backup()
-			l.emit(Token{Kind: TokenIdent, Val: b.String()})
-			return nil, nil
-		}
-	}, nil
-}
-
-func (l *Lexer) variable(r rune) (lexState, error) {
-	r = l.conv(r)
-	switch {
-	case unicode.IsUpper(r), r == '_':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.variableName(&b)
-	default:
-		l.backup()
-		return nil, UnexpectedRuneError{rune: r}
-	}
-}
-
-func (l *Lexer) variableName(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) variable(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
 			_, _ = b.WriteRune(r)
-			return l.variableName(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenVariable, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenVariable, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) graphic(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) graphic(b *strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch {
 		case isGraphic(r):
 			_, _ = b.WriteRune(r)
-			return l.graphic(b)
 		default:
 			l.backup()
-			l.emit(Token{Kind: TokenGraphic, Val: b.String()})
-			return nil, nil
+			return Token{Kind: TokenGraphic, Val: b.String()}, nil
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) singleLineComment(ctx lexState) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) singleLineComment(*strings.Builder) (Token, error) {
+	for {
+		r := l.next()
 		switch r {
-		case etx:
-			return nil, ErrInsufficient
-		case '\n':
-			return ctx, nil
-		default:
-			return l.singleLineComment(ctx)
+		case '\n', utf8.RuneError:
+			return l.Token()
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) multiLineCommentBegin(b *strings.Builder, ctx lexState) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch {
-		case r == '*':
-			return l.multiLineCommentBody(ctx)
-		case isGraphic(r):
-			_, _ = b.WriteRune(r)
-			return l.graphic(b)
-		default:
-			l.backup()
-			l.emit(Token{Kind: TokenIdent, Val: "/"})
-			return nil, nil
-		}
-	}, nil
+func (l *Lexer) multiLineCommentBegin(b *strings.Builder) (Token, error) {
+	r := l.next()
+	switch {
+	case r == '*':
+		return l.multiLineCommentBody()
+	case isGraphic(r):
+		_, _ = b.WriteRune(r)
+		return l.graphic(b)
+	default:
+		l.backup()
+		return Token{Kind: TokenGraphic, Val: b.String()}, nil
+	}
 }
 
-func (l *Lexer) multiLineCommentBody(ctx lexState) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
+func (l *Lexer) multiLineCommentBody() (Token, error) {
+	for {
+		r := l.next()
 		switch r {
-		case etx:
-			return nil, ErrInsufficient
+		case utf8.RuneError:
+			return Token{}, ErrInsufficient
 		case '*':
-			return l.multiLineCommentEnd(ctx)
-		default:
-			return l.multiLineCommentBody(ctx)
+			if l.multiLineCommentEnd() {
+				return l.Token()
+			}
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) multiLineCommentEnd(ctx lexState) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch r {
-		case etx:
-			return nil, ErrInsufficient
-		case '/':
-			return ctx, nil
-		default:
-			return l.multiLineCommentBody(ctx)
-		}
-	}, nil
+func (l *Lexer) multiLineCommentEnd() bool {
+	r := l.next()
+	return r == '/'
 }
 
-func (l *Lexer) doubleQuoted(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		r = l.conv(r)
-		switch r {
-		case etx:
-			return nil, ErrInsufficient
+func (l *Lexer) doubleQuoted(b *strings.Builder) (Token, error) {
+	for {
+		switch r := l.rawNext(); r {
+		case utf8.RuneError:
+			return Token{}, ErrInsufficient
 		case '"':
 			_, _ = b.WriteRune(r)
-			return l.doubleQuotedDoubleQuote(b)
+			if l.doubleQuotedEnd(b) {
+				return Token{Kind: TokenDoubleQuoted, Val: b.String()}, nil
+			}
 		case '\\':
 			_, _ = b.WriteRune(r)
-			return l.doubleQuotedSlash(b)
+			if err := l.doubleQuotedSlash(b); err != nil {
+				return Token{}, err
+			}
 		default:
 			_, _ = b.WriteRune(r)
-			return l.doubleQuoted(b)
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) doubleQuotedDoubleQuote(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch r {
-		case '"':
-			_, _ = b.WriteRune(r)
-			return l.doubleQuoted(b)
-		default:
-			l.backup()
-			l.emit(Token{Kind: TokenDoubleQuoted, Val: b.String()})
-			return nil, nil
-		}
-	}, nil
+func (l *Lexer) doubleQuotedEnd(b *strings.Builder) bool {
+	switch r := l.rawNext(); r {
+	case '"':
+		_, _ = b.WriteRune(r)
+		return false
+	default:
+		l.backup()
+		return true
+	}
 }
 
-func (l *Lexer) doubleQuotedSlash(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
+func (l *Lexer) doubleQuotedSlash(b *strings.Builder) error {
+	r := l.next()
+	switch {
+	case r == utf8.RuneError:
+		return ErrInsufficient
+	case r == 'x':
+		_, _ = b.WriteRune(r)
+		return l.doubleQuotedSlashHex(b)
+	case unicode.IsNumber(r):
+		_, _ = b.WriteRune(r)
+		return l.doubleQuotedSlashOctal(b)
+	default:
+		_, _ = b.WriteRune(r)
+		return nil
+	}
+}
+
+func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) error {
+	for {
+		r := l.next()
 		switch {
-		case r == etx:
-			return nil, ErrInsufficient
-		case r == 'x':
-			_, _ = b.WriteRune(r)
-			return l.doubleQuotedSlashHex(b)
-		case unicode.IsNumber(r):
-			_, _ = b.WriteRune(r)
-			return l.doubleQuotedSlashOctal(b)
-		default:
-			_, _ = b.WriteRune(r)
-			return l.doubleQuoted(b)
-		}
-	}, nil
-}
-
-func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
-		switch {
-		case r == etx:
-			return nil, ErrInsufficient
+		case r == utf8.RuneError:
+			return ErrInsufficient
 		case isHex(r):
 			_, _ = b.WriteRune(r)
-			return l.doubleQuotedSlashHex(b)
 		case r == '\\':
 			_, _ = b.WriteRune(r)
-			return l.doubleQuoted(b)
+			return nil
 		default:
-			return nil, UnexpectedRuneError{rune: r}
+			return UnexpectedRuneError{rune: r}
 		}
-	}, nil
+	}
 }
 
-func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) (lexState, error) {
-	return func(r rune) (lexState, error) {
+func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) error {
+	for {
+		r := l.next()
 		switch {
-		case r == etx:
-			return nil, ErrInsufficient
+		case r == utf8.RuneError:
+			return ErrInsufficient
 		case isOctal(r):
 			_, _ = b.WriteRune(r)
-			return l.doubleQuotedSlashOctal(b)
 		case r == '\\':
 			_, _ = b.WriteRune(r)
-			return l.doubleQuoted(b)
+			return nil
 		default:
-			return nil, UnexpectedRuneError{rune: r}
+			return UnexpectedRuneError{rune: r}
 		}
-	}, nil
+	}
 }
 
 func isOctal(r rune) bool {
@@ -846,7 +778,7 @@ type UnexpectedRuneError struct {
 }
 
 func (e UnexpectedRuneError) Error() string {
-	return fmt.Sprintf("unexpected char: %s", string(e.rune))
+	return fmt.Sprintf("unexpected rune: %s(0x%x)", string(e.rune), e.rune)
 }
 
 var spacing = [tokenKindLen][tokenKindLen]bool{
