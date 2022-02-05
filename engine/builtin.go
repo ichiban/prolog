@@ -2782,21 +2782,40 @@ func (state *State) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 	return k(env)
 }
 
-// ExpandTerm transforms term1 according to term_expansion/2 and unifies with term2.
+// ExpandTerm transforms term1 according to term_expansion/2 and DCG rules then unifies with term2.
 func (state *State) ExpandTerm(term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	const termExpansion = "term_expansion"
-	return Delay(func(ctx context.Context) *Promise {
-		if _, ok := state.procedures[ProcedureIndicator{Name: termExpansion, Arity: 2}]; !ok {
-			return Bool(false)
-		}
+	t, err := state.Expand(term1, env)
+	if err != nil {
+		return Error(err)
+	}
 
-		return state.Call(&Compound{
-			Functor: termExpansion,
-			Args:    []Term{term1, term2},
-		}, k, env)
-	}, func(ctx context.Context) *Promise {
-		return Unify(term1, term2, k, env)
-	})
+	return Unify(t, term2, k, env)
+}
+
+// Expand expands term according to term_expansion/2 and DCG rules.
+func (state *State) Expand(term Term, env *Env) (Term, error) {
+	const termExpansion = Atom("term_expansion")
+
+	if _, ok := state.procedures[ProcedureIndicator{Name: termExpansion, Arity: 2}]; ok {
+		var ret Term
+		v := NewVariable()
+		ok, err := state.Call(termExpansion.Apply(term, v), func(env *Env) *Promise {
+			ret = env.Simplify(v)
+			return Bool(true)
+		}, env).Force(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			return ret, nil
+		}
+	}
+
+	t, err := expandDCG(term, env)
+	if errors.Is(err, errDCGNotApplicable) {
+		return term, nil
+	}
+	return t, err
 }
 
 // Environ succeeds if an environment variable key has value.

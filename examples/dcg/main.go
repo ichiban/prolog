@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ichiban/prolog"
-	_ "github.com/ichiban/prolog/dcg" // import this to enable `:- [library(dcg)].`
 )
 
 // This example explains how to parse a simple English sentence with DCG (Definite Clause Grammar).
@@ -26,29 +25,25 @@ func main() {
 	i := prolog.New(nil, nil)
 
 	// Then, define DCG rules with -->/2.
-	// Note that we've imported "github.com/ichiban/prolog/dcg" to load `library(dcg)`.
 	if err := i.Exec(`
-% We need to consult library(dcg) to enable DCG.
-:- [library(dcg)].
-
-s --> np, vp.
-np --> det, n.
-vp --> v, np.
-
-det --> [the].
-det --> [a].
-n --> [dog].
-n --> [cat].
-n --> [mouse].
-v --> [chases].
-v --> [ignores].
+sentence --> noun_phrase, verb_phrase.
+verb_phrase --> verb.
+noun_phrase --> article, noun.
+noun_phrase --> article, adjective, noun.
+article --> [the].
+adjective --> [nice].
+noun --> [dog].
+noun --> [cat].
+verb --> [runs].
+verb --> [barks].
+verb --> [bites].
 `); err != nil {
 		panic(err)
 	}
 
 	// Finally, query with phrase/2.
 	if prefix {
-		sols, err := i.Query(`Prefix = ?, append(Prefix, _, Sentence), phrase(s, Sentence).`, flag.Args())
+		sols, err := i.Query(`Prefix = ?, append(Prefix, _, Sentence), phrase(sentence, Sentence).`, flag.Args())
 		if err != nil {
 			panic(err)
 		}

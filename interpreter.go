@@ -106,6 +106,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("expand_term", i.ExpandTerm)
 	i.Register1("consult", i.consult)
 	i.Register2("environ", engine.Environ)
+	i.Register3("phrase", i.Phrase)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}
@@ -139,10 +140,15 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 
-		v := engine.NewVariable()
-		if _, err := i.ExpandTerm(t, v, func(env *engine.Env) *engine.Promise {
-			return i.AssertStatic(v, engine.Success, env)
-		}, nil).Force(ctx); err != nil {
+		et, err := i.Expand(t, nil)
+		if err != nil {
+			return err
+		}
+
+		// TODO: We should handle directives here.
+
+		// TODO: AssertStatic doesn't have to take a form of predicate.
+		if _, err := i.AssertStatic(et, engine.Success, nil).Force(ctx); err != nil {
 			return err
 		}
 	}

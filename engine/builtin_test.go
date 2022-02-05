@@ -7430,3 +7430,270 @@ func TestEnviron(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
+
+func TestState_Expand(t *testing.T) {
+	var state State
+
+	t.Run("DCG", func(t *testing.T) {
+		t.Run("empty terminal-sequence", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), List()}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+			}}, term)
+		})
+
+		t.Run("terminal sequence", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), List(Atom("a"))}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				&Compound{Functor: "=", Args: []Term{Variable("_1"), ListRest(Variable("_3"), Atom("a"))}},
+			}}, term)
+		})
+
+		t.Run("concatenation", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				varCounter = 0
+				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
+				assert.NoError(t, err)
+				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					Seq(",",
+						&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
+						&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+					),
+				}}, term)
+			})
+
+			t.Run("lhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("rhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
+				assert.Error(t, err)
+			})
+		})
+
+		t.Run("alternative", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				t.Run("normal", func(t *testing.T) {
+					varCounter = 0
+					term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
+					assert.NoError(t, err)
+					assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+						&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+						Seq(";",
+							&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_3")}},
+							&Compound{Functor: "b", Args: []Term{Variable("_1"), Variable("_3")}},
+						),
+					}}, term)
+				})
+
+				t.Run("if-then-else", func(t *testing.T) {
+					varCounter = 0
+					term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
+					assert.NoError(t, err)
+					assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+						&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+						Seq(";",
+							&Compound{Functor: "->", Args: []Term{
+								&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
+								&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+							}},
+							&Compound{Functor: "c", Args: []Term{Variable("_1"), Variable("_3")}},
+						),
+					}}, term)
+				})
+			})
+
+			t.Run("lhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("rhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
+				assert.Error(t, err)
+			})
+		})
+
+		t.Run("second form of alternative", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				varCounter = 0
+				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
+				assert.NoError(t, err)
+				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					Seq(";",
+						&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_3")}},
+						&Compound{Functor: "b", Args: []Term{Variable("_1"), Variable("_3")}},
+					),
+				}}, term)
+			})
+
+			t.Run("lhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("rhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
+				assert.Error(t, err)
+			})
+		})
+
+		t.Run("grammar-body-goal", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "{}", Args: []Term{Atom("a")}}}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				Seq(",",
+					Atom("a"),
+					&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+				),
+			}}, term)
+		})
+
+		t.Run("call", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "call", Args: []Term{Atom("a")}}}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				&Compound{Functor: "call", Args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+			}}, term)
+		})
+
+		t.Run("phrase", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "phrase", Args: []Term{Atom("a")}}}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				&Compound{Functor: "phrase", Args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+			}}, term)
+		})
+
+		t.Run("grammar-body-cut", func(t *testing.T) {
+			varCounter = 0
+			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Atom("!")}}, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				Seq(",",
+					Atom("!"),
+					&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+				),
+			}}, term)
+		})
+
+		t.Run("grammar-body-not", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				varCounter = 0
+				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: `\+`, Args: []Term{Atom("a")}}}}, nil)
+				assert.NoError(t, err)
+				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					Seq(",",
+						&Compound{Functor: `\+`, Args: []Term{&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}}}},
+						&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+					),
+				}}, term)
+			})
+
+			t.Run("goal is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: `\+`, Args: []Term{Integer(0)}}}}, nil)
+				assert.Error(t, err)
+			})
+		})
+
+		t.Run("if-then", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				varCounter = 0
+				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}}}, nil)
+				assert.NoError(t, err)
+				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
+					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					&Compound{
+						Functor: "->",
+						Args: []Term{
+							&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
+							&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+						},
+					},
+				}}, term)
+			})
+
+			t.Run("lhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Integer(0), Atom("b")}}}}, nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("rhs is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Atom("a"), Integer(0)}}}}, nil)
+				assert.Error(t, err)
+			})
+		})
+
+		t.Run("with semicontexts", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				varCounter = 0
+				term, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				assert.NoError(t, err)
+				assert.Equal(t, &Compound{
+					Functor: ":-",
+					Args: []Term{
+						&Compound{Functor: "phrase1", Args: []Term{Variable("_1"), Variable("_3")}},
+						&Compound{
+							Functor: ",",
+							Args: []Term{
+								&Compound{
+									Functor: ",",
+									Args: []Term{
+										&Compound{Functor: "phrase2", Args: []Term{Variable("_1"), Variable("_4")}},
+										&Compound{Functor: "phrase3", Args: []Term{Variable("_4"), Variable("_2")}},
+									},
+								},
+								&Compound{Functor: "=", Args: []Term{Variable("_3"), ListRest(Variable("_2"), Atom("word"))}},
+							},
+						},
+					},
+				}, term)
+			})
+
+			t.Run("head is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Integer(0), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("semicontext is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), Integer(0)), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				assert.Error(t, err)
+			})
+
+			t.Run("body is not callable", func(t *testing.T) {
+				varCounter = 0
+				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Integer(0), Atom("phrase3"))), nil)
+				assert.Error(t, err)
+			})
+		})
+	})
+}
