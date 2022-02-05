@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -14,17 +13,6 @@ import (
 
 //go:embed bootstrap.pl
 var bootstrap string
-
-var libraries = map[string]func(*Interpreter) error{}
-
-// Register registers a library. if there's a library with the same name registered, it panics.
-func Register(name string, library func(*Interpreter) error) {
-	if _, ok := libraries[name]; ok {
-		panic(fmt.Sprintf("%s is already registered.", name))
-	}
-
-	libraries[name] = library
-}
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
@@ -263,22 +251,6 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 			return nil
 		}
 		return engine.DomainError("source_sink", file, "%s does not exist.", file)
-	case *engine.Compound:
-		if f.Functor != "library" || len(f.Args) != 1 {
-			return engine.TypeError("atom", file, "%s is not an atom.", file)
-		}
-
-		library, ok := env.Resolve(f.Args[0]).(engine.Atom)
-		if !ok {
-			return engine.TypeError("atom", f.Args[0], "%s is not an atom.", f.Args[0])
-		}
-
-		l, ok := libraries[string(library)]
-		if !ok {
-			return engine.ExistenceError("library", library, "%s is not a library.", library)
-		}
-
-		return l(i)
 	default:
 		return engine.TypeError("atom", file, "%s is not an atom.", file)
 	}

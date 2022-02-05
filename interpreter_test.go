@@ -9,17 +9,6 @@ import (
 	"github.com/ichiban/prolog/engine"
 )
 
-func TestRegister(t *testing.T) {
-	Register("foo", func(*Interpreter) error {
-		return nil
-	})
-	assert.Panics(t, func() {
-		Register("foo", func(*Interpreter) error {
-			return nil
-		})
-	})
-}
-
 func TestNew(t *testing.T) {
 	i := New(nil, nil)
 	assert.NotNil(t, i)
@@ -81,35 +70,7 @@ append(nil, L, L).`))
 			})
 		})
 
-		t.Run("non-library compound", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult(foo(a, b, c))."))
-		})
-
-		t.Run("library", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				var called bool
-				libraries = map[string]func(*Interpreter) error{
-					"foo": func(in *Interpreter) error {
-						assert.Equal(t, i, in)
-						called = true
-						return nil
-					},
-				}
-
-				assert.NoError(t, i.Exec(":- consult(library(foo))."))
-				assert.True(t, called)
-			})
-
-			t.Run("variable", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult(library(X))."))
-			})
-
-			t.Run("not defined", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult(library(not_defined))."))
-			})
-		})
-
-		t.Run("neither atom nor library", func(t *testing.T) {
+		t.Run("not an atom ", func(t *testing.T) {
 			assert.Error(t, i.Exec(":- consult(1)."))
 		})
 	})

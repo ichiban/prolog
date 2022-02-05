@@ -6,7 +6,6 @@ This library consists of several packages:
 
 - **`prolog`:** `database/sql`-like high-level interface for interpreter
 - **`prolog/engine`:** virtual machine and other implementation details
-- **`prolog/dcg`:** Definite Clause Grammar library
 - **`prolog/cmd/1pl`:** simple toplevel
 - **`prolog/examples`:** example programs
 
