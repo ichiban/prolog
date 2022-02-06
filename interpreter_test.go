@@ -16,8 +16,15 @@ func TestNew(t *testing.T) {
 
 func TestInterpreter_Exec(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec(`append(nil, L, L).`))
+		t.Run("ok", func(t *testing.T) {
+			var i Interpreter
+			assert.NoError(t, i.Exec(`append(nil, L, L).`))
+		})
+
+		t.Run("not callable", func(t *testing.T) {
+			var i Interpreter
+			assert.Error(t, i.Exec(`0.`))
+		})
 	})
 
 	t.Run("rule", func(t *testing.T) {

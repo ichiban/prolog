@@ -82,123 +82,65 @@ type clause struct {
 	bytecode bytecode
 }
 
-func compile(t Term, env *Env) (clauses, error) {
-	t = env.Simplify(t)
-	switch t := t.(type) {
-	case Variable:
-		return nil, InstantiationError(t)
-	case Atom:
-		break
-	case *Compound:
-		if t.Functor != ":-" {
-			break
-		}
-
+func compile(t Term) (clauses, error) {
+	if t, ok := t.(*Compound); ok && t.Functor == ":-" {
 		var cs []clause
-		head, body := env.Resolve(t.Args[0]), env.Resolve(t.Args[1])
-		exp := body
-		for {
-			e, ok := exp.(*Compound)
-			if !ok || !disjunction(e) {
-				break
+		head, body := t.Args[0], t.Args[1]
+		if err := EachAlternative(body, func(elem Term) error {
+			c, err := compileClause(head, elem)
+			if err != nil {
+				return err
 			}
-
-			switch c, err := compileClause(head, e.Args[0], env); err {
-			case nil:
-				c.raw = t
-				cs = append(cs, c)
-			case errNotCallable:
-				return nil, typeErrorCallable(body)
-			default:
-				return nil, err
-			}
-
-			exp = env.Resolve(e.Args[1])
-		}
-
-		switch c, err := compileClause(head, exp, env); err {
-		case nil:
 			c.raw = t
-			return append(cs, c), nil
-		case errNotCallable:
+			cs = append(cs, c)
+			return nil
+		}, nil); err != nil {
 			return nil, typeErrorCallable(body)
-		default:
-			return nil, err
 		}
-	default:
-		return nil, typeErrorCallable(t)
+		return cs, nil
 	}
 
-	switch c, err := compileClause(t, nil, env); err {
-	case nil:
-		c.raw = t
-		return []clause{c}, nil
-	case errNotCallable:
-		return nil, typeErrorCallable(t)
-	default:
-		return nil, err
-	}
+	c, err := compileClause(t, nil)
+	c.raw = t
+	return []clause{c}, err
 }
 
-func disjunction(e *Compound) bool {
-	if e.Functor != ";" || len(e.Args) != 2 {
-		return false
-	}
-
-	// if-then-else construct
-	if c, ok := e.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
-		return false
-	}
-
-	return true
-}
-
-func compileClause(head Term, body Term, env *Env) (clause, error) {
+func compileClause(head Term, body Term) (clause, error) {
 	var c clause
-	switch head := env.Resolve(head).(type) {
-	case Variable:
-		return c, InstantiationError(head)
+	switch head := head.(type) {
 	case Atom:
 		c.pi = ProcedureIndicator{Name: head, Arity: 0}
 	case *Compound:
 		c.pi = ProcedureIndicator{Name: head.Functor, Arity: Integer(len(head.Args))}
 		for _, a := range head.Args {
-			c.compileArg(a, env)
+			c.compileArg(a)
 		}
-	default:
-		return c, errNotCallable
 	}
 	if body != nil {
-		err := c.compileBody(body, env)
-		switch err {
-		case nil:
-			break
-		case errNotCallable:
-			return c, errNotCallable
-		default:
-			return c, err
+		if err := c.compileBody(body); err != nil {
+			return c, typeErrorCallable(body)
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})
 	return c, nil
 }
 
-func (c *clause) compileBody(body Term, env *Env) error {
+func (c *clause) compileBody(body Term) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 	return EachSeq(body, ",", func(elem Term) error {
-		return c.compilePred(elem, env)
-	}, env)
+		return c.compilePred(elem)
+	}, nil)
 }
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(p Term, env *Env) error {
-	switch p := env.Resolve(p).(type) {
+func (c *clause) compilePred(p Term) error {
+	switch p := p.(type) {
 	case Variable:
 		return c.compilePred(&Compound{
 			Functor: "call",
 			Args:    []Term{p},
-		}, env)
+		})
 	case Atom:
 		switch p {
 		case "!":
@@ -209,7 +151,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 		return nil
 	case *Compound:
 		for _, a := range p.Args {
-			c.compileArg(a, env)
+			c.compileArg(a)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor, Arity: Integer(len(p.Args))})})
 		return nil
@@ -218,14 +160,14 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	}
 }
 
-func (c *clause) compileArg(a Term, env *Env) {
+func (c *clause) compileArg(a Term) {
 	switch a := a.(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
 	case *Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: Integer(len(a.Args))})})
 		for _, n := range a.Args {
-			c.compileArg(n, env)
+			c.compileArg(n)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:

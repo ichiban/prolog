@@ -131,13 +131,13 @@ func (state *State) Call(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 			args[i] = fv
 		}
 		const call = Atom("$call")
-		cs, err := compile(&Compound{
+		cs, err := compile(env.Simplify(&Compound{
 			Functor: ":-",
 			Args: []Term{
 				call.Apply(args...),
 				g,
 			},
-		}, env)
+		}))
 		if err != nil {
 			return Error(err)
 		}
@@ -526,7 +526,7 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 		}
 	}
 
-	added, err := compile(t, env)
+	added, err := compile(env.Simplify(t))
 	if err != nil {
 		return Error(err)
 	}
