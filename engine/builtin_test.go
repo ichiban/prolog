@@ -7377,6 +7377,27 @@ func TestState_ExpandTerm(t *testing.T) {
 			assert.True(t, ok)
 		})
 
+		t.Run("throws an exception", func(t *testing.T) {
+			state := State{
+				VM: VM{
+					procedures: map[ProcedureIndicator]procedure{
+						{Name: "term_expansion", Arity: 2}: predicate2(func(Term, Term, func(*Env) *Promise, *Env) *Promise {
+							return Error(errors.New("failed"))
+						}),
+					},
+				},
+			}
+			ok, err := state.ExpandTerm(&Compound{
+				Functor: "f",
+				Args:    []Term{Atom("a")},
+			}, &Compound{
+				Functor: "f",
+				Args:    []Term{Atom("a")},
+			}, Success, nil).Force(context.Background())
+			assert.Error(t, err)
+			assert.False(t, ok)
+		})
+
 		t.Run("applicable", func(t *testing.T) {
 			state := State{
 				VM: VM{
