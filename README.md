@@ -65,9 +65,6 @@ if err := p.Exec(`
 :- ['/path/to/abc'].   % Load file '/path/to/abc' or '/path/to/abc.pl'.
                        % You need to quote to contain / in the path.
 
-:- [library(dcg)].     % Load library 'library(dcg)'.
-                       % See examples/dcg/main.go for a complete example.
-
 human(socrates).       % This is a fact.
 mortal(X) :- human(X). % This is a rule.
 
@@ -217,7 +214,7 @@ for sols.Next() {
 |                      | `number_codes(Number, Codes)`                    |  *   | Similar to `number_chars(Number, Chars)` but a list of integers.                                                                                                                                                | [Go](https://pkg.go.dev/github.com/ichiban/prolog/engine#NumberCodes)                    |
 | Flag                 | `set_prolog_flag(Flag, Value)`                   |  *   | Sets a Prolog flag `Flag` to `Value`.                                                                                                                                                                           | [Go](https://pkg.go.dev/github.com/ichiban/prolog/engine#State.SetPrologFlag)            |
 |                      | `current_prolog_flag(Flag, Value)`               |  *   | Succeeds if a Prolog flag `Flag` is set to `Value`.                                                                                                                                                             | [Go](https://pkg.go.dev/github.com/ichiban/prolog/engine#State.CurrentPrologFlag)        |
-| Program              | `consult(File)`                                  |      | Loads files or libraries. `File` can be an atom describing a file path, `library(Name)` describing a library, or a list of them.                                                                                | Go                                                                                       |
+| Program              | `consult(File)`                                  |      | Loads files. `File` can be an atom describing a file path or a list of them.                                                                                                                                    | Go                                                                                       |
 |                      | `.(File, Files)`                                 |      | Equivalent to `consult(.(File, Files))`.                                                                                                                                                                        | Prolog                                                                                   |
 | List Processing      | `append(List1, List2, List3)`                    |      | Succeeds if `List3` is the concatination of `List1` and `List2`.                                                                                                                                                | Prolog                                                                                   |
 |                      | `member(Elem, List)`                             |      | Succeeds if `Elem` is a member of `List`.                                                                                                                                                                       | Prolog                                                                                   |

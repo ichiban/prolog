@@ -357,9 +357,31 @@ func Seq(sep Atom, ts ...Term) Term {
 
 // EachSeq iterates over a sequence seq separated by sep.
 func EachSeq(seq Term, sep Atom, f func(elem Term) error, env *Env) error {
+	return eachSep(seq, func(p *Compound) bool {
+		return p.Functor == sep
+	}, f, env)
+}
+
+// EachAlternative iterates over a sequence of alternatives separated by semicolon.
+func EachAlternative(seq Term, f func(elem Term) error, env *Env) error {
+	return eachSep(seq, func(p *Compound) bool {
+		if p.Functor != ";" {
+			return false
+		}
+
+		// if-then-else construct
+		if c, ok := p.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
+			return false
+		}
+
+		return true
+	}, f, env)
+}
+
+func eachSep(seq Term, sep func(*Compound) bool, f func(elem Term) error, env *Env) error {
 	for {
 		p, ok := env.Resolve(seq).(*Compound)
-		if !ok || p.Functor != sep || len(p.Args) != 2 {
+		if !ok || !sep(p) || len(p.Args) != 2 {
 			break
 		}
 		if err := f(p.Args[0]); err != nil {

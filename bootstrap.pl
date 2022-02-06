@@ -7,6 +7,7 @@
 :-(op(1200, xfx, -->)).
 :-(op(1200, fx, :-)).
 :-(op(1200, fx, ?-)).
+:-(op(1105, xfy, '|')).
 :-(op(1100, xfy, ;)).
 :-(op(1050, xfy, ->)).
 :-(op(1000, xfy, ',')).
@@ -232,3 +233,6 @@ nth(N, [_|Rest], Elem) :-
 
 :- built_in('.'/2).
 [H|T] :- consult([H|T]).
+
+:- built_in(phrase/2).
+phrase(GRBody, S0) :- phrase(GRBody, S0, []).

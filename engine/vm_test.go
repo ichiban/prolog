@@ -24,6 +24,8 @@ func TestVM_Register0(t *testing.T) {
 		ok, err := p.Call(&vm, []Term{Atom("a")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
+
+		assert.Equal(t, "wrong number of arguments: expected=0, actual=[a]", err.Error())
 	})
 }
 

@@ -601,6 +601,26 @@ func TestEachSeq(t *testing.T) {
 	})
 }
 
+func TestEachAlternative(t *testing.T) {
+	t.Run("sequence", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, EachAlternative(Seq(";", Atom("a"), Atom("b"), Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Atom("a"), Atom("b"), Atom("c")}, ret)
+	})
+
+	t.Run("if-then-else", func(t *testing.T) {
+		var ret []Term
+		assert.NoError(t, EachAlternative(Seq(";", &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}, Atom("c")), func(elem Term) error {
+			ret = append(ret, elem)
+			return nil
+		}, nil))
+		assert.Equal(t, []Term{Seq(";", &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}, ret)
+	})
+}
+
 func TestEach(t *testing.T) {
 	t.Run("sequence", func(t *testing.T) {
 		var ret []Term

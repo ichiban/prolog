@@ -350,7 +350,7 @@ type predicate0 func(func(*Env) *Promise, *Env) *Promise
 
 func (p predicate0) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 0 {
-		return Error(errors.New("wrong number of arguments"))
+		return Error(&wrongNumberOfArgumentsError{expected: 0, actual: args})
 	}
 
 	return p(k, env)
@@ -360,7 +360,7 @@ type predicate1 func(Term, func(*Env) *Promise, *Env) *Promise
 
 func (p predicate1) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 1 {
-		return Error(fmt.Errorf("wrong number of arguments: %s", args))
+		return Error(&wrongNumberOfArgumentsError{expected: 1, actual: args})
 	}
 
 	return p(args[0], k, env)
@@ -370,7 +370,7 @@ type predicate2 func(Term, Term, func(*Env) *Promise, *Env) *Promise
 
 func (p predicate2) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 2 {
-		return Error(errors.New("wrong number of arguments"))
+		return Error(&wrongNumberOfArgumentsError{expected: 2, actual: args})
 	}
 
 	return p(args[0], args[1], k, env)
@@ -380,7 +380,7 @@ type predicate3 func(Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
 func (p predicate3) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 3 {
-		return Error(errors.New("wrong number of arguments"))
+		return Error(&wrongNumberOfArgumentsError{expected: 3, actual: args})
 	}
 
 	return p(args[0], args[1], args[2], k, env)
@@ -390,7 +390,7 @@ type predicate4 func(Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
 func (p predicate4) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 4 {
-		return Error(errors.New("wrong number of arguments"))
+		return Error(&wrongNumberOfArgumentsError{expected: 4, actual: args})
 	}
 
 	return p(args[0], args[1], args[2], args[3], k, env)
@@ -400,7 +400,7 @@ type predicate5 func(Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *P
 
 func (p predicate5) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 5 {
-		return Error(errors.New("wrong number of arguments"))
+		return Error(&wrongNumberOfArgumentsError{expected: 5, actual: args})
 	}
 
 	return p(args[0], args[1], args[2], args[3], args[4], k, env)
@@ -470,7 +470,7 @@ func (p ProcedureIndicator) Term() Term {
 // Apply applies p to args.
 func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
 	if p.Arity != Integer(len(args)) {
-		return nil, errors.New("wrong number of arguments")
+		return nil, &wrongNumberOfArgumentsError{expected: int(p.Arity), actual: args}
 	}
 	return p.Name.Apply(args...), nil
 }
@@ -486,4 +486,13 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	default:
 		return ProcedureIndicator{}, nil, typeErrorCallable(t)
 	}
+}
+
+type wrongNumberOfArgumentsError struct {
+	expected int
+	actual   []Term
+}
+
+func (e *wrongNumberOfArgumentsError) Error() string {
+	return fmt.Sprintf("wrong number of arguments: expected=%d, actual=%s", e.expected, e.actual)
 }
