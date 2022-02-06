@@ -17,7 +17,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/ichiban/prolog"
-	_ "github.com/ichiban/prolog/dcg"
 	"github.com/ichiban/prolog/engine"
 )
 
