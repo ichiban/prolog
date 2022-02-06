@@ -74,6 +74,13 @@ append(nil, L, L).`))
 			assert.Error(t, i.Exec(":- consult(1)."))
 		})
 	})
+
+	t.Run("term_expansion/2 throws an exception", func(t *testing.T) {
+		i := New(nil, nil)
+		assert.NoError(t, i.Exec(`term_expansion(_, _) :- throw(fail).`))
+
+		assert.Error(t, i.Exec("a."))
+	})
 }
 
 func TestInterpreter_Query(t *testing.T) {
