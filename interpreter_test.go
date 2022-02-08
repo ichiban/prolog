@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -567,4 +568,47 @@ foo(c, d).
 		var s struct{}
 		assert.Error(t, sol.Scan(&s))
 	})
+}
+
+func ExampleInterpreter_Exec_dcg() {
+	i := New(nil, nil)
+	_ = i.Exec(`
+determiner --> [the].
+determiner --> [a].
+
+noun --> [boy].
+noun --> [girl].
+
+verb --> [likes].
+verb --> [scares].
+
+noun_phrase --> determiner, noun.
+noun_phrase --> noun.
+
+verb_phrase --> verb.
+verb_phrase --> verb, noun_phrase.
+
+sentence --> noun_phrase, verb_phrase.
+`)
+
+	fmt.Printf("%t\n", i.QuerySolution(`phrase([the], [the]).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes, the, boy]).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes, the, boy, today]).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes]).`).Err() == nil)
+	var s struct {
+		Sentence []string
+		Rest     []string
+	}
+	_ = i.QuerySolution(`phrase(sentence, Sentence).`).Scan(&s)
+	fmt.Printf("Sentence = %s\n", s.Sentence)
+	_ = i.QuerySolution(`phrase(noun_phrase, [the, girl, scares, the, boy], Rest).`).Scan(&s)
+	fmt.Printf("Rest = %s\n", s.Rest)
+
+	// Output:
+	// true
+	// true
+	// false
+	// true
+	// Sentence = [the boy likes]
+	// Rest = [scares the boy]
 }
