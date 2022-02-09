@@ -473,44 +473,41 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 
 // Assertz appends t to the database.
 func (state *State) Assertz(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.assert(t, false, func(existing clauses, new clauses) clauses {
+	if err := state.assert(t, false, func(existing clauses, new clauses) clauses {
 		return append(existing, new...)
-	}, k, env)
+	}, env); err != nil {
+		return Error(err)
+	}
+	return k(env)
 }
 
 // Asserta prepends t to the database.
 func (state *State) Asserta(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.assert(t, false, func(existing clauses, new clauses) clauses {
+	if err := state.assert(t, false, func(existing clauses, new clauses) clauses {
 		return append(new, existing...)
-	}, k, env)
-}
-
-// AssertStatic prepends t to the database.
-func (state *State) AssertStatic(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.assert(t, true, func(existing clauses, new clauses) clauses {
-		return append(existing, new...)
-	}, k, env)
-}
-
-func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clauses, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(t, env)
-	if err != nil {
+	}, env); err != nil {
 		return Error(err)
 	}
+	return k(env)
+}
 
-	switch pi {
-	case ProcedureIndicator{Name: ":-", Arity: 1}: // directive
-		name, args, err := piArgs(args[0], env)
-		if err != nil {
-			return Error(err)
-		}
-		return Delay(func(context.Context) *Promise {
-			return state.Arrive(name, args, k, env)
-		})
-	case ProcedureIndicator{Name: ":-", Arity: 2}:
+// Assert appends t to the database.
+func (state *State) Assert(t Term, env *Env) error {
+	return state.assert(t, true, func(existing clauses, new clauses) clauses {
+		return append(existing, new...)
+	}, env)
+}
+
+func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clauses, env *Env) error {
+	pi, args, err := piArgs(t, env)
+	if err != nil {
+		return err
+	}
+
+	if pi == (ProcedureIndicator{Name: ":-", Arity: 2}) {
 		pi, _, err = piArgs(args[0], env)
 		if err != nil {
-			return Error(err)
+			return err
 		}
 	}
 
@@ -528,27 +525,27 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 
 	added, err := compile(env.Simplify(t))
 	if err != nil {
-		return Error(err)
+		return err
 	}
 
 	switch existing := p.(type) {
 	case clauses:
 		state.procedures[pi] = merge(existing, added)
-		return k(env)
+		return nil
 	case builtin:
 		if !force {
-			return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+			return permissionErrorModifyStaticProcedure(pi.Term())
 		}
 		state.procedures[pi] = builtin{merge(existing.clauses, added)}
-		return k(env)
+		return nil
 	case static:
 		if !force {
-			return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+			return permissionErrorModifyStaticProcedure(pi.Term())
 		}
 		state.procedures[pi] = static{merge(existing.clauses, added)}
-		return k(env)
+		return nil
 	default:
-		return Error(permissionErrorModifyStaticProcedure(pi.Term()))
+		return permissionErrorModifyStaticProcedure(pi.Term())
 	}
 }
 

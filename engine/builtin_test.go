@@ -1700,29 +1700,6 @@ func TestState_Assertz(t *testing.T) {
 		}])
 	})
 
-	t.Run("directive", func(t *testing.T) {
-		var called bool
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "directive", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
-						called = true
-						return k(env)
-					}),
-				},
-			},
-		}
-
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args:    []Term{Atom("directive")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.True(t, called)
-	})
-
 	t.Run("clause is a variable", func(t *testing.T) {
 		clause := Variable("Term")
 
@@ -1756,28 +1733,6 @@ func TestState_Assertz(t *testing.T) {
 		ok, err := state.Assertz(&Compound{
 			Functor: ":-",
 			Args:    []Term{Integer(0), Atom("true")},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(Integer(0)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is a variable", func(t *testing.T) {
-		directive := Variable("Directive")
-
-		var state State
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args:    []Term{directive},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(directive), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
@@ -1981,29 +1936,6 @@ func TestState_Asserta(t *testing.T) {
 		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}])
 	})
 
-	t.Run("directive", func(t *testing.T) {
-		var called bool
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "directive", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
-						called = true
-						return k(env)
-					}),
-				},
-			},
-		}
-
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{Atom("directive")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.True(t, called)
-	})
-
 	t.Run("clause is a variable", func(t *testing.T) {
 		clause := Variable("Term")
 
@@ -2047,28 +1979,6 @@ func TestState_Asserta(t *testing.T) {
 		ok, err := state.Asserta(&Compound{
 			Functor: ":-",
 			Args:    []Term{Atom("foo"), Integer(0)},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(Integer(0)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is a variable", func(t *testing.T) {
-		directive := Variable("Directive")
-
-		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{directive},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(directive), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeErrorCallable(Integer(0)), err)
 		assert.False(t, ok)
@@ -2151,23 +2061,19 @@ func TestState_Asserta(t *testing.T) {
 	})
 }
 
-func TestState_AssertStatic(t *testing.T) {
+func TestState_Assert(t *testing.T) {
 	t.Run("append", func(t *testing.T) {
 		var state State
 
-		ok, err := state.AssertStatic(&Compound{
+		assert.NoError(t, state.Assert(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("a")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		}, nil))
 
-		ok, err = state.AssertStatic(&Compound{
+		assert.NoError(t, state.Assert(&Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("b")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		}, nil))
 
 		assert.Equal(t, static{clauses{
 			{
@@ -2206,92 +2112,45 @@ func TestState_AssertStatic(t *testing.T) {
 		}])
 	})
 
-	t.Run("directive", func(t *testing.T) {
-		var called bool
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "directive", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
-						called = true
-						return k(env)
-					}),
-				},
-			},
-		}
-
-		ok, err := state.AssertStatic(&Compound{
-			Functor: ":-",
-			Args:    []Term{Atom("directive")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.True(t, called)
-	})
-
 	t.Run("clause is a variable", func(t *testing.T) {
 		clause := Variable("Term")
 
 		var state State
-		ok, err := state.AssertStatic(clause, Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(&clause), err)
-		assert.False(t, ok)
+		assert.Equal(t, InstantiationError(&clause), state.Assert(clause, nil))
 	})
 
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
 		var state State
-		ok, err := state.AssertStatic(Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(Integer(0)), err)
-		assert.False(t, ok)
+		assert.Equal(t, typeErrorCallable(Integer(0)), state.Assert(Integer(0), nil))
 	})
 
 	t.Run("head is a variable", func(t *testing.T) {
 		head := Variable("Head")
 
 		var state State
-		ok, err := state.AssertStatic(&Compound{
+		assert.Equal(t, InstantiationError(&head), state.Assert(&Compound{
 			Functor: ":-",
 			Args:    []Term{head, Atom("true")},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(&head), err)
-		assert.False(t, ok)
+		}, nil))
 	})
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var state State
-		ok, err := state.AssertStatic(&Compound{
+		assert.Equal(t, typeErrorCallable(Integer(0)), state.Assert(&Compound{
 			Functor: ":-",
 			Args:    []Term{Integer(0), Atom("true")},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(Integer(0)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is a variable", func(t *testing.T) {
-		directive := Variable("Directive")
-
-		var state State
-		ok, err := state.AssertStatic(&Compound{
-			Functor: ":-",
-			Args:    []Term{directive},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(directive), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("directive is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.AssertStatic(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0)},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(Integer(0)), err)
-		assert.False(t, ok)
+		}, nil))
 	})
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var state State
-		ok, err := state.AssertStatic(&Compound{
+		assert.Equal(t, typeErrorCallable(&Compound{
+			Functor: ",",
+			Args: []Term{
+				Atom("true"),
+				Integer(0),
+			},
+		}), state.Assert(&Compound{
 			Functor: ":-",
 			Args: []Term{
 				Atom("foo"),
@@ -2303,15 +2162,7 @@ func TestState_AssertStatic(t *testing.T) {
 					},
 				},
 			},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorCallable(&Compound{
-			Functor: ",",
-			Args: []Term{
-				Atom("true"),
-				Integer(0),
-			},
-		}), err)
-		assert.False(t, ok)
+		}, nil))
 	})
 
 	t.Run("static", func(t *testing.T) {
@@ -2323,10 +2174,7 @@ func TestState_AssertStatic(t *testing.T) {
 			},
 		}
 
-		ok, err := state.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
+		assert.NoError(t, state.Assert(Atom("foo"), nil))
 		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(static).clauses, 1)
 	})
 
@@ -2339,10 +2187,7 @@ func TestState_AssertStatic(t *testing.T) {
 			},
 		}
 
-		ok, err := state.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
+		assert.NoError(t, state.Assert(Atom("foo"), nil))
 		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(clauses), 1)
 	})
 
@@ -2355,10 +2200,7 @@ func TestState_AssertStatic(t *testing.T) {
 			},
 		}
 
-		ok, err := state.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
+		assert.NoError(t, state.Assert(Atom("foo"), nil))
 		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(builtin).clauses, 1)
 	})
 
@@ -2371,15 +2213,13 @@ func TestState_AssertStatic(t *testing.T) {
 			},
 		}
 
-		ok, err := state.AssertStatic(Atom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, permissionErrorModifyStaticProcedure(&Compound{
 			Functor: "/",
 			Args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
-		}), err)
-		assert.False(t, ok)
+		}), state.Assert(Atom("foo"), nil))
 	})
 }
 

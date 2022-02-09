@@ -133,10 +133,15 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 
-		// TODO: We should handle directives here.
+		// Directive
+		if c, ok := et.(*engine.Compound); ok && c.Functor == ":-" && len(c.Args) == 1 {
+			if _, err := i.Call(c.Args[0], engine.Success, nil).Force(ctx); err != nil {
+				return err
+			}
+			continue
+		}
 
-		// TODO: AssertStatic doesn't have to take a form of predicate.
-		if _, err := i.AssertStatic(et, engine.Success, nil).Force(ctx); err != nil {
+		if err := i.Assert(et, nil); err != nil {
 			return err
 		}
 	}
