@@ -108,6 +108,10 @@ nonvar(X) :- \+var(X).
 number(X) :- float(X).
 number(X) :- integer(X).
 
+:- built_in(callable/1).
+callable(X) :- atom(X).
+callable(X) :- compound(X).
+
 :- built_in(atomic/1).
 atomic(X) :- nonvar(X), \+compound(X).
 

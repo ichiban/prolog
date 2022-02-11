@@ -630,3 +630,17 @@ func ExampleInterpreter_QuerySolution_subsumes_term() {
 	// false
 	// true
 }
+
+func ExampleInterpreter_QuerySolution_callable() {
+	i := New(nil, nil)
+	fmt.Printf("%t\n", i.QuerySolution(`callable(a).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`callable(3).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`callable(X).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`callable((1,2)).`).Err() == nil)
+
+	// Output:
+	// true
+	// false
+	// false
+	// true
+}
