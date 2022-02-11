@@ -344,6 +344,26 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 	})
 }
 
+func TestSubsumesTerm(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		ok, err := SubsumesTerm(Variable("X"), Atom("a"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("not unifiable", func(t *testing.T) {
+		ok, err := SubsumesTerm(Atom("a"), Atom("b"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("specific-general", func(t *testing.T) {
+		ok, err := SubsumesTerm(Atom("a"), Variable("X"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+}
+
 func TestTypeVar(t *testing.T) {
 	t.Run("var", func(t *testing.T) {
 		ok, err := TypeVar(NewVariable(), Success, nil).Force(context.Background())

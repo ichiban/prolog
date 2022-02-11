@@ -164,6 +164,20 @@ func UnifyWithOccursCheck(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise
 	return k(env)
 }
 
+// SubsumesTerm succeeds if general and specific are unifiable without binding variables in specific.
+func SubsumesTerm(general, specific Term, k func(*Env) *Promise, env *Env) *Promise {
+	theta, ok := general.Unify(specific, true, env)
+	if !ok {
+		return Bool(false)
+	}
+
+	if d := theta.Simplify(general).Compare(specific, env); d != 0 {
+		return Bool(false)
+	}
+
+	return k(env)
+}
+
 // TypeVar checks if t is a variable.
 func TypeVar(t Term, k func(*Env) *Promise, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Variable); !ok {

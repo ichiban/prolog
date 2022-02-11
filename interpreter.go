@@ -40,6 +40,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("throw", engine.Throw)
 	i.Register2("=", engine.Unify)
 	i.Register2("unify_with_occurs_check", engine.UnifyWithOccursCheck)
+	i.Register2("subsumes_term", engine.SubsumesTerm)
 	i.Register2("=..", engine.Univ)
 	i.Register2("copy_term", engine.CopyTerm)
 	i.Register3("arg", engine.Arg)

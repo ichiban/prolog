@@ -612,3 +612,21 @@ sentence --> noun_phrase, verb_phrase.
 	// Sentence = [the boy likes]
 	// Rest = [scares the boy]
 }
+
+func ExampleInterpreter_Query_subsumes_term() {
+	i := New(nil, nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(a, a).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(f(X,Y), f(Z,Z)).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(f(Z,Z), f(X,Y)).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(g(X), g(f(X))).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(X, f(X)).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(X, Y), subsumes_term(Y, f(X)).`).Err() == nil)
+
+	// Output:
+	// true
+	// true
+	// false
+	// false
+	// false
+	// true
+}
