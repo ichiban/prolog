@@ -613,7 +613,7 @@ sentence --> noun_phrase, verb_phrase.
 	// Rest = [scares the boy]
 }
 
-func ExampleInterpreter_Query_subsumes_term() {
+func ExampleInterpreter_QuerySolution_subsumes_term() {
 	i := New(nil, nil)
 	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(a, a).`).Err() == nil)
 	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(f(X,Y), f(Z,Z)).`).Err() == nil)
