@@ -437,6 +437,31 @@ func TestTypeCompound(t *testing.T) {
 	})
 }
 
+func TestAcyclicTerm(t *testing.T) {
+	t.Run("atomic", func(t *testing.T) {
+		ok, err := AcyclicTerm(Atom("a"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("compound", func(t *testing.T) {
+		t.Run("cyclic", func(t *testing.T) {
+			var c = Compound{
+				Functor: "f",
+				Args: []Term{
+					Atom("a"),
+					nil, // placeholder
+				},
+			}
+			c.Args[1] = &c
+
+			ok, err := AcyclicTerm(&c, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+	})
+}
+
 func TestFunctor(t *testing.T) {
 	t.Run("term is instantiated", func(t *testing.T) {
 		t.Run("float", func(t *testing.T) {
