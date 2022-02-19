@@ -370,6 +370,30 @@ func copyTerm(t Term, vars map[Variable]Variable, env *Env) Term {
 	}
 }
 
+// TermVariables succeeds if vars unifies with a list of variables in term.
+func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
+	var (
+		witness  = map[Variable]struct{}{}
+		ret      []Term
+		t        Term
+		traverse = []Term{term}
+	)
+	for len(traverse) > 0 {
+		t, traverse = traverse[0], traverse[1:]
+		switch t := env.Resolve(t).(type) {
+		case Variable:
+			if _, ok := witness[t]; !ok {
+				ret = append(ret, t)
+			}
+			witness[t] = struct{}{}
+		case *Compound:
+			traverse = append(t.Args, traverse...)
+		}
+	}
+
+	return Unify(vars, List(ret...), k, env)
+}
+
 // Op defines operator with priority and specifier, or removes when priority is 0.
 func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	p, ok := env.Resolve(priority).(Integer)

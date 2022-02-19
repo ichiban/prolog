@@ -112,6 +112,9 @@ number(X) :- integer(X).
 callable(X) :- atom(X).
 callable(X) :- compound(X).
 
+:- built_in(ground/1).
+ground(X) :- term_variables(X, []).
+
 :- built_in(atomic/1).
 atomic(X) :- nonvar(X), \+compound(X).
 
