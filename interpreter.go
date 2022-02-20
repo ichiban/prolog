@@ -37,6 +37,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("integer", engine.TypeInteger)
 	i.Register1("atom", engine.TypeAtom)
 	i.Register1("compound", engine.TypeCompound)
+	i.Register1("acyclic_term", engine.AcyclicTerm)
 	i.Register1("throw", engine.Throw)
 	i.Register2("=", engine.Unify)
 	i.Register2("unify_with_occurs_check", engine.UnifyWithOccursCheck)

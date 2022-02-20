@@ -218,6 +218,35 @@ func TypeCompound(t Term, k func(*Env) *Promise, env *Env) *Promise {
 	return k(env)
 }
 
+// AcyclicTerm checks if t is acyclic.
+func AcyclicTerm(t Term, k func(*Env) *Promise, env *Env) *Promise {
+	if cyclicTerm(t, nil, env) {
+		return Bool(false)
+	}
+	return k(env)
+}
+
+func cyclicTerm(t Term, visited []Term, env *Env) bool {
+	t = env.Resolve(t)
+
+	for _, v := range visited {
+		if t == v {
+			return true
+		}
+	}
+	visited = append(visited, t)
+
+	if c, ok := t.(*Compound); ok {
+		for _, a := range c.Args {
+			if cyclicTerm(a, visited, env) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // Functor extracts the name and arity of term, or unifies term with an atomic/compound term of name and arity with
 // fresh variables as arguments.
 func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
