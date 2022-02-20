@@ -44,6 +44,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("subsumes_term", engine.SubsumesTerm)
 	i.Register2("=..", engine.Univ)
 	i.Register2("copy_term", engine.CopyTerm)
+	i.Register2("term_variables", engine.TermVariables)
 	i.Register3("arg", engine.Arg)
 	i.Register3("bagof", i.BagOf)
 	i.Register3("setof", i.SetOf)

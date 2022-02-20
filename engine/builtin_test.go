@@ -723,6 +723,39 @@ func TestCopyTerm(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestTermVariables(t *testing.T) {
+	ok, err := TermVariables(&Compound{
+		Functor: "+",
+		Args: []Term{
+			Variable("A"),
+			&Compound{
+				Functor: "-",
+				Args: []Term{
+					&Compound{
+						Functor: "/",
+						Args: []Term{
+							&Compound{
+								Functor: "*",
+								Args: []Term{
+									Variable("B"),
+									Variable("C"),
+								},
+							},
+							Variable("B"),
+						},
+					},
+					Variable("D"),
+				},
+			},
+		},
+	}, Variable("Vars"), func(env *Env) *Promise {
+		assert.Equal(t, List(Variable("A"), Variable("B"), Variable("C"), Variable("D")), env.Resolve(Variable("Vars")))
+		return Bool(true)
+	}, nil).Force(context.Background())
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
+
 func TestState_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		state := State{

@@ -654,3 +654,13 @@ func ExampleInterpreter_QuerySolution_acyclic_term() {
 	// true
 	// false
 }
+
+func ExampleInterpreter_QuerySolution_ground() {
+	i := New(nil, nil)
+	fmt.Printf("%t\n", i.QuerySolution(`ground(3).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`ground(a(1, _)).`).Err() == nil)
+
+	// Output:
+	// true
+	// false
+}
