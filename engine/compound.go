@@ -284,27 +284,18 @@ func ListRest(rest Term, ts ...Term) Term {
 }
 
 // Set returns a list of ts which elements are unique.
-func Set(ts ...Term) Term {
-	if len(ts) < 2 {
-		return List(ts...)
-	}
-	us := make([]Term, len(ts))
-	copy(us, ts)
-	sort.Slice(us, func(i, j int) bool {
-		return us[i].Compare(us[j], nil) < 0
+func (e *Env) Set(ts ...Term) Term {
+	sort.Slice(ts, func(i, j int) bool {
+		return ts[i].Compare(ts[j], e) < 0
 	})
-	n := 1
-	for _, u := range us[1:] {
-		if us[n-1].Compare(u, nil) == 0 {
+	us := make([]Term, 0, len(ts))
+	for _, t := range ts {
+		if len(us) > 0 && us[len(us)-1].Compare(t, e) == 0 {
 			continue
 		}
-		us[n] = u
-		n++
+		us = append(us, t)
 	}
-	for i := range us[n:] {
-		us[n+i] = nil
-	}
-	return List(us[:n]...)
+	return List(us...)
 }
 
 // EachList iterates over list.

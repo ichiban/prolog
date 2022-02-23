@@ -623,7 +623,7 @@ func (state *State) BagOf(template, goal, instances Term, k func(*Env) *Promise,
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func (state *State) SetOf(template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.collectionOf(Set, template, goal, instances, k, env)
+	return state.collectionOf(env.Set, template, goal, instances, k, env)
 }
 
 func (state *State) collectionOf(agg func(...Term) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -770,7 +770,7 @@ func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(TypeError("list", sorted, "%s is not a list.", sorted))
 	}
 
-	return Unify(sorted, Set(elems...), k, env)
+	return Unify(sorted, env.Set(elems...), k, env)
 }
 
 // Throw throws ball as an exception.

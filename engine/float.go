@@ -53,15 +53,6 @@ func (f Float) Compare(t Term, env *Env) int64 {
 		default:
 			return 0
 		}
-	case Integer:
-		switch d := f - Float(t); {
-		case d < 0:
-			return -1
-		case d > 0:
-			return 1
-		default:
-			return 0
-		}
 	default:
 		return -1
 	}

@@ -39,17 +39,8 @@ func (i Integer) Unparse(emit func(token Token), _ *Env, _ ...WriteOption) {
 // Compare compares the integer to another term.
 func (i Integer) Compare(t Term, env *Env) int64 {
 	switch t := env.Resolve(t).(type) {
-	case Variable:
+	case Variable, Float:
 		return 1
-	case Float:
-		switch d := Float(i) - t; {
-		case d < 0:
-			return -1
-		case d > 0:
-			return 1
-		default:
-			return 0
-		}
 	case Integer:
 		return int64(i - t)
 	default:
