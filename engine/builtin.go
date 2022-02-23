@@ -623,7 +623,7 @@ func (state *State) BagOf(template, goal, instances Term, k func(*Env) *Promise,
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func (state *State) SetOf(template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.collectionOf(Set, template, goal, instances, k, env)
+	return state.collectionOf(env.Set, template, goal, instances, k, env)
 }
 
 func (state *State) collectionOf(agg func(...Term) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -746,6 +746,31 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 	default: // d == 0:
 		return Unify(Atom("="), order, k, env)
 	}
+}
+
+// Sort succeeds if sorted list of elements of list unifies with sorted.
+func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
+	var elems []Term
+	if err := EachList(list, func(elem Term) error {
+		elems = append(elems, env.Resolve(elem))
+		return nil
+	}, env); err != nil {
+		return Error(err)
+	}
+
+	switch s := env.Resolve(sorted).(type) {
+	case Variable:
+		break
+	case *Compound:
+		if s.Functor == "." && len(s.Args) == 2 {
+			break
+		}
+		return Error(TypeError("list", sorted, "%s is not a list.", sorted))
+	default:
+		return Error(TypeError("list", sorted, "%s is not a list.", sorted))
+	}
+
+	return Unify(sorted, env.Set(elems...), k, env)
 }
 
 // Throw throws ball as an exception.

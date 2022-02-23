@@ -136,6 +136,7 @@ for sols.Next() {
 |                      | `copy_term(In, Out)`                             |  *   | Creates a copy of `In` and unifies it with `Out`.                                                                                                                                                               | [Go](https://pkg.go.dev/github.com/ichiban/prolog/engine#CopyTerm)                       |
 |                      | `term_variables(Term, Vars)`                     |  *   | Succeeds if `Vars` unifies with a list of variables in `Term`.                                                                                                                                                  | Go                                                                                       |
 |                      | `compare(Order, Term1, Term2)`                   |  *   | Compares `Term` and `Term2` and unifies `Order` with either `<`, `=`, or `>`.                                                                                                                                   | [Go](https://pkg.go.dev/github.com/ichiban/prolog/engine#Compare)                        |
+|                      | `sort(List, Sorted)`                             |  *   | Succeeds if `Sorted` unifies with a sorted list of `List`.                                                                                                                                                      | Go                                                                                       |
 |                      | `Term1 @=< Term2`                                |  *   | Either `Term1 == Term2` or `Term1 @< Term2`.                                                                                                                                                                    | Prolog                                                                                   |
 |                      | `Term1 == Term2`                                 |  *   | Equivalent to `compare(=, Term1, Term2)`.                                                                                                                                                                       | Prolog                                                                                   |
 |                      | `Term1 \== Term2`                                |  *   | Equivalent to `\+compare(=, Term1, Term2)`.                                                                                                                                                                     | Prolog                                                                                   |
@@ -243,3 +244,12 @@ See `ARCHITECTURE.md` for architecture details.
 1. Commit your changes (git commit -am 'Add some fooBar')
 1. Push to the branch (git push origin feature/fooBar)
 1. Create a new Pull Request
+
+## Acknowledgments
+
+This library doesn't exist without the great resources below:
+
+- [A PORTABLE PROLOG COMPILER (Bowen et al. 83)](http://www.softwarepreservation.org/projects/prolog/lisbon/lpw83/p74-Bowen.pdf)
+- [ISO Prolog works](http://www.complang.tuwien.ac.at/ulrich/iso-prolog/) by Prof. Ulrich Neumerkel
+- [SWI Prolog](https://www.swi-prolog.org/) and its documentation
+- [GNU Prolog](http://www.gprolog.org/) and its documentation

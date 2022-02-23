@@ -53,6 +53,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3("functor", engine.Functor)
 	i.Register3("op", i.Op)
 	i.Register3("compare", engine.Compare)
+	i.Register2("sort", engine.Sort)
 	i.Register3("current_op", i.CurrentOp)
 	i.Register1("current_input", i.CurrentInput)
 	i.Register1("current_output", i.CurrentOutput)

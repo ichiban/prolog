@@ -1533,6 +1533,48 @@ func TestCompare(t *testing.T) {
 	})
 }
 
+func TestSort(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		t.Run("variable", func(t *testing.T) {
+			sorted := Variable("Sorted")
+			ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), sorted, func(env *Env) *Promise {
+				assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), env.Resolve(sorted))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("list", func(t *testing.T) {
+			ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), List(Atom("a"), Atom("b"), Atom("c")), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("list is a partial list", func(t *testing.T) {
+		_, err := Sort(ListRest(Variable("X"), Atom("a"), Atom("b")), Variable("Sorted"), Success, nil).Force(context.Background())
+		assert.Equal(t, InstantiationError(ListRest(Variable("X"), Atom("a"), Atom("b"))), err)
+	})
+
+	t.Run("list is neither a partial list nor a list", func(t *testing.T) {
+		_, err := Sort(Atom("a"), Variable("Sorted"), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeError("list", Atom("a"), "a is not a list."), err)
+	})
+
+	t.Run("sorted is neither a partial list nor a list", func(t *testing.T) {
+		t.Run("obviously not a list", func(t *testing.T) {
+			_, err := Sort(List(Atom("a")), Atom("a"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeError("list", Atom("a"), "a is not a list."), err)
+		})
+
+		t.Run("list-ish", func(t *testing.T) {
+			_, err := Sort(List(Atom("a")), &Compound{Functor: ".", Args: []Term{Atom("a")}}, Success, nil).Force(context.Background())
+			assert.Equal(t, TypeError("list", &Compound{Functor: ".", Args: []Term{Atom("a")}}, ".(a) is not a list."), err)
+		})
+	})
+}
+
 func TestThrow(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		ok, err := Throw(Atom("a"), Success, nil).Force(context.Background())
