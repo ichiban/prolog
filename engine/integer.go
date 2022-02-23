@@ -42,11 +42,14 @@ func (i Integer) Compare(t Term, env *Env) int64 {
 	case Variable:
 		return 1
 	case Float:
-		d := int64(Float(i) - t)
-		if d == 0 {
+		switch d := Float(i) - t; {
+		case d < 0:
+			return -1
+		case d > 0:
 			return 1
+		default:
+			return 0
 		}
-		return d
 	case Integer:
 		return int64(i - t)
 	default:

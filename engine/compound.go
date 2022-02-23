@@ -241,16 +241,16 @@ func (c *Compound) unparse(emit func(Token), env *Env, opts ...WriteOption) {
 func (c *Compound) Compare(t Term, env *Env) int64 {
 	switch t := env.Resolve(t).(type) {
 	case *Compound:
-		if d := c.Functor.Compare(t.Functor, env); d != 0 {
-			return d
-		}
-
 		if d := len(c.Args) - len(t.Args); d != 0 {
 			return int64(d)
 		}
 
-		for i := range c.Args {
-			if d := c.Args[i].Compare(t.Args[i], env); d != 0 {
+		if d := c.Functor.Compare(t.Functor, env); d != 0 {
+			return d
+		}
+
+		for i, a := range c.Args {
+			if d := a.Compare(t.Args[i], env); d != 0 {
 				return d
 			}
 		}

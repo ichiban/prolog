@@ -664,3 +664,26 @@ func ExampleInterpreter_QuerySolution_ground() {
 	// true
 	// false
 }
+
+func ExampleInterpreter_QuerySolution_sort() {
+	var s struct {
+		Sorted []engine.Term
+		X      engine.Term
+	}
+
+	i := New(nil, nil)
+	_ = i.QuerySolution(`sort([1, 1], Sorted).`).Scan(&s)
+	fmt.Printf("Sorted = %s\n", s.Sorted)
+	_ = i.QuerySolution(`sort([X, 1], [1, 1]).`).Scan(&s)
+	fmt.Printf("X = %s\n", s.X)
+	fmt.Printf("%t\n", i.QuerySolution(`sort([1, 1], [1, 1]).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`sort([V], V).`).Err() == nil)
+	fmt.Printf("%t\n", i.QuerySolution(`sort([f(U),U,U,f(V),f(U),V],L).`).Err() == nil)
+
+	// Output:
+	// Sorted = [1]
+	// X = 1
+	// false
+	// true
+	// true
+}

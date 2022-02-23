@@ -748,6 +748,31 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 	}
 }
 
+// Sort succeeds if sorted list of elements of list unifies with sorted.
+func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
+	var elems []Term
+	if err := EachList(list, func(elem Term) error {
+		elems = append(elems, env.Resolve(elem))
+		return nil
+	}, env); err != nil {
+		return Error(err)
+	}
+
+	switch s := env.Resolve(sorted).(type) {
+	case Variable:
+		break
+	case *Compound:
+		if s.Functor == "." && len(s.Args) == 2 {
+			break
+		}
+		return Error(TypeError("list", sorted, "%s is not a list.", sorted))
+	default:
+		return Error(TypeError("list", sorted, "%s is not a list.", sorted))
+	}
+
+	return Unify(sorted, Set(elems...), k, env)
+}
+
 // Throw throws ball as an exception.
 func Throw(ball Term, _ func(*Env) *Promise, env *Env) *Promise {
 	if _, ok := env.Resolve(ball).(Variable); ok {
