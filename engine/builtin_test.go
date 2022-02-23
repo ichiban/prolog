@@ -1535,13 +1535,21 @@ func TestCompare(t *testing.T) {
 
 func TestSort(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		sorted := Variable("Sorted")
-		ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), sorted, func(env *Env) *Promise {
-			assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), env.Resolve(sorted))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		t.Run("variable", func(t *testing.T) {
+			sorted := Variable("Sorted")
+			ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), sorted, func(env *Env) *Promise {
+				assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), env.Resolve(sorted))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("list", func(t *testing.T) {
+			ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), List(Atom("a"), Atom("b"), Atom("c")), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
 	})
 
 	t.Run("list is a partial list", func(t *testing.T) {
