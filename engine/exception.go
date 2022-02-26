@@ -12,9 +12,7 @@ type Exception struct {
 
 func (e *Exception) Error() string {
 	var buf bytes.Buffer
-	if err := Write(&buf, e.Term, nil); err != nil {
-		return err.Error()
-	}
+	_ = Write(&buf, e.Term, nil, WithQuoted(true))
 	return buf.String()
 }
 
