@@ -3720,6 +3720,20 @@ func TestState_WriteTerm(t *testing.T) {
 		assert.Equal(t, permissionErrorOutputBinaryStream(s), err)
 		assert.False(t, ok)
 	})
+
+	t.Run("write error", func(t *testing.T) {
+		var f struct {
+			mockReader
+			mockWriter
+			mockCloser
+		}
+		f.mockWriter.On("Write", mock.Anything).Return(0, errors.New("failed"))
+		defer f.mockWriter.AssertExpectations(t)
+
+		s := NewStream(&f, StreamModeWrite)
+		_, err := state.WriteTerm(s, Atom("foo"), List(), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+	})
 }
 
 type mockTerm struct {
