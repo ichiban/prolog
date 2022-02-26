@@ -89,7 +89,7 @@ func TestCompound_Unparse(t *testing.T) {
 			var ret []Token
 			List(Atom("a"), Atom("b"), Atom("c")).Unparse(func(token Token) {
 				ret = append(ret, token)
-			}, nil)
+			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
 				{Kind: TokenBracketL, Val: "["},
 				{Kind: TokenIdent, Val: "a"},
