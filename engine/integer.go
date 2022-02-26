@@ -2,17 +2,10 @@ package engine
 
 import (
 	"strconv"
-	"strings"
 )
 
 // Integer is a prolog integer.
 type Integer int64
-
-func (i Integer) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, i, nil)
-	return sb.String()
-}
 
 // Unify unifies the integer with t.
 func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {

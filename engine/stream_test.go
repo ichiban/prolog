@@ -113,7 +113,7 @@ func TestOpen(t *testing.T) {
 		}()
 
 		s, err := Open("/this/file/is/protected", StreamModeRead)
-		assert.Equal(t, PermissionError("open", "source_sink", Atom("/this/file/is/protected"), "'/this/file/is/protected' cannot be opened."), err)
+		assert.Equal(t, PermissionError("open", "source_sink", Atom("/this/file/is/protected")), err)
 		assert.Nil(t, s)
 	})
 

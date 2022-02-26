@@ -495,7 +495,7 @@ func TestEnv_Set(t *testing.T) {
 func TestEachList(t *testing.T) {
 	t.Run("variable", func(t *testing.T) {
 		var ret []Term
-		assert.Equal(t, InstantiationError(Variable("X")), EachList(Variable("X"), func(elem Term) error {
+		assert.Equal(t, ErrInstantiation, EachList(Variable("X"), func(elem Term) error {
 			ret = append(ret, elem)
 			return nil
 		}, nil))

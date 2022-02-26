@@ -118,14 +118,14 @@ func main() {
 	}
 }
 
-func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) (err error) {
+func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) (err error) {
 	line, err := t.ReadLine()
 	if err != nil {
 		return err
 	}
 	_, _ = buf.WriteString(line)
 
-	sols, err := i.QueryContext(ctx, buf.String())
+	sols, err := p.QueryContext(ctx, buf.String())
 	switch err {
 	case engine.ErrInsufficient:
 		_, _ = buf.WriteRune('\n')
@@ -149,11 +149,6 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	for sols.Next() {
 		exists = true
 
-		if err := sols.Err(); err != nil {
-			log.Printf("unhandled exception: %v", err)
-			break
-		}
-
 		m := map[string]engine.Term{}
 		_ = sols.Scan(m)
 
@@ -164,7 +159,12 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		} else {
 			ls := make([]string, len(vars))
 			for i, v := range vars {
-				ls[i] = fmt.Sprintf("%s = %s", v, m[v])
+				var sb strings.Builder
+				_, _ = fmt.Fprintf(&sb, "%s = ", v)
+				if err := p.Write(&sb, m[v], nil, engine.WithQuoted(true)); err != nil {
+					return err
+				}
+				ls[i] = sb.String()
 			}
 			_, _ = fmt.Fprintf(&buf, strings.Join(ls, ",\n"))
 		}
@@ -185,6 +185,10 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		if r == '.' {
 			break
 		}
+	}
+
+	if err := sols.Err(); err != nil {
+		return err
 	}
 
 	if !exists {

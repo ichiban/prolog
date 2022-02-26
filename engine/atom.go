@@ -17,12 +17,6 @@ var (
 // Atom is a prolog atom.
 type Atom string
 
-func (a Atom) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, a, nil, WithQuoted(true))
-	return sb.String()
-}
-
 // Unify unifies the atom with t.
 func (a Atom) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {

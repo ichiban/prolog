@@ -25,12 +25,6 @@ func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
 }
 
-func (v Variable) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, v, nil)
-	return sb.String()
-}
-
 // Unify unifies the variable with t.
 func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	r, t := env.Resolve(v), env.Resolve(t)

@@ -8,7 +8,6 @@ import (
 
 // Term is a prolog term.
 type Term interface {
-	fmt.Stringer
 	Unify(Term, bool, *Env) (*Env, bool)
 	Unparse(func(Token), *Env, ...WriteOption)
 	Compare(Term, *Env) int64
