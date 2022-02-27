@@ -488,7 +488,7 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	case *Compound:
 		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
 	default:
-		return ProcedureIndicator{}, nil, typeErrorCallable(t)
+		return ProcedureIndicator{}, nil, typeErrorCallable(f)
 	}
 }
 

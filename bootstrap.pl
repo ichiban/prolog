@@ -214,6 +214,12 @@ at_end_of_stream(Stream) :-
 :- built_in(at_end_of_stream/0).
 at_end_of_stream :- current_input(S), at_end_of_stream(S).
 
+:- built_in(retractall/1).
+retractall(Head) :-
+   retract((Head :- _)),
+   fail.
+retractall(_).
+
 %%%% non-ISO predicates
 
 :- built_in(false/0).
