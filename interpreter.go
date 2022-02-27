@@ -260,7 +260,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError("source_sink", file, "%s does not exist.", file)
+		return engine.DomainError("source_sink", file)
 	default:
 		return engine.TypeError("atom", file)
 	}

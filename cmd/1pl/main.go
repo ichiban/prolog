@@ -188,7 +188,8 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 	}
 
 	if err := sols.Err(); err != nil {
-		return err
+		log.Print(err)
+		return nil
 	}
 
 	if !exists {

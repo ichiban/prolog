@@ -97,74 +97,74 @@ func TypeError(validType Atom, culprit Term) *Exception {
 					Functor: "type_error",
 					Args:    []Term{validType, culprit},
 				},
-				Atom(fmt.Sprintf("'%s' expected, found '%T'.", validType, culprit)),
+				Atom(fmt.Sprintf("Expected %s, found %T.", validType, culprit)),
 			},
 		},
 	}
 }
 
 func domainErrorFlagValue(culprit Term) *Exception {
-	return DomainError("flag_value", culprit, "%s is not a flag value.", culprit)
+	return DomainError("flag_value", culprit)
 }
 
 func domainErrorIOMode(culprit Term) *Exception {
-	return DomainError("io_mode", culprit, "%s is not an I/O mode.", culprit)
+	return DomainError("io_mode", culprit)
 }
 
 func domainErrorNotEmptyList(culprit Term) *Exception {
-	return DomainError("not_empty_list", culprit, "%s is an empty list.", culprit)
+	return DomainError("not_empty_list", culprit)
 }
 
 func domainErrorNotLessThanZero(culprit Term) *Exception {
-	return DomainError("not_less_than_zero", culprit, "%s is less than zero.", culprit)
+	return DomainError("not_less_than_zero", culprit)
 }
 
 func domainErrorOperatorPriority(culprit Term) *Exception {
-	return DomainError("operator_priority", culprit, "%s is not between 0 and 1200.", culprit)
+	return DomainError("operator_priority", culprit)
 }
 
 func domainErrorOperatorSpecifier(culprit Term) *Exception {
-	return DomainError("operator_specifier", culprit, "%s is neither xf, yf, xfx, xfy, yfx, fx, nor fy.", culprit)
+	return DomainError("operator_specifier", culprit)
 }
 
 func domainErrorPrologFlag(culprit Term) *Exception {
-	return DomainError("prolog_flag", culprit, "%s is not a prolog flag.", culprit)
+	return DomainError("prolog_flag", culprit)
 }
 
 func domainErrorReadOption(culprit Term) *Exception {
-	return DomainError("read_option", culprit, "%s is not a read option.", culprit)
+	return DomainError("read_option", culprit)
 }
 
 func domainErrorSourceSink(culprit Term) *Exception {
-	return DomainError("source_sink", culprit, "%s is not a source/sink.", culprit)
+	return DomainError("source_sink", culprit)
 }
 
 func domainErrorStream(culprit Term) *Exception {
-	return DomainError("stream", culprit, "%s is not a stream.", culprit)
+	return DomainError("stream", culprit)
 }
 
 func domainErrorStreamOption(culprit Term) *Exception {
-	return DomainError("stream_option", culprit, "%s is not a stream option.", culprit)
+	return DomainError("stream_option", culprit)
 }
 
 func domainErrorStreamOrAlias(culprit Term) *Exception {
-	return DomainError("stream_or_alias", culprit, "%s is neither a stream nor an alias.", culprit)
+	return DomainError("stream_or_alias", culprit)
 }
 
 func domainErrorStreamProperty(culprit Term) *Exception {
-	return DomainError("stream_property", culprit, "%s is not a stream property.", culprit)
+	return DomainError("stream_property", culprit)
 }
 
 func domainErrorWriteOption(culprit Term) *Exception {
-	return DomainError("write_option", culprit, "%s is not a write option.", culprit)
+	return DomainError("write_option", culprit)
 }
 
 func domainErrorOrder(culprit Term) *Exception {
-	return DomainError("order", culprit, "%s is neither <, =, nor >.", culprit)
+	return DomainError("order", culprit)
 }
 
 // DomainError creates a new domain error exception.
-func DomainError(validDomain Atom, culprit Term, format string, args ...interface{}) *Exception {
+func DomainError(validDomain Atom, culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -173,26 +173,26 @@ func DomainError(validDomain Atom, culprit Term, format string, args ...interfac
 					Functor: "domain_error",
 					Args:    []Term{validDomain, culprit},
 				},
-				Atom(fmt.Sprintf(format, args...)),
+				Atom(fmt.Sprintf("Invalid value for %s.", validDomain)),
 			},
 		},
 	}
 }
 
 func existenceErrorProcedure(culprit Term) *Exception {
-	return ExistenceError("procedure", culprit, "procedure %s is not defined.", culprit)
+	return ExistenceError("procedure", culprit)
 }
 
 func existenceErrorSourceSink(culprit Term) *Exception {
-	return ExistenceError("source_sink", culprit, "file %s doesn't exist.", culprit)
+	return ExistenceError("source_sink", culprit)
 }
 
 func existenceErrorStream(culprit Term) *Exception {
-	return ExistenceError("stream", culprit, "stream %s doesn't exist.", culprit)
+	return ExistenceError("stream", culprit)
 }
 
 // ExistenceError creates a new existence error exception.
-func ExistenceError(objectType Atom, culprit Term, format string, args ...interface{}) *Exception {
+func ExistenceError(objectType Atom, culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -201,7 +201,7 @@ func ExistenceError(objectType Atom, culprit Term, format string, args ...interf
 					Functor: "existence_error",
 					Args:    []Term{objectType, culprit},
 				},
-				Atom(fmt.Sprintf(format, args...)),
+				Atom(fmt.Sprintf("Unknown %s.", objectType)),
 			},
 		},
 	}
