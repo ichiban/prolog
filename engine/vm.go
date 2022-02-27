@@ -100,6 +100,30 @@ func (vm *VM) Register5(name string, p func(Term, Term, Term, Term, Term, func(*
 	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 5}] = predicate5(p)
 }
 
+// Register6 registers a predicate of arity 6.
+func (vm *VM) Register6(name string, p func(Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
+	}
+	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 6}] = predicate6(p)
+}
+
+// Register7 registers a predicate of arity 7.
+func (vm *VM) Register7(name string, p func(Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
+	}
+	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 7}] = predicate7(p)
+}
+
+// Register8 registers a predicate of arity 8.
+func (vm *VM) Register8(name string, p func(Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
+	}
+	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 8}] = predicate8(p)
+}
+
 type unknownAction int
 
 const (
@@ -405,6 +429,36 @@ func (p predicate5) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *P
 	}
 
 	return p(args[0], args[1], args[2], args[3], args[4], k, env)
+}
+
+type predicate6 func(Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+
+func (p predicate6) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+	if len(args) != 6 {
+		return Error(&wrongNumberOfArgumentsError{expected: 6, actual: args})
+	}
+
+	return p(args[0], args[1], args[2], args[3], args[4], args[5], k, env)
+}
+
+type predicate7 func(Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+
+func (p predicate7) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+	if len(args) != 7 {
+		return Error(&wrongNumberOfArgumentsError{expected: 7, actual: args})
+	}
+
+	return p(args[0], args[1], args[2], args[3], args[4], args[5], args[6], k, env)
+}
+
+type predicate8 func(Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+
+func (p predicate8) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+	if len(args) != 8 {
+		return Error(&wrongNumberOfArgumentsError{expected: 8, actual: args})
+	}
+
+	return p(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
 }
 
 // Success is a continuation that leads to true.

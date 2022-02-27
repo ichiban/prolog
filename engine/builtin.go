@@ -147,6 +147,69 @@ func (state *State) Call(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 	}
 }
 
+// Call1 succeeds if closure with an additional argument succeeds.
+func (state *State) Call1(closure, arg1 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1)...), k, env)
+}
+
+// Call2 succeeds if closure with 2 additional arguments succeeds.
+func (state *State) Call2(closure, arg1, arg2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2)...), k, env)
+}
+
+// Call3 succeeds if closure with 3 additional arguments succeeds.
+func (state *State) Call3(closure, arg1, arg2, arg3 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3)...), k, env)
+}
+
+// Call4 succeeds if closure with 4 additional arguments succeeds.
+func (state *State) Call4(closure, arg1, arg2, arg3, arg4 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4)...), k, env)
+}
+
+// Call5 succeeds if closure with 5 additional arguments succeeds.
+func (state *State) Call5(closure, arg1, arg2, arg3, arg4, arg5 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5)...), k, env)
+}
+
+// Call6 succeeds if closure with 6 additional arguments succeeds.
+func (state *State) Call6(closure, arg1, arg2, arg3, arg4, arg5, arg6 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6)...), k, env)
+}
+
+// Call7 succeeds if closure with 7 additional arguments succeeds.
+func (state *State) Call7(closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, args, err := piArgs(closure, env)
+	if err != nil {
+		return Error(err)
+	}
+	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7)...), k, env)
+}
+
 // Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
 func Unify(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	env, ok := t1.Unify(t2, false, env)
