@@ -244,6 +244,12 @@ nth(N, [_|Rest], Elem) :-
   M is N - 1,
   nth(M, Rest, Elem).
 
+:- built_in(maplist/2).
+maplist(_Cont, []).
+maplist(Cont, [E|Es]) :-
+   call(Cont, E),
+   maplist(Cont, Es).
+
 :- built_in('.'/2).
 [H|T] :- consult([H|T]).
 

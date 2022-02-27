@@ -267,6 +267,188 @@ func TestState_Call(t *testing.T) {
 	})
 }
 
+func TestState_Call1(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 1}: predicate1(func(_ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call1(Atom("p"), Atom("a"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call1(Variable("P"), Atom("a"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call1(Integer(3), Atom("a"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call2(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call2(Atom("p"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call2(Variable("P"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call2(Integer(3), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call3(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call3(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call3(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call3(Integer(3), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call4(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call4(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call4(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call4(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call5(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call5(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call5(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call5(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call6(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call6(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call6(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call6(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
+func TestState_Call7(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			{Name: "p", Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				return k(env)
+			}),
+		}}}
+
+		ok, err := state.Call7(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("closure is a variable", func(t *testing.T) {
+		var state State
+		_, err := state.Call7(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
+		var state State
+		_, err := state.Call7(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
+		assert.Equal(t, typeErrorCallable(Integer(3)), err)
+	})
+}
+
 func TestUnify(t *testing.T) {
 	t.Run("unifiable", func(t *testing.T) {
 		x := Variable("X")
