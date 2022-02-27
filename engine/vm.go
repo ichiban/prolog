@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type bytecode []instruction
@@ -426,18 +427,18 @@ type ProcedureIndicator struct {
 func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 	switch p := env.Resolve(pi).(type) {
 	case Variable:
-		return ProcedureIndicator{}, InstantiationError(pi)
+		return ProcedureIndicator{}, ErrInstantiation
 	case *Compound:
 		if p.Functor != "/" || len(p.Args) != 2 {
 			return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
 		}
 		switch f := env.Resolve(p.Args[0]).(type) {
 		case Variable:
-			return ProcedureIndicator{}, InstantiationError(pi)
+			return ProcedureIndicator{}, ErrInstantiation
 		case Atom:
 			switch a := env.Resolve(p.Args[1]).(type) {
 			case Variable:
-				return ProcedureIndicator{}, InstantiationError(pi)
+				return ProcedureIndicator{}, ErrInstantiation
 			case Integer:
 				pi := ProcedureIndicator{Name: f, Arity: a}
 				return pi, nil
@@ -453,7 +454,10 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 }
 
 func (p ProcedureIndicator) String() string {
-	return fmt.Sprintf("%s/%d", p.Name, p.Arity)
+	var sb strings.Builder
+	_ = Write(&sb, p.Name, nil, WithQuoted(true))
+	_, _ = fmt.Fprintf(&sb, "/%d", p.Arity)
+	return sb.String()
 }
 
 // Term returns p as term.
@@ -478,7 +482,7 @@ func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
 func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return ProcedureIndicator{}, nil, InstantiationError(t)
+		return ProcedureIndicator{}, nil, ErrInstantiation
 	case Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
 	case *Compound:

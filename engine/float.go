@@ -8,12 +8,6 @@ import (
 // Float is a prolog floating-point number.
 type Float float64
 
-func (f Float) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, f, nil)
-	return sb.String()
-}
-
 // Unify unifies the float with t.
 func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {

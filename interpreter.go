@@ -54,6 +54,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3("op", i.Op)
 	i.Register3("compare", engine.Compare)
 	i.Register2("sort", engine.Sort)
+	i.Register2("keysort", engine.KeySort)
 	i.Register3("current_op", i.CurrentOp)
 	i.Register1("current_input", i.CurrentInput)
 	i.Register1("current_output", i.CurrentOutput)
@@ -222,7 +223,7 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 	switch f := env.Resolve(files).(type) {
 	case engine.Variable:
-		return engine.Error(engine.InstantiationError(files))
+		return engine.Error(engine.ErrInstantiation)
 	case *engine.Compound:
 		if f.Functor == "." && len(f.Args) == 2 {
 			if err := engine.EachList(f, func(elem engine.Term) error {
@@ -261,6 +262,6 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 		}
 		return engine.DomainError("source_sink", file, "%s does not exist.", file)
 	default:
-		return engine.TypeError("atom", file, "%s is not an atom.", file)
+		return engine.TypeError("atom", file)
 	}
 }

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -10,80 +11,84 @@ type Exception struct {
 }
 
 func (e *Exception) Error() string {
-	return e.Term.String()
+	var buf bytes.Buffer
+	_ = Write(&buf, e.Term, nil, WithQuoted(true))
+	return buf.String()
 }
 
-// InstantiationError creates a new instantiation error exception.
-func InstantiationError(culprit Term) *Exception {
-	return &Exception{
-		Term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				Atom("instantiation_error"),
-				Atom(fmt.Sprintf("%s is not instantiated.", culprit)),
-			},
+// ErrInstantiation is an instantiation error exception.
+var ErrInstantiation = &Exception{
+	Term: &Compound{
+		Functor: "error",
+		Args: []Term{
+			Atom("instantiation_error"),
+			Atom("Arguments are not sufficiently instantiated."),
 		},
-	}
+	},
 }
 
 func typeErrorAtom(culprit Term) *Exception {
-	return TypeError("atom", culprit, "%s is not an atom.", culprit)
+	return TypeError("atom", culprit)
 }
 
 func typeErrorByte(culprit Term) *Exception {
-	return TypeError("byte", culprit, "%s is not a byte.", culprit)
+	return TypeError("byte", culprit)
 }
 
 func typeErrorCallable(culprit Term) *Exception {
-	return TypeError("callable", culprit, "%s is not callable.", culprit)
+	return TypeError("callable", culprit)
 }
 
 func typeErrorCharacter(culprit Term) *Exception {
-	return TypeError("character", culprit, "%s is not a character.", culprit)
+	return TypeError("character", culprit)
 }
 
 func typeErrorInByte(culprit Term) *Exception {
-	return TypeError("in_byte", culprit, "%s is not a byte.", culprit)
+	return TypeError("in_byte", culprit)
 }
 
 func typeErrorInCharacter(culprit Term) *Exception {
-	return TypeError("in_character", culprit, "%s is not a character.", culprit)
+	return TypeError("in_character", culprit)
 }
 
 func typeErrorEvaluable(culprit Term) *Exception {
-	return TypeError("evaluable", culprit, "%s is not evaluable.", culprit)
+	return TypeError("evaluable", culprit)
 }
 
 func typeErrorInteger(culprit Term) *Exception {
-	return TypeError("integer", culprit, "%s is not an integer.", culprit)
+	return TypeError("integer", culprit)
 }
 
 func typeErrorList(culprit Term) *Exception {
-	return TypeError("list", culprit, "%s is not a list.", culprit)
+	return TypeError("list", culprit)
 }
 
 func typeErrorNumber(culprit Term) *Exception {
-	return TypeError("number", culprit, "%s is not a number.", culprit)
+	return TypeError("number", culprit)
 }
 
 func typeErrorPredicateIndicator(culprit Term) *Exception {
-	return TypeError("predicate_indicator", culprit, "%s is not a predicate indicator.", culprit)
+	return TypeError("predicate_indicator", culprit)
 }
 
 func typeErrorVariable(culprit Term) *Exception {
-	return TypeError("variable", culprit, "%s is not a variable.", culprit)
+	return TypeError("variable", culprit)
 }
 
 func typeErrorCompound(culprit Term) *Exception {
-	return TypeError("compound", culprit, "%s is not a compound.", culprit)
+	return TypeError("compound", culprit)
 }
 
 func typeErrorAtomic(culprit Term) *Exception {
-	return TypeError("atomic", culprit, "%s is not atomic.", culprit)
+	return TypeError("atomic", culprit)
+}
+
+func typeErrorPair(culprit Term) *Exception {
+	return TypeError("pair", culprit)
 }
 
 // TypeError creates a new type error exception.
-func TypeError(validType Atom, culprit Term, format string, args ...interface{}) *Exception {
+func TypeError(validType Atom, culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -92,7 +97,7 @@ func TypeError(validType Atom, culprit Term, format string, args ...interface{})
 					Functor: "type_error",
 					Args:    []Term{validType, culprit},
 				},
-				Atom(fmt.Sprintf(format, args...)),
+				Atom(fmt.Sprintf("'%s' expected, found '%T'.", validType, culprit)),
 			},
 		},
 	}
@@ -203,43 +208,43 @@ func ExistenceError(objectType Atom, culprit Term, format string, args ...interf
 }
 
 func permissionErrorModifyStaticProcedure(culprit Term) *Exception {
-	return PermissionError("modify", "static_procedure", culprit, "%s is static.", culprit)
+	return PermissionError("modify", "static_procedure", culprit)
 }
 
 func permissionErrorAccessPrivateProcedure(culprit Term) *Exception {
-	return PermissionError("access", "private_procedure", culprit, "%s is private.", culprit)
+	return PermissionError("access", "private_procedure", culprit)
 }
 
 func permissionErrorOutputStream(culprit Term) *Exception {
-	return PermissionError("output", "stream", culprit, "%s is not an output stream.", culprit)
+	return PermissionError("output", "stream", culprit)
 }
 
 func permissionErrorOutputBinaryStream(culprit Term) *Exception {
-	return PermissionError("output", "binary_stream", culprit, "%s is a binary stream.", culprit)
+	return PermissionError("output", "binary_stream", culprit)
 }
 
 func permissionErrorOutputTextStream(culprit Term) *Exception {
-	return PermissionError("output", "text_stream", culprit, "%s is a text stream.", culprit)
+	return PermissionError("output", "text_stream", culprit)
 }
 
 func permissionErrorInputStream(culprit Term) *Exception {
-	return PermissionError("input", "stream", culprit, "%s is not an input stream.", culprit)
+	return PermissionError("input", "stream", culprit)
 }
 
 func permissionErrorInputBinaryStream(culprit Term) *Exception {
-	return PermissionError("input", "binary_stream", culprit, "%s is a binary stream.", culprit)
+	return PermissionError("input", "binary_stream", culprit)
 }
 
 func permissionErrorInputTextStream(culprit Term) *Exception {
-	return PermissionError("input", "text_stream", culprit, "%s is a text stream.", culprit)
+	return PermissionError("input", "text_stream", culprit)
 }
 
 func permissionErrorInputPastEndOfStream(culprit Term) *Exception {
-	return PermissionError("input", "past_end_of_stream", culprit, "%s has past end of stream.", culprit)
+	return PermissionError("input", "past_end_of_stream", culprit)
 }
 
 // PermissionError creates a new permission error exception.
-func PermissionError(operation, permissionType Atom, culprit Term, format string, args ...interface{}) *Exception {
+func PermissionError(operation, permissionType Atom, culprit Term) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -248,13 +253,13 @@ func PermissionError(operation, permissionType Atom, culprit Term, format string
 					Functor: "permission_error",
 					Args:    []Term{operation, permissionType, culprit},
 				},
-				Atom(fmt.Sprintf(format, args...)),
+				Atom(fmt.Sprintf("Operation %s not allowed for %s.", operation, permissionType)),
 			},
 		},
 	}
 }
 
-func representationError(limit, info Term) *Exception {
+func representationError(limit Atom) *Exception {
 	return &Exception{
 		Term: &Compound{
 			Functor: "error",
@@ -263,7 +268,7 @@ func representationError(limit, info Term) *Exception {
 					Functor: "representation_error",
 					Args:    []Term{limit},
 				},
-				info,
+				Atom(fmt.Sprintf("Invalid %s.", limit)),
 			},
 		},
 	}

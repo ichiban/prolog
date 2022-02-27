@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"strings"
 )
 
 // StreamMode describes what operations you can perform on the stream.
@@ -144,7 +143,7 @@ func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
 		case os.IsNotExist(err):
 			return nil, existenceErrorSourceSink(name)
 		case os.IsPermission(err):
-			return nil, PermissionError("open", "source_sink", name, "%s cannot be opened.", name)
+			return nil, PermissionError("open", "source_sink", name)
 		default:
 			return nil, SystemError(err)
 		}
@@ -158,12 +157,6 @@ var closeFile = io.Closer.Close
 // Close closes the underlying file of the stream.
 func (s *Stream) Close() error {
 	return closeFile(s.file)
-}
-
-func (s *Stream) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, s, nil)
-	return sb.String()
 }
 
 // Unify unifies the stream with t.

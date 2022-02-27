@@ -3,19 +3,12 @@ package engine
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // Compound is a prolog compound.
 type Compound struct {
 	Functor Atom
 	Args    []Term
-}
-
-func (c *Compound) String() string {
-	var sb strings.Builder
-	_ = Write(&sb, c, nil, WithQuoted(true))
-	return sb.String()
 }
 
 // Unify unifies the compound with t.
@@ -300,11 +293,10 @@ func (e *Env) Set(ts ...Term) Term {
 
 // EachList iterates over list.
 func EachList(list Term, f func(elem Term) error, env *Env) error {
-	whole := list
 	for {
 		switch l := env.Resolve(list).(type) {
 		case Variable:
-			return InstantiationError(whole)
+			return ErrInstantiation
 		case Atom:
 			if l != "[]" {
 				return typeErrorList(l)
@@ -389,4 +381,11 @@ func Each(any Term, f func(elem Term) error, env *Env) error {
 		return EachList(any, f, env)
 	}
 	return EachSeq(any, ",", f, env)
+}
+
+func Pair(k, v Term) Term {
+	return &Compound{
+		Functor: "-",
+		Args:    []Term{k, v},
+	}
 }

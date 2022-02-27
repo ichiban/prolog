@@ -89,7 +89,7 @@ func TestCompound_Unparse(t *testing.T) {
 			var ret []Token
 			List(Atom("a"), Atom("b"), Atom("c")).Unparse(func(token Token) {
 				ret = append(ret, token)
-			}, nil)
+			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
 				{Kind: TokenBracketL, Val: "["},
 				{Kind: TokenIdent, Val: "a"},
@@ -495,7 +495,7 @@ func TestEnv_Set(t *testing.T) {
 func TestEachList(t *testing.T) {
 	t.Run("variable", func(t *testing.T) {
 		var ret []Term
-		assert.Equal(t, InstantiationError(Variable("X")), EachList(Variable("X"), func(elem Term) error {
+		assert.Equal(t, ErrInstantiation, EachList(Variable("X"), func(elem Term) error {
 			ret = append(ret, elem)
 			return nil
 		}, nil))
