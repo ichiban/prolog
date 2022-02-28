@@ -2220,14 +2220,14 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 	}
 }
 
-// FunctionSet is a set of unary/binary functions.
-type FunctionSet struct {
+// EvaluableFunctors is a set of unary/binary functions.
+type EvaluableFunctors struct {
 	Unary  map[Atom]func(x Term, env *Env) (Term, error)
 	Binary map[Atom]func(x, y Term, env *Env) (Term, error)
 }
 
 // Is evaluates expression and unifies the result with result.
-func (fs FunctionSet) Is(result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) Is(result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
 	v, err := fs.eval(expression, env)
 	if err != nil {
 		return Error(err)
@@ -2238,7 +2238,7 @@ func (fs FunctionSet) Is(result, expression Term, k func(*Env) *Promise, env *En
 }
 
 // Equal succeeds iff lhs equals to rhs.
-func (fs FunctionSet) Equal(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) Equal(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i == j
 	}, func(f Float, g Float) bool {
@@ -2247,7 +2247,7 @@ func (fs FunctionSet) Equal(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Pro
 }
 
 // NotEqual succeeds iff lhs doesn't equal to rhs.
-func (fs FunctionSet) NotEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) NotEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i != j
 	}, func(f Float, g Float) bool {
@@ -2256,7 +2256,7 @@ func (fs FunctionSet) NotEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *
 }
 
 // LessThan succeeds iff lhs is less than rhs.
-func (fs FunctionSet) LessThan(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) LessThan(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i < j
 	}, func(f Float, g Float) bool {
@@ -2265,7 +2265,7 @@ func (fs FunctionSet) LessThan(lhs, rhs Term, k func(*Env) *Promise, env *Env) *
 }
 
 // GreaterThan succeeds iff lhs is greater than rhs.
-func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) GreaterThan(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i > j
 	}, func(f Float, g Float) bool {
@@ -2274,7 +2274,7 @@ func (fs FunctionSet) GreaterThan(lhs, rhs Term, k func(*Env) *Promise, env *Env
 }
 
 // LessThanOrEqual succeeds iff lhs is less than or equal to rhs.
-func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) LessThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i <= j
 	}, func(f Float, g Float) bool {
@@ -2283,7 +2283,7 @@ func (fs FunctionSet) LessThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, env 
 }
 
 // GreaterThanOrEqual succeeds iff lhs is greater than or equal to rhs.
-func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
+func (fs EvaluableFunctors) GreaterThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return fs.compare(lhs, rhs, k, func(i Integer, j Integer) bool {
 		return i >= j
 	}, func(f Float, g Float) bool {
@@ -2291,7 +2291,7 @@ func (fs FunctionSet) GreaterThanOrEqual(lhs, rhs Term, k func(*Env) *Promise, e
 	}, env)
 }
 
-func (fs FunctionSet) compare(lhs, rhs Term, k func(*Env) *Promise, pi func(Integer, Integer) bool, pf func(Float, Float) bool, env *Env) *Promise {
+func (fs EvaluableFunctors) compare(lhs, rhs Term, k func(*Env) *Promise, pi func(Integer, Integer) bool, pf func(Float, Float) bool, env *Env) *Promise {
 	l, err := fs.eval(lhs, env)
 	if err != nil {
 		return Error(err)
@@ -2338,7 +2338,7 @@ func (fs FunctionSet) compare(lhs, rhs Term, k func(*Env) *Promise, pi func(Inte
 	}
 }
 
-func (fs FunctionSet) eval(expression Term, env *Env) (_ Term, err error) {
+func (fs EvaluableFunctors) eval(expression Term, env *Env) (_ Term, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if e, _ := r.(error); e.Error() == "runtime error: integer divide by zero" {
@@ -2402,38 +2402,38 @@ func (fs FunctionSet) eval(expression Term, env *Env) (_ Term, err error) {
 	return nil, typeErrorEvaluable(expression)
 }
 
-// DefaultFunctionSet is a FunctionSet with builtin functions.
-var DefaultFunctionSet = FunctionSet{
+// DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
+var DefaultEvaluableFunctors = EvaluableFunctors{
 	Unary: map[Atom]func(Term, *Env) (Term, error){
-		"-":        unaryNumber(func(i int64) int64 { return -1 * i }, func(n float64) float64 { return -1 * n }),
-		"abs":      unaryFloat(math.Abs),
-		"atan":     unaryFloat(math.Atan),
-		"ceiling":  unaryFloat(math.Ceil),
-		"cos":      unaryFloat(math.Cos),
-		"exp":      unaryFloat(math.Exp),
-		"sqrt":     unaryFloat(math.Sqrt),
-		"sign":     unaryNumber(sgn, sgnf),
-		"float":    unaryFloat(func(n float64) float64 { return n }),
-		"floor":    unaryFloat(math.Floor),
-		"log":      unaryFloat(math.Log),
-		"sin":      unaryFloat(math.Sin),
-		"truncate": unaryFloat(math.Trunc),
-		"round":    unaryFloat(math.Round),
-		"\\":       unaryInteger(func(i int64) int64 { return ^i }),
+		`-`:        unaryNumber(func(i int64) int64 { return -1 * i }, func(n float64) float64 { return -1 * n }),
+		`abs`:      unaryFloat(math.Abs),
+		`atan`:     unaryFloat(math.Atan),
+		`ceiling`:  unaryFloat(math.Ceil),
+		`cos`:      unaryFloat(math.Cos),
+		`exp`:      unaryFloat(math.Exp),
+		`sqrt`:     unaryFloat(math.Sqrt),
+		`sign`:     unaryNumber(sgn, sgnf),
+		`float`:    unaryFloat(func(n float64) float64 { return n }),
+		`floor`:    unaryFloat(math.Floor),
+		`log`:      unaryFloat(math.Log),
+		`sin`:      unaryFloat(math.Sin),
+		`truncate`: unaryFloat(math.Trunc),
+		`round`:    unaryFloat(math.Round),
+		`\`:        unaryInteger(func(i int64) int64 { return ^i }),
 	},
 	Binary: map[Atom]func(Term, Term, *Env) (Term, error){
-		"+":   binaryNumber(func(i, j int64) int64 { return i + j }, func(n, m float64) float64 { return n + m }),
-		"-":   binaryNumber(func(i, j int64) int64 { return i - j }, func(n, m float64) float64 { return n - m }),
-		"*":   binaryNumber(func(i, j int64) int64 { return i * j }, func(n, m float64) float64 { return n * m }),
-		"/":   binaryFloat(func(n float64, m float64) float64 { return n / m }),
-		"//":  binaryInteger(func(i, j int64) int64 { return i / j }),
-		"rem": binaryInteger(func(i, j int64) int64 { return i % j }),
-		"mod": binaryInteger(func(i, j int64) int64 { return (i%j + j) % j }),
-		"**":  binaryFloat(math.Pow),
-		">>":  binaryInteger(func(i, j int64) int64 { return i >> j }),
-		"<<":  binaryInteger(func(i, j int64) int64 { return i << j }),
-		"/\\": binaryInteger(func(i, j int64) int64 { return i & j }),
-		"\\/": binaryInteger(func(i, j int64) int64 { return i | j }),
+		`+`:   binaryNumber(func(i, j int64) int64 { return i + j }, func(n, m float64) float64 { return n + m }),
+		`-`:   binaryNumber(func(i, j int64) int64 { return i - j }, func(n, m float64) float64 { return n - m }),
+		`*`:   binaryNumber(func(i, j int64) int64 { return i * j }, func(n, m float64) float64 { return n * m }),
+		`/`:   binaryFloat(func(n float64, m float64) float64 { return n / m }),
+		`//`:  binaryInteger(func(i, j int64) int64 { return i / j }),
+		`rem`: binaryInteger(func(i, j int64) int64 { return i % j }),
+		`mod`: binaryInteger(func(i, j int64) int64 { return (i%j + j) % j }),
+		`**`:  binaryFloat(math.Pow),
+		`>>`:  binaryInteger(func(i, j int64) int64 { return i >> j }),
+		`<<`:  binaryInteger(func(i, j int64) int64 { return i << j }),
+		`/\`:  binaryInteger(func(i, j int64) int64 { return i & j }),
+		`\/`:  binaryInteger(func(i, j int64) int64 { return i | j }),
 	},
 }
 
