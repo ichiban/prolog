@@ -2405,6 +2405,7 @@ func (fs EvaluableFunctors) eval(expression Term, env *Env) (_ Term, err error) 
 // DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
 var DefaultEvaluableFunctors = EvaluableFunctors{
 	Unary: map[Atom]func(Term, *Env) (Term, error){
+		`+`:        unaryNumber(func(i int64) int64 { return i }, func(n float64) float64 { return n }),
 		`-`:        unaryNumber(func(i int64) int64 { return -1 * i }, func(n float64) float64 { return -1 * n }),
 		`abs`:      unaryFloat(math.Abs),
 		`atan`:     unaryFloat(math.Atan),

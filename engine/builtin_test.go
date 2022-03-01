@@ -6044,7 +6044,17 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 		assert.True(t, ok)
 	})
 
-	t.Run("sign reversal", func(t *testing.T) {
+	t.Run("unary plus", func(t *testing.T) {
+		ok, err := DefaultEvaluableFunctors.Is(Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2)}}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+
+		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "+", Args: []Term{Float(2)}}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("unary minus", func(t *testing.T) {
 		ok, err := DefaultEvaluableFunctors.Is(Integer(-2), &Compound{Functor: "-", Args: []Term{Integer(2)}}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
