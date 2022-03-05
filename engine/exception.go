@@ -59,6 +59,10 @@ func typeErrorInteger(culprit Term) *Exception {
 	return TypeError("integer", culprit)
 }
 
+func typeErrorFloat(culprit Term) *Exception {
+	return TypeError("float", culprit)
+}
+
 func typeErrorList(culprit Term) *Exception {
 	return TypeError("list", culprit)
 }
@@ -276,6 +280,14 @@ func representationError(limit Atom) *Exception {
 
 func evaluationErrorZeroDivisor() *Exception {
 	return evaluationError(Atom("zero_divisor"), Atom("divided by zero."))
+}
+
+func evaluationErrorIntOverflow() *Exception {
+	return evaluationError(Atom("int_overflow"), Atom("overflow."))
+}
+
+func evaluationErrorIntUnderflow() *Exception {
+	return evaluationError(Atom("int_underflow"), Atom("underflow."))
 }
 
 func evaluationError(error, info Term) *Exception {
