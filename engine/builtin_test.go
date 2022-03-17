@@ -756,7 +756,7 @@ func TestFunctor(t *testing.T) {
 
 		t.Run("arity is not an integer", func(t *testing.T) {
 			ok, err := Functor(NewVariable(), Atom("f"), Float(2.0), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Float(2.0)), err)
+			assert.Equal(t, TypeErrorInteger(Float(2.0)), err)
 			assert.False(t, ok)
 		})
 
@@ -825,7 +825,7 @@ func TestArg(t *testing.T) {
 			Functor: "f",
 			Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 		}, Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -1015,7 +1015,7 @@ func TestState_Op(t *testing.T) {
 	t.Run("priority is not an integer", func(t *testing.T) {
 		var state State
 		ok, err := state.Op(Atom("foo"), Atom("xfx"), Atom("+"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
@@ -2821,7 +2821,7 @@ func TestState_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Atom("bar")},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("bar")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("bar")), err)
 		assert.False(t, ok)
 	})
 
@@ -4004,13 +4004,13 @@ func TestCharCode(t *testing.T) {
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		t.Run("char is variable", func(t *testing.T) {
 			ok, err := CharCode(NewVariable(), Atom("foo"), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+			assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("char is a character", func(t *testing.T) {
 			ok, err := CharCode(Atom("a"), Atom("x"), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Atom("x")), err)
+			assert.Equal(t, TypeErrorInteger(Atom("x")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -4209,7 +4209,7 @@ func TestState_PutCode(t *testing.T) {
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		var state State
 		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), Atom("code"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("code")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("code")), err)
 		assert.False(t, ok)
 	})
 
@@ -5279,7 +5279,7 @@ func Test_Halt(t *testing.T) {
 
 	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := Halt(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -5404,7 +5404,7 @@ func TestAtomLength(t *testing.T) {
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := AtomLength(Atom("😀"), Atom("1"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("1")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("1")), err)
 		assert.False(t, ok)
 	})
 
@@ -5567,19 +5567,19 @@ func TestSubAtom(t *testing.T) {
 
 	t.Run("before is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Atom("before"), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("before")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("before")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Variable("Before"), Atom("length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("length")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("length")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Variable("Before"), Variable("Length"), Atom("after"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("after")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("after")), err)
 		assert.False(t, ok)
 	})
 
@@ -5796,7 +5796,7 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberChars(Atom("23.4"), List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
@@ -5884,7 +5884,7 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberCodes(Atom("23.4"), List(Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 

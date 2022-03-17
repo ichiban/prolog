@@ -7,6 +7,8 @@ import (
 // Integer is a prolog integer.
 type Integer int64
 
+func (i Integer) number() {}
+
 // Unify unifies the integer with t.
 func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	switch t := env.Resolve(t).(type) {

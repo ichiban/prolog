@@ -347,7 +347,7 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(typeErrorAtom(name))
 			}
 		default:
-			return Error(typeErrorInteger(arity))
+			return Error(TypeErrorInteger(arity))
 		}
 	case *Compound:
 		pattern := Compound{Args: []Term{name, arity}}
@@ -382,7 +382,7 @@ func Arg(nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Unify(arg, c.Args[int(n)-1], k, env)
 			})
 		default:
-			return Error(typeErrorInteger(n))
+			return Error(TypeErrorInteger(n))
 		}
 	default:
 		return Error(typeErrorCompound(t))
@@ -491,7 +491,7 @@ func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
 func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	p, ok := env.Resolve(priority).(Integer)
 	if !ok {
-		return Error(typeErrorInteger(priority))
+		return Error(TypeErrorInteger(priority))
 	}
 	if p < 0 || p > 1200 {
 		return Error(domainErrorOperatorPriority(priority))
@@ -1019,7 +1019,7 @@ func (state *State) Abolish(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 				delete(state.procedures, key)
 				return k(env)
 			default:
-				return Error(typeErrorInteger(arity))
+				return Error(TypeErrorInteger(arity))
 			}
 		default:
 			return Error(typeErrorAtom(name))
@@ -1379,14 +1379,14 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Unify(ch, Atom(r), k, env)
 			})
 		default:
-			return Error(typeErrorInteger(code))
+			return Error(TypeErrorInteger(code))
 		}
 	case Atom:
 		switch code := env.Resolve(code).(type) {
 		case Variable, Integer:
 			break
 		default:
-			return Error(typeErrorInteger(code))
+			return Error(TypeErrorInteger(code))
 		}
 
 		rs := []rune(ch)
@@ -1468,7 +1468,7 @@ func (state *State) PutCode(streamOrAlias, code Term, k func(*Env) *Promise, env
 
 		return k(env)
 	default:
-		return Error(typeErrorInteger(code))
+		return Error(TypeErrorInteger(code))
 	}
 }
 
@@ -1830,7 +1830,7 @@ func Halt(n Term, k func(*Env) *Promise, env *Env) *Promise {
 		osExit(int(code))
 		return k(env)
 	default:
-		return Error(typeErrorInteger(n))
+		return Error(TypeErrorInteger(n))
 	}
 }
 
@@ -1885,7 +1885,7 @@ func AtomLength(atom, length Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(domainErrorNotLessThanZero(length))
 			}
 		default:
-			return Error(typeErrorInteger(length))
+			return Error(TypeErrorInteger(length))
 		}
 
 		return Delay(func(context.Context) *Promise {
@@ -2003,7 +2003,7 @@ func checkPositiveInteger(n Term, env *Env) error {
 		}
 		return nil
 	default:
-		return typeErrorInteger(n)
+		return TypeErrorInteger(n)
 	}
 }
 
@@ -2095,7 +2095,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		case Variable, Integer, Float:
 			break
 		default:
-			return Error(typeErrorNumber(n))
+			return Error(TypeErrorNumber(n))
 		}
 
 		var sb strings.Builder
@@ -2150,7 +2150,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(chars, List(cs...), k, env)
 		})
 	default:
-		return Error(typeErrorNumber(num))
+		return Error(TypeErrorNumber(num))
 	}
 }
 
@@ -2165,7 +2165,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		case Variable, Integer, Float:
 			break
 		default:
-			return Error(typeErrorNumber(n))
+			return Error(TypeErrorNumber(n))
 		}
 
 		var sb strings.Builder
@@ -2216,7 +2216,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(codes, List(cs...), k, env)
 		})
 	default:
-		return Error(typeErrorNumber(num))
+		return Error(TypeErrorNumber(num))
 	}
 }
 
@@ -2335,7 +2335,7 @@ func (state *State) SetStreamPosition(streamOrAlias, position Term, k func(*Env)
 
 		return k(env)
 	default:
-		return Error(typeErrorInteger(position))
+		return Error(TypeErrorInteger(position))
 	}
 }
 

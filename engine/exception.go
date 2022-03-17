@@ -5,6 +5,34 @@ import (
 	"fmt"
 )
 
+var (
+	// ErrInstantiation is an instantiation error exception.
+	ErrInstantiation = &Exception{
+		Term: &Compound{
+			Functor: "error",
+			Args: []Term{
+				Atom("instantiation_error"),
+				Atom("Arguments are not sufficiently instantiated."),
+			},
+		},
+	}
+
+	// ErrZeroDivisor is an exception that will be raised when an operation divided by zero.
+	ErrZeroDivisor = evaluationError(Atom("zero_divisor"), Atom("Divided by zero."))
+
+	// ErrIntOverflow is an exception that will be raised when an integer overflowed, either positively or negatively.
+	ErrIntOverflow = evaluationError(Atom("int_overflow"), Atom("Integer overflow."))
+
+	// ErrFloatOverflow is an exception that will be raised when a float overflowed, either positively or negatively.
+	ErrFloatOverflow = evaluationError(Atom("float_overflow"), Atom("Float overflow."))
+
+	// ErrUnderflow is an exception that will be raised when a float is too small to be represented by engine.Float.
+	ErrUnderflow = evaluationError(Atom("underflow"), Atom("Underflow."))
+
+	// ErrUndefined is an exception that will be raised when a function value for the arguments is undefined.
+	ErrUndefined = evaluationError(Atom("undefined"), Atom("Undefined."))
+)
+
 // Exception is an error represented by a prolog term.
 type Exception struct {
 	Term Term
@@ -14,17 +42,6 @@ func (e *Exception) Error() string {
 	var buf bytes.Buffer
 	_ = Write(&buf, e.Term, nil, WithQuoted(true))
 	return buf.String()
-}
-
-// ErrInstantiation is an instantiation error exception.
-var ErrInstantiation = &Exception{
-	Term: &Compound{
-		Functor: "error",
-		Args: []Term{
-			Atom("instantiation_error"),
-			Atom("Arguments are not sufficiently instantiated."),
-		},
-	},
 }
 
 func typeErrorAtom(culprit Term) *Exception {
@@ -51,19 +68,19 @@ func typeErrorInCharacter(culprit Term) *Exception {
 	return TypeError("in_character", culprit)
 }
 
-func typeErrorEvaluable(culprit Term) *Exception {
-	return TypeError("evaluable", culprit)
+func TypeErrorInteger(culprit Term) *Exception {
+	return TypeError("integer", culprit)
 }
 
-func typeErrorInteger(culprit Term) *Exception {
-	return TypeError("integer", culprit)
+func TypeErrorFloat(culprit Term) *Exception {
+	return TypeError("float", culprit)
 }
 
 func typeErrorList(culprit Term) *Exception {
 	return TypeError("list", culprit)
 }
 
-func typeErrorNumber(culprit Term) *Exception {
+func TypeErrorNumber(culprit Term) *Exception {
 	return TypeError("number", culprit)
 }
 
@@ -85,6 +102,10 @@ func typeErrorAtomic(culprit Term) *Exception {
 
 func typeErrorPair(culprit Term) *Exception {
 	return TypeError("pair", culprit)
+}
+
+func typeErrorEvaluable(culprit Term) *Exception {
+	return TypeError("evaluable", culprit)
 }
 
 // TypeError creates a new type error exception.
@@ -274,25 +295,6 @@ func representationError(limit Atom) *Exception {
 	}
 }
 
-func evaluationErrorZeroDivisor() *Exception {
-	return evaluationError(Atom("zero_divisor"), Atom("divided by zero."))
-}
-
-func evaluationError(error, info Term) *Exception {
-	return &Exception{
-		Term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "evaluation_error",
-					Args:    []Term{error},
-				},
-				info,
-			},
-		},
-	}
-}
-
 func resourceError(resource, info Term) *Exception {
 	return &Exception{
 		Term: &Compound{
@@ -347,6 +349,21 @@ func SystemError(err error) *Exception {
 			Args: []Term{
 				Atom("system_error"),
 				Atom(err.Error()),
+			},
+		},
+	}
+}
+
+func evaluationError(error, info Term) *Exception {
+	return &Exception{
+		Term: &Compound{
+			Functor: "error",
+			Args: []Term{
+				&Compound{
+					Functor: "evaluation_error",
+					Args:    []Term{error},
+				},
+				info,
 			},
 		},
 	}
