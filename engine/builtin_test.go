@@ -756,7 +756,7 @@ func TestFunctor(t *testing.T) {
 
 		t.Run("arity is not an integer", func(t *testing.T) {
 			ok, err := Functor(NewVariable(), Atom("f"), Float(2.0), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Float(2.0)), err)
+			assert.Equal(t, TypeErrorInteger(Float(2.0)), err)
 			assert.False(t, ok)
 		})
 
@@ -825,7 +825,7 @@ func TestArg(t *testing.T) {
 			Functor: "f",
 			Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 		}, Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -1015,7 +1015,7 @@ func TestState_Op(t *testing.T) {
 	t.Run("priority is not an integer", func(t *testing.T) {
 		var state State
 		ok, err := state.Op(Atom("foo"), Atom("xfx"), Atom("+"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 
@@ -2821,7 +2821,7 @@ func TestState_Abolish(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Atom("bar")},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("bar")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("bar")), err)
 		assert.False(t, ok)
 	})
 
@@ -4004,13 +4004,13 @@ func TestCharCode(t *testing.T) {
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		t.Run("char is variable", func(t *testing.T) {
 			ok, err := CharCode(NewVariable(), Atom("foo"), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+			assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("char is a character", func(t *testing.T) {
 			ok, err := CharCode(Atom("a"), Atom("x"), Success, nil).Force(context.Background())
-			assert.Equal(t, typeErrorInteger(Atom("x")), err)
+			assert.Equal(t, TypeErrorInteger(Atom("x")), err)
 			assert.False(t, ok)
 		})
 	})
@@ -4209,7 +4209,7 @@ func TestState_PutCode(t *testing.T) {
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		var state State
 		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), Atom("code"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("code")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("code")), err)
 		assert.False(t, ok)
 	})
 
@@ -5279,7 +5279,7 @@ func Test_Halt(t *testing.T) {
 
 	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := Halt(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("foo")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 		assert.False(t, ok)
 	})
 }
@@ -5404,7 +5404,7 @@ func TestAtomLength(t *testing.T) {
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := AtomLength(Atom("😀"), Atom("1"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("1")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("1")), err)
 		assert.False(t, ok)
 	})
 
@@ -5567,19 +5567,19 @@ func TestSubAtom(t *testing.T) {
 
 	t.Run("before is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Atom("before"), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("before")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("before")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Variable("Before"), Atom("length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("length")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("length")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is neither a variable nor an integer", func(t *testing.T) {
 		ok, err := SubAtom(Atom("foo"), Variable("Before"), Variable("Length"), Atom("after"), Variable("SubAtom"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Atom("after")), err)
+		assert.Equal(t, TypeErrorInteger(Atom("after")), err)
 		assert.False(t, ok)
 	})
 
@@ -5796,7 +5796,7 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberChars(Atom("23.4"), List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
@@ -5884,7 +5884,7 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
 		ok, err := NumberCodes(Atom("23.4"), List(Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorNumber(Atom("23.4")), err)
+		assert.Equal(t, TypeErrorNumber(Atom("23.4")), err)
 		assert.False(t, ok)
 	})
 
@@ -5905,613 +5905,6 @@ func TestNumberCodes(t *testing.T) {
 		assert.Equal(t, syntaxErrorNotANumber(), err)
 		assert.False(t, ok)
 	})
-}
-
-func TestEvaluableFunctors_Is(t *testing.T) {
-	t.Run("addition", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(3), &Compound{Functor: "+", Args: []Term{Integer(1), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(3), &Compound{Functor: "+", Args: []Term{Integer(1), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(3), &Compound{Functor: "+", Args: []Term{Float(1), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("subtraction", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(1), &Compound{Functor: "-", Args: []Term{Integer(3), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "-", Args: []Term{Integer(3), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "-", Args: []Term{Float(3), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("multiplication", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(6), &Compound{Functor: "*", Args: []Term{Integer(3), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(6), &Compound{Functor: "*", Args: []Term{Integer(3), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(6), &Compound{Functor: "*", Args: []Term{Float(3), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("floating-point division", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "/", Args: []Term{Integer(4), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "/", Args: []Term{Float(4), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("integer division", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(2), &Compound{Functor: "//", Args: []Term{Integer(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "//", Args: []Term{Integer(4), Float(2)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(2)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "//", Args: []Term{Float(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "//", Args: []Term{Integer(4), Integer(0)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, evaluationErrorZeroDivisor(), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("remainder", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(-1), &Compound{Functor: "rem", Args: []Term{Integer(-21), Integer(4)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "rem", Args: []Term{Integer(-21), Float(4)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "rem", Args: []Term{Float(-21), Integer(4)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(-21)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("mod", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(3), &Compound{Functor: "mod", Args: []Term{Integer(-21), Integer(4)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "mod", Args: []Term{Integer(-21), Float(4)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "mod", Args: []Term{Float(-21), Integer(4)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(-21)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("exponential", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(16), &Compound{Functor: "**", Args: []Term{Integer(4), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(16), &Compound{Functor: "**", Args: []Term{Float(4), Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("unary plus", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "+", Args: []Term{Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("unary minus", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(-2), &Compound{Functor: "-", Args: []Term{Integer(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(-2), &Compound{Functor: "-", Args: []Term{Float(2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("absolute value", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Integer(-2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(2), &Compound{Functor: "abs", Args: []Term{Float(-2)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("arctangent", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "atan", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("ceiling", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "ceiling", Args: []Term{Float(0.9)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("cosine", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "cos", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("natural antilogarithm", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "exp", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("square root", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "sqrt", Args: []Term{Float(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("sign", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Integer(1), &Compound{Functor: "sign", Args: []Term{Integer(math.MaxInt64)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Integer(0), &Compound{Functor: "sign", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(-1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Integer(-1), &Compound{Functor: "sign", Args: []Term{Integer(math.MinInt64)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "sign", Args: []Term{Float(math.MaxFloat64)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "sign", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(-1), &Compound{Functor: "sign", Args: []Term{Float(-math.MaxFloat64)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		v := Variable("N")
-		ok, err = DefaultEvaluableFunctors.Is(v, &Compound{Functor: "sign", Args: []Term{Float(math.NaN())}}, func(env *Env) *Promise {
-			assert.True(t, math.IsNaN(float64(env.Resolve(v).(Float))))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("float", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1.0), &Compound{Functor: "float", Args: []Term{Float(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("floor", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "floor", Args: []Term{Float(1.1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("natural logarithm", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "log", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "log", Args: []Term{Float(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("sine", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(0), &Compound{Functor: "sin", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("truncate", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "truncate", Args: []Term{Float(1.1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("round", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "round", Args: []Term{Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(Float(1), &Compound{Functor: "round", Args: []Term{Float(1.1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("bit-shift right", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(2), &Compound{Functor: ">>", Args: []Term{Integer(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: ">>", Args: []Term{Float(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: ">>", Args: []Term{Integer(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(1)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: ">>", Args: []Term{Float(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("bit-shift left", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(8), &Compound{Functor: "<<", Args: []Term{Integer(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "<<", Args: []Term{Float(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "<<", Args: []Term{Integer(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(1)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "<<", Args: []Term{Float(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("bitwise and", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(1), &Compound{Functor: "/\\", Args: []Term{Integer(5), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "/\\", Args: []Term{Float(5), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(5)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "/\\", Args: []Term{Integer(5), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(1)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "/\\", Args: []Term{Float(5), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(5)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("bitwise or", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(5), &Compound{Functor: "\\/", Args: []Term{Integer(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "\\/", Args: []Term{Float(4), Integer(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "\\/", Args: []Term{Integer(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(1)), err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "\\/", Args: []Term{Float(4), Float(1)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(4)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("bitwise complement", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(-1), &Compound{Functor: "\\", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Is(NewVariable(), &Compound{Functor: "\\", Args: []Term{Float(0)}}, Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorInteger(Float(0)), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("expression is a variable", func(t *testing.T) {
-		expression := Variable("Exp")
-
-		ok, err := DefaultEvaluableFunctors.Is(Integer(0), expression, Success, nil).Force(context.Background())
-		assert.Equal(t, ErrInstantiation, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("unknown constant", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Is(Integer(0), Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeErrorEvaluable(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(0)},
-		}), err)
-		assert.False(t, ok)
-	})
-}
-
-func TestEvaluableFunctors_Equal(t *testing.T) {
-	t.Run("same", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Equal(Integer(1), Integer(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Float(1), Integer(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Integer(1), Float(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Float(1), Float(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("different", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.Equal(Integer(1), Integer(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Float(1), Integer(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Integer(1), Float(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.Equal(Float(1), Float(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("lhs is a variable", func(t *testing.T) {
-		lhs := Variable("LHS")
-
-		ok, err := DefaultEvaluableFunctors.Equal(lhs, Integer(1), Success, nil).Force(context.Background())
-		assert.Equal(t, ErrInstantiation, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("rhs is a variable", func(t *testing.T) {
-		rhs := Variable("RHS")
-
-		ok, err := DefaultEvaluableFunctors.Equal(Integer(1), rhs, Success, nil).Force(context.Background())
-		assert.Equal(t, ErrInstantiation, err)
-		assert.False(t, ok)
-	})
-}
-
-func TestEvaluableFunctors_NotEqual(t *testing.T) {
-	t.Run("same", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.NotEqual(Integer(1), Integer(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Float(1), Integer(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Integer(1), Float(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Float(1), Float(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("different", func(t *testing.T) {
-		ok, err := DefaultEvaluableFunctors.NotEqual(Integer(1), Integer(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Float(1), Integer(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Integer(1), Float(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		ok, err = DefaultEvaluableFunctors.NotEqual(Float(1), Float(2), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("lhs is a variable", func(t *testing.T) {
-		lhs := Variable("LHS")
-
-		ok, err := DefaultEvaluableFunctors.NotEqual(lhs, Integer(1), Success, nil).Force(context.Background())
-		assert.Equal(t, ErrInstantiation, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("rhs is a variable", func(t *testing.T) {
-		rhs := Variable("RHS")
-
-		ok, err := DefaultEvaluableFunctors.NotEqual(Integer(1), rhs, Success, nil).Force(context.Background())
-		assert.Equal(t, ErrInstantiation, err)
-		assert.False(t, ok)
-	})
-}
-
-func TestEvaluableFunctors_LessThan(t *testing.T) {
-	ok, err := DefaultEvaluableFunctors.LessThan(Integer(1), Integer(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThan(Float(1), Integer(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThan(Integer(1), Float(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThan(Float(1), Float(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-}
-
-func TestEvaluableFunctors_GreaterThan(t *testing.T) {
-	ok, err := DefaultEvaluableFunctors.GreaterThan(Integer(2), Integer(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThan(Float(2), Integer(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThan(Integer(2), Float(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThan(Float(2), Float(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-}
-
-func TestEvaluableFunctors_LessThanOrEqual(t *testing.T) {
-	ok, err := DefaultEvaluableFunctors.LessThanOrEqual(Integer(1), Integer(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThanOrEqual(Float(1), Integer(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThanOrEqual(Integer(1), Float(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.LessThanOrEqual(Float(1), Float(2), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-}
-
-func TestEvaluableFunctors_GreaterThanOrEqual(t *testing.T) {
-	ok, err := DefaultEvaluableFunctors.GreaterThanOrEqual(Integer(2), Integer(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThanOrEqual(Float(2), Integer(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThanOrEqual(Integer(2), Float(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = DefaultEvaluableFunctors.GreaterThanOrEqual(Float(2), Float(1), Success, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
 }
 
 func TestState_StreamProperty(t *testing.T) {

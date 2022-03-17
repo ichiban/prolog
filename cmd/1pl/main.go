@@ -166,7 +166,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 				}
 				ls[i] = sb.String()
 			}
-			_, _ = fmt.Fprintf(&buf, strings.Join(ls, ",\n"))
+			_, _ = fmt.Fprint(&buf, strings.Join(ls, ",\n"))
 		}
 		if _, err := t.Write(buf.Bytes()); err != nil {
 			return err
