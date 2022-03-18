@@ -45,6 +45,7 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 
 		`div`: IntFloorDiv,
 		`max`: Max,
+		`min`: Min,
 	},
 }
 
