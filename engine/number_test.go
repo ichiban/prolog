@@ -1410,6 +1410,67 @@ func TestIntFloorDiv(t *testing.T) {
 	})
 }
 
+func TestMax(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := Max(Integer(1), Integer(2))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(2), r)
+
+			r, err = Max(Integer(1), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(1), r)
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := Max(Integer(1), Float(2))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(2), r)
+
+			r, err = Max(Integer(1), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(1), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := Max(Integer(1), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("float", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := Max(Float(1), Integer(2))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(2), r)
+
+			r, err = Max(Float(1), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(1), r)
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := Max(Float(1), Float(2))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(2), r)
+
+			r, err = Max(Float(1), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(1), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := Max(Float(1), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := Max(mockNumber{}, Integer(1))
+		assert.Equal(t, ErrUndefined, err)
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
