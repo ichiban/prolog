@@ -44,6 +44,8 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 		`\/`: BitwiseOr,
 
 		`div`: IntFloorDiv,
+		`max`: Max,
+		`min`: Min,
 	},
 }
 
@@ -850,6 +852,44 @@ func Max(x, y Number) (Number, error) {
 			return x, nil
 		case Float:
 			if x < y {
+				return y, nil
+			}
+			return x, nil
+		default:
+			return nil, ErrUndefined
+		}
+	default:
+		return nil, ErrUndefined
+	}
+}
+
+// Min returns the minimum of x or y.
+func Min(x, y Number) (Number, error) {
+	switch x := x.(type) {
+	case Integer:
+		switch y := y.(type) {
+		case Integer:
+			if x > y {
+				return y, nil
+			}
+			return x, nil
+		case Float:
+			if floatItoF(x) > y {
+				return y, nil
+			}
+			return x, nil
+		default:
+			return nil, ErrUndefined
+		}
+	case Float:
+		switch y := y.(type) {
+		case Integer:
+			if x > floatItoF(y) {
+				return y, nil
+			}
+			return x, nil
+		case Float:
+			if x > y {
 				return y, nil
 			}
 			return x, nil
