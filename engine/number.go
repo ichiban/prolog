@@ -27,6 +27,7 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 
 		`+`:    Pos,
 		`asin`: Asin,
+		`acos`: Acos,
 	},
 	Binary: map[Atom]func(Number, Number) (Number, error){
 		`+`:   Add,
@@ -938,6 +939,25 @@ func Asin(x Number) (Number, error) {
 	}
 
 	return Float(math.Asin(vx)), nil
+}
+
+// Acos returns the arc cosine of x.
+func Acos(x Number) (Number, error) {
+	var vx float64
+	switch x := x.(type) {
+	case Integer:
+		vx = float64(x)
+	case Float:
+		vx = float64(x)
+	default:
+		return nil, ErrUndefined
+	}
+
+	if vx > 1 || vx < -1 {
+		return nil, ErrUndefined
+	}
+
+	return Float(math.Acos(vx)), nil
 }
 
 // Comparison
