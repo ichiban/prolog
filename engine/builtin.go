@@ -408,10 +408,11 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var args []Term
-		if err := EachList(cons.Args[1], func(elem Term) error {
-			args = append(args, elem)
-			return nil
-		}, env); err != nil {
+		iter := ListIterator{List: cons.Args[1], Env: env}
+		for iter.Next() {
+			args = append(args, iter.Current())
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 
@@ -725,18 +726,20 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 
 		template = hyphen.Apply(vars.Apply(groupingVariables.terms()...), template)
 		if _, err := state.FindAll(template, body, answers, func(env *Env) *Promise {
-			if err := EachList(answers, func(elem Term) error {
-				answer := elem.(*Compound)
+			iter := ListIterator{List: answers, Env: env}
+		it:
+			for iter.Next() {
+				answer := iter.Current().(*Compound)
 				vars, instance := answer.Args[0], answer.Args[1]
 				for i := range solutions {
 					if solutions[i].vars.Compare(vars, env) == 0 {
 						solutions[i].instances = append(solutions[i].instances, instance)
-						return nil
+						continue it
 					}
 				}
 				solutions = append(solutions, solution{vars: vars, instances: []Term{instance}})
-				return nil
-			}, env); err != nil {
+			}
+			if err := iter.Err(); err != nil {
 				return Error(err)
 			}
 			return Bool(true)
@@ -815,10 +818,11 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 // Sort succeeds if sorted list of elements of list unifies with sorted.
 func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 	var elems []Term
-	if err := EachList(list, func(elem Term) error {
-		elems = append(elems, env.Resolve(elem))
-		return nil
-	}, env); err != nil {
+	iter := ListIterator{List: list, Env: env}
+	for iter.Next() {
+		elems = append(elems, env.Resolve(iter.Current()))
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -840,20 +844,21 @@ func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 // KeySort succeeds if sorted is a sorted list of pairs based on their keys.
 func KeySort(pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 	var elems []Term
-	if err := EachList(pairs, func(elem Term) error {
-		switch e := env.Resolve(elem).(type) {
+	iter := ListIterator{List: pairs, Env: env}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return ErrInstantiation
+			return Error(ErrInstantiation)
 		case *Compound:
 			if e.Functor != "-" || len(e.Args) != 2 {
-				return typeErrorPair(elem)
+				return Error(typeErrorPair(e))
 			}
 			elems = append(elems, e)
-			return nil
 		default:
-			return typeErrorPair(elem)
+			return Error(typeErrorPair(e))
 		}
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -861,19 +866,20 @@ func KeySort(pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 	case Variable:
 		break
 	default:
-		if err := EachList(s, func(elem Term) error {
-			switch e := env.Resolve(elem).(type) {
+		iter := ListIterator{List: s, Env: env}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return nil
+				continue
 			case *Compound:
 				if e.Functor != "-" || len(e.Args) != 2 {
-					return typeErrorPair(elem)
+					return Error(typeErrorPair(e))
 				}
-				return nil
 			default:
-				return typeErrorPair(elem)
+				return Error(typeErrorPair(e))
 			}
-		}, env); err != nil {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 	}
@@ -1122,15 +1128,16 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 	}
 
 	var opts []StreamOption
-	if err := EachList(env.Resolve(options), func(option Term) error {
-		opt, err := streamOption(state, option, env)
+	iter := ListIterator{List: options, Env: env}
+	for iter.Next() {
+		opt, err := streamOption(state, iter.Current(), env)
 		if err != nil {
-			return err
+			return Error(err)
 		}
 
 		opts = append(opts, opt)
-		return nil
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -1210,20 +1217,21 @@ func (state *State) Close(streamOrAlias, options Term, k func(*Env) *Promise, en
 	}
 
 	var force bool
-	if err := EachList(env.Resolve(options), func(option Term) error {
-		switch option := env.Resolve(option).(type) {
+	iter := ListIterator{List: options, Env: env}
+	for iter.Next() {
+		switch option := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return ErrInstantiation
+			return Error(ErrInstantiation)
 		case *Compound:
 			switch option.Functor {
 			case "force":
 				if len(option.Args) != 1 {
-					return domainErrorStreamOption(option)
+					return Error(domainErrorStreamOption(option))
 				}
 
 				switch v := env.Resolve(option.Args[0]).(type) {
 				case Variable:
-					return ErrInstantiation
+					return Error(ErrInstantiation)
 				case Atom:
 					switch v {
 					case "false":
@@ -1231,17 +1239,17 @@ func (state *State) Close(streamOrAlias, options Term, k func(*Env) *Promise, en
 					case "true":
 						force = true
 					default:
-						return domainErrorStreamOption(option)
+						return Error(domainErrorStreamOption(option))
 					}
 				default:
-					return domainErrorStreamOption(option)
+					return Error(domainErrorStreamOption(option))
 				}
 			}
-			return nil
 		default:
-			return domainErrorStreamOption(option)
+			return Error(domainErrorStreamOption(option))
 		}
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -1296,11 +1304,15 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 	}
 
 	var opts []WriteOption
-	if err := EachList(env.Resolve(options), func(option Term) error {
-		opt, err := writeTermOption(state, option, env)
+	iter := ListIterator{List: options, Env: env}
+	for iter.Next() {
+		opt, err := writeTermOption(state, iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
 		opts = append(opts, opt)
-		return err
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -1498,9 +1510,13 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		variables:     NewVariable(),
 		variableNames: NewVariable(),
 	}
-	if err := EachList(env.Resolve(options), func(option Term) error {
-		return readTermOption(&opts, option, env)
-	}, env); err != nil {
+	iter := ListIterator{List: options, Env: env}
+	for iter.Next() {
+		if err := readTermOption(&opts, iter.Current(), env); err != nil {
+			return Error(err)
+		}
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
@@ -2013,22 +2029,23 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
-		if err := EachList(env.Resolve(chars), func(elem Term) error {
-			switch e := env.Resolve(elem).(type) {
+		iter := ListIterator{List: chars, Env: env}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return ErrInstantiation
+				return Error(ErrInstantiation)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return typeErrorCharacter(e)
+					return Error(typeErrorCharacter(e))
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return SystemError(err)
+					return Error(SystemError(err))
 				}
-				return nil
 			default:
-				return typeErrorCharacter(e)
+				return Error(typeErrorCharacter(e))
 			}
-		}, env); err != nil {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
@@ -2054,17 +2071,18 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
-		if err := EachList(env.Resolve(codes), func(elem Term) error {
-			switch e := env.Resolve(elem).(type) {
+		iter := ListIterator{List: codes, Env: env}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return ErrInstantiation
+				return Error(ErrInstantiation)
 			case Integer:
 				_, _ = sb.WriteRune(rune(e))
-				return nil
 			default:
-				return representationError("character_code")
+				return Error(representationError("character_code"))
 			}
-		}, env); err != nil {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 		return Delay(func(context.Context) *Promise {
@@ -2099,22 +2117,23 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var sb strings.Builder
-		if err := EachList(env.Resolve(chars), func(elem Term) error {
-			switch e := env.Resolve(elem).(type) {
+		iter := ListIterator{List: chars, Env: env}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return ErrInstantiation
+				return Error(ErrInstantiation)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return typeErrorCharacter(elem)
+					return Error(typeErrorCharacter(e))
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
-					return SystemError(err)
+					return Error(SystemError(err))
 				}
-				return nil
 			default:
-				return typeErrorCharacter(elem)
+				return Error(typeErrorCharacter(e))
 			}
-		}, env); err != nil {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 
@@ -2169,17 +2188,18 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		var sb strings.Builder
-		if err := EachList(env.Resolve(codes), func(elem Term) error {
-			switch e := env.Resolve(elem).(type) {
+		iter := ListIterator{List: codes, Env: env}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return ErrInstantiation
+				return Error(ErrInstantiation)
 			case Integer:
 				_, _ = sb.WriteRune(rune(e))
-				return nil
 			default:
-				return representationError("character_code")
+				return Error(representationError("character_code"))
 			}
-		}, env); err != nil {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 

@@ -233,9 +233,13 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		return engine.Error(engine.ErrInstantiation)
 	case *engine.Compound:
 		if f.Functor == "." && len(f.Args) == 2 {
-			if err := engine.EachList(f, func(elem engine.Term) error {
-				return i.consultOne(elem, env)
-			}, env); err != nil {
+			iter := engine.ListIterator{List: f, Env: env}
+			for iter.Next() {
+				if err := i.consultOne(iter.Current(), env); err != nil {
+					return engine.Error(err)
+				}
+			}
+			if err := iter.Err(); err != nil {
 				return engine.Error(err)
 			}
 			return k(env)

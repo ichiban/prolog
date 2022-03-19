@@ -65,10 +65,11 @@ func dcgNonTerminal(nonTerminal, list, rest Term, env *Env) (Term, error) {
 
 func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
 	var elems []Term
-	if err := EachList(terminals, func(elem Term) error {
-		elems = append(elems, elem)
-		return nil
-	}, env); err != nil {
+	iter := ListIterator{List: terminals, Env: env}
+	for iter.Next() {
+		elems = append(elems, iter.Current())
+	}
+	if err := iter.Err(); err != nil {
 		return nil, err
 	}
 	return Atom("=").Apply(list, ListRest(rest, elems...)), nil
