@@ -238,12 +238,19 @@ member(X, [_|Xs]) :- member(X, Xs).
 length([], 0).
 length([_|Xs], N) :- length(Xs, L), N is L + 1.
 
-:- built_in(nth/3).
-nth(1, [Elem|_], Elem) :- !.
-nth(N, [_|Rest], Elem) :-
+:- built_in(nth0/3).
+nth0(0, [Elem|_], Elem) :- !.
+nth0(N, [_|Rest], Elem) :-
+  N > 0,
+  M is N - 1,
+  nth0(M, Rest, Elem).
+
+:- built_in(nth1/3).
+nth1(1, [Elem|_], Elem) :- !.
+nth1(N, [_|Rest], Elem) :-
   N > 1,
   M is N - 1,
-  nth(M, Rest, Elem).
+  nth1(M, Rest, Elem).
 
 :- built_in(maplist/2).
 maplist(_Cont, []).
