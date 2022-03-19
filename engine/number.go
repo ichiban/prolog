@@ -54,6 +54,7 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 		`min`:   Min,
 		`^`:     IntegerPower,
 		`atan2`: Atan2,
+		`xor`:   Xor,
 	},
 }
 
@@ -1014,6 +1015,20 @@ func Tan(x Number) (Number, error) {
 	}
 
 	return Float(math.Tan(vx)), nil
+}
+
+func Xor(x, y Number) (Number, error) {
+	vx, ok := x.(Integer)
+	if !ok {
+		return nil, TypeErrorInteger(x)
+	}
+
+	vy, ok := y.(Integer)
+	if !ok {
+		return nil, TypeErrorInteger(y)
+	}
+
+	return vx ^ vy, nil
 }
 
 // Comparison
