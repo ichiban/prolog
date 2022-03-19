@@ -1662,6 +1662,56 @@ func TestAcos(t *testing.T) {
 	})
 }
 
+func TestAtan2(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := Atan2(Integer(0), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(0), r)
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := Atan2(Integer(0), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(0), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := Atan2(Integer(0), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("float", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := Atan2(Float(0), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(0), r)
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := Atan2(Float(0), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(0), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := Atan2(Float(0), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := Atan2(mockNumber{}, Integer(1))
+		assert.Equal(t, ErrUndefined, err)
+	})
+
+	t.Run("x and y both equal to 0", func(t *testing.T) {
+		_, err := Atan2(Integer(0), Integer(0))
+		assert.Equal(t, ErrUndefined, err)
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
