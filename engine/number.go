@@ -28,6 +28,7 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 		`+`:    Pos,
 		`asin`: Asin,
 		`acos`: Acos,
+		`tan`:  Tan,
 	},
 	Binary: map[Atom]func(Number, Number) (Number, error){
 		`+`:   Add,
@@ -988,6 +989,21 @@ func Atan2(y, x Number) (Number, error) {
 	}
 
 	return Float(math.Atan2(vy, vx)), nil
+}
+
+// Tan returns the tangent of x.
+func Tan(x Number) (Number, error) {
+	var vx float64
+	switch x := x.(type) {
+	case Integer:
+		vx = float64(x)
+	case Float:
+		vx = float64(x)
+	default:
+		return nil, ErrUndefined
+	}
+
+	return Float(math.Tan(vx)), nil
 }
 
 // Comparison
