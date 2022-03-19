@@ -45,10 +45,11 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 		`/\`: BitwiseAnd,
 		`\/`: BitwiseOr,
 
-		`div`: IntFloorDiv,
-		`max`: Max,
-		`min`: Min,
-		`^`:   IntegerPower,
+		`div`:   IntFloorDiv,
+		`max`:   Max,
+		`min`:   Min,
+		`^`:     IntegerPower,
+		`atan2`: Atan2,
 	},
 }
 
@@ -958,6 +959,35 @@ func Acos(x Number) (Number, error) {
 	}
 
 	return Float(math.Acos(vx)), nil
+}
+
+// Atan2 returns the arc tangent of y/x.
+func Atan2(y, x Number) (Number, error) {
+	var vy float64
+	switch y := y.(type) {
+	case Integer:
+		vy = float64(y)
+	case Float:
+		vy = float64(y)
+	default:
+		return nil, ErrUndefined
+	}
+
+	var vx float64
+	switch x := x.(type) {
+	case Integer:
+		vx = float64(x)
+	case Float:
+		vx = float64(x)
+	default:
+		return nil, ErrUndefined
+	}
+
+	if vx == 0 && vy == 0 {
+		return nil, ErrUndefined
+	}
+
+	return Float(math.Atan2(vy, vx)), nil
 }
 
 // Comparison
