@@ -1742,6 +1742,26 @@ func TestTan(t *testing.T) {
 	})
 }
 
+func TestXor(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := Xor(Integer(10), Integer(12))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(6), r)
+		})
+
+		t.Run("not an integer", func(t *testing.T) {
+			_, err := Xor(Integer(10), Float(12))
+			assert.Equal(t, TypeErrorInteger(Float(12)), err)
+		})
+	})
+
+	t.Run("not an integer", func(t *testing.T) {
+		_, err := Xor(Float(10), Integer(12))
+		assert.Equal(t, TypeErrorInteger(Float(10)), err)
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
