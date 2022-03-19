@@ -1633,6 +1633,35 @@ func TestAsin(t *testing.T) {
 	})
 }
 
+func TestAcos(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		r, err := Acos(Integer(1))
+		assert.NoError(t, err)
+		assert.Equal(t, Float(0), r)
+	})
+
+	t.Run("float", func(t *testing.T) {
+		r, err := Acos(Float(1))
+		assert.NoError(t, err)
+		assert.Equal(t, Float(0), r)
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := Acos(mockNumber{})
+		assert.Equal(t, ErrUndefined, err)
+	})
+
+	t.Run("greater than 1", func(t *testing.T) {
+		_, err := Acos(Float(1.1))
+		assert.Equal(t, ErrUndefined, err)
+	})
+
+	t.Run("less than -1", func(t *testing.T) {
+		_, err := Acos(Float(-1.1))
+		assert.Equal(t, ErrUndefined, err)
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
