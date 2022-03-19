@@ -4,6 +4,9 @@ import "math"
 
 // DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
 var DefaultEvaluableFunctors = EvaluableFunctors{
+	Constant: map[Atom]Number{
+		`pi`: Float(math.Pi),
+	},
 	Unary: map[Atom]func(Number) (Number, error){
 		`-`:                     Neg,
 		`abs`:                   Abs,
@@ -62,6 +65,9 @@ type Number interface {
 
 // EvaluableFunctors is a set of unary/binary functions.
 type EvaluableFunctors struct {
+	// Constant is a set of constants.
+	Constant map[Atom]Number
+
 	// Unary is a set of functions of arity 1.
 	Unary map[Atom]func(x Number) (Number, error)
 
@@ -292,11 +298,15 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 	switch t := env.Resolve(expression).(type) {
 	case Variable:
 		return nil, ErrInstantiation
-	case Atom: // TODO: constants?
-		return nil, typeErrorEvaluable(&Compound{
-			Functor: "/",
-			Args:    []Term{t, Integer(0)},
-		})
+	case Atom:
+		c, ok := e.Constant[t]
+		if !ok {
+			return nil, typeErrorEvaluable(&Compound{
+				Functor: "/",
+				Args:    []Term{t, Integer(0)},
+			})
+		}
+		return c, nil
 	case Number:
 		return t, nil
 	case *Compound:
