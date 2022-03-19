@@ -46,6 +46,7 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 		`div`: IntFloorDiv,
 		`max`: Max,
 		`min`: Min,
+		`^`:   IntegerPower,
 	},
 }
 
@@ -899,6 +900,24 @@ func Min(x, y Number) (Number, error) {
 	default:
 		return nil, ErrUndefined
 	}
+}
+
+// IntegerPower returns x raised to the power of y.
+func IntegerPower(x, y Number) (Number, error) {
+	if x, ok := x.(Integer); ok {
+		if y, ok := y.(Integer); ok {
+			if x != 1 && y < -1 {
+				return nil, TypeErrorFloat(x)
+			}
+
+			r, err := Power(x, y)
+			if err != nil {
+				return nil, err
+			}
+			return truncateFtoI(r.(Float))
+		}
+	}
+	return Power(x, y)
 }
 
 // Comparison

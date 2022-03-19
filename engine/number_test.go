@@ -1532,6 +1532,78 @@ func TestMin(t *testing.T) {
 	})
 }
 
+func TestIntegerPower(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := IntegerPower(Integer(1), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Integer(1), r)
+
+			t.Run("x is not equal to 1 and y is less than -1", func(t *testing.T) {
+				_, err := IntegerPower(Integer(2), Integer(-2))
+				assert.Equal(t, TypeErrorFloat(Integer(2)), err)
+			})
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := IntegerPower(Integer(1), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(1), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := IntegerPower(Integer(1), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("float", func(t *testing.T) {
+		t.Run("integer", func(t *testing.T) {
+			r, err := IntegerPower(Float(1), Integer(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(1), r)
+		})
+
+		t.Run("float", func(t *testing.T) {
+			r, err := IntegerPower(Float(1), Float(1))
+			assert.NoError(t, err)
+			assert.Equal(t, Float(1), r)
+		})
+
+		t.Run("not a number", func(t *testing.T) {
+			_, err := IntegerPower(Float(1), mockNumber{})
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := IntegerPower(mockNumber{}, Float(1))
+		assert.Equal(t, ErrUndefined, err)
+	})
+
+	t.Run("overflow", func(t *testing.T) {
+		_, err := IntegerPower(Float(math.MaxFloat64), Float(2))
+		assert.Equal(t, ErrFloatOverflow, err)
+	})
+
+	t.Run("underflow", func(t *testing.T) {
+		_, err := IntegerPower(Float(math.SmallestNonzeroFloat64), Float(2))
+		assert.Equal(t, ErrUnderflow, err)
+	})
+
+	t.Run("undefined", func(t *testing.T) {
+		t.Run("vx is negative and vy is not an integer", func(t *testing.T) {
+			_, err := IntegerPower(Integer(-1), Float(1.1))
+			assert.Equal(t, ErrUndefined, err)
+		})
+
+		t.Run("vx is zero and vy is negative", func(t *testing.T) {
+			_, err := IntegerPower(Integer(0), Integer(-1))
+			assert.Equal(t, ErrUndefined, err)
+		})
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
