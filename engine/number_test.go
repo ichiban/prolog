@@ -11,6 +11,9 @@ import (
 
 func TestEvaluableFunctors_Is(t *testing.T) {
 	efs := EvaluableFunctors{
+		Constant: map[Atom]Number{
+			"foo": Integer(1),
+		},
 		Unary: map[Atom]func(x Number) (Number, error){
 			"foo": func(_ Number) (Number, error) {
 				return Integer(1), nil
@@ -24,8 +27,16 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 	}
 
 	t.Run("constant", func(t *testing.T) {
-		_, err := efs.Is(Integer(1), Atom("foo"), Success, nil).Force(context.Background())
-		assert.Error(t, err)
+		t.Run("ok", func(t *testing.T) {
+			ok, err := efs.Is(Integer(1), Atom("foo"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("undefined", func(t *testing.T) {
+			_, err := efs.Is(Integer(1), Atom("bar"), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+		})
 	})
 
 	t.Run("unary", func(t *testing.T) {
