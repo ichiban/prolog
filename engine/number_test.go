@@ -1712,6 +1712,25 @@ func TestAtan2(t *testing.T) {
 	})
 }
 
+func TestTan(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		r, err := Tan(Integer(0))
+		assert.NoError(t, err)
+		assert.Equal(t, Float(0), r)
+	})
+
+	t.Run("float", func(t *testing.T) {
+		r, err := Tan(Float(0))
+		assert.NoError(t, err)
+		assert.Equal(t, Float(0), r)
+	})
+
+	t.Run("not a number", func(t *testing.T) {
+		_, err := Tan(mockNumber{})
+		assert.Equal(t, ErrUndefined, err)
+	})
+}
+
 type mockNumber struct {
 	mock.Mock
 }
