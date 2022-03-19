@@ -25,7 +25,8 @@ var DefaultEvaluableFunctors = EvaluableFunctors{
 
 		`\`: BitwiseComplement,
 
-		`+`: Pos,
+		`+`:    Pos,
+		`asin`: Asin,
 	},
 	Binary: map[Atom]func(Number, Number) (Number, error){
 		`+`:   Add,
@@ -918,6 +919,25 @@ func IntegerPower(x, y Number) (Number, error) {
 		}
 	}
 	return Power(x, y)
+}
+
+// Asin returns the arc sine of x.
+func Asin(x Number) (Number, error) {
+	var vx float64
+	switch x := x.(type) {
+	case Integer:
+		vx = float64(x)
+	case Float:
+		vx = float64(x)
+	default:
+		return nil, ErrUndefined
+	}
+
+	if vx > 1 || vx < -1 {
+		return nil, ErrUndefined
+	}
+
+	return Float(math.Asin(vx)), nil
 }
 
 // Comparison
