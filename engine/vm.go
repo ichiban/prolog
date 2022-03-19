@@ -30,6 +30,18 @@ const (
 	_opLen
 )
 
+var (
+	// Success is a continuation that leads to true.
+	Success = func(*Env) *Promise {
+		return Bool(true)
+	}
+
+	// Failure is a continuation that leads to false.
+	Failure = func(*Env) *Promise {
+		return Bool(false)
+	}
+)
+
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 
@@ -459,16 +471,6 @@ func (p predicate8) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *P
 	}
 
 	return p(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
-}
-
-// Success is a continuation that leads to true.
-func Success(*Env) *Promise {
-	return Bool(true)
-}
-
-// Failure is a continuation that leads to false.
-func Failure(*Env) *Promise {
-	return Bool(false)
 }
 
 // ProcedureIndicator identifies procedure e.g. (=)/2.
