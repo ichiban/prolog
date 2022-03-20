@@ -2031,9 +2031,7 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 				if len([]rune(e)) != 1 {
 					return Error(TypeErrorCharacter(e))
 				}
-				if _, err := sb.WriteString(string(e)); err != nil {
-					return Error(SystemError(err))
-				}
+				_, _ = sb.WriteString(string(e))
 			default:
 				return Error(TypeErrorCharacter(e))
 			}
@@ -2119,9 +2117,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 				if len([]rune(e)) != 1 {
 					return Error(TypeErrorCharacter(e))
 				}
-				if _, err := sb.WriteString(string(e)); err != nil {
-					return Error(SystemError(err))
-				}
+				_, _ = sb.WriteString(string(e))
 			default:
 				return Error(TypeErrorCharacter(e))
 			}
