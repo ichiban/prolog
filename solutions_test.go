@@ -95,10 +95,19 @@ func TestSolutions_Scan(t *testing.T) {
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			var s struct {
-				Int string
-			}
-			assert.Error(t, sols.Scan(&s))
+			t.Run("string", func(t *testing.T) {
+				var s struct {
+					Int string
+				}
+				assert.Error(t, sols.Scan(&s))
+			})
+
+			t.Run("slice", func(t *testing.T) {
+				var s struct {
+					Slice []int
+				}
+				assert.Error(t, sols.Scan(&s))
+			})
 		})
 	})
 

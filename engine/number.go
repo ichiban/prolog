@@ -302,7 +302,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 	case Atom:
 		c, ok := e.Constant[t]
 		if !ok {
-			return nil, typeErrorEvaluable(&Compound{
+			return nil, TypeErrorEvaluable(&Compound{
 				Functor: "/",
 				Args:    []Term{t, Integer(0)},
 			})
@@ -315,7 +315,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 		case 1:
 			f, ok := e.Unary[t.Functor]
 			if !ok {
-				return nil, typeErrorEvaluable(&Compound{
+				return nil, TypeErrorEvaluable(&Compound{
 					Functor: "/",
 					Args: []Term{
 						t.Functor,
@@ -331,7 +331,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 		case 2:
 			f, ok := e.Binary[t.Functor]
 			if !ok {
-				return nil, typeErrorEvaluable(&Compound{
+				return nil, TypeErrorEvaluable(&Compound{
 					Functor: "/",
 					Args: []Term{
 						t.Functor,
@@ -349,13 +349,13 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 			}
 			return f(x, y)
 		default:
-			return nil, typeErrorEvaluable(&Compound{
+			return nil, TypeErrorEvaluable(&Compound{
 				Functor: "/",
 				Args:    []Term{t.Functor, Integer(arity)},
 			})
 		}
 	default:
-		return nil, typeErrorEvaluable(&Compound{
+		return nil, TypeErrorEvaluable(&Compound{
 			Functor: "/",
 			Args:    []Term{t, Integer(0)},
 		})

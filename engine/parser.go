@@ -206,7 +206,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) expectationError(k TokenKind, vals []string) error {
-	if p.current.Kind == TokenEOF {
+	if p.current == nil || p.current.Kind == TokenEOF {
 		return ErrInsufficient
 	}
 	return &unexpectedTokenError{
@@ -352,7 +352,7 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
 		return t, nil
 	}
 
-	return nil, fmt.Errorf("failed to parse: %v, history=%#v", p.current, p.history)
+	return nil, p.expectationError(0, nil)
 }
 
 func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {

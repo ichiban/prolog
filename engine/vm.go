@@ -486,7 +486,7 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 		return ProcedureIndicator{}, ErrInstantiation
 	case *Compound:
 		if p.Functor != "/" || len(p.Args) != 2 {
-			return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
 		}
 		switch f := env.Resolve(p.Args[0]).(type) {
 		case Variable:
@@ -499,13 +499,13 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 				pi := ProcedureIndicator{Name: f, Arity: a}
 				return pi, nil
 			default:
-				return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+				return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
 			}
 		default:
-			return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
 		}
 	default:
-		return ProcedureIndicator{}, typeErrorPredicateIndicator(pi)
+		return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
 	}
 }
 
@@ -544,7 +544,7 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	case *Compound:
 		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
 	default:
-		return ProcedureIndicator{}, nil, typeErrorCallable(f)
+		return ProcedureIndicator{}, nil, TypeErrorCallable(f)
 	}
 }
 

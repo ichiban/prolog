@@ -127,14 +127,14 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 
 	sols, err := p.QueryContext(ctx, buf.String())
 	switch err {
+	case nil:
+		buf.Reset()
+		t.SetPrompt(prompt)
 	case engine.ErrInsufficient:
 		_, _ = buf.WriteRune('\n')
 		// Returns without resetting buf.
 		t.SetPrompt(contPrompt)
 		return nil
-	case nil:
-		buf.Reset()
-		t.SetPrompt(prompt)
 	default:
 		log.Printf("failed to query: %v", err)
 		buf.Reset()

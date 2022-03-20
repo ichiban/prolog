@@ -146,11 +146,19 @@ func (l *Lexer) Token() (Token, error) {
 	if int(r) < len(initDispatch) { // A rune can be bigger than the size of the array.
 		f := initDispatch[r]
 		if f != nil {
-			return f(l, &b)
+			var errUnexpectedRune unexpectedRuneError
+			switch t, err := f(l, &b); {
+			case err == nil:
+				return t, nil
+			case errors.As(err, &errUnexpectedRune):
+				return Token{Kind: TokenInvalid, Val: b.String() + string(errUnexpectedRune.rune)}, nil
+			default:
+				return Token{}, err
+			}
 		}
 	}
 	l.backup()
-	return Token{}, UnexpectedRuneError{rune: r}
+	return Token{Kind: TokenInvalid, Val: string(r)}, nil
 }
 
 func initDispatchSingle(k TokenKind) func(*Lexer, *strings.Builder) (Token, error) {
@@ -194,8 +202,11 @@ func (t Token) String() string {
 type TokenKind byte
 
 const (
+	// TokenInvalid represents an invalid token.
+	TokenInvalid TokenKind = iota
+
 	// TokenEOF represents an end of token stream.
-	TokenEOF TokenKind = iota
+	TokenEOF
 
 	// TokenVariable represents a variable token.
 	TokenVariable
@@ -253,6 +264,7 @@ const (
 
 func (k TokenKind) String() string {
 	return [tokenKindLen]string{
+		TokenInvalid:      "invalid",
 		TokenEOF:          "eos",
 		TokenVariable:     "variable",
 		TokenFloat:        "float",
@@ -366,7 +378,7 @@ func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) error {
 			_, _ = b.WriteRune(r)
 			return nil
 		default:
-			return UnexpectedRuneError{rune: r}
+			return unexpectedRuneError{rune: r}
 		}
 	}
 }
@@ -383,7 +395,7 @@ func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) error {
 			_, _ = b.WriteRune(r)
 			return nil
 		default:
-			return UnexpectedRuneError{rune: r}
+			return unexpectedRuneError{rune: r}
 		}
 	}
 }
@@ -437,7 +449,7 @@ func (l *Lexer) floatE(b *strings.Builder) (Token, error) {
 		_, _ = b.WriteRune(r)
 		return l.floatExponent(b)
 	default:
-		return Token{}, UnexpectedRuneError{rune: r}
+		return Token{}, unexpectedRuneError{rune: r}
 	}
 }
 
@@ -554,7 +566,7 @@ func (l *Lexer) integerCharEscape(b *strings.Builder) (Token, error) {
 	}
 
 	if int(r) > len(integerCharEscapeRunes) || integerCharEscapeRunes[r] == 0 {
-		return Token{}, UnexpectedRuneError{rune: r}
+		return Token{}, unexpectedRuneError{rune: r}
 	}
 	_, _ = b.WriteRune(integerCharEscapeRunes[r])
 
@@ -735,7 +747,7 @@ func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) error {
 			_, _ = b.WriteRune(r)
 			return nil
 		default:
-			return UnexpectedRuneError{rune: r}
+			return unexpectedRuneError{rune: r}
 		}
 	}
 }
@@ -752,7 +764,7 @@ func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) error {
 			_, _ = b.WriteRune(r)
 			return nil
 		default:
-			return UnexpectedRuneError{rune: r}
+			return unexpectedRuneError{rune: r}
 		}
 	}
 }
@@ -772,12 +784,12 @@ func isGraphic(r rune) bool {
 // ErrInsufficient represents an error which is raised when the given input is insufficient for a term.
 var ErrInsufficient = errors.New("insufficient input")
 
-// UnexpectedRuneError represents an error which is raised when the given input contains an unexpected rune.
-type UnexpectedRuneError struct {
+// unexpectedRuneError represents an error which is raised when the given input contains an unexpected rune.
+type unexpectedRuneError struct {
 	rune rune
 }
 
-func (e UnexpectedRuneError) Error() string {
+func (e unexpectedRuneError) Error() string {
 	return fmt.Sprintf("unexpected rune: %s(0x%x)", string(e.rune), e.rune)
 }
 

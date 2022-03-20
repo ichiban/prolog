@@ -118,12 +118,15 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 		}
 	case reflect.Slice:
 		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		err := engine.EachList(t, func(elem engine.Term) error {
-			e, err := convert(elem, typ.Elem(), env)
+		iter := engine.ListIterator{List: t, Env: env}
+		for iter.Next() {
+			e, err := convert(iter.Current(), typ.Elem(), env)
+			if err != nil {
+				return r, err
+			}
 			r = reflect.Append(r, e)
-			return err
-		}, env)
-		return r, err
+		}
+		return r, iter.Err()
 	}
 	return reflect.Value{}, fmt.Errorf("failed to convert: %s", typ)
 }

@@ -232,15 +232,16 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 	case engine.Variable:
 		return engine.Error(engine.ErrInstantiation)
 	case *engine.Compound:
-		if f.Functor == "." && len(f.Args) == 2 {
-			if err := engine.EachList(f, func(elem engine.Term) error {
-				return i.consultOne(elem, env)
-			}, env); err != nil {
+		if f.Functor != "." || len(f.Args) != 2 {
+			return engine.Error(engine.TypeErrorList(f))
+		}
+		iter := engine.ListIterator{List: f, Env: env}
+		for iter.Next() {
+			if err := i.consultOne(iter.Current(), env); err != nil {
 				return engine.Error(err)
 			}
-			return k(env)
 		}
-		if err := i.consultOne(f, env); err != nil {
+		if err := iter.Err(); err != nil {
 			return engine.Error(err)
 		}
 		return k(env)
@@ -254,6 +255,8 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 
 func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 	switch f := env.Resolve(file).(type) {
+	case engine.Variable:
+		return engine.ErrInstantiation
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
 			b, err := ioutil.ReadFile(f)

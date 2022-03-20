@@ -292,6 +292,7 @@ func (e *Env) Set(ts ...Term) Term {
 }
 
 // EachList iterates over list.
+// TODO: remove
 func EachList(list Term, f func(elem Term) error, env *Env) error {
 	for {
 		switch l := env.Resolve(list).(type) {
@@ -299,31 +300,32 @@ func EachList(list Term, f func(elem Term) error, env *Env) error {
 			return ErrInstantiation
 		case Atom:
 			if l != "[]" {
-				return typeErrorList(l)
+				return TypeErrorList(l)
 			}
 			return nil
 		case *Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return typeErrorList(l)
+				return TypeErrorList(l)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return typeErrorList(l)
+			return TypeErrorList(l)
 		}
 	}
 }
 
 // Slice returns a Term slice containing the elements of list.
 // It errors if the given Term is not a list.
-func Slice(list Term, env *Env) (ret []Term, err error) {
-	err = EachList(list, func(elem Term) error {
-		ret = append(ret, env.Resolve(elem))
-		return nil
-	}, env)
-	return
+func Slice(list Term, env *Env) ([]Term, error) {
+	var ret []Term
+	iter := ListIterator{List: list, Env: env}
+	for iter.Next() {
+		ret = append(ret, env.Resolve(iter.Current()))
+	}
+	return ret, iter.Err()
 }
 
 // Seq returns a sequence of ts separated by sep.
@@ -376,6 +378,7 @@ func eachSep(seq Term, sep func(*Compound) bool, f func(elem Term) error, env *E
 }
 
 // Each iterates over either a list or comma-delimited sequence.
+// TODO: Once EachSeq is replaced by an iterator, replace this by another iterator.
 func Each(any Term, f func(elem Term) error, env *Env) error {
 	if c, ok := env.Resolve(any).(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
 		return EachList(any, f, env)
