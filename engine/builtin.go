@@ -739,9 +739,7 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 				}
 				solutions = append(solutions, solution{vars: vars, instances: []Term{instance}})
 			}
-			if err := iter.Err(); err != nil {
-				return Error(err)
-			}
+			// FindAll returns a proper list so no need to check iter.Err().
 			return Bool(true)
 		}, env).Force(ctx); err != nil {
 			return Error(err)
