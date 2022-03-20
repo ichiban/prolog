@@ -1706,6 +1706,92 @@ func TestCompare(t *testing.T) {
 	})
 }
 
+func TestBetween(t *testing.T) {
+	t.Run("value is an integer", func(t *testing.T) {
+		t.Run("between lower and upper", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(3), Integer(2), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("equal to lower", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(3), Integer(1), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("equal to upper", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(3), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("value, lower, higher are all equal", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(1), Integer(1), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("equal to lower, but lower > upper", func(t *testing.T) {
+			ok, err := Between(Integer(3), Integer(1), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+	})
+
+	t.Run("value is a variable", func(t *testing.T) {
+		t.Run("lower and upper are equal integers", func(t *testing.T) {
+			value := Variable("Value")
+			ok, err := Between(Integer(1), Integer(1), value, func(env *Env) *Promise {
+				assert.Equal(t, Integer(1), env.Resolve(value))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("multiple choice points", func(t *testing.T) {
+			var n int
+			value := Variable("Value")
+			ok, err := Between(Integer(0), Integer(3), value, func(env *Env) *Promise {
+				assert.Equal(t, Integer(n), env.Resolve(value))
+				n++
+				return Bool(false)
+			}, nil).Force(context.Background())
+			assert.Equal(t, n, 4)
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("lower > upper", func(t *testing.T) {
+			value := Variable("Value")
+			ok, err := Between(Integer(3), Integer(0), value, Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+	})
+
+	t.Run("lower is uninstantiated", func(t *testing.T) {
+		_, err := Between(Variable("X"), Integer(2), Integer(1), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("upper is uninstantiated", func(t *testing.T) {
+		_, err := Between(Integer(1), Variable("X"), Integer(1), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("lower is not an integer", func(t *testing.T) {
+		_, err := Between(Atom("inf"), Integer(2), Integer(1), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("inf")), err)
+	})
+
+	t.Run("upper is not an integer", func(t *testing.T) {
+		_, err := Between(Integer(1), Atom("inf"), Integer(1), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("inf")), err)
+	})
+}
+
 func TestSort(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
