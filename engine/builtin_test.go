@@ -5823,9 +5823,16 @@ func TestNumberChars(t *testing.T) {
 	})
 
 	t.Run("an element E of the list chars is neither a variable nor a one-character atom", func(t *testing.T) {
-		ok, err := NumberChars(NewVariable(), List(Integer(2), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorCharacter(Integer(2)), err)
-		assert.False(t, ok)
+		t.Run("not an atom", func(t *testing.T) {
+			ok, err := NumberChars(NewVariable(), List(Integer(2), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorCharacter(Integer(2)), err)
+			assert.False(t, ok)
+		})
+		t.Run("not a one-character", func(t *testing.T) {
+			ok, err := NumberChars(NewVariable(), List(Atom("23"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorCharacter(Atom("23")), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("chars is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
