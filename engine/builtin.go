@@ -1525,10 +1525,7 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	t, err := p.Term()
 	if err != nil {
-		var (
-			unexpectedRune  *UnexpectedRuneError
-			unexpectedToken *unexpectedTokenError
-		)
+		var unexpectedToken *unexpectedTokenError
 		switch {
 		case errors.Is(err, io.EOF):
 			return [...]*Promise{
@@ -1542,8 +1539,6 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 			}[s.eofAction]
 		case errors.Is(err, ErrInsufficient):
 			return Error(syntaxErrorInsufficient())
-		case errors.As(err, &unexpectedRune):
-			return Error(syntaxErrorUnexpectedChar(Atom(err.Error())))
 		case errors.As(err, &unexpectedToken):
 			return Error(syntaxErrorUnexpectedToken(Atom(err.Error())))
 		default:

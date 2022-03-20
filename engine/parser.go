@@ -206,7 +206,7 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 }
 
 func (p *Parser) expectationError(k TokenKind, vals []string) error {
-	if p.current.Kind == TokenEOF {
+	if p.current == nil || p.current.Kind == TokenEOF {
 		return ErrInsufficient
 	}
 	return &unexpectedTokenError{
@@ -219,8 +219,13 @@ func (p *Parser) expectationError(k TokenKind, vals []string) error {
 
 // Term parses a term followed by a full stop.
 func (p *Parser) Term() (Term, error) {
-	if _, err := p.accept(TokenEOF); err == nil {
+	switch _, err := p.accept(TokenEOF); {
+	case err == nil:
 		return nil, io.EOF
+	case p.current == nil:
+		// When accepting EOF failed, there must be a valid token ready in p.current.
+		// If not the case, we can't miss the error.
+		return nil, err
 	}
 
 	if p.vars != nil {
@@ -352,7 +357,7 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
 		return t, nil
 	}
 
-	return nil, fmt.Errorf("failed to parse: %v, history=%#v", p.current, p.history)
+	return nil, p.expectationError(0, nil)
 }
 
 func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {

@@ -310,10 +310,6 @@ func syntaxErrorNotANumber() *Exception {
 	return syntaxError(Atom("not_a_number"), Atom("Not a number."))
 }
 
-func syntaxErrorUnexpectedChar(info Term) *Exception {
-	return syntaxError(Atom("unexpected_char"), info)
-}
-
 func syntaxErrorUnexpectedToken(info Term) *Exception {
 	return syntaxError(Atom("unexpected_token"), info)
 }

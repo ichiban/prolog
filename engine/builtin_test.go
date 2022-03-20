@@ -4571,16 +4571,32 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
-		s, err := Open("testdata/unexpected_token.txt", StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		t.Run("unexpected token", func(t *testing.T) {
+			s, err := Open("testdata/unexpected_token.txt", StreamModeRead)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, s.Close())
+			}()
 
-		var state State
-		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxErrorUnexpectedToken(Atom("unexpected token: <ident bar>")), err)
-		assert.False(t, ok)
+			var state State
+			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
+			assert.Equal(t, syntaxErrorUnexpectedToken(Atom("unexpected token: <ident bar>")), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("insufficient", func(t *testing.T) {
+			s, err := Open("testdata/insufficient.txt", StreamModeRead)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, s.Close())
+			}()
+
+			var state State
+			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
+			assert.Equal(t, syntaxErrorInsufficient(), err)
+			assert.False(t, ok)
+		})
+
 	})
 
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {

@@ -12,8 +12,9 @@ func TestLexer_Token(t *testing.T) {
 	t.Run("invalid init rune", func(t *testing.T) {
 		l := NewLexer(bufio.NewReader(strings.NewReader("\000")), nil)
 
-		_, err := l.Token()
-		assert.Equal(t, UnexpectedRuneError{rune: '\000'}, err)
+		token, err := l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenInvalid, Val: "\000"}, token)
 	})
 
 	t.Run("clause", func(t *testing.T) {
@@ -655,8 +656,9 @@ a quoted ident'.`)), nil)
 		t.Run("unexpected rune after hex", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xG`)), nil)
 
-			_, err := l.Token()
-			assert.Equal(t, UnexpectedRuneError{rune: 'G'}, err)
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenInvalid, Val: `'\xG`}, token)
 		})
 
 		t.Run("insufficient after octal", func(t *testing.T) {
@@ -669,8 +671,9 @@ a quoted ident'.`)), nil)
 		t.Run("unexpected rune after octal", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`'\08`)), nil)
 
-			_, err := l.Token()
-			assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenInvalid, Val: `'\08`}, token)
 		})
 	})
 
@@ -892,14 +895,16 @@ a quoted ident'.`)), nil)
 
 				t.Run("unknown", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\q`)), nil)
-					_, err := l.Token()
-					assert.Equal(t, UnexpectedRuneError{rune: 'q'}, err)
+					token, err := l.Token()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInvalid, Val: `0'q`}, token)
 				})
 
 				t.Run("really big", func(t *testing.T) {
 					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\😀`)), nil)
-					_, err := l.Token()
-					assert.Equal(t, UnexpectedRuneError{rune: '😀'}, err)
+					token, err := l.Token()
+					assert.NoError(t, err)
+					assert.Equal(t, Token{Kind: TokenInvalid, Val: `0'😀`}, token)
 				})
 			})
 		})
@@ -1039,8 +1044,9 @@ a quoted ident'.`)), nil)
 
 		t.Run("with e and unexpected rune", func(t *testing.T) {
 			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E*`)), nil)
-			_, err := l.Token()
-			assert.Equal(t, UnexpectedRuneError{rune: '*'}, err)
+			token, err := l.Token()
+			assert.NoError(t, err)
+			assert.Equal(t, Token{Kind: TokenInvalid, Val: `2.34E*`}, token)
 		})
 
 		t.Run("begins with 0", func(t *testing.T) {
@@ -1532,8 +1538,9 @@ a quoted ident"`}, token)
 			t.Run("not hex", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3g`)), nil)
 
-				_, err := l.Token()
-				assert.Equal(t, UnexpectedRuneError{rune: 'g'}, err)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInvalid, Val: `"\xa3g`}, token)
 			})
 		})
 
@@ -1564,8 +1571,9 @@ a quoted ident"`}, token)
 			t.Run("not octal", func(t *testing.T) {
 				l := NewLexer(bufio.NewReader(strings.NewReader(`"\438`)), nil)
 
-				_, err := l.Token()
-				assert.Equal(t, UnexpectedRuneError{rune: '8'}, err)
+				token, err := l.Token()
+				assert.NoError(t, err)
+				assert.Equal(t, Token{Kind: TokenInvalid, Val: `"\438`}, token)
 			})
 		})
 
@@ -1686,5 +1694,5 @@ a quoted ident"`}, token)
 }
 
 func TestUnexpectedRuneError_Error(t *testing.T) {
-	assert.Equal(t, "unexpected rune: a(0x61)", UnexpectedRuneError{rune: 'a'}.Error())
+	assert.Equal(t, "unexpected rune: a(0x61)", unexpectedRuneError{rune: 'a'}.Error())
 }
