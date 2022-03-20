@@ -219,13 +219,8 @@ func (p *Parser) expectationError(k TokenKind, vals []string) error {
 
 // Term parses a term followed by a full stop.
 func (p *Parser) Term() (Term, error) {
-	switch _, err := p.accept(TokenEOF); {
-	case err == nil:
+	if _, err := p.accept(TokenEOF); err == nil {
 		return nil, io.EOF
-	case p.current == nil:
-		// When accepting EOF failed, there must be a valid token ready in p.current.
-		// If not the case, we can't miss the error.
-		return nil, err
 	}
 
 	if p.vars != nil {
