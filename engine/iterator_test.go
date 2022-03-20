@@ -61,3 +61,114 @@ func TestListIterator_Next(t *testing.T) {
 		})
 	})
 }
+
+func TestSeqIterator_Next(t *testing.T) {
+	t.Run("sequence", func(t *testing.T) {
+		iter := SeqIterator{Seq: Seq(",", Atom("a"), Atom("b"), Atom("c"))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("c"), iter.Current())
+		assert.False(t, iter.Next())
+	})
+
+	t.Run("sequence with a trailing compound", func(t *testing.T) {
+		iter := SeqIterator{Seq: Seq(",", Atom("a"), Atom("b"), Atom("f").Apply(Atom("c")))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("f").Apply(Atom("c")), iter.Current())
+		assert.False(t, iter.Next())
+	})
+}
+
+func TestAltIterator_Next(t *testing.T) {
+	t.Run("alternatives", func(t *testing.T) {
+		iter := AltIterator{Alt: Seq(";", Atom("a"), Atom("b"), Atom("c"))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("c"), iter.Current())
+		assert.False(t, iter.Next())
+	})
+
+	t.Run("alternatives with a trailing compound", func(t *testing.T) {
+		iter := AltIterator{Alt: Seq(";", Atom("a"), Atom("b"), Atom("f").Apply(Atom("c")))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("f").Apply(Atom("c")), iter.Current())
+		assert.False(t, iter.Next())
+	})
+
+	t.Run("if then else", func(t *testing.T) {
+		iter := AltIterator{Alt: Seq(";", Atom("->").Apply(Atom("a"), Atom("b")), Atom("c"))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Seq(";", Atom("->").Apply(Atom("a"), Atom("b")), Atom("c")), iter.Current())
+		assert.False(t, iter.Next())
+	})
+}
+
+func TestPIIterator_Next(t *testing.T) {
+	t.Run("proper list", func(t *testing.T) {
+		iter := AnyIterator{Any: List(Atom("a"), Atom("b"), Atom("c"))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("c"), iter.Current())
+		assert.False(t, iter.Next())
+		assert.NoError(t, iter.Err())
+	})
+
+	t.Run("improper list", func(t *testing.T) {
+		t.Run("variable", func(t *testing.T) {
+			iter := AnyIterator{Any: ListRest(Variable("X"), Atom("a"), Atom("b"))}
+			assert.True(t, iter.Next())
+			assert.Equal(t, Atom("a"), iter.Current())
+			assert.True(t, iter.Next())
+			assert.Equal(t, Atom("b"), iter.Current())
+			assert.False(t, iter.Next())
+			assert.Equal(t, ErrInstantiation, iter.Err())
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			iter := AnyIterator{Any: ListRest(Atom("foo"), Atom("a"), Atom("b"))}
+			assert.True(t, iter.Next())
+			assert.Equal(t, Atom("a"), iter.Current())
+			assert.True(t, iter.Next())
+			assert.Equal(t, Atom("b"), iter.Current())
+			assert.False(t, iter.Next())
+			assert.Equal(t, TypeErrorList(Atom("foo")), iter.Err())
+		})
+	})
+
+	t.Run("sequence", func(t *testing.T) {
+		iter := AnyIterator{Any: Seq(",", Atom("a"), Atom("b"), Atom("c"))}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("b"), iter.Current())
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("c"), iter.Current())
+		assert.False(t, iter.Next())
+		assert.NoError(t, iter.Err())
+	})
+
+	t.Run("single", func(t *testing.T) {
+		iter := AnyIterator{Any: Atom("a")}
+		assert.True(t, iter.Next())
+		assert.Equal(t, Atom("a"), iter.Current())
+		assert.False(t, iter.Next())
+		assert.NoError(t, iter.Err())
+	})
+}

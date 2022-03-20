@@ -86,16 +86,14 @@ func compile(t Term) (clauses, error) {
 	if t, ok := t.(*Compound); ok && t.Functor == ":-" {
 		var cs []clause
 		head, body := t.Args[0], t.Args[1]
-		if err := EachAlternative(body, func(elem Term) error {
-			c, err := compileClause(head, elem)
+		iter := AltIterator{Alt: body}
+		for iter.Next() {
+			c, err := compileClause(head, iter.Current())
 			if err != nil {
-				return err
+				return nil, TypeErrorCallable(body)
 			}
 			c.raw = t
 			cs = append(cs, c)
-			return nil
-		}, nil); err != nil {
-			return nil, TypeErrorCallable(body)
 		}
 		return cs, nil
 	}
@@ -127,9 +125,13 @@ func compileClause(head Term, body Term) (clause, error) {
 
 func (c *clause) compileBody(body Term) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-	return EachSeq(body, ",", func(elem Term) error {
-		return c.compilePred(elem)
-	}, nil)
+	iter := SeqIterator{Seq: body}
+	for iter.Next() {
+		if err := c.compilePred(iter.Current()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var errNotCallable = errors.New("not callable")
