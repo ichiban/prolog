@@ -44,27 +44,39 @@ func (e *Exception) Error() string {
 	return buf.String()
 }
 
-func typeErrorAtom(culprit Term) *Exception {
+func TypeErrorAtom(culprit Term) *Exception {
 	return TypeError("atom", culprit)
 }
 
-func typeErrorByte(culprit Term) *Exception {
+func TypeErrorAtomic(culprit Term) *Exception {
+	return TypeError("atomic", culprit)
+}
+
+func TypeErrorByte(culprit Term) *Exception {
 	return TypeError("byte", culprit)
 }
 
-func typeErrorCallable(culprit Term) *Exception {
+func TypeErrorCallable(culprit Term) *Exception {
 	return TypeError("callable", culprit)
 }
 
-func typeErrorCharacter(culprit Term) *Exception {
+func TypeErrorCharacter(culprit Term) *Exception {
 	return TypeError("character", culprit)
 }
 
-func typeErrorInByte(culprit Term) *Exception {
+func TypeErrorCompound(culprit Term) *Exception {
+	return TypeError("compound", culprit)
+}
+
+func TypeErrorEvaluable(culprit Term) *Exception {
+	return TypeError("evaluable", culprit)
+}
+
+func TypeErrorInByte(culprit Term) *Exception {
 	return TypeError("in_byte", culprit)
 }
 
-func typeErrorInCharacter(culprit Term) *Exception {
+func TypeErrorInCharacter(culprit Term) *Exception {
 	return TypeError("in_character", culprit)
 }
 
@@ -72,11 +84,7 @@ func TypeErrorInteger(culprit Term) *Exception {
 	return TypeError("integer", culprit)
 }
 
-func TypeErrorFloat(culprit Term) *Exception {
-	return TypeError("float", culprit)
-}
-
-func typeErrorList(culprit Term) *Exception {
+func TypeErrorList(culprit Term) *Exception {
 	return TypeError("list", culprit)
 }
 
@@ -84,28 +92,16 @@ func TypeErrorNumber(culprit Term) *Exception {
 	return TypeError("number", culprit)
 }
 
-func typeErrorPredicateIndicator(culprit Term) *Exception {
+func TypeErrorPredicateIndicator(culprit Term) *Exception {
 	return TypeError("predicate_indicator", culprit)
 }
 
-func typeErrorVariable(culprit Term) *Exception {
-	return TypeError("variable", culprit)
-}
-
-func typeErrorCompound(culprit Term) *Exception {
-	return TypeError("compound", culprit)
-}
-
-func typeErrorAtomic(culprit Term) *Exception {
-	return TypeError("atomic", culprit)
-}
-
-func typeErrorPair(culprit Term) *Exception {
+func TypeErrorPair(culprit Term) *Exception {
 	return TypeError("pair", culprit)
 }
 
-func typeErrorEvaluable(culprit Term) *Exception {
-	return TypeError("evaluable", culprit)
+func TypeErrorFloat(culprit Term) *Exception {
+	return TypeError("float", culprit)
 }
 
 // TypeError creates a new type error exception.

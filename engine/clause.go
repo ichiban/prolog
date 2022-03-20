@@ -95,7 +95,7 @@ func compile(t Term) (clauses, error) {
 			cs = append(cs, c)
 			return nil
 		}, nil); err != nil {
-			return nil, typeErrorCallable(body)
+			return nil, TypeErrorCallable(body)
 		}
 		return cs, nil
 	}
@@ -118,7 +118,7 @@ func compileClause(head Term, body Term) (clause, error) {
 	}
 	if body != nil {
 		if err := c.compileBody(body); err != nil {
-			return c, typeErrorCallable(body)
+			return c, TypeErrorCallable(body)
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})

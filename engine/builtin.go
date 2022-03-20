@@ -331,7 +331,7 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 			case Variable:
 				return Error(ErrInstantiation)
 			case *Compound:
-				return Error(typeErrorAtomic(name))
+				return Error(TypeErrorAtomic(name))
 			case Atom:
 				vs := make([]Term, arity)
 				for i := range vs {
@@ -344,7 +344,7 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 					}, k, env)
 				})
 			default:
-				return Error(typeErrorAtom(name))
+				return Error(TypeErrorAtom(name))
 			}
 		default:
 			return Error(TypeErrorInteger(arity))
@@ -385,7 +385,7 @@ func Arg(nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(TypeErrorInteger(n))
 		}
 	default:
-		return Error(typeErrorCompound(t))
+		return Error(TypeErrorCompound(t))
 	}
 }
 
@@ -399,12 +399,12 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 		cons, ok := list.(*Compound)
 		if !ok || cons.Functor != "." || len(cons.Args) != 2 {
-			return Error(typeErrorList(list))
+			return Error(TypeErrorList(list))
 		}
 
 		f, ok := env.Resolve(cons.Args[0]).(Atom)
 		if !ok {
-			return Error(typeErrorAtom(cons.Args[0]))
+			return Error(TypeErrorAtom(cons.Args[0]))
 		}
 
 		var args []Term
@@ -500,7 +500,7 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 
 	s, ok := env.Resolve(specifier).(Atom)
 	if !ok {
-		return Error(typeErrorAtom(specifier))
+		return Error(TypeErrorAtom(specifier))
 	}
 
 	spec, ok := map[Atom]operatorSpecifier{
@@ -518,7 +518,7 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 
 	o, ok := env.Resolve(op).(Atom)
 	if !ok {
-		return Error(typeErrorAtom(op))
+		return Error(TypeErrorAtom(op))
 	}
 
 	// already defined?
@@ -589,7 +589,7 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 	case Variable, Atom:
 		break
 	default:
-		return Error(typeErrorAtom(operator))
+		return Error(TypeErrorAtom(operator))
 	}
 
 	pattern := Compound{Args: []Term{priority, specifier, operator}}
@@ -801,7 +801,7 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 			return Error(domainErrorOrder(order))
 		}
 	default:
-		return Error(typeErrorAtom(order))
+		return Error(TypeErrorAtom(order))
 	}
 
 	d := term1.Compare(term2, env)
@@ -833,9 +833,9 @@ func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 		if s.Functor == "." && len(s.Args) == 2 {
 			break
 		}
-		return Error(typeErrorList(sorted))
+		return Error(TypeErrorList(sorted))
 	default:
-		return Error(typeErrorList(sorted))
+		return Error(TypeErrorList(sorted))
 	}
 
 	return Unify(sorted, env.Set(elems...), k, env)
@@ -851,11 +851,11 @@ func KeySort(pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(ErrInstantiation)
 		case *Compound:
 			if e.Functor != "-" || len(e.Args) != 2 {
-				return Error(typeErrorPair(e))
+				return Error(TypeErrorPair(e))
 			}
 			elems = append(elems, e)
 		default:
-			return Error(typeErrorPair(e))
+			return Error(TypeErrorPair(e))
 		}
 	}
 	if err := iter.Err(); err != nil {
@@ -873,10 +873,10 @@ func KeySort(pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 				continue
 			case *Compound:
 				if e.Functor != "-" || len(e.Args) != 2 {
-					return Error(typeErrorPair(e))
+					return Error(TypeErrorPair(e))
 				}
 			default:
-				return Error(typeErrorPair(e))
+				return Error(TypeErrorPair(e))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -927,16 +927,16 @@ func (state *State) CurrentPredicate(pi Term, k func(*Env) *Promise, env *Env) *
 		break
 	case *Compound:
 		if pi.Functor != "/" || len(pi.Args) != 2 {
-			return Error(typeErrorPredicateIndicator(pi))
+			return Error(TypeErrorPredicateIndicator(pi))
 		}
 		if _, ok := env.Resolve(pi.Args[0]).(Atom); !ok {
-			return Error(typeErrorPredicateIndicator(pi))
+			return Error(TypeErrorPredicateIndicator(pi))
 		}
 		if _, ok := env.Resolve(pi.Args[1]).(Integer); !ok {
-			return Error(typeErrorPredicateIndicator(pi))
+			return Error(TypeErrorPredicateIndicator(pi))
 		}
 	default:
-		return Error(typeErrorPredicateIndicator(pi))
+		return Error(TypeErrorPredicateIndicator(pi))
 	}
 
 	ks := make([]func(context.Context) *Promise, 0, len(state.procedures))
@@ -999,7 +999,7 @@ func (state *State) Abolish(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(ErrInstantiation)
 	case *Compound:
 		if pi.Functor != "/" || len(pi.Args) != 2 {
-			return Error(typeErrorPredicateIndicator(pi))
+			return Error(TypeErrorPredicateIndicator(pi))
 		}
 
 		name, arity := pi.Args[0], pi.Args[1]
@@ -1028,10 +1028,10 @@ func (state *State) Abolish(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(TypeErrorInteger(arity))
 			}
 		default:
-			return Error(typeErrorAtom(name))
+			return Error(TypeErrorAtom(name))
 		}
 	default:
-		return Error(typeErrorPredicateIndicator(pi))
+		return Error(TypeErrorPredicateIndicator(pi))
 	}
 }
 
@@ -1120,11 +1120,11 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 			return Error(domainErrorIOMode(m))
 		}
 	default:
-		return Error(typeErrorAtom(mode))
+		return Error(TypeErrorAtom(mode))
 	}
 
 	if _, ok := env.Resolve(stream).(Variable); !ok {
-		return Error(typeErrorVariable(stream))
+		return Error(ErrInstantiation)
 	}
 
 	var opts []StreamOption
@@ -1174,7 +1174,7 @@ func streamOption(state *State, option Term, env *Env) (StreamOption, error) {
 				arg:     a,
 			}
 		default:
-			return nil, typeErrorAtom(a)
+			return nil, TypeErrorAtom(a)
 		}
 	default:
 		return nil, domainErrorStreamOption(option)
@@ -1403,14 +1403,14 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 
 		rs := []rune(ch)
 		if len(rs) != 1 {
-			return Error(typeErrorCharacter(ch))
+			return Error(TypeErrorCharacter(ch))
 		}
 
 		return Delay(func(context.Context) *Promise {
 			return Unify(code, Integer(rs[0]), k, env)
 		})
 	default:
-		return Error(typeErrorCharacter(ch))
+		return Error(TypeErrorCharacter(ch))
 	}
 }
 
@@ -1436,7 +1436,7 @@ func (state *State) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env 
 		return Error(ErrInstantiation)
 	case Integer:
 		if 0 > b || 255 < b {
-			return Error(typeErrorByte(byt))
+			return Error(TypeErrorByte(byt))
 		}
 
 		if _, err := write(s.file, []byte{byte(b)}); err != nil {
@@ -1445,7 +1445,7 @@ func (state *State) PutByte(streamOrAlias, byt Term, k func(*Env) *Promise, env 
 
 		return k(env)
 	default:
-		return Error(typeErrorByte(byt))
+		return Error(TypeErrorByte(byt))
 	}
 }
 
@@ -1629,10 +1629,10 @@ func (state *State) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, e
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			Error(typeErrorInByte(inByte))
+			Error(TypeErrorInByte(inByte))
 		}
 	default:
-		return Error(typeErrorInByte(inByte))
+		return Error(TypeErrorInByte(inByte))
 	}
 
 	b, err := readByte(s.buf)
@@ -1683,10 +1683,10 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 		break
 	case Atom:
 		if len([]rune(c)) != 1 {
-			return Error(typeErrorInCharacter(char))
+			return Error(TypeErrorInCharacter(char))
 		}
 	default:
-		return Error(typeErrorInCharacter(char))
+		return Error(TypeErrorInCharacter(char))
 	}
 
 	r, _, err := readRune(s.buf)
@@ -1741,10 +1741,10 @@ func (state *State) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, 
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			return Error(typeErrorInByte(inByte))
+			return Error(TypeErrorInByte(inByte))
 		}
 	default:
-		return Error(typeErrorInByte(inByte))
+		return Error(TypeErrorInByte(inByte))
 	}
 
 	b, err := peek(s.buf, 1)
@@ -1795,10 +1795,10 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 		break
 	case Atom:
 		if len([]rune(c)) != 1 {
-			return Error(typeErrorInCharacter(char))
+			return Error(TypeErrorInCharacter(char))
 		}
 	default:
-		return Error(typeErrorInCharacter(char))
+		return Error(TypeErrorInCharacter(char))
 	}
 
 	r, _, err := readRune(s.buf)
@@ -1861,7 +1861,7 @@ func (state *State) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Pr
 	case Variable, Atom, *Compound:
 		break
 	default:
-		return Error(typeErrorCallable(body))
+		return Error(TypeErrorCallable(body))
 	}
 
 	p, ok := state.procedures[pi]
@@ -1908,7 +1908,7 @@ func AtomLength(atom, length Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(length, Integer(len([]rune(a))), k, env)
 		})
 	default:
-		return Error(typeErrorAtom(atom))
+		return Error(TypeErrorAtom(atom))
 	}
 }
 
@@ -1928,24 +1928,24 @@ func AtomConcat(atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Prom
 					return Unify(a1+a2, a3, k, env)
 				})
 			default:
-				return Error(typeErrorAtom(atom2))
+				return Error(TypeErrorAtom(atom2))
 			}
 		default:
-			return Error(typeErrorAtom(atom1))
+			return Error(TypeErrorAtom(atom1))
 		}
 	case Atom:
 		switch env.Resolve(atom1).(type) {
 		case Variable, Atom:
 			break
 		default:
-			return Error(typeErrorAtom(atom1))
+			return Error(TypeErrorAtom(atom1))
 		}
 
 		switch env.Resolve(atom2).(type) {
 		case Variable, Atom:
 			break
 		default:
-			return Error(typeErrorAtom(atom2))
+			return Error(TypeErrorAtom(atom2))
 		}
 
 		pattern := Compound{Args: []Term{atom1, atom2}}
@@ -1961,7 +1961,7 @@ func AtomConcat(atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Prom
 		})
 		return Delay(ks...)
 	default:
-		return Error(typeErrorAtom(atom3))
+		return Error(TypeErrorAtom(atom3))
 	}
 }
 
@@ -1989,7 +1989,7 @@ func SubAtom(atom, before, length, after, subAtom Term, k func(*Env) *Promise, e
 		case Variable, Atom:
 			break
 		default:
-			return Error(typeErrorAtom(subAtom))
+			return Error(TypeErrorAtom(subAtom))
 		}
 
 		const subAtomPattern = Atom("$sub_atom_pattern")
@@ -2005,7 +2005,7 @@ func SubAtom(atom, before, length, after, subAtom Term, k func(*Env) *Promise, e
 		}
 		return Delay(ks...)
 	default:
-		return Error(typeErrorAtom(atom))
+		return Error(TypeErrorAtom(atom))
 	}
 }
 
@@ -2036,13 +2036,13 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(ErrInstantiation)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return Error(typeErrorCharacter(e))
+					return Error(TypeErrorCharacter(e))
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
 					return Error(SystemError(err))
 				}
 			default:
-				return Error(typeErrorCharacter(e))
+				return Error(TypeErrorCharacter(e))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2061,7 +2061,7 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(chars, List(cs...), k, env)
 		})
 	default:
-		return Error(typeErrorAtom(a))
+		return Error(TypeErrorAtom(a))
 	}
 }
 
@@ -2098,7 +2098,7 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(codes, List(cs...), k, env)
 		})
 	default:
-		return Error(typeErrorAtom(atom))
+		return Error(TypeErrorAtom(atom))
 	}
 }
 
@@ -2124,13 +2124,13 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 				return Error(ErrInstantiation)
 			case Atom:
 				if len([]rune(e)) != 1 {
-					return Error(typeErrorCharacter(e))
+					return Error(TypeErrorCharacter(e))
 				}
 				if _, err := sb.WriteString(string(e)); err != nil {
 					return Error(SystemError(err))
 				}
 			default:
-				return Error(typeErrorCharacter(e))
+				return Error(TypeErrorCharacter(e))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2315,7 +2315,7 @@ func checkAtom(t Term, env *Env) error {
 	case Variable, Atom:
 		return nil
 	default:
-		return typeErrorAtom(t)
+		return TypeErrorAtom(t)
 	}
 }
 
@@ -2324,7 +2324,7 @@ func checkInteger(t Term, env *Env) error {
 	case Variable, Integer:
 		return nil
 	default:
-		return typeErrorAtom(t)
+		return TypeErrorAtom(t)
 	}
 }
 
@@ -2487,7 +2487,7 @@ func (state *State) SetPrologFlag(flag, value Term, k func(*Env) *Promise, env *
 			}))
 		}
 	default:
-		return Error(typeErrorAtom(f))
+		return Error(TypeErrorAtom(f))
 	}
 }
 
@@ -2568,7 +2568,7 @@ func (state *State) CurrentPrologFlag(flag, value Term, k func(*Env) *Promise, e
 			return Error(domainErrorPrologFlag(f))
 		}
 	default:
-		return Error(typeErrorAtom(f))
+		return Error(TypeErrorAtom(f))
 	}
 
 	pattern := Compound{Args: []Term{flag, value}}

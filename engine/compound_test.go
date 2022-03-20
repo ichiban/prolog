@@ -504,7 +504,7 @@ func TestEachList(t *testing.T) {
 
 	t.Run("atom", func(t *testing.T) {
 		var ret []Term
-		assert.Equal(t, typeErrorList(Atom("a")), EachList(Atom("a"), func(elem Term) error {
+		assert.Equal(t, TypeErrorList(Atom("a")), EachList(Atom("a"), func(elem Term) error {
 			ret = append(ret, elem)
 			return nil
 		}, nil))
@@ -513,7 +513,7 @@ func TestEachList(t *testing.T) {
 
 	t.Run("compound", func(t *testing.T) {
 		var ret []Term
-		assert.Equal(t, typeErrorList(&Compound{
+		assert.Equal(t, TypeErrorList(&Compound{
 			Functor: "f",
 			Args:    []Term{Atom("a")},
 		}), EachList(&Compound{
@@ -528,7 +528,7 @@ func TestEachList(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		var ret []Term
-		assert.Equal(t, typeErrorList(Integer(1)), EachList(Integer(1), func(elem Term) error {
+		assert.Equal(t, TypeErrorList(Integer(1)), EachList(Integer(1), func(elem Term) error {
 			ret = append(ret, elem)
 			return nil
 		}, nil))

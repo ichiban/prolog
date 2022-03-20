@@ -17,19 +17,19 @@ func (i *ListIterator) Next() bool {
 		return false
 	case Atom:
 		if l != "[]" {
-			i.err = typeErrorList(l)
+			i.err = TypeErrorList(l)
 		}
 		return false
 	case *Compound:
 		if l.Functor != "." || len(l.Args) != 2 {
-			i.err = typeErrorList(l)
+			i.err = TypeErrorList(l)
 			return false
 		}
 		i.List = l.Args[1]
 		i.current = l.Args[0]
 		return true
 	default:
-		i.err = typeErrorList(l)
+		i.err = TypeErrorList(l)
 		return false
 	}
 }

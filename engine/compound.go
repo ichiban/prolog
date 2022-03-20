@@ -300,19 +300,19 @@ func EachList(list Term, f func(elem Term) error, env *Env) error {
 			return ErrInstantiation
 		case Atom:
 			if l != "[]" {
-				return typeErrorList(l)
+				return TypeErrorList(l)
 			}
 			return nil
 		case *Compound:
 			if l.Functor != "." || len(l.Args) != 2 {
-				return typeErrorList(l)
+				return TypeErrorList(l)
 			}
 			if err := f(l.Args[0]); err != nil {
 				return err
 			}
 			list = l.Args[1]
 		default:
-			return typeErrorList(l)
+			return TypeErrorList(l)
 		}
 	}
 }
@@ -325,10 +325,7 @@ func Slice(list Term, env *Env) ([]Term, error) {
 	for iter.Next() {
 		ret = append(ret, env.Resolve(iter.Current()))
 	}
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-	return ret, nil
+	return ret, iter.Err()
 }
 
 // Seq returns a sequence of ts separated by sep.

@@ -61,11 +61,25 @@ append(nil, L, L).`))
 		})
 
 		t.Run("non-proper list", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult([foo|_])."))
+			assert.Error(t, i.Exec(":- consult([?|_]).", "testdata/empty.txt"))
 		})
 
 		t.Run("proper list", func(t *testing.T) {
-			assert.NoError(t, i.Exec(":- consult([?]).", "testdata/empty.txt"))
+			t.Run("ok", func(t *testing.T) {
+				assert.NoError(t, i.Exec(":- consult([?]).", "testdata/empty.txt"))
+			})
+
+			t.Run("variable", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult([X])."))
+			})
+
+			t.Run("invalid", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult([?]).", "testdata/abc.txt"))
+			})
+
+			t.Run("not found", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult([?]).", "testdata/not_found.txt"))
+			})
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -76,6 +90,10 @@ append(nil, L, L).`))
 			t.Run("ng", func(t *testing.T) {
 				assert.Error(t, i.Exec(":- consult(?).", "testdata/abc.txt"))
 			})
+		})
+
+		t.Run("compound", func(t *testing.T) {
+			assert.Error(t, i.Exec(":- consult(foo(bar))."))
 		})
 
 		t.Run("not an atom ", func(t *testing.T) {
