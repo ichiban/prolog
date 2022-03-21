@@ -2608,10 +2608,12 @@ func (state *State) stream(streamOrAlias Term, env *Env) (*Stream, error) {
 
 // Dynamic declares a procedure indicated by pi is user-defined dynamic.
 func (state *State) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	if err := Each(pi, func(elem Term) error {
+	iter := AnyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		elem := iter.Current()
 		key, err := NewProcedureIndicator(elem, env)
 		if err != nil {
-			return err
+			return Error(err)
 		}
 		if state.procedures == nil {
 			state.procedures = map[ProcedureIndicator]procedure{}
@@ -2619,13 +2621,13 @@ func (state *State) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 		p, ok := state.procedures[key]
 		if !ok {
 			state.procedures[key] = clauses{}
-			return nil
+			continue
 		}
 		if _, ok := p.(clauses); !ok {
-			return permissionErrorModifyStaticProcedure(elem)
+			return Error(permissionErrorModifyStaticProcedure(elem))
 		}
-		return nil
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 	return k(env)
@@ -2633,10 +2635,12 @@ func (state *State) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 
 // BuiltIn declares a procedure indicated by pi is built-in and static.
 func (state *State) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	if err := Each(pi, func(elem Term) error {
+	iter := AnyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		elem := iter.Current()
 		key, err := NewProcedureIndicator(elem, env)
 		if err != nil {
-			return err
+			return Error(err)
 		}
 		if state.procedures == nil {
 			state.procedures = map[ProcedureIndicator]procedure{}
@@ -2644,13 +2648,13 @@ func (state *State) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 		p, ok := state.procedures[key]
 		if !ok {
 			state.procedures[key] = builtin{}
-			return nil
+			continue
 		}
 		if _, ok := p.(builtin); !ok {
-			return permissionErrorModifyStaticProcedure(elem)
+			return Error(permissionErrorModifyStaticProcedure(elem))
 		}
-		return nil
-	}, env); err != nil {
+	}
+	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 	return k(env)

@@ -6851,6 +6851,19 @@ func TestState_Dynamic(t *testing.T) {
 		}), err)
 		assert.False(t, ok)
 	})
+
+	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
+		var state State
+		ok, err := state.Dynamic(ListRest(Variable("X"), &Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}), Success, nil).Force(context.Background())
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
 }
 
 func TestState_BuiltIn(t *testing.T) {
@@ -6917,6 +6930,19 @@ func TestState_BuiltIn(t *testing.T) {
 				Integer(1),
 			},
 		}), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
+		var state State
+		ok, err := state.BuiltIn(ListRest(Variable("X"), &Compound{
+			Functor: "/",
+			Args: []Term{
+				Atom("foo"),
+				Integer(1),
+			},
+		}), Success, nil).Force(context.Background())
+		assert.Error(t, err)
 		assert.False(t, ok)
 	})
 }

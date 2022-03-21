@@ -291,32 +291,6 @@ func (e *Env) Set(ts ...Term) Term {
 	return List(us...)
 }
 
-// EachList iterates over list.
-// TODO: remove
-func EachList(list Term, f func(elem Term) error, env *Env) error {
-	for {
-		switch l := env.Resolve(list).(type) {
-		case Variable:
-			return ErrInstantiation
-		case Atom:
-			if l != "[]" {
-				return TypeErrorList(l)
-			}
-			return nil
-		case *Compound:
-			if l.Functor != "." || len(l.Args) != 2 {
-				return TypeErrorList(l)
-			}
-			if err := f(l.Args[0]); err != nil {
-				return err
-			}
-			list = l.Args[1]
-		default:
-			return TypeErrorList(l)
-		}
-	}
-}
-
 // Slice returns a Term slice containing the elements of list.
 // It errors if the given Term is not a list.
 func Slice(list Term, env *Env) ([]Term, error) {
@@ -338,52 +312,6 @@ func Seq(sep Atom, ts ...Term) Term {
 		}
 	}
 	return s
-}
-
-// EachSeq iterates over a sequence seq separated by sep.
-func EachSeq(seq Term, sep Atom, f func(elem Term) error, env *Env) error {
-	return eachSep(seq, func(p *Compound) bool {
-		return p.Functor == sep
-	}, f, env)
-}
-
-// EachAlternative iterates over a sequence of alternatives separated by semicolon.
-func EachAlternative(seq Term, f func(elem Term) error, env *Env) error {
-	return eachSep(seq, func(p *Compound) bool {
-		if p.Functor != ";" {
-			return false
-		}
-
-		// if-then-else construct
-		if c, ok := p.Args[0].(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
-			return false
-		}
-
-		return true
-	}, f, env)
-}
-
-func eachSep(seq Term, sep func(*Compound) bool, f func(elem Term) error, env *Env) error {
-	for {
-		p, ok := env.Resolve(seq).(*Compound)
-		if !ok || !sep(p) || len(p.Args) != 2 {
-			break
-		}
-		if err := f(p.Args[0]); err != nil {
-			return err
-		}
-		seq = p.Args[1]
-	}
-	return f(seq)
-}
-
-// Each iterates over either a list or comma-delimited sequence.
-// TODO: Once EachSeq is replaced by an iterator, replace this by another iterator.
-func Each(any Term, f func(elem Term) error, env *Env) error {
-	if c, ok := env.Resolve(any).(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
-		return EachList(any, f, env)
-	}
-	return EachSeq(any, ",", f, env)
 }
 
 func Pair(k, v Term) Term {
