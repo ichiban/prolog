@@ -1743,6 +1743,18 @@ func TestBetween(t *testing.T) {
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
+
+		t.Run("less than lower", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(3), Integer(0), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("greater than upper", func(t *testing.T) {
+			ok, err := Between(Integer(1), Integer(3), Integer(100), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("value is a variable", func(t *testing.T) {
@@ -1805,6 +1817,11 @@ func TestBetween(t *testing.T) {
 	t.Run("upper is not an integer", func(t *testing.T) {
 		_, err := Between(Integer(1), Atom("inf"), Integer(1), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeErrorInteger(Atom("inf")), err)
+	})
+
+	t.Run("value is not an integer or variable", func(t *testing.T) {
+		_, err := Between(Integer(1), Integer(1), Atom("foo"), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 	})
 }
 
