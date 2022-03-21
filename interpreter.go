@@ -60,6 +60,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3("functor", engine.Functor)
 	i.Register3("op", i.Op)
 	i.Register3("compare", engine.Compare)
+	i.Register3("between", engine.Between)
 	i.Register2("sort", engine.Sort)
 	i.Register2("keysort", engine.KeySort)
 	i.Register3("current_op", i.CurrentOp)

@@ -813,6 +813,55 @@ func Compare(order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise
 	}
 }
 
+// Between succeeds when lower, upper, and value are all integers, and lower <= value <= upper.
+// If value is a variable, it is unified with successive integers from lower to upper.
+func Between(lower, upper, value Term, k func(*Env) *Promise, env *Env) *Promise {
+	var low, high Integer
+
+	switch lower := env.Resolve(lower).(type) {
+	case Integer:
+		low = lower
+	case Variable:
+		return Error(ErrInstantiation)
+	default:
+		return Error(TypeErrorInteger(lower))
+	}
+
+	switch upper := env.Resolve(upper).(type) {
+	case Integer:
+		high = upper
+	case Variable:
+		return Error(ErrInstantiation)
+	default:
+		return Error(TypeErrorInteger(upper))
+	}
+
+	if low > high {
+		return Bool(false)
+	}
+
+	switch value := env.Resolve(value).(type) {
+	case Integer:
+		if value < low || value > high {
+			return Bool(false)
+		}
+		return k(env)
+	case Variable:
+		ks := make([]func(context.Context) *Promise, 0, 2)
+		ks = append(ks, func(context.Context) *Promise {
+			return Unify(value, low, k, env)
+		})
+		if low < high {
+			ks = append(ks, func(context.Context) *Promise {
+				return Between(low+1, upper, value, k, env)
+			})
+		}
+		return Delay(ks...)
+	default:
+		return Error(TypeErrorInteger(value))
+	}
+}
+
 // Sort succeeds if sorted list of elements of list unifies with sorted.
 func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 	var elems []Term
