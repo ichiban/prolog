@@ -1732,6 +1732,12 @@ func TestBetween(t *testing.T) {
 			assert.True(t, ok)
 		})
 
+		t.Run("value, lower, higher are all MaxInt64", func(t *testing.T) {
+			ok, err := Between(Integer(math.MaxInt64), Integer(math.MaxInt64), Integer(math.MaxInt64), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
 		t.Run("equal to lower, but lower > upper", func(t *testing.T) {
 			ok, err := Between(Integer(3), Integer(1), Integer(3), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -1744,6 +1750,16 @@ func TestBetween(t *testing.T) {
 			value := Variable("Value")
 			ok, err := Between(Integer(1), Integer(1), value, func(env *Env) *Promise {
 				assert.Equal(t, Integer(1), env.Resolve(value))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("lower and upper are MaxInt64", func(t *testing.T) {
+			value := Variable("Value")
+			ok, err := Between(Integer(math.MaxInt64), Integer(math.MaxInt64), value, func(env *Env) *Promise {
+				assert.Equal(t, Integer(math.MaxInt64), env.Resolve(value))
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)

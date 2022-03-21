@@ -842,16 +842,21 @@ func Between(lower, upper, value Term, k func(*Env) *Promise, env *Env) *Promise
 
 	switch value := env.Resolve(value).(type) {
 	case Integer:
-		if value >= low && value <= high {
-			return k(env)
+		if value < low || value > high {
+			return Bool(false)
 		}
-		return Bool(false)
+		return k(env)
 	case Variable:
-		return Delay(func(context.Context) *Promise {
+		ks := make([]func(context.Context) *Promise, 0, 2)
+		ks = append(ks, func(context.Context) *Promise {
 			return Unify(value, low, k, env)
-		}, func(context.Context) *Promise {
-			return Between(low+1, upper, value, k, env)
 		})
+		if low < high {
+			ks = append(ks, func(context.Context) *Promise {
+				return Between(low+1, upper, value, k, env)
+			})
+		}
+		return Delay(ks...)
 	default:
 		return Error(TypeErrorInteger(value))
 	}
