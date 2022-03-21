@@ -7324,3 +7324,127 @@ func TestState_Expand(t *testing.T) {
 		})
 	})
 }
+
+func TestNth0(t *testing.T) {
+	t.Run("n is a variable", func(t *testing.T) {
+		t.Run("list is a proper list", func(t *testing.T) {
+			const pair = Atom("-")
+			var (
+				n       = Variable("N")
+				elem    = Variable("Elem")
+				results []Term
+			)
+			ok, err := Nth0(n, List(Atom("a"), Atom("b"), Atom("c")), elem, func(env *Env) *Promise {
+				results = append(results, pair.Apply(env.Resolve(n), env.Resolve(elem)))
+				return Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+
+			assert.Equal(t, []Term{
+				pair.Apply(Integer(0), Atom("a")),
+				pair.Apply(Integer(1), Atom("b")),
+				pair.Apply(Integer(2), Atom("c")),
+			}, results)
+		})
+
+		t.Run("list is an improper list", func(t *testing.T) {
+			_, err := Nth0(Variable("N"), ListRest(Variable("X"), Atom("a")), Variable("Elem"), Failure, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+	})
+
+	t.Run("n is an integer", func(t *testing.T) {
+		t.Run("list is a proper list", func(t *testing.T) {
+			t.Run("n is a valid index", func(t *testing.T) {
+				ok, err := Nth0(Integer(1), List(Atom("a"), Atom("b"), Atom("c")), Atom("b"), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("n is too small for an index", func(t *testing.T) {
+				ok, err := Nth0(Integer(-1), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+
+			t.Run("n is too big for an index", func(t *testing.T) {
+				ok, err := Nth0(Integer(3), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+		})
+
+		t.Run("list is an improper list", func(t *testing.T) {
+			_, err := Nth0(Integer(1), ListRest(NewVariable(), Atom("a")), NewVariable(), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+	})
+
+	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
+		_, err := Nth0(Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+	})
+}
+
+func TestNth1(t *testing.T) {
+	t.Run("n is a variable", func(t *testing.T) {
+		t.Run("list is a proper list", func(t *testing.T) {
+			const pair = Atom("-")
+			var (
+				n       = Variable("N")
+				elem    = Variable("Elem")
+				results []Term
+			)
+			ok, err := Nth1(n, List(Atom("a"), Atom("b"), Atom("c")), elem, func(env *Env) *Promise {
+				results = append(results, pair.Apply(env.Resolve(n), env.Resolve(elem)))
+				return Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+
+			assert.Equal(t, []Term{
+				pair.Apply(Integer(1), Atom("a")),
+				pair.Apply(Integer(2), Atom("b")),
+				pair.Apply(Integer(3), Atom("c")),
+			}, results)
+		})
+
+		t.Run("list is an improper list", func(t *testing.T) {
+			_, err := Nth1(Variable("N"), ListRest(Variable("X"), Atom("a")), Variable("Elem"), Failure, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+	})
+
+	t.Run("n is an integer", func(t *testing.T) {
+		t.Run("list is a proper list", func(t *testing.T) {
+			t.Run("n is a valid index", func(t *testing.T) {
+				ok, err := Nth1(Integer(2), List(Atom("a"), Atom("b"), Atom("c")), Atom("b"), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("n is too small for an index", func(t *testing.T) {
+				ok, err := Nth1(Integer(0), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+
+			t.Run("n is too big for an index", func(t *testing.T) {
+				ok, err := Nth1(Integer(4), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+		})
+
+		t.Run("list is an improper list", func(t *testing.T) {
+			_, err := Nth1(Integer(2), ListRest(NewVariable(), Atom("a")), NewVariable(), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+	})
+
+	t.Run("n is neither a variable nor an integer", func(t *testing.T) {
+		_, err := Nth1(Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
+	})
+}
