@@ -7567,3 +7567,83 @@ func TestNth1(t *testing.T) {
 		assert.Equal(t, TypeErrorInteger(Atom("foo")), err)
 	})
 }
+
+func TestSucc(t *testing.T) {
+	t.Run("x is a variable", func(t *testing.T) {
+		t.Run("s is a variable", func(t *testing.T) {
+			_, err := Succ(Variable("X"), Variable("S"), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+
+		t.Run("s is an integer", func(t *testing.T) {
+			t.Run("ok", func(t *testing.T) {
+				x := Variable("X")
+				ok, err := Succ(x, Integer(1), func(env *Env) *Promise {
+					assert.Equal(t, Integer(0), env.Resolve(x))
+					return Bool(true)
+				}, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("s < 0", func(t *testing.T) {
+				_, err := Succ(Variable("X"), Integer(-1), Success, nil).Force(context.Background())
+				assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
+			})
+
+			t.Run("s = 0", func(t *testing.T) {
+				ok, err := Succ(Variable("X"), Integer(0), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+		})
+
+		t.Run("s is neither a variable nor an integer", func(t *testing.T) {
+			_, err := Succ(Variable("X"), Float(1), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		})
+	})
+
+	t.Run("x is an integer", func(t *testing.T) {
+		t.Run("s is a variable", func(t *testing.T) {
+			s := Variable("S")
+			ok, err := Succ(Integer(0), s, func(env *Env) *Promise {
+				assert.Equal(t, Integer(1), env.Resolve(s))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("s is an integer", func(t *testing.T) {
+			ok, err := Succ(Integer(0), Integer(1), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("s is neither a variable nor an integer", func(t *testing.T) {
+			_, err := Succ(Integer(0), Float(1), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInteger(Float(1)), err)
+		})
+
+		t.Run("x is negative", func(t *testing.T) {
+			_, err := Succ(Integer(-1), Integer(0), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
+		})
+
+		t.Run("x is math.MaxInt64", func(t *testing.T) {
+			_, err := Succ(Integer(math.MaxInt64), Integer(0), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrIntOverflow, err)
+		})
+
+		t.Run("s is negative", func(t *testing.T) {
+			_, err := Succ(Integer(0), Integer(-1), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorNotLessThanZero(Integer(-1)), err)
+		})
+	})
+
+	t.Run("x is neither a variable nor an integer", func(t *testing.T) {
+		_, err := Succ(Float(0), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Float(0)), err)
+	})
+}

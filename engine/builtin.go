@@ -2808,3 +2808,48 @@ func nth(base Integer, n, list, elem Term, k func(*Env) *Promise, env *Env) *Pro
 		return Error(TypeErrorInteger(n))
 	}
 }
+
+// Succ succeeds if s is the successor of non-negative integer x.
+func Succ(x, s Term, k func(*Env) *Promise, env *Env) *Promise {
+	switch x := x.(type) {
+	case Variable:
+		switch s := s.(type) {
+		case Variable:
+			return Error(ErrInstantiation)
+		case Integer:
+			switch {
+			case s < Integer(0):
+				return Error(domainErrorNotLessThanZero(s))
+			case s == Integer(0):
+				return Bool(false)
+			default:
+				return Unify(x, s-Integer(1), k, env)
+			}
+		default:
+			return Error(TypeErrorInteger(s))
+		}
+	case Integer:
+		if x < Integer(0) {
+			return Error(domainErrorNotLessThanZero(x))
+		}
+
+		r, err := Add(x, Integer(1))
+		if err != nil {
+			return Error(err)
+		}
+
+		switch s := s.(type) {
+		case Variable:
+			return Unify(s, r, k, env)
+		case Integer:
+			if s < Integer(0) {
+				return Error(domainErrorNotLessThanZero(s))
+			}
+			return Unify(s, r, k, env)
+		default:
+			return Error(TypeErrorInteger(s))
+		}
+	default:
+		return Error(TypeErrorInteger(x))
+	}
+}
