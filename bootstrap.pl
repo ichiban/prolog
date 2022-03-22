@@ -250,7 +250,7 @@ maplist(Cont, [E|Es]) :-
 :- built_in(phrase/2).
 phrase(GRBody, S0) :- phrase(GRBody, S0, []).
 
-:-built_in(select/3).
+:- built_in(select/3).
 select(E, [E|Xs], Xs).
 select(E, [X|Xs], [X|Ys]) :-
    select(E, Xs, Ys).
