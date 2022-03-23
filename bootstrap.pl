@@ -254,3 +254,45 @@ phrase(GRBody, S0) :- phrase(GRBody, S0, []).
 select(E, [E|Xs], Xs).
 select(E, [X|Xs], [X|Ys]) :-
    select(E, Xs, Ys).
+
+:- built_in(maplist/2).
+maplist(_Cont_1, []).
+maplist(Cont_1, [E1|E1s]) :-
+   call(Cont_1, E1),
+   maplist(Cont_1, E1s).
+
+:- built_in(maplist/3).
+maplist(_Cont_2, [], []).
+maplist(Cont_2, [E1|E1s], [E2|E2s]) :-
+   call(Cont_2, E1, E2),
+   maplist(Cont_2, E1s, E2s).
+
+:- built_in(maplist/4).
+maplist(_Cont_3, [], [], []).
+maplist(Cont_3, [E1|E1s], [E2|E2s], [E3|E3s]) :-
+   call(Cont_3, E1, E2, E3),
+   maplist(Cont_3, E1s, E2s, E3s).
+
+:- built_in(maplist/5).
+maplist(_Cont_4, [], [], [], []).
+maplist(Cont_4, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s]) :-
+   call(Cont_4, E1, E2, E3, E4),
+   maplist(Cont_4, E1s, E2s, E3s, E4s).
+
+:- built_in(maplist/6).
+maplist(_Cont_5, [], [], [], [], []).
+maplist(Cont_5, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s]) :-
+   call(Cont_5, E1, E2, E3, E4, E5),
+   maplist(Cont_5, E1s, E2s, E3s, E4s, E5s).
+
+:- built_in(maplist/7).
+maplist(_Cont_6, [], [], [], [], [], []).
+maplist(Cont_6, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s], [E6|E6s]) :-
+   call(Cont_6, E1, E2, E3, E4, E5, E6),
+   maplist(Cont_6, E1s, E2s, E3s, E4s, E5s, E6s).
+
+:- built_in(maplist/8).
+maplist(_Cont_7, [], [], [], [], [], [], []).
+maplist(Cont_7, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s], [E6|E6s], [E7|E7s]) :-
+   call(Cont_7, E1, E2, E3, E4, E5, E6, E7),
+   maplist(Cont_7, E1s, E2s, E3s, E4s, E5s, E6s, E7s).
