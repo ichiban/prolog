@@ -625,8 +625,8 @@ func (o *operator) bindingPowers() (int, int) {
 type doubleQuotes int
 
 const (
-	doubleQuotesCodes doubleQuotes = iota
-	doubleQuotesChars
+	doubleQuotesChars doubleQuotes = iota
+	doubleQuotesCodes
 	doubleQuotesAtom
 )
 
