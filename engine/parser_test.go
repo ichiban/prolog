@@ -576,7 +576,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		}
 
 		t.Run("codes", func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(`X = "abc".`)), nil, withOperators(&ops))
+			p := newParser(bufio.NewReader(strings.NewReader(`X = "abc".`)), nil, withOperators(&ops), withDoubleQuotes(doubleQuotesCodes))
 			term, err := p.Term()
 			assert.NoError(t, err)
 			assert.Equal(t, &Compound{
