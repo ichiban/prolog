@@ -241,7 +241,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
     
 </details>
 
-- **`succ(X, S)`** *prologue*
+- **`succ(X, S)`** Succeeds iff `S` is the successor of the non-negative integer `X`. *prologue*
 
 #### Arithmetic comparison
 - **`E1 =:= E2`** Succeeds iff `E1` and `E2` are evaluated to `EV1` and `EV2` respectively and `EV1` equals to `EV2`. *ISO*
