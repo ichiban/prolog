@@ -44,62 +44,77 @@ func (e *Exception) Error() string {
 	return buf.String()
 }
 
+// TypeErrorAtom returns a type error exception for atom.
 func TypeErrorAtom(culprit Term) *Exception {
 	return TypeError("atom", culprit)
 }
 
+// TypeErrorAtomic returns a type error exception for atomic.
 func TypeErrorAtomic(culprit Term) *Exception {
 	return TypeError("atomic", culprit)
 }
 
+// TypeErrorByte returns a type error exception for byte.
 func TypeErrorByte(culprit Term) *Exception {
 	return TypeError("byte", culprit)
 }
 
+// TypeErrorCallable returns a type error exception for callable.
 func TypeErrorCallable(culprit Term) *Exception {
 	return TypeError("callable", culprit)
 }
 
+// TypeErrorCharacter returns a type error exception for character.
 func TypeErrorCharacter(culprit Term) *Exception {
 	return TypeError("character", culprit)
 }
 
+// TypeErrorCompound returns a type error exception for compound.
 func TypeErrorCompound(culprit Term) *Exception {
 	return TypeError("compound", culprit)
 }
 
+// TypeErrorEvaluable returns a type error exception for evaluable.
 func TypeErrorEvaluable(culprit Term) *Exception {
 	return TypeError("evaluable", culprit)
 }
 
+// TypeErrorInByte returns a type error exception for in_byte.
 func TypeErrorInByte(culprit Term) *Exception {
 	return TypeError("in_byte", culprit)
 }
 
+// TypeErrorInCharacter returns a type error exception for in_character.
 func TypeErrorInCharacter(culprit Term) *Exception {
 	return TypeError("in_character", culprit)
 }
 
+// TypeErrorInteger returns a type error exception for integer.
 func TypeErrorInteger(culprit Term) *Exception {
 	return TypeError("integer", culprit)
 }
 
+// TypeErrorList returns a type error exception for list.
 func TypeErrorList(culprit Term) *Exception {
 	return TypeError("list", culprit)
 }
 
+// TypeErrorNumber returns a type error exception for number.
 func TypeErrorNumber(culprit Term) *Exception {
 	return TypeError("number", culprit)
 }
 
+// TypeErrorPredicateIndicator returns a type error exception for predicate_indicator.
 func TypeErrorPredicateIndicator(culprit Term) *Exception {
 	return TypeError("predicate_indicator", culprit)
 }
 
+// TypeErrorPair returns a type error exception for pair.
 func TypeErrorPair(culprit Term) *Exception {
 	return TypeError("pair", culprit)
 }
 
+// TypeErrorFloat returns a type error exception for float.
 func TypeErrorFloat(culprit Term) *Exception {
 	return TypeError("float", culprit)
 }

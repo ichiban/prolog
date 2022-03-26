@@ -145,7 +145,7 @@ func init() {
 		},
 		{Name: "->", Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()
-			if_, err := dcgBody(args[0], list, v, env)
+			cond, err := dcgBody(args[0], list, v, env)
 			if err != nil {
 				return nil, err
 			}
@@ -153,7 +153,7 @@ func init() {
 			if err != nil {
 				return nil, err
 			}
-			return Atom("->").Apply(if_, then), nil
+			return Atom("->").Apply(cond, then), nil
 		},
 	}
 }

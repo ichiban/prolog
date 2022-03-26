@@ -237,7 +237,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
         - `X /\ Y`
         - `X \/ Y`
         - `\X`
-        - `X xor Y`
+        - `xor(X, Y)`
     
 </details>
 

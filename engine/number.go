@@ -1017,6 +1017,7 @@ func Tan(x Number) (Number, error) {
 	return Float(math.Tan(vx)), nil
 }
 
+// Xor returns the bitwise exclusive or of x and y.
 func Xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {

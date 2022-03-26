@@ -2,7 +2,7 @@ package prolog
 
 import (
 	"context"
-	_ "embed"
+	_ "embed" // for go:embed
 	"errors"
 	"io"
 	"io/ioutil"

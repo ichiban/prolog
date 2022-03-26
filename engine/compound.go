@@ -314,6 +314,7 @@ func Seq(sep Atom, ts ...Term) Term {
 	return s
 }
 
+// Pair returns a pair of k and v.
 func Pair(k, v Term) Term {
 	return &Compound{
 		Functor: "-",
