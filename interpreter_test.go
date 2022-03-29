@@ -66,7 +66,12 @@ append(nil, L, L).`))
 
 		t.Run("proper list", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
+				assert.NoError(t, i.Exec(":- consult([])."))
 				assert.NoError(t, i.Exec(":- consult([?]).", "testdata/empty.txt"))
+				assert.NoError(t, i.Exec(":- consult(?).", []string{
+					"testdata/empty.txt",
+					"testdata/empty.txt",
+				}))
 			})
 
 			t.Run("variable", func(t *testing.T) {

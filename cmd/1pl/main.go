@@ -4,10 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -25,19 +24,42 @@ const (
 	contPrompt = "|- "
 )
 
+var version = func() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+
+	return info.Main.Version
+}()
+
 func main() {
 	var verbose bool
 	flag.BoolVar(&verbose, "v", false, `verbose`)
 	flag.Parse()
 
-	oldState, err := terminal.MakeRaw(0)
-	if err != nil {
-		log.Panicf("failed to enter raw mode: %v", err)
+	fmt.Printf(`Top level for ichiban/prolog %s
+This is for testing purposes only!
+See https://github.com/ichiban/prolog for more details.
+Type Ctrl-C or 'halt.' to exit.
+`, version)
+
+	halt := engine.Halt
+	if terminal.IsTerminal(0) {
+		oldState, err := terminal.MakeRaw(0)
+		if err != nil {
+			log.Panicf("failed to enter raw mode: %v", err)
+		}
+		restore := func() {
+			_ = terminal.Restore(0, oldState)
+		}
+		defer restore()
+
+		halt = func(n engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+			restore()
+			return engine.Halt(n, k, env)
+		}
 	}
-	restore := func() {
-		_ = terminal.Restore(0, oldState)
-	}
-	defer restore()
 
 	t := terminal.NewTerminal(os.Stdin, prompt)
 	defer fmt.Printf("\r\n")
@@ -45,65 +67,28 @@ func main() {
 	log.SetOutput(t)
 
 	i := prolog.New(os.Stdin, t)
-	i.Register1("halt", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-		restore()
-		return engine.Halt(t, k, env)
-	})
-	i.Register1("cd", func(dir engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-		switch dir := env.Resolve(dir).(type) {
-		case engine.Atom:
-			if err := os.Chdir(string(dir)); err != nil {
-				return engine.Error(err)
-			}
-			return k(env)
-		default:
-			return engine.Error(errors.New("not a dir"))
-		}
-	})
+	i.Register1("halt", halt)
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, _ := pi.Apply(args...)
-			log.Printf("CALL %s", env.Simplify(goal))
+			log.Printf("CALL %s", goal(i, pi, args, env))
 		}
 		i.OnExit = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, _ := pi.Apply(args...)
-			log.Printf("EXIT %s", env.Simplify(goal))
+			log.Printf("EXIT %s", goal(i, pi, args, env))
 		}
 		i.OnFail = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, _ := pi.Apply(args...)
-			log.Printf("FAIL %s", env.Simplify(goal))
+			log.Printf("FAIL %s", goal(i, pi, args, env))
 		}
 		i.OnRedo = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			goal, _ := pi.Apply(args...)
-			log.Printf("REDO %s", env.Simplify(goal))
+			log.Printf("REDO %s", goal(i, pi, args, env))
 		}
 	}
 	i.OnUnknown = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-		log.Printf("UNKNOWN %s", pi)
+		log.Printf("UNKNOWN %s", goal(i, pi, args, env))
 	}
-	i.Register1("version", func(t engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-		info, ok := debug.ReadBuildInfo()
-		if !ok {
-			return engine.Bool(false)
-		}
 
-		env, ok = t.Unify(engine.Atom(info.Main.Version), false, env)
-		if !ok {
-			return engine.Bool(false)
-		}
-
-		return k(env)
-	})
-
-	for _, a := range flag.Args() {
-		b, err := ioutil.ReadFile(a)
-		if err != nil {
-			log.Panicf("failed to read %s: %v", a, err)
-		}
-
-		if err := i.Exec(string(b)); err != nil {
-			log.Panicf("failed to execute %s: %v", a, err)
-		}
+	// Consult arguments.
+	if err := i.QuerySolution(`consult(?).`, flag.Args()).Err(); err != nil {
+		log.Panic(err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -112,10 +97,22 @@ func main() {
 	var buf strings.Builder
 	keys := bufio.NewReader(os.Stdin)
 	for {
-		if err := handleLine(ctx, &buf, i, t, keys); err != nil {
+		switch err := handleLine(ctx, &buf, i, t, keys); err {
+		case nil:
+			break
+		case io.EOF:
+			return
+		default:
 			log.Panic(err)
 		}
 	}
+}
+
+func goal(i *prolog.Interpreter, pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) string {
+	goal, _ := pi.Apply(args...)
+	var buf bytes.Buffer
+	_ = i.Write(&buf, goal, env, engine.WithQuoted(true))
+	return buf.String()
 }
 
 func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) (err error) {

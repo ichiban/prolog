@@ -235,6 +235,15 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 	switch f := env.Resolve(files).(type) {
 	case engine.Variable:
 		return engine.Error(engine.ErrInstantiation)
+	case engine.Atom:
+		if f == "[]" {
+			return k(env)
+		}
+
+		if err := i.consultOne(f, env); err != nil {
+			return engine.Error(err)
+		}
+		return k(env)
 	case *engine.Compound:
 		if f.Functor != "." || len(f.Args) != 2 {
 			return engine.Error(engine.TypeErrorList(f))
@@ -250,10 +259,7 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		}
 		return k(env)
 	default:
-		if err := i.consultOne(f, env); err != nil {
-			return engine.Error(err)
-		}
-		return k(env)
+		return engine.Error(engine.TypeErrorList(f))
 	}
 }
 
