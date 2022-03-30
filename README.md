@@ -127,7 +127,7 @@ You can install it with `go install`:
 go install github.com/ichiban/prolog/cmd/1pl@latest
 ```
 
-Then, you can test the language:
+Then, you can enter the top level with `1pl`:
 
 ```console
 $(go env GOPATH)/bin/1pl [<file>...]
