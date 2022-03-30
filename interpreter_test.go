@@ -78,6 +78,10 @@ append(nil, L, L).`))
 				assert.Error(t, i.Exec(":- consult([X])."))
 			})
 
+			t.Run("not an atom", func(t *testing.T) {
+				assert.Error(t, i.Exec(":- consult([1])."))
+			})
+
 			t.Run("invalid", func(t *testing.T) {
 				assert.Error(t, i.Exec(":- consult([?]).", "testdata/abc.txt"))
 			})
