@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ichiban/prolog/engine"
@@ -158,4 +159,71 @@ func TestSolutions_Vars(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{"A", "B", "C"}, sols.Vars())
+}
+
+func ExampleSolutions_Scan() {
+	p := New(nil, nil)
+	sols, _ := p.Query(`A = foo, I = 42, F = 3.14.`)
+	for sols.Next() {
+		var s struct {
+			A string
+			I int
+			F float64
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("A = %s\n", s.A)
+		fmt.Printf("I = %d\n", s.I)
+		fmt.Printf("F = %.2f\n", s.F)
+	}
+
+	// Output:
+	// A = foo
+	// I = 42
+	// F = 3.14
+}
+
+func ExampleSolutions_Scan_tag() {
+	p := New(nil, nil)
+	sols, _ := p.Query(`A = foo, I = 42, F = 3.14.`)
+	for sols.Next() {
+		var s struct {
+			Atom    string  `prolog:"A"`
+			Integer int     `prolog:"I"`
+			Float   float64 `prolog:"F"`
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("Atom = %s\n", s.Atom)
+		fmt.Printf("Integer = %d\n", s.Integer)
+		fmt.Printf("Float = %.2f\n", s.Float)
+	}
+
+	// Output:
+	// Atom = foo
+	// Integer = 42
+	// Float = 3.14
+}
+
+func ExampleSolutions_Scan_list() {
+	p := New(nil, nil)
+	sols, _ := p.Query(`Atoms = [foo, bar], Integers = [1, 2], Floats = [1.1, 2.1], Mixed = [foo, 1, 1.1].`)
+	for sols.Next() {
+		var s struct {
+			Atoms    []string
+			Integers []int64
+			Floats   []float64
+			Mixed    []interface{}
+		}
+		_ = sols.Scan(&s)
+
+		fmt.Printf("Atoms = %s\n", s.Atoms)
+		fmt.Printf("Integers = %d\n", s.Integers)
+		fmt.Printf("Floats = %.1f\n", s.Floats)
+		fmt.Printf("Mixed = %v\n", s.Mixed)
+	}
+
+	// Output:
+	// Atoms = [foo bar]
+	// Integers = [1 2]
+	// Floats = [1.1 2.1]
+	// Mixed = [foo 1 1.1]
 }
