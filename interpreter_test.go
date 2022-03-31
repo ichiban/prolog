@@ -3,6 +3,7 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -597,9 +598,69 @@ foo(c, d).
 	})
 }
 
-func ExampleInterpreter_Exec_dcg() {
-	i := New(nil, nil)
-	_ = i.Exec(`
+func ExampleInterpreter_Exec_placeholders() {
+	p := New(nil, os.Stdout)
+
+	_ = p.Exec(`my_atom(?).`, "foo")
+	sols, _ := p.Query(`my_atom(A), atom(A), write(A), nl.`)
+	sols.Next()
+
+	_ = p.Exec(`my_int(?, ?, ?, ?, ?).`, int8(1), int16(1), int32(1), int64(1), 1)
+	sols, _ = p.Query(`my_int(I, I, I, I, I), integer(I), write(I), nl.`)
+	sols.Next()
+
+	_ = p.Exec(`my_float(?, ?).`, float32(1), float64(1))
+	sols, _ = p.Query(`my_float(F, F), float(F), write(F), nl.`)
+	sols.Next()
+
+	_ = p.Exec(`my_atom_list(?).`, []string{"foo", "bar", "baz"})
+	sols, _ = p.Query(`my_atom_list(As), maplist(atom, As), write(As), nl.`)
+	sols.Next()
+
+	_ = p.Exec(`my_int_list(?).`, []int{1, 2, 3})
+	sols, _ = p.Query(`my_int_list(Is), maplist(integer, Is), write(Is), nl.`)
+	sols.Next()
+
+	_ = p.Exec(`my_float_list(?).`, []float64{1, 2, 3})
+	sols, _ = p.Query(`my_float_list(Fs), maplist(float, Fs), write(Fs), nl.`)
+	sols.Next()
+
+	// Output:
+	// foo
+	// 1
+	// 1.0
+	// [foo, bar, baz]
+	// [1, 2, 3]
+	// [1.0, 2.0, 3.0]
+}
+
+func ExampleInterpreter_Query_placeholders() {
+	p := New(nil, os.Stdout)
+	sols, _ := p.Query(`A = ?, atom(A), write(A), nl.`, "foo")
+	sols.Next()
+	sols, _ = p.Query(`(I, I, I, I, I) = (?, ?, ?, ?, ?), integer(I), write(I), nl.`, int8(1), int16(1), int32(1), int64(1), 1)
+	sols.Next()
+	sols, _ = p.Query(`(F, F) = (?, ?), float(F), write(F), nl.`, float32(1), float64(1))
+	sols.Next()
+	sols, _ = p.Query(`L = ?, maplist(atom, L), write(L), nl.`, []string{"foo", "bar", "baz"})
+	sols.Next()
+	sols, _ = p.Query(`L = ?, maplist(integer, L), write(L), nl.`, []int{1, 2, 3})
+	sols.Next()
+	sols, _ = p.Query(`L = ?, maplist(float, L), write(L), nl.`, []float64{1, 2, 3})
+	sols.Next()
+
+	// Output:
+	// foo
+	// 1
+	// 1.0
+	// [foo, bar, baz]
+	// [1, 2, 3]
+	// [1.0, 2.0, 3.0]
+}
+
+func ExampleInterpreter_New_phrase() {
+	p := New(nil, nil)
+	_ = p.Exec(`
 determiner --> [the].
 determiner --> [a].
 
@@ -618,18 +679,36 @@ verb_phrase --> verb, noun_phrase.
 sentence --> noun_phrase, verb_phrase.
 `)
 
-	fmt.Printf("%t\n", i.QuerySolution(`phrase([the], [the]).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes, the, boy]).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes, the, boy, today]).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`phrase(sentence, [the, girl, likes]).`).Err() == nil)
-	var s struct {
-		Sentence []string
-		Rest     []string
+	sols, _ := p.Query(`phrase([the], [the]).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`phrase(sentence, [the, girl, likes, the, boy]).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`phrase(sentence, [the, girl, likes, the, boy, today]).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`phrase(sentence, [the, girl, likes]).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`phrase(sentence, Sentence).`)
+	for sols.Next() {
+		var s struct {
+			Sentence []string
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("Sentence = %s\n", s.Sentence)
+		break // Many other sentences follow.
 	}
-	_ = i.QuerySolution(`phrase(sentence, Sentence).`).Scan(&s)
-	fmt.Printf("Sentence = %s\n", s.Sentence)
-	_ = i.QuerySolution(`phrase(noun_phrase, [the, girl, scares, the, boy], Rest).`).Scan(&s)
-	fmt.Printf("Rest = %s\n", s.Rest)
+
+	sols, _ = p.Query(`phrase(noun_phrase, [the, girl, scares, the, boy], Rest).`)
+	for sols.Next() {
+		var s struct {
+			Rest []string
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("Rest = %s\n", s.Rest)
+	}
 
 	// Output:
 	// true
@@ -640,14 +719,26 @@ sentence --> noun_phrase, verb_phrase.
 	// Rest = [scares the boy]
 }
 
-func ExampleInterpreter_QuerySolution_subsumes_term() {
-	i := New(nil, nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(a, a).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(f(X,Y), f(Z,Z)).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(f(Z,Z), f(X,Y)).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(g(X), g(f(X))).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(X, f(X)).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`subsumes_term(X, Y), subsumes_term(Y, f(X)).`).Err() == nil)
+func ExampleInterpreter_New_subsumes_term() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`subsumes_term(a, a).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`subsumes_term(f(X,Y), f(Z,Z)).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`subsumes_term(f(Z,Z), f(X,Y)).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`subsumes_term(g(X), g(f(X))).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`subsumes_term(X, f(X)).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`subsumes_term(X, Y), subsumes_term(Y, f(X)).`)
+	fmt.Printf("%t\n", sols.Next())
 
 	// Output:
 	// true
@@ -658,12 +749,20 @@ func ExampleInterpreter_QuerySolution_subsumes_term() {
 	// true
 }
 
-func ExampleInterpreter_QuerySolution_callable() {
-	i := New(nil, nil)
-	fmt.Printf("%t\n", i.QuerySolution(`callable(a).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`callable(3).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`callable(X).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`callable((1,2)).`).Err() == nil)
+func ExampleInterpreter_New_callable() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`callable(a).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`callable(3).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`callable(X).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`callable((1,2)).`)
+	fmt.Printf("%t\n", sols.Next())
 
 	// Output:
 	// true
@@ -672,40 +771,63 @@ func ExampleInterpreter_QuerySolution_callable() {
 	// true
 }
 
-func ExampleInterpreter_QuerySolution_acyclic_term() {
-	i := New(nil, nil)
-	fmt.Printf("%t\n", i.QuerySolution(`acyclic_term(a(1, _)).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`X = f(X), acyclic_term(X).`).Err() == nil)
+func ExampleInterpreter_New_acyclicTerm() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`acyclic_term(a(1, _)).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`X = f(X), acyclic_term(X).`)
+	fmt.Printf("%t\n", sols.Next())
 
 	// Output:
 	// true
 	// false
 }
 
-func ExampleInterpreter_QuerySolution_ground() {
-	i := New(nil, nil)
-	fmt.Printf("%t\n", i.QuerySolution(`ground(3).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`ground(a(1, _)).`).Err() == nil)
+func ExampleInterpreter_New_ground() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`ground(3).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`ground(a(1, _)).`)
+	fmt.Printf("%t\n", sols.Next())
 
 	// Output:
 	// true
 	// false
 }
 
-func ExampleInterpreter_QuerySolution_sort() {
-	var s struct {
-		Sorted []int
-		X      int
+func ExampleInterpreter_New_sort() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`sort([1, 1], Sorted).`)
+	for sols.Next() {
+		var s struct {
+			Sorted []int
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("Sorted = %d\n", s.Sorted)
 	}
 
-	i := New(nil, nil)
-	_ = i.QuerySolution(`sort([1, 1], Sorted).`).Scan(&s)
-	fmt.Printf("Sorted = %d\n", s.Sorted)
-	_ = i.QuerySolution(`sort([X, 1], [1, 1]).`).Scan(&s)
-	fmt.Printf("X = %d\n", s.X)
-	fmt.Printf("%t\n", i.QuerySolution(`sort([1, 1], [1, 1]).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`sort([V], V).`).Err() == nil)
-	fmt.Printf("%t\n", i.QuerySolution(`sort([f(U),U,U,f(V),f(U),V],L).`).Err() == nil)
+	sols, _ = p.Query(`sort([X, 1], [1, 1]).`)
+	for sols.Next() {
+		var s struct {
+			X int
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("X = %d\n", s.X)
+	}
+
+	sols, _ = p.Query(`sort([1, 1], [1, 1]).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`sort([V], V).`)
+	fmt.Printf("%t\n", sols.Next())
+
+	sols, _ = p.Query(`sort([f(U),U,U,f(V),f(U),V],L).`)
+	fmt.Printf("%t\n", sols.Next())
 
 	// Output:
 	// Sorted = [1]
