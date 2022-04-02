@@ -44,8 +44,17 @@ func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 // Unparse emits tokens that represent the variable.
 func (v Variable) Unparse(emit func(token Token), env *Env, opts ...WriteOption) {
+	wo := defaultWriteOptions
+	for _, o := range opts {
+		o(&wo)
+	}
+
 	switch v := env.Resolve(v).(type) {
 	case Variable:
+		if a, ok := wo.variableNames[v]; ok {
+			a.Unparse(emit, env, append(opts, WithQuoted(false))...)
+			return
+		}
 		emit(Token{Kind: TokenVariable, Val: string(v)})
 	default:
 		v.Unparse(emit, env, opts...)

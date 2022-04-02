@@ -49,6 +49,19 @@ func TestVariable_Unparse(t *testing.T) {
 		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
 	})
 
+	t.Run("variable names", func(t *testing.T) {
+		v := Variable("X")
+		var tokens []Token
+		v.Unparse(func(token Token) {
+			tokens = append(tokens, token)
+		}, nil, WithVariableNames(map[Variable]Atom{
+			"X": "Foo",
+		}))
+		assert.Equal(t, []Token{
+			{Kind: TokenIdent, Val: "Foo"},
+		}, tokens)
+	})
+
 	t.Run("not a variable", func(t *testing.T) {
 		var m mockTerm
 		m.On("Unparse", mock.Anything, mock.Anything, mock.Anything).Return().Once()

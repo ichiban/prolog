@@ -43,7 +43,7 @@ func (a Atom) Apply(args ...Term) Term {
 
 // Unparse emits tokens that represent the atom.
 func (a Atom) Unparse(emit func(Token), _ *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
