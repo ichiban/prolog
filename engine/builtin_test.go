@@ -3871,6 +3871,45 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.Equal(t, ops, m.ops)
 			assert.Equal(t, 1200, m.priority)
 		})
+
+		t.Run("invalid atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "quoted",
+				Args:    []Term{Atom("meh")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "quoted",
+				Args:    []Term{Atom("meh")},
+			}), err)
+		})
+
+		t.Run("variable", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "quoted",
+				Args:    []Term{Variable("Bool")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+
+		t.Run("not an atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "quoted",
+				Args:    []Term{Integer(0)},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "quoted",
+				Args:    []Term{Integer(0)},
+			}), err)
+		})
 	})
 
 	t.Run("ignore_ops", func(t *testing.T) {
@@ -3904,7 +3943,45 @@ func TestState_WriteTerm(t *testing.T) {
 
 			assert.Nil(t, m.ops)
 			assert.Equal(t, 1200, m.priority)
+		})
 
+		t.Run("invalid atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "ignore_ops",
+				Args:    []Term{Atom("meh")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "ignore_ops",
+				Args:    []Term{Atom("meh")},
+			}), err)
+		})
+
+		t.Run("variable", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "ignore_ops",
+				Args:    []Term{Variable("Bool")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+
+		t.Run("not an atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "ignore_ops",
+				Args:    []Term{Integer(0)},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "ignore_ops",
+				Args:    []Term{Integer(0)},
+			}), err)
 		})
 	})
 
@@ -4036,6 +4113,45 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.True(t, m.numberVars)
 			assert.Equal(t, 1200, m.priority)
 		})
+
+		t.Run("invalid atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "numbervars",
+				Args:    []Term{Atom("meh")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "numbervars",
+				Args:    []Term{Atom("meh")},
+			}), err)
+		})
+
+		t.Run("variable", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "numbervars",
+				Args:    []Term{Variable("Bool")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, ErrInstantiation, err)
+		})
+
+		t.Run("not an atom", func(t *testing.T) {
+			var m mockTerm
+			defer m.AssertExpectations(t)
+
+			_, err := state.WriteTerm(s, &m, List(&Compound{
+				Functor: "numbervars",
+				Args:    []Term{Integer(0)},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "numbervars",
+				Args:    []Term{Integer(0)},
+			}), err)
+		})
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
@@ -4078,16 +4194,38 @@ func TestState_WriteTerm(t *testing.T) {
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid write-option", func(t *testing.T) {
-		var state State
-		ok, err := state.WriteTerm(s, Atom("foo"), List(&Compound{
-			Functor: "unknown",
-			Args:    []Term{Atom("option")},
-		}), Success, nil).Force(context.Background())
-		assert.Equal(t, domainErrorWriteOption(&Compound{
-			Functor: "unknown",
-			Args:    []Term{Atom("option")},
-		}), err)
-		assert.False(t, ok)
+		t.Run("atom", func(t *testing.T) {
+			var state State
+			ok, err := state.WriteTerm(s, Atom("foo"), List(Atom("option")), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(Atom("option")), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("compound of arity n != 1", func(t *testing.T) {
+			var state State
+			ok, err := state.WriteTerm(s, Atom("foo"), List(&Compound{
+				Functor: "unknown",
+				Args:    []Term{Atom("foo"), Atom("bar")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "unknown",
+				Args:    []Term{Atom("foo"), Atom("bar")},
+			}), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("unknown option of a boolean argument", func(t *testing.T) {
+			var state State
+			ok, err := state.WriteTerm(s, Atom("foo"), List(&Compound{
+				Functor: "unknown",
+				Args:    []Term{Atom("true")},
+			}), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorWriteOption(&Compound{
+				Functor: "unknown",
+				Args:    []Term{Atom("true")},
+			}), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
