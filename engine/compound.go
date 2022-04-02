@@ -38,9 +38,9 @@ func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 // Unparse emits tokens that represent the compound.
 func (c *Compound) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wo := defaultWriteOptions
 	for _, o := range opts {
-		o(&wto)
+		o(&wo)
 	}
 
 	if c.Functor == "." && len(c.Args) == 2 {
@@ -53,7 +53,7 @@ func (c *Compound) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
 		return
 	}
 
-	if op := wto.ops.find(c.Functor, len(c.Args)); op != nil {
+	if op := wo.ops.find(c.Functor, len(c.Args)); op != nil {
 		[...]func(operator, func(Token), *Env, ...WriteOption){
 			operatorSpecifierFX:  c.unparseFX,
 			operatorSpecifierFY:  c.unparseFY,
@@ -66,7 +66,7 @@ func (c *Compound) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
 		return
 	}
 
-	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && wto.numberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
+	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && wo.numberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
 		c.unparseNumberVar(n, emit)
 		return
 	}
@@ -75,7 +75,7 @@ func (c *Compound) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
 }
 
 func (c *Compound) unparseFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -89,7 +89,7 @@ func (c *Compound) unparseFX(op operator, emit func(Token), env *Env, opts ...Wr
 }
 
 func (c *Compound) unparseFY(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -103,7 +103,7 @@ func (c *Compound) unparseFY(op operator, emit func(Token), env *Env, opts ...Wr
 }
 
 func (c *Compound) unparseXF(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -117,7 +117,7 @@ func (c *Compound) unparseXF(op operator, emit func(Token), env *Env, opts ...Wr
 }
 
 func (c *Compound) unparseYF(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -131,7 +131,7 @@ func (c *Compound) unparseYF(op operator, emit func(Token), env *Env, opts ...Wr
 }
 
 func (c *Compound) unparseXFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -146,7 +146,7 @@ func (c *Compound) unparseXFX(op operator, emit func(Token), env *Env, opts ...W
 }
 
 func (c *Compound) unparseXFY(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -161,7 +161,7 @@ func (c *Compound) unparseXFY(op operator, emit func(Token), env *Env, opts ...W
 }
 
 func (c *Compound) unparseYFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}
@@ -176,7 +176,7 @@ func (c *Compound) unparseYFX(op operator, emit func(Token), env *Env, opts ...W
 }
 
 func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteTermOptions
+	wto := defaultWriteOptions
 	for _, o := range opts {
 		o(&wto)
 	}

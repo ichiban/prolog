@@ -49,29 +49,29 @@ func Rulify(t Term, env *Env) Term {
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
-type writeTermOptions struct {
-	quoted     bool
-	ops        operators
-	numberVars bool
-	priority   int
+type writeOptions struct {
+	quoted        bool
+	ops           operators
+	variableNames map[Variable]Atom
+	numberVars    bool
+	priority      int
 }
 
-var defaultWriteTermOptions = writeTermOptions{
-	quoted: false,
+var defaultWriteOptions = writeOptions{
 	ops: operators{
 		{priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
 		{priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
 	},
-	numberVars: false,
-	priority:   1200,
+	variableNames: map[Variable]Atom{},
+	priority:      1200,
 }
 
 // WriteOption is an option for Write.
-type WriteOption func(*writeTermOptions)
+type WriteOption func(*writeOptions)
 
 // WithQuoted sets if atoms are quoted as needed.
 func WithQuoted(b bool) WriteOption {
-	return func(options *writeTermOptions) {
+	return func(options *writeOptions) {
 		options.quoted = b
 	}
 }
@@ -86,21 +86,28 @@ func (state *State) WithIgnoreOps(b bool) WriteOption {
 }
 
 func withOps(ops operators) WriteOption {
-	return func(options *writeTermOptions) {
+	return func(options *writeOptions) {
 		options.ops = ops
+	}
+}
+
+// WithVariableNames sets the mappings from a variable to an atom.
+func WithVariableNames(variableNames map[Variable]Atom) WriteOption {
+	return func(options *writeOptions) {
+		options.variableNames = variableNames
 	}
 }
 
 // WithNumberVars sets if a compound `'$VAR'(N)` where N is an integer is written as a variable.
 func WithNumberVars(b bool) WriteOption {
-	return func(options *writeTermOptions) {
+	return func(options *writeOptions) {
 		options.numberVars = b
 	}
 }
 
 // WithPriority sets priority which determines if an expression is enclosed by a pair of parentheses.
 func WithPriority(p int) WriteOption {
-	return func(options *writeTermOptions) {
+	return func(options *writeOptions) {
 		options.priority = p
 	}
 }

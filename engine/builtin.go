@@ -1377,47 +1377,79 @@ func (state *State) Write(w io.Writer, t Term, env *Env, opts ...WriteOption) er
 }
 
 func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
-	type optionIndicator struct {
-		functor, arg Atom
-	}
-
-	var oi optionIndicator
-	switch option := env.Resolve(option).(type) {
+	switch o := env.Resolve(option).(type) {
 	case Variable:
 		return nil, ErrInstantiation
 	case *Compound:
-		if len(option.Args) != 1 {
-			return nil, domainErrorWriteOption(option)
+		if len(o.Args) != 1 {
+			return nil, domainErrorWriteOption(o)
 		}
 
-		switch v := env.Resolve(option.Args[0]).(type) {
+		if o.Functor == "variable_names" {
+			vns := variableNames(o.Args[0], env)
+			if vns == nil {
+				return nil, domainErrorWriteOption(o)
+			}
+			return WithVariableNames(vns), nil
+		}
+
+		var b bool
+		switch v := env.Resolve(o.Args[0]).(type) {
 		case Variable:
 			return nil, ErrInstantiation
 		case Atom:
-			oi = optionIndicator{functor: option.Functor, arg: v}
+			switch v {
+			case "true":
+				b = true
+			case "false":
+				b = false
+			default:
+				return nil, domainErrorWriteOption(o)
+			}
 		default:
-			return nil, domainErrorWriteOption(option)
+			return nil, domainErrorWriteOption(o)
+		}
+
+		switch o.Functor {
+		case "quoted":
+			return WithQuoted(b), nil
+		case "ignore_ops":
+			return state.WithIgnoreOps(b), nil
+		case "numbervars":
+			return WithNumberVars(b), nil
+		default:
+			return nil, domainErrorWriteOption(o)
 		}
 	default:
-		return nil, domainErrorWriteOption(option)
+		return nil, domainErrorWriteOption(o)
 	}
+}
 
-	switch oi {
-	case optionIndicator{functor: "quoted", arg: "true"}:
-		return WithQuoted(true), nil
-	case optionIndicator{functor: "quoted", arg: "false"}:
-		return WithQuoted(false), nil
-	case optionIndicator{functor: "ignore_ops", arg: "true"}:
-		return state.WithIgnoreOps(true), nil
-	case optionIndicator{functor: "ignore_ops", arg: "false"}:
-		return state.WithIgnoreOps(false), nil
-	case optionIndicator{functor: "numbervars", arg: "true"}:
-		return WithNumberVars(true), nil
-	case optionIndicator{functor: "numbervars", arg: "false"}:
-		return WithNumberVars(false), nil
-	default:
-		return nil, domainErrorWriteOption(option)
+func variableNames(vnList Term, env *Env) map[Variable]Atom {
+	vns := map[Variable]Atom{}
+	iter := ListIterator{List: vnList, Env: env}
+	for iter.Next() {
+		vn, ok := env.Resolve(iter.Current()).(*Compound)
+		if !ok || vn.Functor != "=" || len(vn.Args) != 2 {
+			return nil
+		}
+		n, ok := env.Resolve(vn.Args[0]).(Atom)
+		if !ok {
+			return nil
+		}
+		v, ok := env.Resolve(vn.Args[1]).(Variable)
+		if !ok {
+			return nil
+		}
+		if _, ok := vns[v]; ok {
+			continue
+		}
+		vns[v] = n
 	}
+	if err := iter.Err(); err != nil {
+		return nil
+	}
+	return vns
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.

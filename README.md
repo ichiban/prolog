@@ -335,6 +335,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
   - `Options` is a list of write options listed below:
     - **`quoted(Bool)`** `Bool` is either `true` or `false`. If `true`, atoms and functors will be quoted as needed.
     - **`ignore_ops(Bool)`** `Bool` is either `true` or `false`. If `true`, operators will be written in functional notation.
+    - **`variable_names(VN_list)`** `VN_list` is a proper list which element is a form of `A = V` where `A` is an atom and `V` is a variable. Each occurrence of `V` will be replaced by the leftmost and unquoted `A`. 
     - **`numbervars(Bool)`** `Bool` is either `true` or `false`. If `true`, terms `'$VAR'(0)`, `'$VAR'(1)`, ... will be written as `A`, `B`, ...
 - **`write_term(Term, Options)`** Equivalent to `current_output(S), write_term(S, Term, Options)`. *ISO*
 - **`write(S_or_a, Term)`** Equivalent to `write_term(S_or_a, Term, [numbervars(true)])`. *ISO*
