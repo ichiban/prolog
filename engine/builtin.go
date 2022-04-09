@@ -2807,21 +2807,19 @@ func Nth1(n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
 func nth(base Integer, n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch n := env.Resolve(n).(type) {
 	case Variable:
-		iter := ListIterator{List: list, Env: env}
-		if !iter.Next() {
-			if err := iter.Err(); err != nil {
-				return Error(err)
-			}
-			return Bool(false)
-		}
-		car, cdr := iter.Current(), iter.List
-
 		const idx = Atom("$idx")
-		return Delay(func(context.Context) *Promise {
-			return Unify(idx.Apply(n, elem), idx.Apply(base, car), k, env)
-		}, func(context.Context) *Promise {
-			return nth(base+1, n, cdr, elem, k, env)
-		})
+		var ks []func(context.Context) *Promise
+		iter := ListIterator{List: list, Env: env}
+		for i := base; iter.Next(); i++ {
+			i, e := i, iter.Current()
+			ks = append(ks, func(context.Context) *Promise {
+				return Unify(idx.Apply(n, elem), idx.Apply(i, e), k, env)
+			})
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
+		return Delay(ks...)
 	case Integer:
 		if n < base {
 			return Bool(false)
