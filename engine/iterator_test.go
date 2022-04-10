@@ -37,7 +37,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeErrorList(Atom("foo")), iter.Err())
+			assert.Equal(t, TypeErrorList(ListRest(Atom("foo"), Atom("a"), Atom("b"))), iter.Err())
 		})
 
 		t.Run("compound", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeErrorList(Atom("f").Apply(Integer(0))), iter.Err())
+			assert.Equal(t, TypeErrorList(ListRest(Atom("f").Apply(Integer(0)), Atom("a"), Atom("b"))), iter.Err())
 		})
 
 		t.Run("other", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeErrorList(&mockTerm{}), iter.Err())
+			assert.Equal(t, TypeErrorList(ListRest(&mockTerm{}, Atom("a"), Atom("b"))), iter.Err())
 		})
 	})
 }
@@ -117,7 +117,7 @@ func TestAltIterator_Next(t *testing.T) {
 	})
 }
 
-func TestPIIterator_Next(t *testing.T) {
+func TestAnyIterator_Next(t *testing.T) {
 	t.Run("proper list", func(t *testing.T) {
 		iter := AnyIterator{Any: List(Atom("a"), Atom("b"), Atom("c"))}
 		assert.True(t, iter.Next())
@@ -148,7 +148,7 @@ func TestPIIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeErrorList(Atom("foo")), iter.Err())
+			assert.Equal(t, TypeErrorList(ListRest(Atom("foo"), Atom("a"), Atom("b"))), iter.Err())
 		})
 	})
 

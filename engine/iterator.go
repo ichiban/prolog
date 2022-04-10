@@ -5,31 +5,33 @@ type ListIterator struct {
 	List Term
 	Env  *Env
 
-	current Term
-	err     error
+	current, rest Term
+	err           error
 }
 
 // Next proceeds to the next element of the list and returns true if there's such an element.
 func (i *ListIterator) Next() bool {
-	switch l := i.Env.Resolve(i.List).(type) {
+	if i.rest == nil {
+		i.rest = i.List
+	}
+	switch l := i.Env.Resolve(i.rest).(type) {
 	case Variable:
 		i.err = ErrInstantiation
 		return false
 	case Atom:
 		if l != "[]" {
-			i.err = TypeErrorList(l)
+			i.err = TypeErrorList(i.List)
 		}
 		return false
 	case *Compound:
 		if l.Functor != "." || len(l.Args) != 2 {
-			i.err = TypeErrorList(l)
+			i.err = TypeErrorList(i.List)
 			return false
 		}
-		i.List = l.Args[1]
-		i.current = l.Args[0]
+		i.current, i.rest = l.Args[0], l.Args[1]
 		return true
 	default:
-		i.err = TypeErrorList(l)
+		i.err = TypeErrorList(i.List)
 		return false
 	}
 }
