@@ -294,13 +294,13 @@ func (l *Lexer) conv(r rune) rune {
 }
 
 func (l *Lexer) period(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == utf8.RuneError, unicode.IsSpace(r):
-		return Token{Kind: TokenPeriod, Val: b.String()}, nil
-	default:
+	switch r := l.next(); {
+	case isGraphic(r):
 		_, _ = b.WriteRune(r)
 		return l.graphic(b)
+	default:
+		l.backup()
+		return Token{Kind: TokenPeriod, Val: b.String()}, nil
 	}
 }
 
@@ -778,7 +778,7 @@ func isHex(r rune) bool {
 }
 
 func isGraphic(r rune) bool {
-	return strings.ContainsRune("#$&*+-./:<=>?@^~\\", r)
+	return strings.ContainsRune(`#$&*+-./:<=>?@^~\`, r)
 }
 
 // ErrInsufficient represents an error which is raised when the given input is insufficient for a term.

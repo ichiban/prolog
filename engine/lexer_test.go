@@ -1691,6 +1691,38 @@ a quoted ident"`}, token)
 			assert.Equal(t, Token{Kind: TokenGraphic, Val: "//"}, token)
 		})
 	})
+
+	t.Run("period in list", func(t *testing.T) {
+		l := NewLexer(bufio.NewReader(strings.NewReader("['1',.,'2']")), nil)
+
+		token, err := l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenBracketL, Val: "["}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'1'"}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenPeriod, Val: "."}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenQuotedIdent, Val: "'2'"}, token)
+
+		token, err = l.Token()
+		assert.NoError(t, err)
+		assert.Equal(t, Token{Kind: TokenBracketR, Val: "]"}, token)
+	})
 }
 
 func TestUnexpectedRuneError_Error(t *testing.T) {
