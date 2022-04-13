@@ -7,6 +7,6 @@ import (
 )
 
 func TestException_Error(t *testing.T) {
-	e := Exception{Term: Atom("foo")}
+	e := Exception{term: Atom("foo")}
 	assert.Equal(t, "foo", e.Error())
 }

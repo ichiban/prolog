@@ -20,18 +20,18 @@ func (i *ListIterator) Next() bool {
 		return false
 	case Atom:
 		if l != "[]" {
-			i.err = TypeErrorList(i.List)
+			i.err = TypeErrorList(i.List, i.Env)
 		}
 		return false
 	case *Compound:
 		if l.Functor != "." || len(l.Args) != 2 {
-			i.err = TypeErrorList(i.List)
+			i.err = TypeErrorList(i.List, i.Env)
 			return false
 		}
 		i.current, i.rest = l.Args[0], l.Args[1]
 		return true
 	default:
-		i.err = TypeErrorList(i.List)
+		i.err = TypeErrorList(i.List, i.Env)
 		return false
 	}
 }

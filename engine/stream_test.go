@@ -100,7 +100,7 @@ func TestOpen(t *testing.T) {
 		}()
 
 		s, err := Open("/this/file/does/not/exist", StreamModeRead)
-		assert.Equal(t, existenceErrorSourceSink(Atom("/this/file/does/not/exist")), err)
+		assert.Equal(t, existenceErrorSourceSink(Atom("/this/file/does/not/exist"), nil), err)
 		assert.Nil(t, s)
 	})
 
@@ -113,7 +113,7 @@ func TestOpen(t *testing.T) {
 		}()
 
 		s, err := Open("/this/file/is/protected", StreamModeRead)
-		assert.Equal(t, PermissionError("open", "source_sink", Atom("/this/file/is/protected")), err)
+		assert.Equal(t, PermissionError("open", "source_sink", Atom("/this/file/is/protected"), nil), err)
 		assert.Nil(t, s)
 	})
 

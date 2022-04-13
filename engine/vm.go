@@ -167,7 +167,7 @@ func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 	if !ok {
 		switch vm.unknown {
 		case unknownError:
-			return Error(existenceErrorProcedure(pi.Term()))
+			return Error(existenceErrorProcedure(pi.Term(), env))
 		case unknownWarning:
 			vm.OnUnknown(pi, args, env)
 			fallthrough
@@ -486,7 +486,7 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 		return ProcedureIndicator{}, ErrInstantiation
 	case *Compound:
 		if p.Functor != "/" || len(p.Args) != 2 {
-			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
+			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
 		}
 		switch f := env.Resolve(p.Args[0]).(type) {
 		case Variable:
@@ -499,13 +499,13 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 				pi := ProcedureIndicator{Name: f, Arity: a}
 				return pi, nil
 			default:
-				return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
+				return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
 			}
 		default:
-			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
+			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
 		}
 	default:
-		return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi)
+		return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
 	}
 }
 
@@ -544,7 +544,7 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	case *Compound:
 		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
 	default:
-		return ProcedureIndicator{}, nil, TypeErrorCallable(f)
+		return ProcedureIndicator{}, nil, TypeErrorCallable(f, env)
 	}
 }
 

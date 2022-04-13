@@ -246,7 +246,7 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		return k(env)
 	case *engine.Compound:
 		if f.Functor != "." || len(f.Args) != 2 {
-			return engine.Error(engine.TypeErrorList(f))
+			return engine.Error(engine.TypeErrorList(f, env))
 		}
 		iter := engine.ListIterator{List: f, Env: env}
 		for iter.Next() {
@@ -259,7 +259,7 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		}
 		return k(env)
 	default:
-		return engine.Error(engine.TypeErrorList(f))
+		return engine.Error(engine.TypeErrorList(f, env))
 	}
 }
 
@@ -280,8 +280,8 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError("source_sink", file)
+		return engine.DomainError("source_sink", file, env)
 	default:
-		return engine.TypeError("atom", file)
+		return engine.TypeError("atom", file, env)
 	}
 }

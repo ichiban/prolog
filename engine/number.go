@@ -305,7 +305,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 			return nil, TypeErrorEvaluable(&Compound{
 				Functor: "/",
 				Args:    []Term{t, Integer(0)},
-			})
+			}, env)
 		}
 		return c, nil
 	case Number:
@@ -321,7 +321,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 						t.Functor,
 						Integer(1),
 					},
-				})
+				}, env)
 			}
 			x, err := e.eval(t.Args[0], env)
 			if err != nil {
@@ -337,7 +337,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 						t.Functor,
 						Integer(2),
 					},
-				})
+				}, env)
 			}
 			x, err := e.eval(t.Args[0], env)
 			if err != nil {
@@ -352,13 +352,13 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 			return nil, TypeErrorEvaluable(&Compound{
 				Functor: "/",
 				Args:    []Term{t.Functor, Integer(arity)},
-			})
+			}, env)
 		}
 	default:
 		return nil, TypeErrorEvaluable(&Compound{
 			Functor: "/",
 			Args:    []Term{t, Integer(0)},
-		})
+		}, env)
 	}
 }
 
@@ -433,10 +433,10 @@ func IntDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intDivI(x, y)
 		default:
-			return nil, TypeErrorInteger(y)
+			return nil, TypeErrorInteger(y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x)
+		return nil, TypeErrorInteger(x, nil)
 	}
 }
 
@@ -469,10 +469,10 @@ func Rem(x, y Number) (Number, error) {
 		case Integer:
 			return remI(x, y)
 		default:
-			return nil, TypeErrorInteger(y)
+			return nil, TypeErrorInteger(y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x)
+		return nil, TypeErrorInteger(x, nil)
 	}
 }
 
@@ -484,10 +484,10 @@ func Mod(x, y Number) (Number, error) {
 		case Integer:
 			return modI(x, y)
 		default:
-			return nil, TypeErrorInteger(y)
+			return nil, TypeErrorInteger(y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x)
+		return nil, TypeErrorInteger(x, nil)
 	}
 }
 
@@ -533,7 +533,7 @@ func FloatIntegerPart(x Number) (Number, error) {
 	case Float:
 		return intPartF(x), nil
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -543,7 +543,7 @@ func FloatFractionalPart(x Number) (Number, error) {
 	case Float:
 		return fractPartF(x), nil
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -565,7 +565,7 @@ func Floor(x Number) (Number, error) {
 	case Float:
 		return floorFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -575,7 +575,7 @@ func Truncate(x Number) (Number, error) {
 	case Float:
 		return truncateFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -585,7 +585,7 @@ func Round(x Number) (Number, error) {
 	case Float:
 		return roundFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -595,7 +595,7 @@ func Ceiling(x Number) (Number, error) {
 	case Float:
 		return ceilingFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x)
+		return nil, TypeErrorFloat(x, nil)
 	}
 }
 
@@ -752,10 +752,10 @@ func BitwiseRightShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n >> s), nil
 		default:
-			return nil, TypeErrorInteger(s)
+			return nil, TypeErrorInteger(s, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(n)
+		return nil, TypeErrorInteger(n, nil)
 	}
 }
 
@@ -767,10 +767,10 @@ func BitwiseLeftShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n << s), nil
 		default:
-			return nil, TypeErrorInteger(s)
+			return nil, TypeErrorInteger(s, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(n)
+		return nil, TypeErrorInteger(n, nil)
 	}
 }
 
@@ -782,10 +782,10 @@ func BitwiseAnd(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 & b2, nil
 		default:
-			return nil, TypeErrorInteger(b2)
+			return nil, TypeErrorInteger(b2, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(b1)
+		return nil, TypeErrorInteger(b1, nil)
 	}
 }
 
@@ -797,10 +797,10 @@ func BitwiseOr(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 | b2, nil
 		default:
-			return nil, TypeErrorInteger(b2)
+			return nil, TypeErrorInteger(b2, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(b1)
+		return nil, TypeErrorInteger(b1, nil)
 	}
 }
 
@@ -810,7 +810,7 @@ func BitwiseComplement(b1 Number) (Number, error) {
 	case Integer:
 		return ^b1, nil
 	default:
-		return nil, TypeErrorInteger(b1)
+		return nil, TypeErrorInteger(b1, nil)
 	}
 }
 
@@ -834,10 +834,10 @@ func IntFloorDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intFloorDivI(x, y)
 		default:
-			return nil, TypeErrorInteger(y)
+			return nil, TypeErrorInteger(y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x)
+		return nil, TypeErrorInteger(x, nil)
 	}
 }
 
@@ -922,7 +922,7 @@ func IntegerPower(x, y Number) (Number, error) {
 	if x, ok := x.(Integer); ok {
 		if y, ok := y.(Integer); ok {
 			if x != 1 && y < -1 {
-				return nil, TypeErrorFloat(x)
+				return nil, TypeErrorFloat(x, nil)
 			}
 
 			r, err := Power(x, y)
@@ -1021,12 +1021,12 @@ func Tan(x Number) (Number, error) {
 func Xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {
-		return nil, TypeErrorInteger(x)
+		return nil, TypeErrorInteger(x, nil)
 	}
 
 	vy, ok := y.(Integer)
 	if !ok {
-		return nil, TypeErrorInteger(y)
+		return nil, TypeErrorInteger(y, nil)
 	}
 
 	return vx ^ vy, nil
