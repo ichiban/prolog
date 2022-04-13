@@ -2918,10 +2918,19 @@ func TestState_Abolish(t *testing.T) {
 	})
 
 	t.Run("pi is neither a variable nor a predicate indicator", func(t *testing.T) {
-		var state State
-		ok, err := state.Abolish(Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorPredicateIndicator(Integer(0), nil), err)
-		assert.False(t, ok)
+		t.Run("compound", func(t *testing.T) {
+			var state State
+			ok, err := state.Abolish(Atom("+").Apply(Atom("foo"), Integer(1)), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorPredicateIndicator(Atom("+").Apply(Atom("foo"), Integer(1)), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("not a comnpound", func(t *testing.T) {
+			var state State
+			ok, err := state.Abolish(Integer(0), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorPredicateIndicator(Integer(0), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("pi is a term Name/Arity and Name is neither a variable nor an atom", func(t *testing.T) {
@@ -3720,10 +3729,35 @@ func TestState_Close(t *testing.T) {
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a stream-option", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(&Stream{}, List(Atom("foo")), Success, nil).Force(context.Background())
-		assert.Equal(t, domainErrorStreamOption(Atom("foo"), nil), err)
-		assert.False(t, ok)
+		t.Run("not a compound", func(t *testing.T) {
+			var state State
+			ok, err := state.Close(&Stream{}, List(Atom("foo")), Success, nil).Force(context.Background())
+			assert.Equal(t, domainErrorStreamOption(Atom("foo"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("compound", func(t *testing.T) {
+			t.Run("force but arity is not 1", func(t *testing.T) {
+				var state State
+				ok, err := state.Close(&Stream{}, List(Atom("force").Apply(Atom("a"), Atom("b"))), Success, nil).Force(context.Background())
+				assert.Equal(t, domainErrorStreamOption(Atom("force").Apply(Atom("a"), Atom("b")), nil), err)
+				assert.False(t, ok)
+			})
+
+			t.Run("force but the argument is a variable", func(t *testing.T) {
+				var state State
+				_, err := state.Close(&Stream{}, List(Atom("force").Apply(Variable("X"))), Success, nil).Force(context.Background())
+				_, ok := domainErrorStreamOption(Atom("force").Apply(NewVariable()), nil).term.Unify(err.(*Exception).term, false, nil)
+				assert.True(t, ok)
+			})
+
+			t.Run("force but the argument is neither true nor false", func(t *testing.T) {
+				var state State
+				ok, err := state.Close(&Stream{}, List(Atom("force").Apply(Atom("meh"))), Success, nil).Force(context.Background())
+				assert.Equal(t, domainErrorStreamOption(Atom("force").Apply(Atom("meh")), nil), err)
+				assert.False(t, ok)
+			})
+		})
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
@@ -4459,10 +4493,19 @@ func TestState_PutByte(t *testing.T) {
 		s := NewStream(os.Stdout, StreamModeWrite)
 		s.streamType = StreamTypeBinary
 
-		var state State
-		ok, err := state.PutByte(s, Atom("byte"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorByte(Atom("byte"), nil), err)
-		assert.False(t, ok)
+		t.Run("not even an integer", func(t *testing.T) {
+			var state State
+			ok, err := state.PutByte(s, Atom("byte"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorByte(Atom("byte"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("integer", func(t *testing.T) {
+			var state State
+			ok, err := state.PutByte(s, Integer(256), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorByte(Integer(256), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
@@ -5062,10 +5105,19 @@ func TestState_GetByte(t *testing.T) {
 		s := NewStream(os.Stdin, StreamModeRead)
 		s.streamType = StreamTypeBinary
 
-		var state State
-		ok, err := state.GetByte(s, Atom("inByte"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorInByte(Atom("inByte"), nil), err)
-		assert.False(t, ok)
+		t.Run("not even an integer", func(t *testing.T) {
+			var state State
+			ok, err := state.GetByte(s, Atom("inByte"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInByte(Atom("inByte"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("integer", func(t *testing.T) {
+			var state State
+			ok, err := state.GetByte(s, Integer(256), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInByte(Integer(256), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
@@ -5208,10 +5260,19 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
-		var state State
-		ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorInCharacter(Integer(0), nil), err)
-		assert.False(t, ok)
+		t.Run("not even an atom", func(t *testing.T) {
+			var state State
+			ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInCharacter(Integer(0), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			var state State
+			ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), Atom("ab"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInCharacter(Atom("ab"), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
@@ -5380,10 +5441,19 @@ func TestState_PeekByte(t *testing.T) {
 		s := NewStream(os.Stdin, StreamModeRead)
 		s.streamType = StreamTypeBinary
 
-		var state State
-		ok, err := state.PeekByte(s, Atom("byte"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorInByte(Atom("byte"), nil), err)
-		assert.False(t, ok)
+		t.Run("not even an integer", func(t *testing.T) {
+			var state State
+			ok, err := state.PeekByte(s, Atom("byte"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInByte(Atom("byte"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("integer", func(t *testing.T) {
+			var state State
+			ok, err := state.PeekByte(s, Integer(256), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInByte(Integer(256), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
@@ -5550,10 +5620,19 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
-		var state State
-		ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorInCharacter(Integer(0), nil), err)
-		assert.False(t, ok)
+		t.Run("not even an atom", func(t *testing.T) {
+			var state State
+			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInCharacter(Integer(0), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("atom", func(t *testing.T) {
+			var state State
+			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), Atom("ab"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorInCharacter(Atom("ab"), nil), err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {

@@ -1277,8 +1277,6 @@ func (state *State) Close(streamOrAlias, options Term, k func(*Env) *Promise, en
 				}
 
 				switch v := env.Resolve(option.Args[0]).(type) {
-				case Variable:
-					return Error(ErrInstantiation)
 				case Atom:
 					switch v {
 					case "false":
@@ -1703,7 +1701,7 @@ func (state *State) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, e
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			Error(TypeErrorInByte(inByte, env))
+			return Error(TypeErrorInByte(inByte, env))
 		}
 	default:
 		return Error(TypeErrorInByte(inByte, env))
