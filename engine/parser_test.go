@@ -368,10 +368,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 			p := newParser(bufio.NewReader(strings.NewReader(`- 1.`)), nil, withOperators(&ops))
 			term, err := p.Term()
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{
-				Functor: "-",
-				Args:    []Term{Integer(1)},
-			}, term)
+			assert.Equal(t, Integer(-1), term)
 		})
 
 		t.Run("syntax error right after the operator", func(t *testing.T) {
@@ -547,29 +544,6 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		})
 	})
 
-	t.Run("ambiguous sign", func(t *testing.T) {
-		ops := operators{
-			{priority: 700, specifier: operatorSpecifierXFX, name: `is`},
-			{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-		}
-		p := newParser(bufio.NewReader(strings.NewReader(`X is +1 +1.`)), nil, withOperators(&ops))
-		term, err := p.Term()
-		assert.NoError(t, err)
-		assert.Equal(t, &Compound{
-			Functor: "is",
-			Args: []Term{
-				Variable("X"),
-				&Compound{
-					Functor: "+",
-					Args: []Term{
-						Integer(1),
-						Integer(1),
-					},
-				},
-			},
-		}, term)
-	})
-
 	t.Run("double quotes", func(t *testing.T) {
 		ops := operators{
 			{priority: 700, specifier: operatorSpecifierXFX, name: `=`},
@@ -722,6 +696,12 @@ a double-quoted string".`)), nil, withDoubleQuotes(doubleQuotesAtom))
 			})
 		})
 	})
+
+	t.Run("misc", func(t *testing.T) {
+		p := newParser(bufio.NewReader(strings.NewReader(`:-(op(200, fy, -)).`)), nil)
+		_, err := p.Term()
+		assert.NoError(t, err)
+	})
 }
 
 func TestParser_Replace(t *testing.T) {
@@ -788,9 +768,8 @@ func TestParser_Number(t *testing.T) {
 
 		t.Run("with plus", func(t *testing.T) {
 			p := newParser(bufio.NewReader(strings.NewReader(`+33`)), nil)
-			n, err := p.Number()
-			assert.NoError(t, err)
-			assert.Equal(t, Integer(33), n)
+			_, err := p.Number()
+			assert.Equal(t, errNotANumber, err)
 		})
 
 		t.Run("with minus", func(t *testing.T) {
@@ -810,9 +789,8 @@ func TestParser_Number(t *testing.T) {
 
 			t.Run("with plus", func(t *testing.T) {
 				p := newParser(bufio.NewReader(strings.NewReader(`+0'!`)), nil)
-				n, err := p.Number()
-				assert.NoError(t, err)
-				assert.Equal(t, Integer(33), n)
+				_, err := p.Number()
+				assert.Equal(t, errNotANumber, err)
 			})
 
 			t.Run("with minus", func(t *testing.T) {
@@ -834,9 +812,8 @@ func TestParser_Number(t *testing.T) {
 
 		t.Run("with plus", func(t *testing.T) {
 			p := newParser(bufio.NewReader(strings.NewReader(`+3.3`)), nil)
-			n, err := p.Number()
-			assert.NoError(t, err)
-			assert.Equal(t, Float(3.3), n)
+			_, err := p.Number()
+			assert.Equal(t, errNotANumber, err)
 		})
 
 		t.Run("with minus", func(t *testing.T) {

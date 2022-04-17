@@ -390,7 +390,7 @@ func TestCompound_Unparse(t *testing.T) {
 			assert.Equal(t, []Token{
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenGraphic, Val: "+"},
-				{Kind: TokenSign, Val: "-"},
+				{Kind: TokenGraphic, Val: "-"},
 				{Kind: TokenInteger, Val: "2"},
 			}, tokens)
 		})
@@ -405,7 +405,7 @@ func TestCompound_Unparse(t *testing.T) {
 				{Kind: TokenParenL, Val: "("},
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenSign, Val: "-"},
+				{Kind: TokenGraphic, Val: "-"},
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenParenR, Val: ")"},
 			}, tokens)

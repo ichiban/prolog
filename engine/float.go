@@ -25,7 +25,7 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // Unparse emits tokens that represent the float.
 func (f Float) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if f < 0 {
-		emit(Token{Kind: TokenSign, Val: "-"})
+		emit(Token{Kind: TokenGraphic, Val: "-"})
 		f *= -1
 	}
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)

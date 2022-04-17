@@ -136,9 +136,6 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 			return Atom(v), nil
 		}
 	}
-	if v, err := p.accept(TokenSign, vals...); err == nil {
-		return Atom(v), nil
-	}
 	if v, err := p.accept(TokenPeriod, vals...); err == nil {
 		return Atom(v), nil
 	}
@@ -259,12 +256,16 @@ func (p *Parser) Number() (Term, error) {
 		return nil, err
 	}
 
+	if _, ok := n.(Number); !ok {
+		return nil, errNotANumber
+	}
+
 	_, err = p.accept(TokenEOF)
 	return n, err
 }
 
 func (p *Parser) number() (Term, error) {
-	sign, _ := p.accept(TokenSign)
+	sign, _ := p.accept(TokenGraphic, "-")
 
 	if f, err := p.accept(TokenFloat); err == nil {
 		f = sign + f
@@ -285,6 +286,10 @@ func (p *Parser) number() (Term, error) {
 			n, _ := strconv.ParseInt(i, 0, 64)
 			return Integer(n), nil
 		}
+	}
+
+	if sign != "" {
+		return Atom(sign), nil
 	}
 
 	return nil, errNotANumber
