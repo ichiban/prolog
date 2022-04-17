@@ -779,6 +779,12 @@ func TestParser_Number(t *testing.T) {
 			assert.Equal(t, Integer(-33), n)
 		})
 
+		t.Run("just minus", func(t *testing.T) {
+			p := newParser(bufio.NewReader(strings.NewReader(`-`)), nil)
+			_, err := p.Number()
+			assert.Equal(t, errNotANumber, err)
+		})
+
 		t.Run("char", func(t *testing.T) {
 			t.Run("without sign", func(t *testing.T) {
 				p := newParser(bufio.NewReader(strings.NewReader(`0'!`)), nil)

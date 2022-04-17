@@ -278,8 +278,6 @@ func (p *Parser) number() (Term, error) {
 		switch {
 		case strings.HasPrefix(i, "0'"):
 			return Integer([]rune(i)[2]), nil
-		case strings.HasPrefix(i, "+0'"):
-			return Integer([]rune(i)[3]), nil
 		case strings.HasPrefix(i, "-0'"):
 			return Integer(-1 * int64([]rune(i)[3])), nil
 		default:
