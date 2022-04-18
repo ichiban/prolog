@@ -437,26 +437,27 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 func CopyTerm(in, out Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(copyTerm(in, nil, env), out, k, env)
 }
-
-func copyTerm(t Term, vars map[Variable]Variable, env *Env) Term {
-	if vars == nil {
-		vars = map[Variable]Variable{}
+func copyTerm(t Term, copied map[Term]Term, env *Env) Term {
+	if copied == nil {
+		copied = map[Term]Term{}
 	}
-	switch t := env.Resolve(t).(type) {
+	t = env.Resolve(t)
+	if c, ok := copied[t]; ok {
+		return c
+	}
+	switch t := t.(type) {
 	case Variable:
-		v, ok := vars[t]
-		if !ok {
-			v = NewVariable()
-			vars[t] = v
-		}
+		v := NewVariable()
+		copied[t] = v
 		return v
 	case *Compound:
 		c := Compound{
 			Functor: t.Functor,
 			Args:    make([]Term, len(t.Args)),
 		}
+		copied[t] = &c
 		for i, a := range t.Args {
-			c.Args[i] = copyTerm(a, vars, env)
+			c.Args[i] = copyTerm(a, copied, env)
 		}
 		return &c
 	default:
