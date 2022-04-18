@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`catch(number_chars(1,[[]|_]), error(type_error(character,[]), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch(number_chars(1,[[]|2]), error(type_error(character,[]), _), true).`).Err())
 
-		// assert.NoError(t, p.QuerySolution(`catch((L=['1'|L], number_chars(N,L)), error(type_error(list,['1'|_]), _), L=['1'|L]).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L=['1'|L], number_chars(N,L)), error(type_error(list,['1'|_]), _), L=['1'|L]).`).Err())
 	})
 }
 
