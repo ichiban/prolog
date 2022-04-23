@@ -773,10 +773,19 @@ func TestParser_Number(t *testing.T) {
 		})
 
 		t.Run("with minus", func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(`-33`)), nil)
-			n, err := p.Number()
-			assert.NoError(t, err)
-			assert.Equal(t, Integer(-33), n)
+			t.Run("unquoted", func(t *testing.T) {
+				p := newParser(bufio.NewReader(strings.NewReader(`-33`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(-33), n)
+			})
+
+			t.Run("quoted", func(t *testing.T) {
+				p := newParser(bufio.NewReader(strings.NewReader(`'-' 33`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(-33), n)
+			})
 		})
 
 		t.Run("just minus", func(t *testing.T) {
@@ -823,10 +832,19 @@ func TestParser_Number(t *testing.T) {
 		})
 
 		t.Run("with minus", func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(`-3.3`)), nil)
-			n, err := p.Number()
-			assert.NoError(t, err)
-			assert.Equal(t, Float(-3.3), n)
+			t.Run("unquoted", func(t *testing.T) {
+				p := newParser(bufio.NewReader(strings.NewReader(`-3.3`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Float(-3.3), n)
+			})
+
+			t.Run("quoted", func(t *testing.T) {
+				p := newParser(bufio.NewReader(strings.NewReader(`'-' 3.3`)), nil)
+				n, err := p.Number()
+				assert.NoError(t, err)
+				assert.Equal(t, Float(-3.3), n)
+			})
 		})
 	})
 }

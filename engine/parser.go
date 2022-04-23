@@ -265,16 +265,16 @@ func (p *Parser) Number() (Term, error) {
 }
 
 func (p *Parser) number() (Term, error) {
-	sign, _ := p.accept(TokenGraphic, "-")
+	sign, _ := p.acceptAtom(false, false, "-")
 
 	if f, err := p.accept(TokenFloat); err == nil {
-		f = sign + f
+		f = string(sign) + f
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
 	}
 
 	if i, err := p.accept(TokenInteger); err == nil {
-		i = sign + i
+		i = string(sign) + i
 		switch {
 		case strings.HasPrefix(i, "0'"):
 			return Integer([]rune(i)[2]), nil
