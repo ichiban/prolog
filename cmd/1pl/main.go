@@ -66,7 +66,7 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := prolog.New(os.Stdin, t)
+	i := New(os.Stdin, t)
 	i.Register1("halt", halt)
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {

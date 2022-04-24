@@ -449,6 +449,74 @@ func TestState_Call7(t *testing.T) {
 	})
 }
 
+func TestState_CallNth(t *testing.T) {
+	state := State{
+		VM: VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: "foo", Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
+					return Delay(func(context.Context) *Promise {
+						return k(env)
+					}, func(context.Context) *Promise {
+						return k(env)
+					}, func(context.Context) *Promise {
+						return k(env)
+					})
+				}),
+			},
+			unknown: unknownFail,
+		},
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		t.Run("nth is a variable", func(t *testing.T) {
+			ok, err := state.CallNth(Atom("foo"), Variable("Nth"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("nth is an integer", func(t *testing.T) {
+			ok, err := state.CallNth(Atom("foo"), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("nth is 0", func(t *testing.T) {
+		ok, err := state.CallNth(Atom("foo"), Integer(0), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("goal is a variable and nth is not zero", func(t *testing.T) {
+		_, err := state.CallNth(Variable("Goal"), Integer(3), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+	})
+
+	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
+		_, err := state.CallNth(Integer(0), Integer(3), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorCallable(Integer(0), nil), err)
+	})
+
+	t.Run("nth is neither a variable nor an integer", func(t *testing.T) {
+		_, err := state.CallNth(Atom("foo"), Atom("bar"), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("bar"), nil), err)
+	})
+
+	t.Run("nth is an integer which is less than zero", func(t *testing.T) {
+		_, err := state.CallNth(Atom("foo"), Integer(-1), Success, nil).Force(context.Background())
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-1), nil), err)
+	})
+
+	t.Run("n+1 is larger than max_integer", func(t *testing.T) {
+		callNthInit = Integer(math.MaxInt64)
+		defer func() {
+			callNthInit = 0
+		}()
+		_, err := state.CallNth(Atom("foo"), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, representationError("max_integer"), err)
+	})
+}
+
 func TestUnify(t *testing.T) {
 	t.Run("unifiable", func(t *testing.T) {
 		x := Variable("X")
