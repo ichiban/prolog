@@ -136,9 +136,6 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 			return Atom(v), nil
 		}
 	}
-	if v, err := p.accept(TokenSign, vals...); err == nil {
-		return Atom(v), nil
-	}
 	if v, err := p.accept(TokenPeriod, vals...); err == nil {
 		return Atom(v), nil
 	}
@@ -259,32 +256,38 @@ func (p *Parser) Number() (Term, error) {
 		return nil, err
 	}
 
+	if _, ok := n.(Number); !ok {
+		return nil, errNotANumber
+	}
+
 	_, err = p.accept(TokenEOF)
 	return n, err
 }
 
 func (p *Parser) number() (Term, error) {
-	sign, _ := p.accept(TokenSign)
+	sign, _ := p.acceptAtom(false, false, "-")
 
 	if f, err := p.accept(TokenFloat); err == nil {
-		f = sign + f
+		f = string(sign) + f
 		n, _ := strconv.ParseFloat(f, 64)
 		return Float(n), nil
 	}
 
 	if i, err := p.accept(TokenInteger); err == nil {
-		i = sign + i
+		i = string(sign) + i
 		switch {
 		case strings.HasPrefix(i, "0'"):
 			return Integer([]rune(i)[2]), nil
-		case strings.HasPrefix(i, "+0'"):
-			return Integer([]rune(i)[3]), nil
 		case strings.HasPrefix(i, "-0'"):
 			return Integer(-1 * int64([]rune(i)[3])), nil
 		default:
 			n, _ := strconv.ParseInt(i, 0, 64)
 			return Integer(n), nil
 		}
+	}
+
+	if sign != "" {
+		return Atom(sign), nil
 	}
 
 	return nil, errNotANumber

@@ -74,7 +74,7 @@ func TestInteger_Unparse(t *testing.T) {
 			tokens = append(tokens, token)
 		}, nil)
 		assert.Equal(t, []Token{
-			{Kind: TokenSign, Val: "-"},
+			{Kind: TokenGraphic, Val: "-"},
 			{Kind: TokenInteger, Val: "33"},
 		}, tokens)
 	})

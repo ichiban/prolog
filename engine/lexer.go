@@ -23,9 +23,9 @@ func init() {
 		'(':  initDispatchSingle(TokenParenL),
 		')':  initDispatchSingle(TokenParenR),
 		'*':  (*Lexer).graphic,
-		'+':  (*Lexer).sign,
+		'+':  (*Lexer).graphic,
 		',':  initDispatchSingle(TokenComma),
-		'-':  (*Lexer).sign,
+		'-':  (*Lexer).graphic,
 		'.':  (*Lexer).period,
 		'/':  (*Lexer).multiLineCommentBegin,
 		'0':  (*Lexer).integerZero,
@@ -253,9 +253,6 @@ const (
 	// TokenBraceR represents a close brace.
 	TokenBraceR
 
-	// TokenSign represents a plus/minus.
-	TokenSign
-
 	// TokenDoubleQuoted represents a double-quoted string.
 	TokenDoubleQuoted
 
@@ -281,7 +278,6 @@ func (k TokenKind) String() string {
 		TokenBracketR:     "bracket R",
 		TokenBraceL:       "brace L",
 		TokenBraceR:       "brace R",
-		TokenSign:         "sign",
 		TokenDoubleQuoted: "double quoted",
 	}[k]
 }
@@ -602,21 +598,6 @@ func (l *Lexer) integerPeriod(b *strings.Builder) (Token, error) {
 	}
 }
 
-func (l *Lexer) sign(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case unicode.IsNumber(r):
-		l.backup()
-		return Token{Kind: TokenSign, Val: b.String()}, nil
-	case isGraphic(r):
-		_, _ = b.WriteRune(r)
-		return l.graphic(b)
-	default:
-		l.backup()
-		return Token{Kind: TokenIdent, Val: b.String()}, nil
-	}
-}
-
 func (l *Lexer) variable(b *strings.Builder) (Token, error) {
 	for {
 		r := l.next()
@@ -808,7 +789,6 @@ var spacing = [tokenKindLen][tokenKindLen]bool{
 	},
 	TokenGraphic: {
 		TokenGraphic: true,
-		TokenSign:    true,
 	},
 	TokenComma: {
 		TokenVariable:    true,
@@ -826,9 +806,5 @@ var spacing = [tokenKindLen][tokenKindLen]bool{
 		TokenBracketR:    true,
 		TokenBraceL:      true,
 		TokenBraceR:      true,
-		TokenSign:        true,
-	},
-	TokenSign: {
-		TokenGraphic: true,
 	},
 }

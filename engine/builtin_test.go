@@ -6192,14 +6192,27 @@ func TestAtomCodes(t *testing.T) {
 
 func TestNumberChars(t *testing.T) {
 	t.Run("number to chars", func(t *testing.T) {
-		chars := Variable("Chars")
+		t.Run("chars is a partial list", func(t *testing.T) {
+			chars := Variable("Chars")
 
-		ok, err := NumberChars(Float(23.4), chars, func(env *Env) *Promise {
-			assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), env.Resolve(chars))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+			ok, err := NumberChars(Float(23.4), chars, func(env *Env) *Promise {
+				assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), env.Resolve(chars))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("chars is a list with variables", func(t *testing.T) {
+			char := Variable("Char")
+
+			ok, err := NumberChars(Float(23.4), List(char, Atom("3"), Atom("."), Atom("4")), func(env *Env) *Promise {
+				assert.Equal(t, Atom("2"), env.Resolve(char))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
 	})
 
 	t.Run("chars to number", func(t *testing.T) {
@@ -6227,55 +6240,92 @@ func TestNumberChars(t *testing.T) {
 		})
 	})
 
-	t.Run("num is a variable and chars is a partial list or list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			codes := ListRest(Variable("Rest"),
-				Atom("2"), Atom("3"), Atom("."), Atom("4"),
-			)
+	t.Run("num is a variable and chars is a partial list", func(t *testing.T) {
+		chars := ListRest(Variable("Rest"),
+			Atom("2"), Atom("3"), Atom("."), Atom("4"),
+		)
 
-			ok, err := NumberChars(NewVariable(), codes, Success, nil).Force(context.Background())
-			assert.Equal(t, ErrInstantiation, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("variable element", func(t *testing.T) {
-			code := Variable("Code")
-
-			ok, err := NumberChars(NewVariable(), List(code, Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-			assert.Equal(t, ErrInstantiation, err)
-			assert.False(t, ok)
-		})
+		ok, err := NumberChars(NewVariable(), chars, Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+		assert.False(t, ok)
 	})
 
 	t.Run("num is neither a variable nor a number", func(t *testing.T) {
-		ok, err := NumberChars(Atom("23.4"), List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorNumber(Atom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("num is a variable and chars is neither a list nor partial list", func(t *testing.T) {
-		ok, err := NumberChars(NewVariable(), Atom("23.4"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeErrorList(Atom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("an element E of the list chars is neither a variable nor a one-character atom", func(t *testing.T) {
-		t.Run("not an atom", func(t *testing.T) {
-			ok, err := NumberChars(NewVariable(), List(Integer(2), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeErrorCharacter(Integer(2), nil), err)
+		t.Run("chars is a list of one-char atoms", func(t *testing.T) {
+			ok, err := NumberChars(Atom("23.4"), List(Atom("2"), Atom("3"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorNumber(Atom("23.4"), nil), err)
 			assert.False(t, ok)
 		})
-		t.Run("not a one-character", func(t *testing.T) {
-			ok, err := NumberChars(NewVariable(), List(Atom("23"), Atom("."), Atom("4")), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeErrorCharacter(Atom("23"), nil), err)
+
+		t.Run("chars is not a list of one-char atoms", func(t *testing.T) {
+			ok, err := NumberChars(Atom("23.4"), NewVariable(), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorNumber(Atom("23.4"), nil), err)
 			assert.False(t, ok)
 		})
+	})
+
+	t.Run("chars is neither a partial list nor a list", func(t *testing.T) {
+		t.Run("not even list-ish", func(t *testing.T) {
+			ok, err := NumberChars(NewVariable(), Atom("foo"), Success, nil).Force(context.Background())
+			assert.Equal(t, TypeErrorList(Atom("foo"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("list-ish", func(t *testing.T) {
+			_, err := NumberChars(Integer(0), ListRest(Atom("b"), Variable("A")), Success, nil).Force(context.Background())
+			_, ok := err.(*Exception).Term().Unify(TypeErrorList(ListRest(Atom("b"), NewVariable()), nil).Term(), false, nil)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("num is a variable and an element of a list prefix of chars is a variable", func(t *testing.T) {
+		ok, err := NumberChars(NewVariable(), List(Atom("1"), NewVariable()), Success, nil).Force(context.Background())
+		assert.Equal(t, ErrInstantiation, err)
+		assert.False(t, ok)
 	})
 
 	t.Run("chars is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
-		ok, err := NumberChars(NewVariable(), List(Atom("f"), Atom("o"), Atom("o")), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxErrorNotANumber(), err)
-		assert.False(t, ok)
+		t.Run("not a number", func(t *testing.T) {
+			ok, err := NumberChars(NewVariable(), List(Atom("f"), Atom("o"), Atom("o")), Success, nil).Force(context.Background())
+			assert.Equal(t, syntaxErrorNotANumber(), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("unexpected token", func(t *testing.T) {
+			ok, err := NumberChars(NewVariable(), List(Atom("1"), Atom(".")), Success, nil).Force(context.Background())
+			assert.Equal(t, syntaxErrorUnexpectedToken(Atom("unexpected token: <period .>")), err)
+			assert.False(t, ok)
+		})
+	})
+
+	t.Run("an element E of a list prefix of chars is neither a variable nor a one-char atom", func(t *testing.T) {
+		t.Run("chars contains a variable", func(t *testing.T) {
+			t.Run("not even an atom", func(t *testing.T) {
+				ok, err := NumberChars(Integer(100), List(NewVariable(), Atom("0"), Integer(0)), Success, nil).Force(context.Background())
+				assert.Equal(t, TypeErrorCharacter(Integer(0), nil), err)
+				assert.False(t, ok)
+			})
+
+			t.Run("atom", func(t *testing.T) {
+				ok, err := NumberChars(Integer(100), List(NewVariable(), Atom("00")), Success, nil).Force(context.Background())
+				assert.Equal(t, TypeErrorCharacter(Atom("00"), nil), err)
+				assert.False(t, ok)
+			})
+		})
+
+		t.Run("chars does not contain a variable", func(t *testing.T) {
+			t.Run("not even an atom", func(t *testing.T) {
+				ok, err := NumberChars(Integer(100), List(Atom("1"), Atom("0"), Integer(0)), Success, nil).Force(context.Background())
+				assert.Equal(t, TypeErrorCharacter(Integer(0), nil), err)
+				assert.False(t, ok)
+			})
+
+			t.Run("atom", func(t *testing.T) {
+				ok, err := NumberChars(Integer(100), List(Atom("1"), Atom("00")), Success, nil).Force(context.Background())
+				assert.Equal(t, TypeErrorCharacter(Atom("00"), nil), err)
+				assert.False(t, ok)
+			})
+		})
 	})
 }
 

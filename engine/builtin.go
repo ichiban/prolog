@@ -437,26 +437,27 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 func CopyTerm(in, out Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(copyTerm(in, nil, env), out, k, env)
 }
-
-func copyTerm(t Term, vars map[Variable]Variable, env *Env) Term {
-	if vars == nil {
-		vars = map[Variable]Variable{}
+func copyTerm(t Term, copied map[Term]Term, env *Env) Term {
+	if copied == nil {
+		copied = map[Term]Term{}
 	}
-	switch t := env.Resolve(t).(type) {
+	t = env.Resolve(t)
+	if c, ok := copied[t]; ok {
+		return c
+	}
+	switch t := t.(type) {
 	case Variable:
-		v, ok := vars[t]
-		if !ok {
-			v = NewVariable()
-			vars[t] = v
-		}
+		v := NewVariable()
+		copied[t] = v
 		return v
 	case *Compound:
 		c := Compound{
 			Functor: t.Functor,
 			Args:    make([]Term, len(t.Args)),
 		}
+		copied[t] = &c
 		for i, a := range t.Args {
-			c.Args[i] = copyTerm(a, vars, env)
+			c.Args[i] = copyTerm(a, copied, env)
 		}
 		return &c
 	default:
@@ -2175,69 +2176,86 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 // NumberChars breaks up an atom representation of a number num into a list of characters and unifies it with chars, or
 // constructs a number from a list of characters chars and unifies it with num.
 func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
-	switch chars := env.Resolve(chars).(type) {
-	case Variable:
-		break
-	default:
-		switch n := env.Resolve(num).(type) {
-		case Variable, Integer, Float:
-			break
+	var (
+		sb   strings.Builder
+		iter = ListIterator{List: chars, Env: env}
+	)
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			return numberCharsWrite(num, chars, k, env)
+		case Atom:
+			if len([]rune(e)) != 1 {
+				return Error(TypeErrorCharacter(e, env))
+			}
+			_, _ = sb.WriteString(string(e))
 		default:
-			return Error(TypeErrorNumber(n, env))
+			return Error(TypeErrorCharacter(e, env))
 		}
+	}
+	switch err := iter.Err(); {
+	case errors.Is(err, ErrInstantiation):
+		return numberCharsWrite(num, chars, k, env)
+	case err != nil:
+		return Error(err)
+	}
 
-		var sb strings.Builder
+	var unexpectedToken *unexpectedTokenError
+	p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+	t, err := p.Number()
+	switch {
+	case errors.Is(err, errNotANumber):
+		return Error(syntaxErrorNotANumber())
+	case errors.As(err, &unexpectedToken):
+		return Error(syntaxErrorUnexpectedToken(Atom(err.Error())))
+	}
+
+	switch n := env.Resolve(num).(type) {
+	case Variable, Number:
+		return Unify(n, t, k, env)
+	default:
+		return Error(TypeErrorNumber(n, env))
+	}
+}
+
+func numberCharsWrite(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
+	switch n := env.Resolve(num).(type) {
+	case Variable:
+		return Error(ErrInstantiation)
+	case Number:
 		iter := ListIterator{List: chars, Env: env}
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(ErrInstantiation)
+				break
 			case Atom:
-				if len([]rune(e)) != 1 {
+				if len(e) != 1 {
 					return Error(TypeErrorCharacter(e, env))
 				}
-				_, _ = sb.WriteString(string(e))
 			default:
 				return Error(TypeErrorCharacter(e, env))
 			}
 		}
-		if err := iter.Err(); err != nil {
-			return Error(err)
-		}
-
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
-		t, err := p.Number()
-		switch err {
-		case nil:
+		switch err := iter.Err(); {
+		case err == nil:
 			break
-		case errNotANumber:
-			return Error(syntaxErrorNotANumber())
+		case errors.Is(err, ErrInstantiation):
+			break
 		default:
-			return Error(SystemError(err))
-		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(num, t, k, env)
-		})
-	}
-
-	switch n := env.Resolve(num).(type) {
-	case Variable:
-		return Error(ErrInstantiation)
-	case Integer, Float:
-		var buf bytes.Buffer
-		if err := Write(&buf, n, nil); err != nil {
 			return Error(err)
 		}
+
+		var buf bytes.Buffer
+		_ = Write(&buf, n, nil)
 		rs := []rune(buf.String())
+
 		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Atom(r)
 		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(chars, List(cs...), k, env)
-		})
+		return Unify(chars, List(cs...), k, env)
 	default:
-		return Error(TypeErrorNumber(num, env))
+		return Error(TypeErrorNumber(n, env))
 	}
 }
 
