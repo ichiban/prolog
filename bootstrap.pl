@@ -238,12 +238,6 @@ member(X, [_|Xs]) :- member(X, Xs).
 length([], 0).
 length([_|Xs], N) :- length(Xs, L), N is L + 1.
 
-:- built_in(maplist/2).
-maplist(_Cont, []).
-maplist(Cont, [E|Es]) :-
-   call(Cont, E),
-   maplist(Cont, Es).
-
 :- built_in('.'/2).
 [H|T] :- consult([H|T]).
 
