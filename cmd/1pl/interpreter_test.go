@@ -14,7 +14,6 @@ func TestNew(t *testing.T) {
 		}
 
 		p := New(nil, nil)
-		assert.NoError(t, p.Exec(`:- set_prolog_flag(unknown, fail).`))
 
 		assert.NoError(t, p.QuerySolution(`call_nth(true, Nth), Nth = 1.`).Err())
 
@@ -56,7 +55,7 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`catch(call_nth(repeat, -1), error(domain_error(not_less_than_zero,-1), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`call_nth(length(L,N), 3), L = [_A,_B], N = 2.`).Err())
 		assert.NoError(t, p.QuerySolution(`\+call_nth(inex, 0).`).Err())
-		assert.NoError(t, p.QuerySolution(`catch(call_nth(1, 0), error(type_error(callable,1), _), true).`).Err())
-		assert.NoError(t, p.QuerySolution(`catch(call_nth(V, 0), error(instantiation_error, _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`\+call_nth(1, 0).`).Err())
+		assert.NoError(t, p.QuerySolution(`\+call_nth(V, 0).`).Err())
 	})
 }

@@ -459,25 +459,39 @@ func TestState_CallNth(t *testing.T) {
 					}, func(context.Context) *Promise {
 						return k(env)
 					}, func(context.Context) *Promise {
-						return k(env)
+						return Error(errors.New("three"))
 					})
 				}),
 			},
-			unknown: unknownFail,
 		},
 	}
 
 	t.Run("ok", func(t *testing.T) {
 		t.Run("nth is a variable", func(t *testing.T) {
-			ok, err := state.CallNth(Atom("foo"), Variable("Nth"), Success, nil).Force(context.Background())
+			var ns []Integer
+			ok, err := state.CallNth(Atom("foo"), Variable("Nth"), func(env *Env) *Promise {
+				n, ok := env.Resolve(Variable("Nth")).(Integer)
+				assert.True(t, ok)
+				ns = append(ns, n)
+				switch n {
+				case Integer(1):
+					return Bool(false)
+				case Integer(2):
+					return Bool(true)
+				default:
+					return Error(errors.New("unreachable"))
+				}
+			}, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			assert.Equal(t, []Integer{1, 2}, ns)
 		})
 
 		t.Run("nth is an integer", func(t *testing.T) {
-			ok, err := state.CallNth(Atom("foo"), Integer(3), Success, nil).Force(context.Background())
+			ok, err := state.CallNth(Atom("foo"), Integer(2), Failure, nil).Force(context.Background())
 			assert.NoError(t, err)
-			assert.True(t, ok)
+			assert.False(t, ok)
 		})
 	})
 

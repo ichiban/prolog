@@ -215,33 +215,37 @@ var callNthInit = Integer(0)
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
 // See http://www.complang.tuwien.ac.at/ulrich/iso-prolog/call_nth
 func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
+	nth = env.Resolve(nth)
+	switch nth := nth.(type) {
+	case Variable:
+		break
+	case Integer:
+		switch {
+		case nth < 0:
+			return Error(DomainError("not_less_than_zero", nth, env))
+		case nth == 0:
+			return Bool(false)
+		}
+	default:
+		return Error(TypeErrorInteger(nth, env))
+	}
+
 	n := callNthInit
 
 	var p *Promise
 	p = state.Call(goal, func(env *Env) *Promise {
-		switch nth := env.Resolve(nth).(type) {
-		case Variable:
-			break
-		case Integer:
-			switch {
-			case nth < 0:
-				return Error(DomainError("not_less_than_zero", nth, env))
-			case nth <= n:
-				return Cut(p, func(context.Context) *Promise {
-					return Bool(false)
-				})
-			}
-		default:
-			return Error(TypeErrorInteger(nth, env))
-		}
-
 		if n == Integer(math.MaxInt64) {
 			return Error(representationError("max_integer"))
 		}
-
 		n++
 
-		return Unify(n, nth, k, env)
+		u := Unify(n, nth, k, env)
+		if nth, ok := nth.(Integer); ok && nth <= n {
+			return Cut(p, func(context.Context) *Promise {
+				return u
+			})
+		}
+		return u
 	}, env)
 	return p
 }
