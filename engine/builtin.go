@@ -412,7 +412,7 @@ func Arg(nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 		case Variable:
 			return Error(ErrInstantiation)
 		case Integer:
-			if n == 0 || int(n) >= len(c.Args) {
+			if n == 0 || int(n) > len(c.Args) {
 				return Bool(false)
 			}
 			if n < 0 {

@@ -667,26 +667,32 @@ func ExampleInterpreter_Exec_placeholders() {
 	_ = p.Exec(`my_atom(?).`, "foo")
 	sols, _ := p.Query(`my_atom(A), atom(A), write(A), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	_ = p.Exec(`my_int(?, ?, ?, ?, ?).`, int8(1), int16(1), int32(1), int64(1), 1)
 	sols, _ = p.Query(`my_int(I, I, I, I, I), integer(I), write(I), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	_ = p.Exec(`my_float(?, ?).`, float32(1), float64(1))
 	sols, _ = p.Query(`my_float(F, F), float(F), write(F), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	_ = p.Exec(`my_atom_list(?).`, []string{"foo", "bar", "baz"})
 	sols, _ = p.Query(`my_atom_list(As), maplist(atom, As), write(As), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	_ = p.Exec(`my_int_list(?).`, []int{1, 2, 3})
 	sols, _ = p.Query(`my_int_list(Is), maplist(integer, Is), write(Is), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	_ = p.Exec(`my_float_list(?).`, []float64{1, 2, 3})
 	sols, _ = p.Query(`my_float_list(Fs), maplist(float, Fs), write(Fs), nl.`)
 	sols.Next()
+	_ = sols.Close()
 
 	// Output:
 	// foo
@@ -701,16 +707,22 @@ func ExampleInterpreter_Query_placeholders() {
 	p := New(nil, os.Stdout)
 	sols, _ := p.Query(`A = ?, atom(A), write(A), nl.`, "foo")
 	sols.Next()
+	_ = sols.Close()
 	sols, _ = p.Query(`(I, I, I, I, I) = (?, ?, ?, ?, ?), integer(I), write(I), nl.`, int8(1), int16(1), int32(1), int64(1), 1)
 	sols.Next()
+	_ = sols.Close()
 	sols, _ = p.Query(`(F, F) = (?, ?), float(F), write(F), nl.`, float32(1), float64(1))
 	sols.Next()
+	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(atom, L), write(L), nl.`, []string{"foo", "bar", "baz"})
 	sols.Next()
+	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(integer, L), write(L), nl.`, []int{1, 2, 3})
 	sols.Next()
+	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(float, L), write(L), nl.`, []float64{1, 2, 3})
 	sols.Next()
+	_ = sols.Close()
 
 	// Output:
 	// foo
@@ -721,7 +733,7 @@ func ExampleInterpreter_Query_placeholders() {
 	// [1.0, 2.0, 3.0]
 }
 
-func ExampleInterpreter_New_phrase() {
+func ExampleNew_phrase() {
 	p := New(nil, nil)
 	_ = p.Exec(`
 determiner --> [the].
@@ -744,15 +756,19 @@ sentence --> noun_phrase, verb_phrase.
 
 	sols, _ := p.Query(`phrase([the], [the]).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`phrase(sentence, [the, girl, likes, the, boy]).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`phrase(sentence, [the, girl, likes, the, boy, today]).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`phrase(sentence, [the, girl, likes]).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`phrase(sentence, Sentence).`)
 	for sols.Next() {
@@ -763,6 +779,7 @@ sentence --> noun_phrase, verb_phrase.
 		fmt.Printf("Sentence = %s\n", s.Sentence)
 		break // Many other sentences follow.
 	}
+	_ = sols.Close()
 
 	sols, _ = p.Query(`phrase(noun_phrase, [the, girl, scares, the, boy], Rest).`)
 	for sols.Next() {
@@ -772,6 +789,7 @@ sentence --> noun_phrase, verb_phrase.
 		_ = sols.Scan(&s)
 		fmt.Printf("Rest = %s\n", s.Rest)
 	}
+	_ = sols.Close()
 
 	// Output:
 	// true
@@ -782,26 +800,32 @@ sentence --> noun_phrase, verb_phrase.
 	// Rest = [scares the boy]
 }
 
-func ExampleInterpreter_New_subsumes_term() {
+func ExampleNew_subsumes_term() {
 	p := New(nil, nil)
 
 	sols, _ := p.Query(`subsumes_term(a, a).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`subsumes_term(f(X,Y), f(Z,Z)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`subsumes_term(f(Z,Z), f(X,Y)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`subsumes_term(g(X), g(f(X))).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`subsumes_term(X, f(X)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`subsumes_term(X, Y), subsumes_term(Y, f(X)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	// Output:
 	// true
@@ -812,20 +836,24 @@ func ExampleInterpreter_New_subsumes_term() {
 	// true
 }
 
-func ExampleInterpreter_New_callable() {
+func ExampleNew_callable() {
 	p := New(nil, nil)
 
 	sols, _ := p.Query(`callable(a).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`callable(3).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`callable(X).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`callable((1,2)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	// Output:
 	// true
@@ -834,35 +862,39 @@ func ExampleInterpreter_New_callable() {
 	// true
 }
 
-func ExampleInterpreter_New_acyclicTerm() {
+func ExampleNew_acyclicTerm() {
 	p := New(nil, nil)
 
 	sols, _ := p.Query(`acyclic_term(a(1, _)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`X = f(X), acyclic_term(X).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	// Output:
 	// true
 	// false
 }
 
-func ExampleInterpreter_New_ground() {
+func ExampleNew_ground() {
 	p := New(nil, nil)
 
 	sols, _ := p.Query(`ground(3).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`ground(a(1, _)).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	// Output:
 	// true
 	// false
 }
 
-func ExampleInterpreter_New_sort() {
+func ExampleNew_sort() {
 	p := New(nil, nil)
 
 	sols, _ := p.Query(`sort([1, 1], Sorted).`)
@@ -873,6 +905,7 @@ func ExampleInterpreter_New_sort() {
 		_ = sols.Scan(&s)
 		fmt.Printf("Sorted = %d\n", s.Sorted)
 	}
+	_ = sols.Close()
 
 	sols, _ = p.Query(`sort([X, 1], [1, 1]).`)
 	for sols.Next() {
@@ -882,15 +915,19 @@ func ExampleInterpreter_New_sort() {
 		_ = sols.Scan(&s)
 		fmt.Printf("X = %d\n", s.X)
 	}
+	_ = sols.Close()
 
 	sols, _ = p.Query(`sort([1, 1], [1, 1]).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`sort([V], V).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	sols, _ = p.Query(`sort([f(U),U,U,f(V),f(U),V],L).`)
 	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
 
 	// Output:
 	// Sorted = [1]
@@ -898,4 +935,87 @@ func ExampleInterpreter_New_sort() {
 	// false
 	// true
 	// true
+}
+
+func ExampleNew_arg() {
+	p := New(nil, nil)
+
+	sols, _ := p.Query(`arg(1, foo(a, b), a).`)
+	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(1, foo(a, b), X).`)
+	for sols.Next() {
+		var s struct {
+			X string
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("X = %s\n", s.X)
+	}
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(1, foo(X, b), a).`)
+	for sols.Next() {
+		var s struct {
+			X string
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("X = %s\n", s.X)
+	}
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(1, foo(X, b), Y), X = a.`)
+	for sols.Next() {
+		var s struct {
+			X, Y string
+		}
+		_ = sols.Scan(&s)
+		fmt.Printf("X = %s, Y = %s\n", s.X, s.Y)
+	}
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(1, foo(a, b), b).`)
+	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(0, foo(a, b), foo).`)
+	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(3, foo(a, b), N).`)
+	fmt.Printf("%t\n", sols.Next())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(X, foo(a, b), a).`)
+	sols.Next()
+	fmt.Printf("%v\n", sols.Err())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(1, X, a).`)
+	sols.Next()
+	fmt.Printf("%v\n", sols.Err())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(0, atom, A).`)
+	sols.Next()
+	fmt.Printf("%v\n", sols.Err())
+	_ = sols.Close()
+
+	sols, _ = p.Query(`arg(0, 3, A).`)
+	sols.Next()
+	fmt.Printf("%v\n", sols.Err())
+	_ = sols.Close()
+
+	// Output:
+	// true
+	// X = a
+	// X = a
+	// X = a, Y = a
+	// false
+	// false
+	// false
+	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
+	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
+	// error(type_error(compound, atom), 'Expected compound, found engine.Atom.')
+	// error(type_error(compound, 3), 'Expected compound, found engine.Integer.')
 }
