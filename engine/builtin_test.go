@@ -875,19 +875,40 @@ func TestArg(t *testing.T) {
 
 	t.Run("nth is an integer", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := Arg(Integer(2), &Compound{
+			ok, err := Arg(Integer(1), &Compound{
+				Functor: "f",
+				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			}, Atom("a"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+
+			ok, err = Arg(Integer(2), &Compound{
 				Functor: "f",
 				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("b"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
+
+			ok, err = Arg(Integer(3), &Compound{
+				Functor: "f",
+				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			}, Atom("c"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			ok, err := Arg(Integer(4), &Compound{
+			ok, err := Arg(Integer(0), &Compound{
 				Functor: "f",
 				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
-			}, Atom("b"), Success, nil).Force(context.Background())
+			}, NewVariable(), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+
+			ok, err = Arg(Integer(4), &Compound{
+				Functor: "f",
+				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			}, NewVariable(), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
