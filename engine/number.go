@@ -921,18 +921,52 @@ func Min(x, y Number) (Number, error) {
 func IntegerPower(x, y Number) (Number, error) {
 	if x, ok := x.(Integer); ok {
 		if y, ok := y.(Integer); ok {
-			if x != 1 && y < -1 {
+			if x == 0 && y < 0 {
+				return nil, ErrUndefined
+			}
+			if x != 1 && x != 0 && x != -1 && y < 0 {
 				return nil, TypeErrorFloat(x, nil)
 			}
 
-			r, err := Power(x, y)
-			if err != nil {
-				return nil, err
-			}
-			return truncateFtoI(r.(Float))
+			return intPow(x, y)
 		}
 	}
 	return Power(x, y)
+}
+
+// Loosely based on https://www.programminglogic.com/fast-exponentiation-algorithms/
+func intPow(a, b Integer) (Integer, error) {
+	if b < 0 {
+		r, err := intPow(a, -b)
+		if err != nil {
+			return 0, err
+		}
+		return intDivI(1, r)
+	}
+
+	var (
+		r   = Integer(1)
+		err error
+	)
+	for {
+		if b&1 != 0 {
+			r, err = mulI(r, a)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		b >>= 1
+		if b == 0 {
+			break
+		}
+
+		a, err = mulI(a, a)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return r, nil
 }
 
 // Asin returns the arc sine of x.
@@ -1210,12 +1244,12 @@ func mulI(x, y Integer) (Integer, error) {
 		return 0, ErrIntOverflow
 	case y == 0:
 		return 0, nil
-	case x > math.MaxInt64/y:
-		return 0, ErrIntOverflow
-	case x < math.MinInt64/y:
-		return 0, ErrIntOverflow
 	default:
-		return x * y, nil
+		r := x * y
+		if r/y != x {
+			return 0, ErrIntOverflow
+		}
+		return r, nil
 	}
 }
 
