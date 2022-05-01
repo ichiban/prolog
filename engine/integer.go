@@ -23,11 +23,14 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 
 // Unparse emits tokens that represent the integer.
 func (i Integer) Unparse(emit func(token Token), _ *Env, _ ...WriteOption) {
-	if i < 0 {
-		emit(Token{Kind: TokenGraphic, Val: "-"})
-		i *= -1
-	}
 	s := strconv.FormatInt(int64(i), 10)
+
+	if s[0] == '-' {
+		emit(Token{Kind: TokenGraphic, Val: "-"})
+		emit(Token{Kind: TokenInteger, Val: s[1:]})
+		return
+	}
+
 	emit(Token{Kind: TokenInteger, Val: s})
 }
 

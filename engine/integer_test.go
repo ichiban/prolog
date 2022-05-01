@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,6 +78,17 @@ func TestInteger_Unparse(t *testing.T) {
 			{Kind: TokenGraphic, Val: "-"},
 			{Kind: TokenInteger, Val: "33"},
 		}, tokens)
+
+		t.Run("math.MinInt64", func(t *testing.T) {
+			var tokens []Token
+			Integer(math.MinInt64).Unparse(func(token Token) {
+				tokens = append(tokens, token)
+			}, nil)
+			assert.Equal(t, []Token{
+				{Kind: TokenGraphic, Val: "-"},
+				{Kind: TokenInteger, Val: "9223372036854775808"},
+			}, tokens)
+		})
 	})
 }
 
