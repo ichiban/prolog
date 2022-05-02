@@ -1553,14 +1553,34 @@ func TestIntegerPower(t *testing.T) {
 			})
 
 			t.Run("y is negative", func(t *testing.T) {
-				r, err := IntegerPower(Integer(1), Integer(-1))
-				assert.NoError(t, err)
-				assert.Equal(t, Integer(1), r)
-			})
+				t.Run("x is 1", func(t *testing.T) {
+					r, err := IntegerPower(Integer(1), Integer(-1))
+					assert.NoError(t, err)
+					assert.Equal(t, Integer(1), r)
+				})
 
-			t.Run("x is not equal to 1, 0, or -1 and y is negative", func(t *testing.T) {
-				_, err := IntegerPower(Integer(2), Integer(-2))
-				assert.Equal(t, TypeErrorFloat(Integer(2), nil), err)
+				t.Run("x is 0", func(t *testing.T) {
+					_, err := IntegerPower(Integer(0), Integer(-1))
+					assert.Equal(t, ErrUndefined, err)
+				})
+
+				t.Run("x is -1", func(t *testing.T) {
+					t.Run("ok", func(t *testing.T) {
+						r, err := IntegerPower(Integer(-1), Integer(-1))
+						assert.NoError(t, err)
+						assert.Equal(t, Integer(-1), r)
+					})
+
+					t.Run("y is math.MinInt64", func(t *testing.T) {
+						_, err := IntegerPower(Integer(-1), Integer(math.MinInt64))
+						assert.Equal(t, ErrIntOverflow, err)
+					})
+				})
+
+				t.Run("x is neither 1, 0, nor -1", func(t *testing.T) {
+					_, err := IntegerPower(Integer(2), Integer(-2))
+					assert.Equal(t, TypeErrorFloat(Integer(2), nil), err)
+				})
 			})
 		})
 

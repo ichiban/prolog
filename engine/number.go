@@ -919,31 +919,37 @@ func Min(x, y Number) (Number, error) {
 
 // IntegerPower returns x raised to the power of y.
 func IntegerPower(x, y Number) (Number, error) {
-	if x, ok := x.(Integer); ok {
-		if y, ok := y.(Integer); ok {
-			if x == 0 && y < 0 {
-				return nil, ErrUndefined
-			}
-			if x != 1 && x != 0 && x != -1 && y < 0 {
-				return nil, TypeErrorFloat(x, nil)
-			}
+	vx, ok := x.(Integer)
+	if !ok {
+		return Power(x, y)
+	}
 
-			return intPow(x, y)
+	vy, ok := y.(Integer)
+	if !ok {
+		return Power(x, y)
+	}
+
+	if vy < 0 {
+		switch vx {
+		case 0:
+			return nil, ErrUndefined
+		case 1, -1:
+			vy, err := negI(vy) // y can be math.MinInt64
+			if err != nil {
+				return nil, err
+			}
+			r, _ := intPow(vx, vy) // Since x is either 1 or -1, no errors occur.
+			return intDivI(1, r)
+		default:
+			return nil, TypeErrorFloat(vx, nil)
 		}
 	}
-	return Power(x, y)
+
+	return intPow(vx, vy)
 }
 
 // Loosely based on https://www.programminglogic.com/fast-exponentiation-algorithms/
 func intPow(a, b Integer) (Integer, error) {
-	if b < 0 {
-		r, err := intPow(a, -b)
-		if err != nil {
-			return 0, err
-		}
-		return intDivI(1, r)
-	}
-
 	var (
 		r   = Integer(1)
 		err error
