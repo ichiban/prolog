@@ -1546,13 +1546,41 @@ func TestMin(t *testing.T) {
 func TestIntegerPower(t *testing.T) {
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			r, err := IntegerPower(Integer(1), Integer(1))
-			assert.NoError(t, err)
-			assert.Equal(t, Integer(1), r)
+			t.Run("y is positive", func(t *testing.T) {
+				r, err := IntegerPower(Integer(1), Integer(1))
+				assert.NoError(t, err)
+				assert.Equal(t, Integer(1), r)
+			})
 
-			t.Run("x is not equal to 1 and y is less than -1", func(t *testing.T) {
-				_, err := IntegerPower(Integer(2), Integer(-2))
-				assert.Equal(t, TypeErrorFloat(Integer(2), nil), err)
+			t.Run("y is negative", func(t *testing.T) {
+				t.Run("x is 1", func(t *testing.T) {
+					r, err := IntegerPower(Integer(1), Integer(-1))
+					assert.NoError(t, err)
+					assert.Equal(t, Integer(1), r)
+				})
+
+				t.Run("x is 0", func(t *testing.T) {
+					_, err := IntegerPower(Integer(0), Integer(-1))
+					assert.Equal(t, ErrUndefined, err)
+				})
+
+				t.Run("x is -1", func(t *testing.T) {
+					t.Run("ok", func(t *testing.T) {
+						r, err := IntegerPower(Integer(-1), Integer(-1))
+						assert.NoError(t, err)
+						assert.Equal(t, Integer(-1), r)
+					})
+
+					t.Run("y is math.MinInt64", func(t *testing.T) {
+						_, err := IntegerPower(Integer(-1), Integer(math.MinInt64))
+						assert.Equal(t, ErrIntOverflow, err)
+					})
+				})
+
+				t.Run("x is neither 1, 0, nor -1", func(t *testing.T) {
+					_, err := IntegerPower(Integer(2), Integer(-2))
+					assert.Equal(t, TypeErrorFloat(Integer(2), nil), err)
+				})
 			})
 		})
 
@@ -1565,6 +1593,18 @@ func TestIntegerPower(t *testing.T) {
 		t.Run("not a number", func(t *testing.T) {
 			_, err := IntegerPower(Integer(1), &mockNumber{})
 			assert.Equal(t, ErrUndefined, err)
+		})
+
+		t.Run("overflow", func(t *testing.T) {
+			t.Run("x is too large", func(t *testing.T) {
+				_, err := IntegerPower(Integer(math.MaxInt64), Integer(2))
+				assert.Equal(t, ErrIntOverflow, err)
+			})
+
+			t.Run("y is too large", func(t *testing.T) {
+				_, err := IntegerPower(Integer(2), Integer(63))
+				assert.Equal(t, ErrIntOverflow, err)
+			})
 		})
 	})
 
