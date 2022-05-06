@@ -62,12 +62,17 @@ func TestListIterator_Next(t *testing.T) {
 
 		t.Run("circular list", func(t *testing.T) {
 			l := Variable("L")
-			env := NewEnv().Bind(l, ListRest(l, Atom("a")))
-			iter := ListIterator{List: l, Env: env}
-			assert.True(t, iter.Next())
-			assert.Equal(t, Atom("a"), iter.Current())
-			assert.False(t, iter.Next())
-			assert.Equal(t, TypeErrorList(l, env), iter.Err())
+			const max = 500
+			elems := make([]Term, 0, max)
+			for i := 0; i < max; i++ {
+				elems = append(elems, Atom("a"))
+				env := NewEnv().Bind(l, ListRest(l, elems...))
+				iter := ListIterator{List: l, Env: env}
+				for iter.Next() {
+					assert.Equal(t, Atom("a"), iter.Current())
+				}
+				assert.Equal(t, TypeErrorList(l, env), iter.Err())
+			}
 		})
 	})
 }
