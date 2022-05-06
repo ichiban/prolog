@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 )
 
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
@@ -72,7 +71,7 @@ func (p *Promise) Force(ctx context.Context) (bool, error) {
 	for len(stack) > 0 {
 		select {
 		case <-ctx.Done():
-			return false, errors.New("canceled")
+			return false, context.Canceled
 		default:
 			p := stack.pop()
 

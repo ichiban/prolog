@@ -287,7 +287,7 @@ func (p *Parser) number() (Term, error) {
 	}
 
 	if sign != "" {
-		return Atom(sign), nil
+		return sign, nil
 	}
 
 	return nil, errNotANumber

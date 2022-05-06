@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"sort"
 	"strings"
@@ -210,8 +209,6 @@ func (state *State) Call7(closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term
 	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7)...), k, env)
 }
 
-var callNthInit = Integer(0)
-
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
 // See http://www.complang.tuwien.ac.at/ulrich/iso-prolog/call_nth
 func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -230,14 +227,16 @@ func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Pr
 		return Error(TypeErrorInteger(nth, env))
 	}
 
-	n := callNthInit
-
-	var p *Promise
+	var (
+		p   *Promise
+		n   Integer
+		err error
+	)
 	p = state.Call(goal, func(env *Env) *Promise {
-		if n == Integer(math.MaxInt64) {
+		n, err = addI(n, Integer(1))
+		if err != nil {
 			return Error(representationError("max_integer"))
 		}
-		n++
 
 		u := Unify(n, nth, k, env)
 		if nth, ok := nth.(Integer); ok && nth <= n {
@@ -2700,8 +2699,8 @@ func (state *State) CurrentPrologFlag(flag, value Term, k func(*Env) *Promise, e
 	pattern := Compound{Args: []Term{flag, value}}
 	flags := []Term{
 		&Compound{Args: []Term{Atom("bounded"), Atom("true")}},
-		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
-		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
+		&Compound{Args: []Term{Atom("max_integer"), maxInt}},
+		&Compound{Args: []Term{Atom("min_integer"), minInt}},
 		&Compound{Args: []Term{Atom("integer_rounding_function"), Atom("toward_zero")}},
 		&Compound{Args: []Term{Atom("char_conversion"), onOff(state.charConvEnabled)}},
 		&Compound{Args: []Term{Atom("debug"), onOff(state.debug)}},
@@ -2938,4 +2937,72 @@ func Succ(x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 	default:
 		return Error(TypeErrorInteger(x, env))
 	}
+}
+
+// Length succeeds iff list is a list of length.
+func Length(list, length Term, k func(*Env) *Promise, env *Env) *Promise {
+	length = env.Resolve(length)
+
+	max := Integer(-1)
+	switch l := length.(type) {
+	case Variable:
+		break
+	case Integer:
+		if l < 0 {
+			return Error(domainErrorNotLessThanZero(l, env))
+		}
+		max = l
+	default:
+		return Error(TypeErrorInteger(l, env))
+	}
+
+	var (
+		iter = ListIterator{List: list, Env: env}
+		n    Integer
+		err  error
+	)
+	for iter.Next() {
+		n, err = addI(n, Integer(1))
+		if err != nil {
+			return Error(representationError("max_integer"))
+		}
+		if max >= 0 && max < n {
+			return Bool(false)
+		}
+	}
+	switch err := iter.Err(); {
+	case err == nil: // List
+		return Unify(length, n, k, env)
+	case errors.Is(iter.Err(), ErrInstantiation): // Partial list
+		break
+	default: // Non-list
+		return Bool(false)
+	}
+
+	if l, ok := length.(Integer); ok {
+		elems := make([]Term, l)
+		for i := range elems {
+			elems[i] = NewVariable()
+		}
+		return Unify(list, List(elems...), k, env)
+	}
+
+	return lengthN(0, list, length, k, env)
+}
+
+func lengthN(n Integer, list, length Term, k func(*Env) *Promise, env *Env) *Promise {
+	return Delay(func(context.Context) *Promise {
+		elems := make([]Term, n)
+		for i := range elems {
+			elems[i] = NewVariable()
+		}
+		const l = Atom("$length")
+		return Unify(l.Apply(list, length), l.Apply(List(elems...), n), k, env)
+	}, func(context.Context) *Promise {
+		n, err := addI(n, Integer(1))
+		if err != nil {
+			return Error(representationError("max_integer"))
+		}
+		return lengthN(n, list, length, k, env)
+	})
 }

@@ -181,22 +181,19 @@ func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) 
 		o(&wto)
 	}
 
+	var comma bool
 	emit(Token{Kind: TokenBracketL, Val: "["})
-	env.Resolve(c.Args[0]).Unparse(emit, env, opts...)
-	t := env.Resolve(c.Args[1])
-	for {
-		if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+	iter := ListIterator{List: c, Env: env}
+	for iter.Next() {
+		if comma {
 			emit(Token{Kind: TokenComma, Val: ","})
-			env.Resolve(l.Args[0]).Unparse(emit, env, opts...)
-			t = env.Resolve(l.Args[1])
-			continue
 		}
-		if a, ok := t.(Atom); ok && a == "[]" {
-			break
-		}
+		env.Resolve(iter.Current()).Unparse(emit, env, opts...)
+		comma = true
+	}
+	if err := iter.Err(); err != nil {
 		emit(Token{Kind: TokenBar, Val: "|"})
-		t.Unparse(emit, env, opts...)
-		break
+		iter.hare.Unparse(emit, env, opts...)
 	}
 	emit(Token{Kind: TokenBracketR, Val: "]"})
 }

@@ -111,6 +111,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3("nth0", engine.Nth0)
 	i.Register3("nth1", engine.Nth1)
 	i.Register2("succ", engine.Succ)
+	i.Register2("length", engine.Length)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}

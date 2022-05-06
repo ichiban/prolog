@@ -2,6 +2,11 @@ package engine
 
 import "math"
 
+var (
+	maxInt = Integer(math.MaxInt64)
+	minInt = Integer(math.MinInt64)
+)
+
 // DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
 var DefaultEvaluableFunctors = EvaluableFunctors{
 	Constant: map[Atom]Number{
@@ -934,7 +939,7 @@ func IntegerPower(x, y Number) (Number, error) {
 		case 0:
 			return nil, ErrUndefined
 		case 1, -1:
-			vy, err := negI(vy) // y can be math.MinInt64
+			vy, err := negI(vy) // y can be minInt
 			if err != nil {
 				return nil, err
 			}
@@ -1188,7 +1193,7 @@ func floatFtoF(x Float) Float {
 
 func floorFtoI(x Float) (Integer, error) {
 	f := math.Floor(float64(x))
-	if f > math.MaxInt64 || f < math.MinInt64 {
+	if f > float64(maxInt) || f < float64(minInt) {
 		return 0, ErrIntOverflow
 	}
 	return Integer(f), nil
@@ -1196,7 +1201,7 @@ func floorFtoI(x Float) (Integer, error) {
 
 func truncateFtoI(x Float) (Integer, error) {
 	t := math.Trunc(float64(x))
-	if t > math.MaxInt64 || t < math.MinInt64 {
+	if t > float64(maxInt) || t < float64(minInt) {
 		return 0, ErrIntOverflow
 	}
 	return Integer(t), nil
@@ -1204,7 +1209,7 @@ func truncateFtoI(x Float) (Integer, error) {
 
 func roundFtoI(x Float) (Integer, error) {
 	r := math.Round(float64(x))
-	if r > math.MaxInt64 || r < math.MinInt64 {
+	if r > float64(maxInt) || r < float64(minInt) {
 		return 0, ErrIntOverflow
 	}
 	return Integer(r), nil
@@ -1212,7 +1217,7 @@ func roundFtoI(x Float) (Integer, error) {
 
 func ceilingFtoI(x Float) (Integer, error) {
 	c := math.Ceil(float64(x))
-	if c > math.MaxInt64 || c < math.MinInt64 {
+	if c > float64(maxInt) || c < float64(minInt) {
 		return 0, ErrIntOverflow
 	}
 	return Integer(c), nil
@@ -1222,9 +1227,9 @@ func ceilingFtoI(x Float) (Integer, error) {
 
 func addI(x, y Integer) (Integer, error) {
 	switch {
-	case y > 0 && x > math.MaxInt64-y:
+	case y > 0 && x > maxInt-y:
 		return 0, ErrIntOverflow
-	case y < 0 && x < math.MinInt64-y:
+	case y < 0 && x < minInt-y:
 		return 0, ErrIntOverflow
 	default:
 		return x + y, nil
@@ -1233,9 +1238,9 @@ func addI(x, y Integer) (Integer, error) {
 
 func subI(x, y Integer) (Integer, error) {
 	switch {
-	case y < 0 && x > math.MaxInt64+y:
+	case y < 0 && x > maxInt+y:
 		return 0, ErrIntOverflow
-	case y > 0 && x < math.MinInt64+y:
+	case y > 0 && x < minInt+y:
 		return 0, ErrIntOverflow
 	default:
 		return x - y, nil
@@ -1244,9 +1249,9 @@ func subI(x, y Integer) (Integer, error) {
 
 func mulI(x, y Integer) (Integer, error) {
 	switch {
-	case x == -1 && y == math.MinInt64:
+	case x == -1 && y == minInt:
 		return 0, ErrIntOverflow
-	case x == math.MinInt64 && y == -1:
+	case x == minInt && y == -1:
 		return 0, ErrIntOverflow
 	case y == 0:
 		return 0, nil
@@ -1263,7 +1268,7 @@ func intDivI(x, y Integer) (Integer, error) {
 	switch {
 	case y == 0:
 		return 0, ErrZeroDivisor
-	case x == math.MinInt64 && y == -1:
+	case x == minInt && y == -1:
 		// Two's complement special case
 		return 0, ErrIntOverflow
 	default:
@@ -1287,7 +1292,7 @@ func modI(x, y Integer) (Integer, error) {
 
 func negI(x Integer) (Integer, error) {
 	// Two's complement special case
-	if x == math.MinInt64 {
+	if x == minInt {
 		return 0, ErrIntOverflow
 	}
 	return -x, nil
@@ -1295,7 +1300,7 @@ func negI(x Integer) (Integer, error) {
 
 func absI(x Integer) (Integer, error) {
 	switch {
-	case x == math.MinInt64:
+	case x == minInt:
 		return 0, ErrIntOverflow
 	case x < 0:
 		return -x, nil
@@ -1321,7 +1326,7 @@ func posI(x Integer) (Integer, error) {
 
 func intFloorDivI(x, y Integer) (Integer, error) {
 	switch {
-	case x == math.MinInt64 && y == -1:
+	case x == minInt && y == -1:
 		return 0, ErrIntOverflow
 	case y == 0:
 		return 0, ErrZeroDivisor

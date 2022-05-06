@@ -522,9 +522,9 @@ func TestState_CallNth(t *testing.T) {
 	})
 
 	t.Run("n+1 is larger than max_integer", func(t *testing.T) {
-		callNthInit = Integer(math.MaxInt64)
+		maxInt = 0
 		defer func() {
-			callNthInit = 0
+			maxInt = math.MaxInt64
 		}()
 		_, err := state.CallNth(Atom("foo"), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, representationError("max_integer"), err)
@@ -8116,5 +8116,113 @@ func TestSucc(t *testing.T) {
 	t.Run("x is neither a variable nor an integer", func(t *testing.T) {
 		_, err := Succ(Float(0), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeErrorInteger(Float(0), nil), err)
+	})
+}
+
+func TestLength(t *testing.T) {
+	t.Run("list is a list", func(t *testing.T) {
+		t.Run("length is a variable", func(t *testing.T) {
+			n := Variable("N")
+			ok, err := Length(List(Atom("a"), Atom("b"), Atom("c")), n, func(env *Env) *Promise {
+				assert.Equal(t, Integer(3), env.Resolve(n))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("length is an integer", func(t *testing.T) {
+			t.Run("length is the exact length of list", func(t *testing.T) {
+				ok, err := Length(List(Atom("a"), Atom("b"), Atom("c")), Integer(3), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("length is smaller than the length fo list", func(t *testing.T) {
+				ok, err := Length(List(Atom("a"), Atom("b"), Atom("c")), Integer(2), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.False(t, ok)
+			})
+		})
+	})
+
+	t.Run("list is a partial list", func(t *testing.T) {
+		t.Run("length is a variable", func(t *testing.T) {
+			l := Variable("L")
+			n := Variable("N")
+			var count int
+			ok, err := Length(ListRest(l, Atom("a"), Atom("b")), n, func(env *Env) *Promise {
+				var ret []Variable
+				iter := ListIterator{List: l, Env: env}
+				for iter.Next() {
+					ret = append(ret, env.Resolve(iter.Current()).(Variable))
+				}
+				assert.NoError(t, iter.Err())
+
+				switch count {
+				case 0:
+					assert.Len(t, ret, 0)
+					assert.Equal(t, Integer(2), env.Resolve(n))
+				case 1:
+					assert.Len(t, ret, 1)
+					assert.Equal(t, Integer(3), env.Resolve(n))
+				case 2:
+					assert.Len(t, ret, 2)
+					assert.Equal(t, Integer(4), env.Resolve(n))
+				default:
+					return Bool(true)
+				}
+
+				count++
+				return Bool(false)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("length is an integer", func(t *testing.T) {
+			l := Variable("L")
+			ok, err := Length(ListRest(l, Atom("a"), Atom("b")), Integer(3), func(env *Env) *Promise {
+				iter := ListIterator{List: l, Env: env}
+				assert.True(t, iter.Next())
+				assert.False(t, iter.Next())
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("list is neither a list nor a partial list", func(t *testing.T) {
+		ok, err := Length(Atom("foo"), Integer(3), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
+		_, err := Length(List(Atom("a"), Atom("b"), Atom("c")), Atom("three"), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeErrorInteger(Atom("three"), nil), err)
+	})
+
+	t.Run("length is an integer that is less than zero", func(t *testing.T) {
+		_, err := Length(List(Atom("a"), Atom("b"), Atom("c")), Integer(-3), Success, nil).Force(context.Background())
+		assert.Equal(t, domainErrorNotLessThanZero(Integer(-3), nil), err)
+	})
+
+	t.Run("list is so long that an integer cannot represent its length", func(t *testing.T) {
+		maxInt = 2
+		defer func() {
+			maxInt = math.MaxInt64
+		}()
+
+		t.Run("list is a list", func(t *testing.T) {
+			_, err := Length(List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
+			assert.Equal(t, representationError("max_integer"), err)
+		})
+
+		t.Run("list is a partial list", func(t *testing.T) {
+			_, err := Length(NewVariable(), NewVariable(), Failure, nil).Force(context.Background())
+			assert.Equal(t, representationError("max_integer"), err)
+		})
 	})
 }
