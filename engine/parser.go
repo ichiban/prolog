@@ -14,13 +14,15 @@ import (
 var (
 	errExpectation = errors.New("expectation error")
 	errNotAnAtom   = errors.New("not an atom")
+	errNoOp        = errors.New("no op")
+	errNotANumber  = errors.New("not a number")
+	errPlaceholder = errors.New("not enough arguments for placeholders")
 )
 
 // Parser turns bytes into Term.
 type Parser struct {
 	lexer        *Lexer
 	current      *Token
-	history      []Token
 	operators    *operators
 	placeholder  Atom
 	args         []Term
@@ -113,10 +115,6 @@ func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p.history = append(p.history, *p.current)
-	if len(p.history) > 4 {
-		p.history = p.history[1:]
-	}
 	p.current = nil
 	return v, nil
 }
@@ -149,7 +147,7 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 
 func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*operator, error) {
 	if p.operators == nil {
-		return nil, errors.New("no op")
+		return nil, errNoOp
 	}
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
@@ -163,12 +161,12 @@ func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*operator, error)
 
 		return &op, nil
 	}
-	return nil, errors.New("no op")
+	return nil, errNoOp
 }
 
 func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*operator, error) {
 	if p.operators == nil {
-		return nil, errors.New("no op")
+		return nil, errNoOp
 	}
 	for _, op := range *p.operators {
 		l, _ := op.bindingPowers()
@@ -182,7 +180,7 @@ func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*operator, error) {
 
 		return &op, nil
 	}
-	return nil, errors.New("no op")
+	return nil, errNoOp
 }
 
 func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
@@ -249,8 +247,6 @@ func (p *Parser) Term() (Term, error) {
 
 	return t, nil
 }
-
-var errNotANumber = errors.New("not a number")
 
 // Number parses a number term.
 func (p *Parser) Number() (Term, error) {
@@ -373,7 +369,7 @@ func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {
 	if _, err := p.accept(TokenParenL); err != nil {
 		if p.placeholder != "" && p.placeholder == a {
 			if len(p.args) == 0 {
-				return nil, errors.New("not enough arguments for placeholders")
+				return nil, errPlaceholder
 			}
 			var t Term
 			t, p.args = p.args[0], p.args[1:]
