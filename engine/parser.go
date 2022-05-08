@@ -11,6 +11,11 @@ import (
 	"strings"
 )
 
+var (
+	errExpectation = errors.New("expectation error")
+	errNotAnAtom   = errors.New("not an atom")
+)
+
 // Parser turns bytes into Term.
 type Parser struct {
 	lexer        *Lexer
@@ -120,7 +125,7 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 	if v, err := p.accept(TokenIdent, vals...); err == nil {
 		return Atom(v), nil
 	}
-	if v, err := p.accept(TokenQuotedIdent, quoteSlice(vals)...); err == nil {
+	if v, err := p.accept(TokenQuotedIdent, vals...); err == nil {
 		return Atom(unquote(v)), nil
 	}
 	if v, err := p.accept(TokenGraphic, vals...); err == nil {
@@ -139,7 +144,7 @@ func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, er
 	if v, err := p.accept(TokenPeriod, vals...); err == nil {
 		return Atom(v), nil
 	}
-	return "", errors.New("not an atom")
+	return "", errNotAnAtom
 }
 
 func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*operator, error) {
@@ -190,31 +195,23 @@ func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
 	}
 
 	if p.current.Kind != k {
-		return "", p.expectationError(k, vals)
+		return "", errExpectation
 	}
 
 	if len(vals) > 0 {
 		for _, v := range vals {
+			v := v
+			if k == TokenQuotedIdent {
+				v = quote(v)
+			}
 			if v == p.current.Val {
 				return v, nil
 			}
 		}
-		return "", p.expectationError(k, vals)
+		return "", errExpectation
 	}
 
 	return p.current.Val, nil
-}
-
-func (p *Parser) expectationError(k TokenKind, vals []string) error {
-	if p.current == nil || p.current.Kind == TokenEOF {
-		return ErrInsufficient
-	}
-	return &unexpectedTokenError{
-		ExpectedKind: k,
-		ExpectedVals: vals,
-		Actual:       *p.current,
-		History:      p.history,
-	}
 }
 
 // Term parses a term followed by a full stop.
@@ -233,11 +230,17 @@ func (p *Parser) Term() (Term, error) {
 
 	t, err := p.expr(1, true, true)
 	if err != nil {
-		return nil, err
+		if p.current == nil || p.current.Kind == TokenEOF {
+			return nil, ErrInsufficient
+		}
+		return nil, &unexpectedTokenError{Actual: *p.current}
 	}
 
 	if _, err := p.accept(TokenPeriod); err != nil {
-		return nil, err
+		if p.current == nil || p.current.Kind == TokenEOF {
+			return nil, ErrInsufficient
+		}
+		return nil, &unexpectedTokenError{Actual: *p.current}
 	}
 
 	if len(p.args) != 0 {
@@ -287,7 +290,7 @@ func (p *Parser) number() (Term, error) {
 	}
 
 	if sign != "" {
-		return Atom(sign), nil
+		return sign, nil
 	}
 
 	return nil, errNotANumber
@@ -358,7 +361,7 @@ func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
 		return t, nil
 	}
 
-	return nil, p.expectationError(0, nil)
+	return nil, errExpectation
 }
 
 func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {
@@ -645,10 +648,7 @@ func (d doubleQuotes) String() string {
 }
 
 type unexpectedTokenError struct {
-	ExpectedKind TokenKind
-	ExpectedVals []string
-	Actual       Token
-	History      []Token
+	Actual Token
 }
 
 func (e unexpectedTokenError) Error() string {

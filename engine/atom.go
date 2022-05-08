@@ -111,14 +111,6 @@ func quotedIdentEscape(s string) string {
 	}
 }
 
-func quoteSlice(ss []string) []string {
-	ret := make([]string, len(ss))
-	for i, s := range ss {
-		ret[i] = quote(s)
-	}
-	return ret
-}
-
 func unquote(s string) string {
 	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
 }
