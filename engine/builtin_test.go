@@ -4147,40 +4147,103 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.Equal(t, 1200, m.priority)
 		})
 
-		t.Run("argument is not a proper list", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
+		t.Run("argument is not a list", func(t *testing.T) {
+			t.Run("partial list", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
 
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "variable_names",
-				Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
-			}), Success, nil).Force(context.Background())
-			assert.Error(t, err)
-			e, ok := err.(*Exception)
-			assert.True(t, ok)
-			_, ok = e.term.Unify(domainErrorWriteOption(&Compound{
-				Functor: "variable_names",
-				Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
-			}, nil).term, false, nil)
-			assert.True(t, ok)
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args:    []Term{ListRest(Variable("L"), Atom("=").Apply(Atom("foo"), Variable("X")))},
+				}), Success, nil).Force(context.Background())
+				assert.Equal(t, ErrInstantiation, err)
+			})
+
+			t.Run("not even close", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
+
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
+				}), Success, nil).Force(context.Background())
+				assert.Error(t, err)
+				e, ok := err.(*Exception)
+				assert.True(t, ok)
+				_, ok = e.term.Unify(domainErrorWriteOption(&Compound{
+					Functor: "variable_names",
+					Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
+				}, nil).term, false, nil)
+				assert.True(t, ok)
+			})
 		})
 
-		t.Run("element is not name=variable", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
+		t.Run("element is not name=Variable", func(t *testing.T) {
+			t.Run("a variable", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
 
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("foo"),
-				)},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, domainErrorWriteOption(&Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("foo"),
-				)},
-			}, nil), err)
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Variable("VN"),
+					)},
+				}), Success, nil).Force(context.Background())
+				assert.Equal(t, ErrInstantiation, err)
+			})
+
+			t.Run("a compound which is not =/2", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
+
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Atom("foo").Apply(Atom("n"), Variable("V")),
+					)},
+				}), Success, nil).Force(context.Background())
+				assert.Error(t, err)
+				e, ok := err.(*Exception)
+				assert.True(t, ok)
+				_, ok = e.term.Unify(domainErrorWriteOption(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Atom("foo").Apply(Atom("n"), Variable("V")),
+					)},
+				}, nil).term, false, nil)
+				assert.True(t, ok)
+			})
+
+			t.Run("a compound of =/2 but lhs is not an atom", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
+
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Atom("=").Apply(Variable("N"), Variable("V")),
+					)},
+				}), Success, nil).Force(context.Background())
+				assert.Equal(t, ErrInstantiation, err)
+			})
+
+			t.Run("neither a variable nor a compound", func(t *testing.T) {
+				var m mockTerm
+				defer m.AssertExpectations(t)
+
+				_, err := state.WriteTerm(s, &m, List(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Atom("foo"),
+					)},
+				}), Success, nil).Force(context.Background())
+				assert.Equal(t, domainErrorWriteOption(&Compound{
+					Functor: "variable_names",
+					Args: []Term{List(
+						Atom("foo"),
+					)},
+				}, nil), err)
+			})
 		})
 
 		t.Run("name is not an atom", func(t *testing.T) {
