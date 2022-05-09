@@ -377,12 +377,10 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 				for i := range vs {
 					vs[i] = NewVariable()
 				}
-				return Delay(func(context.Context) *Promise {
-					return Unify(t, &Compound{
-						Functor: name,
-						Args:    vs,
-					}, k, env)
-				})
+				return Unify(t, &Compound{
+					Functor: name,
+					Args:    vs,
+				}, k, env)
 			default:
 				return Error(TypeErrorAtom(name, env))
 			}
@@ -391,14 +389,10 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 	case *Compound:
 		pattern := Compound{Args: []Term{name, arity}}
-		return Delay(func(context.Context) *Promise {
-			return Unify(&pattern, &Compound{Args: []Term{t.Functor, Integer(len(t.Args))}}, k, env)
-		})
+		return Unify(&pattern, &Compound{Args: []Term{t.Functor, Integer(len(t.Args))}}, k, env)
 	default: // atomic
 		pattern := Compound{Args: []Term{name, arity}}
-		return Delay(func(context.Context) *Promise {
-			return Unify(&pattern, &Compound{Args: []Term{t, Integer(0)}}, k, env)
-		})
+		return Unify(&pattern, &Compound{Args: []Term{t, Integer(0)}}, k, env)
 	}
 }
 
@@ -2240,13 +2234,15 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	var unexpectedToken *unexpectedTokenError
 	p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
 	t, err := p.Number()
 	switch {
 	case errors.Is(err, errNotANumber):
 		return Error(syntaxErrorNotANumber())
-	case errors.As(err, &unexpectedToken):
+	case errors.Is(err, errExpectation):
+		err := &unexpectedTokenError{
+			Actual: *p.current,
+		}
 		return Error(syntaxErrorUnexpectedToken(Atom(err.Error())))
 	}
 
