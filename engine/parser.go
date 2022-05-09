@@ -321,10 +321,6 @@ func (p *Parser) expr(min int, allowComma, allowBar bool) (Term, error) {
 }
 
 func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
-	if _, err := p.accept(TokenEOF); err == nil {
-		return nil, ErrInsufficient
-	}
-
 	if p, err := p.paren(); err == nil {
 		return p, nil
 	}
