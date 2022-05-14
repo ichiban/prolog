@@ -2,35 +2,6 @@ package engine
 
 import (
 	"bytes"
-	"fmt"
-)
-
-var (
-	// ErrInstantiation is an instantiation error exception.
-	ErrInstantiation = &Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				Atom("instantiation_error"),
-				Atom("Arguments are not sufficiently instantiated."),
-			},
-		},
-	}
-
-	// ErrZeroDivisor is an exception that will be raised when an operation divided by zero.
-	ErrZeroDivisor = evaluationError(Atom("zero_divisor"), Atom("Divided by zero."))
-
-	// ErrIntOverflow is an exception that will be raised when an integer overflowed, either positively or negatively.
-	ErrIntOverflow = evaluationError(Atom("int_overflow"), Atom("Integer overflow."))
-
-	// ErrFloatOverflow is an exception that will be raised when a float overflowed, either positively or negatively.
-	ErrFloatOverflow = evaluationError(Atom("float_overflow"), Atom("Float overflow."))
-
-	// ErrUnderflow is an exception that will be raised when a float is too small to be represented by engine.Float.
-	ErrUnderflow = evaluationError(Atom("underflow"), Atom("Underflow."))
-
-	// ErrUndefined is an exception that will be raised when a function value for the arguments is undefined.
-	ErrUndefined = evaluationError(Atom("undefined"), Atom("Undefined."))
 )
 
 // Exception is an error represented by a prolog term.
@@ -39,339 +10,352 @@ type Exception struct {
 }
 
 // NewException creates an exception from a copy of the given term.
-func NewException(term Term, env *Env) *Exception {
-	return &Exception{term: copyTerm(term, nil, env)}
+func NewException(term Term, env *Env) Exception {
+	return Exception{term: copyTerm(term, nil, env)}
 }
 
 // Term returns the underlying term of the exception.
-func (e *Exception) Term() Term {
+func (e Exception) Term() Term {
 	return e.term
 }
 
-func (e *Exception) Error() string {
+func (e Exception) Error() string {
 	var buf bytes.Buffer
 	_ = Write(&buf, e.term, nil, WithQuoted(true))
 	return buf.String()
 }
 
-// TypeErrorAtom returns a type error exception for atom.
-func TypeErrorAtom(culprit Term, env *Env) *Exception {
-	return TypeError("atom", culprit, env)
+// InstantiationError returns an instantiation error exception.
+func InstantiationError(env *Env) Exception {
+	return NewException(&Compound{
+		Functor: "error",
+		Args: []Term{
+			Atom("instantiation_error"),
+			varContext,
+		},
+	}, env)
 }
 
-// TypeErrorAtomic returns a type error exception for atomic.
-func TypeErrorAtomic(culprit Term, env *Env) *Exception {
-	return TypeError("atomic", culprit, env)
-}
+type ValidType uint8
 
-// TypeErrorByte returns a type error exception for byte.
-func TypeErrorByte(culprit Term, env *Env) *Exception {
-	return TypeError("byte", culprit, env)
-}
+const (
+	ValidTypeAtom ValidType = iota
+	ValidTypeAtomic
+	ValidTypeByte
+	ValidTypeCallable
+	ValidTypeCharacter
+	ValidTypeCompound
+	ValidTypeEvaluable
+	ValidTypeInByte
+	ValidTypeInCharacter
+	ValidTypeInteger
+	ValidTypeList
+	ValidTypeNumber
+	ValidTypePredicateIndicator
+	ValidTypePair
+	ValidTypeFloat
+)
 
-// TypeErrorCallable returns a type error exception for callable.
-func TypeErrorCallable(culprit Term, env *Env) *Exception {
-	return TypeError("callable", culprit, env)
-}
-
-// TypeErrorCharacter returns a type error exception for character.
-func TypeErrorCharacter(culprit Term, env *Env) *Exception {
-	return TypeError("character", culprit, env)
-}
-
-// TypeErrorCompound returns a type error exception for compound.
-func TypeErrorCompound(culprit Term, env *Env) *Exception {
-	return TypeError("compound", culprit, env)
-}
-
-// TypeErrorEvaluable returns a type error exception for evaluable.
-func TypeErrorEvaluable(culprit Term, env *Env) *Exception {
-	return TypeError("evaluable", culprit, env)
-}
-
-// TypeErrorInByte returns a type error exception for in_byte.
-func TypeErrorInByte(culprit Term, env *Env) *Exception {
-	return TypeError("in_byte", culprit, env)
-}
-
-// TypeErrorInCharacter returns a type error exception for in_character.
-func TypeErrorInCharacter(culprit Term, env *Env) *Exception {
-	return TypeError("in_character", culprit, env)
-}
-
-// TypeErrorInteger returns a type error exception for integer.
-func TypeErrorInteger(culprit Term, env *Env) *Exception {
-	return TypeError("integer", culprit, env)
-}
-
-// TypeErrorList returns a type error exception for list.
-func TypeErrorList(culprit Term, env *Env) *Exception {
-	return TypeError("list", culprit, env)
-}
-
-// TypeErrorNumber returns a type error exception for number.
-func TypeErrorNumber(culprit Term, env *Env) *Exception {
-	return TypeError("number", culprit, env)
-}
-
-// TypeErrorPredicateIndicator returns a type error exception for predicate_indicator.
-func TypeErrorPredicateIndicator(culprit Term, env *Env) *Exception {
-	return TypeError("predicate_indicator", culprit, env)
-}
-
-// TypeErrorPair returns a type error exception for pair.
-func TypeErrorPair(culprit Term, env *Env) *Exception {
-	return TypeError("pair", culprit, env)
-}
-
-// TypeErrorFloat returns a type error exception for float.
-func TypeErrorFloat(culprit Term, env *Env) *Exception {
-	return TypeError("float", culprit, env)
+func (t ValidType) Term() Term {
+	return [...]Atom{
+		ValidTypeAtom:               "atom",
+		ValidTypeAtomic:             "atomic",
+		ValidTypeByte:               "byte",
+		ValidTypeCallable:           "callable",
+		ValidTypeCharacter:          "character",
+		ValidTypeCompound:           "compound",
+		ValidTypeEvaluable:          "evaluable",
+		ValidTypeInByte:             "in_byte",
+		ValidTypeInCharacter:        "in_character",
+		ValidTypeInteger:            "integer",
+		ValidTypeList:               "list",
+		ValidTypeNumber:             "number",
+		ValidTypePredicateIndicator: "predicate_indicator",
+		ValidTypePair:               "pair",
+		ValidTypeFloat:              "float",
+	}[t]
 }
 
 // TypeError creates a new type error exception.
-func TypeError(validType Atom, culprit Term, env *Env) *Exception {
+func TypeError(validType ValidType, culprit Term, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
 		Args: []Term{
 			&Compound{
 				Functor: "type_error",
-				Args:    []Term{validType, culprit},
+				Args:    []Term{validType.Term(), culprit},
 			},
-			Atom(fmt.Sprintf("Expected %s, found %T.", validType, culprit)),
+			varContext,
 		},
 	}, env)
 }
 
-func domainErrorFlagValue(culprit Term, env *Env) *Exception {
-	return DomainError("flag_value", culprit, env)
-}
+type ValidDomain uint8
 
-func domainErrorIOMode(culprit Term, env *Env) *Exception {
-	return DomainError("io_mode", culprit, env)
-}
+const (
+	ValidDomainCharacterCodeList ValidDomain = iota
+	ValidDomainCloseOption
+	ValidDomainFlagValue
+	ValidDomainIOMode
+	ValidDomainNonEmptyList
+	ValidDomainNotLessThanZero
+	ValidDomainOperatorPriority
+	ValidDomainOperatorSpecifier
+	ValidDomainPrologFlag
+	ValidDomainReadOption
+	ValidDomainSourceSink
+	ValidDomainStream
+	ValidDomainStreamOption
+	ValidDomainStreamOrAlias
+	ValidDomainStreamPosition
+	ValidDomainStreamProperty
+	ValidDomainWriteOption
 
-func domainErrorNotEmptyList(culprit Term, env *Env) *Exception {
-	return DomainError("not_empty_list", culprit, env)
-}
+	ValidDomainOrder
+)
 
-func domainErrorNotLessThanZero(culprit Term, env *Env) *Exception {
-	return DomainError("not_less_than_zero", culprit, env)
-}
-
-func domainErrorOperatorPriority(culprit Term, env *Env) *Exception {
-	return DomainError("operator_priority", culprit, env)
-}
-
-func domainErrorOperatorSpecifier(culprit Term, env *Env) *Exception {
-	return DomainError("operator_specifier", culprit, env)
-}
-
-func domainErrorPrologFlag(culprit Term, env *Env) *Exception {
-	return DomainError("prolog_flag", culprit, env)
-}
-
-func domainErrorReadOption(culprit Term, env *Env) *Exception {
-	return DomainError("read_option", culprit, env)
-}
-
-func domainErrorSourceSink(culprit Term, env *Env) *Exception {
-	return DomainError("source_sink", culprit, env)
-}
-
-func domainErrorStream(culprit Term, env *Env) *Exception {
-	return DomainError("stream", culprit, env)
-}
-
-func domainErrorStreamOption(culprit Term, env *Env) *Exception {
-	return DomainError("stream_option", culprit, env)
-}
-
-func domainErrorStreamOrAlias(culprit Term, env *Env) *Exception {
-	return DomainError("stream_or_alias", culprit, env)
-}
-
-func domainErrorStreamProperty(culprit Term, env *Env) *Exception {
-	return DomainError("stream_property", culprit, env)
-}
-
-func domainErrorWriteOption(culprit Term, env *Env) *Exception {
-	return DomainError("write_option", culprit, env)
-}
-
-func domainErrorOrder(culprit Term, env *Env) *Exception {
-	return DomainError("order", culprit, env)
+func (vd ValidDomain) Term() Term {
+	return [...]Atom{
+		ValidDomainCharacterCodeList: "character_code_list",
+		ValidDomainCloseOption:       "close_option",
+		ValidDomainFlagValue:         "flag_value",
+		ValidDomainIOMode:            "io_mode",
+		ValidDomainNonEmptyList:      "non_empty_list",
+		ValidDomainNotLessThanZero:   "not_less_than_zero",
+		ValidDomainOperatorPriority:  "operator_priority",
+		ValidDomainOperatorSpecifier: "operator_specifier",
+		ValidDomainPrologFlag:        "prolog_flag",
+		ValidDomainReadOption:        "read_option",
+		ValidDomainSourceSink:        "source_sink",
+		ValidDomainStream:            "stream",
+		ValidDomainStreamOption:      "stream_option",
+		ValidDomainStreamOrAlias:     "stream_or_alias",
+		ValidDomainStreamPosition:    "stream_position",
+		ValidDomainStreamProperty:    "stream_property",
+		ValidDomainWriteOption:       "write_option",
+		ValidDomainOrder:             "order",
+	}[vd]
 }
 
 // DomainError creates a new domain error exception.
-func DomainError(validDomain Atom, culprit Term, env *Env) *Exception {
+func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
 		Args: []Term{
 			&Compound{
 				Functor: "domain_error",
-				Args:    []Term{validDomain, culprit},
+				Args:    []Term{validDomain.Term(), culprit},
 			},
-			Atom(fmt.Sprintf("Invalid value for %s.", validDomain)),
+			varContext,
 		},
 	}, env)
 }
 
-func existenceErrorProcedure(culprit Term, env *Env) *Exception {
-	return ExistenceError("procedure", culprit, env)
-}
+type ObjectType uint8
 
-func existenceErrorSourceSink(culprit Term, env *Env) *Exception {
-	return ExistenceError("source_sink", culprit, env)
-}
+const (
+	ObjectTypeProcedure ObjectType = iota
+	ObjectTypeSourceSink
+	ObjectTypeStream
+)
 
-func existenceErrorStream(culprit Term, env *Env) *Exception {
-	return ExistenceError("stream", culprit, env)
+func (ot ObjectType) Term() Term {
+	return [...]Atom{
+		ObjectTypeProcedure:  "procedure",
+		ObjectTypeSourceSink: "source_sink",
+		ObjectTypeStream:     "stream",
+	}[ot]
 }
 
 // ExistenceError creates a new existence error exception.
-func ExistenceError(objectType Atom, culprit Term, env *Env) *Exception {
+func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
 		Args: []Term{
 			&Compound{
 				Functor: "existence_error",
-				Args:    []Term{objectType, culprit},
+				Args:    []Term{objectType.Term(), culprit},
 			},
-			Atom(fmt.Sprintf("Unknown %s.", objectType)),
+			varContext,
 		},
 	}, env)
 }
 
-func permissionErrorModifyStaticProcedure(culprit Term, env *Env) *Exception {
-	return PermissionError("modify", "static_procedure", culprit, env)
+type Operation uint8
+
+const (
+	OperationAccess Operation = iota
+	OperationCreate
+	OperationInput
+	OperationModify
+	OperationOpen
+	OperationOutput
+	OperationReposition
+)
+
+func (o Operation) Term() Term {
+	return [...]Atom{
+		OperationAccess:     "access",
+		OperationCreate:     "create",
+		OperationInput:      "input",
+		OperationModify:     "modify",
+		OperationOpen:       "open",
+		OperationOutput:     "output",
+		OperationReposition: "reposition",
+	}[o]
 }
 
-func permissionErrorAccessPrivateProcedure(culprit Term, env *Env) *Exception {
-	return PermissionError("access", "private_procedure", culprit, env)
-}
+type PermissionType uint8
 
-func permissionErrorOutputStream(culprit Term, env *Env) *Exception {
-	return PermissionError("output", "stream", culprit, env)
-}
+const (
+	PermissionTypeBinaryStream PermissionType = iota
+	PermissionTypeFlag
+	PermissionTypeOperator
+	PermissionTypePastEndOfStream
+	PermissionTypePrivateProcedure
+	PermissionTypeStaticProcedure
+	PermissionTypeSourceSink
+	PermissionTypeStream
+	PermissionTypeTextStream
+)
 
-func permissionErrorOutputBinaryStream(culprit Term, env *Env) *Exception {
-	return PermissionError("output", "binary_stream", culprit, env)
-}
-
-func permissionErrorOutputTextStream(culprit Term, env *Env) *Exception {
-	return PermissionError("output", "text_stream", culprit, env)
-}
-
-func permissionErrorInputStream(culprit Term, env *Env) *Exception {
-	return PermissionError("input", "stream", culprit, env)
-}
-
-func permissionErrorInputBinaryStream(culprit Term, env *Env) *Exception {
-	return PermissionError("input", "binary_stream", culprit, env)
-}
-
-func permissionErrorInputTextStream(culprit Term, env *Env) *Exception {
-	return PermissionError("input", "text_stream", culprit, env)
-}
-
-func permissionErrorInputPastEndOfStream(culprit Term, env *Env) *Exception {
-	return PermissionError("input", "past_end_of_stream", culprit, env)
+func (pt PermissionType) Term() Term {
+	return [...]Atom{
+		PermissionTypeBinaryStream:     "binary_stream",
+		PermissionTypeFlag:             "flag",
+		PermissionTypeOperator:         "operator",
+		PermissionTypePastEndOfStream:  "past_enf_of_stream",
+		PermissionTypePrivateProcedure: "private_procedure",
+		PermissionTypeStaticProcedure:  "static_procedure",
+		PermissionTypeSourceSink:       "source_sink",
+		PermissionTypeStream:           "stream",
+		PermissionTypeTextStream:       "text_stream",
+	}[pt]
 }
 
 // PermissionError creates a new permission error exception.
-func PermissionError(operation, permissionType Atom, culprit Term, env *Env) *Exception {
+func PermissionError(operation Operation, permissionType PermissionType, culprit Term, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
 		Args: []Term{
 			&Compound{
 				Functor: "permission_error",
-				Args:    []Term{operation, permissionType, culprit},
+				Args:    []Term{operation.Term(), permissionType.Term(), culprit},
 			},
-			Atom(fmt.Sprintf("Operation %s not allowed for %s.", operation, permissionType)),
+			varContext,
 		},
 	}, env)
 }
 
-func representationError(limit Atom) *Exception {
-	return &Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "representation_error",
-					Args:    []Term{limit},
-				},
-				Atom(fmt.Sprintf("Invalid %s.", limit)),
-			},
-		},
-	}
+type Flag uint8
+
+const (
+	FlagCharacter Flag = iota
+	FlagCharacterCode
+	FlagInCharacterCode
+	FlagMaxArity
+	FlagMaxInteger
+	FlagMinInteger
+)
+
+func (f Flag) Term() Term {
+	return [...]Atom{
+		FlagCharacter:       "character",
+		FlagCharacterCode:   "character_code",
+		FlagInCharacterCode: "in_character_code",
+		FlagMaxArity:        "max_arity",
+		FlagMaxInteger:      "max_integer",
+		FlagMinInteger:      "min_integer",
+	}[f]
 }
 
-func resourceError(resource, info Term, env *Env) *Exception {
+func RepresentationError(limit Flag, env *Env) Exception {
+	return NewException(&Compound{
+		Functor: "error",
+		Args: []Term{
+			&Compound{
+				Functor: "representation_error",
+				Args:    []Term{limit.Term()},
+			},
+			varContext,
+		},
+	}, env)
+}
+
+type Resource uint8
+
+func (r Resource) Term() Term {
+	return [...]Atom{}[r]
+}
+
+func ResourceError(resource Resource, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
 		Args: []Term{
 			&Compound{
 				Functor: "resource_error",
-				Args:    []Term{resource},
+				Args:    []Term{resource.Term()},
 			},
-			info,
+			varContext,
 		},
 	}, env)
 }
 
-func syntaxErrorNotANumber() *Exception {
-	return syntaxError(Atom("not_a_number"), Atom("Not a number."))
-}
-
-func syntaxErrorUnexpectedToken(info Term) *Exception {
-	return syntaxError(Atom("unexpected_token"), info)
-}
-
-func syntaxErrorInsufficient() *Exception {
-	return syntaxError(Atom("insufficient"), Atom("Not enough input."))
-}
-
-func syntaxError(detail, info Term) *Exception {
-	return &Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "syntax_error",
-					Args:    []Term{detail},
-				},
-				info,
+func SyntaxError(err error, env *Env) Exception {
+	return NewException(&Compound{
+		Functor: "error",
+		Args: []Term{
+			&Compound{
+				Functor: "syntax_error",
+				Args:    []Term{Atom(err.Error())},
 			},
+			varContext,
 		},
-	}
+	}, env)
 }
 
 // SystemError creates a new system error exception.
-func SystemError(err error) *Exception {
-	return &Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				Atom("system_error"),
-				Atom(err.Error()),
-			},
+func SystemError(err error) Exception {
+	return NewException(&Compound{
+		Functor: "error",
+		Args: []Term{
+			Atom("system_error"),
+			Atom(err.Error()),
 		},
-	}
+	}, nil)
 }
 
-func evaluationError(error, info Term) *Exception {
-	return &Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "evaluation_error",
-					Args:    []Term{error},
-				},
-				info,
+// ExceptionalValue is a value of an evaluable functor that is not a number.
+type ExceptionalValue uint8
+
+const (
+	ExceptionalValueFloatOverflow ExceptionalValue = iota
+	ExceptionalValueIntOverflow
+	ExceptionalValueUnderFlow
+	ExceptionalValueZeroDivisor
+	ExceptionalValueUndefined
+)
+
+func (ev ExceptionalValue) Term() Term {
+	return [...]Atom{
+		ExceptionalValueFloatOverflow: "float_overflow",
+		ExceptionalValueIntOverflow:   "int_overflow",
+		ExceptionalValueUnderFlow:     "underflow",
+		ExceptionalValueZeroDivisor:   "zero_divisor",
+		ExceptionalValueUndefined:     "undefined",
+	}[ev]
+}
+
+// EvaluationError returns an evaluation error exception.
+func EvaluationError(ev ExceptionalValue, env *Env) Exception {
+	return NewException(&Compound{
+		Functor: "error",
+		Args: []Term{
+			&Compound{
+				Functor: "evaluation_error",
+				Args:    []Term{ev.Term()},
 			},
+			varContext,
 		},
-	}
+	}, env)
 }
