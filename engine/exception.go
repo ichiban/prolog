@@ -339,16 +339,20 @@ type ExceptionalValue uint8
 const (
 	ExceptionalValueFloatOverflow ExceptionalValue = iota
 	ExceptionalValueIntOverflow
-	ExceptionalValueUnderFlow
+	ExceptionalValueUnderflow
 	ExceptionalValueZeroDivisor
 	ExceptionalValueUndefined
 )
+
+func (ev ExceptionalValue) Error() string {
+	return string(ev.Term().(Atom))
+}
 
 func (ev ExceptionalValue) Term() Term {
 	return [...]Atom{
 		ExceptionalValueFloatOverflow: "float_overflow",
 		ExceptionalValueIntOverflow:   "int_overflow",
-		ExceptionalValueUnderFlow:     "underflow",
+		ExceptionalValueUnderflow:     "underflow",
 		ExceptionalValueZeroDivisor:   "zero_divisor",
 		ExceptionalValueUndefined:     "undefined",
 	}[ev]

@@ -8110,7 +8110,7 @@ func TestSucc(t *testing.T) {
 
 		t.Run("x is math.MaxInt64", func(t *testing.T) {
 			_, err := Succ(Integer(math.MaxInt64), Integer(0), Success, nil).Force(context.Background())
-			assert.Equal(t, errIntOverflow, err)
+			assert.Equal(t, EvaluationError(ExceptionalValueIntOverflow, nil), err)
 		})
 
 		t.Run("s is negative", func(t *testing.T) {

@@ -2912,6 +2912,10 @@ func Succ(x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 
 		r, err := Add(x, Integer(1))
 		if err != nil {
+			var ev ExceptionalValue
+			if errors.As(err, &ev) {
+				return Error(EvaluationError(ev, env))
+			}
 			return Error(err)
 		}
 
