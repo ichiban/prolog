@@ -178,3 +178,7 @@ func TestEvaluationError(t *testing.T) {
 		},
 	}, EvaluationError(ExceptionalValueIntOverflow, nil))
 }
+
+func TestExceptionalValue_Error(t *testing.T) {
+	assert.Equal(t, "int_overflow", ExceptionalValueIntOverflow.Error())
+}
