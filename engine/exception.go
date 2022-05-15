@@ -269,6 +269,7 @@ func (f Flag) Term() Term {
 	}[f]
 }
 
+// RepresentationError creates a new representation error exception.
 func RepresentationError(limit Flag, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
@@ -284,10 +285,17 @@ func RepresentationError(limit Flag, env *Env) Exception {
 
 type Resource uint8
 
+const (
+	ResourceFiniteMemory Resource = iota
+)
+
 func (r Resource) Term() Term {
-	return [...]Atom{}[r]
+	return [...]Atom{
+		ResourceFiniteMemory: "finite_memory",
+	}[r]
 }
 
+// ResourceError creates a new resource error exception.
 func ResourceError(resource Resource, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
@@ -301,6 +309,7 @@ func ResourceError(resource Resource, env *Env) Exception {
 	}, env)
 }
 
+// SyntaxError creates a new syntax error exception.
 func SyntaxError(err error, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",
@@ -325,7 +334,6 @@ func SystemError(err error) Exception {
 	}, nil)
 }
 
-// ExceptionalValue is a value of an evaluable functor that is not a number.
 type ExceptionalValue uint8
 
 const (
@@ -346,7 +354,7 @@ func (ev ExceptionalValue) Term() Term {
 	}[ev]
 }
 
-// EvaluationError returns an evaluation error exception.
+// EvaluationError creates a new evaluation error exception.
 func EvaluationError(ev ExceptionalValue, env *Env) Exception {
 	return NewException(&Compound{
 		Functor: "error",

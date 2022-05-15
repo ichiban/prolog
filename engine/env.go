@@ -1,6 +1,9 @@
 package engine
 
-const varContext = Variable("$context")
+const (
+	varContext  = Variable("$context")
+	rootContext = Atom("root")
+)
 
 type color uint8
 
@@ -26,7 +29,7 @@ type binding struct {
 var rootEnv = &Env{
 	binding: binding{
 		variable: varContext,
-		value:    Atom("root"),
+		value:    rootContext,
 	},
 }
 
