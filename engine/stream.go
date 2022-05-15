@@ -141,9 +141,9 @@ func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
-			return nil, existenceErrorSourceSink(name, nil)
+			return nil, ExistenceError(ObjectTypeSourceSink, name, nil)
 		case os.IsPermission(err):
-			return nil, PermissionError("open", "source_sink", name, nil)
+			return nil, PermissionError(OperationOpen, PermissionTypeSourceSink, name, nil)
 		default:
 			return nil, SystemError(err)
 		}

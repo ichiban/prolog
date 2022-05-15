@@ -234,7 +234,7 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 	switch f := env.Resolve(files).(type) {
 	case engine.Variable:
-		return engine.Error(engine.ErrInstantiation)
+		return engine.Error(engine.InstantiationError(env))
 	case engine.Atom:
 		if f == "[]" {
 			return k(env)
@@ -246,7 +246,7 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		return k(env)
 	case *engine.Compound:
 		if f.Functor != "." || len(f.Args) != 2 {
-			return engine.Error(engine.TypeErrorList(f, env))
+			return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
 		}
 		iter := engine.ListIterator{List: f, Env: env}
 		for iter.Next() {
@@ -259,14 +259,14 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		}
 		return k(env)
 	default:
-		return engine.Error(engine.TypeErrorList(f, env))
+		return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
 	}
 }
 
 func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 	switch f := env.Resolve(file).(type) {
 	case engine.Variable:
-		return engine.ErrInstantiation
+		return engine.InstantiationError(env)
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
 			b, err := ioutil.ReadFile(f)
@@ -280,8 +280,8 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError("source_sink", file, env)
+		return engine.DomainError(engine.ValidDomainSourceSink, file, env)
 	default:
-		return engine.TypeError("atom", file, env)
+		return engine.TypeError(engine.ValidTypeAtom, file, env)
 	}
 }

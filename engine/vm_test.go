@@ -209,7 +209,7 @@ func TestVM_Arrive(t *testing.T) {
 				unknown: unknownError,
 			}
 			ok, err := vm.Arrive(ProcedureIndicator{Name: "foo", Arity: 1}, []Term{Atom("a")}, Success, nil).Force(context.Background())
-			assert.Equal(t, existenceErrorProcedure(&Compound{
+			assert.Equal(t, ExistenceError(ObjectTypeProcedure, &Compound{
 				Functor: "/",
 				Args:    []Term{Atom("foo"), Integer(1)},
 			}, nil), err)
@@ -256,13 +256,13 @@ func TestNewProcedureIndicator(t *testing.T) {
 
 	t.Run("variable", func(t *testing.T) {
 		pi, err := NewProcedureIndicator(Variable("PI"), nil)
-		assert.Equal(t, ErrInstantiation, err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
 
 	t.Run("atomic", func(t *testing.T) {
 		pi, err := NewProcedureIndicator(Atom("foo"), nil)
-		assert.Equal(t, TypeErrorPredicateIndicator(Atom("foo"), nil), err)
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, Atom("foo"), nil), err)
 		assert.Zero(t, pi)
 	})
 
@@ -271,7 +271,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 			Functor: "foo",
 			Args:    []Term{Atom("a"), Atom("b")},
 		}, nil)
-		assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
 			Functor: "foo",
 			Args:    []Term{Atom("a"), Atom("b")},
 		}, nil), err)
@@ -283,7 +283,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Variable("Functor"), Integer(2)},
 		}, nil)
-		assert.Equal(t, ErrInstantiation, err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
 
@@ -292,7 +292,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Integer(0), Integer(2)},
 		}, nil)
-		assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
 			Functor: "/",
 			Args:    []Term{Integer(0), Integer(2)},
 		}, nil), err)
@@ -304,7 +304,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Variable("Arity")},
 		}, nil)
-		assert.Equal(t, ErrInstantiation, err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
 
@@ -313,7 +313,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Atom("arity")},
 		}, nil)
-		assert.Equal(t, TypeErrorPredicateIndicator(&Compound{
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
 			Functor: "/",
 			Args:    []Term{Atom("foo"), Atom("arity")},
 		}, nil), err)

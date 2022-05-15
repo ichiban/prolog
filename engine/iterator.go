@@ -13,37 +13,37 @@ type ListIterator struct {
 // Next proceeds to the next element of the list and returns true if there's such an element.
 func (i *ListIterator) Next() bool {
 	if i.rest == nil {
-		i.rest = i.List
+		i.rest = i.Env.Resolve(i.List)
 	}
 	if i.visited == nil {
 		i.visited = map[*Compound]struct{}{}
 	}
 
-	switch l := i.Env.Resolve(i.rest).(type) {
+	switch l := i.rest.(type) {
 	case Variable:
-		i.err = ErrInstantiation
+		i.err = InstantiationError(i.Env)
 		return false
 	case Atom:
 		if l != "[]" {
-			i.err = TypeErrorList(i.List, i.Env)
+			i.err = TypeError(ValidTypeList, i.List, i.Env)
 		}
 		return false
 	case *Compound:
 		if l.Functor != "." || len(l.Args) != 2 {
-			i.err = TypeErrorList(i.List, i.Env)
+			i.err = TypeError(ValidTypeList, i.List, i.Env)
 			return false
 		}
 
 		if _, ok := i.visited[l]; ok {
-			i.err = TypeErrorList(i.List, i.Env)
+			i.err = TypeError(ValidTypeList, i.List, i.Env)
 			return false
 		}
 		i.visited[l] = struct{}{}
 
-		i.current, i.rest = l.Args[0], l.Args[1]
+		i.current, i.rest = l.Args[0], i.Env.Resolve(l.Args[1])
 		return true
 	default:
-		i.err = TypeErrorList(i.List, i.Env)
+		i.err = TypeError(ValidTypeList, i.List, i.Env)
 		return false
 	}
 }
@@ -56,6 +56,10 @@ func (i *ListIterator) Current() Term {
 // Err returns an error.
 func (i *ListIterator) Err() error {
 	return i.err
+}
+
+func (i *ListIterator) Suffix() Term {
+	return i.rest
 }
 
 // SeqIterator is an iterator for a sequence.

@@ -1014,8 +1014,8 @@ func ExampleNew_arg() {
 	// false
 	// false
 	// false
-	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
-	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
-	// error(type_error(compound, atom), 'Expected compound, found engine.Atom.')
-	// error(type_error(compound, 3), 'Expected compound, found engine.Integer.')
+	// error(instantiation_error, arg/3)
+	// error(instantiation_error, arg/3)
+	// error(type_error(compound, atom), arg/3)
+	// error(type_error(compound, 3), arg/3)
 }
