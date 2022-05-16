@@ -1,6 +1,9 @@
 package engine
 
-import "math"
+import (
+	"errors"
+	"math"
+)
 
 var (
 	maxInt = Integer(math.MaxInt64)
@@ -300,14 +303,21 @@ func (e EvaluableFunctors) GreaterThanOrEqual(e1, e2 Term, k func(*Env) *Promise
 	return k(env)
 }
 
-func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
+func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error) {
+	defer func() {
+		var ev ExceptionalValue
+		if errors.As(err, &ev) {
+			err = EvaluationError(ev, env)
+		}
+	}()
+
 	switch t := env.Resolve(expression).(type) {
 	case Variable:
-		return nil, ErrInstantiation
+		return nil, InstantiationError(env)
 	case Atom:
 		c, ok := e.Constant[t]
 		if !ok {
-			return nil, TypeErrorEvaluable(&Compound{
+			return nil, TypeError(ValidTypeEvaluable, &Compound{
 				Functor: "/",
 				Args:    []Term{t, Integer(0)},
 			}, env)
@@ -320,7 +330,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 		case 1:
 			f, ok := e.Unary[t.Functor]
 			if !ok {
-				return nil, TypeErrorEvaluable(&Compound{
+				return nil, TypeError(ValidTypeEvaluable, &Compound{
 					Functor: "/",
 					Args: []Term{
 						t.Functor,
@@ -336,7 +346,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 		case 2:
 			f, ok := e.Binary[t.Functor]
 			if !ok {
-				return nil, TypeErrorEvaluable(&Compound{
+				return nil, TypeError(ValidTypeEvaluable, &Compound{
 					Functor: "/",
 					Args: []Term{
 						t.Functor,
@@ -354,13 +364,13 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (Number, error) {
 			}
 			return f(x, y)
 		default:
-			return nil, TypeErrorEvaluable(&Compound{
+			return nil, TypeError(ValidTypeEvaluable, &Compound{
 				Functor: "/",
 				Args:    []Term{t.Functor, Integer(arity)},
 			}, env)
 		}
 	default:
-		return nil, TypeErrorEvaluable(&Compound{
+		return nil, TypeError(ValidTypeEvaluable, &Compound{
 			Functor: "/",
 			Args:    []Term{t, Integer(0)},
 		}, env)
@@ -385,7 +395,7 @@ func Add(x, y Number) (Number, error) {
 			return addF(x, y)
 		}
 	}
-	return nil, ErrUndefined
+	return nil, ExceptionalValueUndefined
 }
 
 // Sub returns subtraction of 2 numbers.
@@ -406,7 +416,7 @@ func Sub(x, y Number) (Number, error) {
 			return subF(x, y)
 		}
 	}
-	return nil, ErrUndefined
+	return nil, ExceptionalValueUndefined
 }
 
 // Mul returns multiplication of 2 numbers.
@@ -427,7 +437,7 @@ func Mul(x, y Number) (Number, error) {
 			return mulF(x, y)
 		}
 	}
-	return nil, ErrUndefined
+	return nil, ExceptionalValueUndefined
 }
 
 // IntDiv returns integer division of 2 numbers.
@@ -438,10 +448,10 @@ func IntDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intDivI(x, y)
 		default:
-			return nil, TypeErrorInteger(y, nil)
+			return nil, TypeError(ValidTypeInteger, y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x, nil)
+		return nil, TypeError(ValidTypeInteger, x, nil)
 	}
 }
 
@@ -463,7 +473,7 @@ func Div(x, y Number) (Number, error) {
 			return divF(x, y)
 		}
 	}
-	return nil, ErrUndefined
+	return nil, ExceptionalValueUndefined
 }
 
 // Rem returns remainder of 2 numbers.
@@ -474,10 +484,10 @@ func Rem(x, y Number) (Number, error) {
 		case Integer:
 			return remI(x, y)
 		default:
-			return nil, TypeErrorInteger(y, nil)
+			return nil, TypeError(ValidTypeInteger, y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x, nil)
+		return nil, TypeError(ValidTypeInteger, x, nil)
 	}
 }
 
@@ -489,10 +499,10 @@ func Mod(x, y Number) (Number, error) {
 		case Integer:
 			return modI(x, y)
 		default:
-			return nil, TypeErrorInteger(y, nil)
+			return nil, TypeError(ValidTypeInteger, y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x, nil)
+		return nil, TypeError(ValidTypeInteger, x, nil)
 	}
 }
 
@@ -504,7 +514,7 @@ func Neg(x Number) (Number, error) {
 	case Float:
 		return negF(x), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -516,7 +526,7 @@ func Abs(x Number) (Number, error) {
 	case Float:
 		return absF(x), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -528,7 +538,7 @@ func Sign(x Number) (Number, error) {
 	case Float:
 		return signF(x), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -538,7 +548,7 @@ func FloatIntegerPart(x Number) (Number, error) {
 	case Float:
 		return intPartF(x), nil
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -548,7 +558,7 @@ func FloatFractionalPart(x Number) (Number, error) {
 	case Float:
 		return fractPartF(x), nil
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -560,7 +570,7 @@ func AsFloat(x Number) (Number, error) {
 	case Float:
 		return floatFtoF(x), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -570,7 +580,7 @@ func Floor(x Number) (Number, error) {
 	case Float:
 		return floorFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -580,7 +590,7 @@ func Truncate(x Number) (Number, error) {
 	case Float:
 		return truncateFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -590,7 +600,7 @@ func Round(x Number) (Number, error) {
 	case Float:
 		return roundFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -600,7 +610,7 @@ func Ceiling(x Number) (Number, error) {
 	case Float:
 		return ceilingFtoI(x)
 	default:
-		return nil, TypeErrorFloat(x, nil)
+		return nil, TypeError(ValidTypeFloat, x, nil)
 	}
 }
 
@@ -613,7 +623,7 @@ func Power(x, y Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	var vy float64
@@ -623,23 +633,23 @@ func Power(x, y Number) (Number, error) {
 	case Float:
 		vy = float64(y)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	// 9.3.1.3 d) special case
 	if vx == 0 && vy < 0 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	r := Float(math.Pow(vx, vy))
 
 	switch {
 	case math.IsInf(float64(r), 0):
-		return nil, ErrFloatOverflow
+		return nil, ExceptionalValueFloatOverflow
 	case r == 0 && vx != 0: // Underflow: r can be 0 iff x = 0.
-		return nil, ErrUnderflow
+		return nil, ExceptionalValueUnderflow
 	case math.IsNaN(float64(r)):
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	default:
 		return r, nil
 	}
@@ -653,7 +663,7 @@ func Sin(x Number) (Number, error) {
 	case Float:
 		return Float(math.Sin(float64(x))), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -665,7 +675,7 @@ func Cos(x Number) (Number, error) {
 	case Float:
 		return Float(math.Cos(float64(x))), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -677,7 +687,7 @@ func Atan(x Number) (Number, error) {
 	case Float:
 		return Float(math.Atan(float64(x))), nil
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -690,7 +700,7 @@ func Exp(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	// Positive overflow:
@@ -699,13 +709,13 @@ func Exp(x Number) (Number, error) {
 	// x * log(e) > log(max)
 	//          x > log(max)
 	if vx > math.Log(math.MaxFloat64) {
-		return nil, ErrFloatOverflow
+		return nil, ExceptionalValueFloatOverflow
 	}
 
 	r := Float(math.Exp(vx))
 
 	if r == 0 { // e^x != 0.
-		return nil, ErrUnderflow
+		return nil, ExceptionalValueUnderflow
 	}
 
 	return r, nil
@@ -720,11 +730,11 @@ func Log(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	if vx <= 0 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Log(vx)), nil
@@ -739,11 +749,11 @@ func Sqrt(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	if vx < 0 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Sqrt(vx)), nil
@@ -757,10 +767,10 @@ func BitwiseRightShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n >> s), nil
 		default:
-			return nil, TypeErrorInteger(s, nil)
+			return nil, TypeError(ValidTypeInteger, s, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(n, nil)
+		return nil, TypeError(ValidTypeInteger, n, nil)
 	}
 }
 
@@ -772,10 +782,10 @@ func BitwiseLeftShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n << s), nil
 		default:
-			return nil, TypeErrorInteger(s, nil)
+			return nil, TypeError(ValidTypeInteger, s, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(n, nil)
+		return nil, TypeError(ValidTypeInteger, n, nil)
 	}
 }
 
@@ -787,10 +797,10 @@ func BitwiseAnd(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 & b2, nil
 		default:
-			return nil, TypeErrorInteger(b2, nil)
+			return nil, TypeError(ValidTypeInteger, b2, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(b1, nil)
+		return nil, TypeError(ValidTypeInteger, b1, nil)
 	}
 }
 
@@ -802,10 +812,10 @@ func BitwiseOr(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 | b2, nil
 		default:
-			return nil, TypeErrorInteger(b2, nil)
+			return nil, TypeError(ValidTypeInteger, b2, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(b1, nil)
+		return nil, TypeError(ValidTypeInteger, b1, nil)
 	}
 }
 
@@ -815,7 +825,7 @@ func BitwiseComplement(b1 Number) (Number, error) {
 	case Integer:
 		return ^b1, nil
 	default:
-		return nil, TypeErrorInteger(b1, nil)
+		return nil, TypeError(ValidTypeInteger, b1, nil)
 	}
 }
 
@@ -827,7 +837,7 @@ func Pos(x Number) (Number, error) {
 	case Float:
 		return posF(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -839,10 +849,10 @@ func IntFloorDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intFloorDivI(x, y)
 		default:
-			return nil, TypeErrorInteger(y, nil)
+			return nil, TypeError(ValidTypeInteger, y, nil)
 		}
 	default:
-		return nil, TypeErrorInteger(x, nil)
+		return nil, TypeError(ValidTypeInteger, x, nil)
 	}
 }
 
@@ -862,7 +872,7 @@ func Max(x, y Number) (Number, error) {
 			}
 			return x, nil
 		default:
-			return nil, ErrUndefined
+			return nil, ExceptionalValueUndefined
 		}
 	case Float:
 		switch y := y.(type) {
@@ -877,10 +887,10 @@ func Max(x, y Number) (Number, error) {
 			}
 			return x, nil
 		default:
-			return nil, ErrUndefined
+			return nil, ExceptionalValueUndefined
 		}
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -900,7 +910,7 @@ func Min(x, y Number) (Number, error) {
 			}
 			return x, nil
 		default:
-			return nil, ErrUndefined
+			return nil, ExceptionalValueUndefined
 		}
 	case Float:
 		switch y := y.(type) {
@@ -915,10 +925,10 @@ func Min(x, y Number) (Number, error) {
 			}
 			return x, nil
 		default:
-			return nil, ErrUndefined
+			return nil, ExceptionalValueUndefined
 		}
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 }
 
@@ -937,7 +947,7 @@ func IntegerPower(x, y Number) (Number, error) {
 	if vy < 0 {
 		switch vx {
 		case 0:
-			return nil, ErrUndefined
+			return nil, ExceptionalValueUndefined
 		case 1, -1:
 			vy, err := negI(vy) // y can be minInt
 			if err != nil {
@@ -946,7 +956,7 @@ func IntegerPower(x, y Number) (Number, error) {
 			r, _ := intPow(vx, vy) // Since x is either 1 or -1, no errors occur.
 			return intDivI(1, r)
 		default:
-			return nil, TypeErrorFloat(vx, nil)
+			return nil, TypeError(ValidTypeFloat, vx, nil)
 		}
 	}
 
@@ -989,11 +999,11 @@ func Asin(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	if vx > 1 || vx < -1 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Asin(vx)), nil
@@ -1008,11 +1018,11 @@ func Acos(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	if vx > 1 || vx < -1 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Acos(vx)), nil
@@ -1027,7 +1037,7 @@ func Atan2(y, x Number) (Number, error) {
 	case Float:
 		vy = float64(y)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	var vx float64
@@ -1037,11 +1047,11 @@ func Atan2(y, x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	if vx == 0 && vy == 0 {
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Atan2(vy, vx)), nil
@@ -1056,7 +1066,7 @@ func Tan(x Number) (Number, error) {
 	case Float:
 		vx = float64(x)
 	default:
-		return nil, ErrUndefined
+		return nil, ExceptionalValueUndefined
 	}
 
 	return Float(math.Tan(vx)), nil
@@ -1066,12 +1076,12 @@ func Tan(x Number) (Number, error) {
 func Xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {
-		return nil, TypeErrorInteger(x, nil)
+		return nil, TypeError(ValidTypeInteger, x, nil)
 	}
 
 	vy, ok := y.(Integer)
 	if !ok {
-		return nil, TypeErrorInteger(y, nil)
+		return nil, TypeError(ValidTypeInteger, y, nil)
 	}
 
 	return vx ^ vy, nil
@@ -1194,7 +1204,7 @@ func floatFtoF(x Float) Float {
 func floorFtoI(x Float) (Integer, error) {
 	f := math.Floor(float64(x))
 	if f > float64(maxInt) || f < float64(minInt) {
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	}
 	return Integer(f), nil
 }
@@ -1202,7 +1212,7 @@ func floorFtoI(x Float) (Integer, error) {
 func truncateFtoI(x Float) (Integer, error) {
 	t := math.Trunc(float64(x))
 	if t > float64(maxInt) || t < float64(minInt) {
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	}
 	return Integer(t), nil
 }
@@ -1210,7 +1220,7 @@ func truncateFtoI(x Float) (Integer, error) {
 func roundFtoI(x Float) (Integer, error) {
 	r := math.Round(float64(x))
 	if r > float64(maxInt) || r < float64(minInt) {
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	}
 	return Integer(r), nil
 }
@@ -1218,7 +1228,7 @@ func roundFtoI(x Float) (Integer, error) {
 func ceilingFtoI(x Float) (Integer, error) {
 	c := math.Ceil(float64(x))
 	if c > float64(maxInt) || c < float64(minInt) {
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	}
 	return Integer(c), nil
 }
@@ -1228,9 +1238,9 @@ func ceilingFtoI(x Float) (Integer, error) {
 func addI(x, y Integer) (Integer, error) {
 	switch {
 	case y > 0 && x > maxInt-y:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case y < 0 && x < minInt-y:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	default:
 		return x + y, nil
 	}
@@ -1239,9 +1249,9 @@ func addI(x, y Integer) (Integer, error) {
 func subI(x, y Integer) (Integer, error) {
 	switch {
 	case y < 0 && x > maxInt+y:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case y > 0 && x < minInt+y:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	default:
 		return x - y, nil
 	}
@@ -1250,15 +1260,15 @@ func subI(x, y Integer) (Integer, error) {
 func mulI(x, y Integer) (Integer, error) {
 	switch {
 	case x == -1 && y == minInt:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case x == minInt && y == -1:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case y == 0:
 		return 0, nil
 	default:
 		r := x * y
 		if r/y != x {
-			return 0, ErrIntOverflow
+			return 0, ExceptionalValueIntOverflow
 		}
 		return r, nil
 	}
@@ -1267,10 +1277,10 @@ func mulI(x, y Integer) (Integer, error) {
 func intDivI(x, y Integer) (Integer, error) {
 	switch {
 	case y == 0:
-		return 0, ErrZeroDivisor
+		return 0, ExceptionalValueZeroDivisor
 	case x == minInt && y == -1:
 		// Two's complement special case
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	default:
 		return x / y, nil
 	}
@@ -1278,14 +1288,14 @@ func intDivI(x, y Integer) (Integer, error) {
 
 func remI(x, y Integer) (Integer, error) {
 	if y == 0 {
-		return 0, ErrZeroDivisor
+		return 0, ExceptionalValueZeroDivisor
 	}
 	return x - ((x / y) * y), nil
 }
 
 func modI(x, y Integer) (Integer, error) {
 	if y == 0 {
-		return 0, ErrZeroDivisor
+		return 0, ExceptionalValueZeroDivisor
 	}
 	return x - (Integer(math.Floor(float64(x)/float64(y))) * y), nil
 }
@@ -1293,7 +1303,7 @@ func modI(x, y Integer) (Integer, error) {
 func negI(x Integer) (Integer, error) {
 	// Two's complement special case
 	if x == minInt {
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	}
 	return -x, nil
 }
@@ -1301,7 +1311,7 @@ func negI(x Integer) (Integer, error) {
 func absI(x Integer) (Integer, error) {
 	switch {
 	case x == minInt:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case x < 0:
 		return -x, nil
 	default:
@@ -1327,9 +1337,9 @@ func posI(x Integer) (Integer, error) {
 func intFloorDivI(x, y Integer) (Integer, error) {
 	switch {
 	case x == minInt && y == -1:
-		return 0, ErrIntOverflow
+		return 0, ExceptionalValueIntOverflow
 	case y == 0:
-		return 0, ErrZeroDivisor
+		return 0, ExceptionalValueZeroDivisor
 	default:
 		return Integer(math.Floor(float64(x) / float64(y))), nil
 	}
@@ -1340,9 +1350,9 @@ func intFloorDivI(x, y Integer) (Integer, error) {
 func addF(x, y Float) (Float, error) {
 	switch {
 	case y > 0 && x > math.MaxFloat64-y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	case y < 0 && x < -math.MaxFloat64-y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	}
 
 	return x + y, nil
@@ -1355,16 +1365,16 @@ func subF(x, y Float) (Float, error) {
 func mulF(x, y Float) (Float, error) {
 	switch {
 	case y != 0 && x > math.MaxFloat64/y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	case y != 0 && x < -math.MaxFloat64/y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	}
 
 	r := x * y
 
 	// Underflow: x*y = 0 iff x = 0 or y = 0.
 	if r == 0 && x != 0 && y != 0 {
-		return 0, ErrUnderflow
+		return 0, ExceptionalValueUnderflow
 	}
 
 	return r, nil
@@ -1373,18 +1383,18 @@ func mulF(x, y Float) (Float, error) {
 func divF(x, y Float) (Float, error) {
 	switch {
 	case y == 0:
-		return 0, ErrZeroDivisor
+		return 0, ExceptionalValueZeroDivisor
 	case x > math.MaxFloat64*y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	case x < -math.MaxFloat64*y:
-		return 0, ErrFloatOverflow
+		return 0, ExceptionalValueFloatOverflow
 	}
 
 	r := x / y
 
 	// Underflow: x/y = 0 iff x = 0 and y != 0.
 	if r == 0 && x != 0 {
-		return 0, ErrUnderflow
+		return 0, ExceptionalValueUnderflow
 	}
 
 	return r, nil

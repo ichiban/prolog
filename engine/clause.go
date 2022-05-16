@@ -90,7 +90,7 @@ func compile(t Term) (clauses, error) {
 		for iter.Next() {
 			c, err := compileClause(head, iter.Current())
 			if err != nil {
-				return nil, TypeErrorCallable(body, nil)
+				return nil, TypeError(ValidTypeCallable, body, nil)
 			}
 			c.raw = t
 			cs = append(cs, c)
@@ -116,7 +116,7 @@ func compileClause(head Term, body Term) (clause, error) {
 	}
 	if body != nil {
 		if err := c.compileBody(body); err != nil {
-			return c, TypeErrorCallable(body, nil)
+			return c, TypeError(ValidTypeCallable, body, nil)
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})

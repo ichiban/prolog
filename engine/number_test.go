@@ -18,6 +18,21 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 			"foo": func(_ Number) (Number, error) {
 				return Integer(1), nil
 			},
+			"zero_divisor": func(_ Number) (Number, error) {
+				return nil, ExceptionalValueZeroDivisor
+			},
+			"int_overflow": func(_ Number) (Number, error) {
+				return nil, ExceptionalValueIntOverflow
+			},
+			"float_overflow": func(_ Number) (Number, error) {
+				return nil, ExceptionalValueFloatOverflow
+			},
+			"underflow": func(_ Number) (Number, error) {
+				return nil, ExceptionalValueUnderflow
+			},
+			"undefined": func(_ Number) (Number, error) {
+				return nil, ExceptionalValueUndefined
+			},
 		},
 		Binary: map[Atom]func(x Number, y Number) (Number, error){
 			"foo": func(_, _ Number) (Number, error) {
@@ -53,6 +68,11 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 
 		t.Run("invalid argument", func(t *testing.T) {
 			_, err := efs.Is(Integer(1), Atom("foo").Apply(Variable("X")), Success, nil).Force(context.Background())
+			assert.Error(t, err)
+		})
+
+		t.Run("exceptional value", func(t *testing.T) {
+			_, err := efs.Is(Integer(1), Atom("undefined").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
@@ -388,12 +408,12 @@ func TestAdd(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Add(Integer(math.MaxInt64), Integer(1))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Add(Integer(math.MinInt64), Integer(-1))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 			})
 		})
@@ -408,12 +428,12 @@ func TestAdd(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Add(Integer(1), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Add(Integer(-1), Float(-math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -438,12 +458,12 @@ func TestAdd(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Add(Float(math.MaxFloat64), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Add(Float(-math.MaxFloat64), Float(-math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -451,7 +471,7 @@ func TestAdd(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Add(&mockNumber{}, Integer(0))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -467,12 +487,12 @@ func TestSub(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Sub(Integer(math.MaxInt64), Integer(-1))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Sub(Integer(math.MinInt64), Integer(1))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 			})
 		})
@@ -487,12 +507,12 @@ func TestSub(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Sub(Integer(1), Float(-math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Sub(Integer(-1), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -517,12 +537,12 @@ func TestSub(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Sub(Float(math.MaxFloat64), Float(-math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Sub(Float(-math.MaxFloat64), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -530,7 +550,7 @@ func TestSub(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Sub(&mockNumber{}, Integer(0))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -552,19 +572,19 @@ func TestMul(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Mul(Integer(math.MaxInt64), Integer(2))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Mul(Integer(math.MinInt64), Integer(2))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 
 				t.Run("two's complement special case", func(t *testing.T) {
 					_, err := Mul(Integer(-1), Integer(math.MinInt64))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 					_, err = Mul(Integer(math.MinInt64), Integer(-1))
-					assert.Equal(t, ErrIntOverflow, err)
+					assert.Equal(t, ExceptionalValueIntOverflow, err)
 				})
 			})
 		})
@@ -579,12 +599,12 @@ func TestMul(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Mul(Integer(2), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Mul(Integer(2), Float(-math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -601,12 +621,12 @@ func TestMul(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Mul(Float(math.MaxFloat64), Integer(2))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Mul(Float(-math.MaxFloat64), Integer(2))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 		})
@@ -621,25 +641,25 @@ func TestMul(t *testing.T) {
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Mul(Float(2), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Mul(Float(-2), Float(math.MaxFloat64))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 
 			t.Run("underflow", func(t *testing.T) {
 				_, err := Mul(Float(0.5), Float(math.SmallestNonzeroFloat64))
-				assert.Equal(t, ErrUnderflow, err)
+				assert.Equal(t, ExceptionalValueUnderflow, err)
 			})
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Mul(&mockNumber{}, Integer(0))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -654,24 +674,24 @@ func TestIntDiv(t *testing.T) {
 
 			t.Run("overflow", func(t *testing.T) {
 				_, err := IntDiv(Integer(math.MinInt64), Integer(-1))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("divided by zero", func(t *testing.T) {
 				_, err := IntDiv(Integer(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := IntDiv(Integer(1), Float(1))
-			assert.Equal(t, TypeErrorInteger(Float(1), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(1), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := IntDiv(Float(1), Integer(1))
-		assert.Equal(t, TypeErrorInteger(Float(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(1), nil), err)
 	})
 }
 
@@ -686,7 +706,7 @@ func TestDiv(t *testing.T) {
 
 			t.Run("divide by zero", func(t *testing.T) {
 				_, err := Div(Integer(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 
@@ -699,7 +719,7 @@ func TestDiv(t *testing.T) {
 
 			t.Run("divide by zero", func(t *testing.T) {
 				_, err := Div(Integer(1), Float(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 	})
@@ -714,12 +734,12 @@ func TestDiv(t *testing.T) {
 
 			t.Run("divide by zero", func(t *testing.T) {
 				_, err := Div(Float(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 
 			t.Run("underflow", func(t *testing.T) {
 				_, err := Div(Float(math.SmallestNonzeroFloat64), Integer(2))
-				assert.Equal(t, ErrUnderflow, err)
+				assert.Equal(t, ExceptionalValueUnderflow, err)
 			})
 		})
 
@@ -732,31 +752,31 @@ func TestDiv(t *testing.T) {
 
 			t.Run("divide by zero", func(t *testing.T) {
 				_, err := Div(Float(1), Float(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 
 			t.Run("overflow", func(t *testing.T) {
 				t.Run("positive", func(t *testing.T) {
 					_, err := Div(Float(math.MaxFloat64), Float(0.5))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 
 				t.Run("negative", func(t *testing.T) {
 					_, err := Div(Float(-math.MaxFloat64), Float(0.5))
-					assert.Equal(t, ErrFloatOverflow, err)
+					assert.Equal(t, ExceptionalValueFloatOverflow, err)
 				})
 			})
 
 			t.Run("underflow", func(t *testing.T) {
 				_, err := Div(Float(math.SmallestNonzeroFloat64), Float(2))
-				assert.Equal(t, ErrUnderflow, err)
+				assert.Equal(t, ExceptionalValueUnderflow, err)
 			})
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Div(&mockNumber{}, Integer(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -771,19 +791,19 @@ func TestRem(t *testing.T) {
 
 			t.Run("divided by zero", func(t *testing.T) {
 				_, err := Rem(Integer(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := Rem(Integer(1), &mockNumber{})
-			assert.Equal(t, TypeErrorInteger(&mockNumber{}, nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, &mockNumber{}, nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := Rem(&mockNumber{}, Integer(1))
-		assert.Equal(t, TypeErrorInteger(&mockNumber{}, nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, &mockNumber{}, nil), err)
 	})
 }
 
@@ -798,19 +818,19 @@ func TestMod(t *testing.T) {
 
 			t.Run("divided by zero", func(t *testing.T) {
 				_, err := Mod(Integer(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := Mod(Integer(1), &mockNumber{})
-			assert.Equal(t, TypeErrorInteger(&mockNumber{}, nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, &mockNumber{}, nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := Mod(&mockNumber{}, Integer(1))
-		assert.Equal(t, TypeErrorInteger(&mockNumber{}, nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, &mockNumber{}, nil), err)
 	})
 }
 
@@ -829,7 +849,7 @@ func TestPos(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Pos(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -843,7 +863,7 @@ func TestNeg(t *testing.T) {
 
 		t.Run("overflow", func(t *testing.T) {
 			_, err := Neg(Integer(math.MinInt64))
-			assert.Equal(t, ErrIntOverflow, err)
+			assert.Equal(t, ExceptionalValueIntOverflow, err)
 		})
 	})
 
@@ -855,7 +875,7 @@ func TestNeg(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Neg(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -877,7 +897,7 @@ func TestAbs(t *testing.T) {
 
 		t.Run("overflow", func(t *testing.T) {
 			_, err := Abs(Integer(math.MinInt64))
-			assert.Equal(t, ErrIntOverflow, err)
+			assert.Equal(t, ExceptionalValueIntOverflow, err)
 		})
 	})
 
@@ -889,7 +909,7 @@ func TestAbs(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Abs(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -936,7 +956,7 @@ func TestSign(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Sign(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -949,7 +969,7 @@ func TestFloatIntegerPart(t *testing.T) {
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := FloatIntegerPart(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -962,7 +982,7 @@ func TestFloatFractionalPart(t *testing.T) {
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := FloatFractionalPart(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -981,7 +1001,7 @@ func TestAsFloat(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := AsFloat(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -996,19 +1016,19 @@ func TestFloor(t *testing.T) {
 		t.Run("overflow", func(t *testing.T) {
 			t.Run("positive", func(t *testing.T) {
 				_, err := Floor(2 * Float(math.MaxInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("negative", func(t *testing.T) {
 				_, err := Floor(2 * Float(math.MinInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 		})
 	})
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := Floor(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -1023,19 +1043,19 @@ func TestTruncate(t *testing.T) {
 		t.Run("overflow", func(t *testing.T) {
 			t.Run("positive", func(t *testing.T) {
 				_, err := Truncate(2 * Float(math.MaxInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("negative", func(t *testing.T) {
 				_, err := Truncate(2 * Float(math.MinInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 		})
 	})
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := Truncate(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -1050,19 +1070,19 @@ func TestRound(t *testing.T) {
 		t.Run("overflow", func(t *testing.T) {
 			t.Run("positive", func(t *testing.T) {
 				_, err := Round(2 * Float(math.MaxInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("negative", func(t *testing.T) {
 				_, err := Round(2 * Float(math.MinInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 		})
 	})
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := Round(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -1077,19 +1097,19 @@ func TestCeiling(t *testing.T) {
 		t.Run("overflow", func(t *testing.T) {
 			t.Run("positive", func(t *testing.T) {
 				_, err := Ceiling(2 * Float(math.MaxInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("negative", func(t *testing.T) {
 				_, err := Ceiling(2 * Float(math.MinInt64))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 		})
 	})
 
 	t.Run("not a float", func(t *testing.T) {
 		_, err := Ceiling(Integer(1))
-		assert.Equal(t, TypeErrorFloat(Integer(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeFloat, Integer(1), nil), err)
 	})
 }
 
@@ -1109,7 +1129,7 @@ func TestPower(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Power(Integer(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
@@ -1128,34 +1148,34 @@ func TestPower(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Power(Float(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Power(&mockNumber{}, Float(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("overflow", func(t *testing.T) {
 		_, err := Power(Float(math.MaxFloat64), Float(2))
-		assert.Equal(t, ErrFloatOverflow, err)
+		assert.Equal(t, ExceptionalValueFloatOverflow, err)
 	})
 
 	t.Run("underflow", func(t *testing.T) {
 		_, err := Power(Float(math.SmallestNonzeroFloat64), Float(2))
-		assert.Equal(t, ErrUnderflow, err)
+		assert.Equal(t, ExceptionalValueUnderflow, err)
 	})
 
 	t.Run("undefined", func(t *testing.T) {
 		t.Run("vx is negative and vy is not an integer", func(t *testing.T) {
 			_, err := Power(Integer(-1), Float(1.1))
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 
 		t.Run("vx is zero and vy is negative", func(t *testing.T) {
 			_, err := Power(Integer(0), Float(-1))
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 }
@@ -1175,7 +1195,7 @@ func TestSin(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Sin(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1194,7 +1214,7 @@ func TestCos(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Cos(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1213,7 +1233,7 @@ func TestAtan(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Atan(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1232,17 +1252,17 @@ func TestExp(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Exp(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("overflow", func(t *testing.T) {
 		_, err := Exp(Float(math.MaxFloat64))
-		assert.Equal(t, ErrFloatOverflow, err)
+		assert.Equal(t, ExceptionalValueFloatOverflow, err)
 	})
 
 	t.Run("underflow", func(t *testing.T) {
 		_, err := Exp(Float(-math.MaxFloat64))
-		assert.Equal(t, ErrUnderflow, err)
+		assert.Equal(t, ExceptionalValueUnderflow, err)
 	})
 }
 
@@ -1261,12 +1281,12 @@ func TestLog(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Log(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("undefined", func(t *testing.T) {
 		_, err := Log(Float(0))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1285,12 +1305,12 @@ func TestSqrt(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Sqrt(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("undefined", func(t *testing.T) {
 		_, err := Sqrt(Float(-1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1304,13 +1324,13 @@ func TestBitwiseRightShift(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := BitwiseRightShift(Integer(16), Float(2))
-			assert.Equal(t, TypeErrorInteger(Float(2), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(2), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := BitwiseRightShift(Float(16), Integer(2))
-		assert.Equal(t, TypeErrorInteger(Float(16), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(16), nil), err)
 	})
 }
 
@@ -1324,13 +1344,13 @@ func TestBitwiseLeftShift(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := BitwiseLeftShift(Integer(16), Float(2))
-			assert.Equal(t, TypeErrorInteger(Float(2), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(2), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := BitwiseLeftShift(Float(16), Integer(2))
-		assert.Equal(t, TypeErrorInteger(Float(16), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(16), nil), err)
 	})
 }
 
@@ -1344,13 +1364,13 @@ func TestBitwiseAnd(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := BitwiseAnd(Integer(10), Float(12))
-			assert.Equal(t, TypeErrorInteger(Float(12), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(12), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := BitwiseAnd(Float(10), Integer(12))
-		assert.Equal(t, TypeErrorInteger(Float(10), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(10), nil), err)
 	})
 }
 
@@ -1364,13 +1384,13 @@ func TestBitwiseOr(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := BitwiseOr(Integer(10), Float(12))
-			assert.Equal(t, TypeErrorInteger(Float(12), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(12), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := BitwiseOr(Float(10), Integer(12))
-		assert.Equal(t, TypeErrorInteger(Float(10), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(10), nil), err)
 	})
 }
 
@@ -1385,7 +1405,7 @@ func TestBitwiseComplement(t *testing.T) {
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := BitwiseComplement(Float(10))
-		assert.Equal(t, TypeErrorInteger(Float(10), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(10), nil), err)
 	})
 }
 
@@ -1400,24 +1420,24 @@ func TestIntFloorDiv(t *testing.T) {
 
 			t.Run("overflow", func(t *testing.T) {
 				_, err := IntFloorDiv(Integer(math.MinInt64), Integer(-1))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("divided by zero", func(t *testing.T) {
 				_, err := IntFloorDiv(Integer(1), Integer(0))
-				assert.Equal(t, ErrZeroDivisor, err)
+				assert.Equal(t, ExceptionalValueZeroDivisor, err)
 			})
 		})
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := IntFloorDiv(Integer(1), Float(1))
-			assert.Equal(t, TypeErrorInteger(Float(1), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(1), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := IntFloorDiv(Float(1), Integer(1))
-		assert.Equal(t, TypeErrorInteger(Float(1), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(1), nil), err)
 	})
 }
 
@@ -1445,7 +1465,7 @@ func TestMax(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Max(Integer(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
@@ -1472,13 +1492,13 @@ func TestMax(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Max(Float(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Max(&mockNumber{}, Integer(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1506,7 +1526,7 @@ func TestMin(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Min(Integer(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
@@ -1533,13 +1553,13 @@ func TestMin(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Min(Float(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Min(&mockNumber{}, Integer(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1561,7 +1581,7 @@ func TestIntegerPower(t *testing.T) {
 
 				t.Run("x is 0", func(t *testing.T) {
 					_, err := IntegerPower(Integer(0), Integer(-1))
-					assert.Equal(t, ErrUndefined, err)
+					assert.Equal(t, ExceptionalValueUndefined, err)
 				})
 
 				t.Run("x is -1", func(t *testing.T) {
@@ -1573,13 +1593,13 @@ func TestIntegerPower(t *testing.T) {
 
 					t.Run("y is math.MinInt64", func(t *testing.T) {
 						_, err := IntegerPower(Integer(-1), Integer(math.MinInt64))
-						assert.Equal(t, ErrIntOverflow, err)
+						assert.Equal(t, ExceptionalValueIntOverflow, err)
 					})
 				})
 
 				t.Run("x is neither 1, 0, nor -1", func(t *testing.T) {
 					_, err := IntegerPower(Integer(2), Integer(-2))
-					assert.Equal(t, TypeErrorFloat(Integer(2), nil), err)
+					assert.Equal(t, TypeError(ValidTypeFloat, Integer(2), nil), err)
 				})
 			})
 		})
@@ -1592,18 +1612,18 @@ func TestIntegerPower(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := IntegerPower(Integer(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 
 		t.Run("overflow", func(t *testing.T) {
 			t.Run("x is too large", func(t *testing.T) {
 				_, err := IntegerPower(Integer(math.MaxInt64), Integer(2))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 
 			t.Run("y is too large", func(t *testing.T) {
 				_, err := IntegerPower(Integer(2), Integer(63))
-				assert.Equal(t, ErrIntOverflow, err)
+				assert.Equal(t, ExceptionalValueIntOverflow, err)
 			})
 		})
 	})
@@ -1623,34 +1643,34 @@ func TestIntegerPower(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := IntegerPower(Float(1), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := IntegerPower(&mockNumber{}, Float(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("overflow", func(t *testing.T) {
 		_, err := IntegerPower(Float(math.MaxFloat64), Float(2))
-		assert.Equal(t, ErrFloatOverflow, err)
+		assert.Equal(t, ExceptionalValueFloatOverflow, err)
 	})
 
 	t.Run("underflow", func(t *testing.T) {
 		_, err := IntegerPower(Float(math.SmallestNonzeroFloat64), Float(2))
-		assert.Equal(t, ErrUnderflow, err)
+		assert.Equal(t, ExceptionalValueUnderflow, err)
 	})
 
 	t.Run("undefined", func(t *testing.T) {
 		t.Run("vx is negative and vy is not an integer", func(t *testing.T) {
 			_, err := IntegerPower(Integer(-1), Float(1.1))
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 
 		t.Run("vx is zero and vy is negative", func(t *testing.T) {
 			_, err := IntegerPower(Integer(0), Integer(-1))
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 }
@@ -1670,17 +1690,17 @@ func TestAsin(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Asin(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("greater than 1", func(t *testing.T) {
 		_, err := Asin(Float(1.1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("less than -1", func(t *testing.T) {
 		_, err := Asin(Float(-1.1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1699,17 +1719,17 @@ func TestAcos(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Acos(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("greater than 1", func(t *testing.T) {
 		_, err := Acos(Float(1.1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("less than -1", func(t *testing.T) {
 		_, err := Acos(Float(-1.1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1729,7 +1749,7 @@ func TestAtan2(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Atan2(Integer(0), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
@@ -1748,18 +1768,18 @@ func TestAtan2(t *testing.T) {
 
 		t.Run("not a number", func(t *testing.T) {
 			_, err := Atan2(Float(0), &mockNumber{})
-			assert.Equal(t, ErrUndefined, err)
+			assert.Equal(t, ExceptionalValueUndefined, err)
 		})
 	})
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Atan2(&mockNumber{}, Integer(1))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 
 	t.Run("x and y both equal to 0", func(t *testing.T) {
 		_, err := Atan2(Integer(0), Integer(0))
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1778,7 +1798,7 @@ func TestTan(t *testing.T) {
 
 	t.Run("not a number", func(t *testing.T) {
 		_, err := Tan(&mockNumber{})
-		assert.Equal(t, ErrUndefined, err)
+		assert.Equal(t, ExceptionalValueUndefined, err)
 	})
 }
 
@@ -1792,13 +1812,13 @@ func TestXor(t *testing.T) {
 
 		t.Run("not an integer", func(t *testing.T) {
 			_, err := Xor(Integer(10), Float(12))
-			assert.Equal(t, TypeErrorInteger(Float(12), nil), err)
+			assert.Equal(t, TypeError(ValidTypeInteger, Float(12), nil), err)
 		})
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
 		_, err := Xor(Float(10), Integer(12))
-		assert.Equal(t, TypeErrorInteger(Float(10), nil), err)
+		assert.Equal(t, TypeError(ValidTypeInteger, Float(10), nil), err)
 	})
 }
 

@@ -26,7 +26,7 @@ func (i *ListIterator) Next() bool {
 	}
 
 	if i.tortoise == i.hare { // Detected a cycle.
-		i.err = TypeErrorList(i.List, i.Env)
+		i.err = TypeError(ValidTypeList, i.List, i.Env)
 		return false
 	}
 
@@ -38,16 +38,16 @@ func (i *ListIterator) Next() bool {
 
 	switch l := i.hare.(type) {
 	case Variable:
-		i.err = ErrInstantiation
+		i.err = InstantiationError(i.Env)
 		return false
 	case Atom:
 		if l != "[]" {
-			i.err = TypeErrorList(i.List, i.Env)
+			i.err = TypeError(ValidTypeList, i.List, i.Env)
 		}
 		return false
 	case *Compound:
 		if l.Functor != "." || len(l.Args) != 2 {
-			i.err = TypeErrorList(i.List, i.Env)
+			i.err = TypeError(ValidTypeList, i.List, i.Env)
 			return false
 		}
 
@@ -55,7 +55,7 @@ func (i *ListIterator) Next() bool {
 		i.lam += 1
 		return true
 	default:
-		i.err = TypeErrorList(i.List, i.Env)
+		i.err = TypeError(ValidTypeList, i.List, i.Env)
 		return false
 	}
 }
@@ -68,6 +68,10 @@ func (i *ListIterator) Current() Term {
 // Err returns an error.
 func (i *ListIterator) Err() error {
 	return i.err
+}
+
+func (i *ListIterator) Suffix() Term {
+	return i.hare
 }
 
 // SeqIterator is an iterator for a sequence.

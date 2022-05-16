@@ -167,7 +167,7 @@ func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 	if !ok {
 		switch vm.unknown {
 		case unknownError:
-			return Error(existenceErrorProcedure(pi.Term(), env))
+			return Error(ExistenceError(ObjectTypeProcedure, pi.Term(), env))
 		case unknownWarning:
 			vm.OnUnknown(pi, args, env)
 			fallthrough
@@ -178,9 +178,10 @@ func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 		}
 	}
 
-	return Delay(func(context.Context) *Promise {
-		return p.Call(vm, args, k, env)
-	})
+	// Bind the special variable to inform the predicate about the context.
+	env = env.Bind(varContext, pi.Term())
+
+	return p.Call(vm, args, k, env)
 }
 
 type registers struct {
@@ -483,29 +484,29 @@ type ProcedureIndicator struct {
 func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 	switch p := env.Resolve(pi).(type) {
 	case Variable:
-		return ProcedureIndicator{}, ErrInstantiation
+		return ProcedureIndicator{}, InstantiationError(env)
 	case *Compound:
 		if p.Functor != "/" || len(p.Args) != 2 {
-			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
+			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 		}
 		switch f := env.Resolve(p.Args[0]).(type) {
 		case Variable:
-			return ProcedureIndicator{}, ErrInstantiation
+			return ProcedureIndicator{}, InstantiationError(env)
 		case Atom:
 			switch a := env.Resolve(p.Args[1]).(type) {
 			case Variable:
-				return ProcedureIndicator{}, ErrInstantiation
+				return ProcedureIndicator{}, InstantiationError(env)
 			case Integer:
 				pi := ProcedureIndicator{Name: f, Arity: a}
 				return pi, nil
 			default:
-				return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
+				return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 			}
 		default:
-			return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
+			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 		}
 	default:
-		return ProcedureIndicator{}, TypeErrorPredicateIndicator(pi, env)
+		return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 	}
 }
 
@@ -538,13 +539,13 @@ func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
 func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return ProcedureIndicator{}, nil, ErrInstantiation
+		return ProcedureIndicator{}, nil, InstantiationError(env)
 	case Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
 	case *Compound:
 		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
 	default:
-		return ProcedureIndicator{}, nil, TypeErrorCallable(f, env)
+		return ProcedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
 	}
 }
 

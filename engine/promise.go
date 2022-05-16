@@ -4,6 +4,11 @@ import (
 	"context"
 )
 
+var (
+	truePromise  = &Promise{ok: true}
+	falsePromise = &Promise{ok: false}
+)
+
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
 	// delayed execution with multiple choices
@@ -26,7 +31,11 @@ func Delay(k ...func(context.Context) *Promise) *Promise {
 
 // Bool returns a promise that simply returns (ok, nil).
 func Bool(ok bool) *Promise {
-	return &Promise{ok: ok}
+	if ok {
+		return truePromise
+	} else {
+		return falsePromise
+	}
 }
 
 // Error returns a promise that simply returns (false, err).

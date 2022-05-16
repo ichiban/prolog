@@ -1,5 +1,10 @@
 package engine
 
+const (
+	varContext  = Variable("$context")
+	rootContext = Atom("root")
+)
+
 type color uint8
 
 const (
@@ -21,6 +26,13 @@ type binding struct {
 	// attributes?
 }
 
+var rootEnv = &Env{
+	binding: binding{
+		variable: varContext,
+		value:    rootContext,
+	},
+}
+
 // NewEnv creates an empty environment.
 func NewEnv() *Env {
 	return nil
@@ -29,6 +41,9 @@ func NewEnv() *Env {
 // Lookup returns a term that the given variable is bound to.
 func (e *Env) Lookup(k Variable) (Term, bool) {
 	node := e
+	if node == nil {
+		node = rootEnv
+	}
 	for {
 		if node == nil {
 			return nil, false
@@ -46,7 +61,11 @@ func (e *Env) Lookup(k Variable) (Term, bool) {
 
 // Bind adds a new entry to the environment.
 func (e *Env) Bind(k Variable, v Term) *Env {
-	ret := *e.insert(k, v)
+	node := e
+	if node == nil {
+		node = rootEnv
+	}
+	ret := *node.insert(k, v)
 	ret.color = black
 	return &ret
 }
@@ -67,7 +86,9 @@ func (e *Env) insert(k Variable, v Term) *Env {
 		ret.balance()
 		return &ret
 	default:
-		return e
+		ret := *e
+		ret.value = v
+		return &ret
 	}
 }
 
