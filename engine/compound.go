@@ -193,7 +193,13 @@ func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) 
 	}
 	if err := iter.Err(); err != nil {
 		emit(Token{Kind: TokenBar, Val: "|"})
-		iter.hare.Unparse(emit, env, opts...)
+
+		suffix := iter.Suffix()
+		if c, ok := suffix.(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
+			emit(Token{Kind: TokenGraphic, Val: "..."})
+		} else {
+			suffix.Unparse(emit, env, opts...)
+		}
 	}
 	emit(Token{Kind: TokenBracketR, Val: "]"})
 }

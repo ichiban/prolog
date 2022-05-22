@@ -8154,36 +8154,44 @@ func TestLength(t *testing.T) {
 
 	t.Run("list is a partial list", func(t *testing.T) {
 		t.Run("length is a variable", func(t *testing.T) {
-			l := Variable("L")
-			n := Variable("N")
-			var count int
-			ok, err := Length(ListRest(l, Atom("a"), Atom("b")), n, func(env *Env) *Promise {
-				var ret []Variable
-				iter := ListIterator{List: l, Env: env}
-				for iter.Next() {
-					ret = append(ret, env.Resolve(iter.Current()).(Variable))
-				}
-				assert.NoError(t, iter.Err())
+			t.Run("length and the suffix of list are different", func(t *testing.T) {
+				l := Variable("L")
+				n := Variable("N")
+				var count int
+				ok, err := Length(ListRest(l, Atom("a"), Atom("b")), n, func(env *Env) *Promise {
+					var ret []Variable
+					iter := ListIterator{List: l, Env: env}
+					for iter.Next() {
+						ret = append(ret, env.Resolve(iter.Current()).(Variable))
+					}
+					assert.NoError(t, iter.Err())
 
-				switch count {
-				case 0:
-					assert.Len(t, ret, 0)
-					assert.Equal(t, Integer(2), env.Resolve(n))
-				case 1:
-					assert.Len(t, ret, 1)
-					assert.Equal(t, Integer(3), env.Resolve(n))
-				case 2:
-					assert.Len(t, ret, 2)
-					assert.Equal(t, Integer(4), env.Resolve(n))
-				default:
-					return Bool(true)
-				}
+					switch count {
+					case 0:
+						assert.Len(t, ret, 0)
+						assert.Equal(t, Integer(2), env.Resolve(n))
+					case 1:
+						assert.Len(t, ret, 1)
+						assert.Equal(t, Integer(3), env.Resolve(n))
+					case 2:
+						assert.Len(t, ret, 2)
+						assert.Equal(t, Integer(4), env.Resolve(n))
+					default:
+						return Bool(true)
+					}
 
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+					count++
+					return Bool(false)
+				}, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("length and the suffix of list are the same", func(t *testing.T) {
+				l := Variable("L")
+				_, err := Length(ListRest(l, Atom("a"), Atom("b")), l, Success, nil).Force(context.Background())
+				assert.Equal(t, ResourceError(ResourceFiniteMemory, nil), err)
+			})
 		})
 
 		t.Run("length is an integer", func(t *testing.T) {
@@ -8200,9 +8208,23 @@ func TestLength(t *testing.T) {
 	})
 
 	t.Run("list is neither a list nor a partial list", func(t *testing.T) {
-		ok, err := Length(Atom("foo"), Integer(3), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
+		t.Run("the suffix is an atom", func(t *testing.T) {
+			ok, err := Length(Atom("foo"), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("the suffix is a compound", func(t *testing.T) {
+			ok, err := Length(Atom("foo").Apply(Atom("bar")), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
+
+		t.Run("the suffix is neither an atom nor a compound", func(t *testing.T) {
+			ok, err := Length(Integer(0), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.False(t, ok)
+		})
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
@@ -8223,12 +8245,38 @@ func TestLength(t *testing.T) {
 
 		t.Run("list is a list", func(t *testing.T) {
 			_, err := Length(List(Atom("a"), Atom("b"), Atom("c")), NewVariable(), Success, nil).Force(context.Background())
-			assert.Equal(t, RepresentationError(FlagMaxInteger, nil), err)
+			assert.Equal(t, ResourceError(ResourceFiniteMemory, nil), err)
 		})
 
 		t.Run("list is a partial list", func(t *testing.T) {
 			_, err := Length(NewVariable(), NewVariable(), Failure, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagMaxInteger, nil), err)
 		})
+	})
+}
+
+func TestSkipMaxList(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		t.Run("without max", func(t *testing.T) {
+			ok, err := SkipMaxList(Integer(3), NewVariable(), List(Atom("a"), Atom("b"), Atom("c")), Atom("[]"), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("with max", func(t *testing.T) {
+			ok, err := SkipMaxList(Integer(2), Integer(2), List(Atom("a"), Atom("b"), Atom("c")), List(Atom("c")), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+	})
+
+	t.Run("max is neither a variable nor an integer", func(t *testing.T) {
+		_, err := SkipMaxList(Integer(3), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), Atom("[]"), Success, nil).Force(context.Background())
+		assert.Equal(t, TypeError(ValidTypeInteger, Atom("foo"), nil), err)
+	})
+
+	t.Run("max is negative", func(t *testing.T) {
+		_, err := SkipMaxList(Integer(3), Integer(-1), List(Atom("a"), Atom("b"), Atom("c")), Atom("[]"), Success, nil).Force(context.Background())
+		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 	})
 }

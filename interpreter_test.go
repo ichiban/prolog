@@ -1,14 +1,11 @@
 package prolog
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/ichiban/prolog/engine"
 )
@@ -126,16 +123,12 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`catch(length([],-_), error(type_error(integer,-_), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch(length([a],-_), error(type_error(integer,-_), _), true).`).Err())
 		*/
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		assert.Equal(t, context.Canceled, p.QuerySolutionContext(ctx, `length([a,b|X],X).`).Err())
-		cancel()
-		ctx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
-		assert.Equal(t, context.Canceled, p.QuerySolutionContext(ctx, `length(L,L).`).Err())
-		cancel()
+		assert.NoError(t, p.QuerySolution(`catch(length([a,b|X],X), error(resource_error(finite_memory), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,L), error(resource_error(finite_memory), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch((L = [_|_], length(L,L)), error(type_error(integer,[_|_]), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch((L = [_], length(L,L)), error(type_error(integer,[_]), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch((L = [1], length(L,L)), error(type_error(integer,[1]), _), true).`).Err())
-		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`L = [a|L], length(L,N).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L = [a|L], length(L,N)), error(resource_error(finite_memory), _), true).`).Err())
 		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`L = [a|L], length(L,0).`).Err())
 		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`L = [a|L], length(L,7).`).Err())
 		/* This library doesn't implement freeze/2

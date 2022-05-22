@@ -71,6 +71,9 @@ func (i *ListIterator) Err() error {
 }
 
 func (i *ListIterator) Suffix() Term {
+	if i.hare == nil {
+		return i.List
+	}
 	return i.hare
 }
 
