@@ -77,6 +77,18 @@ func TestListIterator_Next(t *testing.T) {
 	})
 }
 
+func TestListIterator_Suffix(t *testing.T) {
+	iter := ListIterator{List: List(Atom("a"), Atom("b"), Atom("c"))}
+	assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(Atom("b"), Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(), iter.Suffix())
+	assert.False(t, iter.Next())
+}
+
 func TestSeqIterator_Next(t *testing.T) {
 	t.Run("sequence", func(t *testing.T) {
 		iter := SeqIterator{Seq: Seq(",", Atom("a"), Atom("b"), Atom("c"))}

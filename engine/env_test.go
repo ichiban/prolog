@@ -52,3 +52,20 @@ func TestEnv_Lookup(t *testing.T) {
 		})
 	}
 }
+
+func TestEnv_Simplify(t *testing.T) {
+	// L = [a, b|L] ==> [a, b, a, b, ...]
+	l := Variable("L")
+	env := NewEnv().Bind(l, ListRest(l, Atom("a"), Atom("b")))
+	c := env.Simplify(l)
+	iter := ListIterator{List: c, Env: env}
+	assert.True(t, iter.Next())
+	assert.Equal(t, Atom("a"), iter.Current())
+	assert.True(t, iter.Next())
+	assert.Equal(t, Atom("b"), iter.Current())
+	assert.False(t, iter.Next())
+	suffix, ok := iter.Suffix().(*Compound)
+	assert.True(t, ok)
+	assert.Equal(t, Atom("."), suffix.Functor)
+	assert.Len(t, suffix.Args, 2)
+}
