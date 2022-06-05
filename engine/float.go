@@ -32,7 +32,7 @@ func (f Float) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if !strings.ContainsRune(s, '.') {
 		s += ".0"
 	}
-	emit(Token{Kind: TokenFloat, Val: s})
+	emit(Token{Kind: TokenFloatNumber, Val: s})
 }
 
 // Compare compares the float to another term.

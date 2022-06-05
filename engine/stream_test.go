@@ -207,7 +207,7 @@ func TestStream_Unparse(t *testing.T) {
 			ret = append(ret, token)
 		}, nil)
 		assert.Equal(t, []Token{
-			{Kind: TokenIdent, Val: "foo"},
+			{Kind: TokenLetterDigit, Val: "foo"},
 		}, ret)
 	})
 
@@ -219,7 +219,7 @@ func TestStream_Unparse(t *testing.T) {
 			ret = append(ret, token)
 		}, nil)
 		assert.Equal(t, []Token{
-			{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", &s)},
+			{Kind: TokenGraphic, Val: fmt.Sprintf("<stream>(%p)", &s)},
 		}, ret)
 	})
 }

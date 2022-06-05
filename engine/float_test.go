@@ -13,7 +13,7 @@ func TestFloat_Unparse(t *testing.T) {
 			tokens = append(tokens, token)
 		}, nil)
 		assert.Equal(t, []Token{
-			{Kind: TokenFloat, Val: "33.0"},
+			{Kind: TokenFloatNumber, Val: "33.0"},
 		}, tokens)
 	})
 
@@ -24,7 +24,7 @@ func TestFloat_Unparse(t *testing.T) {
 		}, nil)
 		assert.Equal(t, []Token{
 			{Kind: TokenGraphic, Val: "-"},
-			{Kind: TokenFloat, Val: "33.0"},
+			{Kind: TokenFloatNumber, Val: "33.0"},
 		}, tokens)
 	})
 }

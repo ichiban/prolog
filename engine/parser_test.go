@@ -361,18 +361,23 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 
 	t.Run("prefix", func(t *testing.T) {
 		ops := operators{
-			{priority: 200, specifier: operatorSpecifierFY, name: `-`},
+			{priority: 200, specifier: operatorSpecifierFY, name: `+`},
 		}
 
 		t.Run("ok", func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(`- 1.`)), nil, withOperators(&ops))
+			p := newParser(bufio.NewReader(strings.NewReader(`+ 1.`)), nil, withOperators(&ops))
 			term, err := p.Term()
 			assert.NoError(t, err)
-			assert.Equal(t, Integer(-1), term)
+			assert.Equal(t, &Compound{
+				Functor: `+`,
+				Args: []Term{
+					Integer(1),
+				},
+			}, term)
 		})
 
 		t.Run("syntax error right after the operator", func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(`- ).`)), nil, withOperators(&ops))
+			p := newParser(bufio.NewReader(strings.NewReader(`+ ).`)), nil, withOperators(&ops))
 			_, err := p.Term()
 			assert.Error(t, err)
 		})
@@ -455,7 +460,7 @@ append(cons(X,L1),L2,cons(X,L3)) :- append(L1,L2,L3).
 		})
 	})
 
-	t.Run("block", func(t *testing.T) {
+	t.Run("curlyBracketedTerm", func(t *testing.T) {
 		ops := operators{
 			{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
 		}
@@ -698,7 +703,7 @@ a double-quoted string".`)), nil, withDoubleQuotes(doubleQuotesAtom))
 	})
 
 	t.Run("misc", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`:-(op(200, fy, -)).`)), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(`:-(op(1200, xfx, :-)).`)), nil)
 		_, err := p.Term()
 		assert.NoError(t, err)
 	})

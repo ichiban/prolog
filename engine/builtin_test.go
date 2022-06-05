@@ -5084,9 +5084,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 			var state State
 			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
-			assert.Equal(t, SyntaxError(&unexpectedTokenError{
-				Actual: Token{Kind: TokenIdent, Val: "bar"},
-			}, nil), err)
+			assert.Equal(t, SyntaxError(errExpectation, nil), err)
 			assert.False(t, ok)
 		})
 
@@ -5114,9 +5112,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 		var state State
 		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, SyntaxError(&unexpectedTokenError{
-			Actual: Token{Kind: TokenGraphic, Val: "="},
-		}, nil), err)
+		assert.Equal(t, SyntaxError(errExpectation, nil), err)
 		assert.False(t, ok)
 	})
 }
@@ -6400,9 +6396,7 @@ func TestNumberChars(t *testing.T) {
 
 		t.Run("unexpected token", func(t *testing.T) {
 			ok, err := NumberChars(NewVariable(), List(Atom("1"), Atom(".")), Success, nil).Force(context.Background())
-			assert.Equal(t, SyntaxError(&unexpectedTokenError{
-				Actual: Token{Kind: TokenPeriod, Val: "."},
-			}, nil), err)
+			assert.Equal(t, SyntaxError(errExpectation, nil), err)
 			assert.False(t, ok)
 		})
 	})

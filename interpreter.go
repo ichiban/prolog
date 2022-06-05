@@ -129,7 +129,7 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 	if len(query) > 2 && query[:2] == "#!" {
 		i := strings.Index(query, "\n")
 		if i < 0 {
-			i = len(query) - 1
+			i = len(query)
 		}
 		query = query[i:]
 	}
