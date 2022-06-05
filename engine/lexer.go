@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 	"unicode"
@@ -11,6 +12,7 @@ import (
 // Lexer turns bytes into tokens.
 type Lexer struct {
 	input           *bufio.Reader
+	buf             bytes.Buffer
 	charConversions map[rune]rune
 	reserved        Token
 }
@@ -28,6 +30,8 @@ func (l *Lexer) Token() Token {
 		l.reserved = Token{}
 		return t
 	}
+
+	l.buf.Reset()
 
 	return l.layoutTextSequence()
 }
@@ -212,43 +216,37 @@ func (l *Lexer) token(afterLayout bool) Token {
 	case r == utf8.RuneError:
 		return Token{Kind: TokenEOF}
 	case isSmallLetterChar(r):
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.letterDigitToken(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.letterDigitToken()
 	case r == '.':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 		switch r := l.next(); {
 		case isLayoutChar(r), r == '%', r == utf8.RuneError:
 			l.backup()
-			return Token{Kind: TokenEnd, Val: b.String()}
+			return Token{Kind: TokenEnd, Val: l.buf.String()}
 		default:
 			l.backup()
-			return l.graphicToken(&b)
+			return l.graphicToken()
 		}
 	case isGraphicChar(r), r == '\\':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.graphicToken(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.graphicToken()
 	case r == '\'':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.quotedToken(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.quotedToken()
 	case r == ';':
 		return Token{Kind: TokenSemicolon, Val: string(r)}
 	case r == '!':
 		return Token{Kind: TokenCut, Val: string(r)}
 	case r == '_', isCapitalLetterChar(r):
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.variableToken(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.variableToken()
 	case isDecimalDigitChar(r):
 		l.backup()
 		return l.integerToken()
 	case r == '"':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.doubleQuotedListToken(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.doubleQuotedListToken()
 	case r == '(':
 		if afterLayout {
 			return Token{Kind: TokenOpen, Val: string(r)}
@@ -319,9 +317,8 @@ func (l *Lexer) commentOpen() Token {
 		return l.commentText(true)
 	default:
 		l.backup()
-		var b strings.Builder
-		_, _ = b.WriteRune('/')
-		return l.graphicToken(&b)
+		_, _ = l.buf.WriteRune('/')
+		return l.graphicToken()
 	}
 }
 
@@ -336,137 +333,137 @@ func (l *Lexer) commentClose() Token {
 
 //// Names
 
-func (l *Lexer) letterDigitToken(b *strings.Builder) Token {
+func (l *Lexer) letterDigitToken() Token {
 	for {
 		switch r := l.next(); {
 		case isAlphanumericChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenLetterDigit, Val: b.String()}
+			return Token{Kind: TokenLetterDigit, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) graphicToken(b *strings.Builder) Token {
+func (l *Lexer) graphicToken() Token {
 	for {
 		switch r := l.next(); {
 		case isGraphicChar(r), r == '\\':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenGraphic, Val: b.String()}
+			return Token{Kind: TokenGraphic, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) quotedToken(b *strings.Builder) Token {
+func (l *Lexer) quotedToken() Token {
 	for {
 		switch r := l.rawNext(); {
 		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: b.String()}
+			return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 		case r == '\'':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			switch r := l.rawNext(); {
 			case r == '\'':
-				_, _ = b.WriteRune(r)
+				_, _ = l.buf.WriteRune(r)
 			default:
 				l.backup()
-				return Token{Kind: TokenQuoted, Val: b.String()}
+				return Token{Kind: TokenQuoted, Val: l.buf.String()}
 			}
 		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '"', r == '`':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		case r == '\\':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			switch r := l.rawNext(); {
 			case r == '\n':
-				_, _ = b.WriteRune(r)
+				_, _ = l.buf.WriteRune(r)
 			default:
 				l.backup()
-				return l.escapeSequence(b, l.quotedToken)
+				return l.escapeSequence(l.quotedToken)
 			}
 		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInvalid, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInvalid, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) escapeSequence(b *strings.Builder, cont func(*strings.Builder) Token) Token {
+func (l *Lexer) escapeSequence(cont func() Token) Token {
 	switch r := l.rawNext(); {
 	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: b.String()}
+		return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 	case isMetaChar(r), isSymbolicControlChar(r):
-		_, _ = b.WriteRune(r)
-		return cont(b)
+		_, _ = l.buf.WriteRune(r)
+		return cont()
 	case isOctalDigitChar(r):
-		_, _ = b.WriteRune(r)
-		return l.octalEscapeSequence(b, cont)
+		_, _ = l.buf.WriteRune(r)
+		return l.octalEscapeSequence(cont)
 	case r == 'x':
-		_, _ = b.WriteRune(r)
-		return l.hexadecimalEscapeSequence(b, cont)
+		_, _ = l.buf.WriteRune(r)
+		return l.hexadecimalEscapeSequence(cont)
 	default:
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 }
 
-func (l *Lexer) octalEscapeSequence(b *strings.Builder, cont func(*strings.Builder) Token) Token {
+func (l *Lexer) octalEscapeSequence(cont func() Token) Token {
 	for {
 		switch r := l.rawNext(); {
 		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: b.String()}
+			return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return cont(b)
+			_, _ = l.buf.WriteRune(r)
+			return cont()
 		case isOctalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			continue
 		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInvalid, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInvalid, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) hexadecimalEscapeSequence(b *strings.Builder, cont func(*strings.Builder) Token) Token {
+func (l *Lexer) hexadecimalEscapeSequence(cont func() Token) Token {
 	switch r := l.rawNext(); {
 	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: b.String()}
+		return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 	case isHexadecimalDigitChar(r):
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 	default:
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 
 	for {
 		switch r := l.next(); {
 		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: b.String()}
+			return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return cont(b)
+			_, _ = l.buf.WriteRune(r)
+			return cont()
 		case isHexadecimalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			continue
 		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInvalid, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInvalid, Val: l.buf.String()}
 		}
 	}
 }
 
 //// Variables
 
-func (l *Lexer) variableToken(b *strings.Builder) Token {
+func (l *Lexer) variableToken() Token {
 	for {
 		switch r := l.next(); {
 		case isAlphanumericChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenVariable, Val: b.String()}
+			return Token{Kind: TokenVariable, Val: l.buf.String()}
 		}
 	}
 }
@@ -476,212 +473,210 @@ func (l *Lexer) variableToken(b *strings.Builder) Token {
 func (l *Lexer) integerToken() Token {
 	switch r := l.next(); {
 	case r == '0':
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 		switch r = l.next(); {
 		case r == '\'':
-			_, _ = b.WriteRune(r)
-			return l.characterCodeConstant(&b)
+			_, _ = l.buf.WriteRune(r)
+			return l.characterCodeConstant()
 		case r == 'b':
-			_, _ = b.WriteRune(r)
-			return l.binaryConstant(&b)
+			_, _ = l.buf.WriteRune(r)
+			return l.binaryConstant()
 		case r == 'o':
-			_, _ = b.WriteRune(r)
-			return l.octalConstant(&b)
+			_, _ = l.buf.WriteRune(r)
+			return l.octalConstant()
 		case r == 'x':
-			_, _ = b.WriteRune(r)
-			return l.hexadecimalConstant(&b)
+			_, _ = l.buf.WriteRune(r)
+			return l.hexadecimalConstant()
 		default:
 			l.backup()
-			return l.integerConstant(&b)
+			return l.integerConstant()
 		}
 	default:
-		var b strings.Builder
-		_, _ = b.WriteRune(r)
-		return l.integerConstant(&b)
+		_, _ = l.buf.WriteRune(r)
+		return l.integerConstant()
 	}
 }
 
-func (l *Lexer) integerConstant(b *strings.Builder) Token {
+func (l *Lexer) integerConstant() Token {
 	for {
 		switch r := l.next(); {
 		case isDecimalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		case r == '.':
 			switch r := l.next(); {
 			case isDecimalDigitChar(r):
-				_, _ = b.WriteRune('.')
-				_, _ = b.WriteRune(r)
-				return l.fraction(b)
+				_, _ = l.buf.WriteRune('.')
+				_, _ = l.buf.WriteRune(r)
+				return l.fraction()
 			default:
 				l.backup()
 				l.reserved = Token{Kind: TokenEnd, Val: "."}
-				return Token{Kind: TokenInteger, Val: b.String()}
+				return Token{Kind: TokenInteger, Val: l.buf.String()}
 			}
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) characterCodeConstant(b *strings.Builder) Token {
+func (l *Lexer) characterCodeConstant() Token {
 	switch r := l.next(); {
 	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: b.String()}
+		return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 	case r == '\'':
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 		switch r := l.next(); {
 		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: b.String()}
+			return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 		case r == '\'':
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInteger, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInvalid, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInvalid, Val: l.buf.String()}
 		}
 	case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '"', r == '`':
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenInteger, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return Token{Kind: TokenInteger, Val: l.buf.String()}
 	case r == '\\':
-		_, _ = b.WriteRune(r)
-		return l.escapeSequence(b, func(b *strings.Builder) Token {
-			return Token{Kind: TokenInteger, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return l.escapeSequence(func() Token {
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		})
 	default:
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 }
 
-func (l *Lexer) binaryConstant(b *strings.Builder) Token {
+func (l *Lexer) binaryConstant() Token {
 	r := l.next()
-	_, _ = b.WriteRune(r)
+	_, _ = l.buf.WriteRune(r)
 	if !isBinaryDigitChar(r) {
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 	for {
 		switch r := l.next(); {
 		case isBinaryDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) octalConstant(b *strings.Builder) Token {
+func (l *Lexer) octalConstant() Token {
 	r := l.next()
-	_, _ = b.WriteRune(r)
+	_, _ = l.buf.WriteRune(r)
 	if !isOctalDigitChar(r) {
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 	for {
 		switch r := l.next(); {
 		case isOctalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) hexadecimalConstant(b *strings.Builder) Token {
+func (l *Lexer) hexadecimalConstant() Token {
 	r := l.next()
-	_, _ = b.WriteRune(r)
+	_, _ = l.buf.WriteRune(r)
 	if !isHexadecimalDigitChar(r) {
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 	for {
 		switch r := l.next(); {
 		case isHexadecimalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}
+			return Token{Kind: TokenInteger, Val: l.buf.String()}
 		}
 	}
 }
 
 //// Floating point numbers
 
-func (l *Lexer) fraction(b *strings.Builder) Token {
+func (l *Lexer) fraction() Token {
 	for {
 		switch r := l.next(); {
 		case isDecimalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		case r == 'e', r == 'E':
-			_, _ = b.WriteRune(r)
-			return l.exponent(b)
+			_, _ = l.buf.WriteRune(r)
+			return l.exponent()
 		default:
 			l.backup()
-			return Token{Kind: TokenFloatNumber, Val: b.String()}
+			return Token{Kind: TokenFloatNumber, Val: l.buf.String()}
 		}
 	}
 }
 
-func (l *Lexer) exponent(b *strings.Builder) Token {
+func (l *Lexer) exponent() Token {
 	switch r := l.next(); {
 	case r == '-', r == '+':
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 	default:
 		l.backup()
 	}
 
 	switch r := l.next(); {
 	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: b.String()}
+		return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 	case isDecimalDigitChar(r):
-		_, _ = b.WriteRune(r)
+		_, _ = l.buf.WriteRune(r)
 	default:
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenInvalid, Val: b.String()}
+		_, _ = l.buf.WriteRune(r)
+		return Token{Kind: TokenInvalid, Val: l.buf.String()}
 	}
 
 	for {
 		switch r := l.next(); {
 		case isDecimalDigitChar(r):
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenFloatNumber, Val: b.String()}
+			return Token{Kind: TokenFloatNumber, Val: l.buf.String()}
 		}
 	}
 }
 
 //// Double quoted lists
 
-func (l *Lexer) doubleQuotedListToken(b *strings.Builder) Token {
+func (l *Lexer) doubleQuotedListToken() Token {
 	for {
 		switch r := l.rawNext(); {
 		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: b.String()}
+			return Token{Kind: TokenInsufficient, Val: l.buf.String()}
 		case r == '"':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			switch r := l.next(); {
 			case r == '"':
-				_, _ = b.WriteRune(r)
+				_, _ = l.buf.WriteRune(r)
 			default:
 				l.backup()
-				return Token{Kind: TokenDoubleQuotedList, Val: b.String()}
+				return Token{Kind: TokenDoubleQuotedList, Val: l.buf.String()}
 			}
 		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '\'', r == '`':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 		case r == '\\':
-			_, _ = b.WriteRune(r)
+			_, _ = l.buf.WriteRune(r)
 			switch r := l.next(); {
 			case r == '\n':
-				_, _ = b.WriteRune(r)
+				_, _ = l.buf.WriteRune(r)
 			default:
 				l.backup()
-				return l.escapeSequence(b, l.doubleQuotedListToken)
+				return l.escapeSequence(l.doubleQuotedListToken)
 			}
 		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInvalid, Val: b.String()}
+			_, _ = l.buf.WriteRune(r)
+			return Token{Kind: TokenInvalid, Val: l.buf.String()}
 		}
 	}
 }
