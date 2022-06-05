@@ -321,6 +321,15 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		}
 	}
 
+	switch t := p.next(); t.Kind {
+	case TokenOpenCT:
+		p.backup()
+		p.backup()
+		return operator{}, errNoOp
+	default:
+		p.backup()
+	}
+
 	for _, op := range *p.operators {
 		if op.name != a {
 			continue
