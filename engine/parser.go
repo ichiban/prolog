@@ -23,7 +23,7 @@ var (
 
 // Parser turns bytes into Term.
 type Parser struct {
-	lexer        *Lexer
+	lexer        Lexer
 	buf          tokenRingBuffer
 	operators    *operators
 	placeholder  Atom
@@ -39,9 +39,11 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input *bufio.Reader, charConversions map[rune]rune, opts ...parserOption) *Parser {
+func newParser(input *bufio.Reader, opts ...parserOption) *Parser {
 	p := Parser{
-		lexer: NewLexer(input, charConversions),
+		lexer: Lexer{
+			input: input,
+		},
 	}
 	for _, o := range opts {
 		o(&p)
@@ -50,6 +52,12 @@ func newParser(input *bufio.Reader, charConversions map[rune]rune, opts ...parse
 }
 
 type parserOption func(p *Parser)
+
+func withCharConversions(charConversions map[rune]rune) parserOption {
+	return func(p *Parser) {
+		p.lexer.charConversions = charConversions
+	}
+}
 
 func withOperators(operators *operators) parserOption {
 	return func(p *Parser) {

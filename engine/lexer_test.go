@@ -10,14 +10,14 @@ import (
 
 func TestLexer_Token(t *testing.T) {
 	t.Run("invalid init rune", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("\000")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("\000"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenInvalid, Val: "\000"}, token)
 	})
 
 	t.Run("clause", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("append(nil,L,L).")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("append(nil,L,L)."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "append"}, token)
@@ -51,7 +51,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("conjunction", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("p(X, Y), p(Y, X).")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("p(X, Y), p(Y, X)."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "p"}, token)
@@ -100,7 +100,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("nil", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("[]")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("[]"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenList, Val: "["}, token)
@@ -113,7 +113,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("empty block", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("{}")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("{}"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenCurly, Val: "{"}, token)
@@ -126,7 +126,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("list", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("[a, b|c]")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("[a, b|c]"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenList, Val: "["}, token)
@@ -154,7 +154,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("block", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("{a, b, c}")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("{a, b, c}"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenCurly, Val: "{"}, token)
@@ -182,7 +182,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("comma", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,)).")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader(",(x, y), p(x,,), q((,))."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenComma, Val: ","}, token)
@@ -252,7 +252,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("period", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("X = .. .")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("X = .. ."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
@@ -268,7 +268,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("single line comment", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("% comment\nfoo.")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("% comment\nfoo."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "foo"}, token)
@@ -282,7 +282,7 @@ func TestLexer_Token(t *testing.T) {
 
 	t.Run("multi line comment", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo.")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("/* comment \n * also comment \n */foo."))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "foo"}, token)
@@ -295,7 +295,7 @@ func TestLexer_Token(t *testing.T) {
 		})
 
 		t.Run("insufficient in body", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("/* comment ")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("/* comment "))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
@@ -304,7 +304,7 @@ func TestLexer_Token(t *testing.T) {
 
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("no escape", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'abc'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'abc'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'abc'"}, token)
@@ -317,7 +317,7 @@ func TestLexer_Token(t *testing.T) {
 		})
 
 		t.Run("double single quotes", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'don''t panic'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'don''t panic'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'don''t panic'"}, token)
@@ -330,8 +330,8 @@ func TestLexer_Token(t *testing.T) {
 		})
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'this is \
-a quoted ident'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'this is \
+a quoted ident'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'this is \\\na quoted ident'"}, token)
@@ -344,7 +344,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("alert", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\a'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\a'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\a'"}, token)
@@ -357,7 +357,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("backspace", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\b'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\b'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\b'"}, token)
@@ -370,7 +370,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("formfeed", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\f'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\f'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\f'"}, token)
@@ -383,7 +383,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("newline", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\n'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\n'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\n'"}, token)
@@ -396,7 +396,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("return", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\r'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\r'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\r'"}, token)
@@ -409,7 +409,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\t'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\t'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\t'"}, token)
@@ -422,7 +422,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("vertical tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\v'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\v'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\v'"}, token)
@@ -435,7 +435,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("hex code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xa3\'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\xa3\'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\xa3\\'"}, token)
@@ -448,7 +448,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("oct code", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\43\'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\43\'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\43\\'"}, token)
@@ -461,7 +461,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("backslash", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\\'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\\'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: `'\\'`}, token)
@@ -474,7 +474,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("single quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\''.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\''.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: `'\''`}, token)
@@ -487,7 +487,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("double quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\"'.`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\"'.`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: `'\"'`}, token)
@@ -500,7 +500,7 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("backquote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("'\\`'.")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("'\\`'."))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenQuoted, Val: "'\\`'"}, token)
@@ -513,42 +513,42 @@ a quoted ident'.`)), nil)
 		})
 
 		t.Run("insufficient", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("insufficient after slash", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("insufficient after hex", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\x`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\x`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("unexpected rune after hex", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\xG`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\xG`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInvalid, Val: `'\xG`}, token)
 		})
 
 		t.Run("insufficient after octal", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\0`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\0`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("unexpected rune after octal", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`'\08`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`'\08`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInvalid, Val: `'\08`}, token)
@@ -557,45 +557,45 @@ a quoted ident'.`)), nil)
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("decimal", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`012345`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`012345`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInteger, Val: "012345"}, token)
 		})
 
 		t.Run("octal", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`0o567`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`0o567`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
 		})
 
 		t.Run("hexadecimal", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`0x89ABC`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`0x89ABC`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
 		})
 
 		t.Run("binary", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`0b10110101`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`0b10110101`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
 		})
 
 		t.Run("character", func(t *testing.T) {
 			t.Run("normal", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`0'a`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0'a`))}
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0'a"}, token)
 			})
 
 			t.Run("quote", func(t *testing.T) {
 				t.Run("ok", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'''`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'''`))}
 					token := l.Token()
 					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'''"}, token)
 				})
 
 				t.Run("insufficient", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'`))}
 					token := l.Token()
 					assert.Equal(t, TokenInsufficient, token.Kind)
 				})
@@ -603,25 +603,25 @@ a quoted ident'.`)), nil)
 
 			t.Run("escape sequence", func(t *testing.T) {
 				t.Run("ok", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\n`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'\n`))}
 					token := l.Token()
 					assert.Equal(t, Token{Kind: TokenInteger, Val: `0'\n`}, token)
 				})
 
 				t.Run("insufficient", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'\`))}
 					token := l.Token()
 					assert.Equal(t, TokenInsufficient, token.Kind)
 				})
 
 				t.Run("unknown", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\q`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'\q`))}
 					token := l.Token()
 					assert.Equal(t, Token{Kind: TokenInvalid, Val: `0'\q`}, token)
 				})
 
 				t.Run("really big", func(t *testing.T) {
-					l := NewLexer(bufio.NewReader(strings.NewReader(`0'\😀`)), nil)
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'\😀`))}
 					token := l.Token()
 					assert.Equal(t, Token{Kind: TokenInvalid, Val: `0'\😀`}, token)
 				})
@@ -630,13 +630,13 @@ a quoted ident'.`)), nil)
 
 		t.Run("misc", func(t *testing.T) {
 			t.Run("just 0", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`0`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0`))}
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenInteger, Val: "0"}, token)
 			})
 
 			t.Run("caret", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`A^foo`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`A^foo`))}
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenVariable, Val: `A`}, token)
 				token = l.Token()
@@ -649,50 +649,50 @@ a quoted ident'.`)), nil)
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("without e", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenFloatNumber, Val: "2.34"}, token)
 		})
 
 		t.Run("with e and no sign", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E5`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34E5`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenFloatNumber, Val: "2.34E5"}, token)
 		})
 
 		t.Run("with e and plus", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E+5`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34E+5`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenFloatNumber, Val: "2.34E+5"}, token)
 		})
 
 		t.Run("with e and minus", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E-10`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34E-10`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenFloatNumber, Val: "2.34E-10"}, token)
 		})
 
 		t.Run("with e and insufficient", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34E`))}
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("with e and unexpected rune", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`2.34E*`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`2.34E*`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenInvalid, Val: `2.34E*`}, token)
 		})
 
 		t.Run("begins with 0", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`0.333`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`0.333`))}
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenFloatNumber, Val: "0.333"}, token)
 		})
 	})
 
 	t.Run("integer then period", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("X is 1 + 2.")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("X is 1 + 2."))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "X"}, token)
@@ -717,11 +717,11 @@ a quoted ident'.`)), nil)
 	})
 
 	t.Run("multiple terms", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(`
+		l := Lexer{input: bufio.NewReader(strings.NewReader(`
 foo(a).
 foo(b).
 foo(c).
-`)), nil)
+`))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "foo"}, token)
@@ -770,9 +770,12 @@ foo(c).
 	})
 
 	t.Run("char conversions", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(`abc('abc').`)), map[rune]rune{
-			'b': 'a',
-		})
+		l := Lexer{
+			input: bufio.NewReader(strings.NewReader(`abc('abc').`)),
+			charConversions: map[rune]rune{
+				'b': 'a',
+			},
+		}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "aac"}, token)
@@ -791,7 +794,7 @@ foo(c).
 	})
 
 	t.Run("trailing space in args", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(`:- op( 20, xfx, <-- ).`)), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader(`:- op( 20, xfx, <-- ).`))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenGraphic, Val: ":-"}, token)
@@ -825,7 +828,7 @@ foo(c).
 	})
 
 	t.Run("elems", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(`[V<--Ans].`)), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader(`[V<--Ans].`))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenList, Val: "["}, token)
@@ -847,8 +850,8 @@ foo(c).
 	})
 
 	t.Run("trailing space in list elems", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader(`del_item(Item, [It |R], R) :-
-      same_subst(Item, It), ! .`)), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader(`del_item(Item, [It |R], R) :-
+      same_subst(Item, It), ! .`))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "del_item"}, token)
@@ -919,7 +922,7 @@ foo(c).
 
 	t.Run("double quoted", func(t *testing.T) {
 		t.Run("no escape", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"abc".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"abc".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"abc"`}, token)
@@ -932,7 +935,7 @@ foo(c).
 		})
 
 		t.Run("double double quotes", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"don""t panic".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"don""t panic".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"don""t panic"`}, token)
@@ -945,8 +948,8 @@ foo(c).
 		})
 
 		t.Run("backslash at the very end of the line", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"this is \
-a quoted ident".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"this is \
+a quoted ident".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"this is \
@@ -960,7 +963,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("alert", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\a".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\a".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\a"`}, token)
@@ -973,7 +976,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("backspace", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\b".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\b".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\b"`}, token)
@@ -986,7 +989,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("formfeed", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\f".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\f".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\f"`}, token)
@@ -999,7 +1002,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("newline", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\n".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\n".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\n"`}, token)
@@ -1012,7 +1015,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("return", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\r".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\r".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\r"`}, token)
@@ -1025,7 +1028,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\t".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\t".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\t"`}, token)
@@ -1038,7 +1041,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("vertical tab", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\v".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\v".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\v"`}, token)
@@ -1052,7 +1055,7 @@ a quoted ident"`}, token)
 
 		t.Run("hex code", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3\".`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\xa3\".`))}
 
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\xa3\"`}, token)
@@ -1065,14 +1068,14 @@ a quoted ident"`}, token)
 			})
 
 			t.Run("insufficient", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\xa3`))}
 
 				token := l.Token()
 				assert.Equal(t, TokenInsufficient, token.Kind)
 			})
 
 			t.Run("not hex", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\xa3g`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\xa3g`))}
 
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenInvalid, Val: `"\xa3g`}, token)
@@ -1081,7 +1084,7 @@ a quoted ident"`}, token)
 
 		t.Run("oct code", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43\".`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\43\".`))}
 
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\43\"`}, token)
@@ -1094,14 +1097,14 @@ a quoted ident"`}, token)
 			})
 
 			t.Run("insufficient", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\43`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\43`))}
 
 				token := l.Token()
 				assert.Equal(t, TokenInsufficient, token.Kind)
 			})
 
 			t.Run("not octal", func(t *testing.T) {
-				l := NewLexer(bufio.NewReader(strings.NewReader(`"\438`)), nil)
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`"\438`))}
 
 				token := l.Token()
 				assert.Equal(t, Token{Kind: TokenInvalid, Val: `"\438`}, token)
@@ -1109,7 +1112,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("backslash", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\\".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\\".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\\"`}, token)
@@ -1122,7 +1125,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("single quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\'".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\'".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\'"`}, token)
@@ -1135,7 +1138,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("double quote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\"".`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\"".`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: `"\""`}, token)
@@ -1148,7 +1151,7 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("backquote", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("\"\\`\".")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("\"\\`\"."))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenDoubleQuotedList, Val: "\"\\`\""}, token)
@@ -1161,14 +1164,14 @@ a quoted ident"`}, token)
 		})
 
 		t.Run("insufficient", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
 		})
 
 		t.Run("escape then insufficient", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`"\`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`"\`))}
 
 			token := l.Token()
 			assert.Equal(t, TokenInsufficient, token.Kind)
@@ -1177,14 +1180,14 @@ a quoted ident"`}, token)
 
 	t.Run("graphic token begins with sign", func(t *testing.T) {
 		t.Run("plus", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`++`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`++`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenGraphic, Val: `++`}, token)
 		})
 
 		t.Run("minus", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader(`--`)), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader(`--`))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenGraphic, Val: `--`}, token)
@@ -1193,14 +1196,14 @@ a quoted ident"`}, token)
 
 	t.Run("graphic token begins with slash", func(t *testing.T) {
 		t.Run("single", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("/")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("/"))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenGraphic, Val: "/"}, token)
 		})
 
 		t.Run("multi", func(t *testing.T) {
-			l := NewLexer(bufio.NewReader(strings.NewReader("//")), nil)
+			l := Lexer{input: bufio.NewReader(strings.NewReader("//"))}
 
 			token := l.Token()
 			assert.Equal(t, Token{Kind: TokenGraphic, Val: "//"}, token)
@@ -1208,7 +1211,7 @@ a quoted ident"`}, token)
 	})
 
 	t.Run("period in list", func(t *testing.T) {
-		l := NewLexer(bufio.NewReader(strings.NewReader("['1',.,'2']")), nil)
+		l := Lexer{input: bufio.NewReader(strings.NewReader("['1',.,'2']"))}
 
 		token := l.Token()
 		assert.Equal(t, Token{Kind: TokenOpenList, Val: "["}, token)

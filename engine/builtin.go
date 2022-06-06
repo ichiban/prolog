@@ -92,7 +92,8 @@ func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return newParser(br, state.charConversions,
+	return newParser(br,
+		withCharConversions(state.charConversions),
 		withOperators(&state.operators),
 		withDoubleQuotes(state.doubleQuotes),
 		withParsedVars(vars),
@@ -2227,7 +2228,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+	p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 	t, err := p.Number()
 	if err != nil {
 		return Error(SyntaxError(err, env))
@@ -2309,7 +2310,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 		t, err := p.Number()
 		if err != nil {
 			return Error(SyntaxError(err, env))
