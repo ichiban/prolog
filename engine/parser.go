@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -132,7 +132,7 @@ func (p *Parser) backup() {
 }
 
 func (p *Parser) current() Token {
-	return p.buf.peek()
+	return p.buf.current()
 }
 
 // Term parses a term followed by a full stop.
@@ -142,31 +142,29 @@ func (p *Parser) Term() (Term, error) {
 	}
 	p.backup()
 
-	if p.vars != nil {
-		// reset vars
-		for i := range *p.vars {
-			(*p.vars)[i] = ParsedVariable{}
-		}
-		*p.vars = (*p.vars)[:0]
-	}
-
 	t, err := p.term(1201)
-	if err != nil {
+	switch err {
+	case nil:
+		break
+	case errExpectation:
 		switch p.current().Kind {
 		case TokenEOF, TokenInsufficient:
 			return nil, ErrInsufficient
 		default:
-			return nil, fmt.Errorf("term: token=%s, %w", p.current(), err)
+			return nil, unexpectedTokenError{actual: p.current()}
 		}
+	default:
+		return nil, err
 	}
 
-	if t := p.next(); t.Kind != TokenEnd {
-		switch p.current().Kind {
-		case TokenEOF, TokenInsufficient:
-			return nil, ErrInsufficient
-		default:
-			return nil, errExpectation
-		}
+	switch t := p.next(); t.Kind {
+	case TokenEnd:
+		break
+	case TokenEOF, TokenInsufficient:
+		return nil, ErrInsufficient
+	default:
+		p.backup()
+		return nil, unexpectedTokenError{actual: p.current()}
 	}
 
 	if len(p.args) != 0 {
@@ -177,22 +175,53 @@ func (p *Parser) Term() (Term, error) {
 }
 
 // Number parses a number term.
-func (p *Parser) Number() (Term, error) {
-	n, err := p.term(1201)
+func (p *Parser) Number() (Number, error) {
+	var (
+		n   Number
+		err error
+	)
+	switch t := p.next(); t.Kind {
+	case TokenInteger:
+		n, err = parseInteger(1, t.Val)
+	case TokenFloatNumber:
+		n, err = parseFloat(1, t.Val)
+	default:
+		p.backup()
+		var a Atom
+		a, err = p.name()
+		if err != nil {
+			return nil, errNotANumber
+		}
+
+		if a != "-" {
+			p.backup()
+			return nil, errNotANumber
+		}
+
+		switch t := p.next(); t.Kind {
+		case TokenInteger:
+			n, err = parseInteger(-1, t.Val)
+		case TokenFloatNumber:
+			n, err = parseFloat(-1, t.Val)
+		default:
+			p.backup()
+			p.backup()
+			return nil, errNotANumber
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := n.(Number); !ok {
+	// No more tokens/runes after a number.
+	if !p.buf.empty() || p.lexer.reserved != (Token{}) {
+		return nil, errNotANumber
+	}
+	if r := p.lexer.rawNext(); r != utf8.RuneError {
 		return nil, errNotANumber
 	}
 
-	switch t := p.next(); t.Kind {
-	case TokenEOF:
-		return n, nil
-	default:
-		return nil, errExpectation
-	}
+	return n, nil
 }
 
 // More checks if the parser has more tokens to read.
@@ -578,6 +607,7 @@ func (p *Parser) list() (Term, error) {
 		case TokenCloseList:
 			return List(args...), nil
 		default:
+			p.backup()
 			return nil, errExpectation
 		}
 	}
@@ -590,6 +620,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 	}
 
 	if t := p.next(); t.Kind != TokenCloseCurly {
+		p.backup()
 		return nil, errExpectation
 	}
 
@@ -649,16 +680,13 @@ func parseInteger(sign int64, s string) (Integer, error) {
 		s = s[2:]
 	}
 
-	f, _, err := big.ParseFloat(s, base, 0, big.ToZero)
-	if err != nil {
-		return 0, err
-	}
+	f, _, _ := big.ParseFloat(s, base, 0, big.ToZero)
 	f.Mul(big.NewFloat(float64(sign)), f)
 
 	switch i, a := f.Int64(); a {
-	case big.Below:
-		return 0, RepresentationError(FlagMinInteger, nil)
 	case big.Above:
+		return 0, RepresentationError(FlagMinInteger, nil)
+	case big.Below:
 		return 0, RepresentationError(FlagMaxInteger, nil)
 	default:
 		return Integer(i), nil
@@ -666,20 +694,11 @@ func parseInteger(sign int64, s string) (Integer, error) {
 }
 
 func parseFloat(sign float64, s string) (Float, error) {
-	bf, _, err := big.ParseFloat(s, 10, 0, big.ToZero)
-	if err != nil {
-		return 0, err
-	}
+	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
 	bf.Mul(big.NewFloat(sign), bf)
 
-	switch f, a := bf.Float64(); {
-	case math.IsInf(f, +1) && a == big.Below:
-		return 0, RepresentationError(FlagMinFloat, nil)
-	case math.IsInf(f, -1) && a == big.Above:
-		return 0, RepresentationError(FlagMaxFloat, nil)
-	default:
-		return Float(f), nil
-	}
+	f, _ := bf.Float64()
+	return Float(f), nil
 }
 
 var (
@@ -797,11 +816,8 @@ func (b *tokenRingBuffer) get() Token {
 	return t
 }
 
-func (b *tokenRingBuffer) peek() Token {
-	t := b.buf[b.start]
-	b.start++
-	b.start %= len(b.buf)
-	return t
+func (b *tokenRingBuffer) current() Token {
+	return b.buf[b.start]
 }
 
 func (b *tokenRingBuffer) empty() bool {
@@ -814,4 +830,12 @@ func (b *tokenRingBuffer) backup() {
 	if b.start < 0 {
 		b.start += len(b.buf)
 	}
+}
+
+type unexpectedTokenError struct {
+	actual Token
+}
+
+func (e unexpectedTokenError) Error() string {
+	return fmt.Sprintf("unexpected token: %s", e.actual)
 }

@@ -3,7 +3,6 @@ package engine
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -69,10 +68,6 @@ func (l *Lexer) chunk() string {
 type Token struct {
 	Kind TokenKind
 	Val  string
-}
-
-func (t *Token) String() string {
-	return fmt.Sprintf("<%s %s>", t.Kind, t.Val)
 }
 
 // TokenKind is a type of Token.
@@ -387,8 +382,6 @@ func (l *Lexer) quotedToken() Token {
 				l.backup()
 				return Token{Kind: TokenQuoted, Val: l.chunk()}
 			}
-		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '"', r == '`':
-			l.accept(r)
 		case r == '\\':
 			l.accept(r)
 			switch r := l.rawNext(); {
@@ -400,7 +393,6 @@ func (l *Lexer) quotedToken() Token {
 			}
 		default:
 			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}
 		}
 	}
 }
@@ -552,9 +544,6 @@ func (l *Lexer) characterCodeConstant() Token {
 			l.accept(r)
 			return Token{Kind: TokenInvalid, Val: l.chunk()}
 		}
-	case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '"', r == '`':
-		l.accept(r)
-		return Token{Kind: TokenInteger, Val: l.chunk()}
 	case r == '\\':
 		l.accept(r)
 		return l.escapeSequence(func() Token {
@@ -562,16 +551,21 @@ func (l *Lexer) characterCodeConstant() Token {
 		})
 	default:
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
+		return Token{Kind: TokenInteger, Val: l.chunk()}
 	}
 }
 
 func (l *Lexer) binaryConstant() Token {
-	r := l.next()
-	l.accept(r)
-	if !isBinaryDigitChar(r) {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isBinaryDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
 		return Token{Kind: TokenInvalid, Val: l.chunk()}
 	}
+
 	for {
 		switch r := l.next(); {
 		case isBinaryDigitChar(r):
@@ -584,11 +578,16 @@ func (l *Lexer) binaryConstant() Token {
 }
 
 func (l *Lexer) octalConstant() Token {
-	r := l.next()
-	l.accept(r)
-	if !isOctalDigitChar(r) {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isOctalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
 		return Token{Kind: TokenInvalid, Val: l.chunk()}
 	}
+
 	for {
 		switch r := l.next(); {
 		case isOctalDigitChar(r):
@@ -601,11 +600,16 @@ func (l *Lexer) octalConstant() Token {
 }
 
 func (l *Lexer) hexadecimalConstant() Token {
-	r := l.next()
-	l.accept(r)
-	if !isHexadecimalDigitChar(r) {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isHexadecimalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
 		return Token{Kind: TokenInvalid, Val: l.chunk()}
 	}
+
 	for {
 		switch r := l.next(); {
 		case isHexadecimalDigitChar(r):
@@ -679,8 +683,6 @@ func (l *Lexer) doubleQuotedListToken() Token {
 				l.backup()
 				return Token{Kind: TokenDoubleQuotedList, Val: l.chunk()}
 			}
-		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), unicode.IsSpace(r), r == '\'', r == '`':
-			l.accept(r)
 		case r == '\\':
 			l.accept(r)
 			switch r := l.next(); {
@@ -692,7 +694,6 @@ func (l *Lexer) doubleQuotedListToken() Token {
 			}
 		default:
 			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}
 		}
 	}
 }
@@ -745,10 +746,6 @@ func isHexadecimalDigitChar(r rune) bool {
 
 func isUnderscoreChar(r rune) bool {
 	return r == '_'
-}
-
-func isSoloChar(r rune) bool {
-	return strings.ContainsRune(`!(),;[]{}|%`, r)
 }
 
 func isLayoutChar(r rune) bool {

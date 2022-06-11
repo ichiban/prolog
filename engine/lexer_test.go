@@ -16,6 +16,34 @@ func TestLexer_Token(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenInvalid, Val: "\000"}, token)
 	})
 
+	t.Run("solo", func(t *testing.T) {
+		cases := []struct {
+			title string
+			input string
+			token Token
+		}{
+			{title: "end", input: ".", token: Token{Kind: TokenEnd, Val: "."}},
+			{title: "semicolon", input: ";", token: Token{Kind: TokenSemicolon, Val: ";"}},
+			{title: "cut", input: "!", token: Token{Kind: TokenCut, Val: "!"}},
+			{title: "open ct", input: "(", token: Token{Kind: TokenOpenCT, Val: "("}},
+			{title: "open", input: " (", token: Token{Kind: TokenOpen, Val: "("}},
+			{title: "close", input: ")", token: Token{Kind: TokenClose, Val: ")"}},
+			{title: "open list", input: "[", token: Token{Kind: TokenOpenList, Val: "["}},
+			{title: "close list", input: "]", token: Token{Kind: TokenCloseList, Val: "]"}},
+			{title: "open curly", input: "{", token: Token{Kind: TokenOpenCurly, Val: "{"}},
+			{title: "close curly", input: "}", token: Token{Kind: TokenCloseCurly, Val: "}"}},
+			{title: "ht sep", input: "|", token: Token{Kind: TokenHTSep, Val: "|"}},
+			{title: "comma", input: ",", token: Token{Kind: TokenComma, Val: ","}},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.title, func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(tc.input))}
+				assert.Equal(t, tc.token, l.Token())
+			})
+		}
+	})
+
 	t.Run("clause", func(t *testing.T) {
 		l := Lexer{input: bufio.NewReader(strings.NewReader("append(nil,L,L)."))}
 
@@ -563,21 +591,63 @@ a quoted ident'.`))}
 		})
 
 		t.Run("octal", func(t *testing.T) {
-			l := Lexer{input: bufio.NewReader(strings.NewReader(`0o567`))}
-			token := l.Token()
-			assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
+			t.Run("ok", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0o567`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0o`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0o"}, token)
+			})
+
+			t.Run("invalid", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0o8`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0o8"}, token)
+			})
 		})
 
 		t.Run("hexadecimal", func(t *testing.T) {
-			l := Lexer{input: bufio.NewReader(strings.NewReader(`0x89ABC`))}
-			token := l.Token()
-			assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
+			t.Run("ok", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0x89ABC`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0x`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0x"}, token)
+			})
+
+			t.Run("invalid", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0xG`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0xG"}, token)
+			})
 		})
 
 		t.Run("binary", func(t *testing.T) {
-			l := Lexer{input: bufio.NewReader(strings.NewReader(`0b10110101`))}
-			token := l.Token()
-			assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
+			t.Run("ok", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0b10110101`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0b`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0b"}, token)
+			})
+
+			t.Run("invalid", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0b2`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0b2"}, token)
+			})
 		})
 
 		t.Run("character", func(t *testing.T) {
@@ -595,9 +665,15 @@ a quoted ident'.`))}
 				})
 
 				t.Run("insufficient", func(t *testing.T) {
-					l := Lexer{input: bufio.NewReader(strings.NewReader(`0'`))}
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0''`))}
 					token := l.Token()
 					assert.Equal(t, TokenInsufficient, token.Kind)
+				})
+
+				t.Run("invalid", func(t *testing.T) {
+					l := Lexer{input: bufio.NewReader(strings.NewReader(`0''a`))}
+					token := l.Token()
+					assert.Equal(t, TokenInvalid, token.Kind)
 				})
 			})
 
@@ -625,6 +701,12 @@ a quoted ident'.`))}
 					token := l.Token()
 					assert.Equal(t, Token{Kind: TokenInvalid, Val: `0'\😀`}, token)
 				})
+			})
+
+			t.Run("insufficient", func(t *testing.T) {
+				l := Lexer{input: bufio.NewReader(strings.NewReader(`0'`))}
+				token := l.Token()
+				assert.Equal(t, TokenInsufficient, token.Kind)
 			})
 		})
 
@@ -1234,4 +1316,10 @@ a quoted ident"`}, token)
 		token = l.Token()
 		assert.Equal(t, Token{Kind: TokenCloseList, Val: "]"}, token)
 	})
+}
+
+func TestTokenKind_GoString(t *testing.T) {
+	for i := TokenKind(0); i < tokenKindLen; i++ {
+		assert.Equal(t, i.String(), i.GoString())
+	}
 }

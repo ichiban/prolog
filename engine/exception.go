@@ -256,8 +256,6 @@ const (
 	FlagMaxArity
 	FlagMaxInteger
 	FlagMinInteger
-	FlagMaxFloat
-	FlagMinFloat
 )
 
 func (f Flag) Term() Term {
@@ -268,8 +266,6 @@ func (f Flag) Term() Term {
 		FlagMaxArity:        "max_arity",
 		FlagMaxInteger:      "max_integer",
 		FlagMinInteger:      "min_integer",
-		FlagMaxFloat:        "max_float",
-		FlagMinFloat:        "min_float",
 	}[f]
 }
 
