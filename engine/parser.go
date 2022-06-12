@@ -265,7 +265,7 @@ type operator struct {
 
 // Pratt parser's binding powers but in Prolog priority.
 func (o *operator) bindingPriorities() (Integer, Integer) {
-	const max = Integer(1201)
+	const max = Integer(1202)
 	switch o.specifier {
 	case operatorSpecifierFX:
 		return max, o.priority - 1
@@ -378,9 +378,6 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 	}
 
 	p.backup()
-	if a == "[]" || a == "{}" { // These atoms consist of 2 tokens.
-		p.backup()
-	}
 	return operator{}, errNoOp
 }
 
@@ -406,15 +403,27 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 	}
 
 	p.backup()
-	if a == "[]" || a == "{}" { // These atoms consist of 2 tokens.
-		p.backup()
-	}
 	return operator{}, errNoOp
 }
 
 func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	if a, err := p.atom(); err == nil {
-		return a, nil
+		switch a {
+		case "[]":
+			p.backup()
+			if p.current().Kind == TokenCloseList {
+				p.backup()
+			}
+			return "", errNoOp
+		case "{}":
+			p.backup()
+			if p.current().Kind == TokenCloseCurly {
+				p.backup()
+			}
+			return "", errNoOp
+		default:
+			return a, nil
+		}
 	}
 
 	if t := p.next(); t.Kind == TokenComma && maxPriority >= 1000 {
