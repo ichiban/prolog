@@ -426,7 +426,12 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 		}
 	}
 
-	if t := p.next(); t.Kind == TokenComma && maxPriority >= 1000 {
+	switch t := p.next(); t.Kind {
+	case TokenComma:
+		if maxPriority >= 1000 {
+			return Atom(t.Val), nil
+		}
+	case TokenBar:
 		return Atom(t.Val), nil
 	}
 
@@ -600,7 +605,7 @@ func (p *Parser) list() (Term, error) {
 				return nil, err
 			}
 			args = append(args, arg)
-		case TokenHTSep:
+		case TokenBar:
 			rest, err := p.term(999)
 			if err != nil {
 				return nil, err

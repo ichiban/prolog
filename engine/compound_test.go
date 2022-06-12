@@ -110,7 +110,7 @@ func TestCompound_Unparse(t *testing.T) {
 				{Kind: TokenLetterDigit, Val: "a"},
 				{Kind: TokenComma, Val: ","},
 				{Kind: TokenLetterDigit, Val: "b"},
-				{Kind: TokenHTSep, Val: "|"},
+				{Kind: TokenBar, Val: "|"},
 				{Kind: TokenLetterDigit, Val: "rest"},
 				{Kind: TokenCloseList, Val: "]"},
 			}, ret)

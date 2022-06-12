@@ -131,8 +131,8 @@ const (
 	// TokenCloseCurly represents a close brace.
 	TokenCloseCurly
 
-	// TokenHTSep represents a bar.
-	TokenHTSep
+	// TokenBar represents a bar.
+	TokenBar
 
 	// TokenComma represents a comma.
 	TokenComma
@@ -168,7 +168,7 @@ func (k TokenKind) String() string {
 		TokenCloseList:        "close list",
 		TokenOpenCurly:        "open curly",
 		TokenCloseCurly:       "close curly",
-		TokenHTSep:            "ht sep",
+		TokenBar:              "bar",
 		TokenComma:            "comma",
 		TokenEnd:              "end",
 	}[k]
@@ -199,7 +199,7 @@ var spacing = [tokenKindLen][tokenKindLen]bool{
 		TokenGraphic:     true,
 		TokenComma:       true,
 		TokenEnd:         true,
-		TokenHTSep:       true,
+		TokenBar:         true,
 		TokenOpen:        true,
 		TokenClose:       true,
 		TokenOpenList:    true,
@@ -272,7 +272,7 @@ func (l *Lexer) token(afterLayout bool) Token {
 		return Token{Kind: TokenCloseCurly, Val: l.chunk()}
 	case r == '|':
 		l.accept(r)
-		return Token{Kind: TokenHTSep, Val: l.chunk()}
+		return Token{Kind: TokenBar, Val: l.chunk()}
 	case r == ',':
 		l.accept(r)
 		return Token{Kind: TokenComma, Val: l.chunk()}

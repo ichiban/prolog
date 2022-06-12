@@ -32,7 +32,7 @@ func TestLexer_Token(t *testing.T) {
 			{title: "close list", input: "]", token: Token{Kind: TokenCloseList, Val: "]"}},
 			{title: "open curly", input: "{", token: Token{Kind: TokenOpenCurly, Val: "{"}},
 			{title: "close curly", input: "}", token: Token{Kind: TokenCloseCurly, Val: "}"}},
-			{title: "ht sep", input: "|", token: Token{Kind: TokenHTSep, Val: "|"}},
+			{title: "ht sep", input: "|", token: Token{Kind: TokenBar, Val: "|"}},
 			{title: "comma", input: ",", token: Token{Kind: TokenComma, Val: ","}},
 		}
 
@@ -169,7 +169,7 @@ func TestLexer_Token(t *testing.T) {
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "b"}, token)
 
 		token = l.Token()
-		assert.Equal(t, Token{Kind: TokenHTSep, Val: "|"}, token)
+		assert.Equal(t, Token{Kind: TokenBar, Val: "|"}, token)
 
 		token = l.Token()
 		assert.Equal(t, Token{Kind: TokenLetterDigit, Val: "c"}, token)
@@ -954,7 +954,7 @@ foo(c).
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "It"}, token)
 
 		token = l.Token()
-		assert.Equal(t, Token{Kind: TokenHTSep, Val: "|"}, token)
+		assert.Equal(t, Token{Kind: TokenBar, Val: "|"}, token)
 
 		token = l.Token()
 		assert.Equal(t, Token{Kind: TokenVariable, Val: "R"}, token)

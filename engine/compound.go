@@ -221,7 +221,7 @@ func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) 
 		if a, ok := t.(Atom); ok && a == "[]" {
 			break
 		}
-		emit(Token{Kind: TokenHTSep, Val: "|"})
+		emit(Token{Kind: TokenBar, Val: "|"})
 		t.Unparse(emit, env, opts...)
 		break
 	}
