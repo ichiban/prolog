@@ -92,7 +92,8 @@ func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return newParser(br, state.charConversions,
+	return newParser(br,
+		withCharConversions(state.charConversions),
 		withOperators(&state.operators),
 		withDoubleQuotes(state.doubleQuotes),
 		withParsedVars(vars),
@@ -1635,7 +1636,6 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	t, err := p.Term()
 	if err != nil {
-		var unexpectedToken *unexpectedTokenError
 		switch {
 		case errors.Is(err, io.EOF):
 			return [...]*Promise{
@@ -1647,12 +1647,8 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 					return state.ReadTerm(streamOrAlias, out, options, k, env)
 				}),
 			}[s.eofAction]
-		case errors.Is(err, ErrInsufficient):
-			return Error(SyntaxError(err, env))
-		case errors.As(err, &unexpectedToken):
-			return Error(SyntaxError(err, env))
 		default:
-			return Error(SystemError(err))
+			return Error(SyntaxError(err, env))
 		}
 	}
 
@@ -2232,15 +2228,9 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+	p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 	t, err := p.Number()
-	switch {
-	case errors.Is(err, errNotANumber):
-		return Error(SyntaxError(err, env))
-	case errors.Is(err, errExpectation):
-		err := &unexpectedTokenError{
-			Actual: *p.current,
-		}
+	if err != nil {
 		return Error(SyntaxError(err, env))
 	}
 
@@ -2320,15 +2310,10 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 		t, err := p.Number()
-		switch err {
-		case nil:
-			break
-		case errNotANumber:
+		if err != nil {
 			return Error(SyntaxError(err, env))
-		default:
-			return Error(SystemError(err))
 		}
 
 		return Delay(func(context.Context) *Promise {

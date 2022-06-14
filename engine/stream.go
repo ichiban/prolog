@@ -174,10 +174,10 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // Unparse emits tokens that represent the stream.
 func (s *Stream) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if s.alias != "" {
-		emit(Token{Kind: TokenIdent, Val: string(s.alias)})
+		emit(Token{Kind: TokenLetterDigit, Val: string(s.alias)})
 		return
 	}
-	emit(Token{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
+	emit(Token{Kind: TokenGraphic, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }
 
 // Compare compares the stream to another term.

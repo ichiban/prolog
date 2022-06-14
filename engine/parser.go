@@ -5,24 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
-	errExpectation = errors.New("expectation error")
-	errNotAnAtom   = errors.New("not an atom")
-	errNoOp        = errors.New("no op")
-	errNotANumber  = errors.New("not a number")
-	errPlaceholder = errors.New("not enough arguments for placeholders")
+	ErrInsufficient = errors.New("insufficient")
+	errExpectation  = errors.New("expectation error")
+	errNoOp         = errors.New("no op")
+	errNotANumber   = errors.New("not a number")
+	errPlaceholder  = errors.New("not enough arguments for placeholders")
 )
 
 // Parser turns bytes into Term.
 type Parser struct {
-	lexer        *Lexer
-	current      *Token
+	lexer        Lexer
+	buf          tokenRingBuffer
 	operators    *operators
 	placeholder  Atom
 	args         []Term
@@ -37,9 +39,11 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input *bufio.Reader, charConversions map[rune]rune, opts ...parserOption) *Parser {
+func newParser(input *bufio.Reader, opts ...parserOption) *Parser {
 	p := Parser{
-		lexer: NewLexer(input, charConversions),
+		lexer: Lexer{
+			input: input,
+		},
 	}
 	for _, o := range opts {
 		o(&p)
@@ -48,6 +52,12 @@ func newParser(input *bufio.Reader, charConversions map[rune]rune, opts ...parse
 }
 
 type parserOption func(p *Parser)
+
+func withCharConversions(charConversions map[rune]rune) parserOption {
+	return func(p *Parser) {
+		p.lexer.charConversions = charConversions
+	}
+}
 
 func withOperators(operators *operators) parserOption {
 	return func(p *Parser) {
@@ -110,135 +120,51 @@ func termOf(o reflect.Value) (Term, error) {
 	}
 }
 
-func (p *Parser) accept(k TokenKind, vals ...string) (string, error) {
-	v, err := p.expect(k, vals...)
-	if err != nil {
-		return "", err
+func (p *Parser) next() Token {
+	if p.buf.empty() {
+		p.buf.put(p.lexer.Token())
 	}
-	p.current = nil
-	return v, nil
+	return p.buf.get()
 }
 
-func (p *Parser) acceptAtom(allowComma, allowBar bool, vals ...string) (Atom, error) {
-	if v, err := p.accept(TokenIdent, vals...); err == nil {
-		return Atom(v), nil
-	}
-	if v, err := p.accept(TokenQuotedIdent, vals...); err == nil {
-		return Atom(unquote(v)), nil
-	}
-	if v, err := p.accept(TokenGraphic, vals...); err == nil {
-		return Atom(v), nil
-	}
-	if allowComma {
-		if v, err := p.accept(TokenComma, vals...); err == nil {
-			return Atom(v), nil
-		}
-	}
-	if allowBar {
-		if v, err := p.accept(TokenBar, vals...); err == nil {
-			return Atom(v), nil
-		}
-	}
-	if v, err := p.accept(TokenPeriod, vals...); err == nil {
-		return Atom(v), nil
-	}
-	return "", errNotAnAtom
+func (p *Parser) backup() {
+	p.buf.backup()
 }
 
-func (p *Parser) acceptOp(min int, allowComma, allowBar bool) (*operator, error) {
-	if p.operators == nil {
-		return nil, errNoOp
-	}
-	for _, op := range *p.operators {
-		l, _ := op.bindingPowers()
-		if l < min {
-			continue
-		}
-
-		if _, err := p.acceptAtom(allowComma, allowBar, string(op.name)); err != nil {
-			continue
-		}
-
-		return &op, nil
-	}
-	return nil, errNoOp
-}
-
-func (p *Parser) acceptPrefix(allowComma, allowBar bool) (*operator, error) {
-	if p.operators == nil {
-		return nil, errNoOp
-	}
-	for _, op := range *p.operators {
-		l, _ := op.bindingPowers()
-		if l != 0 {
-			continue
-		}
-
-		if _, err := p.acceptAtom(allowComma, allowBar, string(op.name)); err != nil {
-			continue
-		}
-
-		return &op, nil
-	}
-	return nil, errNoOp
-}
-
-func (p *Parser) expect(k TokenKind, vals ...string) (string, error) {
-	if p.current == nil {
-		t, err := p.lexer.Token()
-		if err != nil {
-			return "", err
-		}
-		p.current = &t
-	}
-
-	if p.current.Kind != k {
-		return "", errExpectation
-	}
-
-	if len(vals) > 0 {
-		for _, v := range vals {
-			v := v
-			if k == TokenQuotedIdent {
-				v = quote(v)
-			}
-			if v == p.current.Val {
-				return v, nil
-			}
-		}
-		return "", errExpectation
-	}
-
-	return p.current.Val, nil
+func (p *Parser) current() Token {
+	return p.buf.current()
 }
 
 // Term parses a term followed by a full stop.
 func (p *Parser) Term() (Term, error) {
-	if _, err := p.accept(TokenEOF); err == nil {
+	if t := p.next(); t.Kind == TokenEOF {
 		return nil, io.EOF
 	}
+	p.backup()
 
-	if p.vars != nil {
-		// reset vars
-		for i := range *p.vars {
-			(*p.vars)[i] = ParsedVariable{}
+	t, err := p.term(1201)
+	switch err {
+	case nil:
+		break
+	case errExpectation:
+		switch p.current().Kind {
+		case TokenEOF, TokenInsufficient:
+			return nil, ErrInsufficient
+		default:
+			return nil, unexpectedTokenError{actual: p.current()}
 		}
-		*p.vars = (*p.vars)[:0]
+	default:
+		return nil, err
 	}
 
-	t, err := p.expr(1, true, true)
-	if err != nil {
-		if p.current == nil || p.current.Kind == TokenEOF {
-			return nil, ErrInsufficient
-		}
-		return nil, &unexpectedTokenError{Actual: *p.current}
-	}
-
-	if _, err := p.accept(TokenPeriod); err != nil {
-		if p.current == nil || p.current.Kind == TokenEOF {
-			return nil, ErrInsufficient
-		}
-		return nil, &unexpectedTokenError{Actual: *p.current}
+	switch t := p.next(); t.Kind {
+	case TokenEnd:
+		break
+	case TokenEOF, TokenInsufficient:
+		return nil, ErrInsufficient
+	default:
+		p.backup()
+		return nil, unexpectedTokenError{actual: p.current()}
 	}
 
 	if len(p.args) != 0 {
@@ -249,296 +175,60 @@ func (p *Parser) Term() (Term, error) {
 }
 
 // Number parses a number term.
-func (p *Parser) Number() (Term, error) {
-	n, err := p.number()
+func (p *Parser) Number() (Number, error) {
+	var (
+		n   Number
+		err error
+	)
+	switch t := p.next(); t.Kind {
+	case TokenInteger:
+		n, err = parseInteger(1, t.Val)
+	case TokenFloatNumber:
+		n, err = parseFloat(1, t.Val)
+	default:
+		p.backup()
+		var a Atom
+		a, err = p.name()
+		if err != nil {
+			return nil, errNotANumber
+		}
+
+		if a != "-" {
+			p.backup()
+			return nil, errNotANumber
+		}
+
+		switch t := p.next(); t.Kind {
+		case TokenInteger:
+			n, err = parseInteger(-1, t.Val)
+		case TokenFloatNumber:
+			n, err = parseFloat(-1, t.Val)
+		default:
+			p.backup()
+			p.backup()
+			return nil, errNotANumber
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := n.(Number); !ok {
+	// No more tokens/runes after a number.
+	if !p.buf.empty() || p.lexer.reserved != (Token{}) {
+		return nil, errNotANumber
+	}
+	if r := p.lexer.rawNext(); r != utf8.RuneError {
 		return nil, errNotANumber
 	}
 
-	_, err = p.accept(TokenEOF)
-	return n, err
-}
-
-func (p *Parser) number() (Term, error) {
-	sign, _ := p.acceptAtom(false, false, "-")
-
-	if f, err := p.accept(TokenFloat); err == nil {
-		f = string(sign) + f
-		n, _ := strconv.ParseFloat(f, 64)
-		return Float(n), nil
-	}
-
-	if i, err := p.accept(TokenInteger); err == nil {
-		i = string(sign) + i
-		switch {
-		case strings.HasPrefix(i, "0'"):
-			return Integer([]rune(i)[2]), nil
-		case strings.HasPrefix(i, "-0'"):
-			return Integer(-1 * int64([]rune(i)[3])), nil
-		default:
-			n, _ := strconv.ParseInt(i, 0, 64)
-			return Integer(n), nil
-		}
-	}
-
-	if sign != "" {
-		return sign, nil
-	}
-
-	return nil, errNotANumber
-}
-
-// based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) expr(min int, allowComma, allowBar bool) (Term, error) {
-	lhs, err := p.lhs(allowComma, allowBar)
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		op, err := p.acceptOp(min, allowComma, allowBar)
-		if err != nil {
-			break
-		}
-
-		_, r := op.bindingPowers()
-		rhs, err := p.expr(r, allowComma, allowBar)
-		if err != nil {
-			return nil, err
-		}
-
-		lhs = &Compound{
-			Functor: op.name,
-			Args:    []Term{lhs, rhs},
-		}
-	}
-
-	return lhs, nil
-}
-
-func (p *Parser) lhs(allowComma, allowBar bool) (Term, error) {
-	if p, err := p.paren(); err == nil {
-		return p, nil
-	}
-
-	if b, err := p.block(); err == nil {
-		return b, nil
-	}
-
-	if t, err := p.number(); err == nil {
-		return t, nil
-	}
-
-	if v, err := p.variable(); err == nil {
-		return v, nil
-	}
-
-	if d, err := p.acceptDoubleQuoted(); err == nil {
-		return d, nil
-	}
-
-	if l, err := p.list(); err == nil {
-		return l, nil
-	}
-
-	if p, err := p.prefix(allowComma, allowBar); err == nil {
-		return p, nil
-	}
-
-	if t, err := p.atomOrCompound(allowComma, allowBar); err == nil {
-		return t, nil
-	}
-
-	return nil, errExpectation
-}
-
-func (p *Parser) atomOrCompound(allowComma bool, allowBar bool) (Term, error) {
-	a, err := p.acceptAtom(allowComma, allowBar)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := p.accept(TokenParenL); err != nil {
-		if p.placeholder != "" && p.placeholder == a {
-			if len(p.args) == 0 {
-				return nil, errPlaceholder
-			}
-			var t Term
-			t, p.args = p.args[0], p.args[1:]
-			return t, nil
-		}
-		return a, nil
-	}
-
-	var args []Term
-	for {
-		t, err := p.expr(1, false, true)
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, t)
-
-		if _, err := p.accept(TokenParenR); err == nil {
-			break
-		}
-
-		if _, err := p.accept(TokenComma); err != nil {
-			return nil, fmt.Errorf("lhs: %w", err)
-		}
-	}
-
-	return &Compound{Functor: a, Args: args}, nil
-}
-
-func (p *Parser) prefix(allowComma bool, allowBar bool) (Term, error) {
-	op, err := p.acceptPrefix(allowComma, allowBar)
-	if err != nil {
-		return nil, err
-	}
-	_, r := op.bindingPowers()
-	rhs, err := p.expr(r, allowComma, allowBar)
-	if err != nil {
-		return op.name, nil
-	}
-	return &Compound{
-		Functor: op.name,
-		Args:    []Term{rhs},
-	}, nil
-}
-
-func (p *Parser) paren() (Term, error) {
-	if _, err := p.accept(TokenParenL); err != nil {
-		return nil, err
-	}
-
-	lhs, err := p.expr(1, true, true)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := p.accept(TokenParenR); err != nil {
-		return nil, err
-	}
-
-	return lhs, nil
-}
-
-func (p *Parser) variable() (Term, error) {
-	v, err := p.accept(TokenVariable)
-	if err != nil {
-		return nil, err
-	}
-
-	if v == "_" {
-		return NewVariable(), nil
-	}
-
-	if p.vars == nil {
-		n := Variable(v)
-		return n, nil
-	}
-
-	n := Atom(v)
-	for i, v := range *p.vars {
-		if v.Name == n {
-			(*p.vars)[i].Count++
-			return v.Variable, nil
-		}
-	}
-	w := NewVariable()
-	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
-	return w, nil
-}
-
-func (p *Parser) block() (Term, error) {
-	if _, err := p.accept(TokenBraceL); err != nil {
-		return nil, err
-	}
-	lhs, err := p.expr(1, true, true)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := p.accept(TokenBraceR); err != nil {
-		return nil, err
-	}
-
-	return &Compound{
-		Functor: "{}",
-		Args:    []Term{lhs},
-	}, nil
-}
-
-func (p *Parser) list() (Term, error) {
-	if _, err := p.accept(TokenBracketL); err != nil {
-		return nil, err
-	}
-
-	var es []Term
-	for {
-		e, err := p.expr(1, false, false)
-		if err != nil {
-			return nil, err
-		}
-		es = append(es, e)
-
-		if _, err := p.accept(TokenBar); err == nil {
-			rest, err := p.expr(1, true, true)
-			if err != nil {
-				return nil, err
-			}
-
-			if _, err := p.accept(TokenBracketR); err != nil {
-				return nil, err
-			}
-
-			return ListRest(rest, es...), nil
-		}
-
-		if _, err := p.accept(TokenBracketR); err == nil {
-			return List(es...), nil
-		}
-
-		if _, err := p.accept(TokenComma); err != nil {
-			return nil, err
-		}
-	}
-}
-
-func (p *Parser) acceptDoubleQuoted() (Term, error) {
-	v, err := p.accept(TokenDoubleQuoted)
-	if err != nil {
-		return nil, err
-	}
-	v = unDoubleQuote(v)
-	switch p.doubleQuotes {
-	case doubleQuotesCodes:
-		var codes []Term
-		for _, r := range v {
-			codes = append(codes, Integer(r))
-		}
-		return List(codes...), nil
-	case doubleQuotesChars:
-		var chars []Term
-		for _, r := range v {
-			chars = append(chars, Atom(r))
-		}
-		return List(chars...), nil
-	case doubleQuotesAtom:
-		return Atom(v), nil
-	default:
-		return nil, fmt.Errorf("unknown double quote(%d)", p.doubleQuotes)
-	}
+	return n, nil
 }
 
 // More checks if the parser has more tokens to read.
 func (p *Parser) More() bool {
-	_, err := p.accept(TokenEOF)
-	return err != nil
+	t := p.next()
+	p.backup()
+	return t.Kind != TokenEOF && t.Kind != TokenInsufficient
 }
 
 type operatorSpecifier uint8
@@ -567,59 +257,32 @@ func (s operatorSpecifier) term() Term {
 
 type operators []operator
 
-func (ops operators) find(name Atom, arity int) *operator {
-	switch arity {
-	case 1:
-		for _, op := range ops {
-			if op.name != name {
-				continue
-			}
-			switch op.specifier {
-			case operatorSpecifierFX, operatorSpecifierFY, operatorSpecifierXF, operatorSpecifierYF:
-				return &op
-			}
-		}
-	case 2:
-		for _, op := range ops {
-			if op.name != name {
-				continue
-			}
-			switch op.specifier {
-			case operatorSpecifierXFX, operatorSpecifierXFY, operatorSpecifierYFX:
-				return &op
-			}
-		}
-	default:
-		return nil
-	}
-	return nil
-}
-
 type operator struct {
 	priority  Integer // 1 ~ 1200
 	specifier operatorSpecifier
 	name      Atom
 }
 
-func (o *operator) bindingPowers() (int, int) {
-	bp := 1201 - int(o.priority) // 1 ~ 1200
+// Pratt parser's binding powers but in Prolog priority.
+func (o *operator) bindingPriorities() (Integer, Integer) {
+	const max = Integer(1202)
 	switch o.specifier {
 	case operatorSpecifierFX:
-		return 0, bp + 1
+		return max, o.priority - 1
 	case operatorSpecifierFY:
-		return 0, bp
+		return max, o.priority
 	case operatorSpecifierXF:
-		return bp + 1, 0
+		return o.priority - 1, max
 	case operatorSpecifierYF:
-		return bp, -1
+		return o.priority, max
 	case operatorSpecifierXFX:
-		return bp + 1, bp + 1
+		return o.priority - 1, o.priority - 1
 	case operatorSpecifierXFY:
-		return bp + 1, bp
+		return o.priority - 1, o.priority
 	case operatorSpecifierYFX:
-		return bp, bp + 1
+		return o.priority, o.priority - 1
 	default:
-		return 0, 0
+		return max, max
 	}
 }
 
@@ -639,15 +302,469 @@ func (d doubleQuotes) String() string {
 	}[d]
 }
 
-type unexpectedTokenError struct {
-	Actual Token
+// Loosely based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
+func (p *Parser) term(maxPriority Integer) (Term, error) {
+	var lhs Term
+	switch op, err := p.prefix(maxPriority); {
+	case err == nil:
+		_, rbp := op.bindingPriorities()
+		t, err := p.term(rbp)
+		if err != nil {
+			lhs = op.name
+			break
+		}
+		lhs = op.name.Apply(t)
+	default:
+		lhs, err = p.term0()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for {
+		op, err := p.infix(maxPriority)
+		if err != nil {
+			break
+		}
+		_, rbp := op.bindingPriorities()
+		rhs, err := p.term(rbp)
+		if err != nil {
+			return nil, err
+		}
+		lhs = op.name.Apply(lhs, rhs)
+	}
+
+	return lhs, nil
 }
 
-func (e unexpectedTokenError) Error() string {
-	return fmt.Sprintf("unexpected token: %s", e.Actual)
+func (p *Parser) prefix(maxPriority Integer) (operator, error) {
+	if p.operators == nil {
+		return operator{}, errNoOp
+	}
+
+	a, err := p.op(maxPriority)
+	if err != nil {
+		return operator{}, errNoOp
+	}
+
+	if a == "-" {
+		switch t := p.next(); t.Kind {
+		case TokenInteger, TokenFloatNumber:
+			p.backup()
+			p.backup()
+			return operator{}, errNoOp
+		default:
+			p.backup()
+		}
+	}
+
+	switch t := p.next(); t.Kind {
+	case TokenOpenCT:
+		p.backup()
+		p.backup()
+		return operator{}, errNoOp
+	default:
+		p.backup()
+	}
+
+	for _, op := range *p.operators {
+		if op.name != a {
+			continue
+		}
+		if op.priority > maxPriority {
+			continue
+		}
+		return op, nil
+	}
+
+	p.backup()
+	return operator{}, errNoOp
 }
 
-var doubleQuotedEscapePattern = regexp.MustCompile("\"\"|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+func (p *Parser) infix(maxPriority Integer) (operator, error) {
+	if p.operators == nil {
+		return operator{}, errNoOp
+	}
+
+	a, err := p.op(maxPriority)
+	if err != nil {
+		return operator{}, errNoOp
+	}
+
+	for _, op := range *p.operators {
+		if op.name != a {
+			continue
+		}
+		l, _ := op.bindingPriorities()
+		if l > maxPriority {
+			continue
+		}
+		return op, nil
+	}
+
+	p.backup()
+	return operator{}, errNoOp
+}
+
+func (p *Parser) op(maxPriority Integer) (Atom, error) {
+	if a, err := p.atom(); err == nil {
+		switch a {
+		case "[]":
+			p.backup()
+			if p.current().Kind == TokenCloseList {
+				p.backup()
+			}
+			return "", errNoOp
+		case "{}":
+			p.backup()
+			if p.current().Kind == TokenCloseCurly {
+				p.backup()
+			}
+			return "", errNoOp
+		default:
+			return a, nil
+		}
+	}
+
+	switch t := p.next(); t.Kind {
+	case TokenComma:
+		if maxPriority >= 1000 {
+			return Atom(t.Val), nil
+		}
+	case TokenBar:
+		return Atom(t.Val), nil
+	}
+
+	p.backup()
+	return "", errExpectation
+}
+
+func (p *Parser) term0() (Term, error) {
+	switch t := p.next(); t.Kind {
+	case TokenOpen, TokenOpenCT:
+		t, err := p.term(1201)
+		if err != nil {
+			return nil, err
+		}
+		if t := p.next(); t.Kind != TokenClose {
+			p.backup()
+			return nil, errExpectation
+		}
+		return t, nil
+	case TokenInteger:
+		return parseInteger(1, t.Val)
+	case TokenFloatNumber:
+		return parseFloat(1, t.Val)
+	case TokenVariable:
+		if t.Val == "_" {
+			return NewVariable(), nil
+		}
+		if p.vars == nil {
+			return Variable(t.Val), nil
+		}
+		n := Atom(t.Val)
+		for i, v := range *p.vars {
+			if v.Name == n {
+				(*p.vars)[i].Count++
+				return v.Variable, nil
+			}
+		}
+		w := NewVariable()
+		*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
+		return w, nil
+	case TokenOpenList:
+		if t := p.next(); t.Kind == TokenCloseList {
+			p.backup()
+			p.backup()
+			break
+		}
+		p.backup()
+		return p.list()
+	case TokenOpenCurly:
+		if t := p.next(); t.Kind == TokenCloseCurly {
+			p.backup()
+			p.backup()
+			break
+		}
+		p.backup()
+		return p.curlyBracketedTerm()
+	case TokenDoubleQuotedList:
+		switch p.doubleQuotes {
+		case doubleQuotesChars:
+			var chars []Term
+			for _, r := range unDoubleQuote(t.Val) {
+				chars = append(chars, Atom(r))
+			}
+			return List(chars...), nil
+		case doubleQuotesCodes:
+			var codes []Term
+			for _, r := range unDoubleQuote(t.Val) {
+				codes = append(codes, Integer(r))
+			}
+			return List(codes...), nil
+		default:
+			p.backup()
+			break
+		}
+	default:
+		p.backup()
+	}
+
+	a, err := p.atom()
+	if err != nil {
+		return nil, err
+	}
+
+	if a == "-" {
+		switch t := p.next(); t.Kind {
+		case TokenInteger:
+			return parseInteger(-1, t.Val)
+		case TokenFloatNumber:
+			return parseFloat(-1, t.Val)
+		default:
+			p.backup()
+		}
+	}
+
+	t, err := p.functionalNotation(a)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.placeholder != "" && t == p.placeholder {
+		if len(p.args) == 0 {
+			return nil, errPlaceholder
+		}
+		t, p.args = p.args[0], p.args[1:]
+	}
+
+	return t, nil
+}
+
+func (p *Parser) atom() (Atom, error) {
+	if a, err := p.name(); err == nil {
+		return a, nil
+	}
+
+	switch t := p.next(); t.Kind {
+	case TokenOpenList:
+		switch t := p.next(); t.Kind {
+		case TokenCloseList:
+			return "[]", nil
+		default:
+			p.backup()
+			p.backup()
+			return "", errExpectation
+		}
+	case TokenOpenCurly:
+		switch t := p.next(); t.Kind {
+		case TokenCloseCurly:
+			return "{}", nil
+		default:
+			p.backup()
+			p.backup()
+			return "", errExpectation
+		}
+	case TokenDoubleQuotedList:
+		switch p.doubleQuotes {
+		case doubleQuotesAtom:
+			return Atom(unDoubleQuote(t.Val)), nil
+		default:
+			p.backup()
+			return "", errExpectation
+		}
+	default:
+		p.backup()
+		return "", errExpectation
+	}
+}
+
+func (p *Parser) name() (Atom, error) {
+	switch t := p.next(); t.Kind {
+	case TokenLetterDigit, TokenGraphic, TokenSemicolon, TokenCut:
+		return Atom(t.Val), nil
+	case TokenQuoted:
+		return Atom(unquote(t.Val)), nil
+	default:
+		p.backup()
+		return "", errExpectation
+	}
+}
+
+func (p *Parser) list() (Term, error) {
+	arg, err := p.term(999)
+	if err != nil {
+		return nil, err
+	}
+	args := []Term{arg}
+	for {
+		switch t := p.next(); t.Kind {
+		case TokenComma:
+			arg, err := p.term(999)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+		case TokenBar:
+			rest, err := p.term(999)
+			if err != nil {
+				return nil, err
+			}
+
+			switch t := p.next(); t.Kind {
+			case TokenCloseList:
+				return ListRest(rest, args...), nil
+			default:
+				p.backup()
+				return nil, errExpectation
+			}
+		case TokenCloseList:
+			return List(args...), nil
+		default:
+			p.backup()
+			return nil, errExpectation
+		}
+	}
+}
+
+func (p *Parser) curlyBracketedTerm() (Term, error) {
+	t, err := p.term(1201)
+	if err != nil {
+		return nil, err
+	}
+
+	if t := p.next(); t.Kind != TokenCloseCurly {
+		p.backup()
+		return nil, errExpectation
+	}
+
+	return &Compound{
+		Functor: "{}",
+		Args:    []Term{t},
+	}, nil
+}
+
+func (p *Parser) functionalNotation(functor Atom) (Term, error) {
+	switch t := p.next(); t.Kind {
+	case TokenOpenCT:
+		arg, err := p.term(999)
+		if err != nil {
+			return nil, err
+		}
+		args := []Term{arg}
+		for {
+			switch t := p.next(); t.Kind {
+			case TokenComma:
+				arg, err := p.term(999)
+				if err != nil {
+					return nil, err
+				}
+				args = append(args, arg)
+			case TokenClose:
+				return &Compound{
+					Functor: functor,
+					Args:    args,
+				}, nil
+			default:
+				p.backup()
+				return nil, errExpectation
+			}
+		}
+	default:
+		p.backup()
+		return functor, nil
+	}
+}
+
+func parseInteger(sign int64, s string) (Integer, error) {
+	base := 10
+	switch {
+	case strings.HasPrefix(s, "0'"):
+		s = s[2:]
+		s = quotedIdentEscapePattern.ReplaceAllStringFunc(s, quotedIdentUnescape)
+		return Integer(sign * int64([]rune(s)[0])), nil
+	case strings.HasPrefix(s, "0b"):
+		base = 2
+		s = s[2:]
+	case strings.HasPrefix(s, "0o"):
+		base = 8
+		s = s[2:]
+	case strings.HasPrefix(s, "0x"):
+		base = 16
+		s = s[2:]
+	}
+
+	f, _, _ := big.ParseFloat(s, base, 0, big.ToZero)
+	f.Mul(big.NewFloat(float64(sign)), f)
+
+	switch i, a := f.Int64(); a {
+	case big.Above:
+		return 0, RepresentationError(FlagMinInteger, nil)
+	case big.Below:
+		return 0, RepresentationError(FlagMaxInteger, nil)
+	default:
+		return Integer(i), nil
+	}
+}
+
+func parseFloat(sign float64, s string) (Float, error) {
+	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
+	bf.Mul(big.NewFloat(sign), bf)
+
+	f, _ := bf.Float64()
+	return Float(f), nil
+}
+
+var (
+	quotedIdentEscapePattern  = regexp.MustCompile("''|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+	doubleQuotedEscapePattern = regexp.MustCompile("\"\"|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+)
+
+func unquote(s string) string {
+	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
+}
+
+func quotedIdentUnescape(s string) string {
+	switch s {
+	case "''":
+		return "'"
+	case "\\\n":
+		return ""
+	case `\a`:
+		return "\a"
+	case `\b`:
+		return "\b"
+	case `\f`:
+		return "\f"
+	case `\n`:
+		return "\n"
+	case `\r`:
+		return "\r"
+	case `\t`:
+		return "\t"
+	case `\v`:
+		return "\v"
+	case `\\`:
+		return `\`
+	case `\'`:
+		return `'`
+	case `\"`:
+		return `"`
+	case "\\`":
+		return "`"
+	default: // `\x23\` or `\23\`
+		s = s[1 : len(s)-1] // `x23` or `23`
+		base := 8
+
+		if s[0] == 'x' {
+			s = s[1:]
+			base = 16
+		}
+
+		r, _ := strconv.ParseInt(s, base, 4*8) // rune is up to 4 bytes
+		return string(rune(r))
+	}
+}
 
 func unDoubleQuote(s string) string {
 	return doubleQuotedEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], doubleQuotedUnescape)
@@ -693,4 +810,46 @@ func doubleQuotedUnescape(s string) string {
 		r, _ := strconv.ParseInt(s, base, 4*8) // rune is up to 4 bytes
 		return string(rune(r))
 	}
+}
+
+type tokenRingBuffer struct {
+	buf        [4]Token
+	start, end int
+}
+
+func (b *tokenRingBuffer) put(t Token) {
+	b.buf[b.end] = t
+	b.end++
+	b.end %= len(b.buf)
+}
+
+func (b *tokenRingBuffer) get() Token {
+	t := b.buf[b.start]
+	b.start++
+	b.start %= len(b.buf)
+	return t
+}
+
+func (b *tokenRingBuffer) current() Token {
+	return b.buf[b.start]
+}
+
+func (b *tokenRingBuffer) empty() bool {
+	return b.start == b.end
+}
+
+func (b *tokenRingBuffer) backup() {
+	b.start--
+	b.start %= len(b.buf)
+	if b.start < 0 {
+		b.start += len(b.buf)
+	}
+}
+
+type unexpectedTokenError struct {
+	actual Token
+}
+
+func (e unexpectedTokenError) Error() string {
+	return fmt.Sprintf("unexpected token: %s", e.actual)
 }

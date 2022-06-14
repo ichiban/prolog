@@ -3,15 +3,13 @@ package engine
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
 var (
-	unquotedAtomPattern      = regexp.MustCompile(`\A[a-z]\w*\z`)
-	graphicalAtomPattern     = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
-	quotedAtomEscapePattern  = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
-	quotedIdentEscapePattern = regexp.MustCompile("''|\\\\(?:[\\nabfnrtv\\\\'\"`]|(?:x[\\da-fA-F]+|[0-8]+)\\\\)")
+	unquotedAtomPattern     = regexp.MustCompile(`\A[a-z]\w*\z`)
+	graphicalAtomPattern    = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
+	quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 )
 
 // Atom is a prolog atom.
@@ -51,14 +49,22 @@ func (a Atom) Unparse(emit func(Token), _ *Env, opts ...WriteOption) {
 	switch {
 	case a == ",":
 		emit(Token{Kind: TokenComma, Val: ","})
-	case a == "[]", a == "{}", a == ";", a == "!":
-		emit(Token{Kind: TokenIdent, Val: string(a)})
+	case a == "[]":
+		emit(Token{Kind: TokenOpenList, Val: "["})
+		emit(Token{Kind: TokenCloseList, Val: "]"})
+	case a == "{}":
+		emit(Token{Kind: TokenOpenCurly, Val: "{"})
+		emit(Token{Kind: TokenCloseCurly, Val: "}"})
+	case a == ";":
+		emit(Token{Kind: TokenSemicolon, Val: string(a)})
+	case a == "!":
+		emit(Token{Kind: TokenCut, Val: string(a)})
 	case graphicalAtomPattern.MatchString(string(a)):
 		emit(Token{Kind: TokenGraphic, Val: string(a)})
 	case wto.quoted && !unquotedAtomPattern.MatchString(string(a)):
-		emit(Token{Kind: TokenQuotedIdent, Val: quote(string(a))})
+		emit(Token{Kind: TokenQuoted, Val: quote(string(a))})
 	default:
-		emit(Token{Kind: TokenIdent, Val: string(a)})
+		emit(Token{Kind: TokenLetterDigit, Val: string(a)})
 	}
 }
 
@@ -108,51 +114,5 @@ func quotedIdentEscape(s string) string {
 			ret = append(ret, fmt.Sprintf(`\x%x\`, r))
 		}
 		return strings.Join(ret, "")
-	}
-}
-
-func unquote(s string) string {
-	return quotedIdentEscapePattern.ReplaceAllStringFunc(s[1:len(s)-1], quotedIdentUnescape)
-}
-
-func quotedIdentUnescape(s string) string {
-	switch s {
-	case "''":
-		return "'"
-	case "\\\n":
-		return ""
-	case `\a`:
-		return "\a"
-	case `\b`:
-		return "\b"
-	case `\f`:
-		return "\f"
-	case `\n`:
-		return "\n"
-	case `\r`:
-		return "\r"
-	case `\t`:
-		return "\t"
-	case `\v`:
-		return "\v"
-	case `\\`:
-		return `\`
-	case `\'`:
-		return `'`
-	case `\"`:
-		return `"`
-	case "\\`":
-		return "`"
-	default: // `\x23\` or `\23\`
-		s = s[1 : len(s)-1] // `x23` or `23`
-		base := 8
-
-		if s[0] == 'x' {
-			s = s[1:]
-			base = 16
-		}
-
-		r, _ := strconv.ParseInt(s, base, 4*8) // rune is up to 4 bytes
-		return string(rune(r))
 	}
 }
