@@ -82,23 +82,23 @@ once(P) :- P, !.
 
 % not unifiable
 
-:- built_in('\\='/2).
+:- built_in((\=)/2).
 X \= Y :- \+(X = Y).
 
 % term comparison
 
-:- built_in('=='/2).
+:- built_in((==)/2).
 X == Y :- compare(=, X, Y).
-:- built_in('\\=='/2).
+:- built_in((\==)/2).
 X \== Y :- \+(X == Y).
-:- built_in('@<'/2).
+:- built_in((@<)/2).
 X @< Y :- compare(<, X, Y).
-:- built_in('@=<'/2).
+:- built_in((@=<)/2).
 X @=< Y :- compare(=, X, Y).
 X @=< Y :- compare(<, X, Y).
-:- built_in('@>'/2).
+:- built_in((@>)/2).
 X @> Y :- compare(>, X, Y).
-:- built_in('@>='/2).
+:- built_in((@>=)/2).
 X @>= Y :- compare(>, X, Y).
 X @>= Y :- compare(=, X, Y).
 
@@ -238,7 +238,7 @@ member(X, [_|Xs]) :- member(X, Xs).
 length([], 0).
 length([_|Xs], N) :- length(Xs, L), N is L + 1.
 
-:- built_in('.'/2).
+:- built_in((.)/2).
 [H|T] :- consult([H|T]).
 
 :- built_in(phrase/2).

@@ -2,169 +2,33 @@ package engine
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
+	"bytes"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+	"unsafe"
 )
-
-var initDispatch [256]func(*Lexer, *strings.Builder) (Token, error)
-
-func init() {
-	initDispatch = [256]func(*Lexer, *strings.Builder) (Token, error){
-		'!':  initDispatchSingle(TokenIdent),
-		'"':  (*Lexer).doubleQuoted,
-		'#':  (*Lexer).graphic,
-		'$':  (*Lexer).graphic,
-		'%':  (*Lexer).singleLineComment,
-		'&':  (*Lexer).graphic,
-		'\'': (*Lexer).quotedIdent,
-		'(':  initDispatchSingle(TokenParenL),
-		')':  initDispatchSingle(TokenParenR),
-		'*':  (*Lexer).graphic,
-		'+':  (*Lexer).graphic,
-		',':  initDispatchSingle(TokenComma),
-		'-':  (*Lexer).graphic,
-		'.':  (*Lexer).period,
-		'/':  (*Lexer).multiLineCommentBegin,
-		'0':  (*Lexer).integerZero,
-		'1':  (*Lexer).integerDecimal,
-		'2':  (*Lexer).integerDecimal,
-		'3':  (*Lexer).integerDecimal,
-		'4':  (*Lexer).integerDecimal,
-		'5':  (*Lexer).integerDecimal,
-		'6':  (*Lexer).integerDecimal,
-		'7':  (*Lexer).integerDecimal,
-		'8':  (*Lexer).integerDecimal,
-		'9':  (*Lexer).integerDecimal,
-		':':  (*Lexer).graphic,
-		';':  initDispatchSingle(TokenIdent),
-		'<':  (*Lexer).graphic,
-		'=':  (*Lexer).graphic,
-		'>':  (*Lexer).graphic,
-		'?':  (*Lexer).graphic,
-		'@':  (*Lexer).graphic,
-		'A':  (*Lexer).variable,
-		'B':  (*Lexer).variable,
-		'C':  (*Lexer).variable,
-		'D':  (*Lexer).variable,
-		'E':  (*Lexer).variable,
-		'F':  (*Lexer).variable,
-		'G':  (*Lexer).variable,
-		'H':  (*Lexer).variable,
-		'I':  (*Lexer).variable,
-		'J':  (*Lexer).variable,
-		'K':  (*Lexer).variable,
-		'L':  (*Lexer).variable,
-		'M':  (*Lexer).variable,
-		'N':  (*Lexer).variable,
-		'O':  (*Lexer).variable,
-		'P':  (*Lexer).variable,
-		'Q':  (*Lexer).variable,
-		'R':  (*Lexer).variable,
-		'S':  (*Lexer).variable,
-		'T':  (*Lexer).variable,
-		'U':  (*Lexer).variable,
-		'V':  (*Lexer).variable,
-		'W':  (*Lexer).variable,
-		'X':  (*Lexer).variable,
-		'Y':  (*Lexer).variable,
-		'Z':  (*Lexer).variable,
-		'[':  (*Lexer).squareBracket,
-		'\\': (*Lexer).graphic,
-		']':  initDispatchSingle(TokenBracketR),
-		'^':  (*Lexer).graphic,
-		'_':  (*Lexer).variable,
-		'a':  (*Lexer).normalAtom,
-		'b':  (*Lexer).normalAtom,
-		'c':  (*Lexer).normalAtom,
-		'd':  (*Lexer).normalAtom,
-		'e':  (*Lexer).normalAtom,
-		'f':  (*Lexer).normalAtom,
-		'g':  (*Lexer).normalAtom,
-		'h':  (*Lexer).normalAtom,
-		'i':  (*Lexer).normalAtom,
-		'j':  (*Lexer).normalAtom,
-		'k':  (*Lexer).normalAtom,
-		'l':  (*Lexer).normalAtom,
-		'm':  (*Lexer).normalAtom,
-		'n':  (*Lexer).normalAtom,
-		'o':  (*Lexer).normalAtom,
-		'p':  (*Lexer).normalAtom,
-		'q':  (*Lexer).normalAtom,
-		'r':  (*Lexer).normalAtom,
-		's':  (*Lexer).normalAtom,
-		't':  (*Lexer).normalAtom,
-		'u':  (*Lexer).normalAtom,
-		'v':  (*Lexer).normalAtom,
-		'w':  (*Lexer).normalAtom,
-		'x':  (*Lexer).normalAtom,
-		'y':  (*Lexer).normalAtom,
-		'z':  (*Lexer).normalAtom,
-		'{':  (*Lexer).curlyBracket,
-		'|':  initDispatchSingle(TokenBar),
-		'}':  initDispatchSingle(TokenBraceR),
-		'~':  (*Lexer).graphic,
-	}
-}
 
 // Lexer turns bytes into tokens.
 type Lexer struct {
 	input           *bufio.Reader
+	buf             bytes.Buffer
+	offset          int
 	charConversions map[rune]rune
-	pos             int
-	width           int
 	reserved        Token
 }
 
-// NewLexer create a lexer with an input and char conversions.
-func NewLexer(input *bufio.Reader, charConversions map[rune]rune) *Lexer {
-	l := Lexer{input: input, charConversions: charConversions}
-	return &l
-}
-
 // Token returns the next token.
-func (l *Lexer) Token() (Token, error) {
+func (l *Lexer) Token() Token {
 	if l.reserved != (Token{}) {
 		t := l.reserved
 		l.reserved = Token{}
-		return t, nil
+		return t
 	}
 
-	r := l.next()
-	for unicode.IsSpace(r) {
-		r = l.next()
-	}
+	l.offset = l.buf.Len()
 
-	if r == utf8.RuneError {
-		return Token{Kind: TokenEOF}, nil
-	}
-
-	var b strings.Builder
-	_, _ = b.WriteRune(r)
-	if int(r) < len(initDispatch) { // A rune can be bigger than the size of the array.
-		f := initDispatch[r]
-		if f != nil {
-			var errUnexpectedRune unexpectedRuneError
-			switch t, err := f(l, &b); {
-			case err == nil:
-				return t, nil
-			case errors.As(err, &errUnexpectedRune):
-				return Token{Kind: TokenInvalid, Val: b.String() + string(errUnexpectedRune.rune)}, nil
-			default:
-				return Token{}, err
-			}
-		}
-	}
-	l.backup()
-	return Token{Kind: TokenInvalid, Val: string(r)}, nil
-}
-
-func initDispatchSingle(k TokenKind) func(*Lexer, *strings.Builder) (Token, error) {
-	return func(_ *Lexer, b *strings.Builder) (Token, error) {
-		return Token{Kind: k, Val: b.String()}, nil
-	}
+	return l.layoutTextSequence()
 }
 
 func (l *Lexer) next() rune {
@@ -173,113 +37,11 @@ func (l *Lexer) next() rune {
 }
 
 func (l *Lexer) rawNext() rune {
-	r, w, err := l.input.ReadRune()
+	r, _, err := l.input.ReadRune()
 	if err != nil {
 		r = utf8.RuneError
-		w = 1
 	}
-	l.width = w
-	l.pos += l.width
 	return r
-}
-
-func (l *Lexer) backup() {
-	_ = l.input.UnreadRune()
-	l.pos -= l.width
-}
-
-// Token is a smallest meaningful unit of prolog program.
-type Token struct {
-	Kind TokenKind
-	Val  string
-}
-
-func (t Token) String() string {
-	return fmt.Sprintf("<%s %s>", t.Kind, t.Val)
-}
-
-// TokenKind is a type of Token.
-type TokenKind byte
-
-const (
-	// TokenInvalid represents an invalid token.
-	TokenInvalid TokenKind = iota
-
-	// TokenEOF represents an end of token stream.
-	TokenEOF
-
-	// TokenVariable represents a variable token.
-	TokenVariable
-
-	// TokenFloat represents a floating-point token.
-	TokenFloat
-
-	// TokenInteger represents an integer token.
-	TokenInteger
-
-	// TokenIdent represents an identifier token.
-	TokenIdent
-
-	// TokenQuotedIdent represents a quoted identifier token.
-	TokenQuotedIdent
-
-	// TokenGraphic represents a graphical token.
-	TokenGraphic
-
-	// TokenComma represents a comma.
-	TokenComma
-
-	// TokenPeriod represents a period.
-	TokenPeriod
-
-	// TokenBar represents a bar.
-	TokenBar
-
-	// TokenParenL represents an open parenthesis.
-	TokenParenL
-
-	// TokenParenR represents a close parenthesis.
-	TokenParenR
-
-	// TokenBracketL represents an open bracket.
-	TokenBracketL
-
-	// TokenBracketR represents a close bracket.
-	TokenBracketR
-
-	// TokenBraceL represents an open brace.
-	TokenBraceL
-
-	// TokenBraceR represents a close brace.
-	TokenBraceR
-
-	// TokenDoubleQuoted represents a double-quoted string.
-	TokenDoubleQuoted
-
-	tokenKindLen
-)
-
-func (k TokenKind) String() string {
-	return [tokenKindLen]string{
-		TokenInvalid:      "invalid",
-		TokenEOF:          "eos",
-		TokenVariable:     "variable",
-		TokenFloat:        "float",
-		TokenInteger:      "integer",
-		TokenIdent:        "ident",
-		TokenQuotedIdent:  "quoted ident",
-		TokenGraphic:      "graphical",
-		TokenComma:        "comma",
-		TokenPeriod:       "period",
-		TokenBar:          "bar",
-		TokenParenL:       "paren L",
-		TokenParenR:       "paren R",
-		TokenBracketL:     "bracket L",
-		TokenBracketR:     "bracket R",
-		TokenBraceL:       "brace L",
-		TokenBraceR:       "brace R",
-		TokenDoubleQuoted: "double quoted",
-	}[k]
 }
 
 func (l *Lexer) conv(r rune) rune {
@@ -289,522 +51,711 @@ func (l *Lexer) conv(r rune) rune {
 	return r
 }
 
-func (l *Lexer) period(b *strings.Builder) (Token, error) {
-	switch r := l.next(); {
-	case isGraphic(r):
-		_, _ = b.WriteRune(r)
-		return l.graphic(b)
-	default:
-		l.backup()
-		return Token{Kind: TokenPeriod, Val: b.String()}, nil
-	}
+func (l *Lexer) backup() {
+	_ = l.input.UnreadRune()
 }
 
-func (l *Lexer) normalAtom(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenIdent, Val: b.String()}, nil
-		}
-	}
+func (l *Lexer) accept(r rune) {
+	_, _ = l.buf.WriteRune(r)
 }
 
-func (l *Lexer) quotedIdent(b *strings.Builder) (Token, error) {
-	for {
-		switch r := l.rawNext(); r {
-		case utf8.RuneError:
-			return Token{}, ErrInsufficient
-		case '\'':
-			_, _ = b.WriteRune(r)
-			if l.quotedIdentEnd(b) {
-				return Token{Kind: TokenQuotedIdent, Val: b.String()}, nil
-			}
-		case '\\':
-			_, _ = b.WriteRune(r)
-			if err := l.quotedIdentSlash(b); err != nil {
-				return Token{}, err
-			}
-		default:
-			_, _ = b.WriteRune(r)
-		}
-	}
+func (l *Lexer) chunk() string {
+	b := l.buf.Bytes()[l.offset:]
+	return *(*string)(unsafe.Pointer(&b))
 }
 
-func (l *Lexer) quotedIdentEnd(b *strings.Builder) bool {
-	switch r := l.next(); r {
-	case '\'':
-		_, _ = b.WriteRune(r)
-		return false
-	default:
-		l.backup()
-		return true
-	}
+// Token is a smallest meaningful unit of prolog program.
+type Token struct {
+	Kind TokenKind
+	Val  string
 }
 
-func (l *Lexer) quotedIdentSlash(b *strings.Builder) error {
-	r := l.next()
-	switch {
-	case r == utf8.RuneError:
-		return ErrInsufficient
-	case r == 'x':
-		_, _ = b.WriteRune(r)
-		return l.quotedIdentSlashHex(b)
-	case isOctal(r):
-		_, _ = b.WriteRune(r)
-		return l.quotedIdentSlashOctal(b)
-	default:
-		_, _ = b.WriteRune(r)
-		return nil
-	}
+// TokenKind is a type of Token.
+type TokenKind byte
+
+const (
+	// TokenInvalid represents an invalid token.
+	TokenInvalid TokenKind = iota
+
+	// TokenInsufficient represents an insufficient token.
+	TokenInsufficient
+
+	// TokenEOF represents an end of token stream.
+	TokenEOF
+
+	// TokenLetterDigit represents a letter digit token.
+	TokenLetterDigit
+
+	// TokenGraphic represents a graphical token.
+	TokenGraphic
+
+	// TokenQuoted represents a quoted token.
+	TokenQuoted
+
+	// TokenSemicolon represents a semicolon token.
+	TokenSemicolon
+
+	// TokenCut represents a cut token.
+	TokenCut
+
+	// TokenVariable represents a variable token.
+	TokenVariable
+
+	// TokenInteger represents an integer token.
+	TokenInteger
+
+	// TokenFloatNumber represents a floating-point token.
+	TokenFloatNumber
+
+	// TokenDoubleQuotedList represents a double-quoted string.
+	TokenDoubleQuotedList
+
+	// TokenOpen represents an open parenthesis.
+	TokenOpen
+
+	// TokenOpenCT represents an open CT parenthesis.
+	TokenOpenCT
+
+	// TokenClose represents a close parenthesis.
+	TokenClose
+
+	// TokenOpenList represents an open bracket.
+	TokenOpenList
+
+	// TokenCloseList represents a close bracket.
+	TokenCloseList
+
+	// TokenOpenCurly represents an open brace.
+	TokenOpenCurly
+
+	// TokenCloseCurly represents a close brace.
+	TokenCloseCurly
+
+	// TokenBar represents a bar.
+	TokenBar
+
+	// TokenComma represents a comma.
+	TokenComma
+
+	// TokenEnd represents a period.
+	TokenEnd
+
+	tokenKindLen
+)
+
+func (k TokenKind) GoString() string {
+	return k.String()
 }
 
-func (l *Lexer) quotedIdentSlashHex(b *strings.Builder) error {
-	for {
-		r := l.next()
-		switch {
-		case r == utf8.RuneError:
-			return ErrInsufficient
-		case isHex(r):
-			_, _ = b.WriteRune(r)
-		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return nil
-		default:
-			return unexpectedRuneError{rune: r}
-		}
-	}
-}
-
-func (l *Lexer) quotedIdentSlashOctal(b *strings.Builder) error {
-	for {
-		r := l.next()
-		switch {
-		case r == utf8.RuneError:
-			return ErrInsufficient
-		case isOctal(r):
-			_, _ = b.WriteRune(r)
-		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return nil
-		default:
-			return unexpectedRuneError{rune: r}
-		}
-	}
-}
-
-func (l *Lexer) squareBracket(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == ']':
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenIdent, Val: b.String()}, nil
-	default:
-		l.backup()
-		return Token{Kind: TokenBracketL, Val: b.String()}, nil
-	}
-}
-
-func (l *Lexer) curlyBracket(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == '}':
-		_, _ = b.WriteRune(r)
-		return Token{Kind: TokenIdent, Val: b.String()}, nil
-	default:
-		l.backup()
-		return Token{Kind: TokenBraceL, Val: "{"}, nil
-	}
-}
-
-func (l *Lexer) floatMantissa(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case unicode.IsNumber(r):
-			_, _ = b.WriteRune(r)
-		case r == 'E' || r == 'e':
-			_, _ = b.WriteRune(r)
-			return l.floatE(b)
-		default:
-			l.backup()
-			return Token{Kind: TokenFloat, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) floatE(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == utf8.RuneError:
-		return Token{}, ErrInsufficient
-	case unicode.IsNumber(r), r == '+', r == '-':
-		_, _ = b.WriteRune(r)
-		return l.floatExponent(b)
-	default:
-		return Token{}, unexpectedRuneError{rune: r}
-	}
-}
-
-func (l *Lexer) floatExponent(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case unicode.IsNumber(r):
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenFloat, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) integerZero(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == 'o':
-		_, _ = b.WriteRune(r)
-		return l.integerOctal(b)
-	case r == 'x':
-		_, _ = b.WriteRune(r)
-		return l.integerHex(b)
-	case r == 'b':
-		_, _ = b.WriteRune(r)
-		return l.integerBinary(b)
-	case r == '\'':
-		_, _ = b.WriteRune(r)
-		return l.integerChar(b)
-	case unicode.IsDigit(r):
-		_, _ = b.WriteRune(r)
-		return l.integerDecimal(b)
-	case r == '.':
-		return l.integerPeriod(b)
-	default:
-		l.backup()
-		return Token{Kind: TokenInteger, Val: b.String()}, nil
-	}
-}
-
-func (l *Lexer) integerOctal(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case isOctal(r):
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) integerHex(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case isHex(r):
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) integerBinary(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch r {
-		case '0', '1':
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) integerChar(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch r {
-		case utf8.RuneError:
-			return Token{}, ErrInsufficient
-		case '\\':
-			return l.integerCharEscape(b)
-		default:
-			_, _ = b.WriteRune(r)
-			return Token{Kind: TokenInteger, Val: b.String()}, nil
-		}
-	}
-}
-
-var integerCharEscapeRunes = [...]rune{
-	'a':  '\a',
-	'b':  '\b',
-	'f':  '\f',
-	'n':  '\n',
-	'r':  '\r',
-	't':  '\t',
-	'v':  '\v',
-	'\\': '\\',
-	'\'': '\'',
-}
-
-func (l *Lexer) integerCharEscape(b *strings.Builder) (Token, error) {
-	r := l.next()
-
-	if r == utf8.RuneError {
-		return Token{}, ErrInsufficient
-	}
-
-	if int(r) > len(integerCharEscapeRunes) || integerCharEscapeRunes[r] == 0 {
-		return Token{}, unexpectedRuneError{rune: r}
-	}
-	_, _ = b.WriteRune(integerCharEscapeRunes[r])
-
-	return Token{Kind: TokenInteger, Val: b.String()}, nil
-}
-
-func (l *Lexer) integerDecimal(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case unicode.IsNumber(r):
-			_, _ = b.WriteRune(r)
-		case r == '.':
-			return l.integerPeriod(b)
-		default:
-			l.backup()
-			return Token{Kind: TokenInteger, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) integerPeriod(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case unicode.IsDigit(r):
-		_, _ = b.WriteRune('.')
-		_, _ = b.WriteRune(r)
-		return l.floatMantissa(b)
-	default:
-		l.backup()
-		l.reserved = Token{Kind: TokenPeriod, Val: "."}
-		return Token{Kind: TokenInteger, Val: b.String()}, nil
-	}
-}
-
-func (l *Lexer) variable(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_':
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenVariable, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) graphic(b *strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch {
-		case isGraphic(r):
-			_, _ = b.WriteRune(r)
-		default:
-			l.backup()
-			return Token{Kind: TokenGraphic, Val: b.String()}, nil
-		}
-	}
-}
-
-func (l *Lexer) singleLineComment(*strings.Builder) (Token, error) {
-	for {
-		r := l.next()
-		switch r {
-		case '\n', utf8.RuneError:
-			return l.Token()
-		}
-	}
-}
-
-func (l *Lexer) multiLineCommentBegin(b *strings.Builder) (Token, error) {
-	r := l.next()
-	switch {
-	case r == '*':
-		return l.multiLineCommentBody()
-	case isGraphic(r):
-		_, _ = b.WriteRune(r)
-		return l.graphic(b)
-	default:
-		l.backup()
-		return Token{Kind: TokenGraphic, Val: b.String()}, nil
-	}
-}
-
-func (l *Lexer) multiLineCommentBody() (Token, error) {
-	for {
-		r := l.next()
-		switch r {
-		case utf8.RuneError:
-			return Token{}, ErrInsufficient
-		case '*':
-			if l.multiLineCommentEnd() {
-				return l.Token()
-			}
-		}
-	}
-}
-
-func (l *Lexer) multiLineCommentEnd() bool {
-	r := l.next()
-	return r == '/'
-}
-
-func (l *Lexer) doubleQuoted(b *strings.Builder) (Token, error) {
-	for {
-		switch r := l.rawNext(); r {
-		case utf8.RuneError:
-			return Token{}, ErrInsufficient
-		case '"':
-			_, _ = b.WriteRune(r)
-			if l.doubleQuotedEnd(b) {
-				return Token{Kind: TokenDoubleQuoted, Val: b.String()}, nil
-			}
-		case '\\':
-			_, _ = b.WriteRune(r)
-			if err := l.doubleQuotedSlash(b); err != nil {
-				return Token{}, err
-			}
-		default:
-			_, _ = b.WriteRune(r)
-		}
-	}
-}
-
-func (l *Lexer) doubleQuotedEnd(b *strings.Builder) bool {
-	switch r := l.rawNext(); r {
-	case '"':
-		_, _ = b.WriteRune(r)
-		return false
-	default:
-		l.backup()
-		return true
-	}
-}
-
-func (l *Lexer) doubleQuotedSlash(b *strings.Builder) error {
-	r := l.next()
-	switch {
-	case r == utf8.RuneError:
-		return ErrInsufficient
-	case r == 'x':
-		_, _ = b.WriteRune(r)
-		return l.doubleQuotedSlashHex(b)
-	case unicode.IsNumber(r):
-		_, _ = b.WriteRune(r)
-		return l.doubleQuotedSlashOctal(b)
-	default:
-		_, _ = b.WriteRune(r)
-		return nil
-	}
-}
-
-func (l *Lexer) doubleQuotedSlashHex(b *strings.Builder) error {
-	for {
-		r := l.next()
-		switch {
-		case r == utf8.RuneError:
-			return ErrInsufficient
-		case isHex(r):
-			_, _ = b.WriteRune(r)
-		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return nil
-		default:
-			return unexpectedRuneError{rune: r}
-		}
-	}
-}
-
-func (l *Lexer) doubleQuotedSlashOctal(b *strings.Builder) error {
-	for {
-		r := l.next()
-		switch {
-		case r == utf8.RuneError:
-			return ErrInsufficient
-		case isOctal(r):
-			_, _ = b.WriteRune(r)
-		case r == '\\':
-			_, _ = b.WriteRune(r)
-			return nil
-		default:
-			return unexpectedRuneError{rune: r}
-		}
-	}
-}
-
-func isOctal(r rune) bool {
-	return strings.ContainsRune("01234567", r)
-}
-
-func isHex(r rune) bool {
-	return strings.ContainsRune("0123456789ABCDEF", unicode.ToUpper(r))
-}
-
-func isGraphic(r rune) bool {
-	return strings.ContainsRune(`#$&*+-./:<=>?@^~\`, r)
-}
-
-// ErrInsufficient represents an error which is raised when the given input is insufficient for a term.
-var ErrInsufficient = errors.New("insufficient input")
-
-// unexpectedRuneError represents an error which is raised when the given input contains an unexpected rune.
-type unexpectedRuneError struct {
-	rune rune
-}
-
-func (e unexpectedRuneError) Error() string {
-	return fmt.Sprintf("unexpected rune: %s(0x%x)", string(e.rune), e.rune)
+func (k TokenKind) String() string {
+	return [...]string{
+		TokenInvalid:          "invalid",
+		TokenInsufficient:     "insufficient",
+		TokenEOF:              "eos",
+		TokenLetterDigit:      "letter digit",
+		TokenGraphic:          "graphic",
+		TokenQuoted:           "quoted",
+		TokenSemicolon:        "semicolon",
+		TokenCut:              "cut",
+		TokenVariable:         "variable",
+		TokenInteger:          "integer",
+		TokenFloatNumber:      "float number",
+		TokenDoubleQuotedList: "double quoted list",
+		TokenOpen:             "open",
+		TokenOpenCT:           "open ct",
+		TokenClose:            "close",
+		TokenOpenList:         "open list",
+		TokenCloseList:        "close list",
+		TokenOpenCurly:        "open curly",
+		TokenCloseCurly:       "close curly",
+		TokenBar:              "bar",
+		TokenComma:            "comma",
+		TokenEnd:              "end",
+	}[k]
 }
 
 var spacing = [tokenKindLen][tokenKindLen]bool{
 	TokenVariable: {
-		TokenVariable: true,
-		TokenInteger:  true,
-		TokenFloat:    true,
-		TokenIdent:    true,
+		TokenVariable:    true,
+		TokenInteger:     true,
+		TokenFloatNumber: true,
+		TokenLetterDigit: true,
 	},
-	TokenIdent: {
-		TokenVariable: true,
-		TokenInteger:  true,
-		TokenFloat:    true,
-		TokenIdent:    true,
+	TokenLetterDigit: {
+		TokenVariable:    true,
+		TokenInteger:     true,
+		TokenFloatNumber: true,
+		TokenLetterDigit: true,
 	},
 	TokenGraphic: {
 		TokenGraphic: true,
 	},
 	TokenComma: {
 		TokenVariable:    true,
-		TokenFloat:       true,
+		TokenFloatNumber: true,
 		TokenInteger:     true,
-		TokenIdent:       true,
-		TokenQuotedIdent: true,
+		TokenLetterDigit: true,
+		TokenQuoted:      true,
 		TokenGraphic:     true,
 		TokenComma:       true,
-		TokenPeriod:      true,
+		TokenEnd:         true,
 		TokenBar:         true,
-		TokenParenL:      true,
-		TokenParenR:      true,
-		TokenBracketL:    true,
-		TokenBracketR:    true,
-		TokenBraceL:      true,
-		TokenBraceR:      true,
+		TokenOpen:        true,
+		TokenClose:       true,
+		TokenOpenList:    true,
+		TokenCloseList:   true,
+		TokenOpenCurly:   true,
+		TokenCloseCurly:  true,
 	},
+}
+
+// Tokens
+
+func (l *Lexer) token(afterLayout bool) Token {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenEOF}
+	case isSmallLetterChar(r):
+		l.accept(r)
+		return l.letterDigitToken()
+	case r == '.':
+		l.accept(r)
+		switch r := l.next(); {
+		case isLayoutChar(r), r == '%', r == utf8.RuneError:
+			l.backup()
+			return Token{Kind: TokenEnd, Val: l.chunk()}
+		default:
+			l.backup()
+			return l.graphicToken()
+		}
+	case isGraphicChar(r), r == '\\':
+		l.accept(r)
+		return l.graphicToken()
+	case r == '\'':
+		l.accept(r)
+		return l.quotedToken()
+	case r == ';':
+		l.accept(r)
+		return Token{Kind: TokenSemicolon, Val: l.chunk()}
+	case r == '!':
+		l.accept(r)
+		return Token{Kind: TokenCut, Val: l.chunk()}
+	case r == '_', isCapitalLetterChar(r):
+		l.accept(r)
+		return l.variableToken()
+	case isDecimalDigitChar(r):
+		l.backup()
+		return l.integerToken()
+	case r == '"':
+		l.accept(r)
+		return l.doubleQuotedListToken()
+	case r == '(':
+		l.accept(r)
+		if afterLayout {
+			return Token{Kind: TokenOpen, Val: l.chunk()}
+		}
+		return Token{Kind: TokenOpenCT, Val: l.chunk()}
+	case r == ')':
+		l.accept(r)
+		return Token{Kind: TokenClose, Val: l.chunk()}
+	case r == '[':
+		l.accept(r)
+		return Token{Kind: TokenOpenList, Val: l.chunk()}
+	case r == ']':
+		l.accept(r)
+		return Token{Kind: TokenCloseList, Val: l.chunk()}
+	case r == '{':
+		l.accept(r)
+		return Token{Kind: TokenOpenCurly, Val: l.chunk()}
+	case r == '}':
+		l.accept(r)
+		return Token{Kind: TokenCloseCurly, Val: l.chunk()}
+	case r == '|':
+		l.accept(r)
+		return Token{Kind: TokenBar, Val: l.chunk()}
+	case r == ',':
+		l.accept(r)
+		return Token{Kind: TokenComma, Val: l.chunk()}
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+}
+
+//// Layout text
+
+func (l *Lexer) layoutTextSequence() Token {
+	var afterLayout bool
+	for {
+		switch r := l.next(); {
+		case isLayoutChar(r):
+			afterLayout = true
+			continue
+		case r == '%':
+			return l.commentText(false)
+		case r == '/':
+			return l.commentOpen()
+		default:
+			l.backup()
+			return l.token(afterLayout)
+		}
+	}
+}
+
+func (l *Lexer) commentText(bracketed bool) Token {
+	if bracketed {
+		for {
+			switch r := l.next(); {
+			case r == utf8.RuneError:
+				return Token{Kind: TokenInsufficient}
+			case r == '*':
+				return l.commentClose()
+			}
+		}
+	} else {
+		for {
+			switch r := l.next(); {
+			case r == '\n', r == utf8.RuneError:
+				return l.layoutTextSequence()
+			}
+		}
+	}
+}
+
+func (l *Lexer) commentOpen() Token {
+	switch r := l.next(); {
+	case r == '*':
+		return l.commentText(true)
+	default:
+		l.backup()
+		l.accept('/')
+		return l.graphicToken()
+	}
+}
+
+func (l *Lexer) commentClose() Token {
+	switch r := l.next(); {
+	case r == '/':
+		return l.layoutTextSequence()
+	default:
+		return l.commentText(true)
+	}
+}
+
+//// Names
+
+func (l *Lexer) letterDigitToken() Token {
+	for {
+		switch r := l.next(); {
+		case isAlphanumericChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenLetterDigit, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) graphicToken() Token {
+	for {
+		switch r := l.next(); {
+		case isGraphicChar(r), r == '\\':
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenGraphic, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) quotedToken() Token {
+	for {
+		switch r := l.rawNext(); {
+		case r == utf8.RuneError:
+			return Token{Kind: TokenInsufficient, Val: l.chunk()}
+		case r == '\'':
+			l.accept(r)
+			switch r := l.rawNext(); {
+			case r == '\'':
+				l.accept(r)
+			default:
+				l.backup()
+				return Token{Kind: TokenQuoted, Val: l.chunk()}
+			}
+		case r == '\\':
+			l.accept(r)
+			switch r := l.rawNext(); {
+			case r == '\n':
+				l.accept(r)
+			default:
+				l.backup()
+				return l.escapeSequence(l.quotedToken)
+			}
+		default:
+			l.accept(r)
+		}
+	}
+}
+
+func (l *Lexer) escapeSequence(cont func() Token) Token {
+	switch r := l.rawNext(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isMetaChar(r), isSymbolicControlChar(r):
+		l.accept(r)
+		return cont()
+	case isOctalDigitChar(r):
+		l.accept(r)
+		return l.octalEscapeSequence(cont)
+	case r == 'x':
+		l.accept(r)
+		return l.hexadecimalEscapeSequence(cont)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+}
+
+func (l *Lexer) octalEscapeSequence(cont func() Token) Token {
+	for {
+		switch r := l.rawNext(); {
+		case r == utf8.RuneError:
+			return Token{Kind: TokenInsufficient, Val: l.chunk()}
+		case r == '\\':
+			l.accept(r)
+			return cont()
+		case isOctalDigitChar(r):
+			l.accept(r)
+			continue
+		default:
+			l.accept(r)
+			return Token{Kind: TokenInvalid, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) hexadecimalEscapeSequence(cont func() Token) Token {
+	switch r := l.rawNext(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isHexadecimalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+
+	for {
+		switch r := l.next(); {
+		case r == utf8.RuneError:
+			return Token{Kind: TokenInsufficient, Val: l.chunk()}
+		case r == '\\':
+			l.accept(r)
+			return cont()
+		case isHexadecimalDigitChar(r):
+			l.accept(r)
+			continue
+		default:
+			l.accept(r)
+			return Token{Kind: TokenInvalid, Val: l.chunk()}
+		}
+	}
+}
+
+//// Variables
+
+func (l *Lexer) variableToken() Token {
+	for {
+		switch r := l.next(); {
+		case isAlphanumericChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenVariable, Val: l.chunk()}
+		}
+	}
+}
+
+//// Integer numbers
+
+func (l *Lexer) integerToken() Token {
+	switch r := l.next(); {
+	case r == '0':
+		l.accept(r)
+		switch r = l.next(); {
+		case r == '\'':
+			l.accept(r)
+			return l.characterCodeConstant()
+		case r == 'b':
+			l.accept(r)
+			return l.binaryConstant()
+		case r == 'o':
+			l.accept(r)
+			return l.octalConstant()
+		case r == 'x':
+			l.accept(r)
+			return l.hexadecimalConstant()
+		default:
+			l.backup()
+			return l.integerConstant()
+		}
+	default:
+		l.accept(r)
+		return l.integerConstant()
+	}
+}
+
+func (l *Lexer) integerConstant() Token {
+	for {
+		switch r := l.next(); {
+		case isDecimalDigitChar(r):
+			l.accept(r)
+		case r == '.':
+			switch r := l.next(); {
+			case isDecimalDigitChar(r):
+				l.accept('.')
+				l.accept(r)
+				return l.fraction()
+			default:
+				l.backup()
+				l.reserved = Token{Kind: TokenEnd, Val: "."}
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
+		default:
+			l.backup()
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) characterCodeConstant() Token {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case r == '\'':
+		l.accept(r)
+		switch r := l.next(); {
+		case r == utf8.RuneError:
+			return Token{Kind: TokenInsufficient, Val: l.chunk()}
+		case r == '\'':
+			l.accept(r)
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		default:
+			l.accept(r)
+			return Token{Kind: TokenInvalid, Val: l.chunk()}
+		}
+	case r == '\\':
+		l.accept(r)
+		return l.escapeSequence(func() Token {
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		})
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInteger, Val: l.chunk()}
+	}
+}
+
+func (l *Lexer) binaryConstant() Token {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isBinaryDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+
+	for {
+		switch r := l.next(); {
+		case isBinaryDigitChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) octalConstant() Token {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isOctalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+
+	for {
+		switch r := l.next(); {
+		case isOctalDigitChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) hexadecimalConstant() Token {
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isHexadecimalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+
+	for {
+		switch r := l.next(); {
+		case isHexadecimalDigitChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenInteger, Val: l.chunk()}
+		}
+	}
+}
+
+//// Floating point numbers
+
+func (l *Lexer) fraction() Token {
+	for {
+		switch r := l.next(); {
+		case isDecimalDigitChar(r):
+			l.accept(r)
+		case r == 'e', r == 'E':
+			l.accept(r)
+			return l.exponent()
+		default:
+			l.backup()
+			return Token{Kind: TokenFloatNumber, Val: l.chunk()}
+		}
+	}
+}
+
+func (l *Lexer) exponent() Token {
+	switch r := l.next(); {
+	case r == '-', r == '+':
+		l.accept(r)
+	default:
+		l.backup()
+	}
+
+	switch r := l.next(); {
+	case r == utf8.RuneError:
+		return Token{Kind: TokenInsufficient, Val: l.chunk()}
+	case isDecimalDigitChar(r):
+		l.accept(r)
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
+	}
+
+	for {
+		switch r := l.next(); {
+		case isDecimalDigitChar(r):
+			l.accept(r)
+		default:
+			l.backup()
+			return Token{Kind: TokenFloatNumber, Val: l.chunk()}
+		}
+	}
+}
+
+//// Double quoted lists
+
+func (l *Lexer) doubleQuotedListToken() Token {
+	for {
+		switch r := l.rawNext(); {
+		case r == utf8.RuneError:
+			return Token{Kind: TokenInsufficient, Val: l.chunk()}
+		case r == '"':
+			l.accept(r)
+			switch r := l.next(); {
+			case r == '"':
+				l.accept(r)
+			default:
+				l.backup()
+				return Token{Kind: TokenDoubleQuotedList, Val: l.chunk()}
+			}
+		case r == '\\':
+			l.accept(r)
+			switch r := l.next(); {
+			case r == '\n':
+				l.accept(r)
+			default:
+				l.backup()
+				return l.escapeSequence(l.doubleQuotedListToken)
+			}
+		default:
+			l.accept(r)
+		}
+	}
+}
+
+// Characters
+
+func isGraphicChar(r rune) bool {
+	return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r)
+}
+
+func isAlphanumericChar(r rune) bool {
+	return isAlphaChar(r) || isDecimalDigitChar(r)
+}
+
+func isAlphaChar(r rune) bool {
+	return isUnderscoreChar(r) || isLetterChar(r)
+}
+
+func isLetterChar(r rune) bool {
+	return isCapitalLetterChar(r) || isSmallLetterChar(r)
+}
+
+func isSmallLetterChar(r rune) bool {
+	return unicode.IsLower(r) || unicode.In(r,
+		unicode.Unified_Ideograph,
+		unicode.Hiragana,
+		unicode.Katakana,
+	)
+}
+
+func isCapitalLetterChar(r rune) bool {
+	return unicode.IsUpper(r)
+}
+
+func isDecimalDigitChar(r rune) bool {
+	return strings.ContainsRune(`0123456789`, r)
+}
+
+func isBinaryDigitChar(r rune) bool {
+	return strings.ContainsRune(`01`, r)
+}
+
+func isOctalDigitChar(r rune) bool {
+	return strings.ContainsRune("01234567", r)
+}
+
+func isHexadecimalDigitChar(r rune) bool {
+	return strings.ContainsRune("0123456789ABCDEF", unicode.ToUpper(r))
+}
+
+func isUnderscoreChar(r rune) bool {
+	return r == '_'
+}
+
+func isLayoutChar(r rune) bool {
+	return unicode.IsSpace(r)
+}
+
+func isMetaChar(r rune) bool {
+	return strings.ContainsRune("\\'\"`", r)
+}
+
+func isSymbolicControlChar(r rune) bool {
+	return strings.ContainsRune(`abrftnv`, r)
 }

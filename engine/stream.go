@@ -141,9 +141,9 @@ func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
-			return nil, existenceErrorSourceSink(name, nil)
+			return nil, ExistenceError(ObjectTypeSourceSink, name, nil)
 		case os.IsPermission(err):
-			return nil, PermissionError("open", "source_sink", name, nil)
+			return nil, PermissionError(OperationOpen, PermissionTypeSourceSink, name, nil)
 		default:
 			return nil, SystemError(err)
 		}
@@ -174,10 +174,10 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // Unparse emits tokens that represent the stream.
 func (s *Stream) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
 	if s.alias != "" {
-		emit(Token{Kind: TokenIdent, Val: string(s.alias)})
+		emit(Token{Kind: TokenLetterDigit, Val: string(s.alias)})
 		return
 	}
-	emit(Token{Kind: TokenIdent, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
+	emit(Token{Kind: TokenGraphic, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
 }
 
 // Compare compares the stream to another term.

@@ -68,7 +68,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithQuoted(false))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: `a`},
+				{Kind: TokenLetterDigit, Val: `a`},
 			}, tokens)
 		})
 
@@ -78,7 +78,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithQuoted(false))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
+				{Kind: TokenLetterDigit, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
 			}, tokens)
 		})
 	})
@@ -90,7 +90,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: `a`},
+				{Kind: TokenLetterDigit, Val: `a`},
 			}, tokens)
 		})
 
@@ -100,7 +100,7 @@ func TestAtom_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
-				{Kind: TokenQuotedIdent, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+				{Kind: TokenQuoted, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
 			}, tokens)
 		})
 	})
@@ -121,17 +121,19 @@ func TestAtom_Unparse(t *testing.T) {
 			tokens = append(tokens, token)
 		}, nil, WithQuoted(true))
 		assert.Equal(t, []Token{
-			{Kind: TokenIdent, Val: "[]"},
+			{Kind: TokenOpenList, Val: "["},
+			{Kind: TokenCloseList, Val: "]"},
 		}, tokens)
 	})
 
-	t.Run("empty block", func(t *testing.T) {
+	t.Run("empty curlyBracketedTerm", func(t *testing.T) {
 		var tokens []Token
 		Atom("{}").Unparse(func(token Token) {
 			tokens = append(tokens, token)
 		}, nil, WithQuoted(true))
 		assert.Equal(t, []Token{
-			{Kind: TokenIdent, Val: "{}"},
+			{Kind: TokenOpenCurly, Val: "{"},
+			{Kind: TokenCloseCurly, Val: "}"},
 		}, tokens)
 	})
 }

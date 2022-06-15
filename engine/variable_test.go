@@ -58,7 +58,7 @@ func TestVariable_Unparse(t *testing.T) {
 			"X": "Foo",
 		}))
 		assert.Equal(t, []Token{
-			{Kind: TokenIdent, Val: "Foo"},
+			{Kind: TokenLetterDigit, Val: "Foo"},
 		}, tokens)
 	})
 

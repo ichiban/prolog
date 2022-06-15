@@ -113,7 +113,7 @@ append(nil, L, L).`))
 
 		t.Run("only shebang line", func(t *testing.T) {
 			var i Interpreter
-			assert.Equal(t, engine.ErrInsufficient, i.Exec(`#!/usr/bin/env 1pl`))
+			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl`))
 		})
 	})
 
@@ -1014,8 +1014,8 @@ func ExampleNew_arg() {
 	// false
 	// false
 	// false
-	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
-	// error(instantiation_error, 'Arguments are not sufficiently instantiated.')
-	// error(type_error(compound, atom), 'Expected compound, found engine.Atom.')
-	// error(type_error(compound, 3), 'Expected compound, found engine.Integer.')
+	// error(instantiation_error, arg/3)
+	// error(instantiation_error, arg/3)
+	// error(type_error(compound, atom), arg/3)
+	// error(type_error(compound, 3), arg/3)
 }
