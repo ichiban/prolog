@@ -1418,9 +1418,9 @@ func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 		}
 
 		if o.Functor == "variable_names" {
-			vns := variableNames(o.Args[0], env)
-			if vns == nil {
-				return nil, DomainError(ValidDomainWriteOption, o, env)
+			vns, err := variableNames(o, env)
+			if err != nil {
+				return nil, err
 			}
 			return WithVariableNames(vns), nil
 		}
@@ -1457,31 +1457,58 @@ func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 	}
 }
 
-func variableNames(vnList Term, env *Env) map[Variable]Atom {
+func variableNames(option *Compound, env *Env) (map[Variable]Atom, error) {
 	vns := map[Variable]Atom{}
-	iter := ListIterator{List: vnList, Env: env}
+	iter := ListIterator{List: option.Args[0], Env: env}
 	for iter.Next() {
-		vn, ok := env.Resolve(iter.Current()).(*Compound)
-		if !ok || vn.Functor != "=" || len(vn.Args) != 2 {
-			return nil
+		var vn *Compound
+		switch elem := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			return nil, InstantiationError(env)
+		case *Compound:
+			if elem.Functor != "=" || len(elem.Args) != 2 {
+				return nil, DomainError(ValidDomainWriteOption, option, env)
+			}
+			vn = elem
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
-		n, ok := env.Resolve(vn.Args[0]).(Atom)
-		if !ok {
-			return nil
+
+		var n Atom
+		switch arg := env.Resolve(vn.Args[0]).(type) {
+		case Variable:
+			return nil, InstantiationError(env)
+		case Atom:
+			n = arg
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
-		v, ok := env.Resolve(vn.Args[1]).(Variable)
-		if !ok {
-			return nil
+
+		var v Variable
+		switch arg := env.Resolve(vn.Args[1]).(type) {
+		case Variable:
+			v = arg
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
+
 		if _, ok := vns[v]; ok {
 			continue
 		}
 		vns[v] = n
 	}
-	if err := iter.Err(); err != nil {
-		return nil
+
+	switch s := iter.Suffix().(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		if s != "[]" {
+			return nil, DomainError(ValidDomainWriteOption, option, env)
+		}
+		return vns, nil
+	default:
+		return nil, DomainError(ValidDomainWriteOption, option, env)
 	}
-	return vns
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
