@@ -90,13 +90,13 @@ func TestCompound_Unparse(t *testing.T) {
 				ret = append(ret, token)
 			}, nil, WithQuoted(true))
 			assert.Equal(t, []Token{
-				{Kind: TokenBracketL, Val: "["},
-				{Kind: TokenIdent, Val: "a"},
+				{Kind: TokenOpenList, Val: "["},
+				{Kind: TokenLetterDigit, Val: "a"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "b"},
+				{Kind: TokenLetterDigit, Val: "b"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "c"},
-				{Kind: TokenBracketR, Val: "]"},
+				{Kind: TokenLetterDigit, Val: "c"},
+				{Kind: TokenCloseList, Val: "]"},
 			}, ret)
 		})
 
@@ -106,13 +106,13 @@ func TestCompound_Unparse(t *testing.T) {
 				ret = append(ret, token)
 			}, nil)
 			assert.Equal(t, []Token{
-				{Kind: TokenBracketL, Val: "["},
-				{Kind: TokenIdent, Val: "a"},
+				{Kind: TokenOpenList, Val: "["},
+				{Kind: TokenLetterDigit, Val: "a"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "b"},
+				{Kind: TokenLetterDigit, Val: "b"},
 				{Kind: TokenBar, Val: "|"},
-				{Kind: TokenIdent, Val: "rest"},
-				{Kind: TokenBracketR, Val: "]"},
+				{Kind: TokenLetterDigit, Val: "rest"},
+				{Kind: TokenCloseList, Val: "]"},
 			}, ret)
 		})
 
@@ -126,18 +126,18 @@ func TestCompound_Unparse(t *testing.T) {
 				ret = append(ret, token)
 			}, env)
 			assert.Equal(t, []Token{
-				{Kind: TokenBracketL, Val: "["},
-				{Kind: TokenIdent, Val: "a"},
+				{Kind: TokenOpenList, Val: "["},
+				{Kind: TokenLetterDigit, Val: "a"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "b"},
+				{Kind: TokenLetterDigit, Val: "b"},
 				{Kind: TokenBar, Val: "|"},
 				{Kind: TokenGraphic, Val: "..."},
-				{Kind: TokenBracketR, Val: "]"},
+				{Kind: TokenCloseList, Val: "]"},
 			}, ret)
 		})
 	})
 
-	t.Run("block", func(t *testing.T) {
+	t.Run("curlyBracketedTerm", func(t *testing.T) {
 		var ret []Token
 		c := Compound{
 			Functor: "{}",
@@ -147,9 +147,9 @@ func TestCompound_Unparse(t *testing.T) {
 			ret = append(ret, token)
 		}, nil)
 		assert.Equal(t, []Token{
-			{Kind: TokenBraceL, Val: "{"},
-			{Kind: TokenIdent, Val: "foo"},
-			{Kind: TokenBraceR, Val: "}"},
+			{Kind: TokenOpenCurly, Val: "{"},
+			{Kind: TokenLetterDigit, Val: "foo"},
+			{Kind: TokenCloseCurly, Val: "}"},
 		}, ret)
 	})
 
@@ -176,10 +176,10 @@ func TestCompound_Unparse(t *testing.T) {
 			}, nil, withOps(ops), WithPriority(1200))
 			assert.Equal(t, []Token{
 				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenIdent, Val: "foo"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenLetterDigit, Val: "foo"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 
@@ -212,10 +212,10 @@ func TestCompound_Unparse(t *testing.T) {
 			assert.Equal(t, []Token{
 				{Kind: TokenGraphic, Val: "\\+"},
 				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenGraphic, Val: "\\+"},
-				{Kind: TokenIdent, Val: "foo"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenLetterDigit, Val: "foo"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 
@@ -240,10 +240,10 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, withOps(ops), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenParenL, Val: "("},
-				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenOpen, Val: "("},
+				{Kind: TokenLetterDigit, Val: "foo"},
 				{Kind: TokenGraphic, Val: "-:"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenGraphic, Val: "-:"},
 			}, tokens)
 		})
@@ -275,10 +275,10 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, withOps(ops), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenParenL, Val: "("},
-				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenOpen, Val: "("},
+				{Kind: TokenLetterDigit, Val: "foo"},
 				{Kind: TokenGraphic, Val: "+/"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenGraphic, Val: "-"},
 				{Kind: TokenGraphic, Val: "+/"},
 			}, tokens)
@@ -309,13 +309,13 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, withOps(ops), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: "foo"},
+				{Kind: TokenLetterDigit, Val: "foo"},
 				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenParenL, Val: "("},
-				{Kind: TokenIdent, Val: "bar"},
+				{Kind: TokenOpen, Val: "("},
+				{Kind: TokenLetterDigit, Val: "bar"},
 				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenIdent, Val: "baz"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenLetterDigit, Val: "baz"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 
@@ -342,13 +342,13 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, withOps(ops), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenParenL, Val: "("},
-				{Kind: TokenIdent, Val: "foo"},
-				{Kind: TokenIdent, Val: ";"},
-				{Kind: TokenIdent, Val: "bar"},
-				{Kind: TokenParenR, Val: ")"},
-				{Kind: TokenIdent, Val: ";"},
-				{Kind: TokenIdent, Val: "baz"},
+				{Kind: TokenOpen, Val: "("},
+				{Kind: TokenLetterDigit, Val: "foo"},
+				{Kind: TokenSemicolon, Val: ";"},
+				{Kind: TokenLetterDigit, Val: "bar"},
+				{Kind: TokenClose, Val: ")"},
+				{Kind: TokenSemicolon, Val: ";"},
+				{Kind: TokenLetterDigit, Val: "baz"},
 			}, tokens)
 		})
 
@@ -379,11 +379,11 @@ func TestCompound_Unparse(t *testing.T) {
 			assert.Equal(t, []Token{
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenGraphic, Val: "*"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenGraphic, Val: "+"},
 				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 	})
@@ -422,12 +422,12 @@ func TestCompound_Unparse(t *testing.T) {
 			}, nil, withOps(nil), WithPriority(1200))
 			assert.Equal(t, []Token{
 				{Kind: TokenGraphic, Val: "+"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "2"},
 				{Kind: TokenComma, Val: ","},
 				{Kind: TokenGraphic, Val: "-"},
 				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 	})
@@ -450,33 +450,33 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithNumberVars(false), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: "f"},
-				{Kind: TokenParenL, Val: "("},
-				{Kind: TokenIdent, Val: "$VAR"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "f"},
+				{Kind: TokenOpen, Val: "("},
+				{Kind: TokenLetterDigit, Val: "$VAR"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "0"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "$VAR"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "$VAR"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "1"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "$VAR"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "$VAR"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "25"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "$VAR"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "$VAR"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "26"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 				{Kind: TokenComma, Val: ","},
-				{Kind: TokenIdent, Val: "$VAR"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "$VAR"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenInteger, Val: "27"},
-				{Kind: TokenParenR, Val: ")"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 
@@ -486,8 +486,8 @@ func TestCompound_Unparse(t *testing.T) {
 				tokens = append(tokens, token)
 			}, nil, WithNumberVars(true), WithPriority(1200))
 			assert.Equal(t, []Token{
-				{Kind: TokenIdent, Val: "f"},
-				{Kind: TokenParenL, Val: "("},
+				{Kind: TokenLetterDigit, Val: "f"},
+				{Kind: TokenOpen, Val: "("},
 				{Kind: TokenVariable, Val: "A"},
 				{Kind: TokenComma, Val: ","},
 				{Kind: TokenVariable, Val: "B"},
@@ -497,7 +497,7 @@ func TestCompound_Unparse(t *testing.T) {
 				{Kind: TokenVariable, Val: "A1"},
 				{Kind: TokenComma, Val: ","},
 				{Kind: TokenVariable, Val: "B1"},
-				{Kind: TokenParenR, Val: ")"},
+				{Kind: TokenClose, Val: ")"},
 			}, tokens)
 		})
 	})

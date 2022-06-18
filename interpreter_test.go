@@ -191,7 +191,7 @@ append(nil, L, L).`))
 
 		t.Run("only shebang line", func(t *testing.T) {
 			var i Interpreter
-			assert.Equal(t, engine.ErrInsufficient, i.Exec(`#!/usr/bin/env 1pl`))
+			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl`))
 		})
 	})
 

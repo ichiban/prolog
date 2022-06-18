@@ -91,7 +91,8 @@ func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	return newParser(br, state.charConversions,
+	return newParser(br,
+		withCharConversions(state.charConversions),
 		withOperators(&state.operators),
 		withDoubleQuotes(state.doubleQuotes),
 		withParsedVars(vars),
@@ -1417,9 +1418,9 @@ func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 		}
 
 		if o.Functor == "variable_names" {
-			vns := variableNames(o.Args[0], env)
-			if vns == nil {
-				return nil, DomainError(ValidDomainWriteOption, o, env)
+			vns, err := variableNames(o, env)
+			if err != nil {
+				return nil, err
 			}
 			return WithVariableNames(vns), nil
 		}
@@ -1456,31 +1457,58 @@ func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 	}
 }
 
-func variableNames(vnList Term, env *Env) map[Variable]Atom {
+func variableNames(option *Compound, env *Env) (map[Variable]Atom, error) {
 	vns := map[Variable]Atom{}
-	iter := ListIterator{List: vnList, Env: env}
+	iter := ListIterator{List: option.Args[0], Env: env}
 	for iter.Next() {
-		vn, ok := env.Resolve(iter.Current()).(*Compound)
-		if !ok || vn.Functor != "=" || len(vn.Args) != 2 {
-			return nil
+		var vn *Compound
+		switch elem := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			return nil, InstantiationError(env)
+		case *Compound:
+			if elem.Functor != "=" || len(elem.Args) != 2 {
+				return nil, DomainError(ValidDomainWriteOption, option, env)
+			}
+			vn = elem
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
-		n, ok := env.Resolve(vn.Args[0]).(Atom)
-		if !ok {
-			return nil
+
+		var n Atom
+		switch arg := env.Resolve(vn.Args[0]).(type) {
+		case Variable:
+			return nil, InstantiationError(env)
+		case Atom:
+			n = arg
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
-		v, ok := env.Resolve(vn.Args[1]).(Variable)
-		if !ok {
-			return nil
+
+		var v Variable
+		switch arg := env.Resolve(vn.Args[1]).(type) {
+		case Variable:
+			v = arg
+		default:
+			return nil, DomainError(ValidDomainWriteOption, option, env)
 		}
+
 		if _, ok := vns[v]; ok {
 			continue
 		}
 		vns[v] = n
 	}
-	if err := iter.Err(); err != nil {
-		return nil
+
+	switch s := iter.Suffix().(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		if s != "[]" {
+			return nil, DomainError(ValidDomainWriteOption, option, env)
+		}
+		return vns, nil
+	default:
+		return nil, DomainError(ValidDomainWriteOption, option, env)
 	}
-	return vns
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
@@ -1635,7 +1663,6 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	t, err := p.Term()
 	if err != nil {
-		var unexpectedToken *unexpectedTokenError
 		switch {
 		case errors.Is(err, io.EOF):
 			return [...]*Promise{
@@ -1647,12 +1674,8 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 					return state.ReadTerm(streamOrAlias, out, options, k, env)
 				}),
 			}[s.eofAction]
-		case errors.Is(err, ErrInsufficient):
-			return Error(SyntaxError(err, env))
-		case errors.As(err, &unexpectedToken):
-			return Error(SyntaxError(err, env))
 		default:
-			return Error(SystemError(err))
+			return Error(SyntaxError(err, env))
 		}
 	}
 
@@ -2232,15 +2255,9 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+	p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 	t, err := p.Number()
-	switch {
-	case errors.Is(err, errNotANumber):
-		return Error(SyntaxError(err, env))
-	case errors.Is(err, errExpectation):
-		err := &unexpectedTokenError{
-			Actual: *p.current,
-		}
+	if err != nil {
 		return Error(SyntaxError(err, env))
 	}
 
@@ -2320,15 +2337,10 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())), nil)
+		p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
 		t, err := p.Number()
-		switch err {
-		case nil:
-			break
-		case errNotANumber:
+		if err != nil {
 			return Error(SyntaxError(err, env))
-		default:
-			return Error(SystemError(err))
 		}
 
 		return Delay(func(context.Context) *Promise {
