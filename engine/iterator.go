@@ -1,25 +1,42 @@
 package engine
 
-// ListIterator is an iterator for a proper list.
+// ListIterator is an iterator for a list.
 type ListIterator struct {
 	List Term
 	Env  *Env
 
-	current, rest Term
-	err           error
-	visited       map[*Compound]struct{}
+	current Term
+	err     error
+
+	// Variables for Brent's cycle detection algorithm
+	tortoise, hare Term
+	power, lam     int
 }
 
 // Next proceeds to the next element of the list and returns true if there's such an element.
 func (i *ListIterator) Next() bool {
-	if i.rest == nil {
-		i.rest = i.Env.Resolve(i.List)
+	if i.hare == nil {
+		i.hare = i.Env.Resolve(i.List)
 	}
-	if i.visited == nil {
-		i.visited = map[*Compound]struct{}{}
+	if i.power == 0 {
+		i.power = 1
+	}
+	if i.lam == 0 {
+		i.lam = 1
 	}
 
-	switch l := i.rest.(type) {
+	if i.tortoise == i.hare { // Detected a cycle.
+		i.err = TypeError(ValidTypeList, i.List, i.Env)
+		return false
+	}
+
+	if i.power == i.lam {
+		i.tortoise = i.hare
+		i.power *= 2
+		i.lam = 0
+	}
+
+	switch l := i.hare.(type) {
 	case Variable:
 		i.err = InstantiationError(i.Env)
 		return false
@@ -34,13 +51,8 @@ func (i *ListIterator) Next() bool {
 			return false
 		}
 
-		if _, ok := i.visited[l]; ok {
-			i.err = TypeError(ValidTypeList, i.List, i.Env)
-			return false
-		}
-		i.visited[l] = struct{}{}
-
-		i.current, i.rest = l.Args[0], i.Env.Resolve(l.Args[1])
+		i.current, i.hare = l.Args[0], i.Env.Resolve(l.Args[1])
+		i.lam += 1
 		return true
 	default:
 		i.err = TypeError(ValidTypeList, i.List, i.Env)
@@ -59,7 +71,10 @@ func (i *ListIterator) Err() error {
 }
 
 func (i *ListIterator) Suffix() Term {
-	return i.rest
+	if i.hare == nil {
+		return i.List
+	}
+	return i.hare
 }
 
 // SeqIterator is an iterator for a sequence.

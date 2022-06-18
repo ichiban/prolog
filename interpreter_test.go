@@ -3,10 +3,9 @@ package prolog
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/ichiban/prolog/engine"
 )
@@ -76,6 +75,83 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`catch(number_chars(1,[[]|2]), error(type_error(character,[]), _), true).`).Err())
 
 		assert.NoError(t, p.QuerySolution(`catch((L=['1'|L], number_chars(N,L)), error(type_error(list,['1'|_]), _), L=['1'|L]).`).Err())
+	})
+
+	t.Run("length", func(t *testing.T) {
+		// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/length_quad.pl
+		p := New(nil, nil)
+
+		var s struct {
+			L []engine.Term
+			N int
+		}
+
+		sols, err := p.Query(`length(L,N).`)
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 0)
+		assert.Equal(t, 0, s.N)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 1)
+		assert.Equal(t, 1, s.N)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 2)
+		assert.Equal(t, 2, s.N)
+		assert.NoError(t, sols.Close())
+
+		assert.NoError(t, p.QuerySolution(`length(L,0), L = [].`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`length([_|L],0).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`length(2,0).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`length([_|2],0).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`length([_|2],N).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`length([_|2],2).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,-1), error(domain_error(not_less_than_zero,-1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([],-1), error(domain_error(not_less_than_zero,-1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(a,-1), error(domain_error(not_less_than_zero,-1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([],-0.1), error(type_error(integer,-0.1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,-0.1), error(type_error(integer,-0.1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([a],1.0), error(type_error(integer,1.0), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,1.0), error(type_error(integer,1.0), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,1.1), error(type_error(integer,1.1), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,1.0e99), error(type_error(integer,1.0e99), _), true).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`N is 2^52, length([], N).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([],0+0), error(type_error(integer,0+0), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([],-_), error(type_error(integer,-_), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([a],-_), error(type_error(integer,-_), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length([a,b|X],X), error(resource_error(finite_memory), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch(length(L,L), error(resource_error(finite_memory), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L = [_|_], length(L,L)), error(type_error(integer,[_|_]), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L = [_], length(L,L)), error(type_error(integer,[_]), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L = [1], length(L,L)), error(type_error(integer,[1]), _), true).`).Err())
+		assert.NoError(t, p.QuerySolution(`catch((L = [a|L], length(L,N)), error(resource_error(finite_memory), _), true).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`L = [a|L], length(L,0).`).Err())
+		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`L = [a|L], length(L,7).`).Err())
+		/* This library doesn't implement freeze/2
+		assert.NoError(t, p.QuerySolution(`freeze(L,L=[]), \+length(L,L).`).Err())
+		ctx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
+		assert.Equal(t, context.Canceled, p.QuerySolutionContext(ctx, `freeze(L,L=[_|L]), length(L,N).`).Err())
+		cancel()
+		assert.NoError(t, p.QuerySolution(`freeze(L,L=[_|L]), N is 2^64, \+length(L,N).`).Err())
+		*/
+
+		sols, err = p.Query(`length([a, b|L], N).`)
+		assert.NoError(t, err)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 0)
+		assert.Equal(t, 2, s.N)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 1)
+		assert.Equal(t, 3, s.N)
+		assert.True(t, sols.Next())
+		assert.NoError(t, sols.Scan(&s))
+		assert.Len(t, s.L, 2)
+		assert.Equal(t, 4, s.N)
+		assert.NoError(t, sols.Close())
 	})
 }
 

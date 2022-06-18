@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"sort"
 	"strings"
@@ -211,8 +210,6 @@ func (state *State) Call7(closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term
 	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7)...), k, env)
 }
 
-var callNthInit = Integer(0)
-
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
 // See http://www.complang.tuwien.ac.at/ulrich/iso-prolog/call_nth
 func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -231,15 +228,17 @@ func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Pr
 		return Error(TypeError(ValidTypeInteger, nth, env))
 	}
 
-	n := callNthInit
-	parentEnv := env
-
-	var p *Promise
+	var (
+		p         *Promise
+		n         Integer
+		err       error
+		parentEnv = env
+	)
 	p = state.Call(goal, func(env *Env) *Promise {
-		if n == Integer(math.MaxInt64) {
+		n, err = addI(n, Integer(1))
+		if err != nil {
 			return Error(RepresentationError(FlagMaxInteger, parentEnv))
 		}
-		n++
 
 		u := Unify(n, nth, k, env)
 		if nth, ok := nth.(Integer); ok && nth <= n {
@@ -473,6 +472,7 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 func CopyTerm(in, out Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(copyTerm(in, nil, env), out, k, env)
 }
+
 func copyTerm(t Term, copied map[Term]Term, env *Env) Term {
 	if copied == nil {
 		copied = map[Term]Term{}
@@ -2703,8 +2703,8 @@ func (state *State) CurrentPrologFlag(flag, value Term, k func(*Env) *Promise, e
 	pattern := Compound{Args: []Term{flag, value}}
 	flags := []Term{
 		&Compound{Args: []Term{Atom("bounded"), Atom("true")}},
-		&Compound{Args: []Term{Atom("max_integer"), Integer(math.MaxInt64)}},
-		&Compound{Args: []Term{Atom("min_integer"), Integer(math.MinInt64)}},
+		&Compound{Args: []Term{Atom("max_integer"), maxInt}},
+		&Compound{Args: []Term{Atom("min_integer"), minInt}},
 		&Compound{Args: []Term{Atom("integer_rounding_function"), Atom("toward_zero")}},
 		&Compound{Args: []Term{Atom("char_conversion"), onOff(state.charConvEnabled)}},
 		&Compound{Args: []Term{Atom("debug"), onOff(state.debug)}},
@@ -2945,4 +2945,112 @@ func Succ(x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 	default:
 		return Error(TypeError(ValidTypeInteger, x, env))
 	}
+}
+
+// Length succeeds iff list is a list of length.
+func Length(list, length Term, k func(*Env) *Promise, env *Env) *Promise {
+	// https://github.com/mthom/scryer-prolog/issues/1325#issue-1160713156
+	// Note that it's a bit simpler since we don't have attributed variables (yet).
+
+	n := env.Resolve(length)
+	switch n := n.(type) {
+	case Variable:
+		break
+	case Integer:
+		if n < 0 {
+			return Error(DomainError(ValidDomainNotLessThanZero, n, env))
+		}
+	default:
+		return Error(TypeError(ValidTypeInteger, n, env))
+	}
+
+	var (
+		skipped = NewVariable()
+		suffix  = NewVariable()
+	)
+	return SkipMaxList(skipped, n, list, suffix, func(env *Env) *Promise {
+		skipped := env.Resolve(skipped).(Integer)
+
+		switch suffix := env.Resolve(suffix).(type) {
+		case Variable: // partial list
+			if n, ok := n.(Integer); ok {
+				return lengthRundown(suffix, n-skipped, k, env)
+			}
+
+			n := n.(Variable)
+
+			if n == suffix {
+				return Error(ResourceError(ResourceFiniteMemory, env))
+			}
+
+			return lengthAddendum(Atom("[]"), skipped, suffix, n, k, env)
+		case Atom: // list or non-list terminated by an atom
+			if suffix != "[]" {
+				return Bool(false)
+			}
+
+			return Unify(n, skipped, k, env)
+		case *Compound: // non-list including infinite list
+			if suffix.Functor != "." || len(suffix.Args) != 2 {
+				return Bool(false)
+			}
+
+			if _, ok := n.(Variable); !ok {
+				return Bool(false)
+			}
+
+			return Error(ResourceError(ResourceFiniteMemory, env))
+		default: // non-list terminated by a term that is neither an atom nor a compound
+			return Bool(false)
+		}
+	}, env)
+}
+
+func lengthRundown(list Variable, n Integer, k func(*Env) *Promise, env *Env) *Promise {
+	ret := Term(Atom("[]"))
+	for i := Integer(0); i < n; i++ {
+		ret = Atom(".").Apply(NewVariable(), ret)
+	}
+	return Unify(list, ret, k, env)
+}
+
+func lengthAddendum(suffix Term, offset Integer, list, length Variable, k func(*Env) *Promise, env *Env) *Promise {
+	return Delay(func(context.Context) *Promise {
+		const a = Atom("$addendum")
+		return Unify(a.Apply(list, length), a.Apply(suffix, offset), k, env)
+	}, func(context.Context) *Promise {
+		suffix := Atom(".").Apply(NewVariable(), suffix)
+		offset, err := addI(offset, 1)
+		if err != nil {
+			return Error(RepresentationError(FlagMaxInteger, env))
+		}
+		return lengthAddendum(suffix, offset, list, length, k, env)
+	})
+}
+
+// SkipMaxList iterates over list up to max elements and unifies the number of skipped elements with skip and the rest with suffix.
+func SkipMaxList(skip, max, list, suffix Term, k func(*Env) *Promise, env *Env) *Promise {
+	m := maxInt
+	switch max := env.Resolve(max).(type) {
+	case Variable:
+		break
+	case Integer:
+		if max < 0 {
+			return Error(DomainError(ValidDomainNotLessThanZero, max, env))
+		}
+		m = max
+	default:
+		return Error(TypeError(ValidTypeInteger, max, env))
+	}
+
+	var (
+		iter = ListIterator{List: list, Env: env}
+		n    = Integer(0)
+	)
+	for n < m && iter.Next() {
+		n++
+	}
+
+	const s = Atom("$skipped")
+	return Unify(s.Apply(skip, suffix), s.Apply(n, iter.Suffix()), k, env)
 }

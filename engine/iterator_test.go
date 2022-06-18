@@ -62,14 +62,31 @@ func TestListIterator_Next(t *testing.T) {
 
 		t.Run("circular list", func(t *testing.T) {
 			l := Variable("L")
-			env := NewEnv().Bind(l, ListRest(l, Atom("a")))
-			iter := ListIterator{List: l, Env: env}
-			assert.True(t, iter.Next())
-			assert.Equal(t, Atom("a"), iter.Current())
-			assert.False(t, iter.Next())
-			assert.Equal(t, TypeError(ValidTypeList, l, env), iter.Err())
+			const max = 500
+			elems := make([]Term, 0, max)
+			for i := 0; i < max; i++ {
+				elems = append(elems, Atom("a"))
+				env := NewEnv().Bind(l, ListRest(l, elems...))
+				iter := ListIterator{List: l, Env: env}
+				for iter.Next() {
+					assert.Equal(t, Atom("a"), iter.Current())
+				}
+				assert.Equal(t, TypeError(ValidTypeList, l, env), iter.Err())
+			}
 		})
 	})
+}
+
+func TestListIterator_Suffix(t *testing.T) {
+	iter := ListIterator{List: List(Atom("a"), Atom("b"), Atom("c"))}
+	assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(Atom("b"), Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(Atom("c")), iter.Suffix())
+	assert.True(t, iter.Next())
+	assert.Equal(t, List(), iter.Suffix())
+	assert.False(t, iter.Next())
 }
 
 func TestSeqIterator_Next(t *testing.T) {

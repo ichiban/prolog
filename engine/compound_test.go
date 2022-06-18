@@ -115,6 +115,26 @@ func TestCompound_Unparse(t *testing.T) {
 				{Kind: TokenCloseList, Val: "]"},
 			}, ret)
 		})
+
+		t.Run("circular", func(t *testing.T) {
+			v := Variable("L")
+			l := ListRest(v, Atom("a"), Atom("b"))
+			env := NewEnv().Bind(v, l)
+
+			var ret []Token
+			l.Unparse(func(token Token) {
+				ret = append(ret, token)
+			}, env)
+			assert.Equal(t, []Token{
+				{Kind: TokenOpenList, Val: "["},
+				{Kind: TokenLetterDigit, Val: "a"},
+				{Kind: TokenComma, Val: ","},
+				{Kind: TokenLetterDigit, Val: "b"},
+				{Kind: TokenBar, Val: "|"},
+				{Kind: TokenGraphic, Val: "..."},
+				{Kind: TokenCloseList, Val: "]"},
+			}, ret)
+		})
 	})
 
 	t.Run("curlyBracketedTerm", func(t *testing.T) {

@@ -177,14 +177,25 @@ func (e *Env) Resolve(t Term) Term {
 
 // Simplify trys to remove as many variables as possible from term t.
 func (e *Env) Simplify(t Term) Term {
-	switch t := e.Resolve(t).(type) {
+	return simplify(t, nil, e)
+}
+
+func simplify(t Term, simplified map[*Compound]*Compound, env *Env) Term {
+	if simplified == nil {
+		simplified = map[*Compound]*Compound{}
+	}
+	switch t := env.Resolve(t).(type) {
 	case *Compound:
+		if c, ok := simplified[t]; ok {
+			return c
+		}
 		c := Compound{
 			Functor: t.Functor,
 			Args:    make([]Term, len(t.Args)),
 		}
-		for i := 0; i < len(c.Args); i++ {
-			c.Args[i] = e.Simplify(t.Args[i])
+		simplified[t] = &c
+		for i, a := range t.Args {
+			c.Args[i] = simplify(a, simplified, env)
 		}
 		return &c
 	default:

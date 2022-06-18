@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 )
 
 var (
@@ -81,7 +80,7 @@ func (p *Promise) Force(ctx context.Context) (bool, error) {
 	for len(stack) > 0 {
 		select {
 		case <-ctx.Done():
-			return false, errors.New("canceled")
+			return false, context.Canceled
 		default:
 			p := stack.pop()
 

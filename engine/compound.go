@@ -208,22 +208,25 @@ func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) 
 		o(&wto)
 	}
 
+	var comma bool
 	emit(Token{Kind: TokenOpenList, Val: "["})
-	env.Resolve(c.Args[0]).Unparse(emit, env, opts...)
-	t := env.Resolve(c.Args[1])
-	for {
-		if l, ok := t.(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+	iter := ListIterator{List: c, Env: env}
+	for iter.Next() {
+		if comma {
 			emit(Token{Kind: TokenComma, Val: ","})
-			env.Resolve(l.Args[0]).Unparse(emit, env, opts...)
-			t = env.Resolve(l.Args[1])
-			continue
 		}
-		if a, ok := t.(Atom); ok && a == "[]" {
-			break
-		}
+		env.Resolve(iter.Current()).Unparse(emit, env, opts...)
+		comma = true
+	}
+	if err := iter.Err(); err != nil {
 		emit(Token{Kind: TokenBar, Val: "|"})
-		t.Unparse(emit, env, opts...)
-		break
+
+		suffix := iter.Suffix()
+		if c, ok := suffix.(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
+			emit(Token{Kind: TokenGraphic, Val: "..."})
+		} else {
+			suffix.Unparse(emit, env, opts...)
+		}
 	}
 	emit(Token{Kind: TokenCloseList, Val: "]"})
 }

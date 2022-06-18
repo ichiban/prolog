@@ -234,10 +234,6 @@ append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 member(X, [X|_]).
 member(X, [_|Xs]) :- member(X, Xs).
 
-:- built_in(length/2).
-length([], 0).
-length([_|Xs], N) :- length(Xs, L), N is L + 1.
-
 :- built_in((.)/2).
 [H|T] :- consult([H|T]).
 
