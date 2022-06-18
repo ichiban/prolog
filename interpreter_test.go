@@ -119,10 +119,8 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`catch(length(L,1.0e99), error(type_error(integer,1.0e99), _), true).`).Err())
 		assert.Equal(t, ErrNoSolutions, p.QuerySolution(`N is 2^52, length([], N).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch(length([],0+0), error(type_error(integer,0+0), _), true).`).Err())
-		/* TODO: fix handling of minus https://github.com/ichiban/prolog/issues/210
 		assert.NoError(t, p.QuerySolution(`catch(length([],-_), error(type_error(integer,-_), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch(length([a],-_), error(type_error(integer,-_), _), true).`).Err())
-		*/
 		assert.NoError(t, p.QuerySolution(`catch(length([a,b|X],X), error(resource_error(finite_memory), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch(length(L,L), error(resource_error(finite_memory), _), true).`).Err())
 		assert.NoError(t, p.QuerySolution(`catch((L = [_|_], length(L,L)), error(type_error(integer,[_|_]), _), true).`).Err())
