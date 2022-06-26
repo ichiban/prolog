@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -22,17 +24,13 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-// Unparse emits tokens that represent the float.
-func (f Float) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
-	if f < 0 {
-		emit(Token{Kind: TokenGraphic, Val: "-"})
-		f *= -1
-	}
+func (f Float) WriteTerm(w io.Writer, _ *WriteOptions, _ *Env) error {
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
 	if !strings.ContainsRune(s, '.') {
 		s += ".0"
 	}
-	emit(Token{Kind: TokenFloatNumber, Val: s})
+	_, err := fmt.Fprint(w, s)
+	return err
 }
 
 // Compare compares the float to another term.

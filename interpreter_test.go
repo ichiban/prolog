@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -153,6 +154,107 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, 4, s.N)
 		assert.NoError(t, sols.Close())
 	})
+}
+
+func TestNew_variableNames(t *testing.T) {
+	// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/variable_names
+	// I wanted to put this under TestNew() as t.Run("variable_names", ...) but GoLand didn't recognize it as a table-driven test.
+
+	var in, out bytes.Buffer
+	p := New(&in, &out)
+
+	defer func() {
+		_ = os.Remove("f") // Some test cases open a file 'f'.
+	}()
+
+	tests := []struct {
+		name   string
+		input  string
+		query  string
+		output string
+		waits  bool
+	}{
+		{name: "1", query: `catch(write_term(T,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
+		{name: "2", query: `N = 'X', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `X`},
+		{name: "3", query: `catch((N = T, write_term(T,[quoted(true), variable_names([N=T])])), error(instantiation_error, _), true).`},
+		{name: "4", query: `N = '_', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `_`},
+		{name: "65", query: `N = '_/*.*/', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `_/*.*/`},
+		{name: "5", query: `N = x, write_term(T,[quoted(true), variable_names([N=T])]).`, output: `x`},
+		{name: "6", query: `N = 'x+y', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `x+y`},
+		{name: "50", query: `N = '))', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `))`},
+		{name: "7", query: `catch((N = 7, write_term(T,[quoted(true), variable_names([N=T])])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "8", query: `catch((N = 1+2, write_term(T,[quoted(true), variable_names([N=T])])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "9", query: `catch((N = '$VAR'(9), write_term(T,[quoted(true), variable_names([N=T])])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "10", query: `catch((T = a, write_term(T,[quoted(true), variable_names([N=T])])), error(instantiation_error, _), true).`},
+		{name: "11", query: `T = a, N = 'Any', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `a`},
+		{name: "12", query: `T = '$VAR'(9), N = '_', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `'$VAR'(9)`},
+		// {name: "28", query: `freeze(T,throw(g(T))), N = 'X', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `'$VAR'(9)`}, This implementation doesn't support freeze/2.
+		{name: "13", query: `write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `T`},
+		{name: "14", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,Y,Z`},
+		{name: "15", query: `Z=Y, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,Y,Y`},
+		{name: "16", query: `Z=Y, Y=X, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,X,X`},
+		{name: "17", query: `T=(Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `Y,Z`},
+		{name: "18", query: `T=(Z,Y), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `Z,Y`},
+		{name: "19", query: `write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `T`},
+		{name: "20", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `X,Y,Z`},
+		{name: "21", query: `Z=Y, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `X,Z,Z`},
+		{name: "22", query: `Z=Y, Y=X, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Z,Z,Z`},
+		{name: "23", query: `T=(Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Y,Z`},
+		{name: "24", query: `T=(Z,Y), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Z,Y`},
+		{name: "25", query: `write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `T`},
+		{name: "26", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `X,X,X`},
+		{name: "27", query: `T=(1,2,3), T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `1,2,3`},
+		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`}, // TODO: waits
+		{name: "29", input: `B+C+A+B+C+A.`, query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, output: `['B'=1,'C'=2,'A'=3]`},
+		{name: "30", query: `catch(write_term(T, [variable_names(VN_list)]), error(instantiation_error, _), true).`},
+		{name: "31", query: `catch((VN_list = 1, write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "33", query: `catch((VN_list = [[]], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "34", query: `catch((VN_list = non_list, write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "35", query: `catch((VN_list = [T='T'|non_list], write_term(T, [variable_names(VN_list)])), error(instantiation_error, _), true).`},
+		{name: "52", query: `catch((VN_list = ['T'=T|_], write_term(T, [variable_names(VN_list)])), error(instantiation_error, _), true).`},
+		{name: "51", query: `catch((VN_list = ['T'=T|non_list], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "36", query: `catch((VN_list = [T-'T'], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "63", query: `catch((VN_list = [_,a], write_term(T, [variable_names(VN_list)])), error(instantiation_error, _), true).`},
+		{name: "64", query: `catch((VN_list = [a,_], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "66", query: `catch((VN_list = [a|_], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
+		{name: "67", query: `catch((VN_list = [i=i,7=i], write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names([i=i,7=i])), _), true).`},
+		{name: "68", query: `catch((VN_list = [_,_], write_term(T, [variable_names(VN_list)])), error(instantiation_error, _), true).`},
+		{name: "43", query: `write_term(-X^2,[variable_names(['X'=X])]).`, output: `- (X^2)`},
+		{name: "44", query: `X=1, write_term(-X^2,[variable_names(['X'=X])]).`, output: `- (1^2)`},
+		{name: "37", query: `catch(open(f,write,_,[O]), error(instantiation_error, _), true).`},
+		{name: "38", query: `catch((O = 1, open(f,write,_,[O])), error(domain_error(stream_option, 1), _), true).`},
+		{name: "56", query: `catch((O = typex(_), open(f,write,_,[O])), error(domain_error(stream_option, typex(_)), _), true).`},
+		{name: "57", query: `catch((O = typex(1), open(f,write,_,[O])), error(domain_error(stream_option, typex(1)), _), true).`},
+		{name: "62", query: `catch((O = typex(s(_)), open(f,write,_,[O])), error(domain_error(stream_option, typex(s(_))), _), true).`},
+		{name: "39", query: `O = type(text), open(f,write,_,[O]).`},
+		{name: "40", query: `catch((O = type(1), open(f,write,_,[O])), error(domain_error(stream_option, type(1)), _), true).`},
+		{name: "41", query: `catch((O = type(_), open(f,write,_,[O])), error(instantiation_error, _), true).`},
+		{name: "60", query: `catch((O = alias(_), open(f,write,_,[O])), error(instantiation_error, _), true).`},
+		{name: "42", query: `catch((O = type(nontype), open(f,write,_,[O])), error(domain_error(stream_option, type(nontype)), _), true).`},
+		{name: "61", query: `catch((O = alias(1), open(f,write,_,[O])), error(domain_error(stream_option, alias(1)), _), true).`},
+		{name: "45", query: `read_term(T,[variable_names(VN_list)]).`}, // TODO: waits
+		{name: "46", input: `a.`, query: `read_term(T,[variable_names(VN_list)]), T = a, VN_list = [].`},
+		{name: "47", query: `VN_list = 42, read_term(T,[variable_names(VN_list)]).`}, // TODO: waits
+		{name: "48", input: `a.`, query: `VN_list = 42, \+read_term(T,[variable_names(VN_list)]).`},
+		{name: "49", input: `a b.`, query: `VN_list = 42, catch(read_term(T,[variable_names(VN_list)]), error(syntax_error(_), _), true).`},
+		{name: "53", query: `catch(write_term(S,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
+		{name: "54", query: `S=1+T,N='/*r*/V',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+/*r*/V`},
+		{name: "55", query: `S=1+T,N=' /*r*/V',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+ /*r*/V`},
+		{name: "58", query: `S=1+T,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+ +`},
+		{name: "59", query: `S=T+1,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `+ +1`},
+		{name: "69", query: `read_term(T, [singletons(1)]).`}, // TODO: waits
+		{name: "70", input: `a.`, query: `\+read_term(T, [singletons(1)]).`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			in.Reset()
+			out.Reset()
+			_, _ = in.WriteString(tc.input)
+			assert.NoError(t, p.QuerySolution(tc.query).Err())
+			assert.Equal(t, tc.output, out.String())
+		})
+	}
 }
 
 func TestInterpreter_Exec(t *testing.T) {
@@ -376,7 +478,9 @@ p(c).
 			t.Run("single", func(t *testing.T) {
 				sols, err := i.Query(`p(X).`)
 				assert.NoError(t, err)
-				defer sols.Close()
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
 				var s struct {
 					X string
@@ -396,7 +500,9 @@ p(c).
 			t.Run("double", func(t *testing.T) {
 				sols, err := i.Query(`p(X), p(Y).`)
 				assert.NoError(t, err)
-				defer sols.Close()
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
 				var s struct {
 					X string
@@ -554,7 +660,9 @@ studies(alex, physics).
 				i := New(nil, nil)
 				sols, err := i.Query(`call(!), fail; true.`)
 				assert.NoError(t, err)
-				defer sols.Close()
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
 				assert.True(t, sols.Next())
 			})
@@ -563,7 +671,9 @@ studies(alex, physics).
 				i := New(nil, nil)
 				sols, err := i.Query(`!, fail; true.`)
 				assert.NoError(t, err)
-				defer sols.Close()
+				defer func() {
+					assert.NoError(t, sols.Close())
+				}()
 
 				assert.False(t, sols.Next())
 			})
@@ -774,9 +884,9 @@ func ExampleInterpreter_Exec_placeholders() {
 	// foo
 	// 1
 	// 1.0
-	// [foo, bar, baz]
-	// [1, 2, 3]
-	// [1.0, 2.0, 3.0]
+	// [foo,bar,baz]
+	// [1,2,3]
+	// [1.0,2.0,3.0]
 }
 
 func ExampleInterpreter_Query_placeholders() {
@@ -804,9 +914,9 @@ func ExampleInterpreter_Query_placeholders() {
 	// foo
 	// 1
 	// 1.0
-	// [foo, bar, baz]
-	// [1, 2, 3]
-	// [1.0, 2.0, 3.0]
+	// [foo,bar,baz]
+	// [1,2,3]
+	// [1.0,2.0,3.0]
 }
 
 func ExampleNew_phrase() {
@@ -1090,8 +1200,8 @@ func ExampleNew_arg() {
 	// false
 	// false
 	// false
-	// error(instantiation_error, arg/3)
-	// error(instantiation_error, arg/3)
-	// error(type_error(compound, atom), arg/3)
-	// error(type_error(compound, 3), arg/3)
+	// error(instantiation_error,arg/3)
+	// error(instantiation_error,arg/3)
+	// error(type_error(compound,atom),arg/3)
+	// error(type_error(compound,3),arg/3)
 }

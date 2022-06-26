@@ -1,32 +1,30 @@
 package engine
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFloat_Unparse(t *testing.T) {
-	t.Run("positive", func(t *testing.T) {
-		var tokens []Token
-		Float(33.0).Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenFloatNumber, Val: "33.0"},
-		}, tokens)
-	})
+func TestFloat_WriteTerm(t *testing.T) {
+	tests := []struct {
+		title  string
+		float  Float
+		output string
+	}{
+		{title: "positive", float: 33.0, output: `33.0`},
+		{title: "negative", float: -33.0, output: `-33.0`},
+	}
 
-	t.Run("negative", func(t *testing.T) {
-		var tokens []Token
-		Float(-33.0).Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenGraphic, Val: "-"},
-			{Kind: TokenFloatNumber, Val: "33.0"},
-		}, tokens)
-	})
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.float.WriteTerm(&buf, &WriteOptions{}, nil))
+			assert.Equal(t, tt.output, buf.String())
+		})
+	}
 }
 
 func TestFloat_Compare(t *testing.T) {

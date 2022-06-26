@@ -2,10 +2,10 @@ package engine
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"unsafe"
 )
 
 // StreamMode describes what operations you can perform on the stream.
@@ -171,13 +171,17 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-// Unparse emits tokens that represent the stream.
-func (s *Stream) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
+func (s *Stream) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	if s.alias != "" {
-		emit(Token{Kind: TokenLetterDigit, Val: string(s.alias)})
-		return
+		return s.alias.WriteTerm(w, opts, env)
 	}
-	emit(Token{Kind: TokenGraphic, Val: fmt.Sprintf("<stream>(%p)", s)}) // TODO: special token kind?
+	c := Compound{
+		Functor: "$stream",
+		Args: []Term{
+			Integer(uintptr(unsafe.Pointer(s))),
+		},
+	}
+	return c.WriteTerm(w, opts, env)
 }
 
 // Compare compares the stream to another term.

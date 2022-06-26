@@ -111,7 +111,7 @@ Type Ctrl-C or 'halt.' to exit.
 func goal(i *prolog.Interpreter, pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) string {
 	goal, _ := pi.Apply(args...)
 	var buf bytes.Buffer
-	_ = i.Write(&buf, goal, env, engine.WithQuoted(true))
+	goal.WriteTerm(&buf, &engine.WriteOptions{Quoted: true}, env)
 	return buf.String()
 }
 
@@ -158,7 +158,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 			for i, v := range vars {
 				var sb strings.Builder
 				_, _ = fmt.Fprintf(&sb, "%s = ", v)
-				if err := p.Write(&sb, m[v], nil, engine.WithQuoted(true)); err != nil {
+				if err := p.Write(&sb, m[v], &engine.WriteOptions{Quoted: true}, nil); err != nil {
 					return err
 				}
 				ls[i] = sb.String()

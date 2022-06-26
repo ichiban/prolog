@@ -3963,7 +3963,7 @@ func TestState_WriteTerm(t *testing.T) {
 
 	t.Run("without options", func(t *testing.T) {
 		var m mockTerm
-		m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+		m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 		defer m.AssertExpectations(t)
 
 		ok, err := state.WriteTerm(s, &m, List(), Success, nil).Force(context.Background())
@@ -3971,13 +3971,13 @@ func TestState_WriteTerm(t *testing.T) {
 		assert.True(t, ok)
 
 		assert.Equal(t, state.operators, m.ops)
-		assert.Equal(t, 1200, m.priority)
+		assert.Equal(t, Integer(1200), m.priority)
 	})
 
 	t.Run("quoted", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -3987,14 +3987,14 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.False(t, m.quoted)
+			assert.False(t, m.Quoted)
 			assert.Equal(t, ops, m.ops)
-			assert.Equal(t, 1200, m.priority)
+			assert.Equal(t, Integer(1200), m.priority)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4004,9 +4004,9 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.True(t, m.quoted)
+			assert.True(t, m.Quoted)
 			assert.Equal(t, ops, m.ops)
-			assert.Equal(t, 1200, m.priority)
+			assert.Equal(t, Integer(1200), m.priority)
 		})
 
 		t.Run("invalid atom", func(t *testing.T) {
@@ -4052,7 +4052,7 @@ func TestState_WriteTerm(t *testing.T) {
 	t.Run("ignore_ops", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4062,13 +4062,13 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, ops, m.ops)
-			assert.Equal(t, 1200, m.priority)
+			assert.False(t, m.IgnoreOps)
+			assert.Equal(t, Integer(1200), m.priority)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4078,8 +4078,8 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Nil(t, m.ops)
-			assert.Equal(t, 1200, m.priority)
+			assert.True(t, m.IgnoreOps)
+			assert.Equal(t, Integer(1200), m.priority)
 		})
 
 		t.Run("invalid atom", func(t *testing.T) {
@@ -4125,7 +4125,7 @@ func TestState_WriteTerm(t *testing.T) {
 	t.Run("variable_names", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4139,12 +4139,10 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, ops, m.ops)
 			assert.Equal(t, map[Variable]Atom{
 				"X": "foo", // The leftmost is used.
 				"Y": "baz",
-			}, m.variableNames)
-			assert.Equal(t, 1200, m.priority)
+			}, m.VariableNames)
 		})
 
 		t.Run("argument is not a list", func(t *testing.T) {
@@ -4283,30 +4281,12 @@ func TestState_WriteTerm(t *testing.T) {
 			}, nil).term, false, nil)
 			assert.True(t, ok)
 		})
-
-		t.Run("variable is not a variable", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("=").Apply(Atom("foo"), Integer(0)),
-				)},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("=").Apply(Atom("foo"), Integer(0)),
-				)},
-			}, nil), err)
-		})
 	})
 
 	t.Run("numbervars", func(t *testing.T) {
 		t.Run("false", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4316,14 +4296,12 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, ops, m.ops)
-			assert.False(t, m.numberVars)
-			assert.Equal(t, 1200, m.priority)
+			assert.False(t, m.NumberVars)
 		})
 
 		t.Run("true", func(t *testing.T) {
 			var m mockTerm
-			m.On("Unparse", mock.Anything, (*Env)(nil), mock.Anything).Once()
+			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
 			defer m.AssertExpectations(t)
 
 			ok, err := state.WriteTerm(s, &m, List(&Compound{
@@ -4333,9 +4311,7 @@ func TestState_WriteTerm(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			assert.Equal(t, ops, m.ops)
-			assert.True(t, m.numberVars)
-			assert.Equal(t, 1200, m.priority)
+			assert.True(t, m.NumberVars)
 		})
 
 		t.Run("invalid atom", func(t *testing.T) {
@@ -4495,7 +4471,7 @@ func TestState_WriteTerm(t *testing.T) {
 
 type mockTerm struct {
 	mock.Mock
-	writeOptions
+	WriteOptions
 }
 
 func (m *mockTerm) String() string {
@@ -4508,11 +4484,10 @@ func (m *mockTerm) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	return args.Get(0).(*Env), args.Bool(1)
 }
 
-func (m *mockTerm) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
-	_ = m.Called(emit, env, opts)
-	for _, o := range opts {
-		o(&m.writeOptions)
-	}
+func (m *mockTerm) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	args := m.Called(w, opts, env)
+	m.WriteOptions = *opts
+	return args.Error(0)
 }
 
 func (m *mockTerm) Compare(t Term, env *Env) int64 {

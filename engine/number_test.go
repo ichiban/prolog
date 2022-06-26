@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"io"
 	"math"
 	"testing"
 
@@ -1831,8 +1832,9 @@ func (m *mockNumber) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	return args.Get(0).(*Env), args.Bool(1)
 }
 
-func (m *mockNumber) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
-	_ = m.Called(emit, env, opts)
+func (m *mockNumber) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	args := m.Called(w, opts, env)
+	return args.Error(0)
 }
 
 func (m *mockNumber) Compare(t Term, env *Env) int64 {

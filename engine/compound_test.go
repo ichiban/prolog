@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -82,425 +83,60 @@ func TestCompound_Unify(t *testing.T) {
 	})
 }
 
-func TestCompound_Unparse(t *testing.T) {
-	t.Run("list", func(t *testing.T) {
-		t.Run("proper", func(t *testing.T) {
-			var ret []Token
-			List(Atom("a"), Atom("b"), Atom("c")).Unparse(func(token Token) {
-				ret = append(ret, token)
-			}, nil, WithQuoted(true))
-			assert.Equal(t, []Token{
-				{Kind: TokenOpenList, Val: "["},
-				{Kind: TokenLetterDigit, Val: "a"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "b"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "c"},
-				{Kind: TokenCloseList, Val: "]"},
-			}, ret)
+func TestCompound_WriteTerm(t *testing.T) {
+	v := Variable("L")
+	l := ListRest(v, Atom("a"), Atom("b"))
+	env := NewEnv().Bind(v, l)
+
+	ops := operators{
+		{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
+		{priority: 1200, specifier: operatorSpecifierFX, name: `:-`},
+		{priority: 1200, specifier: operatorSpecifierXF, name: `-:`},
+		{priority: 900, specifier: operatorSpecifierFY, name: `\+`},
+		{priority: 900, specifier: operatorSpecifierYF, name: `+/`},
+		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
+		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
+		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
+		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
+	}
+
+	tests := []struct {
+		title      string
+		ignoreOps  bool
+		numberVars bool
+		compound   Term
+		output     string
+	}{
+		{title: "list", compound: List(Atom(`a`), Atom(`b`), Atom(`c`)), output: `[a,b,c]`},
+		{title: "list-ish", compound: ListRest(Atom(`rest`), Atom(`a`), Atom(`b`)), output: `[a,b|rest]`},
+		{title: "circular list", compound: l, output: `[a,b,a|...]`},
+		{title: "curly brackets", compound: &Compound{Functor: `{}`, Args: []Term{Atom(`foo`)}}, output: `{foo}`},
+		{title: "fx", compound: &Compound{Functor: `:-`, Args: []Term{&Compound{Functor: `:-`, Args: []Term{Atom(`foo`)}}}}, output: `:- (:-foo)`},
+		{title: "fy", compound: &Compound{Functor: `\+`, Args: []Term{&Compound{Functor: `-`, Args: []Term{&Compound{Functor: `\+`, Args: []Term{Atom(`foo`)}}}}}}, output: `\+ -(\+foo)`},
+		{title: "xf", compound: &Compound{Functor: `-:`, Args: []Term{&Compound{Functor: `-:`, Args: []Term{Atom(`foo`)}}}}, output: `(foo-:)-:`},
+		{title: "yf", compound: &Compound{Functor: `+/`, Args: []Term{&Compound{Functor: `--`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom(`foo`)}}}}}}, output: `(foo+/)-- +/`},
+		{title: "xfx", compound: &Compound{Functor: ":-", Args: []Term{Atom("foo"), &Compound{Functor: ":-", Args: []Term{Atom("bar"), Atom("baz")}}}}, output: `foo:-(bar:-baz)`},
+		{title: "yfx", compound: &Compound{Functor: "*", Args: []Term{Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2), Integer(2)}}}}, output: `2*(2+2)`},
+		{title: "ignore_ops(false)", ignoreOps: false, compound: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, output: `2 + -2`},
+		{title: "ignore_ops(true)", ignoreOps: true, compound: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, output: `+(2,-2)`},
+		{title: "number_vars(false)", numberVars: false, compound: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "number_vars(true)", numberVars: true, compound: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, output: `f(A,B,Z,A1,B1)`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.compound.WriteTerm(&buf, &WriteOptions{
+				IgnoreOps:  tt.ignoreOps,
+				Quoted:     true,
+				NumberVars: tt.numberVars,
+				ops:        ops,
+				priority:   1201,
+			}, env))
+			assert.Equal(t, tt.output, buf.String())
 		})
-
-		t.Run("rest", func(t *testing.T) {
-			var ret []Token
-			ListRest(Atom("rest"), Atom("a"), Atom("b")).Unparse(func(token Token) {
-				ret = append(ret, token)
-			}, nil)
-			assert.Equal(t, []Token{
-				{Kind: TokenOpenList, Val: "["},
-				{Kind: TokenLetterDigit, Val: "a"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "b"},
-				{Kind: TokenBar, Val: "|"},
-				{Kind: TokenLetterDigit, Val: "rest"},
-				{Kind: TokenCloseList, Val: "]"},
-			}, ret)
-		})
-
-		t.Run("circular", func(t *testing.T) {
-			v := Variable("L")
-			l := ListRest(v, Atom("a"), Atom("b"))
-			env := NewEnv().Bind(v, l)
-
-			var ret []Token
-			l.Unparse(func(token Token) {
-				ret = append(ret, token)
-			}, env)
-			assert.Equal(t, []Token{
-				{Kind: TokenOpenList, Val: "["},
-				{Kind: TokenLetterDigit, Val: "a"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "b"},
-				{Kind: TokenBar, Val: "|"},
-				{Kind: TokenGraphic, Val: "..."},
-				{Kind: TokenCloseList, Val: "]"},
-			}, ret)
-		})
-	})
-
-	t.Run("curlyBracketedTerm", func(t *testing.T) {
-		var ret []Token
-		c := Compound{
-			Functor: "{}",
-			Args:    []Term{Atom("foo")},
-		}
-		c.Unparse(func(token Token) {
-			ret = append(ret, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenOpenCurly, Val: "{"},
-			{Kind: TokenLetterDigit, Val: "foo"},
-			{Kind: TokenCloseCurly, Val: "}"},
-		}, ret)
-	})
-
-	t.Run("unary operator", func(t *testing.T) {
-		t.Run("FX", func(t *testing.T) {
-			c := Compound{
-				Functor: ":-",
-				Args: []Term{
-					&Compound{
-						Functor: ":-",
-						Args: []Term{
-							Atom("foo"),
-						},
-					},
-				},
-			}
-			ops := operators{
-				{priority: 1200, specifier: operatorSpecifierFX, name: `:-`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-
-		t.Run("FY", func(t *testing.T) {
-			c := Compound{
-				Functor: "\\+",
-				Args: []Term{
-					&Compound{
-						Functor: "-",
-						Args: []Term{
-							&Compound{
-								Functor: "\\+",
-								Args: []Term{
-									Atom("foo"),
-								},
-							},
-						},
-					},
-				},
-			}
-			ops := operators{
-				{priority: 900, specifier: operatorSpecifierFY, name: `\+`},
-				{priority: 200, specifier: operatorSpecifierFY, name: `-`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenGraphic, Val: "\\+"},
-				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenGraphic, Val: "\\+"},
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-
-		t.Run("XF", func(t *testing.T) {
-			c := Compound{
-				Functor: "-:",
-				Args: []Term{
-					&Compound{
-						Functor: "-:",
-						Args: []Term{
-							Atom("foo"),
-						},
-					},
-				},
-			}
-			ops := operators{
-				{priority: 1200, specifier: operatorSpecifierXF, name: `-:`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenGraphic, Val: "-:"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenGraphic, Val: "-:"},
-			}, tokens)
-		})
-
-		t.Run("YF", func(t *testing.T) {
-			c := Compound{
-				Functor: "+/",
-				Args: []Term{
-					&Compound{
-						Functor: "-",
-						Args: []Term{
-							&Compound{
-								Functor: "+/",
-								Args: []Term{
-									Atom("foo"),
-								},
-							},
-						},
-					},
-				},
-			}
-			ops := operators{
-				{priority: 900, specifier: operatorSpecifierYF, name: `+/`},
-				{priority: 200, specifier: operatorSpecifierYF, name: `-`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenGraphic, Val: "+/"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenGraphic, Val: "+/"},
-			}, tokens)
-		})
-	})
-
-	t.Run("binary operator", func(t *testing.T) {
-		t.Run("XFX", func(t *testing.T) {
-			c := Compound{
-				Functor: ":-",
-				Args: []Term{
-					Atom("foo"),
-					&Compound{
-						Functor: ":-",
-						Args: []Term{
-							Atom("bar"),
-							Atom("baz"),
-						},
-					},
-				},
-			}
-			ops := operators{
-				{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenLetterDigit, Val: "bar"},
-				{Kind: TokenGraphic, Val: ":-"},
-				{Kind: TokenLetterDigit, Val: "baz"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-
-		t.Run("XFY", func(t *testing.T) {
-			c := Compound{
-				Functor: ";",
-				Args: []Term{
-					&Compound{
-						Functor: ";",
-						Args: []Term{
-							Atom("foo"),
-							Atom("bar"),
-						},
-					},
-					Atom("baz"),
-				},
-			}
-			ops := operators{
-				{priority: 1200, specifier: operatorSpecifierXFY, name: `;`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenLetterDigit, Val: "foo"},
-				{Kind: TokenSemicolon, Val: ";"},
-				{Kind: TokenLetterDigit, Val: "bar"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenSemicolon, Val: ";"},
-				{Kind: TokenLetterDigit, Val: "baz"},
-			}, tokens)
-		})
-
-		t.Run("YFX", func(t *testing.T) {
-			c := Compound{
-				Functor: "*",
-				Args: []Term{
-					Integer(2),
-					&Compound{
-						Functor: "+",
-						Args: []Term{
-							Integer(2),
-							Integer(2),
-						},
-					},
-				},
-			}
-
-			ops := operators{
-				{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-				{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenGraphic, Val: "*"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenGraphic, Val: "+"},
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-	})
-
-	t.Run("ignore_ops", func(t *testing.T) {
-		c := Compound{
-			Functor: "+",
-			Args: []Term{
-				Integer(2),
-				Integer(-2),
-			},
-		}
-
-		t.Run("false", func(t *testing.T) {
-			ops := operators{
-				{priority: 500, specifier: operatorSpecifierYFX, name: "+"},
-				{priority: 200, specifier: operatorSpecifierFY, name: "-"},
-			}
-
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(ops), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenGraphic, Val: "+"},
-				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenInteger, Val: "2"},
-			}, tokens)
-		})
-
-		t.Run("true", func(t *testing.T) {
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, withOps(nil), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenGraphic, Val: "+"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenInteger, Val: "2"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-	})
-
-	t.Run("numbervars", func(t *testing.T) {
-		c := Compound{
-			Functor: "f",
-			Args: []Term{
-				&Compound{Functor: "$VAR", Args: []Term{Integer(0)}},
-				&Compound{Functor: "$VAR", Args: []Term{Integer(1)}},
-				&Compound{Functor: "$VAR", Args: []Term{Integer(25)}},
-				&Compound{Functor: "$VAR", Args: []Term{Integer(26)}},
-				&Compound{Functor: "$VAR", Args: []Term{Integer(27)}},
-			},
-		}
-
-		t.Run("false", func(t *testing.T) {
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithNumberVars(false), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: "f"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenLetterDigit, Val: "$VAR"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "0"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "$VAR"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "1"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "$VAR"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "25"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "$VAR"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "26"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenLetterDigit, Val: "$VAR"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenInteger, Val: "27"},
-				{Kind: TokenClose, Val: ")"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-
-		t.Run("true", func(t *testing.T) {
-			var tokens []Token
-			c.Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithNumberVars(true), WithPriority(1200))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: "f"},
-				{Kind: TokenOpen, Val: "("},
-				{Kind: TokenVariable, Val: "A"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenVariable, Val: "B"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenVariable, Val: "Z"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenVariable, Val: "A1"},
-				{Kind: TokenComma, Val: ","},
-				{Kind: TokenVariable, Val: "B1"},
-				{Kind: TokenClose, Val: ")"},
-			}, tokens)
-		})
-	})
+	}
 }
 
 func TestEnv_Set(t *testing.T) {

@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestContains(t *testing.T) {
@@ -40,20 +37,4 @@ func TestRulify(t *testing.T) {
 		Functor: ":-",
 		Args:    []Term{Atom("a"), Atom("b")},
 	}, nil))
-}
-
-func TestWrite(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		var buf bytes.Buffer
-		assert.NoError(t, Write(&buf, Atom("f").Apply(Atom("a"), Atom("b")), nil))
-		assert.Equal(t, "f(a, b)", buf.String())
-	})
-
-	t.Run("ng", func(t *testing.T) {
-		var w mockWriter
-		w.On("Write", mock.Anything).Return(0, errors.New("failed"))
-		defer w.AssertExpectations(t)
-
-		assert.Error(t, Write(&w, Atom("f").Apply(Atom("a"), Atom("b")), nil))
-	})
 }

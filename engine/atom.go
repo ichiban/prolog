@@ -1,13 +1,15 @@
 package engine
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 )
 
 var (
-	unquotedAtomPattern     = regexp.MustCompile(`\A[a-z]\w*\z`)
 	graphicalAtomPattern    = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
 	quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
 )
@@ -39,33 +41,16 @@ func (a Atom) Apply(args ...Term) Term {
 	}
 }
 
-// Unparse emits tokens that represent the atom.
-func (a Atom) Unparse(emit func(Token), _ *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
+func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	s := string(a)
+	if opts.Quoted {
+		p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
+		if a, err := p.atom(); err != nil || string(a) != s {
+			s = quote(s)
+		}
 	}
-
-	switch {
-	case a == ",":
-		emit(Token{Kind: TokenComma, Val: ","})
-	case a == "[]":
-		emit(Token{Kind: TokenOpenList, Val: "["})
-		emit(Token{Kind: TokenCloseList, Val: "]"})
-	case a == "{}":
-		emit(Token{Kind: TokenOpenCurly, Val: "{"})
-		emit(Token{Kind: TokenCloseCurly, Val: "}"})
-	case a == ";":
-		emit(Token{Kind: TokenSemicolon, Val: string(a)})
-	case a == "!":
-		emit(Token{Kind: TokenCut, Val: string(a)})
-	case graphicalAtomPattern.MatchString(string(a)):
-		emit(Token{Kind: TokenGraphic, Val: string(a)})
-	case wto.quoted && !unquotedAtomPattern.MatchString(string(a)):
-		emit(Token{Kind: TokenQuoted, Val: quote(string(a))})
-	default:
-		emit(Token{Kind: TokenLetterDigit, Val: string(a)})
-	}
+	_, err := fmt.Fprint(w, s)
+	return err
 }
 
 // Compare compares the atom to another term.

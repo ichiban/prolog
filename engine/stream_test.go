@@ -1,11 +1,13 @@
 package engine
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -198,30 +200,27 @@ func TestStream_Unify(t *testing.T) {
 	})
 }
 
-func TestStream_Unparse(t *testing.T) {
-	t.Run("aliased", func(t *testing.T) {
-		s := Stream{alias: "foo"}
+func TestStream_WriteTerm(t *testing.T) {
+	var notAliased Stream
 
-		var ret []Token
-		s.Unparse(func(token Token) {
-			ret = append(ret, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenLetterDigit, Val: "foo"},
-		}, ret)
-	})
+	tests := []struct {
+		title  string
+		quoted bool
+		stream *Stream
+		output string
+	}{
+		{title: "aliased", stream: &Stream{alias: "foo"}, output: `foo`},
+		{title: "not aliased", quoted: true, stream: &notAliased, output: fmt.Sprintf(`'$stream'(%d)`, uintptr(unsafe.Pointer(&notAliased)))},
+	}
 
-	t.Run("not aliased", func(t *testing.T) {
-		var s Stream
-
-		var ret []Token
-		s.Unparse(func(token Token) {
-			ret = append(ret, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenGraphic, Val: fmt.Sprintf("<stream>(%p)", &s)},
-		}, ret)
-	})
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.stream.WriteTerm(&buf, &WriteOptions{Quoted: tt.quoted}, nil))
+			assert.Equal(t, tt.output, buf.String())
+		})
+	}
 }
 
 func TestStream_Compare(t *testing.T) {
