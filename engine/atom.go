@@ -42,6 +42,22 @@ func (a Atom) Apply(args ...Term) Term {
 }
 
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	var openClose bool
+	if opts.before != (operator{}) {
+		for _, op := range opts.ops {
+			if op.name == a {
+				openClose = true
+				break
+			}
+		}
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, "("); err != nil {
+			return err
+		}
+	}
+
 	s := string(a)
 	if opts.Quoted {
 		p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
@@ -49,8 +65,17 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 			s = quote(s)
 		}
 	}
-	_, err := fmt.Fprint(w, s)
-	return err
+	if _, err := fmt.Fprint(w, s); err != nil {
+		return err
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, ")"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Compare compares the atom to another term.

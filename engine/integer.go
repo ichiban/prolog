@@ -23,10 +23,33 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-func (i Integer) WriteTerm(w io.Writer, _ *WriteOptions, _ *Env) error {
+func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && i > 0
+
+	if openClose || (i < 0 && opts.before != operator{}) {
+		if _, err := fmt.Fprint(w, " "); err != nil {
+			return err
+		}
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, "("); err != nil {
+			return err
+		}
+	}
+
 	s := strconv.FormatInt(int64(i), 10)
-	_, err := fmt.Fprint(w, s)
-	return err
+	if _, err := fmt.Fprint(w, s); err != nil {
+		return err
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, ")"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Compare compares the integer to another term.

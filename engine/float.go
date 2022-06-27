@@ -24,13 +24,36 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-func (f Float) WriteTerm(w io.Writer, _ *WriteOptions, _ *Env) error {
+func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && f > 0
+
+	if openClose || (f < 0 && opts.before != operator{}) {
+		if _, err := fmt.Fprint(w, " "); err != nil {
+			return err
+		}
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, "("); err != nil {
+			return err
+		}
+	}
+
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
 	if !strings.ContainsRune(s, '.') {
 		s += ".0"
 	}
-	_, err := fmt.Fprint(w, s)
-	return err
+	if _, err := fmt.Fprint(w, s); err != nil {
+		return err
+	}
+
+	if openClose {
+		if _, err := fmt.Fprint(w, ")"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Compare compares the float to another term.

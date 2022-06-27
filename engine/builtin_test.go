@@ -3274,7 +3274,7 @@ func TestState_Open(t *testing.T) {
 
 				assert.Equal(t, state.streams[Atom("input")], s)
 
-				b, err := ioutil.ReadAll(s.buf)
+				b, err := ioutil.ReadAll(bufio.NewReader(s.file))
 				assert.NoError(t, err)
 				assert.Equal(t, "test\n", string(b))
 

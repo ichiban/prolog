@@ -2334,7 +2334,7 @@ func numberCharsWrite(num, chars Term, k func(*Env) *Promise, env *Env) *Promise
 		}
 
 		var buf bytes.Buffer
-		_ = n.WriteTerm(&buf, nil, nil)
+		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 
 		cs := make([]Term, len(rs))
@@ -2393,7 +2393,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	case Integer, Float:
 		var buf bytes.Buffer
-		_ = n.WriteTerm(&buf, nil, nil)
+		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 		cs := make([]Term, len(rs))
 		for i, r := range rs {

@@ -1,14 +1,10 @@
 package engine
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 // Compound is a prolog compound.
@@ -76,35 +72,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 		return c.writeTermFunctionalNotation(w, opts, env)
 	}
 
-	openClose := opts.priority < op.priority
-
-	if openClose {
-		if _, err := fmt.Fprint(w, "("); err != nil {
-			return err
-		}
-	}
-
-	ok, err := c.writeTermOp(w, opts, env, op, false)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		ok, err := c.writeTermOp(w, opts, env, op, true)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return errors.New("failed")
-		}
-	}
-
-	if openClose {
-		if _, err := fmt.Fprint(w, ")"); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.writeTermOp(w, opts, env, op)
 }
 
 func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
@@ -122,7 +90,7 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 	if _, err := fmt.Fprint(w, "["); err != nil {
 		return err
 	}
-	if err := c.Args[0].WriteTerm(w, opts, env); err != nil {
+	if err := c.Args[0].WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 		return err
 	}
 	iter := ListIterator{List: c.Args[1], Env: env}
@@ -130,7 +98,7 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 		if _, err := fmt.Fprint(w, ","); err != nil {
 			return err
 		}
-		if err := iter.Current().WriteTerm(w, opts, env); err != nil {
+		if err := iter.Current().WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 			return err
 		}
 	}
@@ -142,7 +110,7 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 		if _, err := fmt.Fprint(w, "|"); err != nil {
 			return err
 		}
-		if err := s.WriteTerm(w, opts, env); err != nil {
+		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 			return err
 		}
 	case *Compound:
@@ -155,14 +123,14 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 			}
 			break
 		}
-		if err := s.WriteTerm(w, opts, env); err != nil {
+		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 			return err
 		}
 	default:
 		if _, err := fmt.Fprint(w, "|"); err != nil {
 			return err
 		}
-		if err := s.WriteTerm(w, opts, env); err != nil {
+		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 			return err
 		}
 	}
@@ -174,7 +142,7 @@ func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env 
 	if _, err := fmt.Fprint(w, "{"); err != nil {
 		return err
 	}
-	if err := c.Args[0].WriteTerm(w, opts, env); err != nil {
+	if err := c.Args[0].WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 		return err
 	}
 	_, err := fmt.Fprint(w, "}")
@@ -194,7 +162,7 @@ func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, 
 				return err
 			}
 		}
-		if err := a.WriteTerm(w, opts, env); err != nil {
+		if err := a.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
 			return err
 		}
 	}
@@ -202,69 +170,90 @@ func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, 
 	return err
 }
 
-func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *operator, space bool) (bool, error) {
+func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
 	opts = opts.withFreshVisited()
-
 	l, r := op.bindingPriorities()
+	openClose := opts.priority < op.priority
 
-	var sb strings.Builder
 	switch op.specifier {
 	case operatorSpecifierFX, operatorSpecifierFY:
-		if _, err := fmt.Fprint(&sb, c.Functor); err != nil {
-			return false, err
-		}
-		if space {
-			if _, err := fmt.Fprint(&sb, " "); err != nil {
-				return false, err
+		if opts.before != (operator{}) {
+			if _, err := fmt.Fprint(w, " "); err != nil {
+				return err
 			}
 		}
-		if err := c.Args[0].WriteTerm(&sb, opts.withPriority(r), env); err != nil {
-			return false, err
+		if openClose {
+			if _, err := fmt.Fprint(w, "("); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprint(w, c.Functor); err != nil {
+			return err
+		}
+		if err := c.Args[0].WriteTerm(w, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env); err != nil {
+			return err
+		}
+		if openClose {
+			if _, err := fmt.Fprint(w, ")"); err != nil {
+				return err
+			}
 		}
 	case operatorSpecifierXF, operatorSpecifierYF:
-		if err := c.Args[0].WriteTerm(&sb, opts.withPriority(l), env); err != nil {
-			return false, err
-		}
-		if space {
-			if _, err := fmt.Fprint(&sb, " "); err != nil {
-				return false, err
+		openClose = openClose || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+		if openClose {
+			if opts.before != (operator{}) {
+				if _, err := fmt.Fprint(w, " "); err != nil {
+					return err
+				}
+			}
+			if _, err := fmt.Fprint(w, "("); err != nil {
+				return err
 			}
 		}
-		if _, err := fmt.Fprint(&sb, c.Functor); err != nil {
-			return false, err
+		if err := c.Args[0].WriteTerm(w, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprint(w, c.Functor); err != nil {
+			return err
+		}
+		if openClose {
+			if _, err := fmt.Fprint(w, ")"); err != nil {
+				return err
+			}
+		} else if opts.after != (operator{}) {
+			if _, err := fmt.Fprint(w, " "); err != nil {
+				return err
+			}
 		}
 	case operatorSpecifierXFX, operatorSpecifierXFY, operatorSpecifierYFX:
-		if err := c.Args[0].WriteTerm(&sb, opts.withPriority(l), env); err != nil {
-			return false, err
-		}
-		if space {
-			if _, err := fmt.Fprint(&sb, " "); err != nil {
-				return false, err
+		openClose = openClose || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+		if openClose {
+			if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
+				if _, err := fmt.Fprint(w, " "); err != nil {
+					return err
+				}
+			}
+			if _, err := fmt.Fprint(w, "("); err != nil {
+				return err
 			}
 		}
-		if _, err := fmt.Fprint(&sb, c.Functor); err != nil {
-			return false, err
+		if err := c.Args[0].WriteTerm(w, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env); err != nil {
+			return err
 		}
-		if space {
-			if _, err := fmt.Fprint(&sb, " "); err != nil {
-				return false, err
+		if _, err := fmt.Fprint(w, c.Functor); err != nil {
+			return err
+		}
+		if err := c.Args[1].WriteTerm(w, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env); err != nil {
+			return err
+		}
+		if openClose {
+			if _, err := fmt.Fprint(w, ")"); err != nil {
+				return err
 			}
 		}
-		if err := c.Args[1].WriteTerm(&sb, opts.withPriority(r), env); err != nil {
-			return false, err
-		}
-	}
-	p := newParser(bufio.NewReader(bytes.NewBufferString(sb.String())), withOperators(&opts.ops))
-	t, err := p.term(1201)
-	if err != nil {
-		return false, nil
-	}
-	if _, ok := t.Unify(c, false, env); !ok {
-		return false, nil
 	}
 
-	_, err = fmt.Fprint(w, sb.String())
-	return true, err
+	return nil
 }
 
 // Compare compares the compound to another term.

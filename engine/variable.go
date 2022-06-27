@@ -47,9 +47,7 @@ func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	switch v := env.Resolve(v).(type) {
 	case Variable:
 		if a, ok := opts.VariableNames[v]; ok {
-			opts := *opts
-			opts.Quoted = false
-			return a.WriteTerm(w, &opts, env)
+			return a.WriteTerm(w, opts.withQuoted(false).withBefore(operator{}).withAfter(operator{}), env)
 		}
 		_, err := fmt.Fprint(w, string(v))
 		return err
