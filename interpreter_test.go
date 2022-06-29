@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"github.com/ichiban/prolog/engine"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestNew(t *testing.T) {
@@ -160,8 +162,8 @@ func TestNew_variableNames(t *testing.T) {
 	// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/variable_names
 	// I wanted to put this under TestNew() as t.Run("variable_names", ...) but GoLand didn't recognize it as a table-driven test.
 
-	var in, out bytes.Buffer
-	p := New(&in, &out)
+	var out bytes.Buffer
+	p := New(nil, &out)
 
 	defer func() {
 		_ = os.Remove("f") // Some test cases open a file 'f'.
@@ -204,7 +206,7 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "25", query: `write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `T`},
 		{name: "26", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `X,X,X`},
 		{name: "27", query: `T=(1,2,3), T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `1,2,3`},
-		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, err: context.Canceled}, // TODO: waits
+		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, err: context.DeadlineExceeded},
 		{name: "29", input: `B+C+A+B+C+A.`, query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, output: `['B'=1,'C'=2,'A'=3]`},
 		{name: "30", query: `catch(write_term(T, [variable_names(VN_list)]), error(instantiation_error, _), true).`},
 		{name: "31", query: `catch((VN_list = 1, write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
@@ -232,9 +234,9 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "60", query: `catch((O = alias(_), open(f,write,_,[O])), error(instantiation_error, _), true).`},
 		{name: "42", query: `catch((O = type(nontype), open(f,write,_,[O])), error(domain_error(stream_option, type(nontype)), _), true).`},
 		{name: "61", query: `catch((O = alias(1), open(f,write,_,[O])), error(domain_error(stream_option, alias(1)), _), true).`},
-		{name: "45", query: `read_term(T,[variable_names(VN_list)]).`, err: context.Canceled}, // TODO: waits
+		{name: "45", query: `read_term(T,[variable_names(VN_list)]).`, err: context.DeadlineExceeded},
 		{name: "46", input: `a.`, query: `read_term(T,[variable_names(VN_list)]), T = a, VN_list = [].`},
-		{name: "47", query: `VN_list = 42, read_term(T,[variable_names(VN_list)]).`, err: context.Canceled}, // TODO: waits
+		{name: "47", query: `VN_list = 42, read_term(T,[variable_names(VN_list)]).`, err: context.DeadlineExceeded},
 		{name: "48", input: `a.`, query: `VN_list = 42, \+read_term(T,[variable_names(VN_list)]).`},
 		{name: "49", input: `a b.`, query: `VN_list = 42, catch(read_term(T,[variable_names(VN_list)]), error(syntax_error(_), _), true).`},
 		{name: "53", query: `catch(write_term(S,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
@@ -242,16 +244,25 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "55", query: `S=1+T,N=' /*r*/V',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+ /*r*/V`},
 		{name: "58", query: `S=1+T,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1++`},
 		{name: "59", query: `S=T+1,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `++1`},
-		{name: "69", query: `read_term(T, [singletons(1)]).`, err: context.Canceled}, // TODO: waits
+		{name: "69", query: `read_term(T, [singletons(1)]).`, err: context.DeadlineExceeded},
 		{name: "70", input: `a.`, query: `\+read_term(T, [singletons(1)]).`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in.Reset()
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			if tt.input == "" {
+				p.SetUserInput(readFn(func(p []byte) (n int, err error) {
+					<-ctx.Done()
+					return 0, io.EOF
+				}))
+			} else {
+				p.SetUserInput(bytes.NewBufferString(tt.input))
+			}
 			out.Reset()
-			_, _ = in.WriteString(tt.input)
-			assert.Equal(t, tt.err, p.QuerySolution(tt.query).Err())
+			assert.Equal(t, tt.err, p.QuerySolutionContext(ctx, tt.query).Err())
 			assert.Equal(t, tt.output, out.String())
 		})
 	}
@@ -1204,4 +1215,10 @@ func ExampleNew_arg() {
 	// error(instantiation_error,arg/3)
 	// error(type_error(compound,atom),arg/3)
 	// error(type_error(compound,3),arg/3)
+}
+
+type readFn func(p []byte) (n int, err error)
+
+func (f readFn) Read(p []byte) (n int, err error) {
+	return f(p)
 }

@@ -1744,9 +1744,7 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		return Bool(false)
 	}
 
-	return Delay(func(context.Context) *Promise {
-		return Unify(out, t, k, env)
-	})
+	return Unify(out, t, k, env)
 }
 
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {

@@ -39,25 +39,22 @@ func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	if opts.visited == nil {
-		opts.visited = map[Term]struct{}{}
-	}
-	if _, ok := opts.visited[c]; ok {
-		_, err := fmt.Fprint(w, "...")
+	if err := c.visit(w, opts); err != nil {
 		return err
 	}
-	opts.visited[c] = struct{}{}
 
 	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
 		return c.writeTermNumberVars(w, n)
 	}
 
-	if c.Functor == "." && len(c.Args) == 2 && !opts.IgnoreOps {
-		return c.writeTermList(w, opts, env)
-	}
+	if !opts.IgnoreOps {
+		if c.Functor == "." && len(c.Args) == 2 {
+			return c.writeTermList(w, opts, env)
+		}
 
-	if c.Functor == "{}" && len(c.Args) == 1 && !opts.IgnoreOps {
-		return c.writeTermCurlyBracketed(w, opts, env)
+		if c.Functor == "{}" && len(c.Args) == 1 {
+			return c.writeTermCurlyBracketed(w, opts, env)
+		}
 	}
 
 	var op *operator
@@ -73,6 +70,19 @@ func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	}
 
 	return c.writeTermOp(w, opts, env, op)
+}
+
+func (c *Compound) visit(w io.Writer, opts *WriteOptions) error {
+	if opts.visited == nil {
+		opts.visited = map[Term]struct{}{}
+	}
+
+	if _, ok := opts.visited[c]; ok {
+		_, err := fmt.Fprint(w, "...")
+		return err
+	}
+	opts.visited[c] = struct{}{}
+	return nil
 }
 
 func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
@@ -102,36 +112,19 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 			return err
 		}
 	}
-	switch s := iter.Suffix().(type) {
-	case Atom:
-		if s == "[]" {
-			break
-		}
+	if err := iter.Err(); err != nil {
 		if _, err := fmt.Fprint(w, "|"); err != nil {
 			return err
 		}
-		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-			return err
-		}
-	case *Compound:
-		if _, err := fmt.Fprint(w, "|"); err != nil {
-			return err
-		}
-		if c.Functor == "." && len(c.Args) == 2 {
+		s := iter.Suffix()
+		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
 			if _, err := fmt.Fprint(w, "..."); err != nil {
 				return err
 			}
-			break
-		}
-		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-			return err
-		}
-	default:
-		if _, err := fmt.Fprint(w, "|"); err != nil {
-			return err
-		}
-		if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-			return err
+		} else {
+			if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
+				return err
+			}
 		}
 	}
 	_, err := fmt.Fprint(w, "]")
@@ -252,7 +245,6 @@ func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *op
 			}
 		}
 	}
-
 	return nil
 }
 
