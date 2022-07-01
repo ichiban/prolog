@@ -41,9 +41,11 @@ func (a Atom) Apply(args ...Term) Term {
 	}
 }
 
+// WriteTerm writes the Atom to the io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	ew := errWriter{w: w}
 	var openClose bool
-	if opts.before != (operator{}) {
+	if opts.before != (operator{}) || opts.after != (operator{}) {
 		for _, op := range opts.ops {
 			if op.name == a {
 				openClose = true
@@ -53,9 +55,7 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	}
 
 	if openClose {
-		if _, err := fmt.Fprint(w, "("); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, "(")
 	}
 
 	s := string(a)
@@ -65,17 +65,13 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 			s = quote(s)
 		}
 	}
-	if _, err := fmt.Fprint(w, s); err != nil {
-		return err
-	}
+	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
-		if _, err := fmt.Fprint(w, ")"); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	return nil
+	return ew.err
 }
 
 // Compare compares the atom to another term.

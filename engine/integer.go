@@ -24,32 +24,25 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 }
 
 func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	ew := errWriter{w: w}
 	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && i > 0
 
 	if openClose || (i < 0 && opts.before != operator{}) {
-		if _, err := fmt.Fprint(w, " "); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, " ")
 	}
 
 	if openClose {
-		if _, err := fmt.Fprint(w, "("); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, "(")
 	}
 
 	s := strconv.FormatInt(int64(i), 10)
-	if _, err := fmt.Fprint(w, s); err != nil {
-		return err
-	}
+	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
-		if _, err := fmt.Fprint(w, ")"); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	return nil
+	return ew.err
 }
 
 // Compare compares the integer to another term.

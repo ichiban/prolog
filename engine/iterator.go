@@ -52,7 +52,7 @@ func (i *ListIterator) Next() bool {
 		}
 
 		i.current, i.hare = l.Args[0], i.Env.Resolve(l.Args[1])
-		i.lam += 1
+		i.lam++
 		return true
 	default:
 		i.err = TypeError(ValidTypeList, i.List, i.Env)
@@ -70,6 +70,7 @@ func (i *ListIterator) Err() error {
 	return i.err
 }
 
+// Suffix returns the rest of the list.
 func (i *ListIterator) Suffix() Term {
 	if i.hare == nil {
 		return i.List

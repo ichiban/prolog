@@ -62,9 +62,11 @@ func TestInteger_WriteTerm(t *testing.T) {
 	tests := []struct {
 		title   string
 		integer Integer
+		before  operator
 		output  string
 	}{
 		{title: "positive", integer: 33, output: `33`},
+		{title: "positive following unary minus", integer: 33, before: operator{name: "-", specifier: operatorSpecifierFX}, output: ` (33)`},
 		{title: "negative", integer: -33, output: `-33`},
 	}
 
@@ -72,7 +74,7 @@ func TestInteger_WriteTerm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, tt.integer.WriteTerm(&buf, &WriteOptions{}, nil))
+			assert.NoError(t, tt.integer.WriteTerm(&buf, &WriteOptions{before: tt.before}, nil))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}

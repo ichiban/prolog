@@ -97,3 +97,18 @@ var defaultWriteOptions = WriteOptions{
 	VariableNames: map[Variable]Atom{},
 	priority:      1200,
 }
+
+// https://go.dev/blog/errors-are-values
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (ew *errWriter) Write(p []byte) (int, error) {
+	if ew.err != nil {
+		return 0, nil
+	}
+	var n int
+	n, ew.err = ew.w.Write(p)
+	return n, nil
+}

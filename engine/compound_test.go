@@ -86,7 +86,9 @@ func TestCompound_Unify(t *testing.T) {
 func TestCompound_WriteTerm(t *testing.T) {
 	v := Variable("L")
 	l := ListRest(v, Atom("a"), Atom("b"))
-	env := NewEnv().Bind(v, l)
+	w := Variable("R")
+	r := &Compound{Functor: "f", Args: []Term{w}}
+	env := NewEnv().Bind(v, l).Bind(w, r)
 
 	ops := operators{
 		{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
@@ -121,6 +123,10 @@ func TestCompound_WriteTerm(t *testing.T) {
 		{title: "ignore_ops(true)", ignoreOps: true, compound: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, output: `+(2,-2)`},
 		{title: "number_vars(false)", numberVars: false, compound: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
 		{title: "number_vars(true)", numberVars: true, compound: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, output: `f(A,B,Z,A1,B1)`},
+		{title: "prefix: spacing between operators", compound: &Compound{Functor: `*`, Args: []Term{Atom("a"), &Compound{Functor: `-`, Args: []Term{Atom("b")}}}}, output: `a* -b`},
+		{title: "postfix: spacing between unary minus and open/close", compound: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom("a")}}}}, output: `- (a+/)`},
+		{title: "infix: spacing between unary minus and open/close", compound: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `*`, Args: []Term{Atom("a"), Atom("b")}}}}, output: `- (a*b)`},
+		{title: "recursive", compound: r, output: `f(...)`},
 	}
 
 	var buf bytes.Buffer

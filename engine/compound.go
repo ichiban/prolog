@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 )
 
 // Compound is a prolog compound.
@@ -38,8 +37,10 @@ func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
+// WriteTerm writes the Compound to the io.Writer.
 func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	if err := c.visit(w, opts); err != nil {
+	ok, err := c.visit(w, opts)
+	if err != nil || ok {
 		return err
 	}
 
@@ -57,195 +58,162 @@ func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 		}
 	}
 
-	var op *operator
-	for _, o := range opts.ops {
-		if o.name == c.Functor && o.specifier.arity() == len(c.Args) {
-			op = &o
-			break
-		}
-	}
-
-	if op == nil || opts.IgnoreOps {
+	if opts.IgnoreOps {
 		return c.writeTermFunctionalNotation(w, opts, env)
 	}
 
-	return c.writeTermOp(w, opts, env, op)
+	for _, o := range opts.ops {
+		if o.name == c.Functor && o.specifier.arity() == len(c.Args) {
+			return c.writeTermOp(w, opts, env, &o)
+		}
+	}
+
+	return c.writeTermFunctionalNotation(w, opts, env)
 }
 
-func (c *Compound) visit(w io.Writer, opts *WriteOptions) error {
+func (c *Compound) visit(w io.Writer, opts *WriteOptions) (bool, error) {
 	if opts.visited == nil {
 		opts.visited = map[Term]struct{}{}
 	}
 
 	if _, ok := opts.visited[c]; ok {
 		_, err := fmt.Fprint(w, "...")
-		return err
+		return true, err
 	}
 	opts.visited[c] = struct{}{}
-	return nil
+	return false, nil
 }
 
 func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
 	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	ew := errWriter{w: w}
 	i, j := int(n)%len(letters), int(n)/len(letters)
-	s := string(letters[i])
+	_, _ = fmt.Fprint(&ew, string(letters[i]))
 	if j != 0 {
-		s += strconv.Itoa(j)
+		_, _ = fmt.Fprint(&ew, j)
 	}
-	_, err := fmt.Fprint(w, s)
-	return err
+	return ew.err
 }
 
 func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) error {
-	if _, err := fmt.Fprint(w, "["); err != nil {
-		return err
-	}
-	if err := c.Args[0].WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-		return err
-	}
+	ew := errWriter{w: w}
+	_, _ = fmt.Fprint(&ew, "[")
+	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
 	iter := ListIterator{List: c.Args[1], Env: env}
 	for iter.Next() {
-		if _, err := fmt.Fprint(w, ","); err != nil {
-			return err
-		}
-		if err := iter.Current().WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, ",")
+		_ = iter.Current().WriteTerm(&ew, opts.withBefore(operator{}), env)
 	}
 	if err := iter.Err(); err != nil {
-		if _, err := fmt.Fprint(w, "|"); err != nil {
-			return err
-		}
+		_, _ = fmt.Fprint(&ew, "|")
 		s := iter.Suffix()
 		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-			if _, err := fmt.Fprint(w, "..."); err != nil {
-				return err
-			}
+			_, _ = fmt.Fprint(&ew, "...")
 		} else {
-			if err := s.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-				return err
-			}
+			_ = s.WriteTerm(&ew, opts.withBefore(operator{}), env)
 		}
 	}
-	_, err := fmt.Fprint(w, "]")
-	return err
+	_, _ = fmt.Fprint(&ew, "]")
+	return ew.err
 }
 
 func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env *Env) error {
-	if _, err := fmt.Fprint(w, "{"); err != nil {
-		return err
-	}
-	if err := c.Args[0].WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-		return err
-	}
-	_, err := fmt.Fprint(w, "}")
-	return err
+	ew := errWriter{w: w}
+	_, _ = fmt.Fprint(&ew, "{")
+	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
+	_, _ = fmt.Fprint(&ew, "}")
+	return ew.err
 }
 
 func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, env *Env) error {
-	if err := c.Functor.WriteTerm(w, opts, env); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprint(w, "("); err != nil {
-		return err
-	}
+	ew := errWriter{w: w}
+	_ = c.Functor.WriteTerm(&ew, opts, env)
+	_, _ = fmt.Fprint(&ew, "(")
 	for i, a := range c.Args {
 		if i != 0 {
-			if _, err := fmt.Fprint(w, ","); err != nil {
-				return err
-			}
+			_, _ = fmt.Fprint(&ew, ",")
 		}
-		if err := a.WriteTerm(w, opts.withBefore(operator{}), env); err != nil {
-			return err
-		}
+		_ = a.WriteTerm(&ew, opts.withBefore(operator{}), env)
 	}
-	_, err := fmt.Fprint(w, ")")
-	return err
+	_, _ = fmt.Fprint(&ew, ")")
+	return ew.err
+}
+
+var writeTermOps = [...]func(c *Compound, w io.Writer, opts *WriteOptions, env *Env, op *operator) error{
+	operatorSpecifierFX:  (*Compound).writeTermOpPrefix,
+	operatorSpecifierFY:  (*Compound).writeTermOpPrefix,
+	operatorSpecifierXF:  (*Compound).writeTermOpPostfix,
+	operatorSpecifierYF:  (*Compound).writeTermOpPostfix,
+	operatorSpecifierXFX: (*Compound).writeTermOpInfix,
+	operatorSpecifierXFY: (*Compound).writeTermOpInfix,
+	operatorSpecifierYFX: (*Compound).writeTermOpInfix,
 }
 
 func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	return writeTermOps[op.specifier](c, w, opts, env, op)
+}
+
+func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
-	l, r := op.bindingPriorities()
+	_, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority
 
-	switch op.specifier {
-	case operatorSpecifierFX, operatorSpecifierFY:
-		if opts.before != (operator{}) {
-			if _, err := fmt.Fprint(w, " "); err != nil {
-				return err
-			}
-		}
-		if openClose {
-			if _, err := fmt.Fprint(w, "("); err != nil {
-				return err
-			}
-		}
-		if _, err := fmt.Fprint(w, c.Functor); err != nil {
-			return err
-		}
-		if err := c.Args[0].WriteTerm(w, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env); err != nil {
-			return err
-		}
-		if openClose {
-			if _, err := fmt.Fprint(w, ")"); err != nil {
-				return err
-			}
-		}
-	case operatorSpecifierXF, operatorSpecifierYF:
-		openClose = openClose || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
-		if openClose {
-			if opts.before != (operator{}) {
-				if _, err := fmt.Fprint(w, " "); err != nil {
-					return err
-				}
-			}
-			if _, err := fmt.Fprint(w, "("); err != nil {
-				return err
-			}
-		}
-		if err := c.Args[0].WriteTerm(w, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprint(w, c.Functor); err != nil {
-			return err
-		}
-		if openClose {
-			if _, err := fmt.Fprint(w, ")"); err != nil {
-				return err
-			}
-		} else if opts.after != (operator{}) {
-			if _, err := fmt.Fprint(w, " "); err != nil {
-				return err
-			}
-		}
-	case operatorSpecifierXFX, operatorSpecifierXFY, operatorSpecifierYFX:
-		openClose = openClose || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
-		if openClose {
-			if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
-				if _, err := fmt.Fprint(w, " "); err != nil {
-					return err
-				}
-			}
-			if _, err := fmt.Fprint(w, "("); err != nil {
-				return err
-			}
-		}
-		if err := c.Args[0].WriteTerm(w, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprint(w, c.Functor); err != nil {
-			return err
-		}
-		if err := c.Args[1].WriteTerm(w, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env); err != nil {
-			return err
-		}
-		if openClose {
-			if _, err := fmt.Fprint(w, ")"); err != nil {
-				return err
-			}
-		}
+	if opts.before != (operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
-	return nil
+	if openClose {
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+	return ew.err
+}
+
+func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
+	opts = opts.withFreshVisited()
+	l, _ := op.bindingPriorities()
+	openClose := opts.priority < op.priority || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+
+	if openClose {
+		if opts.before != (operator{}) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	} else if opts.after != (operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	return ew.err
+}
+
+func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
+	opts = opts.withFreshVisited()
+	l, r := op.bindingPriorities()
+	openClose := opts.priority < op.priority || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+
+	if openClose {
+		if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+	return ew.err
 }
 
 // Compare compares the compound to another term.

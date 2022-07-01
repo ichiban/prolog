@@ -62,26 +62,43 @@ func TestAtom_Unify(t *testing.T) {
 }
 
 func TestAtom_WriteTerm(t *testing.T) {
+	ops := operators{
+		{name: "+"},
+		{name: "-"},
+	}
+
 	tests := []struct {
-		quoted bool
-		atom   Atom
-		output string
+		atom          Atom
+		quoted        bool
+		before, after operator
+		output        string
 	}{
-		{quoted: false, atom: `a`, output: `a`},
-		{quoted: true, atom: `a`, output: `a`},
-		{quoted: false, atom: "\a\b\f\n\r\t\v\x00\\'\"`", output: "\a\b\f\n\r\t\v\x00\\'\"`"},
-		{quoted: true, atom: "\a\b\f\n\r\t\v\x00\\'\"`", output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
-		{quoted: false, atom: `,`, output: `,`},
-		{quoted: true, atom: `,`, output: `','`},
-		{quoted: true, atom: `[]`, output: `[]`},
-		{quoted: true, atom: `{}`, output: `{}`},
+		{atom: `a`, quoted: false, output: `a`},
+		{atom: `a`, quoted: true, output: `a`},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: false, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: true, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+		{atom: `,`, quoted: false, output: `,`},
+		{atom: `,`, quoted: true, output: `','`},
+		{atom: `[]`, quoted: false, output: `[]`},
+		{atom: `[]`, quoted: true, output: `[]`},
+		{atom: `{}`, quoted: false, output: `{}`},
+		{atom: `{}`, quoted: true, output: `{}`},
+
+		{atom: `-`, output: `-`},
+		{atom: `-`, before: operator{name: "+"}, output: `(-)`},
+		{atom: `-`, after: operator{name: "+"}, output: `(-)`},
 	}
 
 	var buf bytes.Buffer
 	for _, tt := range tests {
 		t.Run(string(tt.atom), func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, tt.atom.WriteTerm(&buf, &WriteOptions{Quoted: tt.quoted}, nil))
+			assert.NoError(t, tt.atom.WriteTerm(&buf, &WriteOptions{
+				Quoted: tt.quoted,
+				ops:    ops,
+				before: tt.before,
+				after:  tt.after,
+			}, nil))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}
