@@ -3612,9 +3612,34 @@ func TestState_Open(t *testing.T) {
 
 	t.Run("an element E of the options list is neither a variable nor a stream-option", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(Atom("foo")), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamOption, Atom("foo"), nil), err)
-		assert.False(t, ok)
+		for _, o := range []Term{
+			Atom("foo"),
+			&Compound{Functor: "foo", Args: []Term{Atom("bar")}},
+			&Compound{Functor: "alias", Args: []Term{Integer(0)}},
+			&Compound{Functor: "type", Args: []Term{Integer(0)}},
+			&Compound{Functor: "reposition", Args: []Term{Integer(0)}},
+			&Compound{Functor: "eof_action", Args: []Term{Integer(0)}},
+		} {
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
+			assert.Equal(t, DomainError(ValidDomainStreamOption, o, nil), err)
+			assert.False(t, ok)
+		}
+	})
+
+	// Derived from 5.5.12 Options in Cor.3
+	t.Run("a component of an element E of the options list is a variable", func(t *testing.T) {
+		var state State
+		for _, o := range []Term{
+			Variable("X"),
+			&Compound{Functor: "alias", Args: []Term{Variable("X")}},
+			&Compound{Functor: "type", Args: []Term{Variable("X")}},
+			&Compound{Functor: "reposition", Args: []Term{Variable("X")}},
+			&Compound{Functor: "eof_action", Args: []Term{Variable("X")}},
+		} {
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
+			assert.Equal(t, InstantiationError(nil), err)
+			assert.False(t, ok)
+		}
 	})
 
 	t.Run("the source/sink specified by sourceSink does not exist", func(t *testing.T) {

@@ -1857,20 +1857,15 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 			return Unify(char, Atom(r), k, env)
 		})
 	case io.EOF:
-		switch s.eofAction {
-		case EOFActionError:
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case EOFActionEOFCode:
-			return Delay(func(context.Context) *Promise {
+		return [...]*Promise{
+			EOFActionError: Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env)),
+			EOFActionEOFCode: Delay(func(context.Context) *Promise {
 				return Unify(char, Atom("end_of_file"), k, env)
-			})
-		case EOFActionReset:
-			return Delay(func(context.Context) *Promise {
+			}),
+			EOFActionReset: Delay(func(context.Context) *Promise {
 				return state.GetChar(streamOrAlias, char, k, env)
-			})
-		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
-		}
+			}),
+		}[s.eofAction]
 	default:
 		return Error(SystemError(err))
 	}
