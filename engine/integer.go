@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"io"
 	"strconv"
 )
 
@@ -21,17 +23,27 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-// Unparse emits tokens that represent the integer.
-func (i Integer) Unparse(emit func(token Token), _ *Env, _ ...WriteOption) {
-	s := strconv.FormatInt(int64(i), 10)
+// WriteTerm writes the Integer to the io.Writer.
+func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	ew := errWriter{w: w}
+	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && i > 0
 
-	if s[0] == '-' {
-		emit(Token{Kind: TokenGraphic, Val: "-"})
-		emit(Token{Kind: TokenInteger, Val: s[1:]})
-		return
+	if openClose || (i < 0 && opts.before != operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
 
-	emit(Token{Kind: TokenInteger, Val: s})
+	if openClose {
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+
+	s := strconv.FormatInt(int64(i), 10)
+	_, _ = fmt.Fprint(&ew, s)
+
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+
+	return ew.err
 }
 
 // Compare compares the integer to another term.

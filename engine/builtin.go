@@ -1233,12 +1233,6 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 }
 
 func streamOption(state *State, option Term, env *Env) (StreamOption, error) {
-	type optionIndicator struct {
-		functor Atom
-		arg     Atom
-	}
-
-	var oi optionIndicator
 	switch o := env.Resolve(option).(type) {
 	case Variable:
 		return nil, InstantiationError(env)
@@ -1246,48 +1240,82 @@ func streamOption(state *State, option Term, env *Env) (StreamOption, error) {
 		if len(o.Args) != 1 {
 			return nil, DomainError(ValidDomainStreamOption, option, env)
 		}
-		switch a := env.Resolve(o.Args[0]).(type) {
-		case Variable:
-			return nil, InstantiationError(env)
-		case Atom:
-			oi = optionIndicator{
-				functor: o.Functor,
-				arg:     a,
-			}
+		switch o.Functor {
+		case "alias":
+			return streamOptionAlias(state, o, env)
+		case "type":
+			return streamOptionType(o, env)
+		case "reposition":
+			return streamOptionReposition(o, env)
+		case "eof_action":
+			return streamOptionEOFAction(o, env)
 		default:
-			return nil, TypeError(ValidTypeAtom, a, env)
+			return nil, DomainError(ValidDomainStreamOption, option, env)
 		}
 	default:
 		return nil, DomainError(ValidDomainStreamOption, option, env)
 	}
+}
 
-	// alias is a bit different.
-	if oi.functor == "alias" {
-		if _, ok := state.streams[oi.arg]; ok {
-			return nil, PermissionError(OperationOpen, PermissionTypeSourceSink, option, env)
+func streamOptionAlias(state *State, o *Compound, env *Env) (StreamOption, error) {
+	switch a := env.Resolve(o.Args[0]).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		if _, ok := state.streams[a]; ok {
+			return nil, PermissionError(OperationOpen, PermissionTypeSourceSink, o, env)
 		}
-
-		return WithAlias(state, oi.arg), nil
-	}
-
-	switch oi {
-	case optionIndicator{functor: "type", arg: "text"}:
-		return WithStreamType(StreamTypeText), nil
-	case optionIndicator{functor: "type", arg: "binary"}:
-		return WithStreamType(StreamTypeBinary), nil
-	case optionIndicator{functor: "reposition", arg: "true"}:
-		return WithReposition(true), nil
-	case optionIndicator{functor: "reposition", arg: "false"}:
-		return WithReposition(false), nil
-	case optionIndicator{functor: "eof_action", arg: "error"}:
-		return WithEOFAction(EOFActionError), nil
-	case optionIndicator{functor: "eof_action", arg: "eof_code"}:
-		return WithEOFAction(EOFActionEOFCode), nil
-	case optionIndicator{functor: "eof_action", arg: "reset"}:
-		return WithEOFAction(EOFActionReset), nil
+		return WithAlias(state, a), nil
 	default:
-		return nil, DomainError(ValidDomainStreamOption, option, env)
+		return nil, DomainError(ValidDomainStreamOption, o, env)
 	}
+}
+
+func streamOptionType(o *Compound, env *Env) (StreamOption, error) {
+	switch t := env.Resolve(o.Args[0]).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		switch t {
+		case "text":
+			return WithStreamType(StreamTypeText), nil
+		case "binary":
+			return WithStreamType(StreamTypeBinary), nil
+		}
+	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
+}
+
+func streamOptionReposition(o *Compound, env *Env) (StreamOption, error) {
+	switch r := env.Resolve(o.Args[0]).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		switch r {
+		case "true":
+			return WithReposition(true), nil
+		case "false":
+			return WithReposition(false), nil
+		}
+	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
+}
+
+func streamOptionEOFAction(o *Compound, env *Env) (StreamOption, error) {
+	switch e := env.Resolve(o.Args[0]).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		switch e {
+		case "error":
+			return WithEOFAction(EOFActionError), nil
+		case "eof_code":
+			return WithEOFAction(EOFActionEOFCode), nil
+		case "reset":
+			return WithEOFAction(EOFActionReset), nil
+		}
+	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
 }
 
 // Close closes a stream specified by streamOrAlias.
@@ -1382,20 +1410,18 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 		return Error(PermissionError(OperationOutput, PermissionTypeBinaryStream, streamOrAlias, env))
 	}
 
-	var opts []WriteOption
+	var opts WriteOptions
 	iter := ListIterator{List: options, Env: env}
 	for iter.Next() {
-		opt, err := writeTermOption(state, iter.Current(), env)
-		if err != nil {
+		if err := writeTermOption(&opts, iter.Current(), env); err != nil {
 			return Error(err)
 		}
-		opts = append(opts, opt)
 	}
 	if err := iter.Err(); err != nil {
 		return Error(err)
 	}
 
-	if err := state.Write(s.file, env.Resolve(t), env, opts...); err != nil {
+	if err := state.Write(s.file, env.Resolve(t), &opts, env); err != nil {
 		return Error(err)
 	}
 
@@ -1403,32 +1429,34 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 }
 
 // Write outputs term to the writer.
-func (state *State) Write(w io.Writer, t Term, env *Env, opts ...WriteOption) error {
-	opts = append([]WriteOption{withOps(state.operators), WithPriority(1200)}, opts...)
-	return Write(w, t, env, opts...)
+func (state *State) Write(w io.Writer, t Term, opts *WriteOptions, env *Env) error {
+	opts.ops = state.operators
+	opts.priority = 1200
+	return t.WriteTerm(w, opts, env)
 }
 
-func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
+func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
-		return nil, InstantiationError(env)
+		return InstantiationError(env)
 	case *Compound:
 		if len(o.Args) != 1 {
-			return nil, DomainError(ValidDomainWriteOption, o, env)
+			return DomainError(ValidDomainWriteOption, o, env)
 		}
 
 		if o.Functor == "variable_names" {
 			vns, err := variableNames(o, env)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			return WithVariableNames(vns), nil
+			opts.VariableNames = vns
+			return nil
 		}
 
 		var b bool
 		switch v := env.Resolve(o.Args[0]).(type) {
 		case Variable:
-			return nil, InstantiationError(env)
+			return InstantiationError(env)
 		case Atom:
 			switch v {
 			case "true":
@@ -1436,24 +1464,27 @@ func writeTermOption(state *State, option Term, env *Env) (WriteOption, error) {
 			case "false":
 				b = false
 			default:
-				return nil, DomainError(ValidDomainWriteOption, o, env)
+				return DomainError(ValidDomainWriteOption, o, env)
 			}
 		default:
-			return nil, DomainError(ValidDomainWriteOption, o, env)
+			return DomainError(ValidDomainWriteOption, o, env)
 		}
 
 		switch o.Functor {
 		case "quoted":
-			return WithQuoted(b), nil
+			opts.Quoted = b
+			return nil
 		case "ignore_ops":
-			return state.WithIgnoreOps(b), nil
+			opts.IgnoreOps = b
+			return nil
 		case "numbervars":
-			return WithNumberVars(b), nil
+			opts.NumberVars = b
+			return nil
 		default:
-			return nil, DomainError(ValidDomainWriteOption, o, env)
+			return DomainError(ValidDomainWriteOption, o, env)
 		}
 	default:
-		return nil, DomainError(ValidDomainWriteOption, o, env)
+		return DomainError(ValidDomainWriteOption, o, env)
 	}
 }
 
@@ -1489,7 +1520,7 @@ func variableNames(option *Compound, env *Env) (map[Variable]Atom, error) {
 		case Variable:
 			v = arg
 		default:
-			return nil, DomainError(ValidDomainWriteOption, option, env)
+			continue
 		}
 
 		if _, ok := vns[v]; ok {
@@ -1704,9 +1735,7 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		return Bool(false)
 	}
 
-	return Delay(func(context.Context) *Promise {
-		return Unify(out, t, k, env)
-	})
+	return Unify(out, t, k, env)
 }
 
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {
@@ -1828,20 +1857,15 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 			return Unify(char, Atom(r), k, env)
 		})
 	case io.EOF:
-		switch s.eofAction {
-		case EOFActionError:
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case EOFActionEOFCode:
-			return Delay(func(context.Context) *Promise {
+		return [...]*Promise{
+			EOFActionError: Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env)),
+			EOFActionEOFCode: Delay(func(context.Context) *Promise {
 				return Unify(char, Atom("end_of_file"), k, env)
-			})
-		case EOFActionReset:
-			return Delay(func(context.Context) *Promise {
+			}),
+			EOFActionReset: Delay(func(context.Context) *Promise {
 				return state.GetChar(streamOrAlias, char, k, env)
-			})
-		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
-		}
+			}),
+		}[s.eofAction]
 	default:
 		return Error(SystemError(err))
 	}
@@ -2294,7 +2318,7 @@ func numberCharsWrite(num, chars Term, k func(*Env) *Promise, env *Env) *Promise
 		}
 
 		var buf bytes.Buffer
-		_ = Write(&buf, n, nil)
+		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 
 		cs := make([]Term, len(rs))
@@ -2353,9 +2377,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	case Integer, Float:
 		var buf bytes.Buffer
-		if err := Write(&buf, n, nil); err != nil {
-			return Error(err)
-		}
+		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 		cs := make([]Term, len(rs))
 		for i, r := range rs {

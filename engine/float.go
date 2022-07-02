@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -22,17 +24,30 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-// Unparse emits tokens that represent the float.
-func (f Float) Unparse(emit func(Token), _ *Env, _ ...WriteOption) {
-	if f < 0 {
-		emit(Token{Kind: TokenGraphic, Val: "-"})
-		f *= -1
+// WriteTerm writes the Float to the io.Writer.
+func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	ew := errWriter{w: w}
+	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && f > 0
+
+	if openClose || (f < 0 && opts.before != operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
+
+	if openClose {
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
+	_, _ = fmt.Fprint(&ew, s)
 	if !strings.ContainsRune(s, '.') {
-		s += ".0"
+		_, _ = fmt.Fprint(&ew, ".0")
 	}
-	emit(Token{Kind: TokenFloatNumber, Val: s})
+
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+
+	return ew.err
 }
 
 // Compare compares the float to another term.

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"math"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,38 +58,26 @@ func TestInteger_Unify(t *testing.T) {
 	})
 }
 
-func TestInteger_Unparse(t *testing.T) {
-	t.Run("positive", func(t *testing.T) {
-		var tokens []Token
-		Integer(33).Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenInteger, Val: "33"},
-		}, tokens)
-	})
+func TestInteger_WriteTerm(t *testing.T) {
+	tests := []struct {
+		title   string
+		integer Integer
+		before  operator
+		output  string
+	}{
+		{title: "positive", integer: 33, output: `33`},
+		{title: "positive following unary minus", integer: 33, before: operator{name: "-", specifier: operatorSpecifierFX}, output: ` (33)`},
+		{title: "negative", integer: -33, output: `-33`},
+	}
 
-	t.Run("negative", func(t *testing.T) {
-		var tokens []Token
-		Integer(-33).Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenGraphic, Val: "-"},
-			{Kind: TokenInteger, Val: "33"},
-		}, tokens)
-
-		t.Run("math.MinInt64", func(t *testing.T) {
-			var tokens []Token
-			Integer(math.MinInt64).Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil)
-			assert.Equal(t, []Token{
-				{Kind: TokenGraphic, Val: "-"},
-				{Kind: TokenInteger, Val: "9223372036854775808"},
-			}, tokens)
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.integer.WriteTerm(&buf, &WriteOptions{before: tt.before}, nil))
+			assert.Equal(t, tt.output, buf.String())
 		})
-	})
+	}
 }
 
 func TestInteger_Compare(t *testing.T) {

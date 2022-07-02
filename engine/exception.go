@@ -21,7 +21,7 @@ func (e Exception) Term() Term {
 
 func (e Exception) Error() string {
 	var buf bytes.Buffer
-	_ = Write(&buf, e.term, nil, WithQuoted(true))
+	e.term.WriteTerm(&buf, &defaultWriteOptions, nil)
 	return buf.String()
 }
 
@@ -36,8 +36,10 @@ func InstantiationError(env *Env) Exception {
 	}, env)
 }
 
+// ValidType is the correct type for an argument or one of its components.
 type ValidType uint8
 
+// ValidType is one of these values.
 const (
 	ValidTypeAtom ValidType = iota
 	ValidTypeAtomic
@@ -56,6 +58,7 @@ const (
 	ValidTypeFloat
 )
 
+// Term returns an Atom for the ValidType.
 func (t ValidType) Term() Term {
 	return [...]Atom{
 		ValidTypeAtom:               "atom",
@@ -90,8 +93,10 @@ func TypeError(validType ValidType, culprit Term, env *Env) Exception {
 	}, env)
 }
 
+// ValidDomain is the domain which the procedure defines.
 type ValidDomain uint8
 
+// ValidDomain is one of these values.
 const (
 	ValidDomainCharacterCodeList ValidDomain = iota
 	ValidDomainCloseOption
@@ -114,6 +119,7 @@ const (
 	ValidDomainOrder
 )
 
+// Term returns an Atom for the ValidDomain.
 func (vd ValidDomain) Term() Term {
 	return [...]Atom{
 		ValidDomainCharacterCodeList: "character_code_list",
@@ -151,14 +157,17 @@ func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
 	}, env)
 }
 
+// ObjectType is the object on which an operation is to be performed.
 type ObjectType uint8
 
+// ObjectType is one of these values.
 const (
 	ObjectTypeProcedure ObjectType = iota
 	ObjectTypeSourceSink
 	ObjectTypeStream
 )
 
+// Term returns an Atom for the ObjectType.
 func (ot ObjectType) Term() Term {
 	return [...]Atom{
 		ObjectTypeProcedure:  "procedure",
@@ -181,8 +190,10 @@ func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
 	}, env)
 }
 
+// Operation is the operation to be performed.
 type Operation uint8
 
+// Operation is one of these values.
 const (
 	OperationAccess Operation = iota
 	OperationCreate
@@ -193,6 +204,7 @@ const (
 	OperationReposition
 )
 
+// Term returns an Atom for the Operation.
 func (o Operation) Term() Term {
 	return [...]Atom{
 		OperationAccess:     "access",
@@ -205,8 +217,10 @@ func (o Operation) Term() Term {
 	}[o]
 }
 
+// PermissionType is the type to which the operation is not permitted to perform.
 type PermissionType uint8
 
+// PermissionType is one of these values.
 const (
 	PermissionTypeBinaryStream PermissionType = iota
 	PermissionTypeFlag
@@ -219,6 +233,7 @@ const (
 	PermissionTypeTextStream
 )
 
+// Term returns an Atom for the PermissionType.
 func (pt PermissionType) Term() Term {
 	return [...]Atom{
 		PermissionTypeBinaryStream:     "binary_stream",
@@ -247,8 +262,10 @@ func PermissionError(operation Operation, permissionType PermissionType, culprit
 	}, env)
 }
 
+// Flag is an implementation defined limit.
 type Flag uint8
 
+// Flag is one of these values.
 const (
 	FlagCharacter Flag = iota
 	FlagCharacterCode
@@ -258,6 +275,7 @@ const (
 	FlagMinInteger
 )
 
+// Term returns an Atom for the Flag.
 func (f Flag) Term() Term {
 	return [...]Atom{
 		FlagCharacter:       "character",
@@ -283,12 +301,16 @@ func RepresentationError(limit Flag, env *Env) Exception {
 	}, env)
 }
 
+// Resource is a resource required to complete execution.
 type Resource uint8
 
+// Resource is one of these values.
 const (
 	ResourceFiniteMemory Resource = iota
+	resourceLen
 )
 
+// Term returns an Atom for the Resource.
 func (r Resource) Term() Term {
 	return [...]Atom{
 		ResourceFiniteMemory: "finite_memory",
@@ -334,8 +356,10 @@ func SystemError(err error) Exception {
 	}, nil)
 }
 
+// ExceptionalValue is an evaluable functor's result which is not a number.
 type ExceptionalValue uint8
 
+// ExceptionalValue is one of these values.
 const (
 	ExceptionalValueFloatOverflow ExceptionalValue = iota
 	ExceptionalValueIntOverflow
@@ -348,6 +372,7 @@ func (ev ExceptionalValue) Error() string {
 	return string(ev.Term().(Atom))
 }
 
+// Term returns an Atom for the ExceptionalValue.
 func (ev ExceptionalValue) Term() Term {
 	return [...]Atom{
 		ExceptionalValueFloatOverflow: "float_overflow",

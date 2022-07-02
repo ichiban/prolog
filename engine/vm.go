@@ -512,7 +512,9 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 
 func (p ProcedureIndicator) String() string {
 	var sb strings.Builder
-	_ = Write(&sb, p.Name, nil, WithQuoted(true))
+	_ = p.Name.WriteTerm(&sb, &WriteOptions{
+		Quoted: true,
+	}, nil)
 	_, _ = fmt.Fprintf(&sb, "/%d", p.Arity)
 	return sb.String()
 }

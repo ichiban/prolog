@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,82 +61,47 @@ func TestAtom_Unify(t *testing.T) {
 	})
 }
 
-func TestAtom_Unparse(t *testing.T) {
-	t.Run("not quoted", func(t *testing.T) {
-		t.Run("no need to quote", func(t *testing.T) {
-			var tokens []Token
-			Atom("a").Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithQuoted(false))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: `a`},
-			}, tokens)
+func TestAtom_WriteTerm(t *testing.T) {
+	ops := operators{
+		{name: "+"},
+		{name: "-"},
+	}
+
+	tests := []struct {
+		atom          Atom
+		quoted        bool
+		before, after operator
+		output        string
+	}{
+		{atom: `a`, quoted: false, output: `a`},
+		{atom: `a`, quoted: true, output: `a`},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: false, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: true, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+		{atom: `,`, quoted: false, output: `,`},
+		{atom: `,`, quoted: true, output: `','`},
+		{atom: `[]`, quoted: false, output: `[]`},
+		{atom: `[]`, quoted: true, output: `[]`},
+		{atom: `{}`, quoted: false, output: `{}`},
+		{atom: `{}`, quoted: true, output: `{}`},
+
+		{atom: `-`, output: `-`},
+		{atom: `-`, before: operator{name: "+"}, output: `(-)`},
+		{atom: `-`, after: operator{name: "+"}, output: `(-)`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(string(tt.atom), func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.atom.WriteTerm(&buf, &WriteOptions{
+				Quoted: tt.quoted,
+				ops:    ops,
+				before: tt.before,
+				after:  tt.after,
+			}, nil))
+			assert.Equal(t, tt.output, buf.String())
 		})
-
-		t.Run("need to quote", func(t *testing.T) {
-			var tokens []Token
-			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithQuoted(false))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: "\a\b\f\n\r\t\v\x00\\'\"`"},
-			}, tokens)
-		})
-	})
-
-	t.Run("quoted", func(t *testing.T) {
-		t.Run("no need to quote", func(t *testing.T) {
-			var tokens []Token
-			Atom("a").Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithQuoted(true))
-			assert.Equal(t, []Token{
-				{Kind: TokenLetterDigit, Val: `a`},
-			}, tokens)
-		})
-
-		t.Run("need to quote", func(t *testing.T) {
-			var tokens []Token
-			Atom("\a\b\f\n\r\t\v\x00\\'\"`").Unparse(func(token Token) {
-				tokens = append(tokens, token)
-			}, nil, WithQuoted(true))
-			assert.Equal(t, []Token{
-				{Kind: TokenQuoted, Val: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
-			}, tokens)
-		})
-	})
-
-	t.Run("comma", func(t *testing.T) {
-		var tokens []Token
-		Atom(",").Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil, WithQuoted(true))
-		assert.Equal(t, []Token{
-			{Kind: TokenComma, Val: ","},
-		}, tokens)
-	})
-
-	t.Run("nil", func(t *testing.T) {
-		var tokens []Token
-		Atom("[]").Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil, WithQuoted(true))
-		assert.Equal(t, []Token{
-			{Kind: TokenOpenList, Val: "["},
-			{Kind: TokenCloseList, Val: "]"},
-		}, tokens)
-	})
-
-	t.Run("empty curlyBracketedTerm", func(t *testing.T) {
-		var tokens []Token
-		Atom("{}").Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil, WithQuoted(true))
-		assert.Equal(t, []Token{
-			{Kind: TokenOpenCurly, Val: "{"},
-			{Kind: TokenCloseCurly, Val: "}"},
-		}, tokens)
-	})
+	}
 }
 
 func TestAtom_Compare(t *testing.T) {

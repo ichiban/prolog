@@ -33,9 +33,8 @@ func Delay(k ...func(context.Context) *Promise) *Promise {
 func Bool(ok bool) *Promise {
 	if ok {
 		return truePromise
-	} else {
-		return falsePromise
 	}
+	return falsePromise
 }
 
 // Error returns a promise that simply returns (false, err).
@@ -80,7 +79,7 @@ func (p *Promise) Force(ctx context.Context) (bool, error) {
 	for len(stack) > 0 {
 		select {
 		case <-ctx.Done():
-			return false, context.Canceled
+			return false, ctx.Err()
 		default:
 			p := stack.pop()
 

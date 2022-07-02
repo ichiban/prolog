@@ -15,6 +15,7 @@ func TestParser_Term(t *testing.T) {
 		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
 		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
 		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
+		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
 	}
 
 	pvs := []ParsedVariable{
@@ -100,6 +101,8 @@ func TestParser_Term(t *testing.T) {
 
 		{input: `-a.`, term: &Compound{Functor: "-", Args: []Term{Atom("a")}}},
 		{input: `- .`, term: Atom("-")},
+
+		{input: `a-- .`, term: &Compound{Functor: `--`, Args: []Term{Atom(`a`)}}},
 
 		{input: `a + b.`, term: &Compound{Functor: "+", Args: []Term{Atom("a"), Atom("b")}}},
 		{input: `a + ().`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},

@@ -1,12 +1,10 @@
 package engine
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestContains(t *testing.T) {
@@ -42,18 +40,19 @@ func TestRulify(t *testing.T) {
 	}, nil))
 }
 
-func TestWrite(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		var buf bytes.Buffer
-		assert.NoError(t, Write(&buf, Atom("f").Apply(Atom("a"), Atom("b")), nil))
-		assert.Equal(t, "f(a, b)", buf.String())
-	})
+func TestErrWriter_Write(t *testing.T) {
+	var failed = errors.New("failed")
 
-	t.Run("ng", func(t *testing.T) {
-		var w mockWriter
-		w.On("Write", mock.Anything).Return(0, errors.New("failed"))
-		defer w.AssertExpectations(t)
+	var m mockWriter
+	m.On("Write", []byte("foo")).Return(0, failed).Once()
+	defer m.AssertExpectations(t)
 
-		assert.Error(t, Write(&w, Atom("f").Apply(Atom("a"), Atom("b")), nil))
-	})
+	ew := errWriter{w: &m}
+	_, err := ew.Write([]byte("foo"))
+	assert.NoError(t, err)
+	_, err = ew.Write([]byte("bar"))
+	assert.NoError(t, err)
+	_, err = ew.Write([]byte("baz"))
+	assert.NoError(t, err)
+	assert.Equal(t, failed, ew.err)
 }

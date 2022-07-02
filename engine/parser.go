@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	// ErrInsufficient is a parsing error which can be resolved by adding more characters to the input.
 	ErrInsufficient = errors.New("insufficient")
 	errExpectation  = errors.New("expectation error")
 	errNoOp         = errors.New("no op")
@@ -254,6 +255,17 @@ func (s operatorSpecifier) term() Term {
 		operatorSpecifierYFX: Atom("yfx"),
 	}[s]
 }
+func (s operatorSpecifier) arity() int {
+	return [...]int{
+		operatorSpecifierFX:  1,
+		operatorSpecifierFY:  1,
+		operatorSpecifierXF:  1,
+		operatorSpecifierYF:  1,
+		operatorSpecifierXFX: 2,
+		operatorSpecifierXFY: 2,
+		operatorSpecifierYFX: 2,
+	}[s]
+}
 
 type operators []operator
 
@@ -326,12 +338,16 @@ func (p *Parser) term(maxPriority Integer) (Term, error) {
 		if err != nil {
 			break
 		}
-		_, rbp := op.bindingPriorities()
-		rhs, err := p.term(rbp)
-		if err != nil {
-			return nil, err
+		switch _, rbp := op.bindingPriorities(); {
+		case rbp > 1200:
+			lhs = op.name.Apply(lhs)
+		default:
+			rhs, err := p.term(rbp)
+			if err != nil {
+				return nil, err
+			}
+			lhs = op.name.Apply(lhs, rhs)
 		}
-		lhs = op.name.Apply(lhs, rhs)
 	}
 
 	return lhs, nil

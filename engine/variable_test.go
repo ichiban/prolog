@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -26,50 +27,38 @@ func TestVariable_Unify(t *testing.T) {
 	assert.Equal(t, Atom("bar"), env.Resolve(v4))
 }
 
-func TestVariable_Unparse(t *testing.T) {
-	t.Run("named", func(t *testing.T) {
-		v := Variable("X")
-		var tokens []Token
-		v.Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Equal(t, []Token{
-			{Kind: TokenVariable, Val: "X"},
-		}, tokens)
-	})
+func TestVariable_WriteTerm(t *testing.T) {
+	var m mockTerm
+	m.On("WriteTerm", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	defer m.AssertExpectations(t)
 
-	t.Run("unnamed", func(t *testing.T) {
-		v := NewVariable()
-		var tokens []Token
-		v.Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil)
-		assert.Len(t, tokens, 1)
-		assert.Equal(t, TokenVariable, tokens[0].Kind)
-		assert.Regexp(t, `\A_\d+\z`, tokens[0].Val)
-	})
+	mock := Variable("Mock")
+	env := NewEnv().Bind(mock, &m)
 
-	t.Run("variable names", func(t *testing.T) {
-		v := Variable("X")
-		var tokens []Token
-		v.Unparse(func(token Token) {
-			tokens = append(tokens, token)
-		}, nil, WithVariableNames(map[Variable]Atom{
-			"X": "Foo",
-		}))
-		assert.Equal(t, []Token{
-			{Kind: TokenLetterDigit, Val: "Foo"},
-		}, tokens)
-	})
+	tests := []struct {
+		title         string
+		variableNames map[Variable]Atom
+		variable      Variable
+		output        string
+	}{
+		{title: "named", variable: `X`, output: `X`},
+		{title: "unnamed", variable: `` /* NewVariable() */, output: `_1`},
+		{title: "variable_names", variableNames: map[Variable]Atom{"X": "Foo"}, variable: `X`, output: `Foo`},
+		{title: "not a variable", variable: mock},
+	}
 
-	t.Run("not a variable", func(t *testing.T) {
-		var m mockTerm
-		m.On("Unparse", mock.Anything, mock.Anything, mock.Anything).Return().Once()
-		defer m.AssertExpectations(t)
-
-		v := Variable("X")
-		v.Unparse(func(token Token) {}, NewEnv().Bind(v, &m))
-	})
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			varCounter = 0
+			if tt.variable == "" {
+				tt.variable = NewVariable()
+			}
+			buf.Reset()
+			assert.NoError(t, tt.variable.WriteTerm(&buf, &WriteOptions{VariableNames: tt.variableNames}, env))
+			assert.Equal(t, tt.output, buf.String())
+		})
+	}
 }
 
 func TestVariable_Compare(t *testing.T) {

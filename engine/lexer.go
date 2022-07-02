@@ -143,6 +143,7 @@ const (
 	tokenKindLen
 )
 
+// GoString returns a string representation of TokenKind.
 func (k TokenKind) GoString() string {
 	return k.String()
 }

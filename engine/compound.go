@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"io"
 	"sort"
 )
 
@@ -36,228 +37,183 @@ func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
-// Unparse emits tokens that represent the compound.
-func (c *Compound) Unparse(emit func(Token), env *Env, opts ...WriteOption) {
-	wo := defaultWriteOptions
-	for _, o := range opts {
-		o(&wo)
+// WriteTerm writes the Compound to the io.Writer.
+func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	ok, err := c.visit(w, opts)
+	if err != nil || ok {
+		return err
 	}
 
-	if c.Functor == "." && len(c.Args) == 2 {
-		c.unparseList(emit, env, opts...)
-		return
+	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
+		return c.writeTermNumberVars(w, n)
 	}
 
-	if c.Functor == "{}" && len(c.Args) == 1 {
-		c.unparseBlock(emit, env, opts...)
-		return
-	}
-
-	switch len(c.Args) {
-	case 1:
-		for _, op := range wo.ops {
-			if op.name != c.Functor {
-				continue
-			}
-			switch op.specifier {
-			case operatorSpecifierFX:
-				c.unparseFX(op, emit, env, opts...)
-				return
-			case operatorSpecifierFY:
-				c.unparseFY(op, emit, env, opts...)
-				return
-			case operatorSpecifierXF:
-				c.unparseXF(op, emit, env, opts...)
-				return
-			case operatorSpecifierYF:
-				c.unparseYF(op, emit, env, opts...)
-				return
-			}
+	if !opts.IgnoreOps {
+		if c.Functor == "." && len(c.Args) == 2 {
+			return c.writeTermList(w, opts, env)
 		}
-	case 2:
-		for _, op := range wo.ops {
-			if op.name != c.Functor {
-				continue
-			}
-			switch op.specifier {
-			case operatorSpecifierXFX:
-				c.unparseXFX(op, emit, env, opts...)
-				return
-			case operatorSpecifierXFY:
-				c.unparseXFY(op, emit, env, opts...)
-				return
-			case operatorSpecifierYFX:
-				c.unparseYFX(op, emit, env, opts...)
-				return
-			}
+
+		if c.Functor == "{}" && len(c.Args) == 1 {
+			return c.writeTermCurlyBracketed(w, opts, env)
 		}
 	}
 
-	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && wo.numberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
-		c.unparseNumberVar(n, emit)
-		return
+	if opts.IgnoreOps {
+		return c.writeTermFunctionalNotation(w, opts, env)
 	}
 
-	c.unparse(emit, env, opts...)
+	for _, o := range opts.ops {
+		if o.name == c.Functor && o.specifier.arity() == len(c.Args) {
+			return c.writeTermOp(w, opts, env, &o)
+		}
+	}
+
+	return c.writeTermFunctionalNotation(w, opts, env)
 }
 
-func (c *Compound) unparseFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
+func (c *Compound) visit(w io.Writer, opts *WriteOptions) (bool, error) {
+	if opts.visited == nil {
+		opts.visited = map[Term]struct{}{}
 	}
 
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
+	if _, ok := opts.visited[c]; ok {
+		_, err := fmt.Fprint(w, "...")
+		return true, err
 	}
-	c.Functor.Unparse(emit, env, opts...)
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority-1)))...)
+	opts.visited[c] = struct{}{}
+	return false, nil
 }
 
-func (c *Compound) unparseFY(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
+func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	ew := errWriter{w: w}
+	i, j := int(n)%len(letters), int(n)/len(letters)
+	_, _ = fmt.Fprint(&ew, string(letters[i]))
+	if j != 0 {
+		_, _ = fmt.Fprint(&ew, j)
 	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	c.Functor.Unparse(emit, env, opts...)
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)))...)
+	return ew.err
 }
 
-func (c *Compound) unparseXF(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority-1)))...)
-	c.Functor.Unparse(emit, env, opts...)
-}
-
-func (c *Compound) unparseYF(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)))...)
-	c.Functor.Unparse(emit, env, opts...)
-}
-
-func (c *Compound) unparseXFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)-1))...)
-	c.Functor.Unparse(emit, env, opts...)
-	env.Resolve(c.Args[1]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)-1))...)
-}
-
-func (c *Compound) unparseXFY(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)-1))...)
-	c.Functor.Unparse(emit, env, opts...)
-	env.Resolve(c.Args[1]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)))...)
-}
-
-func (c *Compound) unparseYFX(op operator, emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	if int(op.priority) > wto.priority {
-		emit(Token{Kind: TokenOpen, Val: "("})
-		defer emit(Token{Kind: TokenClose, Val: ")"})
-	}
-	env.Resolve(c.Args[0]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)))...)
-	c.Functor.Unparse(emit, env, opts...)
-	env.Resolve(c.Args[1]).Unparse(emit, env, append(opts, WithPriority(int(op.priority)-1))...)
-}
-
-func (c *Compound) unparseList(emit func(Token), env *Env, opts ...WriteOption) {
-	wto := defaultWriteOptions
-	for _, o := range opts {
-		o(&wto)
-	}
-
-	var comma bool
-	emit(Token{Kind: TokenOpenList, Val: "["})
-	iter := ListIterator{List: c, Env: env}
+func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) error {
+	ew := errWriter{w: w}
+	_, _ = fmt.Fprint(&ew, "[")
+	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
+	iter := ListIterator{List: c.Args[1], Env: env}
 	for iter.Next() {
-		if comma {
-			emit(Token{Kind: TokenComma, Val: ","})
-		}
-		env.Resolve(iter.Current()).Unparse(emit, env, opts...)
-		comma = true
+		_, _ = fmt.Fprint(&ew, ",")
+		_ = iter.Current().WriteTerm(&ew, opts.withBefore(operator{}), env)
 	}
 	if err := iter.Err(); err != nil {
-		emit(Token{Kind: TokenBar, Val: "|"})
-
-		suffix := iter.Suffix()
-		if c, ok := suffix.(*Compound); ok && c.Functor == "." && len(c.Args) == 2 {
-			emit(Token{Kind: TokenGraphic, Val: "..."})
+		_, _ = fmt.Fprint(&ew, "|")
+		s := iter.Suffix()
+		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+			_, _ = fmt.Fprint(&ew, "...")
 		} else {
-			suffix.Unparse(emit, env, opts...)
+			_ = s.WriteTerm(&ew, opts.withBefore(operator{}), env)
 		}
 	}
-	emit(Token{Kind: TokenCloseList, Val: "]"})
+	_, _ = fmt.Fprint(&ew, "]")
+	return ew.err
 }
 
-func (c *Compound) unparseBlock(emit func(Token), env *Env, opts ...WriteOption) {
-	emit(Token{Kind: TokenOpenCurly, Val: "{"})
-	env.Resolve(c.Args[0]).Unparse(emit, env, opts...)
-	emit(Token{Kind: TokenCloseCurly, Val: "}"})
+func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env *Env) error {
+	ew := errWriter{w: w}
+	_, _ = fmt.Fprint(&ew, "{")
+	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
+	_, _ = fmt.Fprint(&ew, "}")
+	return ew.err
 }
 
-func (c *Compound) unparseNumberVar(n Integer, emit func(Token)) {
-	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	i, j := int(n)%len(letters), int(n)/len(letters)
-	if j == 0 {
-		s := string(letters[i])
-		emit(Token{Kind: TokenVariable, Val: s})
-		return
+func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, env *Env) error {
+	ew := errWriter{w: w}
+	_ = c.Functor.WriteTerm(&ew, opts, env)
+	_, _ = fmt.Fprint(&ew, "(")
+	for i, a := range c.Args {
+		if i != 0 {
+			_, _ = fmt.Fprint(&ew, ",")
+		}
+		_ = a.WriteTerm(&ew, opts.withBefore(operator{}), env)
 	}
-	s := fmt.Sprintf("%s%d", string(letters[i]), j)
-	emit(Token{Kind: TokenVariable, Val: s})
+	_, _ = fmt.Fprint(&ew, ")")
+	return ew.err
 }
 
-func (c *Compound) unparse(emit func(Token), env *Env, opts ...WriteOption) {
-	c.Functor.Unparse(emit, env, opts...)
-	emit(Token{Kind: TokenOpen, Val: "("})
-	env.Resolve(c.Args[0]).Unparse(emit, env, opts...)
-	for _, arg := range c.Args[1:] {
-		emit(Token{Kind: TokenComma, Val: ","})
-		env.Resolve(arg).Unparse(emit, env, opts...)
+var writeTermOps = [...]func(c *Compound, w io.Writer, opts *WriteOptions, env *Env, op *operator) error{
+	operatorSpecifierFX:  (*Compound).writeTermOpPrefix,
+	operatorSpecifierFY:  (*Compound).writeTermOpPrefix,
+	operatorSpecifierXF:  (*Compound).writeTermOpPostfix,
+	operatorSpecifierYF:  (*Compound).writeTermOpPostfix,
+	operatorSpecifierXFX: (*Compound).writeTermOpInfix,
+	operatorSpecifierXFY: (*Compound).writeTermOpInfix,
+	operatorSpecifierYFX: (*Compound).writeTermOpInfix,
+}
+
+func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	return writeTermOps[op.specifier](c, w, opts, env, op)
+}
+
+func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
+	opts = opts.withFreshVisited()
+	_, r := op.bindingPriorities()
+	openClose := opts.priority < op.priority
+
+	if opts.before != (operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
-	emit(Token{Kind: TokenClose, Val: ")"})
+	if openClose {
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+	return ew.err
+}
+
+func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
+	opts = opts.withFreshVisited()
+	l, _ := op.bindingPriorities()
+	openClose := opts.priority < op.priority || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+
+	if openClose {
+		if opts.before != (operator{}) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	} else if opts.after != (operator{}) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	return ew.err
+}
+
+func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
+	ew := errWriter{w: w}
+	opts = opts.withFreshVisited()
+	l, r := op.bindingPriorities()
+	openClose := opts.priority < op.priority || opts.before.name == "-" && opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY
+
+	if openClose {
+		if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+		_, _ = fmt.Fprint(&ew, "(")
+	}
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_, _ = fmt.Fprint(&ew, c.Functor)
+	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	if openClose {
+		_, _ = fmt.Fprint(&ew, ")")
+	}
+	return ew.err
 }
 
 // Compare compares the compound to another term.
