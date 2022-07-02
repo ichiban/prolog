@@ -1281,12 +1281,9 @@ func streamOptionType(o *Compound, env *Env) (StreamOption, error) {
 			return WithStreamType(StreamTypeText), nil
 		case "binary":
 			return WithStreamType(StreamTypeBinary), nil
-		default:
-			return nil, DomainError(ValidDomainStreamOption, o, env)
 		}
-	default:
-		return nil, DomainError(ValidDomainStreamOption, o, env)
 	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
 }
 
 func streamOptionReposition(o *Compound, env *Env) (StreamOption, error) {
@@ -1299,12 +1296,9 @@ func streamOptionReposition(o *Compound, env *Env) (StreamOption, error) {
 			return WithReposition(true), nil
 		case "false":
 			return WithReposition(false), nil
-		default:
-			return nil, DomainError(ValidDomainStreamOption, o, env)
 		}
-	default:
-		return nil, DomainError(ValidDomainStreamOption, o, env)
 	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
 }
 
 func streamOptionEOFAction(o *Compound, env *Env) (StreamOption, error) {
@@ -1319,12 +1313,9 @@ func streamOptionEOFAction(o *Compound, env *Env) (StreamOption, error) {
 			return WithEOFAction(EOFActionEOFCode), nil
 		case "reset":
 			return WithEOFAction(EOFActionReset), nil
-		default:
-			return nil, DomainError(ValidDomainStreamOption, o, env)
 		}
-	default:
-		return nil, DomainError(ValidDomainStreamOption, o, env)
 	}
+	return nil, DomainError(ValidDomainStreamOption, o, env)
 }
 
 // Close closes a stream specified by streamOrAlias.
