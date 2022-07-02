@@ -33,9 +33,8 @@ func Delay(k ...func(context.Context) *Promise) *Promise {
 func Bool(ok bool) *Promise {
 	if ok {
 		return truePromise
-	} else {
-		return falsePromise
 	}
+	return falsePromise
 }
 
 // Error returns a promise that simply returns (false, err).

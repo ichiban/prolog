@@ -47,6 +47,7 @@ func Rulify(t Term, env *Env) Term {
 	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
 }
 
+// WriteOptions specify how the Term writes itself.
 type WriteOptions struct {
 	IgnoreOps     bool
 	Quoted        bool

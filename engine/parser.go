@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	// ErrInsufficient is a parsing error which can be resolved by adding more characters to the input.
 	ErrInsufficient = errors.New("insufficient")
 	errExpectation  = errors.New("expectation error")
 	errNoOp         = errors.New("no op")

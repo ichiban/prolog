@@ -171,6 +171,7 @@ func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
+// WriteTerm writes the Stream to the io.Writer.
 func (s *Stream) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	if s.alias != "" {
 		return s.alias.WriteTerm(w, opts, env)

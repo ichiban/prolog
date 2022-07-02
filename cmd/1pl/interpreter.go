@@ -7,6 +7,7 @@ import (
 	"github.com/ichiban/prolog/engine"
 )
 
+// New creates a prolog.Interpreter with some helper predicates.
 func New(r io.Reader, w io.Writer) *prolog.Interpreter {
 	i := prolog.New(r, w)
 	i.Register2("call_nth", i.CallNth)

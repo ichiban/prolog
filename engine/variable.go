@@ -43,6 +43,7 @@ func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 	}
 }
 
+// WriteTerm writes the Variable to the io.Writer.
 func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	switch v := env.Resolve(v).(type) {
 	case Variable:
