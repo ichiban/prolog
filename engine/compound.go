@@ -44,7 +44,7 @@ func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 		return err
 	}
 
-	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 {
+	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 && n >= 0 {
 		return c.writeTermNumberVars(w, n)
 	}
 

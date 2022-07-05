@@ -55,6 +55,9 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	}
 
 	if openClose {
+		if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
 		_, _ = fmt.Fprint(&ew, "(")
 	}
 

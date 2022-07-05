@@ -392,8 +392,11 @@ func (l *Lexer) quotedToken() Token {
 				l.backup()
 				return l.escapeSequence(l.quotedToken)
 			}
+		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ':
+			l.accept(r)
 		default:
 			l.accept(r)
+			return Token{Kind: TokenInvalid, Val: l.chunk()}
 		}
 	}
 }
@@ -550,9 +553,12 @@ func (l *Lexer) characterCodeConstant() Token {
 		return l.escapeSequence(func() Token {
 			return Token{Kind: TokenInteger, Val: l.chunk()}
 		})
-	default:
+	case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ':
 		l.accept(r)
 		return Token{Kind: TokenInteger, Val: l.chunk()}
+	default:
+		l.accept(r)
+		return Token{Kind: TokenInvalid, Val: l.chunk()}
 	}
 }
 
@@ -743,6 +749,10 @@ func isOctalDigitChar(r rune) bool {
 
 func isHexadecimalDigitChar(r rune) bool {
 	return strings.ContainsRune("0123456789ABCDEF", unicode.ToUpper(r))
+}
+
+func isSoloChar(r rune) bool {
+	return strings.ContainsRune(`!(),;[]{}|%`, r)
 }
 
 func isUnderscoreChar(r rune) bool {
