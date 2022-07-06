@@ -392,7 +392,7 @@ func (l *Lexer) quotedToken() Token {
 				l.backup()
 				return l.escapeSequence(l.quotedToken)
 			}
-		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ':
+		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ', r == '"', r == '`':
 			l.accept(r)
 		default:
 			l.accept(r)

@@ -76,7 +76,7 @@ func TestAtom_WriteTerm(t *testing.T) {
 		{atom: `a`, quoted: false, output: `a`},
 		{atom: `a`, quoted: true, output: `a`},
 		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: false, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
-		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: true, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: true, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\"`'"},
 		{atom: `,`, quoted: false, output: `,`},
 		{atom: `,`, quoted: true, output: `','`},
 		{atom: `[]`, quoted: false, output: `[]`},
@@ -85,7 +85,7 @@ func TestAtom_WriteTerm(t *testing.T) {
 		{atom: `{}`, quoted: true, output: `{}`},
 
 		{atom: `-`, output: `-`},
-		{atom: `-`, before: operator{name: "+"}, output: `(-)`},
+		{atom: `-`, before: operator{name: "+"}, output: ` (-)`},
 		{atom: `-`, after: operator{name: "+"}, output: `(-)`},
 	}
 

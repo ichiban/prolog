@@ -11,7 +11,7 @@ import (
 
 var (
 	graphicalAtomPattern    = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
-	quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
+	quotedAtomEscapePattern = regexp.MustCompile(`[[:cntrl:]]|\\|'`)
 )
 
 // Atom is a prolog atom.
@@ -113,10 +113,6 @@ func quotedIdentEscape(s string) string {
 		return `\\`
 	case `'`:
 		return `\'`
-	case `"`:
-		return `\"`
-	case "`":
-		return "\\`"
 	default:
 		var ret []string
 		for _, r := range s {

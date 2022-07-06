@@ -331,6 +331,7 @@ func TestLexer_Token(t *testing.T) {
 	})
 
 	t.Run("quoted", func(t *testing.T) {
+
 		t.Run("no escape", func(t *testing.T) {
 			l := Lexer{input: bufio.NewReader(strings.NewReader(`'abc'.`))}
 
@@ -1316,6 +1317,51 @@ a quoted ident"`}, token)
 		token = l.Token()
 		assert.Equal(t, Token{Kind: TokenCloseList, Val: "]"}, token)
 	})
+}
+
+func TestLexer_Token_quoted(t *testing.T) {
+	tests := []struct {
+		title string
+		input string
+		token Token
+	}{
+		{title: "no escape", input: `'abc'`, token: Token{Kind: TokenQuoted, Val: "'abc'"}},
+		{title: "double single quotes", input: `'don''t panic'`, token: Token{Kind: TokenQuoted, Val: "'don''t panic'"}},
+		{title: "backslash at the very end of the line", input: `'this is \
+a quoted ident'`, token: Token{Kind: TokenQuoted, Val: "'this is \\\na quoted ident'"}},
+		{title: "alert", input: `'\a'`, token: Token{Kind: TokenQuoted, Val: "'\\a'"}},
+		{title: "backspace", input: `'\b'`, token: Token{Kind: TokenQuoted, Val: "'\\b'"}},
+		{title: "formfeed", input: `'\f'`, token: Token{Kind: TokenQuoted, Val: "'\\f'"}},
+		{title: "newline", input: `'\n'`, token: Token{Kind: TokenQuoted, Val: "'\\n'"}},
+		{title: "return", input: `'\r'`, token: Token{Kind: TokenQuoted, Val: "'\\r'"}},
+		{title: "tab", input: `'\t'`, token: Token{Kind: TokenQuoted, Val: "'\\t'"}},
+		{title: "vertical tab", input: `'\v'`, token: Token{Kind: TokenQuoted, Val: "'\\v'"}},
+		{title: "hex code", input: `'\xa3\'`, token: Token{Kind: TokenQuoted, Val: "'\\xa3\\'"}},
+		{title: "oct code", input: `'\43\'`, token: Token{Kind: TokenQuoted, Val: "'\\43\\'"}},
+		{title: "backslash", input: `'\\'`, token: Token{Kind: TokenQuoted, Val: `'\\'`}},
+		{title: "single quote", input: `'\''`, token: Token{Kind: TokenQuoted, Val: `'\''`}},
+		{title: "double quote", input: `'\"'`, token: Token{Kind: TokenQuoted, Val: `'\"'`}},
+		{title: "back quote", input: "'`'", token: Token{Kind: TokenQuoted, Val: "'`'"}},
+		{title: "escaped back quote", input: "'\\`'", token: Token{Kind: TokenQuoted, Val: "'\\`'"}},
+		{title: "insufficient", input: `'`, token: Token{Kind: TokenInsufficient, Val: `'`}},
+		{title: "insufficient after slash", input: `'\`, token: Token{Kind: TokenInsufficient, Val: `'\`}},
+		{title: "insufficient after hex", input: `'\x`, token: Token{Kind: TokenInsufficient, Val: `'\x`}},
+		{title: "unexpected rune after hex", input: `'\xG`, token: Token{Kind: TokenInvalid, Val: `'\xG`}},
+		{title: "insufficient after octal", input: `'\0`, token: Token{Kind: TokenInsufficient, Val: `'\0`}},
+		{title: "unexpected rune after octal", input: `'\08`, token: Token{Kind: TokenInvalid, Val: `'\08`}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			l := Lexer{input: bufio.NewReader(strings.NewReader(tt.input))}
+
+			token := l.Token()
+			assert.Equal(t, tt.token, token)
+
+			token = l.Token()
+			assert.Equal(t, Token{Kind: TokenEOF}, token)
+		})
+	}
 }
 
 func TestTokenKind_GoString(t *testing.T) {
