@@ -87,11 +87,7 @@ func (state *State) SetUserOutput(w io.Writer, opts ...StreamOption) {
 // Parser creates a new parser from the current State and io.Reader.
 // If non-nil, vars will hold the information on variables it parses.
 func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
-	br, ok := r.(*bufio.Reader)
-	if !ok {
-		br = bufio.NewReader(r)
-	}
-	return newParser(br,
+	return newParser(r,
 		withCharConversions(state.charConversions),
 		withOperators(&state.operators),
 		withDoubleQuotes(state.doubleQuotes),
@@ -2279,7 +2275,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
+	p := newParser(strings.NewReader(sb.String()))
 	t, err := p.Number()
 	if err != nil {
 		return Error(SyntaxError(err, env))
@@ -2361,7 +2357,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
+		p := newParser(strings.NewReader(sb.String()))
 		t, err := p.Number()
 		if err != nil {
 			return Error(SyntaxError(err, env))

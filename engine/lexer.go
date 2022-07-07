@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -11,7 +12,7 @@ import (
 
 // Lexer turns bytes into tokens.
 type Lexer struct {
-	input           *bufio.Reader
+	input           runeRingBuffer
 	buf             bytes.Buffer
 	offset          int
 	charConversions map[rune]rune
@@ -37,10 +38,7 @@ func (l *Lexer) next() rune {
 }
 
 func (l *Lexer) rawNext() rune {
-	r, _, err := l.input.ReadRune()
-	if err != nil {
-		r = utf8.RuneError
-	}
+	r, _, _ := l.input.ReadRune()
 	return r
 }
 
@@ -173,41 +171,6 @@ func (k TokenKind) String() string {
 		TokenComma:            "comma",
 		TokenEnd:              "end",
 	}[k]
-}
-
-var spacing = [tokenKindLen][tokenKindLen]bool{
-	TokenVariable: {
-		TokenVariable:    true,
-		TokenInteger:     true,
-		TokenFloatNumber: true,
-		TokenLetterDigit: true,
-	},
-	TokenLetterDigit: {
-		TokenVariable:    true,
-		TokenInteger:     true,
-		TokenFloatNumber: true,
-		TokenLetterDigit: true,
-	},
-	TokenGraphic: {
-		TokenGraphic: true,
-	},
-	TokenComma: {
-		TokenVariable:    true,
-		TokenFloatNumber: true,
-		TokenInteger:     true,
-		TokenLetterDigit: true,
-		TokenQuoted:      true,
-		TokenGraphic:     true,
-		TokenComma:       true,
-		TokenEnd:         true,
-		TokenBar:         true,
-		TokenOpen:        true,
-		TokenClose:       true,
-		TokenOpenList:    true,
-		TokenCloseList:   true,
-		TokenOpenCurly:   true,
-		TokenCloseCurly:  true,
-	},
 }
 
 // Tokens
@@ -636,7 +599,31 @@ func (l *Lexer) fraction() Token {
 		case isDecimalDigitChar(r):
 			l.accept(r)
 		case r == 'e', r == 'E':
-			l.accept(r)
+			var sign rune
+			switch r := l.next(); {
+			case r == '-', r == '+':
+				sign = r
+			default:
+				l.backup()
+			}
+
+			switch r := l.next(); {
+			case isDecimalDigitChar(r):
+				l.backup()
+				break
+			default:
+				l.backup()
+				if sign != 0 {
+					l.backup()
+				}
+				l.backup() // for 'e' or 'E'
+				return Token{Kind: TokenFloatNumber, Val: l.chunk()}
+			}
+
+			l.accept(r) // 'e' or 'E'
+			if sign != 0 {
+				l.accept(sign)
+			}
 			return l.exponent()
 		default:
 			l.backup()
@@ -646,23 +633,6 @@ func (l *Lexer) fraction() Token {
 }
 
 func (l *Lexer) exponent() Token {
-	switch r := l.next(); {
-	case r == '-', r == '+':
-		l.accept(r)
-	default:
-		l.backup()
-	}
-
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isDecimalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isDecimalDigitChar(r):
@@ -769,4 +739,59 @@ func isMetaChar(r rune) bool {
 
 func isSymbolicControlChar(r rune) bool {
 	return strings.ContainsRune(`abrftnv`, r)
+}
+
+type runeRingBuffer struct {
+	base       io.RuneReader
+	buf        [4]rune
+	start, end int
+}
+
+func newRuneRingBuffer(r io.Reader) runeRingBuffer {
+	br, ok := r.(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReader(r)
+	}
+	return runeRingBuffer{base: br}
+}
+
+func (b *runeRingBuffer) ReadRune() (rune, int, error) {
+	if b.empty() {
+		r, _, err := b.base.ReadRune()
+		if err != nil {
+			r = utf8.RuneError
+		}
+		b.put(r)
+	}
+	return b.get(), 0, nil
+}
+
+func (b *runeRingBuffer) UnreadRune() error {
+	b.backup()
+	return nil
+}
+
+func (b *runeRingBuffer) put(r rune) {
+	b.buf[b.end] = r
+	b.end++
+	b.end %= len(b.buf)
+}
+
+func (b *runeRingBuffer) get() rune {
+	r := b.buf[b.start]
+	b.start++
+	b.start %= len(b.buf)
+	return r
+}
+
+func (b *runeRingBuffer) empty() bool {
+	return b.start == b.end
+}
+
+func (b *runeRingBuffer) backup() {
+	b.start--
+	b.start %= len(b.buf)
+	if b.start < 0 {
+		b.start += len(b.buf)
+	}
 }

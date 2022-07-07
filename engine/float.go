@@ -37,14 +37,22 @@ func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, "(")
 	}
 
-	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
-	_, _ = fmt.Fprint(&ew, s)
+	s := strconv.FormatFloat(float64(f), 'g', -1, 64)
 	if !strings.ContainsRune(s, '.') {
-		_, _ = fmt.Fprint(&ew, ".0")
+		if strings.ContainsRune(s, 'e') {
+			s = strings.Replace(s, "e", ".0e", 1)
+		} else {
+			s += ".0"
+		}
 	}
+	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
+	}
+
+	if !openClose && opts.after != (operator{}) && (opts.after.name == "e" || opts.after.name == "E") {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
 
 	return ew.err

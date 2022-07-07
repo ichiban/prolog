@@ -43,6 +43,10 @@ func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
+	if !openClose && opts.after != (operator{}) && (opts.after.name == "e" || opts.after.name == "E") {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+
 	return ew.err
 }
 

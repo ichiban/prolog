@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"io"
 	"strings"
 	"testing"
@@ -134,7 +133,7 @@ func TestParser_Term(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			varCounter = 0
-			p := newParser(bufio.NewReader(strings.NewReader(tc.input)), append(tc.opts, withOperators(&ops))...)
+			p := newParser(strings.NewReader(tc.input), append(tc.opts, withOperators(&ops))...)
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.term, term)
@@ -144,7 +143,7 @@ func TestParser_Term(t *testing.T) {
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},
@@ -159,12 +158,12 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?].`)))
+		p := newParser(strings.NewReader(`[?].`))
 		assert.Error(t, p.Replace("?", []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
@@ -172,7 +171,7 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},
@@ -221,7 +220,7 @@ func TestParser_Number(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(tc.input)))
+			p := newParser(strings.NewReader(tc.input))
 			n, err := p.Number()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.number, n)
@@ -230,7 +229,7 @@ func TestParser_Number(t *testing.T) {
 }
 
 func TestParser_More(t *testing.T) {
-	p := newParser(bufio.NewReader(strings.NewReader(`foo. bar.`)))
+	p := newParser(strings.NewReader(`foo. bar.`))
 	term, err := p.Term()
 	assert.NoError(t, err)
 	assert.Equal(t, Atom("foo"), term)

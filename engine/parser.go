@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -40,10 +39,10 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input *bufio.Reader, opts ...parserOption) *Parser {
+func newParser(input io.Reader, opts ...parserOption) *Parser {
 	p := Parser{
 		lexer: Lexer{
-			input: input,
+			input: newRuneRingBuffer(input),
 		},
 	}
 	for _, o := range opts {
