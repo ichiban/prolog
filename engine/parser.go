@@ -41,10 +41,12 @@ type ParsedVariable struct {
 }
 
 func newParser(input io.Reader, opts ...parserOption) *Parser {
+	var ops operators
 	p := Parser{
 		lexer: Lexer{
 			input: newRuneRingBuffer(input),
 		},
+		operators: &ops,
 	}
 	for _, o := range opts {
 		o(&p)
@@ -355,14 +357,14 @@ func (p *Parser) term(maxPriority Integer) (Term, error) {
 	switch op, err := p.prefix(maxPriority); {
 	case err == nil:
 		_, rbp := op.bindingPriorities()
-		t, err := p.term(rbp)
-		if err != nil {
-			lhs = op.name
+		if t, err := p.term(rbp); err == nil {
+			lhs = op.name.Apply(t)
 			break
 		}
-		lhs = op.name.Apply(t)
+		p.backup()
+		fallthrough
 	default:
-		lhs, err = p.term0()
+		lhs, err = p.term0(maxPriority)
 		if err != nil {
 			return nil, err
 		}
@@ -496,7 +498,7 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	return "", errExpectation
 }
 
-func (p *Parser) term0() (Term, error) {
+func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	switch t := p.next(); t.Kind {
 	case TokenOpen, TokenOpenCT:
 		t, err := p.term(1201)
@@ -588,6 +590,16 @@ func (p *Parser) term0() (Term, error) {
 		return nil, err
 	}
 
+	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
+	if t, ok := t.(Atom); ok && maxPriority < 1201 {
+		for _, op := range *p.operators {
+			if op.name == t {
+				p.backup()
+				return nil, errExpectation
+			}
+		}
+	}
+
 	if p.placeholder != "" && t == p.placeholder {
 		if len(p.args) == 0 {
 			return nil, errPlaceholder
@@ -649,7 +661,7 @@ func (p *Parser) name() (Atom, error) {
 }
 
 func (p *Parser) list() (Term, error) {
-	arg, err := p.term(999)
+	arg, err := p.arg()
 	if err != nil {
 		return nil, err
 	}
@@ -657,13 +669,13 @@ func (p *Parser) list() (Term, error) {
 	for {
 		switch t := p.next(); t.Kind {
 		case TokenComma:
-			arg, err := p.term(999)
+			arg, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, arg)
 		case TokenBar:
-			rest, err := p.term(999)
+			rest, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
@@ -704,7 +716,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 	switch t := p.next(); t.Kind {
 	case TokenOpenCT:
-		arg, err := p.term(999)
+		arg, err := p.arg()
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +724,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 		for {
 			switch t := p.next(); t.Kind {
 			case TokenComma:
-				arg, err := p.term(999)
+				arg, err := p.arg()
 				if err != nil {
 					return nil, err
 				}
@@ -731,6 +743,14 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 		p.backup()
 		return functor, nil
 	}
+}
+
+func (p *Parser) arg() (Term, error) {
+	if arg, err := p.term(999); err == nil {
+		return arg, nil
+	}
+
+	return p.op(999)
 }
 
 func parseInteger(sign int64, s string) (Integer, error) {

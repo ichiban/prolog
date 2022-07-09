@@ -591,7 +591,7 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 				return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
 			}
 		case "|":
-			if spec&operatorSpecifierClass != operatorSpecifierInfix || p < 1001 {
+			if spec&operatorSpecifierClass != operatorSpecifierInfix || (p > 0 && p < 1001) {
 				if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
 					return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
 				} else {
