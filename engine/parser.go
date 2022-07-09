@@ -357,12 +357,12 @@ func (p *Parser) term(maxPriority Integer) (Term, error) {
 	switch op, err := p.prefix(maxPriority); {
 	case err == nil:
 		_, rbp := op.bindingPriorities()
-		if t, err := p.term(rbp); err == nil {
-			lhs = op.name.Apply(t)
-			break
+		t, err := p.term(rbp)
+		if err != nil {
+			p.backup()
+			return p.term0(maxPriority)
 		}
-		p.backup()
-		fallthrough
+		lhs = op.name.Apply(t)
 	default:
 		lhs, err = p.term0(maxPriority)
 		if err != nil {
