@@ -344,7 +344,14 @@ func (l *Lexer) quotedToken() Token {
 				l.accept(r)
 			default:
 				l.backup()
-				return Token{Kind: TokenQuoted, Val: l.chunk()}
+				s := l.chunk()
+
+				// Checks if it contains invalid octal or hexadecimal escape sequences.
+				if strings.ContainsRune(unquote(s), utf8.RuneError) {
+					return Token{Kind: TokenInvalid, Val: s}
+				}
+
+				return Token{Kind: TokenQuoted, Val: s}
 			}
 		case r == '\\':
 			l.accept(r)
