@@ -177,7 +177,7 @@ func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env,
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY))
+	openClose := opts.priority < op.priority || (opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
 
 	if openClose {
 		if opts.before != (operator{}) {
@@ -199,10 +199,10 @@ func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, o
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY))
+	openClose := opts.priority < op.priority || (opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
 
 	if openClose {
-		if opts.before.name != "" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) {
+		if opts.before.name != "" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")

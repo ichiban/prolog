@@ -85,7 +85,7 @@ func TestAtom_WriteTerm(t *testing.T) {
 		{atom: `{}`, quoted: true, output: `{}`},
 
 		{atom: `-`, output: `-`},
-		{atom: `-`, before: operator{name: "+"}, output: ` (-)`},
+		{atom: `-`, before: operator{specifier: operatorSpecifierPrefix, name: "+"}, output: ` (-)`},
 		{atom: `-`, after: operator{name: "+"}, output: `(-)`},
 	}
 

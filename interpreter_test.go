@@ -398,9 +398,9 @@ b'). % "a\\\nb"`, output: `ab`},
 		{name: "257", input: `writeq([+{a},+[]]).`, output: `[+{a},+[]]`},
 		{name: "68", input: `[(:-)|(:-)]=[:-|:-].`},
 		{name: "69", input: `X=[a|b,c].`, output: `syntax err.`},
-		{name: "70", input: `op(1000,xfy,',').`, output: `p._e.(m.,o.,',')`},
-		{name: "71", input: `op(1001,xfy,',').`, output: `p._e.(m.,o.,',')`},
-		{name: "72", input: `op(999,xfy,'|').`, output: `p._e.(c.,o.,'|')`},
+		{name: "70", input: `op(1000,xfy,',').`, output: `permission_error(modify,operator,',')`},
+		{name: "71", input: `op(1001,xfy,',').`, output: `permission_error(modify,operator,',')`},
+		{name: "72", input: `op(999,xfy,'|').`, output: `permission_error(modify,operator,'|')`},
 		{name: "73", input: `X=[a|b].`},
 		{name: "285", input: `X=[(a|b)].`, output: `syntax err.`},
 		{name: "219", input: `[a|[]]=[a].`},
@@ -616,7 +616,7 @@ a.`, output: `syntax err.`},
 				            error(syntax_error(_), _),
 				            write('syntax err.')),
 				      error(E, _),
-				      write(E)), !; write(fails).
+				      writeq(E)), !; write(fails).
 			`)
 			assert.NoError(t, sol.Err())
 			assert.Equal(t, tt.output, out.String())

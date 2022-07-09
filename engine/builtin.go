@@ -523,16 +523,26 @@ func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
 func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
-	p, ok := env.Resolve(priority).(Integer)
-	if !ok {
+	var p Integer
+	switch priority := env.Resolve(priority).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Integer:
+		if priority < 0 || priority > 1200 {
+			return Error(DomainError(ValidDomainOperatorPriority, priority, env))
+		}
+		p = priority
+	default:
 		return Error(TypeError(ValidTypeInteger, priority, env))
 	}
-	if p < 0 || p > 1200 {
-		return Error(DomainError(ValidDomainOperatorPriority, priority, env))
-	}
 
-	s, ok := env.Resolve(specifier).(Atom)
-	if !ok {
+	var s Atom
+	switch specifier := env.Resolve(specifier).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Atom:
+		s = specifier
+	default:
 		return Error(TypeError(ValidTypeAtom, specifier, env))
 	}
 
@@ -549,38 +559,60 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
 	}
 
-	o, ok := env.Resolve(op).(Atom)
-	if !ok {
-		return Error(TypeError(ValidTypeAtom, op, env))
+	var names []Atom
+	switch op := env.Resolve(op).(type) {
+	case Atom:
+		names = []Atom{op}
+	default:
+		iter := ListIterator{List: op}
+	iter:
+		for iter.Next() {
+			switch op := env.Resolve(iter.Current()).(type) {
+			case Atom:
+				for _, o := range names {
+					if o == op {
+						continue iter
+					}
+				}
+				names = append(names, op)
+			default:
+				return Error(TypeError(ValidTypeAtom, op, env))
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
 	}
 
-	// already defined?
-	for i, op := range state.operators {
-		if op.specifier != spec || op.name != o {
+	for _, name := range names {
+		switch name {
+		case ",":
+			if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+				return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
+			}
+		case "|":
+			if spec&operatorSpecifierClass != operatorSpecifierInfix || p < 1001 {
+				if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+					return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
+				} else {
+					return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+				}
+			}
+		case "{}", "[]":
+			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		}
+	}
+
+	for _, name := range names {
+		if i := state.operators.indexOf(spec&operatorSpecifierClass, name); i >= 0 {
+			state.operators.remove(i)
+		}
+
+		if p == 0 {
 			continue
 		}
 
-		// remove it first so that we can insert it again in the right position
-		copy(state.operators[i:], state.operators[i+1:])
-		state.operators[len(state.operators)-1] = operator{}
-		state.operators = state.operators[:len(state.operators)-1]
-
-		// or keep it removed.
-		if p == 0 {
-			return k(env)
-		}
-	}
-
-	// insert
-	i := sort.Search(len(state.operators), func(i int) bool {
-		return state.operators[i].priority >= p
-	})
-	state.operators = append(state.operators, operator{})
-	copy(state.operators[i+1:], state.operators[i:])
-	state.operators[i] = operator{
-		priority:  p,
-		specifier: spec,
-		name:      o,
+		state.operators.insert(p, spec, name)
 	}
 
 	return k(env)

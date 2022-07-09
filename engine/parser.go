@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -234,13 +235,18 @@ func (p *Parser) More() bool {
 type operatorSpecifier uint8
 
 const (
-	operatorSpecifierFX operatorSpecifier = iota
-	operatorSpecifierFY
-	operatorSpecifierXF
-	operatorSpecifierYF
-	operatorSpecifierXFX
-	operatorSpecifierXFY
-	operatorSpecifierYFX
+	operatorSpecifierFX  = operatorSpecifierPrefix + 1
+	operatorSpecifierFY  = operatorSpecifierPrefix + 2
+	operatorSpecifierXF  = operatorSpecifierPostfix + 1
+	operatorSpecifierYF  = operatorSpecifierPostfix + 2
+	operatorSpecifierXFX = operatorSpecifierInfix + 1
+	operatorSpecifierXFY = operatorSpecifierInfix + 2
+	operatorSpecifierYFX = operatorSpecifierInfix + 3
+
+	operatorSpecifierClass   operatorSpecifier = 0b1100
+	operatorSpecifierPrefix  operatorSpecifier = 0b0000
+	operatorSpecifierPostfix operatorSpecifier = 0b0100
+	operatorSpecifierInfix   operatorSpecifier = 0b1000
 )
 
 func (s operatorSpecifier) term() Term {
@@ -254,6 +260,7 @@ func (s operatorSpecifier) term() Term {
 		operatorSpecifierYFX: Atom("yfx"),
 	}[s]
 }
+
 func (s operatorSpecifier) arity() int {
 	return [...]int{
 		operatorSpecifierFX:  1,
@@ -267,6 +274,35 @@ func (s operatorSpecifier) arity() int {
 }
 
 type operators []operator
+
+func (ops operators) indexOf(class operatorSpecifier, name Atom) int {
+	for i, op := range ops {
+		if op.name == name && op.specifier&operatorSpecifierClass == class {
+			return i
+		}
+	}
+	return -1
+}
+
+func (ops *operators) insert(p Integer, spec operatorSpecifier, op Atom) {
+	i := sort.Search(len(*ops), func(i int) bool {
+		return (*ops)[i].priority >= p
+	})
+	*ops = append(*ops, operator{})
+	copy((*ops)[i+1:], (*ops)[i:])
+	(*ops)[i] = operator{
+		priority:  p,
+		specifier: spec,
+		name:      op,
+	}
+}
+
+func (ops *operators) remove(i int) {
+	copy((*ops)[i:], (*ops)[i+1:])
+
+	(*ops)[len(*ops)-1] = operator{}
+	*ops = (*ops)[:len(*ops)-1]
+}
 
 type operator struct {
 	priority  Integer // 1 ~ 1200
@@ -383,6 +419,9 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 	}
 
 	for _, op := range *p.operators {
+		if op.specifier&operatorSpecifierClass != operatorSpecifierPrefix {
+			continue
+		}
 		if op.name != a {
 			continue
 		}
@@ -407,6 +446,9 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 	}
 
 	for _, op := range *p.operators {
+		if op.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
+			continue
+		}
 		if op.name != a {
 			continue
 		}
