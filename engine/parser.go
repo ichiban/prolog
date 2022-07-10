@@ -216,8 +216,8 @@ func (p *Parser) Number() (Number, error) {
 		return nil, err
 	}
 
-	// No more tokens/runes after a number.
-	if !p.buf.empty() || p.lexer.reserved != (Token{}) {
+	// No more runes after a number.
+	if !p.buf.empty() {
 		return nil, errNotANumber
 	}
 	if r := p.lexer.rawNext(); r != utf8.RuneError {

@@ -97,12 +97,13 @@ func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
 
 func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
+	opts = opts.withPriority(999).withBefore(operator{}).withAfter(operator{})
 	_, _ = fmt.Fprint(&ew, "[")
-	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
+	_ = c.Args[0].WriteTerm(&ew, opts, env)
 	iter := ListIterator{List: c.Args[1], Env: env}
 	for iter.Next() {
 		_, _ = fmt.Fprint(&ew, ",")
-		_ = iter.Current().WriteTerm(&ew, opts.withBefore(operator{}), env)
+		_ = iter.Current().WriteTerm(&ew, opts, env)
 	}
 	if err := iter.Err(); err != nil {
 		_, _ = fmt.Fprint(&ew, "|")
@@ -110,7 +111,7 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
 			_, _ = fmt.Fprint(&ew, "...")
 		} else {
-			_ = s.WriteTerm(&ew, opts.withBefore(operator{}), env)
+			_ = s.WriteTerm(&ew, opts, env)
 		}
 	}
 	_, _ = fmt.Fprint(&ew, "]")

@@ -16,19 +16,11 @@ type Lexer struct {
 	buf             bytes.Buffer
 	offset          int
 	charConversions map[rune]rune
-	reserved        Token
 }
 
 // Token returns the next token.
 func (l *Lexer) Token() Token {
-	if l.reserved != (Token{}) {
-		t := l.reserved
-		l.reserved = Token{}
-		return t
-	}
-
 	l.offset = l.buf.Len()
-
 	return l.layoutTextSequence()
 }
 
@@ -183,15 +175,16 @@ func (l *Lexer) token(afterLayout bool) Token {
 		l.accept(r)
 		return l.letterDigitToken()
 	case r == '.':
-		l.accept(r)
 		switch r := l.next(); {
 		case isLayoutChar(r), r == '%', r == utf8.RuneError:
 			l.backup()
+			l.accept('.')
 			return Token{Kind: TokenEnd, Val: l.chunk()}
 		default:
 			l.backup()
-			return l.graphicToken()
 		}
+		l.accept(r)
+		return l.graphicToken()
 	case isGraphicChar(r), r == '\\':
 		l.accept(r)
 		return l.graphicToken()
@@ -542,7 +535,7 @@ func (l *Lexer) integerConstant() Token {
 				return l.fraction()
 			default:
 				l.backup()
-				l.reserved = Token{Kind: TokenEnd, Val: "."}
+				l.backup()
 				return Token{Kind: TokenInteger, Val: l.chunk()}
 			}
 		default:
