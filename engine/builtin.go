@@ -564,7 +564,7 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 	case Atom:
 		names = []Atom{op}
 	default:
-		iter := ListIterator{List: op}
+		iter := ListIterator{List: op, Env: env}
 	iter:
 		for iter.Next() {
 			switch op := env.Resolve(iter.Current()).(type) {

@@ -62,11 +62,11 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	}
 
 	s := string(a)
-	if opts.Quoted {
-		p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
-		if a, err := p.atom(); err != nil || string(a) != s {
-			s = quote(s)
+	if opts.Quoted && needQuoted(a) {
+		if opts.before != (operator{}) && needQuoted(opts.before.name) {
+			_, _ = fmt.Fprint(&ew, " ")
 		}
+		s = quote(s)
 	}
 	_, _ = fmt.Fprint(&ew, s)
 
@@ -87,6 +87,12 @@ func (a Atom) Compare(t Term, env *Env) int64 {
 	default:
 		return -1
 	}
+}
+
+func needQuoted(a Atom) bool {
+	p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
+	parsed, err := p.atom()
+	return err != nil || parsed != a
 }
 
 func quote(s string) string {

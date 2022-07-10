@@ -43,7 +43,7 @@ func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	if !openClose && opts.after != (operator{}) && (opts.after.name == "e" || opts.after.name == "E") {
+	if !openClose && opts.after != (operator{}) && (len(opts.after.name) > 0 && isAlphanumericChar([]rune(opts.after.name)[0]) || (needQuoted(opts.after.name) && opts.after.name != "," && opts.after.name != "|")) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 

@@ -591,63 +591,21 @@ a quoted ident'.`))}
 		})
 
 		t.Run("octal", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0o567`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
-			})
-
-			t.Run("insufficient", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0o`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0o"}, token)
-			})
-
-			t.Run("invalid", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0o8`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0o8"}, token)
-			})
+			l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0o567`))}
+			token := l.Token()
+			assert.Equal(t, Token{Kind: TokenInteger, Val: "0o567"}, token)
 		})
 
 		t.Run("hexadecimal", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0x89ABC`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
-			})
-
-			t.Run("insufficient", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0x`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0x"}, token)
-			})
-
-			t.Run("invalid", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0xG`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0xG"}, token)
-			})
+			l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0x89ABC`))}
+			token := l.Token()
+			assert.Equal(t, Token{Kind: TokenInteger, Val: "0x89ABC"}, token)
 		})
 
 		t.Run("binary", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0b10110101`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
-			})
-
-			t.Run("insufficient", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0b`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInsufficient, Val: "0b"}, token)
-			})
-
-			t.Run("invalid", func(t *testing.T) {
-				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0b2`))}
-				token := l.Token()
-				assert.Equal(t, Token{Kind: TokenInvalid, Val: "0b2"}, token)
-			})
+			l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0b10110101`))}
+			token := l.Token()
+			assert.Equal(t, Token{Kind: TokenInteger, Val: "0b10110101"}, token)
 		})
 
 		t.Run("character", func(t *testing.T) {
@@ -658,23 +616,9 @@ a quoted ident'.`))}
 			})
 
 			t.Run("quote", func(t *testing.T) {
-				t.Run("ok", func(t *testing.T) {
-					l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0'''`))}
-					token := l.Token()
-					assert.Equal(t, Token{Kind: TokenInteger, Val: "0'''"}, token)
-				})
-
-				t.Run("insufficient", func(t *testing.T) {
-					l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0''`))}
-					token := l.Token()
-					assert.Equal(t, TokenInsufficient, token.Kind)
-				})
-
-				t.Run("invalid", func(t *testing.T) {
-					l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0''a`))}
-					token := l.Token()
-					assert.Equal(t, TokenInvalid, token.Kind)
-				})
+				l := Lexer{input: newRuneRingBuffer(strings.NewReader(`0'''`))}
+				token := l.Token()
+				assert.Equal(t, Token{Kind: TokenInteger, Val: "0'''"}, token)
 			})
 
 			t.Run("escape sequence", func(t *testing.T) {

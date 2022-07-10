@@ -458,15 +458,65 @@ func (l *Lexer) integerToken() Token {
 		l.accept(r)
 		switch r = l.next(); {
 		case r == '\'':
+			switch r := l.next(); {
+			case r == '\'':
+				switch r := l.next(); {
+				case r == '\'': // 0'''
+					l.backup()
+					l.backup()
+				default:
+					l.backup()
+					l.backup()
+					l.backup()
+					return Token{Kind: TokenInteger, Val: l.chunk()} // 0
+				}
+			case r == '\\':
+				switch r := l.next(); {
+				case r == '\n':
+					l.backup()
+					l.backup()
+					l.backup()
+					return Token{Kind: TokenInteger, Val: l.chunk()} // 0
+				default:
+					l.backup()
+					l.backup()
+				}
+			default:
+				l.backup()
+			}
 			l.accept(r)
 			return l.characterCodeConstant()
 		case r == 'b':
+			switch r := l.next(); {
+			case isBinaryDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.binaryConstant()
 		case r == 'o':
+			switch r := l.next(); {
+			case isOctalDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.octalConstant()
 		case r == 'x':
+			switch r := l.next(); {
+			case isHexadecimalDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.hexadecimalConstant()
 		default:
@@ -508,16 +558,9 @@ func (l *Lexer) characterCodeConstant() Token {
 		return Token{Kind: TokenInsufficient, Val: l.chunk()}
 	case r == '\'':
 		l.accept(r)
-		switch r := l.next(); {
-		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: l.chunk()}
-		case r == '\'':
-			l.accept(r)
-			return Token{Kind: TokenInteger, Val: l.chunk()}
-		default:
-			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}
-		}
+		r := l.next() // r == '\''
+		l.accept(r)
+		return Token{Kind: TokenInteger, Val: l.chunk()}
 	case r == '\\':
 		l.accept(r)
 		return l.escapeSequence(func() Token {

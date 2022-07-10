@@ -472,11 +472,11 @@ b'). % "a\\\nb"`, output: `ab`},
 		{name: "129", input: `X is 0'mod'1.`, output: `syntax err.`},
 		{name: "130", input: `X is 1'+'1, X = 2.`},
 		{name: "212", input: `X is 1'\
-+'1, X = 2`},
++'1, X = 2.`},
 		{name: "213", input: `X is 0'\
-+'1, X = 2`},
++'1, X = 1.`},
 		{name: "259", input: `X = 0'\
-+'/*'. %*/1, X = 0+1`},
++'/*'. %*/1, X = 0+1.`},
 		{name: "303", input: `X = 0'\
 a.`, output: `syntax err.`},
 		{name: "214", input: `X is 0'\`, output: `syntax err.`}, // TODO: waits
@@ -495,7 +495,7 @@ a.`, output: `syntax err.`},
 		{name: "283", premise: `op(100,xfy,.).`, input: `writeq(-[1]).`, output: `-[1]`},
 		{name: "221", premise: `op(100,xfy,.).`, input: `X = 1.e, X = [1|e].`},
 		{name: "258", premise: `op(100,xfy,.).`, input: `writeq(ok).%
-1 = X.`, output: `ok X = 1`}, // TODO: irregular
+1 = X.`, output: `ok`},
 		{name: "145", input: `write_canonical('$VAR'(0)).`, output: `'$VAR'(0)`},
 		{name: "146", input: `write_term('$VAR'(0),[]).`, output: `$VAR(0)`},
 		{name: "244", input: `writeq('$VAR'(0)).`, output: `A`},
@@ -521,8 +521,8 @@ a.`, output: `syntax err.`},
 		{name: "160", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(0 f f).`, output: `f(f(0))`},
 		{name: "161", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f).`, output: `syntax err.`},
 		{name: "162", premise: `op(9,fy,p),op(9,yfx,p).`, input: `write_canonical(1 p p p 2).`, output: `syntax err.`},
-		{name: "163", premise: `op(9,fy,p),op(9,xfy,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1, p(p(2)))`},
-		{name: "164", premise: `op(7,fy,p),op(9,yfx,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1, p(p(2)))`},
+		{name: "163", premise: `op(9,fy,p),op(9,xfy,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1,p(p(2)))`},
+		{name: "164", premise: `op(7,fy,p),op(9,yfx,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1,p(p(2)))`},
 		{name: "165", input: `atom('.''-''.').`},
 		{name: "166", input: `op(0,xfy,'|').`},
 		{name: "167", premise: `op(0,xfy,'|').`, input: `writeq((a|b)).`, output: `syntax err.`},

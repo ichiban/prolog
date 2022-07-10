@@ -165,7 +165,12 @@ func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, "(")
 	}
-	_, _ = fmt.Fprint(&ew, c.Functor)
+	switch c.Functor {
+	case ",", "|":
+		_, _ = fmt.Fprint(&ew, c.Functor)
+	default:
+		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+	}
 	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -186,7 +191,12 @@ func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env,
 		_, _ = fmt.Fprint(&ew, "(")
 	}
 	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
-	_, _ = fmt.Fprint(&ew, c.Functor)
+	switch c.Functor {
+	case ",", "|":
+		_, _ = fmt.Fprint(&ew, c.Functor)
+	default:
+		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	} else if opts.after != (operator{}) {
@@ -208,7 +218,12 @@ func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, o
 		_, _ = fmt.Fprint(&ew, "(")
 	}
 	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
-	_, _ = fmt.Fprint(&ew, c.Functor)
+	switch c.Functor {
+	case ",", "|":
+		_, _ = fmt.Fprint(&ew, c.Functor)
+	default:
+		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+	}
 	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
