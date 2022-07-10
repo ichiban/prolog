@@ -26,14 +26,15 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // WriteTerm writes the Integer to the io.Writer.
 func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix && i > 0
-
-	if openClose || (i < 0 && opts.before != operator{}) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
+	openClose := opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix && i > 0
 
 	if openClose {
-		_, _ = fmt.Fprint(&ew, "(")
+		_, _ = fmt.Fprint(&ew, " (")
+		opts = opts.withLeft(operator{}).withRight(operator{})
+	} else {
+		if opts.left != (operator{}) && (letterDigit(opts.left.name) || (i < 0 && graphic(opts.left.name))) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
 	}
 
 	s := strconv.FormatInt(int64(i), 10)
@@ -43,7 +44,8 @@ func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	if !openClose && opts.after != (operator{}) && (len(opts.after.name) > 0 && isAlphanumericChar([]rune(opts.after.name)[0]) || (needQuoted(opts.after.name) && opts.after.name != "," && opts.after.name != "|")) {
+	// Avoid ambiguous 0b, 0o, 0x or 0'.
+	if !openClose && opts.right != (operator{}) && (letterDigit(opts.right.name) || (needQuoted(opts.right.name) && opts.right.name != "," && opts.right.name != "|")) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 

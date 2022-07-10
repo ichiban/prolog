@@ -45,7 +45,7 @@ func (a Atom) Apply(args ...Term) Term {
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
 	var openClose bool
-	if opts.before != (operator{}) || opts.after != (operator{}) {
+	if opts.left != (operator{}) || opts.right != (operator{}) {
 		for _, op := range opts.ops {
 			if op.name == a {
 				openClose = true
@@ -55,20 +55,30 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	}
 
 	if openClose {
-		if opts.before.name != "" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
+		if opts.left.name != "" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
+		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 
-	s := string(a)
 	if opts.Quoted && needQuoted(a) {
-		if opts.before != (operator{}) && needQuoted(opts.before.name) {
+		if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
-		s = quote(s)
+		_, _ = fmt.Fprint(&ew, quote(string(a)))
+		if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'BAR''FOO'.
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+	} else {
+		if opts.left != (operator{}) && ((letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a))) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
+		_, _ = fmt.Fprint(&ew, string(a))
+		if opts.right != (operator{}) && ((letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a))) {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
 	}
-	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -126,4 +136,12 @@ func quotedIdentEscape(s string) string {
 		}
 		return strings.Join(ret, "")
 	}
+}
+
+func letterDigit(a Atom) bool {
+	return len(a) > 0 && isSmallLetterChar([]rune(a)[0])
+}
+
+func graphic(a Atom) bool {
+	return len(a) > 0 && (isGraphicChar([]rune(a)[0]) || []rune(a)[0] == '\\')
 }

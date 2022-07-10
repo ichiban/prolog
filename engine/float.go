@@ -27,9 +27,9 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // WriteTerm writes the Float to the io.Writer.
 func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix && f > 0
+	openClose := opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix && f > 0
 
-	if openClose || (f < 0 && opts.before != operator{}) {
+	if openClose || (f < 0 && opts.left != operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 
@@ -51,7 +51,7 @@ func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	if !openClose && opts.after != (operator{}) && (opts.after.name == "e" || opts.after.name == "E") {
+	if !openClose && opts.right != (operator{}) && (opts.right.name == "e" || opts.right.name == "E") {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 

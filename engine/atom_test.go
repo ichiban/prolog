@@ -96,8 +96,8 @@ func TestAtom_WriteTerm(t *testing.T) {
 			assert.NoError(t, tt.atom.WriteTerm(&buf, &WriteOptions{
 				Quoted: tt.quoted,
 				ops:    ops,
-				before: tt.before,
-				after:  tt.after,
+				left:   tt.before,
+				right:  tt.after,
 			}, nil))
 			assert.Equal(t, tt.output, buf.String())
 		})

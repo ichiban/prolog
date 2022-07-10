@@ -54,11 +54,11 @@ type WriteOptions struct {
 	VariableNames map[Variable]Atom
 	NumberVars    bool
 
-	ops           operators
-	priority      Integer
-	visited       map[Term]struct{}
-	prefixMinus   bool
-	before, after operator
+	ops         operators
+	priority    Integer
+	visited     map[Term]struct{}
+	prefixMinus bool
+	left, right operator
 }
 
 func (o WriteOptions) withQuoted(quoted bool) *WriteOptions {
@@ -80,13 +80,13 @@ func (o WriteOptions) withPriority(priority Integer) *WriteOptions {
 	return &o
 }
 
-func (o WriteOptions) withBefore(op operator) *WriteOptions {
-	o.before = op
+func (o WriteOptions) withLeft(op operator) *WriteOptions {
+	o.left = op
 	return &o
 }
 
-func (o WriteOptions) withAfter(op operator) *WriteOptions {
-	o.after = op
+func (o WriteOptions) withRight(op operator) *WriteOptions {
+	o.right = op
 	return &o
 }
 

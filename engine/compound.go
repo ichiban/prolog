@@ -97,7 +97,7 @@ func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
 
 func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
-	opts = opts.withPriority(999).withBefore(operator{}).withAfter(operator{})
+	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
 	_, _ = fmt.Fprint(&ew, "[")
 	_ = c.Args[0].WriteTerm(&ew, opts, env)
 	iter := ListIterator{List: c.Args[1], Env: env}
@@ -121,7 +121,7 @@ func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) erro
 func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
 	_, _ = fmt.Fprint(&ew, "{")
-	_ = c.Args[0].WriteTerm(&ew, opts.withBefore(operator{}), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withLeft(operator{}), env)
 	_, _ = fmt.Fprint(&ew, "}")
 	return ew.err
 }
@@ -134,7 +134,7 @@ func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, 
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
 		}
-		_ = a.WriteTerm(&ew, opts.withBefore(operator{}), env)
+		_ = a.WriteTerm(&ew, opts.withLeft(operator{}), env)
 	}
 	_, _ = fmt.Fprint(&ew, ")")
 	return ew.err
@@ -160,7 +160,7 @@ func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, 
 	_, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority
 
-	if opts.before != (operator{}) {
+	if opts.left != (operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	if openClose {
@@ -170,9 +170,9 @@ func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, 
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, c.Functor)
 	default:
-		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withLeft(*op).withRight(operator{}), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
@@ -183,24 +183,24 @@ func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env,
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
+	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
 
 	if openClose {
-		if opts.before != (operator{}) {
+		if opts.left != (operator{}) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
 	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
 	switch c.Functor {
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, c.Functor)
 	default:
-		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
-	} else if opts.after != (operator{}) {
+	} else if opts.right != (operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	return ew.err
@@ -210,22 +210,22 @@ func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, o
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.before.name == "-" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
+	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
 
 	if openClose {
-		if opts.before.name != "" && opts.before.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
+		if opts.left.name != "" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
 	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withBefore(operator{}).withAfter(*op), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withLeft(operator{}).withRight(*op), env)
 	switch c.Functor {
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, c.Functor)
 	default:
-		_ = c.Functor.WriteTerm(&ew, opts.withBefore(operator{}).withAfter(operator{}), env)
+		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
-	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withBefore(*op).withAfter(operator{}), env)
+	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withLeft(*op).withRight(operator{}), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
