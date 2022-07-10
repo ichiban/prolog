@@ -601,6 +601,18 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		case "{}", "[]":
 			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
 		}
+
+		// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
+		switch spec & operatorSpecifierClass {
+		case operatorSpecifierInfix:
+			if i := state.operators.indexOf(operatorSpecifierPostfix, name); i >= 0 {
+				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+			}
+		case operatorSpecifierPostfix:
+			if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+			}
+		}
 	}
 
 	for _, name := range names {
