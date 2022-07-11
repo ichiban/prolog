@@ -21,7 +21,7 @@ type Lexer struct {
 // Token returns the next token.
 func (l *Lexer) Token() Token {
 	l.offset = l.buf.Len()
-	return l.layoutTextSequence()
+	return l.layoutTextSequence(false)
 }
 
 func (l *Lexer) next() rune {
@@ -241,8 +241,7 @@ func (l *Lexer) token(afterLayout bool) Token {
 
 //// Layout text
 
-func (l *Lexer) layoutTextSequence() Token {
-	var afterLayout bool
+func (l *Lexer) layoutTextSequence(afterLayout bool) Token {
 	for {
 		switch r := l.next(); {
 		case isLayoutChar(r):
@@ -273,7 +272,7 @@ func (l *Lexer) commentText(bracketed bool) Token {
 		for {
 			switch r := l.next(); {
 			case r == '\n', r == utf8.RuneError:
-				return l.layoutTextSequence()
+				return l.layoutTextSequence(true)
 			}
 		}
 	}
@@ -293,7 +292,7 @@ func (l *Lexer) commentOpen() Token {
 func (l *Lexer) commentClose() Token {
 	switch r := l.next(); {
 	case r == '/':
-		return l.layoutTextSequence()
+		return l.layoutTextSequence(true)
 	default:
 		return l.commentText(true)
 	}
