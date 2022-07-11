@@ -158,13 +158,14 @@ func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, 
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	_, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority
+	openClose := opts.priority < op.priority || (opts.right != operator{} && r >= opts.right.priority)
 
 	if opts.left != (operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, "(")
+		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 	switch c.Functor {
 	case ",", "|":
@@ -172,7 +173,7 @@ func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, 
 	default:
 		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withLeft(*op).withRight(operator{}), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
@@ -190,6 +191,7 @@ func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env,
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
+		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
 	switch c.Functor {
@@ -210,22 +212,25 @@ func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, o
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
+	openClose := opts.priority < op.priority ||
+		(opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix) ||
+		(opts.right != operator{} && r >= opts.right.priority)
 
 	if openClose {
 		if opts.left.name != "" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
+		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withLeft(operator{}).withRight(*op), env)
+	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
 	switch c.Functor {
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, c.Functor)
 	default:
 		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
-	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withLeft(*op).withRight(operator{}), env)
+	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
