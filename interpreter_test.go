@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -272,11 +273,12 @@ func TestNew_conformity(t *testing.T) {
 	// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/conformity_testing
 
 	tests := []struct {
-		name    string
-		premise string
-		input   string
-		output  string
-		err     error
+		name     string
+		premise  string
+		input    string
+		output   string
+		err      error
+		outputFn func(t *testing.T, output string)
 	}{
 		{name: "1", input: `writeq('\n').`, output: `'\n'`},
 		{name: "2", input: `'`, output: `syntax err.`},
@@ -516,7 +518,7 @@ a.`, output: `syntax err.`},
 		{name: "157", premise: `op(0,xfy,:-).`, input: `current_op(P,xfx,:-).`, output: `fails`},
 		{name: "158", input: `op(0,xfy,',').`, output: `permission_error(modify,operator,',')`},
 		{name: "159", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f 0).`, output: `f(f(0))`},
-		{name: "201", premise: `op(9,fy,f),op(9,yf,f).`, input: `writeq(f(f(0))).`, output: `f f 0`},
+		{name: "201", premise: `op(9,fy,f),op(9,yf,f).`, input: `writeq(f(f(0))).`, output: `0 f f`}, // e.g. f f 0
 		{name: "202", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f 0 f).`, output: `f(f(0))`},
 		{name: "160", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(0 f f).`, output: `f(f(0))`},
 		{name: "161", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f).`, output: `syntax err.`},
@@ -549,8 +551,20 @@ a.`, output: `syntax err.`},
 		{name: "224", input: `\ .`, output: `existence_error(procedure,(\)/0)`},
 		{name: "225", input: `char_code(C,0), writeq(C).`, output: `'\x0\'`},
 		{name: "250", input: `writeq('\0\').`, output: `'\x0\'`},
-		{name: "226", input: `write_canonical(_+_).`, output: `+(_1,_2)`},
-		{name: "227", input: `write_canonical(B+B).`, output: `+(_1,_1)`},
+		{name: "226", input: `write_canonical(_+_).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			p, err := regexp.Compile(`\A\+\(_(\d+),_(\d+)\)\z`) // +(_1,_2)
+			assert.NoError(t, err)
+			match := p.FindAllStringSubmatch(output, 2)
+			assert.NotEqual(t, match[0][1], match[0][2])
+		}},
+		{name: "227", input: `write_canonical(B+B).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			p, err := regexp.Compile(`\A\+\(_(\d+),_(\d+)\)\z`) // +(_1,_1)
+			assert.NoError(t, err)
+			match := p.FindAllStringSubmatch(output, 2)
+			assert.Equal(t, match[0][1], match[0][2])
+		}},
 		{name: "228", input: `writeq(0'\z).`, output: `syntax err.`},
 		{name: "230", input: `char_code('\^',X).`, output: `syntax err.`},
 		{name: "231", input: `writeq(0'\c).`, output: `syntax err.`},
@@ -619,7 +633,11 @@ a.`, output: `syntax err.`},
 				      writeq(E)), !; write(fails).
 			`)
 			assert.NoError(t, sol.Err())
-			assert.Equal(t, tt.output, out.String())
+			if tt.outputFn != nil {
+				tt.outputFn(t, out.String())
+			} else {
+				assert.Equal(t, tt.output, out.String())
+			}
 		})
 	}
 }

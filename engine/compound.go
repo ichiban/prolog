@@ -128,13 +128,15 @@ func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env 
 
 func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
+	opts = opts.withRight(operator{})
 	_ = c.Functor.WriteTerm(&ew, opts, env)
 	_, _ = fmt.Fprint(&ew, "(")
+	opts = opts.withLeft(operator{}).withPriority(999)
 	for i, a := range c.Args {
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
 		}
-		_ = a.WriteTerm(&ew, opts.withLeft(operator{}), env)
+		_ = a.WriteTerm(&ew, opts, env)
 	}
 	_, _ = fmt.Fprint(&ew, ")")
 	return ew.err

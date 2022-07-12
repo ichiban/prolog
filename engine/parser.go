@@ -150,11 +150,11 @@ func (p *Parser) Term() (Term, error) {
 	case nil:
 		break
 	case errExpectation:
-		switch p.current().Kind {
+		switch cur := p.current(); cur.Kind {
 		case TokenEOF, TokenInsufficient:
 			return nil, ErrInsufficient
 		default:
-			return nil, unexpectedTokenError{actual: p.current()}
+			return nil, unexpectedTokenError{actual: cur}
 		}
 	default:
 		return nil, err
@@ -746,11 +746,27 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 }
 
 func (p *Parser) arg() (Term, error) {
-	if arg, err := p.term(999); err == nil {
-		return arg, nil
+	if arg, err := p.atom(); err == nil {
+		for _, op := range *p.operators {
+			if op.name == arg {
+				// Check if this atom is not followed by its own arguments.
+				switch t := p.next(); t.Kind {
+				case TokenComma, TokenClose, TokenBar, TokenCloseList:
+					p.backup()
+					return arg, nil
+				default:
+					p.backup()
+				}
+			}
+		}
+		switch arg {
+		case "[]", "{}":
+			p.backup()
+		}
+		p.backup()
 	}
 
-	return p.op(999)
+	return p.term(999)
 }
 
 func parseInteger(sign int64, s string) (Integer, error) {
