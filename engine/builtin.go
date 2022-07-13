@@ -1731,6 +1731,9 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	var vars []ParsedVariable
 	p := state.Parser(s.buf, &vars)
+	defer func() {
+		_ = s.buf.UnreadRune()
+	}()
 
 	t, err := p.Term()
 	if err != nil {
