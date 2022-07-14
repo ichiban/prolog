@@ -568,16 +568,6 @@ func (l *Lexer) characterCodeConstant() Token {
 }
 
 func (l *Lexer) binaryConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isBinaryDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isBinaryDigitChar(r):
@@ -590,16 +580,6 @@ func (l *Lexer) binaryConstant() Token {
 }
 
 func (l *Lexer) octalConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isOctalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isOctalDigitChar(r):
@@ -612,16 +592,6 @@ func (l *Lexer) octalConstant() Token {
 }
 
 func (l *Lexer) hexadecimalConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isHexadecimalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isHexadecimalDigitChar(r):

@@ -11,19 +11,22 @@ func TestFloat_WriteTerm(t *testing.T) {
 	tests := []struct {
 		title  string
 		float  Float
-		before operator
+		opts   WriteOptions
 		output string
 	}{
 		{title: "positive", float: 33.0, output: `33.0`},
-		{title: "positive following unary minus", float: 33.0, before: operator{specifier: operatorSpecifierFX, name: "-"}, output: ` (33.0)`},
+		{title: "with e", float: 3.0e+100, output: `3.0e+100`},
+		{title: "positive following unary minus", float: 33.0, opts: WriteOptions{left: operator{specifier: operatorSpecifierFX, name: "-"}}, output: ` (33.0)`},
 		{title: "negative", float: -33.0, output: `-33.0`},
+
+		{title: "ambiguous e", float: 33.0, opts: WriteOptions{right: operator{name: `e`}}, output: `33.0 `}, // So that it won't be 33.0e.
 	}
 
 	var buf bytes.Buffer
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, tt.float.WriteTerm(&buf, &WriteOptions{left: tt.before}, nil))
+			assert.NoError(t, tt.float.WriteTerm(&buf, &tt.opts, nil))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}

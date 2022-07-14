@@ -1329,6 +1329,38 @@ func TestState_Op(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
+		t.Run("infix", func(t *testing.T) {
+			state := State{
+				operators: operators{
+					{
+						priority:  200,
+						specifier: operatorSpecifierYF,
+						name:      "+",
+					},
+				},
+			}
+			ok, err := state.Op(Integer(500), Atom("yfx"), List(Atom("+")), Success, nil).Force(context.Background())
+			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, Atom("+"), nil), err)
+			assert.False(t, ok)
+		})
+
+		t.Run("postfix", func(t *testing.T) {
+			state := State{
+				operators: operators{
+					{
+						priority:  500,
+						specifier: operatorSpecifierYFX,
+						name:      "+",
+					},
+				},
+			}
+			ok, err := state.Op(Integer(200), Atom("yf"), List(Atom("+")), Success, nil).Force(context.Background())
+			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, Atom("+"), nil), err)
+			assert.False(t, ok)
+		})
+	})
 }
 
 func TestState_CurrentOp(t *testing.T) {
