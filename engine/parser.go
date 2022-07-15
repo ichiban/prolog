@@ -183,9 +183,9 @@ func (p *Parser) Number() (Number, error) {
 	)
 	switch t := p.next(); t.Kind {
 	case TokenInteger:
-		n, err = parseInteger(1, t.Val)
+		n, err = integer(1, t.Val)
 	case TokenFloatNumber:
-		n, err = parseFloat(1, t.Val)
+		n, err = float(1, t.Val)
 	default:
 		p.backup()
 		var a Atom
@@ -201,9 +201,9 @@ func (p *Parser) Number() (Number, error) {
 
 		switch t := p.next(); t.Kind {
 		case TokenInteger:
-			n, err = parseInteger(-1, t.Val)
+			n, err = integer(-1, t.Val)
 		case TokenFloatNumber:
-			n, err = parseFloat(-1, t.Val)
+			n, err = float(-1, t.Val)
 		default:
 			p.backup()
 			p.backup()
@@ -293,6 +293,9 @@ func (ops operators) definedInClass(name Atom, class operatorClass) bool {
 }
 
 func (ops operators) define(p Integer, spec operatorSpecifier, op Atom) {
+	if p == 0 {
+		return
+	}
 	os := ops[op]
 	os[spec.class()] = operator{
 		priority:  p,
@@ -497,36 +500,13 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	switch t := p.next(); t.Kind {
 	case TokenOpen, TokenOpenCT:
-		t, err := p.term(1201)
-		if err != nil {
-			return nil, err
-		}
-		if t := p.next(); t.Kind != TokenClose {
-			p.backup()
-			return nil, errExpectation
-		}
-		return t, nil
+		return p.openClose()
 	case TokenInteger:
-		return parseInteger(1, t.Val)
+		return integer(1, t.Val)
 	case TokenFloatNumber:
-		return parseFloat(1, t.Val)
+		return float(1, t.Val)
 	case TokenVariable:
-		if t.Val == "_" {
-			return NewVariable(), nil
-		}
-		if p.vars == nil {
-			return Variable(t.Val), nil
-		}
-		n := Atom(t.Val)
-		for i, v := range *p.vars {
-			if v.Name == n {
-				(*p.vars)[i].Count++
-				return v.Variable, nil
-			}
-		}
-		w := NewVariable()
-		*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
-		return w, nil
+		return p.variable(t.Val)
 	case TokenOpenList:
 		if t := p.next(); t.Kind == TokenCloseList {
 			p.backup()
@@ -565,6 +545,10 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 	}
 
+	return p.term0Atom(maxPriority)
+}
+
+func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	a, err := p.atom()
 	if err != nil {
 		return nil, err
@@ -573,9 +557,9 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	if a == "-" {
 		switch t := p.next(); t.Kind {
 		case TokenInteger:
-			return parseInteger(-1, t.Val)
+			return integer(-1, t.Val)
 		case TokenFloatNumber:
-			return parseFloat(-1, t.Val)
+			return float(-1, t.Val)
 		default:
 			p.backup()
 		}
@@ -599,6 +583,37 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		t, p.args = p.args[0], p.args[1:]
 	}
 
+	return t, nil
+}
+
+func (p *Parser) variable(s string) (Term, error) {
+	if s == "_" {
+		return NewVariable(), nil
+	}
+	if p.vars == nil {
+		return Variable(s), nil
+	}
+	n := Atom(s)
+	for i, v := range *p.vars {
+		if v.Name == n {
+			(*p.vars)[i].Count++
+			return v.Variable, nil
+		}
+	}
+	w := NewVariable()
+	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
+	return w, nil
+}
+
+func (p *Parser) openClose() (Term, error) {
+	t, err := p.term(1201)
+	if err != nil {
+		return nil, err
+	}
+	if t := p.next(); t.Kind != TokenClose {
+		p.backup()
+		return nil, errExpectation
+	}
 	return t, nil
 }
 
@@ -759,7 +774,7 @@ func (p *Parser) arg() (Term, error) {
 	return p.term(999)
 }
 
-func parseInteger(sign int64, s string) (Integer, error) {
+func integer(sign int64, s string) (Integer, error) {
 	base := 10
 	switch {
 	case strings.HasPrefix(s, "0'"):
@@ -790,7 +805,7 @@ func parseInteger(sign int64, s string) (Integer, error) {
 	}
 }
 
-func parseFloat(sign float64, s string) (Float, error) {
+func float(sign float64, s string) (Float, error) {
 	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
 	bf.Mul(big.NewFloat(sign), bf)
 

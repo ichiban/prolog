@@ -55,27 +55,39 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	}
 
 	if opts.Quoted && needQuoted(a) {
-		if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
-			_, _ = fmt.Fprint(&ew, " ")
-		}
-		_, _ = fmt.Fprint(&ew, quote(string(a)))
-		if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'BAR''FOO'.
-			_, _ = fmt.Fprint(&ew, " ")
-		}
+		_ = a.writeTermQuoted(&ew, opts)
 	} else {
-		if opts.left != (operator{}) && ((letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a))) {
-			_, _ = fmt.Fprint(&ew, " ")
-		}
-		_, _ = fmt.Fprint(&ew, string(a))
-		if opts.right != (operator{}) && ((letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a))) {
-			_, _ = fmt.Fprint(&ew, " ")
-		}
+		_ = a.writeTermUnquoted(&ew, opts)
 	}
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
+	return ew.err
+}
+
+func (a Atom) writeTermQuoted(w io.Writer, opts *WriteOptions) error {
+	ew := errWriter{w: w}
+	if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	_, _ = fmt.Fprint(&ew, quote(string(a)))
+	if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'FOO''BAR'.
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	return ew.err
+}
+
+func (a Atom) writeTermUnquoted(w io.Writer, opts *WriteOptions) error {
+	ew := errWriter{w: w}
+	if (letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a)) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	_, _ = fmt.Fprint(&ew, string(a))
+	if (letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a)) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
 	return ew.err
 }
 

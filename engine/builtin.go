@@ -524,6 +524,16 @@ func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(vars, List(ret...), k, env)
 }
 
+var operatorSpecifiers = map[Atom]operatorSpecifier{
+	"fx":  operatorSpecifierFX,
+	"fy":  operatorSpecifierFY,
+	"xf":  operatorSpecifierXF,
+	"yf":  operatorSpecifierYF,
+	"xfx": operatorSpecifierXFX,
+	"xfy": operatorSpecifierXFY,
+	"yfx": operatorSpecifierYFX,
+}
+
 // Op defines operator with priority and specifier, or removes when priority is 0.
 func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	var p Integer
@@ -539,27 +549,18 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		return Error(TypeError(ValidTypeInteger, priority, env))
 	}
 
-	var s Atom
+	var spec operatorSpecifier
 	switch specifier := env.Resolve(specifier).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
 	case Atom:
-		s = specifier
+		var ok bool
+		spec, ok = operatorSpecifiers[specifier]
+		if !ok {
+			return Error(DomainError(ValidDomainOperatorSpecifier, specifier, env))
+		}
 	default:
 		return Error(TypeError(ValidTypeAtom, specifier, env))
-	}
-
-	spec, ok := map[Atom]operatorSpecifier{
-		"fx":  operatorSpecifierFX,
-		"fy":  operatorSpecifierFY,
-		"xf":  operatorSpecifierXF,
-		"yf":  operatorSpecifierYF,
-		"xfx": operatorSpecifierXFX,
-		"xfy": operatorSpecifierXFY,
-		"yfx": operatorSpecifierYFX,
-	}[s]
-	if !ok {
-		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
 	}
 
 	var names []Atom
@@ -568,16 +569,10 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		names = []Atom{op}
 	default:
 		iter := ListIterator{List: op, Env: env}
-	iter:
 		for iter.Next() {
 			switch op := env.Resolve(iter.Current()).(type) {
 			case Atom:
-				for _, o := range names {
-					if o == op {
-						continue iter
-					}
-				}
-				names = append(names, op)
+				names = appendUniqAtom(names, op)
 			default:
 				return Error(TypeError(ValidTypeAtom, op, env))
 			}
@@ -588,33 +583,8 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 	}
 
 	for _, name := range names {
-		switch name {
-		case ",":
-			if state.operators.definedInClass(name, operatorClassInfix) {
-				return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
-			}
-		case "|":
-			if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
-				if state.operators.definedInClass(name, operatorClassInfix) {
-					return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
-				} else {
-					return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
-				}
-			}
-		case "{}", "[]":
-			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
-		}
-
-		// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
-		switch spec.class() {
-		case operatorClassInfix:
-			if state.operators.definedInClass(name, operatorClassPostfix) {
-				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
-			}
-		case operatorClassPostfix:
-			if state.operators.definedInClass(name, operatorClassInfix) {
-				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
-			}
+		if p := state.validateOp(p, spec, name, env); p != nil {
+			return p
 		}
 	}
 
@@ -627,14 +597,52 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 			state.operators.remove(name, class)
 		}
 
-		if p == 0 {
-			continue
-		}
-
 		state.operators.define(p, spec, name)
 	}
 
 	return k(env)
+}
+
+func (state *State) validateOp(p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
+	switch name {
+	case ",":
+		if state.operators.definedInClass(name, operatorClassInfix) {
+			return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
+		}
+	case "|":
+		if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
+			op := OperationCreate
+			if state.operators.definedInClass(name, operatorClassInfix) {
+				op = OperationModify
+			}
+			return Error(PermissionError(op, PermissionTypeOperator, name, env))
+		}
+	case "{}", "[]":
+		return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+	}
+
+	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
+	switch spec.class() {
+	case operatorClassInfix:
+		if state.operators.definedInClass(name, operatorClassPostfix) {
+			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		}
+	case operatorClassPostfix:
+		if state.operators.definedInClass(name, operatorClassInfix) {
+			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		}
+	}
+
+	return nil
+}
+
+func appendUniqAtom(slice []Atom, elem Atom) []Atom {
+	for _, e := range slice {
+		if e == elem {
+			return slice
+		}
+	}
+	return append(slice, elem)
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.

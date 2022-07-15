@@ -97,6 +97,8 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
+var errConversion = errors.New("conversion failed")
+
 func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
@@ -105,30 +107,50 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 
 	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
-		if f, ok := t.(engine.Float); ok {
-			return reflect.ValueOf(f).Convert(typ), nil
-		}
+		return convertFloat(t, typ)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if i, ok := t.(engine.Integer); ok {
-			return reflect.ValueOf(i).Convert(typ), nil
-		}
+		return convertInteger(t, typ)
 	case reflect.String:
-		if a, ok := t.(engine.Atom); ok {
-			return reflect.ValueOf(string(a)), nil
-		}
+		return convertAtom(t)
 	case reflect.Slice:
-		r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
-		iter := engine.ListIterator{List: t, Env: env}
-		for iter.Next() {
-			e, err := convert(iter.Current(), typ.Elem(), env)
-			if err != nil {
-				return r, err
-			}
-			r = reflect.Append(r, e)
-		}
-		return r, iter.Err()
+		return convertList(t, typ, env)
+	default:
+		return reflect.Value{}, errConversion
 	}
-	return reflect.Value{}, fmt.Errorf("failed to convert: %s", typ)
+}
+
+func convertFloat(t engine.Term, typ reflect.Type) (reflect.Value, error) {
+	if f, ok := t.(engine.Float); ok {
+		return reflect.ValueOf(f).Convert(typ), nil
+	}
+	return reflect.Value{}, errConversion
+}
+
+func convertInteger(t engine.Term, typ reflect.Type) (reflect.Value, error) {
+	if i, ok := t.(engine.Integer); ok {
+		return reflect.ValueOf(i).Convert(typ), nil
+	}
+	return reflect.Value{}, errConversion
+}
+
+func convertAtom(t engine.Term) (reflect.Value, error) {
+	if a, ok := t.(engine.Atom); ok {
+		return reflect.ValueOf(string(a)), nil
+	}
+	return reflect.Value{}, errConversion
+}
+
+func convertList(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
+	r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
+	iter := engine.ListIterator{List: t, Env: env}
+	for iter.Next() {
+		e, err := convert(iter.Current(), typ.Elem(), env)
+		if err != nil {
+			return r, err
+		}
+		r = reflect.Append(r, e)
+	}
+	return r, iter.Err()
 }
 
 // Err returns the error if exists.

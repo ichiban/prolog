@@ -167,6 +167,18 @@ func (k TokenKind) String() string {
 
 // Tokens
 
+var soloTokenKinds = [...]TokenKind{
+	';': TokenSemicolon,
+	'!': TokenCut,
+	')': TokenClose,
+	'[': TokenOpenList,
+	']': TokenCloseList,
+	'{': TokenOpenCurly,
+	'}': TokenCloseCurly,
+	'|': TokenBar,
+	',': TokenComma,
+}
+
 func (l *Lexer) token(afterLayout bool) Token {
 	switch r := l.next(); {
 	case r == utf8.RuneError:
@@ -175,15 +187,10 @@ func (l *Lexer) token(afterLayout bool) Token {
 		l.accept(r)
 		return l.letterDigitToken()
 	case r == '.':
-		switch r := l.next(); {
-		case isLayoutChar(r), r == '%', r == utf8.RuneError:
-			l.backup()
-			l.accept('.')
-			return Token{Kind: TokenEnd, Val: l.chunk()}
-		default:
-			l.backup()
-		}
 		l.accept(r)
+		if l.wasEndChar() {
+			return Token{Kind: TokenEnd, Val: l.chunk()}
+		}
 		return l.graphicToken()
 	case isGraphicChar(r), r == '\\':
 		l.accept(r)
@@ -191,12 +198,6 @@ func (l *Lexer) token(afterLayout bool) Token {
 	case r == '\'':
 		l.accept(r)
 		return l.quotedToken()
-	case r == ';':
-		l.accept(r)
-		return Token{Kind: TokenSemicolon, Val: l.chunk()}
-	case r == '!':
-		l.accept(r)
-		return Token{Kind: TokenCut, Val: l.chunk()}
 	case r == '_', isCapitalLetterChar(r):
 		l.accept(r)
 		return l.variableToken()
@@ -212,31 +213,20 @@ func (l *Lexer) token(afterLayout bool) Token {
 			return Token{Kind: TokenOpen, Val: l.chunk()}
 		}
 		return Token{Kind: TokenOpenCT, Val: l.chunk()}
-	case r == ')':
-		l.accept(r)
-		return Token{Kind: TokenClose, Val: l.chunk()}
-	case r == '[':
-		l.accept(r)
-		return Token{Kind: TokenOpenList, Val: l.chunk()}
-	case r == ']':
-		l.accept(r)
-		return Token{Kind: TokenCloseList, Val: l.chunk()}
-	case r == '{':
-		l.accept(r)
-		return Token{Kind: TokenOpenCurly, Val: l.chunk()}
-	case r == '}':
-		l.accept(r)
-		return Token{Kind: TokenCloseCurly, Val: l.chunk()}
-	case r == '|':
-		l.accept(r)
-		return Token{Kind: TokenBar, Val: l.chunk()}
-	case r == ',':
-		l.accept(r)
-		return Token{Kind: TokenComma, Val: l.chunk()}
 	default:
+		k := TokenInvalid
+		if int(r) < len(soloTokenKinds) {
+			k = soloTokenKinds[r]
+		}
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
+		return Token{Kind: k, Val: l.chunk()}
 	}
+}
+
+func (l *Lexer) wasEndChar() bool {
+	r := l.next()
+	l.backup()
+	return isLayoutChar(r) || r == '%' || r == utf8.RuneError
 }
 
 //// Layout text
