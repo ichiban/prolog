@@ -1041,39 +1041,35 @@ func TestTermVariables(t *testing.T) {
 func TestState_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
-			state := State{
-				operators: operators{
-					{
-						priority:  900,
-						specifier: operatorSpecifierXFX,
-						name:      "+++",
-					},
-					{
-						priority:  1100,
-						specifier: operatorSpecifierXFX,
-						name:      "+",
-					},
-				},
-			}
+			state := State{operators: operators{}}
+			state.operators.define(900, operatorSpecifierXFX, `+++`)
+			state.operators.define(1100, operatorSpecifierXFX, `+`)
+
 			ok, err := state.Op(Integer(1000), Atom("xfx"), Atom("++"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
 			assert.Equal(t, operators{
-				{
-					priority:  900,
-					specifier: operatorSpecifierXFX,
-					name:      "+++",
+				`+++`: {
+					operatorClassInfix: {
+						priority:  900,
+						specifier: operatorSpecifierXFX,
+						name:      "+++",
+					},
 				},
-				{
-					priority:  1000,
-					specifier: operatorSpecifierXFX,
-					name:      "++",
+				`++`: {
+					operatorClassInfix: {
+						priority:  1000,
+						specifier: operatorSpecifierXFX,
+						name:      "++",
+					},
 				},
-				{
-					priority:  1100,
-					specifier: operatorSpecifierXFX,
-					name:      "+",
+				`+`: {
+					operatorClassInfix: {
+						priority:  1100,
+						specifier: operatorSpecifierXFX,
+						name:      "+",
+					},
 				},
 			}, state.operators)
 		})
@@ -1081,15 +1077,19 @@ func TestState_Op(t *testing.T) {
 		t.Run("list", func(t *testing.T) {
 			state := State{
 				operators: operators{
-					{
-						priority:  900,
-						specifier: operatorSpecifierXFX,
-						name:      "+++",
+					`+++`: {
+						operatorClassInfix: {
+							priority:  900,
+							specifier: operatorSpecifierXFX,
+							name:      "+++",
+						},
 					},
-					{
-						priority:  1100,
-						specifier: operatorSpecifierXFX,
-						name:      "+",
+					`+`: {
+						operatorClassInfix: {
+							priority:  1100,
+							specifier: operatorSpecifierXFX,
+							name:      "+",
+						},
 					},
 				},
 			}
@@ -1098,20 +1098,26 @@ func TestState_Op(t *testing.T) {
 			assert.True(t, ok)
 
 			assert.Equal(t, operators{
-				{
-					priority:  900,
-					specifier: operatorSpecifierXFX,
-					name:      "+++",
+				`+++`: {
+					operatorClassInfix: {
+						priority:  900,
+						specifier: operatorSpecifierXFX,
+						name:      "+++",
+					},
 				},
-				{
-					priority:  1000,
-					specifier: operatorSpecifierXFX,
-					name:      "++",
+				`++`: {
+					operatorClassInfix: {
+						priority:  1000,
+						specifier: operatorSpecifierXFX,
+						name:      "++",
+					},
 				},
-				{
-					priority:  1100,
-					specifier: operatorSpecifierXFX,
-					name:      "+",
+				`+`: {
+					operatorClassInfix: {
+						priority:  1100,
+						specifier: operatorSpecifierXFX,
+						name:      "+",
+					},
 				},
 			}, state.operators)
 		})
@@ -1120,20 +1126,26 @@ func TestState_Op(t *testing.T) {
 	t.Run("remove", func(t *testing.T) {
 		state := State{
 			operators: operators{
-				{
-					priority:  900,
-					specifier: operatorSpecifierXFX,
-					name:      "+++",
+				`+++`: {
+					operatorClassInfix: {
+						priority:  900,
+						specifier: operatorSpecifierXFX,
+						name:      "+++",
+					},
 				},
-				{
-					priority:  1000,
-					specifier: operatorSpecifierXFX,
-					name:      "++",
+				`++`: {
+					operatorClassInfix: {
+						priority:  1000,
+						specifier: operatorSpecifierXFX,
+						name:      "++",
+					},
 				},
-				{
-					priority:  1100,
-					specifier: operatorSpecifierXFX,
-					name:      "+",
+				`+`: {
+					operatorClassInfix: {
+						priority:  1100,
+						specifier: operatorSpecifierXFX,
+						name:      "+",
+					},
 				},
 			},
 		}
@@ -1142,15 +1154,19 @@ func TestState_Op(t *testing.T) {
 		assert.True(t, ok)
 
 		assert.Equal(t, operators{
-			{
-				priority:  900,
-				specifier: operatorSpecifierXFX,
-				name:      "+++",
+			`+++`: {
+				operatorClassInfix: {
+					priority:  900,
+					specifier: operatorSpecifierXFX,
+					name:      "+++",
+				},
 			},
-			{
-				priority:  1100,
-				specifier: operatorSpecifierXFX,
-				name:      "+",
+			`+`: {
+				operatorClassInfix: {
+					priority:  1100,
+					specifier: operatorSpecifierXFX,
+					name:      "+",
+				},
 			},
 		}, state.operators)
 	})
@@ -1221,30 +1237,16 @@ func TestState_Op(t *testing.T) {
 	})
 
 	t.Run("operator is ','", func(t *testing.T) {
-		state := State{
-			operators: operators{
-				{
-					priority:  1000,
-					specifier: operatorSpecifierXFY,
-					name:      ",",
-				},
-			},
-		}
+		state := State{operators: operators{}}
+		state.operators.define(1000, operatorSpecifierXFY, `,`)
 		ok, err := state.Op(Integer(1000), Atom("xfy"), Atom(","), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, Atom(","), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element of the operator list is ','", func(t *testing.T) {
-		state := State{
-			operators: operators{
-				{
-					priority:  1000,
-					specifier: operatorSpecifierXFY,
-					name:      ",",
-				},
-			},
-		}
+		state := State{operators: operators{}}
+		state.operators.define(1000, operatorSpecifierXFY, `,`)
 		ok, err := state.Op(Integer(1000), Atom("xfy"), List(Atom(",")), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, Atom(","), nil), err)
 		assert.False(t, ok)
@@ -1274,15 +1276,8 @@ func TestState_Op(t *testing.T) {
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				state := State{
-					operators: operators{
-						{
-							priority:  1001,
-							specifier: operatorSpecifierXFY,
-							name:      "|",
-						},
-					},
-				}
+				state := State{operators: operators{}}
+				state.operators.define(1001, operatorSpecifierXFY, `|`)
 				ok, err := state.Op(Integer(1000), Atom("xfy"), Atom("|"), Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, Atom("|"), nil), err)
 				assert.False(t, ok)
@@ -1314,15 +1309,8 @@ func TestState_Op(t *testing.T) {
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				state := State{
-					operators: operators{
-						{
-							priority:  1001,
-							specifier: operatorSpecifierXFY,
-							name:      "|",
-						},
-					},
-				}
+				state := State{operators: operators{}}
+				state.operators.define(101, operatorSpecifierXFY, `|`)
 				ok, err := state.Op(Integer(1000), Atom("xfy"), List(Atom("|")), Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, Atom("|"), nil), err)
 				assert.False(t, ok)
@@ -1332,30 +1320,16 @@ func TestState_Op(t *testing.T) {
 
 	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
 		t.Run("infix", func(t *testing.T) {
-			state := State{
-				operators: operators{
-					{
-						priority:  200,
-						specifier: operatorSpecifierYF,
-						name:      "+",
-					},
-				},
-			}
+			state := State{operators: operators{}}
+			state.operators.define(200, operatorSpecifierYF, `+`)
 			ok, err := state.Op(Integer(500), Atom("yfx"), List(Atom("+")), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, Atom("+"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("postfix", func(t *testing.T) {
-			state := State{
-				operators: operators{
-					{
-						priority:  500,
-						specifier: operatorSpecifierYFX,
-						name:      "+",
-					},
-				},
-			}
+			state := State{operators: operators{}}
+			state.operators.define(500, operatorSpecifierYFX, `+`)
 			ok, err := state.Op(Integer(200), Atom("yf"), List(Atom("+")), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, Atom("+"), nil), err)
 			assert.False(t, ok)
@@ -1364,25 +1338,10 @@ func TestState_Op(t *testing.T) {
 }
 
 func TestState_CurrentOp(t *testing.T) {
-	state := State{
-		operators: operators{
-			{
-				priority:  900,
-				specifier: operatorSpecifierXFX,
-				name:      "+++",
-			},
-			{
-				priority:  1000,
-				specifier: operatorSpecifierXFX,
-				name:      "++",
-			},
-			{
-				priority:  1100,
-				specifier: operatorSpecifierXFX,
-				name:      "+",
-			},
-		},
-	}
+	state := State{operators: operators{}}
+	state.operators.define(900, operatorSpecifierXFX, `+++`)
+	state.operators.define(1000, operatorSpecifierXFX, `++`)
+	state.operators.define(1100, operatorSpecifierXFX, `+`)
 
 	t.Run("single solution", func(t *testing.T) {
 		ok, err := state.CurrentOp(Integer(1100), Atom("xfx"), Atom("+"), Success, nil).Force(context.Background())
@@ -4179,10 +4138,9 @@ func TestState_FlushOutput(t *testing.T) {
 func TestState_WriteTerm(t *testing.T) {
 	s := NewStream(os.Stdout, StreamModeWrite)
 
-	ops := operators{
-		{priority: 500, specifier: operatorSpecifierYFX, name: "+"},
-		{priority: 200, specifier: operatorSpecifierFY, name: "-"},
-	}
+	ops := operators{}
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(200, operatorSpecifierFY, `-`)
 
 	state := State{
 		operators: ops,

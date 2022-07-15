@@ -26,7 +26,7 @@ func (i Integer) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // WriteTerm writes the Integer to the io.Writer.
 func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix && i > 0
+	openClose := opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix && i > 0
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, " (")

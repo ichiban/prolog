@@ -92,8 +92,12 @@ func (o WriteOptions) withRight(op operator) *WriteOptions {
 
 var defaultWriteOptions = WriteOptions{
 	ops: operators{
-		{priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
-		{priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
+		"+": [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
+		},
+		"/": [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
+		},
 	},
 	VariableNames: map[Variable]Atom{},
 	priority:      1200,

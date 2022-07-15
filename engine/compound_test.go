@@ -90,19 +90,18 @@ func TestCompound_WriteTerm(t *testing.T) {
 	r := &Compound{Functor: "f", Args: []Term{w}}
 	env := NewEnv().Bind(v, l).Bind(w, r)
 
-	ops := operators{
-		{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
-		{priority: 1200, specifier: operatorSpecifierFX, name: `:-`},
-		{priority: 1200, specifier: operatorSpecifierXF, name: `-:`},
-		{priority: 1105, specifier: operatorSpecifierXFY, name: `|`},
-		{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
-		{priority: 900, specifier: operatorSpecifierFY, name: `\+`},
-		{priority: 900, specifier: operatorSpecifierYF, name: `+/`},
-		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
-		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
-		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
-	}
+	ops := operators{}
+	ops.define(1200, operatorSpecifierXFX, `:-`)
+	ops.define(1200, operatorSpecifierFX, `:-`)
+	ops.define(1200, operatorSpecifierXF, `-:`)
+	ops.define(1105, operatorSpecifierXFY, `|`)
+	ops.define(1000, operatorSpecifierXFY, `,`)
+	ops.define(900, operatorSpecifierFY, `\+`)
+	ops.define(900, operatorSpecifierYF, `+/`)
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(400, operatorSpecifierYFX, `*`)
+	ops.define(200, operatorSpecifierFY, `-`)
+	ops.define(200, operatorSpecifierYF, `--`)
 
 	tests := []struct {
 		title      string

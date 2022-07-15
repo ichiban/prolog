@@ -9,13 +9,12 @@ import (
 )
 
 func TestParser_Term(t *testing.T) {
-	ops := operators{
-		{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
-		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
-		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
-		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
-	}
+	ops := operators{}
+	ops.define(1000, operatorSpecifierXFY, `,`)
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(400, operatorSpecifierYFX, `*`)
+	ops.define(200, operatorSpecifierFY, `-`)
+	ops.define(200, operatorSpecifierYF, `--`)
 
 	pvs := []ParsedVariable{
 		{
@@ -133,7 +132,7 @@ func TestParser_Term(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			varCounter = 0
-			p := newParser(strings.NewReader(tc.input), append(tc.opts, withOperators(&ops))...)
+			p := newParser(strings.NewReader(tc.input), append(tc.opts, withOperators(ops))...)
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.term, term)

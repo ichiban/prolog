@@ -62,8 +62,8 @@ func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 		return c.writeTermFunctionalNotation(w, opts, env)
 	}
 
-	for _, o := range opts.ops {
-		if o.name == c.Functor && o.specifier.arity() == len(c.Args) {
+	for _, o := range opts.ops[c.Functor] {
+		if o.specifier.arity() == len(c.Args) {
 			return c.writeTermOp(w, opts, env, &o)
 		}
 	}
@@ -181,7 +181,7 @@ func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env,
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix)
+	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix)
 
 	if openClose {
 		if opts.left != (operator{}) {
@@ -205,11 +205,11 @@ func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, o
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority ||
-		(opts.left.name == "-" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix) ||
+		(opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix) ||
 		(opts.right != operator{} && r >= opts.right.priority)
 
 	if openClose {
-		if opts.left.name != "" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
+		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")

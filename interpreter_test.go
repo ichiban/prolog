@@ -518,7 +518,7 @@ a.`, output: `syntax err.`},
 		{name: "157", premise: `op(0,xfy,:-).`, input: `current_op(P,xfx,:-).`, output: `fails`},
 		{name: "158", input: `op(0,xfy,',').`, output: `permission_error(modify,operator,',')`},
 		{name: "159", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f 0).`, output: `f(f(0))`},
-		{name: "201", premise: `op(9,fy,f),op(9,yf,f).`, input: `writeq(f(f(0))).`, output: `0 f f`}, // e.g. f f 0
+		{name: "201", premise: `op(9,fy,f),op(9,yf,f).`, input: `writeq(f(f(0))).`, output: `f f 0`},
 		{name: "202", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f 0 f).`, output: `f(f(0))`},
 		{name: "160", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(0 f f).`, output: `f(f(0))`},
 		{name: "161", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f).`, output: `syntax err.`},

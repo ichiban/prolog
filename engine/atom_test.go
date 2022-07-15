@@ -79,8 +79,8 @@ func TestAtom_WriteTerm(t *testing.T) {
 		{atom: `{}`, opts: WriteOptions{Quoted: true}, output: `{}`},
 
 		{atom: `-`, output: `-`},
-		{atom: `-`, opts: WriteOptions{ops: operators{{name: "+"}, {name: "-"}}, left: operator{specifier: operatorSpecifierPrefix, name: "+"}}, output: ` (-)`},
-		{atom: `-`, opts: WriteOptions{ops: operators{{name: "+"}, {name: "-"}}, right: operator{name: "+"}}, output: `(-)`},
+		{atom: `-`, opts: WriteOptions{ops: operators{"+": {}, "-": {}}, left: operator{specifier: operatorSpecifierFY, name: "+"}}, output: ` (-)`},
+		{atom: `-`, opts: WriteOptions{ops: operators{"+": {}, "-": {}}, right: operator{name: "+"}}, output: `(-)`},
 
 		{atom: `X`, opts: WriteOptions{Quoted: true, left: operator{name: `F`}}, output: ` 'X'`},  // So that it won't be 'F''X'.
 		{atom: `X`, opts: WriteOptions{Quoted: true, right: operator{name: `F`}}, output: `'X' `}, // So that it won't be 'X''F'.

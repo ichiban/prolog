@@ -87,9 +87,12 @@ func (state *State) SetUserOutput(w io.Writer, opts ...StreamOption) {
 // Parser creates a new parser from the current State and io.Reader.
 // If non-nil, vars will hold the information on variables it parses.
 func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
+	if state.operators == nil {
+		state.operators = operators{}
+	}
 	return newParser(r,
 		withCharConversions(state.charConversions),
-		withOperators(&state.operators),
+		withOperators(state.operators),
 		withDoubleQuotes(state.doubleQuotes),
 		withParsedVars(vars),
 	)
@@ -587,12 +590,12 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 	for _, name := range names {
 		switch name {
 		case ",":
-			if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+			if state.operators.definedInClass(name, operatorClassInfix) {
 				return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
 			}
 		case "|":
-			if spec&operatorSpecifierClass != operatorSpecifierInfix || (p > 0 && p < 1001) {
-				if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+			if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
+				if state.operators.definedInClass(name, operatorClassInfix) {
 					return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
 				} else {
 					return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
@@ -603,35 +606,39 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		}
 
 		// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
-		switch spec & operatorSpecifierClass {
-		case operatorSpecifierInfix:
-			if i := state.operators.indexOf(operatorSpecifierPostfix, name); i >= 0 {
+		switch spec.class() {
+		case operatorClassInfix:
+			if state.operators.definedInClass(name, operatorClassPostfix) {
 				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
 			}
-		case operatorSpecifierPostfix:
-			if i := state.operators.indexOf(operatorSpecifierInfix, name); i >= 0 {
+		case operatorClassPostfix:
+			if state.operators.definedInClass(name, operatorClassInfix) {
 				return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
 			}
 		}
 	}
 
+	if state.operators == nil {
+		state.operators = operators{}
+	}
+
 	for _, name := range names {
-		if i := state.operators.indexOf(spec&operatorSpecifierClass, name); i >= 0 {
-			state.operators.remove(i)
+		if class := spec.class(); state.operators.definedInClass(name, spec.class()) {
+			state.operators.remove(name, class)
 		}
 
 		if p == 0 {
 			continue
 		}
 
-		state.operators.insert(p, spec, name)
+		state.operators.define(p, spec, name)
 	}
 
 	return k(env)
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *Promise, env *Env) *Promise {
+func (state *State) CurrentOp(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch p := env.Resolve(priority).(type) {
 	case Variable:
 		break
@@ -662,19 +669,24 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
 	}
 
-	switch env.Resolve(operator).(type) {
+	switch env.Resolve(op).(type) {
 	case Variable, Atom:
 		break
 	default:
-		return Error(TypeError(ValidTypeAtom, operator, env))
+		return Error(TypeError(ValidTypeAtom, op, env))
 	}
 
-	pattern := Compound{Args: []Term{priority, specifier, operator}}
-	ks := make([]func(context.Context) *Promise, len(state.operators))
-	for i := range state.operators {
-		op := state.operators[i]
-		ks[i] = func(context.Context) *Promise {
-			return Unify(&pattern, &Compound{Args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
+	pattern := Compound{Args: []Term{priority, specifier, op}}
+	ks := make([]func(context.Context) *Promise, 0, len(state.operators)*int(_operatorClassLen))
+	for _, ops := range state.operators {
+		for _, op := range ops {
+			op := op
+			if op == (operator{}) {
+				continue
+			}
+			ks = append(ks, func(context.Context) *Promise {
+				return Unify(&pattern, &Compound{Args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
+			})
 		}
 	}
 	return Delay(ks...)

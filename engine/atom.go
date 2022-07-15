@@ -44,18 +44,10 @@ func (a Atom) Apply(args ...Term) Term {
 // WriteTerm writes the Atom to the io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	var openClose bool
-	if opts.left != (operator{}) || opts.right != (operator{}) {
-		for _, op := range opts.ops {
-			if op.name == a {
-				openClose = true
-				break
-			}
-		}
-	}
+	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
 
 	if openClose {
-		if opts.left.name != "" && opts.left.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
+		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")

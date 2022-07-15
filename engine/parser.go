@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -26,7 +25,7 @@ var (
 type Parser struct {
 	lexer        Lexer
 	buf          tokenRingBuffer
-	operators    *operators
+	operators    operators
 	placeholder  Atom
 	args         []Term
 	doubleQuotes doubleQuotes
@@ -41,12 +40,11 @@ type ParsedVariable struct {
 }
 
 func newParser(input io.Reader, opts ...parserOption) *Parser {
-	var ops operators
 	p := Parser{
 		lexer: Lexer{
 			input: newRuneRingBuffer(input),
 		},
-		operators: &ops,
+		operators: operators{},
 	}
 	for _, o := range opts {
 		o(&p)
@@ -62,7 +60,7 @@ func withCharConversions(charConversions map[rune]rune) parserOption {
 	}
 }
 
-func withOperators(operators *operators) parserOption {
+func withOperators(operators operators) parserOption {
 	return func(p *Parser) {
 		p.operators = operators
 	}
@@ -234,22 +232,30 @@ func (p *Parser) More() bool {
 	return t.Kind != TokenEOF && t.Kind != TokenInsufficient
 }
 
+type operatorClass uint8
+
+const (
+	operatorClassPrefix operatorClass = iota
+	operatorClassPostfix
+	operatorClassInfix
+	_operatorClassLen
+)
+
 type operatorSpecifier uint8
 
 const (
-	operatorSpecifierFX  = operatorSpecifierPrefix + 1
-	operatorSpecifierFY  = operatorSpecifierPrefix + 2
-	operatorSpecifierXF  = operatorSpecifierPostfix + 1
-	operatorSpecifierYF  = operatorSpecifierPostfix + 2
-	operatorSpecifierXFX = operatorSpecifierInfix + 1
-	operatorSpecifierXFY = operatorSpecifierInfix + 2
-	operatorSpecifierYFX = operatorSpecifierInfix + 3
-
-	operatorSpecifierClass   operatorSpecifier = 0b1100
-	operatorSpecifierPrefix  operatorSpecifier = 0b0000
-	operatorSpecifierPostfix operatorSpecifier = 0b0100
-	operatorSpecifierInfix   operatorSpecifier = 0b1000
+	operatorSpecifierFX  = operatorSpecifier(operatorClassPrefix<<2 + 1)
+	operatorSpecifierFY  = operatorSpecifier(operatorClassPrefix<<2 + 2)
+	operatorSpecifierXF  = operatorSpecifier(operatorClassPostfix<<2 + 1)
+	operatorSpecifierYF  = operatorSpecifier(operatorClassPostfix<<2 + 2)
+	operatorSpecifierXFX = operatorSpecifier(operatorClassInfix<<2 + 1)
+	operatorSpecifierXFY = operatorSpecifier(operatorClassInfix<<2 + 2)
+	operatorSpecifierYFX = operatorSpecifier(operatorClassInfix<<2 + 3)
 )
+
+func (s operatorSpecifier) class() operatorClass {
+	return operatorClass((s & (0b11 << 2)) >> 2)
+}
 
 func (s operatorSpecifier) term() Term {
 	return [...]Term{
@@ -275,35 +281,35 @@ func (s operatorSpecifier) arity() int {
 	}[s]
 }
 
-type operators []operator
+type operators map[Atom][_operatorClassLen]operator
 
-func (ops operators) indexOf(class operatorSpecifier, name Atom) int {
-	for i, op := range ops {
-		if op.name == name && op.specifier&operatorSpecifierClass == class {
-			return i
-		}
-	}
-	return -1
+func (ops operators) defined(name Atom) bool {
+	_, ok := ops[name]
+	return ok
 }
 
-func (ops *operators) insert(p Integer, spec operatorSpecifier, op Atom) {
-	i := sort.Search(len(*ops), func(i int) bool {
-		return (*ops)[i].priority >= p
-	})
-	*ops = append(*ops, operator{})
-	copy((*ops)[i+1:], (*ops)[i:])
-	(*ops)[i] = operator{
+func (ops operators) definedInClass(name Atom, class operatorClass) bool {
+	return ops[name][class] != operator{}
+}
+
+func (ops operators) define(p Integer, spec operatorSpecifier, op Atom) {
+	os := ops[op]
+	os[spec.class()] = operator{
 		priority:  p,
 		specifier: spec,
 		name:      op,
 	}
+	ops[op] = os
 }
 
-func (ops *operators) remove(i int) {
-	copy((*ops)[i:], (*ops)[i+1:])
-
-	(*ops)[len(*ops)-1] = operator{}
-	*ops = (*ops)[:len(*ops)-1]
+func (ops operators) remove(name Atom, class operatorClass) {
+	os := ops[name]
+	os[class] = operator{}
+	if os == ([_operatorClassLen]operator{}) {
+		delete(ops, name)
+		return
+	}
+	ops[name] = os
 }
 
 type operator struct {
@@ -420,16 +426,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		p.backup()
 	}
 
-	for _, op := range *p.operators {
-		if op.specifier&operatorSpecifierClass != operatorSpecifierPrefix {
-			continue
-		}
-		if op.name != a {
-			continue
-		}
-		if op.priority > maxPriority {
-			continue
-		}
+	if op := p.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
 		return op, nil
 	}
 
@@ -447,18 +444,17 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	for _, op := range *p.operators {
-		if op.specifier&operatorSpecifierClass == operatorSpecifierPrefix {
-			continue
-		}
-		if op.name != a {
-			continue
-		}
+	if op := p.operators[a][operatorClassInfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
-		if l > maxPriority {
-			continue
+		if l <= maxPriority {
+			return op, nil
 		}
-		return op, nil
+	}
+	if op := p.operators[a][operatorClassPostfix]; op != (operator{}) {
+		l, _ := op.bindingPriorities()
+		if l <= maxPriority {
+			return op, nil
+		}
 	}
 
 	p.backup()
@@ -591,13 +587,9 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if t, ok := t.(Atom); ok && maxPriority < 1201 {
-		for _, op := range *p.operators {
-			if op.name == t {
-				p.backup()
-				return nil, errExpectation
-			}
-		}
+	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(t) {
+		p.backup()
+		return nil, errExpectation
 	}
 
 	if p.placeholder != "" && t == p.placeholder {
@@ -747,16 +739,14 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 
 func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
-		for _, op := range *p.operators {
-			if op.name == arg {
-				// Check if this atom is not followed by its own arguments.
-				switch t := p.next(); t.Kind {
-				case TokenComma, TokenClose, TokenBar, TokenCloseList:
-					p.backup()
-					return arg, nil
-				default:
-					p.backup()
-				}
+		if p.operators.defined(arg) {
+			// Check if this atom is not followed by its own arguments.
+			switch t := p.next(); t.Kind {
+			case TokenComma, TokenClose, TokenBar, TokenCloseList:
+				p.backup()
+				return arg, nil
+			default:
+				p.backup()
 			}
 		}
 		switch arg {
