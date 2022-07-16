@@ -80,7 +80,10 @@ func TestParser_Term(t *testing.T) {
 		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("_1")},
 
 		{input: `foo(a, b).`, term: &Compound{Functor: "foo", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `foo(-(a)).`, term: &Compound{Functor: "foo", Args: []Term{&Compound{Functor: "-", Args: []Term{Atom("a")}}}}},
+		{input: `foo(-).`, term: &Compound{Functor: "foo", Args: []Term{Atom("-")}}},
 		{input: `foo((), b).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+		{input: `foo([]).`, term: &Compound{Functor: "foo", Args: []Term{Atom("[]")}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 		{input: `foo(a, b`, err: ErrInsufficient},
@@ -108,6 +111,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `a [] b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenList, Val: "["}}},
 		{input: `a {} b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenCurly, Val: "{"}}},
 		{input: `a, b.`, term: &Compound{Functor: ",", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `+ * + .`, err: unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "+"}}},
 
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: List(Atom("a"), Atom("b"), Atom("c"))},
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: List(Integer(97), Integer(98), Integer(99))},
