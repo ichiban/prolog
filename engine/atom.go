@@ -11,7 +11,7 @@ import (
 
 var (
 	graphicalAtomPattern    = regexp.MustCompile(`\A[#$&*+\-./:<=>?@^~\\]+\z`)
-	quotedAtomEscapePattern = regexp.MustCompile("[[:cntrl:]]|\\\\|'|\"|`")
+	quotedAtomEscapePattern = regexp.MustCompile(`[[:cntrl:]]|\\|'`)
 )
 
 // Atom is a prolog atom.
@@ -44,33 +44,50 @@ func (a Atom) Apply(args ...Term) Term {
 // WriteTerm writes the Atom to the io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	var openClose bool
-	if opts.before != (operator{}) || opts.after != (operator{}) {
-		for _, op := range opts.ops {
-			if op.name == a {
-				openClose = true
-				break
-			}
-		}
-	}
+	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
 
 	if openClose {
+		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
+			_, _ = fmt.Fprint(&ew, " ")
+		}
 		_, _ = fmt.Fprint(&ew, "(")
+		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 
-	s := string(a)
-	if opts.Quoted {
-		p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
-		if a, err := p.atom(); err != nil || string(a) != s {
-			s = quote(s)
-		}
+	if opts.Quoted && needQuoted(a) {
+		_ = a.writeTermQuoted(&ew, opts)
+	} else {
+		_ = a.writeTermUnquoted(&ew, opts)
 	}
-	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
+	return ew.err
+}
+
+func (a Atom) writeTermQuoted(w io.Writer, opts *WriteOptions) error {
+	ew := errWriter{w: w}
+	if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	_, _ = fmt.Fprint(&ew, quote(string(a)))
+	if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'FOO''BAR'.
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	return ew.err
+}
+
+func (a Atom) writeTermUnquoted(w io.Writer, opts *WriteOptions) error {
+	ew := errWriter{w: w}
+	if (letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a)) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
+	_, _ = fmt.Fprint(&ew, string(a))
+	if (letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a)) {
+		_, _ = fmt.Fprint(&ew, " ")
+	}
 	return ew.err
 }
 
@@ -84,6 +101,12 @@ func (a Atom) Compare(t Term, env *Env) int64 {
 	default:
 		return -1
 	}
+}
+
+func needQuoted(a Atom) bool {
+	p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
+	parsed, err := p.atom()
+	return err != nil || parsed != a
 }
 
 func quote(s string) string {
@@ -110,10 +133,6 @@ func quotedIdentEscape(s string) string {
 		return `\\`
 	case `'`:
 		return `\'`
-	case `"`:
-		return `\"`
-	case "`":
-		return "\\`"
 	default:
 		var ret []string
 		for _, r := range s {
@@ -121,4 +140,12 @@ func quotedIdentEscape(s string) string {
 		}
 		return strings.Join(ret, "")
 	}
+}
+
+func letterDigit(a Atom) bool {
+	return len(a) > 0 && isSmallLetterChar([]rune(a)[0])
+}
+
+func graphic(a Atom) bool {
+	return len(a) > 0 && (isGraphicChar([]rune(a)[0]) || []rune(a)[0] == '\\')
 }

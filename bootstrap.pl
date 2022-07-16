@@ -59,15 +59,15 @@ fail :- \+true.
 
 % conjunction/disjunction and if-then-else
 
-:- built_in(','/2).
+:- built_in((',')/2).
 P, Q :- call((P, Q)).
 
-:- built_in(';'/2).
+:- built_in((;)/2).
 If -> Then; _ :- If, !, Then.
 _ -> _; Else :- !, Else.
 P; Q :- call((P; Q)).
 
-:- built_in('->'/2).
+:- built_in((->)/2).
 If -> Then :- If, !, Then.
 
 % cut

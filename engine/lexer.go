@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -11,24 +12,16 @@ import (
 
 // Lexer turns bytes into tokens.
 type Lexer struct {
-	input           *bufio.Reader
+	input           runeRingBuffer
 	buf             bytes.Buffer
 	offset          int
 	charConversions map[rune]rune
-	reserved        Token
 }
 
 // Token returns the next token.
 func (l *Lexer) Token() Token {
-	if l.reserved != (Token{}) {
-		t := l.reserved
-		l.reserved = Token{}
-		return t
-	}
-
 	l.offset = l.buf.Len()
-
-	return l.layoutTextSequence()
+	return l.layoutTextSequence(false)
 }
 
 func (l *Lexer) next() rune {
@@ -37,10 +30,7 @@ func (l *Lexer) next() rune {
 }
 
 func (l *Lexer) rawNext() rune {
-	r, _, err := l.input.ReadRune()
-	if err != nil {
-		r = utf8.RuneError
-	}
+	r, _, _ := l.input.ReadRune()
 	return r
 }
 
@@ -175,42 +165,19 @@ func (k TokenKind) String() string {
 	}[k]
 }
 
-var spacing = [tokenKindLen][tokenKindLen]bool{
-	TokenVariable: {
-		TokenVariable:    true,
-		TokenInteger:     true,
-		TokenFloatNumber: true,
-		TokenLetterDigit: true,
-	},
-	TokenLetterDigit: {
-		TokenVariable:    true,
-		TokenInteger:     true,
-		TokenFloatNumber: true,
-		TokenLetterDigit: true,
-	},
-	TokenGraphic: {
-		TokenGraphic: true,
-	},
-	TokenComma: {
-		TokenVariable:    true,
-		TokenFloatNumber: true,
-		TokenInteger:     true,
-		TokenLetterDigit: true,
-		TokenQuoted:      true,
-		TokenGraphic:     true,
-		TokenComma:       true,
-		TokenEnd:         true,
-		TokenBar:         true,
-		TokenOpen:        true,
-		TokenClose:       true,
-		TokenOpenList:    true,
-		TokenCloseList:   true,
-		TokenOpenCurly:   true,
-		TokenCloseCurly:  true,
-	},
-}
-
 // Tokens
+
+var soloTokenKinds = [...]TokenKind{
+	';': TokenSemicolon,
+	'!': TokenCut,
+	')': TokenClose,
+	'[': TokenOpenList,
+	']': TokenCloseList,
+	'{': TokenOpenCurly,
+	'}': TokenCloseCurly,
+	'|': TokenBar,
+	',': TokenComma,
+}
 
 func (l *Lexer) token(afterLayout bool) Token {
 	switch r := l.next(); {
@@ -221,26 +188,16 @@ func (l *Lexer) token(afterLayout bool) Token {
 		return l.letterDigitToken()
 	case r == '.':
 		l.accept(r)
-		switch r := l.next(); {
-		case isLayoutChar(r), r == '%', r == utf8.RuneError:
-			l.backup()
+		if l.wasEndChar() {
 			return Token{Kind: TokenEnd, Val: l.chunk()}
-		default:
-			l.backup()
-			return l.graphicToken()
 		}
+		return l.graphicToken()
 	case isGraphicChar(r), r == '\\':
 		l.accept(r)
 		return l.graphicToken()
 	case r == '\'':
 		l.accept(r)
 		return l.quotedToken()
-	case r == ';':
-		l.accept(r)
-		return Token{Kind: TokenSemicolon, Val: l.chunk()}
-	case r == '!':
-		l.accept(r)
-		return Token{Kind: TokenCut, Val: l.chunk()}
 	case r == '_', isCapitalLetterChar(r):
 		l.accept(r)
 		return l.variableToken()
@@ -256,37 +213,25 @@ func (l *Lexer) token(afterLayout bool) Token {
 			return Token{Kind: TokenOpen, Val: l.chunk()}
 		}
 		return Token{Kind: TokenOpenCT, Val: l.chunk()}
-	case r == ')':
-		l.accept(r)
-		return Token{Kind: TokenClose, Val: l.chunk()}
-	case r == '[':
-		l.accept(r)
-		return Token{Kind: TokenOpenList, Val: l.chunk()}
-	case r == ']':
-		l.accept(r)
-		return Token{Kind: TokenCloseList, Val: l.chunk()}
-	case r == '{':
-		l.accept(r)
-		return Token{Kind: TokenOpenCurly, Val: l.chunk()}
-	case r == '}':
-		l.accept(r)
-		return Token{Kind: TokenCloseCurly, Val: l.chunk()}
-	case r == '|':
-		l.accept(r)
-		return Token{Kind: TokenBar, Val: l.chunk()}
-	case r == ',':
-		l.accept(r)
-		return Token{Kind: TokenComma, Val: l.chunk()}
 	default:
+		k := TokenInvalid
+		if int(r) < len(soloTokenKinds) {
+			k = soloTokenKinds[r]
+		}
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
+		return Token{Kind: k, Val: l.chunk()}
 	}
+}
+
+func (l *Lexer) wasEndChar() bool {
+	r := l.next()
+	l.backup()
+	return isLayoutChar(r) || r == '%' || r == utf8.RuneError
 }
 
 //// Layout text
 
-func (l *Lexer) layoutTextSequence() Token {
-	var afterLayout bool
+func (l *Lexer) layoutTextSequence(afterLayout bool) Token {
 	for {
 		switch r := l.next(); {
 		case isLayoutChar(r):
@@ -317,7 +262,7 @@ func (l *Lexer) commentText(bracketed bool) Token {
 		for {
 			switch r := l.next(); {
 			case r == '\n', r == utf8.RuneError:
-				return l.layoutTextSequence()
+				return l.layoutTextSequence(true)
 			}
 		}
 	}
@@ -337,7 +282,7 @@ func (l *Lexer) commentOpen() Token {
 func (l *Lexer) commentClose() Token {
 	switch r := l.next(); {
 	case r == '/':
-		return l.layoutTextSequence()
+		return l.layoutTextSequence(true)
 	default:
 		return l.commentText(true)
 	}
@@ -381,7 +326,14 @@ func (l *Lexer) quotedToken() Token {
 				l.accept(r)
 			default:
 				l.backup()
-				return Token{Kind: TokenQuoted, Val: l.chunk()}
+				s := l.chunk()
+
+				// Checks if it contains invalid octal or hexadecimal escape sequences.
+				if strings.ContainsRune(unquote(s), utf8.RuneError) {
+					return Token{Kind: TokenInvalid, Val: s}
+				}
+
+				return Token{Kind: TokenQuoted, Val: s}
 			}
 		case r == '\\':
 			l.accept(r)
@@ -392,8 +344,11 @@ func (l *Lexer) quotedToken() Token {
 				l.backup()
 				return l.escapeSequence(l.quotedToken)
 			}
+		case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ', r == '"', r == '`':
+			l.accept(r)
 		default:
 			l.accept(r)
+			return Token{Kind: TokenInvalid, Val: l.chunk()}
 		}
 	}
 }
@@ -485,15 +440,65 @@ func (l *Lexer) integerToken() Token {
 		l.accept(r)
 		switch r = l.next(); {
 		case r == '\'':
+			switch r := l.next(); {
+			case r == '\'':
+				switch r := l.next(); {
+				case r == '\'': // 0'''
+					l.backup()
+					l.backup()
+				default:
+					l.backup()
+					l.backup()
+					l.backup()
+					return Token{Kind: TokenInteger, Val: l.chunk()} // 0
+				}
+			case r == '\\':
+				switch r := l.next(); {
+				case r == '\n':
+					l.backup()
+					l.backup()
+					l.backup()
+					return Token{Kind: TokenInteger, Val: l.chunk()} // 0
+				default:
+					l.backup()
+					l.backup()
+				}
+			default:
+				l.backup()
+			}
 			l.accept(r)
 			return l.characterCodeConstant()
 		case r == 'b':
+			switch r := l.next(); {
+			case isBinaryDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.binaryConstant()
 		case r == 'o':
+			switch r := l.next(); {
+			case isOctalDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.octalConstant()
 		case r == 'x':
+			switch r := l.next(); {
+			case isHexadecimalDigitChar(r):
+				l.backup()
+			default:
+				l.backup()
+				l.backup()
+				return Token{Kind: TokenInteger, Val: l.chunk()}
+			}
 			l.accept(r)
 			return l.hexadecimalConstant()
 		default:
@@ -519,7 +524,7 @@ func (l *Lexer) integerConstant() Token {
 				return l.fraction()
 			default:
 				l.backup()
-				l.reserved = Token{Kind: TokenEnd, Val: "."}
+				l.backup()
 				return Token{Kind: TokenInteger, Val: l.chunk()}
 			}
 		default:
@@ -535,38 +540,24 @@ func (l *Lexer) characterCodeConstant() Token {
 		return Token{Kind: TokenInsufficient, Val: l.chunk()}
 	case r == '\'':
 		l.accept(r)
-		switch r := l.next(); {
-		case r == utf8.RuneError:
-			return Token{Kind: TokenInsufficient, Val: l.chunk()}
-		case r == '\'':
-			l.accept(r)
-			return Token{Kind: TokenInteger, Val: l.chunk()}
-		default:
-			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}
-		}
+		r := l.next() // r == '\''
+		l.accept(r)
+		return Token{Kind: TokenInteger, Val: l.chunk()}
 	case r == '\\':
 		l.accept(r)
 		return l.escapeSequence(func() Token {
 			return Token{Kind: TokenInteger, Val: l.chunk()}
 		})
-	default:
+	case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ':
 		l.accept(r)
 		return Token{Kind: TokenInteger, Val: l.chunk()}
-	}
-}
-
-func (l *Lexer) binaryConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isBinaryDigitChar(r):
-		l.accept(r)
 	default:
 		l.accept(r)
 		return Token{Kind: TokenInvalid, Val: l.chunk()}
 	}
+}
 
+func (l *Lexer) binaryConstant() Token {
 	for {
 		switch r := l.next(); {
 		case isBinaryDigitChar(r):
@@ -579,16 +570,6 @@ func (l *Lexer) binaryConstant() Token {
 }
 
 func (l *Lexer) octalConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isOctalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isOctalDigitChar(r):
@@ -601,16 +582,6 @@ func (l *Lexer) octalConstant() Token {
 }
 
 func (l *Lexer) hexadecimalConstant() Token {
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isHexadecimalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isHexadecimalDigitChar(r):
@@ -630,7 +601,31 @@ func (l *Lexer) fraction() Token {
 		case isDecimalDigitChar(r):
 			l.accept(r)
 		case r == 'e', r == 'E':
-			l.accept(r)
+			var sign rune
+			switch r := l.next(); {
+			case r == '-', r == '+':
+				sign = r
+			default:
+				l.backup()
+			}
+
+			switch r := l.next(); {
+			case isDecimalDigitChar(r):
+				l.backup()
+				break
+			default:
+				l.backup()
+				if sign != 0 {
+					l.backup()
+				}
+				l.backup() // for 'e' or 'E'
+				return Token{Kind: TokenFloatNumber, Val: l.chunk()}
+			}
+
+			l.accept(r) // 'e' or 'E'
+			if sign != 0 {
+				l.accept(sign)
+			}
 			return l.exponent()
 		default:
 			l.backup()
@@ -640,23 +635,6 @@ func (l *Lexer) fraction() Token {
 }
 
 func (l *Lexer) exponent() Token {
-	switch r := l.next(); {
-	case r == '-', r == '+':
-		l.accept(r)
-	default:
-		l.backup()
-	}
-
-	switch r := l.next(); {
-	case r == utf8.RuneError:
-		return Token{Kind: TokenInsufficient, Val: l.chunk()}
-	case isDecimalDigitChar(r):
-		l.accept(r)
-	default:
-		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}
-	}
-
 	for {
 		switch r := l.next(); {
 		case isDecimalDigitChar(r):
@@ -745,6 +723,10 @@ func isHexadecimalDigitChar(r rune) bool {
 	return strings.ContainsRune("0123456789ABCDEF", unicode.ToUpper(r))
 }
 
+func isSoloChar(r rune) bool {
+	return strings.ContainsRune(`!(),;[]{}|%`, r)
+}
+
 func isUnderscoreChar(r rune) bool {
 	return r == '_'
 }
@@ -759,4 +741,59 @@ func isMetaChar(r rune) bool {
 
 func isSymbolicControlChar(r rune) bool {
 	return strings.ContainsRune(`abrftnv`, r)
+}
+
+type runeRingBuffer struct {
+	base       io.RuneReader
+	buf        [4]rune
+	start, end int
+}
+
+func newRuneRingBuffer(r io.Reader) runeRingBuffer {
+	br, ok := r.(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReader(r)
+	}
+	return runeRingBuffer{base: br}
+}
+
+func (b *runeRingBuffer) ReadRune() (rune, int, error) {
+	if b.empty() {
+		r, _, err := b.base.ReadRune()
+		if err != nil {
+			r = utf8.RuneError
+		}
+		b.put(r)
+	}
+	return b.get(), 0, nil
+}
+
+func (b *runeRingBuffer) UnreadRune() error {
+	b.backup()
+	return nil
+}
+
+func (b *runeRingBuffer) put(r rune) {
+	b.buf[b.end] = r
+	b.end++
+	b.end %= len(b.buf)
+}
+
+func (b *runeRingBuffer) get() rune {
+	r := b.buf[b.start]
+	b.start++
+	b.start %= len(b.buf)
+	return r
+}
+
+func (b *runeRingBuffer) empty() bool {
+	return b.start == b.end
+}
+
+func (b *runeRingBuffer) backup() {
+	b.start--
+	b.start %= len(b.buf)
+	if b.start < 0 {
+		b.start += len(b.buf)
+	}
 }

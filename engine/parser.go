@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,7 @@ var (
 type Parser struct {
 	lexer        Lexer
 	buf          tokenRingBuffer
-	operators    *operators
+	operators    operators
 	placeholder  Atom
 	args         []Term
 	doubleQuotes doubleQuotes
@@ -40,11 +39,12 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input *bufio.Reader, opts ...parserOption) *Parser {
+func newParser(input io.Reader, opts ...parserOption) *Parser {
 	p := Parser{
 		lexer: Lexer{
-			input: input,
+			input: newRuneRingBuffer(input),
 		},
+		operators: operators{},
 	}
 	for _, o := range opts {
 		o(&p)
@@ -60,7 +60,7 @@ func withCharConversions(charConversions map[rune]rune) parserOption {
 	}
 }
 
-func withOperators(operators *operators) parserOption {
+func withOperators(operators operators) parserOption {
 	return func(p *Parser) {
 		p.operators = operators
 	}
@@ -148,11 +148,11 @@ func (p *Parser) Term() (Term, error) {
 	case nil:
 		break
 	case errExpectation:
-		switch p.current().Kind {
+		switch cur := p.current(); cur.Kind {
 		case TokenEOF, TokenInsufficient:
 			return nil, ErrInsufficient
 		default:
-			return nil, unexpectedTokenError{actual: p.current()}
+			return nil, unexpectedTokenError{actual: cur}
 		}
 	default:
 		return nil, err
@@ -183,9 +183,9 @@ func (p *Parser) Number() (Number, error) {
 	)
 	switch t := p.next(); t.Kind {
 	case TokenInteger:
-		n, err = parseInteger(1, t.Val)
+		n, err = integer(1, t.Val)
 	case TokenFloatNumber:
-		n, err = parseFloat(1, t.Val)
+		n, err = float(1, t.Val)
 	default:
 		p.backup()
 		var a Atom
@@ -201,9 +201,9 @@ func (p *Parser) Number() (Number, error) {
 
 		switch t := p.next(); t.Kind {
 		case TokenInteger:
-			n, err = parseInteger(-1, t.Val)
+			n, err = integer(-1, t.Val)
 		case TokenFloatNumber:
-			n, err = parseFloat(-1, t.Val)
+			n, err = float(-1, t.Val)
 		default:
 			p.backup()
 			p.backup()
@@ -214,11 +214,8 @@ func (p *Parser) Number() (Number, error) {
 		return nil, err
 	}
 
-	// No more tokens/runes after a number.
-	if !p.buf.empty() || p.lexer.reserved != (Token{}) {
-		return nil, errNotANumber
-	}
-	if r := p.lexer.rawNext(); r != utf8.RuneError {
+	// No more runes after a number.
+	if r := p.lexer.rawNext(); r != utf8.RuneError || !p.buf.empty() {
 		return nil, errNotANumber
 	}
 
@@ -232,17 +229,30 @@ func (p *Parser) More() bool {
 	return t.Kind != TokenEOF && t.Kind != TokenInsufficient
 }
 
+type operatorClass uint8
+
+const (
+	operatorClassPrefix operatorClass = iota
+	operatorClassPostfix
+	operatorClassInfix
+	_operatorClassLen
+)
+
 type operatorSpecifier uint8
 
 const (
-	operatorSpecifierFX operatorSpecifier = iota
-	operatorSpecifierFY
-	operatorSpecifierXF
-	operatorSpecifierYF
-	operatorSpecifierXFX
-	operatorSpecifierXFY
-	operatorSpecifierYFX
+	operatorSpecifierFX  = operatorSpecifier(operatorClassPrefix<<2 + 1)
+	operatorSpecifierFY  = operatorSpecifier(operatorClassPrefix<<2 + 2)
+	operatorSpecifierXF  = operatorSpecifier(operatorClassPostfix<<2 + 1)
+	operatorSpecifierYF  = operatorSpecifier(operatorClassPostfix<<2 + 2)
+	operatorSpecifierXFX = operatorSpecifier(operatorClassInfix<<2 + 1)
+	operatorSpecifierXFY = operatorSpecifier(operatorClassInfix<<2 + 2)
+	operatorSpecifierYFX = operatorSpecifier(operatorClassInfix<<2 + 3)
 )
+
+func (s operatorSpecifier) class() operatorClass {
+	return operatorClass((s & (0b11 << 2)) >> 2)
+}
 
 func (s operatorSpecifier) term() Term {
 	return [...]Term{
@@ -255,6 +265,7 @@ func (s operatorSpecifier) term() Term {
 		operatorSpecifierYFX: Atom("yfx"),
 	}[s]
 }
+
 func (s operatorSpecifier) arity() int {
 	return [...]int{
 		operatorSpecifierFX:  1,
@@ -267,7 +278,39 @@ func (s operatorSpecifier) arity() int {
 	}[s]
 }
 
-type operators []operator
+type operators map[Atom][_operatorClassLen]operator
+
+func (ops operators) defined(name Atom) bool {
+	_, ok := ops[name]
+	return ok
+}
+
+func (ops operators) definedInClass(name Atom, class operatorClass) bool {
+	return ops[name][class] != operator{}
+}
+
+func (ops operators) define(p Integer, spec operatorSpecifier, op Atom) {
+	if p == 0 {
+		return
+	}
+	os := ops[op]
+	os[spec.class()] = operator{
+		priority:  p,
+		specifier: spec,
+		name:      op,
+	}
+	ops[op] = os
+}
+
+func (ops operators) remove(name Atom, class operatorClass) {
+	os := ops[name]
+	os[class] = operator{}
+	if os == ([_operatorClassLen]operator{}) {
+		delete(ops, name)
+		return
+	}
+	ops[name] = os
+}
 
 type operator struct {
 	priority  Integer // 1 ~ 1200
@@ -322,12 +365,12 @@ func (p *Parser) term(maxPriority Integer) (Term, error) {
 		_, rbp := op.bindingPriorities()
 		t, err := p.term(rbp)
 		if err != nil {
-			lhs = op.name
-			break
+			p.backup()
+			return p.term0(maxPriority)
 		}
 		lhs = op.name.Apply(t)
 	default:
-		lhs, err = p.term0()
+		lhs, err = p.term0(maxPriority)
 		if err != nil {
 			return nil, err
 		}
@@ -383,13 +426,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		p.backup()
 	}
 
-	for _, op := range *p.operators {
-		if op.name != a {
-			continue
-		}
-		if op.priority > maxPriority {
-			continue
-		}
+	if op := p.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
 		return op, nil
 	}
 
@@ -407,15 +444,17 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	for _, op := range *p.operators {
-		if op.name != a {
-			continue
-		}
+	if op := p.operators[a][operatorClassInfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
-		if l > maxPriority {
-			continue
+		if l <= maxPriority {
+			return op, nil
 		}
-		return op, nil
+	}
+	if op := p.operators[a][operatorClassPostfix]; op != (operator{}) {
+		l, _ := op.bindingPriorities()
+		if l <= maxPriority {
+			return op, nil
+		}
 	}
 
 	p.backup()
@@ -455,39 +494,16 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	return "", errExpectation
 }
 
-func (p *Parser) term0() (Term, error) {
+func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	switch t := p.next(); t.Kind {
 	case TokenOpen, TokenOpenCT:
-		t, err := p.term(1201)
-		if err != nil {
-			return nil, err
-		}
-		if t := p.next(); t.Kind != TokenClose {
-			p.backup()
-			return nil, errExpectation
-		}
-		return t, nil
+		return p.openClose()
 	case TokenInteger:
-		return parseInteger(1, t.Val)
+		return integer(1, t.Val)
 	case TokenFloatNumber:
-		return parseFloat(1, t.Val)
+		return float(1, t.Val)
 	case TokenVariable:
-		if t.Val == "_" {
-			return NewVariable(), nil
-		}
-		if p.vars == nil {
-			return Variable(t.Val), nil
-		}
-		n := Atom(t.Val)
-		for i, v := range *p.vars {
-			if v.Name == n {
-				(*p.vars)[i].Count++
-				return v.Variable, nil
-			}
-		}
-		w := NewVariable()
-		*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
-		return w, nil
+		return p.variable(t.Val)
 	case TokenOpenList:
 		if t := p.next(); t.Kind == TokenCloseList {
 			p.backup()
@@ -526,6 +542,10 @@ func (p *Parser) term0() (Term, error) {
 		p.backup()
 	}
 
+	return p.term0Atom(maxPriority)
+}
+
+func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	a, err := p.atom()
 	if err != nil {
 		return nil, err
@@ -534,9 +554,9 @@ func (p *Parser) term0() (Term, error) {
 	if a == "-" {
 		switch t := p.next(); t.Kind {
 		case TokenInteger:
-			return parseInteger(-1, t.Val)
+			return integer(-1, t.Val)
 		case TokenFloatNumber:
-			return parseFloat(-1, t.Val)
+			return float(-1, t.Val)
 		default:
 			p.backup()
 		}
@@ -547,6 +567,12 @@ func (p *Parser) term0() (Term, error) {
 		return nil, err
 	}
 
+	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
+	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(t) {
+		p.backup()
+		return nil, errExpectation
+	}
+
 	if p.placeholder != "" && t == p.placeholder {
 		if len(p.args) == 0 {
 			return nil, errPlaceholder
@@ -554,6 +580,37 @@ func (p *Parser) term0() (Term, error) {
 		t, p.args = p.args[0], p.args[1:]
 	}
 
+	return t, nil
+}
+
+func (p *Parser) variable(s string) (Term, error) {
+	if s == "_" {
+		return NewVariable(), nil
+	}
+	if p.vars == nil {
+		return Variable(s), nil
+	}
+	n := Atom(s)
+	for i, v := range *p.vars {
+		if v.Name == n {
+			(*p.vars)[i].Count++
+			return v.Variable, nil
+		}
+	}
+	w := NewVariable()
+	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
+	return w, nil
+}
+
+func (p *Parser) openClose() (Term, error) {
+	t, err := p.term(1201)
+	if err != nil {
+		return nil, err
+	}
+	if t := p.next(); t.Kind != TokenClose {
+		p.backup()
+		return nil, errExpectation
+	}
 	return t, nil
 }
 
@@ -608,7 +665,7 @@ func (p *Parser) name() (Atom, error) {
 }
 
 func (p *Parser) list() (Term, error) {
-	arg, err := p.term(999)
+	arg, err := p.arg()
 	if err != nil {
 		return nil, err
 	}
@@ -616,13 +673,13 @@ func (p *Parser) list() (Term, error) {
 	for {
 		switch t := p.next(); t.Kind {
 		case TokenComma:
-			arg, err := p.term(999)
+			arg, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, arg)
 		case TokenBar:
-			rest, err := p.term(999)
+			rest, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
@@ -663,7 +720,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 	switch t := p.next(); t.Kind {
 	case TokenOpenCT:
-		arg, err := p.term(999)
+		arg, err := p.arg()
 		if err != nil {
 			return nil, err
 		}
@@ -671,7 +728,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 		for {
 			switch t := p.next(); t.Kind {
 			case TokenComma:
-				arg, err := p.term(999)
+				arg, err := p.arg()
 				if err != nil {
 					return nil, err
 				}
@@ -692,7 +749,29 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 	}
 }
 
-func parseInteger(sign int64, s string) (Integer, error) {
+func (p *Parser) arg() (Term, error) {
+	if arg, err := p.atom(); err == nil {
+		if p.operators.defined(arg) {
+			// Check if this atom is not followed by its own arguments.
+			switch t := p.next(); t.Kind {
+			case TokenComma, TokenClose, TokenBar, TokenCloseList:
+				p.backup()
+				return arg, nil
+			default:
+				p.backup()
+			}
+		}
+		switch arg {
+		case "[]", "{}":
+			p.backup()
+		}
+		p.backup()
+	}
+
+	return p.term(999)
+}
+
+func integer(sign int64, s string) (Integer, error) {
 	base := 10
 	switch {
 	case strings.HasPrefix(s, "0'"):
@@ -723,7 +802,7 @@ func parseInteger(sign int64, s string) (Integer, error) {
 	}
 }
 
-func parseFloat(sign float64, s string) (Float, error) {
+func float(sign float64, s string) (Float, error) {
 	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
 	bf.Mul(big.NewFloat(sign), bf)
 

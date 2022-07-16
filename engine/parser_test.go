@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"io"
 	"strings"
 	"testing"
@@ -10,13 +9,12 @@ import (
 )
 
 func TestParser_Term(t *testing.T) {
-	ops := operators{
-		{priority: 1000, specifier: operatorSpecifierXFY, name: `,`},
-		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
-		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
-		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
-	}
+	ops := operators{}
+	ops.define(1000, operatorSpecifierXFY, `,`)
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(400, operatorSpecifierYFX, `*`)
+	ops.define(200, operatorSpecifierFY, `-`)
+	ops.define(200, operatorSpecifierYF, `--`)
 
 	pvs := []ParsedVariable{
 		{
@@ -82,7 +80,10 @@ func TestParser_Term(t *testing.T) {
 		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("_1")},
 
 		{input: `foo(a, b).`, term: &Compound{Functor: "foo", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `foo(-(a)).`, term: &Compound{Functor: "foo", Args: []Term{&Compound{Functor: "-", Args: []Term{Atom("a")}}}}},
+		{input: `foo(-).`, term: &Compound{Functor: "foo", Args: []Term{Atom("-")}}},
 		{input: `foo((), b).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+		{input: `foo([]).`, term: &Compound{Functor: "foo", Args: []Term{Atom("[]")}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 		{input: `foo(a, b`, err: ErrInsufficient},
@@ -110,6 +111,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `a [] b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenList, Val: "["}}},
 		{input: `a {} b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenCurly, Val: "{"}}},
 		{input: `a, b.`, term: &Compound{Functor: ",", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `+ * + .`, err: unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "+"}}},
 
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: List(Atom("a"), Atom("b"), Atom("c"))},
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: List(Integer(97), Integer(98), Integer(99))},
@@ -134,7 +136,7 @@ func TestParser_Term(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			varCounter = 0
-			p := newParser(bufio.NewReader(strings.NewReader(tc.input)), append(tc.opts, withOperators(&ops))...)
+			p := newParser(strings.NewReader(tc.input), append(tc.opts, withOperators(ops))...)
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.term, term)
@@ -144,7 +146,7 @@ func TestParser_Term(t *testing.T) {
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},
@@ -159,12 +161,12 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?].`)))
+		p := newParser(strings.NewReader(`[?].`))
 		assert.Error(t, p.Replace("?", []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
@@ -172,7 +174,7 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := newParser(bufio.NewReader(strings.NewReader(`[?, ?, ?, ?, ?].`)))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
 		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
 			Functor: "f",
 			Args:    []Term{Atom("x")},
@@ -221,7 +223,7 @@ func TestParser_Number(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			p := newParser(bufio.NewReader(strings.NewReader(tc.input)))
+			p := newParser(strings.NewReader(tc.input))
 			n, err := p.Number()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.number, n)
@@ -230,7 +232,7 @@ func TestParser_Number(t *testing.T) {
 }
 
 func TestParser_More(t *testing.T) {
-	p := newParser(bufio.NewReader(strings.NewReader(`foo. bar.`)))
+	p := newParser(strings.NewReader(`foo. bar.`))
 	term, err := p.Term()
 	assert.NoError(t, err)
 	assert.Equal(t, Atom("foo"), term)

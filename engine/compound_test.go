@@ -90,17 +90,18 @@ func TestCompound_WriteTerm(t *testing.T) {
 	r := &Compound{Functor: "f", Args: []Term{w}}
 	env := NewEnv().Bind(v, l).Bind(w, r)
 
-	ops := operators{
-		{priority: 1200, specifier: operatorSpecifierXFX, name: `:-`},
-		{priority: 1200, specifier: operatorSpecifierFX, name: `:-`},
-		{priority: 1200, specifier: operatorSpecifierXF, name: `-:`},
-		{priority: 900, specifier: operatorSpecifierFY, name: `\+`},
-		{priority: 900, specifier: operatorSpecifierYF, name: `+/`},
-		{priority: 500, specifier: operatorSpecifierYFX, name: `+`},
-		{priority: 400, specifier: operatorSpecifierYFX, name: `*`},
-		{priority: 200, specifier: operatorSpecifierFY, name: `-`},
-		{priority: 200, specifier: operatorSpecifierYF, name: `--`},
-	}
+	ops := operators{}
+	ops.define(1200, operatorSpecifierXFX, `:-`)
+	ops.define(1200, operatorSpecifierFX, `:-`)
+	ops.define(1200, operatorSpecifierXF, `-:`)
+	ops.define(1105, operatorSpecifierXFY, `|`)
+	ops.define(1000, operatorSpecifierXFY, `,`)
+	ops.define(900, operatorSpecifierFY, `\+`)
+	ops.define(900, operatorSpecifierYF, `+/`)
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(400, operatorSpecifierYFX, `*`)
+	ops.define(200, operatorSpecifierFY, `-`)
+	ops.define(200, operatorSpecifierYF, `--`)
 
 	tests := []struct {
 		title      string
@@ -119,6 +120,7 @@ func TestCompound_WriteTerm(t *testing.T) {
 		{title: "yf", compound: &Compound{Functor: `+/`, Args: []Term{&Compound{Functor: `--`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom(`foo`)}}}}}}, output: `(foo+/)-- +/`},
 		{title: "xfx", compound: &Compound{Functor: ":-", Args: []Term{Atom("foo"), &Compound{Functor: ":-", Args: []Term{Atom("bar"), Atom("baz")}}}}, output: `foo:-(bar:-baz)`},
 		{title: "yfx", compound: &Compound{Functor: "*", Args: []Term{Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2), Integer(2)}}}}, output: `2*(2+2)`},
+		{title: "xfy", compound: &Compound{Functor: ",", Args: []Term{Integer(2), &Compound{Functor: "|", Args: []Term{Integer(2), Integer(2)}}}}, output: `2,(2|2)`},
 		{title: "ignore_ops(false)", ignoreOps: false, compound: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, output: `2+ -2`},
 		{title: "ignore_ops(true)", ignoreOps: true, compound: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, output: `+(2,-2)`},
 		{title: "number_vars(false)", numberVars: false, compound: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},

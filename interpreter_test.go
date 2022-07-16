@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -264,6 +265,379 @@ func TestNew_variableNames(t *testing.T) {
 			out.Reset()
 			assert.Equal(t, tt.err, p.QuerySolutionContext(ctx, tt.query).Err())
 			assert.Equal(t, tt.output, out.String())
+		})
+	}
+}
+
+func TestNew_conformity(t *testing.T) {
+	// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/conformity_testing
+
+	tests := []struct {
+		name     string
+		premise  string
+		input    string
+		output   string
+		err      error
+		outputFn func(t *testing.T, output string)
+	}{
+		{name: "1", input: `writeq('\n').`, output: `'\n'`},
+		{name: "2", input: `'`, output: `syntax err.`},
+		{name: "3", input: `)`, output: `syntax err.`},
+		{name: "261", input: ")\n'", output: `syntax err.`},
+		{name: "4", input: `.`, output: `syntax err.`},
+		{name: "5", input: `writeq('	'). % horiz. tab`, output: `syntax err.`},
+		{name: "177", input: `0'\t=0'	. % horiz. tab`, output: `syntax err.`},
+		{name: "6", input: `writeq('
+').`, output: `syntax err.`},
+		{name: "7", input: `writeq('\
+'). % "\\\n"`, output: `''`},
+		{name: "8", input: `writeq('\
+a'). % "\\\na"`, output: `a`},
+		{name: "8", input: `writeq('\
+a'). % "\\\na"`, output: `a`},
+		{name: "9", input: `writeq('a\
+b'). % "a\\\nb"`, output: `ab`},
+		{name: "10", input: `writeq('a\
+ b'). % "a\\\n b"`, output: `'a b'`},
+		{name: "11", input: `writeq('\ ').`, output: `syntax err.`},
+		{name: "193", input: `writeq('\ 
+'). % "\\ \n"`, output: `syntax err.`},
+		{name: "12", input: `writeq('\	'). % "\\\t"`, output: `syntax err.`},
+		{name: "13", input: `writeq('\t').`, output: `'\t'`},
+		{name: "14", input: `writeq('\a').`, output: `'\a'`},
+		{name: "15", input: `writeq('\7\').`, output: `'\a'`},
+		{name: "16", input: `writeq('\ca').`, output: `syntax err.`},
+		{name: "241", input: `writeq('\d').`, output: `syntax err.`},
+		{name: "17", input: `writeq('\e').`, output: `syntax err.`},
+		{name: "18", input: `writeq('\033\').`, output: `'\x1b\'`},
+		{name: "301", input: `writeq('\0\').`, output: `'\x0\'`},
+		{name: "19", input: `char_code('\e',C).`, output: `syntax err.`},
+		{name: "21", input: `char_code('\d',C).`, output: `syntax err.`},
+		{name: "22", input: `writeq('\u1').`, output: `syntax err.`},
+		{name: "23", input: `X = 0'\u1.`, output: `syntax err.`},
+		{name: "24", input: `writeq('`, output: `syntax err.`},
+		{name: "25", input: `writeq(.`, output: `syntax err.`},
+		{name: "26", input: `'\
+''.`, output: `syntax err.`},
+		{name: "210", input: `X = 0'\.`, output: `syntax err.`},
+		{name: "211", input: `X = 0'\. .`, output: `syntax err.`},
+		{name: "222", input: `writeq((-)-(-)).`, output: `(-)-(-)`},
+		{name: "223", input: `writeq(((:-):-(:-))).`, output: `(:-):-(:-)`},
+		{name: "27", input: `writeq((*)=(*)).`, output: `(*)=(*)`},
+		{name: "28", input: `writeq([:-,-]).`, output: `[:-,-]`},
+		{name: "29", input: `writeq(f(*)).`, output: `f(*)`},
+		{name: "30", input: `writeq(a*(b+c)).`, output: `a*(b+c)`},
+		{name: "31", input: `writeq(f(;,'|',';;')).`, output: `f(;,'|',';;')`},
+		{name: "32", input: `writeq([.,.(.,.,.)]).`, output: `['.','.'('.','.','.')]`},
+		{name: "33", input: `writeq((a :- b,c)).`, output: `a:-b,c`},
+		{name: "34", input: `write_canonical([a]).`, output: `'.'(a,[])`},
+		{name: "35", input: `writeq('/*').`, output: `'/*'`},
+		{name: "203", input: `writeq(//*).`, output: `//*`},
+		{name: "282", input: `writeq(//*.*/).`, output: `//*.*/`},
+		{name: "36", input: `writeq('/**').`, output: `'/**'`},
+		{name: "37", input: `writeq('*/').`, output: `*/`},
+		{name: "38", input: "\"\\'\\`\\\"\" = \"'`\"\"\". % \""},               // "\'\`\"" = "'`""". % "
+		{name: "179", input: "\"\\'\\\"\" = \"'\"\"\". % \""},                  // "\'\"" = "'""". % "
+		{name: "178", input: "\"\\`\" = \"`\"."},                               // "\`" = "`".
+		{name: "39", input: "'\\'\\`\\\"' = '''`\\\"'."},                       // '\'\`\"' = '''`"'.
+		{name: "40", input: "writeq('\\'\\`\\\"\\\"').", output: "'\\'`\"\"'"}, // writeq('\'\`\"\"'). ==> '\'`""'
+		{name: "41", input: `('\\') = (\).`},
+		{name: "42", premise: `op(1,xf,xf1).`, input: `1xf1 = xf1(1).`},
+		{name: "43", input: `X = 0X1.`, output: `syntax err.`},
+		{name: "44", input: `float(.0).`, output: `syntax err.`},
+		{name: "45", premise: `op(100,xfx,.).`, input: `functor(3 .2,F,A), F = ('.'), A = 2.`},
+		{name: "46", input: `float(- .0).`, output: `syntax err.`},
+		{name: "47", input: `float(1E9).`, output: `syntax err.`},
+		{name: "48", input: `integer(1e).`, output: `syntax err.`},
+		{name: "49", premise: `op(9,xf,e9).`, input: `1e9 = e9(1).`},
+		{name: "50", premise: `op(9,xf,e).`, input: `1e-9 = -(e(1),9).`},
+		{name: "51", premise: `op(9,xf,e).`, input: `1.0e- 9 = -(e(1.0),9).`},
+		{name: "204", premise: `op(9,xf,e).`, input: `writeq(1e).`, output: `1 e`},
+		{name: "220", premise: `op(9,xf,e).`, input: `writeq(1.0e).`, output: `1.0 e`},
+		{name: "52", premise: `op(9,xfy,e).`, input: `1.2e 3 = e(X,Y), X = 1.2, Y = 3.`},
+		{name: "53", input: `writeq(1.0e100).`, output: `1.0e+100`},
+		{name: "54", input: `float(1.0ee9).`, output: `syntax err.`},
+		{name: "286", input: `(- (1)) = -(1).`},
+		{name: "287", input: `(- -1) = -(-1).`},
+		{name: "288", input: `(- 1^2) = ^(-1,2).`},
+		{name: "56", input: `integer(- 1).`},
+		{name: "57", input: `integer('-'1).`},
+		{name: "58", input: `integer('-' 1).`},
+		{name: "59", input: `integer(- /*.*/1).`},
+		{name: "60", input: `integer(-/*.*/1).`, output: `syntax err.`},
+		{name: "61", input: `integer('-'/*.*/1).`},
+		{name: "62", input: `atom(-/*.*/-).`},
+		{name: "63", input: `op(0,fy,-).`},
+		{name: "180", premise: `op(0,fy,-).`, input: `integer(-1).`},
+		{name: "64", premise: `op(0,fy,-).`, input: `integer(- 1).`},
+		{name: "135", input: `writeq(-(1)).`, output: `- (1)`},
+		{name: "136", input: `op(0,fy,-),writeq(-(1)).`, output: `-(1)`},
+		{name: "182", input: `writeq(-(-1)).`, output: `- -1`},
+		{name: "183", input: `writeq(-(1^2)).`, output: `- (1^2)`},
+		{name: "260", input: `writeq(-(a^2)).`, output: `- (a^2)`},
+		{name: "139", input: `writeq(-((a,b))).`, output: `- (a,b)`},
+		{name: "218", input: `writeq(-(1*2)).`, output: `- (1*2)`},
+		{name: "140", input: `writeq(-a).`, output: `-a`},
+		{name: "184", input: `writeq(-(-)).`, output: `- (-)`},
+		{name: "185", input: `writeq(-[-]).`, output: `-[-]`},
+		{name: "188", input: `writeq(-p(c)).`, output: `-p(c)`},
+		{name: "189", input: `writeq(-{}).`, output: `-{}`},
+		{name: "190", input: `writeq(-{a}).`, output: `-{a}`},
+		{name: "191", input: `writeq(-(-a)).`, output: `- -a`},
+		{name: "192", input: `writeq(-(-(-a))).`, output: `- - -a`},
+		{name: "216", input: `writeq(-(-(1))).`, output: `- - (1)`},
+		{name: "215", premise: `op(100,yfx,~).`, input: `writeq(-(1~2~3)).`, output: `- (1~2~3)`},
+		{name: "248", premise: `op(100,yfx,~).`, input: `writeq(- (1~2)).`, output: `- (1~2)`},
+		{name: "249", premise: `op(100,yfx,~).`, input: `writeq(1~2).`, output: `1~2`},
+		{name: "278", input: `op(9,xfy,.), writeq(-[1]).`, output: `-[1]`},
+		{name: "279", input: `op(9,xf,'$VAR'), writeq(- '$VAR'(0)).`, output: `-A`},
+		{name: "296", premise: `op(9,xf,'$VAR').`, input: `writeq('$VAR'(0)).`, output: `A`},
+		{name: "55", premise: `op(1,yf,yf1).`, input: `{-1 yf1}={yf1(X)}, X = -1.`},
+		{name: "65", input: `compound(+1).`},
+		{name: "66", input: `compound(+ 1).`},
+		{name: "277", input: `writeq(+1^2).`, output: `+1^2`},
+		{name: "67", premise: `op(0,fy,+).`, input: `compound(+1).`, output: `syntax err.`},
+		{name: "257", input: `writeq([+{a},+[]]).`, output: `[+{a},+[]]`},
+		{name: "68", input: `[(:-)|(:-)]=[:-|:-].`},
+		{name: "69", input: `X=[a|b,c].`, output: `syntax err.`},
+		{name: "70", input: `op(1000,xfy,',').`, output: `permission_error(modify,operator,',')`},
+		{name: "71", input: `op(1001,xfy,',').`, output: `permission_error(modify,operator,',')`},
+		{name: "72", input: `op(999,xfy,'|').`, output: `permission_error(modify,operator,'|')`},
+		{name: "73", input: `X=[a|b].`},
+		{name: "285", premise: `op(0,xfy,'|').`, input: `X=[(a|b)].`, output: `syntax err.`},
+		{name: "219", input: `[a|[]]=[a].`},
+		{name: "74", input: `X=[a|b|c].`, output: `syntax err.`},
+		{name: "75", input: `var(a:-b).`, output: `syntax err.`},
+		{name: "76", input: `:- = :- .`, output: `syntax err.`},
+		{name: "77", input: `- = - .`, output: `syntax err.`},
+		{name: "78", input: `* = * .`, output: `syntax err.`},
+		{name: "79", input: `current_op(200,fy,-).`},
+		{name: "80", input: `current_op(200,fy,+).`},
+		{name: "81", input: `{- - c}={-(-(c))}.`},
+		{name: "82", input: `(- -) = -(-).`, output: `syntax err.`},
+		{name: "83", input: `(- - -) = -(-(-)).`, output: `syntax err.`},
+		{name: "84", input: `(- - - -) = -(-(-(-))).`, output: `syntax err.`},
+		{name: "85", input: `{:- :- c} = {:-(:-,c)}.`, output: `syntax err.`},
+		{name: "86", input: `{- = - 1}={(-(=)) - 1}.`, output: `syntax err.`},
+		{name: "87", input: `write_canonical((- = - 1)).`, output: `syntax err.`},
+		{name: "88", input: `write_canonical((- = -1)).`, output: `syntax err.`},
+		{name: "89", input: `write_canonical((-;)).`, output: `syntax err.`},
+		{name: "90", input: `write_canonical((-;-)).`, output: `syntax err.`},
+		{name: "91", input: `write_canonical((:-;-)).`, output: `syntax err.`},
+		{name: "92", input: `[:- -c] = [(:- -c)].`, output: `syntax err.`},
+		{name: "93", input: `writeq([a,b|,]).`, output: `syntax err.`},
+		{name: "94", input: `X ={,}.`, output: `syntax err.`},
+		{name: "95", input: `{1} = {}(1).`},
+		{name: "96", input: `write_canonical({1}).`, output: `{}(1)`},
+		{name: "97", input: `'[]'(1) = [ ](X), X = 1.`},
+		{name: "98", input: `X = [] (1).`, output: `syntax err.`},
+		{name: "99", input: `op(100,yfy,op).`, output: `domain_error(operator_specifier,yfy)`},
+		{name: "100", input: `'''' = '\''.`},
+		{name: "101", input: `a = '\141\'.`},
+		{name: "102", input: `a = '\141'.`, output: `syntax err.`},
+		{name: "103", input: `X = '\141\141', X = a141.`},
+		{name: "104", input: `X = '\9'.`, output: `syntax err.`},
+		{name: "105", input: `X = '\N'.`, output: `syntax err.`},
+		{name: "106", input: `X = '\\' .`, output: `syntax err.`},
+		{name: "107", input: `X = '\77777777777\'.`, output: `syntax err.`},
+		{name: "108", input: `a = '\x61\'.`},
+		{name: "109", input: `atom_codes('\xG\',Cs).`, output: `syntax err.`},
+		{name: "110", input: `atom_codes('\xG1\',Cs).`, output: `syntax err.`},
+		{name: "111", input: "atom(`).", output: `syntax err.`},
+		{name: "112", input: "atom(`+).", output: `syntax err.`},
+		{name: "297", input: "atom(`\n`).", output: `syntax err.`},
+		{name: "113", input: "X = `a`.", output: `syntax err.`},
+		{name: "114", input: `integer(0'\').`},
+		{name: "115", input: `integer(0''').`},
+		{name: "116", input: `0''' = 0'\'.`},
+		{name: "117", input: `integer(0'').`, output: `syntax err.`},
+		{name: "195", input: `op(100,xf,'').`},
+		{name: "205", premise: `op(100,xf,'').`, input: `(0 '') = ''(X), X = 0.`},
+		{name: "196", premise: `op(100,xf,'').`, input: `writeq(0 '').`, output: `0 ''`},
+		{name: "197", premise: `op(100,xf,'').`, input: `writeq(0'').`, output: `0 ''`},
+		{name: "118", input: `op(100,xfx,'').`},
+		{name: "119", premise: `op(100,xfx,'').`, input: `functor(0 ''1, F, A), F = (''), A = 2.`},
+		{name: "120", premise: `op(100,xfx,'').`, input: `functor(0''1, F, A), F = (''), A = 2.`},
+		{name: "206", premise: `op(100,xf,f).`, input: `writeq(0'f').`, output: `syntax err.`},
+		{name: "207", premise: `op(100,xf,f).`, input: `writeq(0'f'f').`, output: `102 f`},
+		{name: "209", premise: `op(100,xf,f).`, input: `writeq(0'ff).`, output: `102 f`},
+		{name: "256", premise: `op(100,xf,f).`, input: `writeq(0f).`, output: `0 f`},
+		{name: "208", premise: `op(100,xf,'f ').`, input: `writeq(0 'f ').`, output: `0 'f '`},
+		{name: "121", input: `X = 2'1.`, output: `syntax err.`},
+		{name: "122", premise: `op(100,xfx,'1').`, input: `functor(2'1'y, F, A), F = ('1'), A = 2.`},
+		{name: "262", premise: `op(100,xfx,'1').`, input: `functor(2 '1'y, F, A), F = ('1'), A = 2.`},
+		{name: "123", input: `X =0'\x41\ , X = 65.`},
+		{name: "124", input: `X =0'\x41\, X = 65.`},
+		{name: "125", input: `X =0'\x1\, X = 1.`},
+		{name: "127", input: `X is 16'mod'2, X = 0.`},
+		{name: "128", input: `X is 37'mod'2, X = 1.`},
+		{name: "129", input: `X is 0'mod'1.`, output: `syntax err.`},
+		{name: "130", input: `X is 1'+'1, X = 2.`},
+		{name: "212", input: `X is 1'\
++'1, X = 2.`},
+		{name: "213", input: `X is 0'\
++'1, X = 1.`},
+		{name: "259", input: `X = 0'\
++'/*'. %*/1, X = 0+1.`},
+		{name: "303", input: `X = 0'\
+a.`, output: `syntax err.`},
+		{name: "214", input: `X is 0'\`, output: `syntax err.`}, // TODO: waits
+		{name: "126", input: `X = 0'\
+.\`, output: `syntax err.`}, // TODO: waits
+		{name: "131", input: `op(100,fx,' op').`},
+		{name: "132", premise: `op(100,fx,' op').`, input: `writeq(' op' '1').`, output: `' op' '1'`},
+		{name: "133", premise: `op(100,fx,' op').`, input: `writeq(' op'[]).`, output: `' op'[]`},
+		{name: "134", premise: `op(1,xf,xf1).`, input: `writeq({- =xf1}).`, output: `syntax err.`},
+		{name: "137", input: `writeq(- (a*b)).`, output: `- (a*b)`},
+		{name: "138", input: `writeq(\ (a*b)).`, output: `\ (a*b)`},
+		{name: "141", input: `current_op(P,xfy,.).`, output: `fails`},
+		{name: "142", input: `op(100,xfy,.).`},
+		{name: "143", premise: `op(100,xfy,.).`, input: `writeq(1 .2).`, output: `[1|2]`},
+		{name: "144", premise: `op(100,xfy,.).`, input: `writeq([1]).`, output: `[1]`},
+		{name: "283", premise: `op(100,xfy,.).`, input: `writeq(-[1]).`, output: `-[1]`},
+		{name: "221", premise: `op(100,xfy,.).`, input: `X = 1.e, X = [1|e].`},
+		{name: "258", premise: `op(100,xfy,.).`, input: `writeq(ok).%
+1 = X.`, output: `ok`},
+		{name: "145", input: `write_canonical('$VAR'(0)).`, output: `'$VAR'(0)`},
+		{name: "146", input: `write_term('$VAR'(0),[]).`, output: `$VAR(0)`},
+		{name: "244", input: `writeq('$VAR'(0)).`, output: `A`},
+		{name: "245", input: `writeq('$VAR'(-1)).`, output: `'$VAR'(-1)`},
+		{name: "246", input: `writeq('$VAR'(-2)).`, output: `'$VAR'(-2)`},
+		{name: "247", input: `writeq('$VAR'(x)).`, output: `'$VAR'(x)`},
+		{name: "289", input: `writeq('$VAR'('A')).`, output: `'$VAR'('A')`},
+		{name: "147", premise: `op(9,fy,fy),op(9,yf,yf).`, input: `write_canonical(fy 1 yf).`, output: `fy(yf(1))`},
+		{name: "148", premise: `op(9,fy,fy),op(9,yf,yf).`, input: `write_canonical(fy yf).`, output: `syntax err.`},
+		{name: "149", premise: `op(9,fy,fy),op(9,yf,yf).`, input: `writeq(fy(yf(1))).`, output: `fy 1 yf`},
+		{name: "150", premise: `op(9,fy,fy),op(9,yf,yf).`, input: `writeq(yf(fy(1))).`, output: `(fy 1)yf`},
+		{name: "151", premise: `op(9,fy,fy),op(9,yfx,yfx).`, input: `write_canonical(fy 1 yfx 2).`, output: `fy(yfx(1,2))`},
+		{name: "152", premise: `op(9,fy,fy),op(9,yfx,yfx).`, input: `writeq(fy(yfx(1,2))).`, output: `fy 1 yfx 2`},
+		{name: "153", premise: `op(9,fy,fy),op(9,yfx,yfx).`, input: `writeq(yfx(fy(1),2)).`, output: `(fy 1)yfx 2`},
+		{name: "154", premise: `op(9,yf,yf),op(9,xfy,xfy).`, input: `write_canonical(1 xfy 2 yf).`, output: `xfy(1,yf(2))`},
+		{name: "155", premise: `op(9,yf,yf),op(9,xfy,xfy).`, input: `writeq(xfy(1,yf(2))).`, output: `1 xfy 2 yf`},
+		{name: "156", premise: `op(9,yf,yf),op(9,xfy,xfy).`, input: `writeq(yf(xfy(1,2))).`, output: `(1 xfy 2)yf`},
+		{name: "157", premise: `op(0,xfy,:-).`, input: `current_op(P,xfx,:-).`, output: `fails`},
+		{name: "158", input: `op(0,xfy,',').`, output: `permission_error(modify,operator,',')`},
+		{name: "159", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f 0).`, output: `f(f(0))`},
+		{name: "201", premise: `op(9,fy,f),op(9,yf,f).`, input: `writeq(f(f(0))).`, output: `f f 0`},
+		{name: "202", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f 0 f).`, output: `f(f(0))`},
+		{name: "160", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(0 f f).`, output: `f(f(0))`},
+		{name: "161", premise: `op(9,fy,f),op(9,yf,f).`, input: `write_canonical(f f).`, output: `syntax err.`},
+		{name: "162", premise: `op(9,fy,p),op(9,yfx,p).`, input: `write_canonical(1 p p p 2).`, output: `syntax err.`},
+		{name: "163", premise: `op(9,fy,p),op(9,xfy,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1,p(p(2)))`},
+		{name: "164", premise: `op(7,fy,p),op(9,yfx,p).`, input: `write_canonical(1 p p p 2).`, output: `p(1,p(p(2)))`},
+		{name: "165", input: `atom('.''-''.').`},
+		{name: "166", input: `op(0,xfy,'|').`},
+		{name: "167", premise: `op(0,xfy,'|').`, input: `writeq((a|b)).`, output: `syntax err.`},
+		{name: "168", input: `op(0,xfy,.),op(9,yf,.).`},
+		{name: "169", premise: `op(0,xfy,.),op(9,yf,.).`, input: `writeq(.(.)).`, output: `('.')'.'`},
+		{name: "194", input: `op(0,xfy,.),writeq((.)+(.)).`, output: `'.'+'.'`},
+		{name: "170", input: `set_prolog_flag(double_quotes,chars).`},
+		{name: "171", premise: `set_prolog_flag(double_quotes,chars).`, input: `writeq("a").`, output: `[a]`},
+		{name: "229", premise: `set_prolog_flag(double_quotes,chars).`, input: `writeq("\z").`, output: `syntax err.`},
+		{name: "300", premise: `set_prolog_flag(double_quotes,chars).`, input: `writeq("\0\").`, output: `['\x0\']`},
+		{name: "172", input: `X is 10.0** -323, writeq(X).`, output: `1.0e-323`},
+		{name: "173", input: `1.0e-323=:=10.0** -323.`},
+		{name: "174", input: `-1 = -0x1.`},
+		{name: "175", input: `T = t(0b1,0o1,0x1), T = t(1,1,1).`},
+		{name: "176", input: `X is 0b1mod 2, X = 1.`},
+		{name: "217", input: `op(1105,xfy,'|').`},
+		{name: "181", premise: `op(1105,xfy,'|').`, input: `writeq((a-->b,c|d)).`, output: `a-->b,c|d`},
+		{name: "290", premise: `op(1105,xfy,'|').`, input: `writeq([(a|b)]).`, output: `[(a|b)]`},
+		{name: "186", input: `X/* /*/=7, X = 7.`},
+		{name: "187", input: `X/*/*/=7, X = 7.`},
+		{name: "198", input: `atom($-).`},
+		{name: "199", input: `atom(-$).`},
+		{name: "200", premise: `op(900, fy, [$]).`, input: `write_canonical($a+b).`, output: `$(+(a,b))`},
+		{name: "224", input: `\ .`, output: `existence_error(procedure,(\)/0)`},
+		{name: "225", input: `char_code(C,0), writeq(C).`, output: `'\x0\'`},
+		{name: "250", input: `writeq('\0\').`, output: `'\x0\'`},
+		{name: "226", input: `write_canonical(_+_).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			p, err := regexp.Compile(`\A\+\(_(\d+),_(\d+)\)\z`) // +(_1,_2)
+			assert.NoError(t, err)
+			match := p.FindAllStringSubmatch(output, 2)
+			assert.NotEqual(t, match[0][1], match[0][2])
+		}},
+		{name: "227", input: `write_canonical(B+B).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			p, err := regexp.Compile(`\A\+\(_(\d+),_(\d+)\)\z`) // +(_1,_1)
+			assert.NoError(t, err)
+			match := p.FindAllStringSubmatch(output, 2)
+			assert.Equal(t, match[0][1], match[0][2])
+		}},
+		{name: "228", input: `writeq(0'\z).`, output: `syntax err.`},
+		{name: "230", input: `char_code('\^',X).`, output: `syntax err.`},
+		{name: "231", input: `writeq(0'\c).`, output: `syntax err.`},
+		{name: "232", input: `writeq(0'\ ).`, output: `syntax err.`},
+		{name: "232", input: `writeq(nop (1)).`, output: `syntax err.`},
+		{name: "234", premise: `op(400,fx,f).`, input: `writeq(f/*.*/(1,2)).`, output: `f (1,2)`},
+		{name: "235", premise: `op(400,fx,f).`, input: `writeq(1 = f).`, output: `syntax err.`},
+		{name: "236", input: `write_canonical(a- - -b).`, output: `-(a,-(-(b)))`},
+		{name: "237", input: `op(699,xf,>).`, output: `permission_error(create,operator,>)`},
+		{name: "238", premise: `\+catch(op(699,xf,>), error(permission_error(create,operator,>), _), false).`, input: `writeq(>(>(a),b)).`, output: `>(a)>b`},
+		{name: "239", premise: `\+catch(op(699,xf,>), error(permission_error(create,operator,>), _), false).`, input: `write_canonical(a> >b).`, output: `syntax err.`},
+		{name: "242", premise: `\+catch(op(699,xf,>), error(permission_error(create,operator,>), _), false).`, input: `write_canonical(a> =b).`, output: `syntax err.`},
+		{name: "243", premise: `\+catch(op(699,xf,>), error(permission_error(create,operator,>), _), false).`, input: `write_canonical((a>,b)).`, output: `syntax err.`},
+		{name: "240", premise: `\+catch(op(699,xf,>), error(permission_error(create,operator,>), _), false).`, input: `write_canonical(a>).`, output: `syntax err.`},
+		{name: "251", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0bop 2).`, output: `0 bop 2`},
+		{name: "263", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0 bop 2).`, output: `0 bop 2`},
+		{name: "252", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0 bop 2).`, output: `0 bop 2`},
+		{name: "253", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0b 2).`, output: `0 b 2`},
+		{name: "254", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0op 2).`, output: `0 op 2`},
+		{name: "255", premise: `op(9,yfx,[bop,bo,b,op,xor]).`, input: `writeq(0xor 2).`, output: `0 xor 2`},
+		{name: "264", input: "writeq('^`').", output: "'^`'"},
+		{name: "265", input: `op(9,yf,[b2,o8]).`},
+		{name: "266", premise: `op(9,yf,[b2,o8]).`, input: `writeq(0b2).`, output: `0 b2`},
+		{name: "267", premise: `op(9,yf,[b2,o8]).`, input: `writeq(0o8).`, output: `0 o8`},
+		{name: "268", input: `op(500, xfy, {}).`, output: `permission_error(create,operator,{})`},
+		{name: "269", input: `writeq('\b\r\f\t\n').`, output: `'\b\r\f\t\n'`},
+		{name: "270", input: `get_char(C), C = ' '. %a`},
+		{name: "271", input: `get_char(C), C = '%'.%a`},
+		{name: "272", input: `writeq(0B1).`, output: `syntax err.`},
+		{name: "274", input: `op(20,fx,--),writeq(--(a)).`, output: `--a`},
+		{name: "275", premise: `op(20,fx,--).`, input: `op(0,fy,--),writeq(--(a)).`, output: `--(a)`},
+		{name: "276", input: `writeq(0xamod 2).`, output: `10 mod 2`},
+		{name: "280", input: `writeq(00'+'1).`, output: `0+1`},
+		{name: "281", input: `writeq(00'a).`, output: `syntax err.`},
+		{name: "284", input: `writeq('\^J').`, output: `syntax err.`},
+		{name: "291", input: `writeq([(a,b)]).`, output: `[(a,b)]`},
+		{name: "292", input: `writeq(1= \\).`, output: `1= \\`},
+		{name: "293", input: `writeq((,)).`, output: `syntax err.`},
+		{name: "294", input: `writeq({[}).`, output: `syntax err.`},
+		{name: "295", input: `writeq({(}).`, output: `syntax err.`},
+		{name: "298", input: `writeq([a,b|c]).`, output: `[a,b|c]`},
+		{name: "299", input: `(\+ (a,b)) = \+(T).`},
+		{name: "302", input: `[] = '[]'.`},
+		{name: "304", premise: `op(300,fy,~).`, input: `writeq(~ (a=b)).`, output: `~ (a=b)`},
+		{name: "305", input: `writeq(\ (a=b)).`, output: `\ (a=b)`},
+		{name: "306", input: `writeq(+ (a=b)).`, output: `+ (a=b)`},
+		{name: "307", input: `writeq([/**/]).`, output: `[]`},
+		{name: "308", input: `writeq(.+).`, output: `.+`},
+		{name: "309", input: `writeq({a,b}).`, output: `{a,b}`},
+		{name: "310", input: `writeq({\+ (}).`, output: `syntax err.`},
+		{name: "311", input: `Finis ().`, output: `syntax err.`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			p := New(bytes.NewBufferString(tt.input+"\n"), &out)
+			if tt.premise != "" {
+				assert.NoError(t, p.QuerySolution(tt.premise).Err())
+			}
+			sol := p.QuerySolution(`
+				catch(catch((read(X), X),
+				            error(syntax_error(_), _),
+				            write('syntax err.')),
+				      error(E, _),
+				      writeq(E)), !; write(fails).
+			`)
+			assert.NoError(t, sol.Err())
+			if tt.outputFn != nil {
+				tt.outputFn(t, out.String())
+			} else {
+				assert.Equal(t, tt.output, out.String())
+			}
 		})
 	}
 }

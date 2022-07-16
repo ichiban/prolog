@@ -62,43 +62,38 @@ func TestAtom_Unify(t *testing.T) {
 }
 
 func TestAtom_WriteTerm(t *testing.T) {
-	ops := operators{
-		{name: "+"},
-		{name: "-"},
-	}
-
 	tests := []struct {
-		atom          Atom
-		quoted        bool
-		before, after operator
-		output        string
+		atom   Atom
+		opts   WriteOptions
+		output string
 	}{
-		{atom: `a`, quoted: false, output: `a`},
-		{atom: `a`, quoted: true, output: `a`},
-		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: false, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
-		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", quoted: true, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\\\"\\`'"},
-		{atom: `,`, quoted: false, output: `,`},
-		{atom: `,`, quoted: true, output: `','`},
-		{atom: `[]`, quoted: false, output: `[]`},
-		{atom: `[]`, quoted: true, output: `[]`},
-		{atom: `{}`, quoted: false, output: `{}`},
-		{atom: `{}`, quoted: true, output: `{}`},
+		{atom: `a`, opts: WriteOptions{Quoted: false}, output: `a`},
+		{atom: `a`, opts: WriteOptions{Quoted: true}, output: `a`},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", opts: WriteOptions{Quoted: false}, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
+		{atom: "\a\b\f\n\r\t\v\x00\\'\"`", opts: WriteOptions{Quoted: true}, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\"`'"},
+		{atom: `,`, opts: WriteOptions{Quoted: false}, output: `,`},
+		{atom: `,`, opts: WriteOptions{Quoted: true}, output: `','`},
+		{atom: `[]`, opts: WriteOptions{Quoted: false}, output: `[]`},
+		{atom: `[]`, opts: WriteOptions{Quoted: true}, output: `[]`},
+		{atom: `{}`, opts: WriteOptions{Quoted: false}, output: `{}`},
+		{atom: `{}`, opts: WriteOptions{Quoted: true}, output: `{}`},
 
 		{atom: `-`, output: `-`},
-		{atom: `-`, before: operator{name: "+"}, output: `(-)`},
-		{atom: `-`, after: operator{name: "+"}, output: `(-)`},
+		{atom: `-`, opts: WriteOptions{ops: operators{"+": {}, "-": {}}, left: operator{specifier: operatorSpecifierFY, name: "+"}}, output: ` (-)`},
+		{atom: `-`, opts: WriteOptions{ops: operators{"+": {}, "-": {}}, right: operator{name: "+"}}, output: `(-)`},
+
+		{atom: `X`, opts: WriteOptions{Quoted: true, left: operator{name: `F`}}, output: ` 'X'`},  // So that it won't be 'F''X'.
+		{atom: `X`, opts: WriteOptions{Quoted: true, right: operator{name: `F`}}, output: `'X' `}, // So that it won't be 'X''F'.
+
+		{atom: `foo`, opts: WriteOptions{left: operator{name: `bar`}}, output: ` foo`},  // So that it won't be barfoo.
+		{atom: `foo`, opts: WriteOptions{right: operator{name: `bar`}}, output: `foo `}, // So that it won't be foobar.
 	}
 
 	var buf bytes.Buffer
 	for _, tt := range tests {
 		t.Run(string(tt.atom), func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, tt.atom.WriteTerm(&buf, &WriteOptions{
-				Quoted: tt.quoted,
-				ops:    ops,
-				before: tt.before,
-				after:  tt.after,
-			}, nil))
+			assert.NoError(t, tt.atom.WriteTerm(&buf, &tt.opts, nil))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}

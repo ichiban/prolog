@@ -103,9 +103,23 @@ func TestSolutions_Scan(t *testing.T) {
 				assert.Error(t, sols.Scan(&s))
 			})
 
+			t.Run("float", func(t *testing.T) {
+				var s struct {
+					String float64
+				}
+				assert.Error(t, sols.Scan(&s))
+			})
+
 			t.Run("slice", func(t *testing.T) {
 				var s struct {
 					Slice []int
+				}
+				assert.Error(t, sols.Scan(&s))
+			})
+
+			t.Run("unsupported", func(t *testing.T) {
+				var s struct {
+					Int complex64
 				}
 				assert.Error(t, sols.Scan(&s))
 			})

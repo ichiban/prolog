@@ -27,9 +27,9 @@ func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
 // WriteTerm writes the Float to the io.Writer.
 func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := opts.before.name == "-" && (opts.before.specifier == operatorSpecifierFX || opts.before.specifier == operatorSpecifierFY) && f > 0
+	openClose := opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix && f > 0
 
-	if openClose || (f < 0 && opts.before != operator{}) {
+	if openClose || (f < 0 && opts.left != operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 
@@ -37,14 +37,22 @@ func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 		_, _ = fmt.Fprint(&ew, "(")
 	}
 
-	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
-	_, _ = fmt.Fprint(&ew, s)
+	s := strconv.FormatFloat(float64(f), 'g', -1, 64)
 	if !strings.ContainsRune(s, '.') {
-		_, _ = fmt.Fprint(&ew, ".0")
+		if strings.ContainsRune(s, 'e') {
+			s = strings.Replace(s, "e", ".0e", 1)
+		} else {
+			s += ".0"
+		}
 	}
+	_, _ = fmt.Fprint(&ew, s)
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
+	}
+
+	if !openClose && opts.right != (operator{}) && (opts.right.name == "e" || opts.right.name == "E") {
+		_, _ = fmt.Fprint(&ew, " ")
 	}
 
 	return ew.err

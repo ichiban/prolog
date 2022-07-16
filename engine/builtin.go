@@ -87,13 +87,12 @@ func (state *State) SetUserOutput(w io.Writer, opts ...StreamOption) {
 // Parser creates a new parser from the current State and io.Reader.
 // If non-nil, vars will hold the information on variables it parses.
 func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
-	br, ok := r.(*bufio.Reader)
-	if !ok {
-		br = bufio.NewReader(r)
+	if state.operators == nil {
+		state.operators = operators{}
 	}
-	return newParser(br,
+	return newParser(r,
 		withCharConversions(state.charConversions),
-		withOperators(&state.operators),
+		withOperators(state.operators),
 		withDoubleQuotes(state.doubleQuotes),
 		withParsedVars(vars),
 	)
@@ -525,73 +524,129 @@ func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(vars, List(ret...), k, env)
 }
 
+var operatorSpecifiers = map[Atom]operatorSpecifier{
+	"fx":  operatorSpecifierFX,
+	"fy":  operatorSpecifierFY,
+	"xf":  operatorSpecifierXF,
+	"yf":  operatorSpecifierYF,
+	"xfx": operatorSpecifierXFX,
+	"xfy": operatorSpecifierXFY,
+	"yfx": operatorSpecifierYFX,
+}
+
 // Op defines operator with priority and specifier, or removes when priority is 0.
 func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
-	p, ok := env.Resolve(priority).(Integer)
-	if !ok {
+	var p Integer
+	switch priority := env.Resolve(priority).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Integer:
+		if priority < 0 || priority > 1200 {
+			return Error(DomainError(ValidDomainOperatorPriority, priority, env))
+		}
+		p = priority
+	default:
 		return Error(TypeError(ValidTypeInteger, priority, env))
 	}
-	if p < 0 || p > 1200 {
-		return Error(DomainError(ValidDomainOperatorPriority, priority, env))
-	}
 
-	s, ok := env.Resolve(specifier).(Atom)
-	if !ok {
+	var spec operatorSpecifier
+	switch specifier := env.Resolve(specifier).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Atom:
+		var ok bool
+		spec, ok = operatorSpecifiers[specifier]
+		if !ok {
+			return Error(DomainError(ValidDomainOperatorSpecifier, specifier, env))
+		}
+	default:
 		return Error(TypeError(ValidTypeAtom, specifier, env))
 	}
 
-	spec, ok := map[Atom]operatorSpecifier{
-		"fx":  operatorSpecifierFX,
-		"fy":  operatorSpecifierFY,
-		"xf":  operatorSpecifierXF,
-		"yf":  operatorSpecifierYF,
-		"xfx": operatorSpecifierXFX,
-		"xfy": operatorSpecifierXFY,
-		"yfx": operatorSpecifierYFX,
-	}[s]
-	if !ok {
-		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
-	}
-
-	o, ok := env.Resolve(op).(Atom)
-	if !ok {
-		return Error(TypeError(ValidTypeAtom, op, env))
-	}
-
-	// already defined?
-	for i, op := range state.operators {
-		if op.specifier != spec || op.name != o {
-			continue
+	var names []Atom
+	switch op := env.Resolve(op).(type) {
+	case Atom:
+		names = []Atom{op}
+	default:
+		iter := ListIterator{List: op, Env: env}
+		for iter.Next() {
+			switch op := env.Resolve(iter.Current()).(type) {
+			case Atom:
+				names = appendUniqAtom(names, op)
+			default:
+				return Error(TypeError(ValidTypeAtom, op, env))
+			}
 		}
-
-		// remove it first so that we can insert it again in the right position
-		copy(state.operators[i:], state.operators[i+1:])
-		state.operators[len(state.operators)-1] = operator{}
-		state.operators = state.operators[:len(state.operators)-1]
-
-		// or keep it removed.
-		if p == 0 {
-			return k(env)
+		if err := iter.Err(); err != nil {
+			return Error(err)
 		}
 	}
 
-	// insert
-	i := sort.Search(len(state.operators), func(i int) bool {
-		return state.operators[i].priority >= p
-	})
-	state.operators = append(state.operators, operator{})
-	copy(state.operators[i+1:], state.operators[i:])
-	state.operators[i] = operator{
-		priority:  p,
-		specifier: spec,
-		name:      o,
+	for _, name := range names {
+		if p := state.validateOp(p, spec, name, env); p != nil {
+			return p
+		}
+	}
+
+	if state.operators == nil {
+		state.operators = operators{}
+	}
+
+	for _, name := range names {
+		if class := spec.class(); state.operators.definedInClass(name, spec.class()) {
+			state.operators.remove(name, class)
+		}
+
+		state.operators.define(p, spec, name)
 	}
 
 	return k(env)
 }
 
+func (state *State) validateOp(p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
+	switch name {
+	case ",":
+		if state.operators.definedInClass(name, operatorClassInfix) {
+			return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
+		}
+	case "|":
+		if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
+			op := OperationCreate
+			if state.operators.definedInClass(name, operatorClassInfix) {
+				op = OperationModify
+			}
+			return Error(PermissionError(op, PermissionTypeOperator, name, env))
+		}
+	case "{}", "[]":
+		return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+	}
+
+	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
+	switch spec.class() {
+	case operatorClassInfix:
+		if state.operators.definedInClass(name, operatorClassPostfix) {
+			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		}
+	case operatorClassPostfix:
+		if state.operators.definedInClass(name, operatorClassInfix) {
+			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		}
+	}
+
+	return nil
+}
+
+func appendUniqAtom(slice []Atom, elem Atom) []Atom {
+	for _, e := range slice {
+		if e == elem {
+			return slice
+		}
+	}
+	return append(slice, elem)
+}
+
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *Promise, env *Env) *Promise {
+func (state *State) CurrentOp(priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch p := env.Resolve(priority).(type) {
 	case Variable:
 		break
@@ -622,19 +677,24 @@ func (state *State) CurrentOp(priority, specifier, operator Term, k func(*Env) *
 		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
 	}
 
-	switch env.Resolve(operator).(type) {
+	switch env.Resolve(op).(type) {
 	case Variable, Atom:
 		break
 	default:
-		return Error(TypeError(ValidTypeAtom, operator, env))
+		return Error(TypeError(ValidTypeAtom, op, env))
 	}
 
-	pattern := Compound{Args: []Term{priority, specifier, operator}}
-	ks := make([]func(context.Context) *Promise, len(state.operators))
-	for i := range state.operators {
-		op := state.operators[i]
-		ks[i] = func(context.Context) *Promise {
-			return Unify(&pattern, &Compound{Args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
+	pattern := Compound{Args: []Term{priority, specifier, op}}
+	ks := make([]func(context.Context) *Promise, 0, len(state.operators)*int(_operatorClassLen))
+	for _, ops := range state.operators {
+		for _, op := range ops {
+			op := op
+			if op == (operator{}) {
+				continue
+			}
+			ks = append(ks, func(context.Context) *Promise {
+				return Unify(&pattern, &Compound{Args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
+			})
 		}
 	}
 	return Delay(ks...)
@@ -1691,6 +1751,9 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	var vars []ParsedVariable
 	p := state.Parser(s.buf, &vars)
+	defer func() {
+		_ = s.buf.UnreadRune()
+	}()
 
 	t, err := p.Term()
 	if err != nil {
@@ -2279,7 +2342,7 @@ func NumberChars(num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
+	p := newParser(strings.NewReader(sb.String()))
 	t, err := p.Number()
 	if err != nil {
 		return Error(SyntaxError(err, env))
@@ -2361,7 +2424,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		p := newParser(bufio.NewReader(strings.NewReader(sb.String())))
+		p := newParser(strings.NewReader(sb.String()))
 		t, err := p.Number()
 		if err != nil {
 			return Error(SyntaxError(err, env))
