@@ -215,10 +215,7 @@ func (p *Parser) Number() (Number, error) {
 	}
 
 	// No more runes after a number.
-	if !p.buf.empty() {
-		return nil, errNotANumber
-	}
-	if r := p.lexer.rawNext(); r != utf8.RuneError {
+	if r := p.lexer.rawNext(); r != utf8.RuneError || !p.buf.empty() {
 		return nil, errNotANumber
 	}
 
