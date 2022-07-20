@@ -789,84 +789,44 @@ func (state *State) SetOf(template, goal, instances Term, k func(*Env) *Promise,
 }
 
 func (state *State) collectionOf(agg func(...Term) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
-	var qualifier, body Term
-	switch goal := env.Resolve(goal).(type) {
-	case Variable:
-		return Error(InstantiationError(env))
-	case *Compound:
-		if goal.Functor != "^" || len(goal.Args) != 2 {
-			qualifier = Atom("")
-			body = goal
-			break
-		}
-		qualifier = goal.Args[0]
-		body = goal.Args[1]
-	default:
-		qualifier = Atom("")
-		body = goal
+	fvs := newFreeVariablesSet(goal, template, env)
+	w := make([]Term, 0, len(fvs))
+	for v := range fvs {
+		w = append(w, v)
 	}
-
-	groupingVariables := variables(env.FreeVariables(body)).except(env.FreeVariables(template, qualifier))
-
-	return Delay(func(ctx context.Context) *Promise {
-		const (
-			hyphen  = Atom("-")
-			vars    = Atom("vars")
-			answers = Variable("Answers")
-		)
-
-		type solution struct {
-			vars      Term
-			instances []Term
-		}
-		var solutions []solution
-
-		template = hyphen.Apply(vars.Apply(groupingVariables.terms()...), template)
-		if _, err := state.FindAll(template, body, answers, func(env *Env) *Promise {
-			iter := ListIterator{List: answers, Env: env}
-		it:
-			for iter.Next() {
-				answer := iter.Current().(*Compound)
-				vars, instance := answer.Args[0], answer.Args[1]
-				for i := range solutions {
-					if solutions[i].vars.Compare(vars, env) == 0 {
-						solutions[i].instances = append(solutions[i].instances, instance)
-						continue it
-					}
-				}
-				solutions = append(solutions, solution{vars: vars, instances: []Term{instance}})
-			}
-			// FindAll returns a proper list so no need to check iter.Err().
-			return Bool(true)
-		}, env).Force(ctx); err != nil {
-			return Error(err)
-		}
-
-		sort.Slice(solutions, func(i, j int) bool {
-			return solutions[i].vars.Compare(solutions[j].vars, env) < 0
-		})
-
-		ks := make([]func(context.Context) *Promise, len(solutions))
-		for i, s := range solutions {
-			switch vars := s.vars.(type) {
-			case *Compound:
-				bag := s.instances
-				ks[i] = func(ctx context.Context) *Promise {
-					env := env
-					for j, v := range groupingVariables {
-						env = env.Bind(v, vars.Args[j])
-					}
-					return Unify(instances, agg(bag...), k, env)
-				}
-			default:
-				bag := s.instances
-				ks[i] = func(ctx context.Context) *Promise {
-					return Unify(instances, agg(bag...), k, env)
+	witness := Atom("$witness").Apply(w...)
+	g := iteratedGoalTerm(goal, env)
+	s := Term(NewVariable())
+	return state.FindAll(Atom("+").Apply(witness, template), g, s, func(env *Env) *Promise {
+		s, _ := Slice(s, env)
+		var ks []func(context.Context) *Promise
+		for len(s) > 0 {
+			var wt *Compound
+			wt, s = s[0].(*Compound), s[1:]
+			w, t := wt.Args[0], wt.Args[1] // W+T
+			wList, tList := []Term{w}, []Term{t}
+			sNext := make([]Term, 0, len(s))
+			for _, e := range s {
+				e := e.(*Compound)
+				ww, tt := e.Args[0], e.Args[1] // WW+TT
+				if variant(ww, w, env) {
+					wList = append(wList, ww)
+					tList = append(tList, tt)
+				} else {
+					sNext = append(sNext, e)
 				}
 			}
+			s = sNext
+			ks = append(ks, func(ctx context.Context) *Promise {
+				env := env
+				for _, w = range wList {
+					env, _ = witness.Unify(w, false, env)
+				}
+				return Unify(agg(tList...), instances, k, env)
+			})
 		}
 		return Delay(ks...)
-	})
+	}, env)
 }
 
 // FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
