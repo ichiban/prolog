@@ -1350,28 +1350,21 @@ func TestState_CurrentOp(t *testing.T) {
 	})
 
 	t.Run("multiple solutions", func(t *testing.T) {
-		var (
-			priority, specifier, operator = Variable("Priority"), Variable("Specifier"), Variable("Operator")
-			c                             int
-		)
+		priority, specifier, operator := Variable("Priority"), Variable("Specifier"), Variable("Operator")
 		ok, err := state.CurrentOp(priority, specifier, operator, func(env *Env) *Promise {
-			switch c {
-			case 0:
+			switch env.Resolve(operator) {
+			case Atom("+++"):
 				assert.Equal(t, Integer(900), env.Resolve(priority))
 				assert.Equal(t, Atom("xfx"), env.Resolve(specifier))
-				assert.Equal(t, Atom("+++"), env.Resolve(operator))
-			case 1:
+			case Atom("++"):
 				assert.Equal(t, Integer(1000), env.Resolve(priority))
 				assert.Equal(t, Atom("xfx"), env.Resolve(specifier))
-				assert.Equal(t, Atom("++"), env.Resolve(operator))
-			case 2:
+			case Atom("+"):
 				assert.Equal(t, Integer(1100), env.Resolve(priority))
 				assert.Equal(t, Atom("xfx"), env.Resolve(specifier))
-				assert.Equal(t, Atom("+"), env.Resolve(operator))
 			default:
 				assert.Fail(t, "unreachable")
 			}
-			c++
 			return Bool(false)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
