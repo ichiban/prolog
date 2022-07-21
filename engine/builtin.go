@@ -799,24 +799,25 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 	s := Term(NewVariable())
 	return state.FindAll(Atom("+").Apply(witness, template), g, s, func(env *Env) *Promise {
 		s, _ := Slice(s, env)
-		var ks []func(context.Context) *Promise
+		ks := make([]func(context.Context) *Promise, 0, len(s))
 		for len(s) > 0 {
 			var wt *Compound
 			wt, s = s[0].(*Compound), s[1:]
 			w, t := wt.Args[0], wt.Args[1] // W+T
 			wList, tList := []Term{w}, []Term{t}
-			sNext := make([]Term, 0, len(s))
+			n := 0 // https://github.com/golang/go/wiki/SliceTricks#filter-in-place
 			for _, e := range s {
 				e := e.(*Compound)
 				ww, tt := e.Args[0], e.Args[1] // WW+TT
 				if variant(ww, w, env) {
 					wList = append(wList, ww)
 					tList = append(tList, tt)
-				} else {
-					sNext = append(sNext, e)
+				} else { // keep
+					s[n] = e
+					n++
 				}
 			}
-			s = sNext
+			s = s[:n]
 			ks = append(ks, func(ctx context.Context) *Promise {
 				env := env
 				for _, w = range wList {
