@@ -88,22 +88,56 @@ func Test_iteratedGoalTerm(t *testing.T) {
 func Test_variant(t *testing.T) {
 	tests := []struct {
 		t1, t2 Term
+		result bool
 	}{
 		{
-			t1: &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B"), Variable("A")}},
-			t2: &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
+			result: true,
 		},
 		{
-			t1: &Compound{Functor: "g", Args: []Term{Variable("A"), Variable("B")}},
-			t2: &Compound{Functor: "g", Args: []Term{NewVariable(), NewVariable()}},
+			t1:     &Compound{Functor: "g", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "g", Args: []Term{NewVariable(), NewVariable()}},
+			result: true,
 		},
 		{
-			t1: &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
-			t2: &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			t1:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			t2:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			result: true,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Integer(0)}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "g", Args: []Term{Variable("X"), Variable("Y")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("Z")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     Integer(0),
+			result: false,
+		},
+		{
+			t1:     Integer(1),
+			t2:     Integer(0),
+			result: false,
 		},
 	}
 
 	for _, tt := range tests {
-		assert.True(t, variant(tt.t1, tt.t2, nil))
+		assert.Equal(t, tt.result, variant(tt.t1, tt.t2, nil))
 	}
 }
