@@ -33,9 +33,18 @@ func TestLexer_Token(t *testing.T) {
 		{input: "/* comment ", token: Token{Kind: TokenInsufficient}},
 		{input: `/ *`, token: Token{Kind: TokenGraphic, Val: `/`}},
 
+		{input: `改善`, token: Token{Kind: TokenLetterDigit, Val: `改善`}},
+		{input: `プロログ`, token: Token{Kind: TokenLetterDigit, Val: `プロログ`}},
+		{input: `ぷろろぐ`, token: Token{Kind: TokenLetterDigit, Val: `ぷろろぐ`}},
+		{input: `프롤로그`, token: Token{Kind: TokenLetterDigit, Val: `프롤로그`}},
+		{input: `برولوغ`, token: Token{Kind: TokenLetterDigit, Val: `برولوغ`}},
+		{input: `פרולוג`, token: Token{Kind: TokenLetterDigit, Val: `פרולוג`}},
+
 		{input: `..`, token: Token{Kind: TokenGraphic, Val: `..`}},
 		{input: `#`, token: Token{Kind: TokenGraphic, Val: `#`}},
 		{input: `\`, token: Token{Kind: TokenGraphic, Val: `\`}},
+		{input: `∀`, token: Token{Kind: TokenGraphic, Val: `∀`}},
+		{input: `⨀`, token: Token{Kind: TokenGraphic, Val: `⨀`}},
 
 		{input: `'abc'`, token: Token{Kind: TokenQuoted, Val: "'abc'"}},
 		{input: `'don''t panic'`, token: Token{Kind: TokenQuoted, Val: "'don''t panic'"}},
