@@ -171,11 +171,12 @@ func TestNew_variableNames(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name   string
-		input  string
-		query  string
-		output string
-		err    error
+		name     string
+		input    string
+		query    string
+		output   string
+		outputFn func(t *testing.T, output string)
+		err      error
 	}{
 		{name: "1", query: `catch(write_term(T,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
 		{name: "2", query: `N = 'X', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `X`},
@@ -192,19 +193,28 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "11", query: `T = a, N = 'Any', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `a`},
 		{name: "12", query: `T = '$VAR'(9), N = '_', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `'$VAR'(9)`},
 		// {name: "28", query: `freeze(T,throw(g(T))), N = 'X', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `'$VAR'(9)`}, This implementation doesn't support freeze/2.
-		{name: "13", query: `write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `T`},
+		{name: "13", query: `write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			assert.Regexp(t, regexp.MustCompile(`\A_\d+\z`), output)
+		}},
 		{name: "14", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,Y,Z`},
 		{name: "15", query: `Z=Y, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,Y,Y`},
 		{name: "16", query: `Z=Y, Y=X, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `X,X,X`},
 		{name: "17", query: `T=(Y,Z), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `Y,Z`},
 		{name: "18", query: `T=(Z,Y), write_term(T,[quoted(true), variable_names(['X'=X,'Y'=Y,'Z'=Z])]).`, output: `Z,Y`},
-		{name: "19", query: `write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `T`},
+		{name: "19", query: `write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			assert.Regexp(t, regexp.MustCompile(`\A_\d+\z`), output)
+		}},
 		{name: "20", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `X,Y,Z`},
 		{name: "21", query: `Z=Y, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `X,Z,Z`},
 		{name: "22", query: `Z=Y, Y=X, T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Z,Z,Z`},
 		{name: "23", query: `T=(Y,Z), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Y,Z`},
 		{name: "24", query: `T=(Z,Y), write_term(T,[quoted(true), variable_names(['Z'=Z,'Y'=Y,'X'=X])]).`, output: `Z,Y`},
-		{name: "25", query: `write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `T`},
+		{name: "25", query: `write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, outputFn: func(t *testing.T, output string) {
+			t.Helper()
+			assert.Regexp(t, regexp.MustCompile(`\A_\d+\z`), output)
+		}},
 		{name: "26", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `X,X,X`},
 		{name: "27", query: `T=(1,2,3), T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `1,2,3`},
 		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, err: context.DeadlineExceeded},
@@ -264,7 +274,11 @@ func TestNew_variableNames(t *testing.T) {
 			}
 			out.Reset()
 			assert.Equal(t, tt.err, p.QuerySolutionContext(ctx, tt.query).Err())
-			assert.Equal(t, tt.output, out.String())
+			if tt.outputFn == nil {
+				assert.Equal(t, tt.output, out.String())
+			} else {
+				tt.outputFn(t, out.String())
+			}
 		})
 	}
 }

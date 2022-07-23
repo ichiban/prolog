@@ -1451,6 +1451,12 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 
 // Write outputs term to the writer.
 func (state *State) Write(w io.Writer, t Term, opts *WriteOptions, env *Env) error {
+	// The character sequence for a variable begins with `_` (7.10.5.a).
+	for v := range newVariableSet(t, env) {
+		if !strings.HasPrefix(string(v), "_") {
+			env = env.Bind(v, NewVariable())
+		}
+	}
 	opts.ops = state.operators
 	opts.priority = 1200
 	return t.WriteTerm(w, opts, env)
