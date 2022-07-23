@@ -83,7 +83,7 @@ type clause struct {
 }
 
 func compile(t Term) (clauses, error) {
-	if t, ok := t.(*Compound); ok && t.Functor == ":-" {
+	if t, ok := t.(*Compound); ok && t.Functor == ":-" && len(t.Args) == 2 {
 		var cs []clause
 		head, body := t.Args[0], t.Args[1]
 		iter := AltIterator{Alt: body}
