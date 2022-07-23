@@ -205,28 +205,6 @@ func simplify(t Term, simplified map[*Compound]*Compound, env *Env) Term {
 
 type variables []Variable
 
-func (vs variables) terms() []Term {
-	res := make([]Term, len(vs))
-	for i, v := range vs {
-		res[i] = v
-	}
-	return res
-}
-
-func (vs variables) except(ws variables) variables {
-	ret := make(variables, 0, len(vs))
-vs:
-	for _, v := range vs {
-		for _, w := range ws {
-			if v == w {
-				continue vs
-			}
-		}
-		ret = append(ret, v)
-	}
-	return ret
-}
-
 // FreeVariables extracts variables in the given terms.
 func (e *Env) FreeVariables(ts ...Term) []Variable {
 	var fvs variables

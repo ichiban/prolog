@@ -117,3 +117,57 @@ func (ew *errWriter) Write(p []byte) (int, error) {
 	n, ew.err = ew.w.Write(p)
 	return n, nil
 }
+
+func iteratedGoalTerm(t Term, env *Env) Term {
+	for {
+		c, ok := env.Resolve(t).(*Compound)
+		if !ok || c.Functor != "^" || len(c.Args) != 2 {
+			return t
+		}
+		t = c.Args[1]
+	}
+}
+
+func variant(t1, t2 Term, env *Env) bool {
+	s := map[Variable]Variable{}
+	rest := [][2]Term{
+		{t1, t2},
+	}
+	var xy [2]Term
+	for len(rest) > 0 {
+		rest, xy = rest[:len(rest)-1], rest[len(rest)-1]
+		x, y := env.Resolve(xy[0]), env.Resolve(xy[1])
+		switch x := x.(type) {
+		case Variable:
+			switch y := y.(type) {
+			case Variable:
+				if z, ok := s[x]; ok {
+					if z != y {
+						return false
+					}
+				} else {
+					s[x] = y
+				}
+			default:
+				return false
+			}
+		case *Compound:
+			switch y := y.(type) {
+			case *Compound:
+				if x.Functor != y.Functor || len(x.Args) != len(y.Args) {
+					return false
+				}
+				for i := range x.Args {
+					rest = append(rest, [2]Term{x.Args[i], y.Args[i]})
+				}
+			default:
+				return false
+			}
+		default:
+			if x != y {
+				return false
+			}
+		}
+	}
+	return true
+}

@@ -56,3 +56,88 @@ func TestErrWriter_Write(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, failed, ew.err)
 }
+
+func Test_iteratedGoalTerm(t *testing.T) {
+	tests := []struct {
+		t, g Term
+	}{
+		{t: &Compound{
+			Functor: "^",
+			Args: []Term{
+				Variable("X"),
+				&Compound{
+					Functor: "foo",
+					Args:    []Term{Variable("X")},
+				},
+			},
+		}, g: &Compound{
+			Functor: "foo",
+			Args:    []Term{Variable("X")},
+		}},
+		{
+			t: Atom("^").Apply(NewVariable(), Atom("^").Apply(NewVariable(), Atom("=").Apply(Variable("X"), Integer(1)))),
+			g: Atom("=").Apply(Variable("X"), Integer(1)),
+		},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.g, iteratedGoalTerm(tt.t, nil))
+	}
+}
+
+func Test_variant(t *testing.T) {
+	tests := []struct {
+		t1, t2 Term
+		result bool
+	}{
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
+			result: true,
+		},
+		{
+			t1:     &Compound{Functor: "g", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "g", Args: []Term{NewVariable(), NewVariable()}},
+			result: true,
+		},
+		{
+			t1:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			t2:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			result: true,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Integer(0)}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "g", Args: []Term{Variable("X"), Variable("Y")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("Z")}},
+			result: false,
+		},
+		{
+			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t2:     Integer(0),
+			result: false,
+		},
+		{
+			t1:     Integer(1),
+			t2:     Integer(0),
+			result: false,
+		},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.result, variant(tt.t1, tt.t2, nil))
+	}
+}
