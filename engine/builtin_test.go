@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -4853,6 +4854,16 @@ func TestState_WriteTerm(t *testing.T) {
 		s := NewStream(&f, StreamModeWrite)
 		_, err := state.WriteTerm(s, Atom("foo"), List(), Success, nil).Force(context.Background())
 		assert.Error(t, err)
+	})
+
+	t.Run("variable names has to start with _", func(t *testing.T) { // https://github.com/ichiban/prolog/issues/188#issuecomment-1186180393
+		varCounter = 0
+		var buf bytes.Buffer
+		s := NewStream(readWriteCloser(&buf), StreamModeWrite)
+		ok, err := state.WriteTerm(s, Variable("X"), List(), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, "_1", buf.String())
 	})
 }
 
