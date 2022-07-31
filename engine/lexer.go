@@ -680,7 +680,12 @@ func (l *Lexer) doubleQuotedListToken() Token {
 // Characters
 
 func isGraphicChar(r rune) bool {
-	return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r)
+	return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r) || unicode.In(r, &unicode.RangeTable{
+		R16: []unicode.Range16{
+			{Lo: 0x2200, Hi: 0x22FF, Stride: 1}, // Mathematical Operators
+			{Lo: 0x2A00, Hi: 0x2AFF, Stride: 1}, // Supplemental Mathematical Operators
+		},
+	})
 }
 
 func isAlphanumericChar(r rune) bool {
@@ -696,11 +701,7 @@ func isLetterChar(r rune) bool {
 }
 
 func isSmallLetterChar(r rune) bool {
-	return unicode.IsLower(r) || unicode.In(r,
-		unicode.Unified_Ideograph,
-		unicode.Hiragana,
-		unicode.Katakana,
-	)
+	return unicode.In(r, unicode.Ll, unicode.Lo)
 }
 
 func isCapitalLetterChar(r rune) bool {
