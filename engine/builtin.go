@@ -427,52 +427,58 @@ func Arg(nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
-		list = env.Resolve(list)
-		if list == Atom("[]") {
+		elems, err := Slice(list, env)
+		if err != nil {
+			return Error(err)
+		}
+		switch len(elems) {
+		case 0:
 			return Error(DomainError(ValidDomainNonEmptyList, list, env))
+		case 1:
+			switch e := env.Resolve(elems[0]).(type) {
+			case Variable:
+				return Error(InstantiationError(env))
+			case *Compound:
+				return Error(TypeError(ValidTypeAtomic, e, env))
+			default:
+				return k(env.Bind(t, e))
+			}
+		default:
+			switch e := env.Resolve(elems[0]).(type) {
+			case Variable:
+				return Error(InstantiationError(env))
+			case Atom:
+				return k(env.Bind(t, e.Apply(elems[1:]...)))
+			default:
+				return Error(TypeError(ValidTypeAtom, e, env))
+			}
 		}
-		cons, ok := list.(*Compound)
-		if !ok || cons.Functor != "." || len(cons.Args) != 2 {
-			return Error(TypeError(ValidTypeList, list, env))
-		}
-
-		f, ok := env.Resolve(cons.Args[0]).(Atom)
-		if !ok {
-			return Error(TypeError(ValidTypeAtom, cons.Args[0], env))
-		}
-
-		var args []Term
-		iter := ListIterator{List: cons.Args[1], Env: env}
+	case *Compound:
+		iter := ListIterator{List: list, Env: env, AllowPartial: true}
 		for iter.Next() {
-			args = append(args, iter.Current())
 		}
 		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
-
-		return Delay(func(context.Context) *Promise {
-			return Unify(t, &Compound{
-				Functor: f,
-				Args:    args,
-			}, k, env)
-		})
-	case *Compound:
-		return Delay(func(context.Context) *Promise {
-			return Unify(list, List(append([]Term{t.Functor}, t.Args...)...), k, env)
-		})
+		return Unify(list, List(append([]Term{t.Functor}, t.Args...)...), k, env)
 	default:
-		return Delay(func(context.Context) *Promise {
-			return Unify(list, List(t), k, env)
-		})
+		elems, err := Slice(list, env)
+		if err != nil {
+			return Error(err)
+		}
+		if len(elems) != 1 {
+			return Bool(false)
+		}
+		return Unify(t, elems[0], k, env)
 	}
 }
 
 // CopyTerm clones in as out.
 func CopyTerm(in, out Term, k func(*Env) *Promise, env *Env) *Promise {
-	return Unify(copyTerm(in, nil, env), out, k, env)
+	return Unify(renamedCopy(in, nil, env), out, k, env)
 }
 
-func copyTerm(t Term, copied map[Term]Term, env *Env) Term {
+func renamedCopy(t Term, copied map[Term]Term, env *Env) Term {
 	if copied == nil {
 		copied = map[Term]Term{}
 	}
@@ -492,7 +498,7 @@ func copyTerm(t Term, copied map[Term]Term, env *Env) Term {
 		}
 		copied[t] = &c
 		for i, a := range t.Args {
-			c.Args[i] = copyTerm(a, copied, env)
+			c.Args[i] = renamedCopy(a, copied, env)
 		}
 		return &c
 	default:
@@ -519,6 +525,13 @@ func TermVariables(term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
 		case *Compound:
 			traverse = append(t.Args, traverse...)
 		}
+	}
+
+	iter := ListIterator{List: vars, Env: env, AllowPartial: true}
+	for iter.Next() {
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
 	}
 
 	return Unify(vars, List(ret...), k, env)
@@ -780,23 +793,38 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func (state *State) BagOf(template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.collectionOf(List, template, goal, instances, k, env)
+	return state.collectionOf(func(tList []Term, env *Env) Term {
+		return List(tList...)
+	}, template, goal, instances, k, env)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func (state *State) SetOf(template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
-	return state.collectionOf(env.Set, template, goal, instances, k, env)
+	return state.collectionOf(func(tList []Term, env *Env) Term {
+		return env.Set(tList...)
+	}, template, goal, instances, k, env)
 }
 
-func (state *State) collectionOf(agg func(...Term) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+func (state *State) collectionOf(agg func([]Term, *Env) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
 	fvs := newFreeVariablesSet(goal, template, env)
 	w := make([]Term, 0, len(fvs))
 	for v := range fvs {
 		w = append(w, v)
 	}
+	sort.Slice(w, func(i, j int) bool {
+		return w[i].(Variable) < w[j].(Variable)
+	})
 	witness := Atom("$witness").Apply(w...)
 	g := iteratedGoalTerm(goal, env)
 	s := Term(NewVariable())
+
+	iter := ListIterator{List: instances, Env: env, AllowPartial: true}
+	for iter.Next() {
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
 	return state.FindAll(Atom("+").Apply(witness, template), g, s, func(env *Env) *Promise {
 		s, _ := Slice(s, env)
 		ks := make([]func(context.Context) *Promise, 0, len(s))
@@ -818,12 +846,12 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 				}
 			}
 			s = s[:n]
-			ks = append(ks, func(ctx context.Context) *Promise {
+			ks = append(ks, func(context.Context) *Promise {
 				env := env
 				for _, w = range wList {
 					env, _ = witness.Unify(w, false, env)
 				}
-				return Unify(agg(tList...), instances, k, env)
+				return Unify(agg(tList, env), instances, k, env)
 			})
 		}
 		return Delay(ks...)
@@ -832,10 +860,16 @@ func (state *State) collectionOf(agg func(...Term) Term, template, goal, instanc
 
 // FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func (state *State) FindAll(template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+	iter := ListIterator{List: instances, Env: env, AllowPartial: true}
+	for iter.Next() {
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
 	return Delay(func(ctx context.Context) *Promise {
 		var answers []Term
 		if _, err := state.Call(goal, func(env *Env) *Promise {
-			answers = append(answers, env.Simplify(template))
+			answers = append(answers, renamedCopy(template, nil, env))
 			return Bool(false) // ask for more solutions
 		}, env).Force(ctx); err != nil {
 			return Error(err)
@@ -931,16 +965,11 @@ func Sort(list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	switch s := env.Resolve(sorted).(type) {
-	case Variable:
-		break
-	case *Compound:
-		if s.Functor == "." && len(s.Args) == 2 {
-			break
-		}
-		return Error(TypeError(ValidTypeList, sorted, env))
-	default:
-		return Error(TypeError(ValidTypeList, sorted, env))
+	iter = ListIterator{List: sorted, Env: env, AllowPartial: true}
+	for iter.Next() {
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
 	}
 
 	return Unify(sorted, env.Set(elems...), k, env)
@@ -2052,7 +2081,7 @@ func (state *State) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Pr
 
 	ks := make([]func(context.Context) *Promise, len(cs))
 	for i := range cs {
-		r := Rulify(copyTerm(cs[i].raw, nil, env), env)
+		r := Rulify(renamedCopy(cs[i].raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
 			return Unify(&Compound{
 				Functor: ":-",
@@ -2222,18 +2251,32 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(atom, Atom(sb.String()), k, env)
-		})
+		return Unify(atom, Atom(sb.String()), k, env)
 	case Atom:
 		rs := []rune(a)
 		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Atom(r)
 		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(chars, List(cs...), k, env)
-		})
+
+		iter := ListIterator{List: chars, Env: env, AllowPartial: true}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
+			case Variable:
+				break
+			case Atom:
+				if len([]rune(e)) != 1 {
+					return Error(TypeError(ValidTypeCharacter, e, env))
+				}
+			default:
+				return Error(TypeError(ValidTypeCharacter, e, env))
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
+
+		return Unify(chars, List(cs...), k, env)
 	default:
 		return Error(TypeError(ValidTypeAtom, a, env))
 	}
@@ -2251,9 +2294,12 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			case Variable:
 				return Error(InstantiationError(env))
 			case Integer:
+				if e < 0 || e > unicode.MaxRune {
+					return Error(RepresentationError(FlagCharacterCode, env))
+				}
 				_, _ = sb.WriteRune(rune(e))
 			default:
-				return Error(RepresentationError(FlagCharacterCode, env))
+				return Error(TypeError(ValidTypeInteger, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2268,6 +2314,24 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		for i, r := range rs {
 			cs[i] = Integer(r)
 		}
+
+		iter := ListIterator{List: codes, Env: env, AllowPartial: true}
+		for iter.Next() {
+			switch e := env.Resolve(iter.Current()).(type) {
+			case Variable:
+				break
+			case Integer:
+				if e < 0 || e > unicode.MaxRune {
+					return Error(RepresentationError(FlagCharacterCode, env))
+				}
+			default:
+				return Error(TypeError(ValidTypeInteger, e, env))
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
+
 		return Delay(func(context.Context) *Promise {
 			return Unify(codes, List(cs...), k, env)
 		})

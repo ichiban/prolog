@@ -2,8 +2,9 @@ package engine
 
 // ListIterator is an iterator for a list.
 type ListIterator struct {
-	List Term
-	Env  *Env
+	List         Term
+	Env          *Env
+	AllowPartial bool
 
 	current Term
 	err     error
@@ -38,7 +39,9 @@ func (i *ListIterator) Next() bool {
 
 	switch l := i.hare.(type) {
 	case Variable:
-		i.err = InstantiationError(i.Env)
+		if !i.AllowPartial {
+			i.err = InstantiationError(i.Env)
+		}
 		return false
 	case Atom:
 		if l != "[]" {
