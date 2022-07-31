@@ -934,62 +934,64 @@ func TestArg(t *testing.T) {
 }
 
 func TestUniv(t *testing.T) {
-	t.Run("term is a variable", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Univ(v, List(Atom("f"), Atom("a"), Atom("b")), func(env *Env) *Promise {
-				assert.Equal(t, &Compound{
-					Functor: "f",
-					Args:    []Term{Atom("a"), Atom("b")},
-				}, env.Resolve(v))
+	tests := []struct {
+		title      string
+		term, list Term
+		ok         bool
+		err        error
+		env        map[Variable]Term
+	}{
+		// 8.5.3.4 Examples
+		{title: "1", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: List(Atom("foo"), Atom("a"), Atom("b")), ok: true},
+		{title: "2", term: Variable("X"), list: List(Atom("foo"), Atom("a"), Atom("b")), ok: true, env: map[Variable]Term{
+			"X": Atom("foo").Apply(Atom("a"), Atom("b")),
+		}},
+		{title: "3", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Atom("foo"), Atom("a"), Atom("b")),
+		}},
+		{title: "4", term: Atom("foo").Apply(Variable("X"), Atom("b")), list: List(Atom("foo"), Atom("a"), Variable("Y")), ok: true, env: map[Variable]Term{
+			"X": Atom("a"),
+			"Y": Atom("b"),
+		}},
+		{title: "5", term: Integer(1), list: List(Integer(1)), ok: true},
+		{title: "6", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: List(Atom("foo"), Atom("b"), Atom("a")), ok: false},
+		{title: "7", term: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
+		{title: "8", term: Variable("X"), list: ListRest(Variable("Y"), Atom("foo"), Atom("a")), err: InstantiationError(nil)},
+		{title: "9", term: Variable("X"), list: ListRest(Atom("bar"), Atom("foo")), err: TypeError(ValidTypeList, ListRest(Atom("bar"), Atom("foo")), nil)},
+		{title: "10", term: Variable("X"), list: List(Variable("Foo"), Atom("bar")), err: InstantiationError(nil)},
+		{title: "11", term: Variable("X"), list: List(Integer(3), Integer(1)), err: TypeError(ValidTypeAtom, Integer(3), nil)},
+		{title: "12", term: Variable("X"), list: List(Float(1.1), Atom("foo")), err: TypeError(ValidTypeAtom, Float(1.1), nil)},
+		{title: "13", term: Variable("X"), list: List(Atom("a").Apply(Atom("b")), Integer(1)), err: TypeError(ValidTypeAtom, Atom("a").Apply(Atom("b")), nil)},
+		{title: "14", term: Variable("X"), list: Integer(4), err: TypeError(ValidTypeList, Integer(4), nil)},
+		{title: "15", term: Atom("f").Apply(Variable("X")), list: List(Atom("f"), Atom("u").Apply(Variable("X"))), ok: true, env: map[Variable]Term{
+			"X": Atom("u").Apply(Variable("X")),
+		}},
+
+		// 8.5.3.3 Errors
+		{title: "b: term is a compound", term: Atom("f").Apply(Atom("a")), list: ListRest(Atom("a"), Atom("f")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("f")), nil)},
+		{title: "b: term is an atomic", term: Integer(1), list: ListRest(Atom("a"), Atom("f")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("f")), nil)},
+		{title: "c", term: Variable("X"), list: List(Variable("Y")), err: InstantiationError(nil)},
+		{title: "e", term: Variable("X"), list: List(Atom("f").Apply(Atom("a"))), err: TypeError(ValidTypeAtomic, Atom("f").Apply(Atom("a")), nil)},
+		{title: "f", term: Variable("X"), list: List(), err: DomainError(ValidDomainNonEmptyList, List(), nil)},
+
+		{title: "term is a variable, list has exactly one member which is an atomic", term: Variable("X"), list: List(Integer(1)), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+		}},
+		{title: "term is an atomic, the length of list is not 1", term: Integer(1), list: List(), ok: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Univ(tt.term, tt.list, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					assert.Equal(t, v, env.Resolve(k))
+				}
 				return Bool(true)
 			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("list is empty", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Univ(v, List(), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainNonEmptyList, Atom("[]"), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("list is not a list", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Univ(v, Atom("list"), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeList, Atom("list"), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("list's first element is not an atom", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Univ(v, List(Integer(0), Atom("a"), Atom("b")), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("list is not fully instantiated", func(t *testing.T) {
-			ok, err := Univ(NewVariable(), ListRest(Variable("Rest"), Atom("f"), Atom("a"), Atom("b")), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("term is a compound", func(t *testing.T) {
-		ok, err := Univ(&Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a"), Atom("b")},
-		}, List(Atom("f"), Atom("a"), Atom("b")), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("term is neither a variable nor a compound", func(t *testing.T) {
-		ok, err := Univ(Atom("foo"), List(Atom("foo")), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	}
 }
 
 func TestCopyTerm(t *testing.T) {
@@ -1006,36 +1008,59 @@ func TestCopyTerm(t *testing.T) {
 }
 
 func TestTermVariables(t *testing.T) {
-	ok, err := TermVariables(&Compound{
-		Functor: "+",
-		Args: []Term{
-			Variable("A"),
-			&Compound{
-				Functor: "-",
-				Args: []Term{
-					&Compound{
-						Functor: "/",
-						Args: []Term{
-							&Compound{
-								Functor: "*",
-								Args: []Term{
-									Variable("B"),
-									Variable("C"),
-								},
-							},
-							Variable("B"),
-						},
-					},
-					Variable("D"),
-				},
-			},
-		},
-	}, Variable("Vars"), func(env *Env) *Promise {
-		assert.Equal(t, List(Variable("A"), Variable("B"), Variable("C"), Variable("D")), env.Resolve(Variable("Vars")))
-		return Bool(true)
-	}, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
+	tests := []struct {
+		title      string
+		term, vars Term
+		ok         bool
+		err        error
+		env        map[Variable]Term
+	}{
+		// 8.5.5.4 Examples
+		{title: "1", term: Atom("t"), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
+			"Vars": List(),
+		}},
+		{title: "2", term: Atom("-").Apply(
+			Atom("+").Apply(
+				Variable("A"),
+				Atom("/").Apply(
+					Atom("*").Apply(
+						Variable("B"),
+						Variable("C"),
+					),
+					Variable("B"),
+				),
+			),
+			Variable("D"),
+		), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
+			"Vars": List(Variable("A"), Variable("B"), Variable("C"), Variable("D")),
+		}},
+		{title: "3", term: Atom("t"), vars: ListRest(Atom("a"), Atom("x"), Atom("y")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("x"), Atom("y")), nil)},
+		{title: "4, 5", term: Variable("S"), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
+			"Vars": List(Variable("B"), Variable("A")),
+			"S":    Atom("+").Apply(Variable("B"), Variable("T")),
+			"T":    Atom("*").Apply(Variable("A"), Variable("B")),
+		}},
+		{title: "6", term: Atom("+").Apply(Atom("+").Apply(Variable("A"), Variable("B")), Variable("B")), vars: ListRest(Variable("Vars"), Variable("B")), ok: true, env: map[Variable]Term{
+			"B":    Variable("A"),
+			"Vars": List(Variable("B")),
+		}},
+	}
+
+	env := NewEnv().
+		Bind("S", Atom("+").Apply(Variable("B"), Variable("T"))).
+		Bind("T", Atom("*").Apply(Variable("A"), Variable("B")))
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := TermVariables(tt.term, tt.vars, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					assert.Equal(t, v, env.Resolve(k))
+				}
+				return Bool(true)
+			}, env).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Op(t *testing.T) {
@@ -1407,506 +1432,687 @@ func TestState_CurrentOp(t *testing.T) {
 }
 
 func TestState_BagOf(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 3}: clauses{
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("c")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("d")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("e")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("f")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("c"), Atom("c"), Atom("g")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-					},
-				},
+	tests := []struct {
+		title                     string
+		template, goal, instances Term
+		err                       error
+		env                       []map[Variable]Term
+		warning                   bool
+	}{
+		// 8.10.2.4 Examples
+		{
+			title:     "bagof(X, (X=1 ; X=2), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), Integer(2))},
 			},
-		}
-
-		t.Run("without qualifier", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.BagOf(c, &Compound{
-				Functor: "foo",
-				Args:    []Term{a, b, c},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, Atom("a"), env.Resolve(a))
-					assert.Equal(t, Atom("b"), env.Resolve(b))
-					assert.Equal(t, List(Atom("c"), Atom("d")), env.Resolve(cs))
-				case 1:
-					assert.Equal(t, Atom("b"), env.Resolve(a))
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("e"), Atom("f")), env.Resolve(cs))
-				case 2:
-					assert.Equal(t, Atom("c"), env.Resolve(a))
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("with qualifier", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.BagOf(c, &Compound{
-				Functor: "^",
-				Args: []Term{a, &Compound{
-					Functor: "foo",
-					Args:    []Term{a, b, c},
-				}},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, Atom("b"), env.Resolve(b))
-					assert.Equal(t, List(Atom("c"), Atom("d")), env.Resolve(cs))
-				case 1:
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("e"), Atom("f"), Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("with multiple qualifiers", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.BagOf(c, &Compound{
-				Functor: "^",
-				Args: []Term{
-					&Compound{
-						Functor: ",",
-						Args:    []Term{a, b},
-					},
-					&Compound{
-						Functor: "foo",
-						Args:    []Term{a, b, c},
-					},
-				},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, List(Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("goal is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.BagOf(NewVariable(), Variable("Goal"), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		ok, err := state.BagOf(NewVariable(), Integer(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("disjunction", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: predicate1(func(t Term, k func(*Env) *Promise, env *Env) *Promise {
-						return Delay(func(ctx context.Context) *Promise {
-							return Unify(t, Atom("a"), k, env)
-						}, func(ctx context.Context) *Promise {
-							return Unify(t, Atom("b"), k, env)
-						})
-					}),
-				},
+		},
+		{
+			title:     "bagof(X, (X=1 ; X=2), X).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
+			instances: Variable("X"),
+			env: []map[Variable]Term{
+				{"X": List(Integer(1), Integer(2))},
 			},
-		}
+		},
+		{
+			title:     "bagof(X, (X=Y ; X=Z), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Variable("Y")), Atom("=").Apply(Variable("X"), Variable("Z"))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Variable("Y"), Variable("Z"))},
+			},
+		},
+		{
+			title:     "bagof(X, fail, S).",
+			template:  Variable("X"),
+			goal:      Atom("fail"),
+			instances: Variable("S"),
+			env:       nil,
+		},
+		{
+			title:     "bagof(1, (Y=1 ; Y=2), L).",
+			template:  Integer(1),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("Y"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1)), "Y": Integer(1)},
+				{"L": List(Integer(1)), "Y": Integer(2)},
+			},
+		},
+		{
+			title:     "bagof(f(X, Y), (X=a ; Y=b), L).",
+			template:  Atom("f").Apply(Variable("X"), Variable("Y")),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Atom("a")), Atom("=").Apply(Variable("Y"), Atom("b"))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
+			},
+		},
+		{
+			title:    "bagof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).",
+			template: Variable("X"),
+			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			)),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:    "bagof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).",
+			template: Variable("X"),
+			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
+				Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			)),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), NewVariable(), Integer(2))},
+			},
+		},
+		{
+			title:    "bagof(X, (Y^(X=1 ; Y=2) ; X=3), S).",
+			template: Variable("X"),
+			goal: Atom(";").Apply(
+				Atom("^").Apply(
+					Variable("Y"),
+					Atom(";").Apply(
+						Atom("=").Apply(Variable("X"), Integer(1)),
+						Atom("=").Apply(Variable("Y"), Integer(2)),
+					),
+				),
+				Atom("=").Apply(Variable("X"), Integer(3)),
+			),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(3)), "Y": NewVariable()},
+			},
+			warning: true,
+		},
+		{
+			title:    "bagof(X, (X=Y ; X=Z ; Y=1), S).",
+			template: Variable("X"),
+			goal: Atom(";").Apply(
+				Atom("=").Apply(Variable("X"), Variable("Y")),
+				Atom(";").Apply(
+					Atom("=").Apply(Variable("X"), Variable("Z")),
+					Atom("=").Apply(Variable("Y"), Integer(1)),
+				),
+			),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Variable("Y"), Variable("Z"))},
+				{"S": List(NewVariable())},
+			},
+		},
+		{
+			title:     "bagof(X, a(X, Y), L).",
+			template:  Variable("X"),
+			goal:      Atom("a").Apply(Variable("X"), Variable("Y")),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1), Integer(2)), "Y": Atom("f").Apply(NewVariable())},
+			},
+		},
+		{
+			title:     "bagof(X, b(X, Y), L).",
+			template:  Variable("X"),
+			goal:      Atom("b").Apply(Variable("X"), Variable("Y")),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1), Integer(1), Integer(2)), "Y": Integer(1)},
+				{"L": List(Integer(1), Integer(2), Integer(2)), "Y": Integer(2)},
+			},
+		},
+		{
+			title:     "bagof(X, Y^Z, L).",
+			template:  Variable("X"),
+			goal:      Atom("^").Apply(Variable("X"), Variable("Z")),
+			instances: Variable("L"),
+			err:       InstantiationError(nil),
+		},
+		{
+			title:     "bagof(X, 1, L).",
+			template:  Variable("X"),
+			goal:      Integer(1),
+			instances: Variable("L"),
+			err:       TypeError(ValidTypeCallable, Integer(1), nil),
+		},
 
-		t.Run("variable", func(t *testing.T) {
-			x, xs := Variable("X"), Variable("Xs")
-			ok, err := state.BagOf(x, &Compound{
-				Functor: "foo",
-				Args:    []Term{x},
-			}, xs, func(env *Env) *Promise {
-				assert.Equal(t, List(Atom("a"), Atom("b")), env.Resolve(xs))
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
+		// 8.10.2.3 Errors
+		{
+			title:     "c",
+			template:  Atom("t"),
+			goal:      Atom("true"),
+			instances: ListRest(Integer(1), Atom("t")),
+			err:       TypeError(ValidTypeList, ListRest(Integer(1), Atom("t")), nil),
+		},
+	}
+
+	state := State{
+		VM: VM{
+			unknown: unknownWarning,
+		},
+	}
+	state.Register2("=", Unify)
+	state.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return state.Call(g1, func(env *Env) *Promise {
+			return state.Call(g2, k, env)
+		}, env)
+	})
+	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return Delay(func(context.Context) *Promise {
+			return state.Call(g1, k, env)
+		}, func(context.Context) *Promise {
+			return state.Call(g2, k, env)
 		})
-
-		t.Run("not variable", func(t *testing.T) {
-			count := 0
-			x, xs := Variable("X"), Variable("Xs")
-			ok, err := state.BagOf(Atom("c"), &Compound{
-				Functor: "foo",
-				Args:    []Term{x},
-			}, xs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, Atom("a"), env.Resolve(x))
-					assert.Equal(t, List(Atom("c")), env.Resolve(xs))
-				case 1:
-					assert.Equal(t, Atom("b"), env.Resolve(x))
-					assert.Equal(t, List(Atom("c")), env.Resolve(xs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
+	})
+	state.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+		return Bool(false)
+	})
+	state.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+		const a, f = Atom("$a"), Atom("f")
+		return Delay(func(context.Context) *Promise {
+			return Unify(a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
+	})
+	state.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+		const b = Atom("$b")
+		return Delay(func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+		})
+	})
 
-		t.Run("complex", func(t *testing.T) {
-			// bagof(X, X = Y; X = Z; Y = a, Xs).
-			count := 0
-			x, y, z, xs := Variable("X"), Variable("Y"), Variable("Z"), Variable("Xs")
-			var state State
-			state.Register2("=", Unify)
-			ok, err := state.BagOf(x, &Compound{
-				Functor: ";",
-				Args: []Term{
-					&Compound{Functor: "=", Args: []Term{x, y}},
-					&Compound{
-						Functor: ";",
-						Args: []Term{
-							&Compound{Functor: "=", Args: []Term{x, z}},
-							&Compound{Functor: "=", Args: []Term{y, Atom("a")}},
-						},
-					},
-				},
-			}, xs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, List(y, z), env.Resolve(xs))
-				case 1:
-					assert.Equal(t, Atom("a"), env.Resolve(y))
-					v := NewVariable()
-					_, ok := List(v).Unify(xs, false, env)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+				assert.True(t, tt.warning)
+			}
+			_, err := state.BagOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+				for k, v := range tt.env[0] {
+					_, ok := v.Unify(k, false, env)
 					assert.True(t, ok)
-				default:
-					assert.Fail(t, "unreachable")
 				}
-				count++
+				tt.env = tt.env[1:]
 				return Bool(false)
 			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
+			assert.Equal(t, tt.err, err)
+			assert.Empty(t, tt.env)
 		})
-	})
+	}
 }
 
 func TestState_SetOf(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 3}: clauses{
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("c")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("d")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("c")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("e")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("f")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("e")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("c"), Atom("c"), Atom("g")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("c"), Atom("c"), Atom("g")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-					},
+	tests := []struct {
+		title                     string
+		template, goal, instances Term
+		err                       error
+		env                       []map[Variable]Term
+		warning                   bool
+	}{
+		// 8.10.3.4 Examples
+		{
+			title:     "setof(X, (X=1; X=2), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:     "setof(X, (X=1; X=2), X).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
+			instances: Variable("X"),
+			env: []map[Variable]Term{
+				{"X": List(Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:     "setof(X, (X=2; X=1), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(1))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:     "setof(X, (X=2; X=2), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(2))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(2))},
+			},
+		},
+		{
+			title:     "setof(X, (X=Y ; X=Z), S).",
+			template:  Variable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Variable("Y")), Atom("=").Apply(Variable("X"), Variable("Z"))),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Variable("Y"), Variable("Z"))},
+			},
+		},
+		{
+			title:     "setof(X, fail, S).",
+			template:  Variable("X"),
+			goal:      Atom("fail"),
+			instances: Variable("S"),
+			env:       nil,
+		},
+		{
+			title:     "setof(1, (Y=2; Y=1), L).",
+			template:  Integer(1),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("Y"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(1))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1)), "Y": Integer(2)},
+				{"L": List(Integer(1)), "Y": Integer(1)},
+			},
+		},
+		{
+			title:     "setof(f(X, Y), (X=a ; Y=b), L).",
+			template:  Atom("f").Apply(Variable("X"), Variable("Y")),
+			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Atom("a")), Atom("=").Apply(Variable("Y"), Atom("b"))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
+			},
+		},
+		{
+			title:    "setof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).",
+			template: Variable("X"),
+			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			)),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:    "setof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).",
+			template: Variable("X"),
+			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
+				Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			)),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(NewVariable(), Integer(1), Integer(2))},
+			},
+		},
+		{
+			title:    "setof(X, (Y^(X=1 ; Y=2) ; X=3), S).",
+			template: Variable("X"),
+			goal: Atom(";").Apply(
+				Atom("^").Apply(
+					Variable("Y"),
+					Atom(";").Apply(
+						Atom("=").Apply(Variable("X"), Integer(1)),
+						Atom("=").Apply(Variable("Y"), Integer(2)),
+					),
+				),
+				Atom("=").Apply(Variable("X"), Integer(3)),
+			),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Integer(3)), "Y": NewVariable()},
+			},
+			warning: true,
+		},
+		{
+			title:    "setof(X, (X=Y ; X=Z ; Y=1), S).",
+			template: Variable("X"),
+			goal: Atom(";").Apply(
+				Atom("=").Apply(Variable("X"), Variable("Y")),
+				Atom(";").Apply(
+					Atom("=").Apply(Variable("X"), Variable("Z")),
+					Atom("=").Apply(Variable("Y"), Integer(1)),
+				),
+			),
+			instances: Variable("S"),
+			env: []map[Variable]Term{
+				{"S": List(Variable("Y"), Variable("Z"))},
+				{"S": List(NewVariable())},
+			},
+		},
+		{
+			title:     "setof(X, a(X, Y), L).",
+			template:  Variable("X"),
+			goal:      Atom("a").Apply(Variable("X"), Variable("Y")),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1), Integer(2)), "Y": Atom("f").Apply(NewVariable())},
+			},
+		},
+		{
+			title:     "setof(X, member(X,[f(U,b),f(V,c)]), L).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))},
+			},
+		},
+		{
+			title:     "setof(X, member(X,[f(U,b),f(V,c)]), [f(a,c),f(a,b)]).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))),
+			instances: List(Atom("f").Apply(Atom("a"), Atom("c")), Atom("f").Apply(Atom("a"), Atom("b"))),
+			env:       nil,
+		},
+		{
+			title:     "setof(X, member(X,[f(b,U),f(c,V)]), [f(b,a),f(c,a)]).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Atom("b"), Variable("U")), Atom("f").Apply(Atom("c"), Variable("V")))),
+			instances: List(Atom("f").Apply(Atom("b"), Atom("a")), Atom("f").Apply(Atom("c"), Atom("a"))),
+			env: []map[Variable]Term{
+				{"U": Atom("a"), "V": Atom("a")},
+			},
+		},
+		{
+			title:     "setof(X, member(X,[V,U,f(U),f(V)]), L).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Variable("U"), Variable("V"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))},
+			},
+		},
+		{
+			title:     "setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(a),f(b)]).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("a")), Atom("f").Apply(Atom("b"))),
+			env: []map[Variable]Term{
+				{"U": Atom("a"), "V": Atom("b")},
+			},
+		},
+		{
+			title:     "setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(b),f(a)]).",
+			template:  Variable("X"),
+			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("b")), Atom("f").Apply(Atom("a"))),
+			env:       nil,
+		},
+		{
+			title:    "setof(X, (exists(U,V)^member(X,[V,U,f(U),f(V)])), [a,b,f(b),f(a)]).",
+			template: Variable("X"),
+			goal: Atom("^").Apply(
+				Atom("exists").Apply(Variable("U"), Variable("V")),
+				Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			),
+			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("b")), Atom("f").Apply(Atom("a"))),
+			env: []map[Variable]Term{
+				{},
+			},
+		},
+		{
+			title:     "setof(X, b(X, Y), L).",
+			template:  Variable("X"),
+			goal:      Atom("b").Apply(Variable("X"), Variable("Y")),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(Integer(1), Integer(2)), "Y": Integer(1)},
+				{"L": List(Integer(1), Integer(2)), "Y": Integer(2)},
+			},
+		},
+		{
+			title:    "setof(X-Xs, Y^setof(Y,b(X, Y),Xs), L).",
+			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			goal: Atom("^").Apply(
+				Variable("Y"),
+				Atom("setof").Apply(
+					Variable("Y"),
+					Atom("b").Apply(Variable("X"), Variable("Y")),
+					Variable("Xs"),
+				),
+			),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{"L": List(
+					Atom("-").Apply(Integer(1), List(Integer(1), Integer(2))),
+					Atom("-").Apply(Integer(2), List(Integer(1), Integer(2))),
+				)},
+			},
+		},
+		{
+			title:    "setof(X-Xs, setof(Y,b(X, Y),Xs), L).",
+			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			goal: Atom("^").Apply(
+				Variable("Y"),
+				Atom("setof").Apply(
+					Variable("Y"),
+					Atom("b").Apply(Variable("X"), Variable("Y")),
+					Variable("Xs"),
+				),
+			),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{
+					"L": List(
+						Atom("-").Apply(Integer(1), List(Integer(1), Integer(2))),
+						Atom("-").Apply(Integer(2), List(Integer(1), Integer(2))),
+					),
+					"": NewVariable(),
 				},
 			},
-		}
-
-		t.Run("without qualifier", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.SetOf(c, &Compound{
-				Functor: "foo",
-				Args:    []Term{a, b, c},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, Atom("a"), env.Resolve(a))
-					assert.Equal(t, Atom("b"), env.Resolve(b))
-					assert.Equal(t, List(Atom("c"), Atom("d")), env.Resolve(cs))
-				case 1:
-					assert.Equal(t, Atom("b"), env.Resolve(a))
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("e"), Atom("f")), env.Resolve(cs))
-				case 2:
-					assert.Equal(t, Atom("c"), env.Resolve(a))
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("with qualifier", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.SetOf(c, &Compound{
-				Functor: "^",
-				Args: []Term{a, &Compound{
-					Functor: "foo",
-					Args:    []Term{a, b, c},
-				}},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, Atom("b"), env.Resolve(b))
-					assert.Equal(t, List(Atom("c"), Atom("d")), env.Resolve(cs))
-				case 1:
-					assert.Equal(t, Atom("c"), env.Resolve(b))
-					assert.Equal(t, List(Atom("e"), Atom("f"), Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("with multiple qualifiers", func(t *testing.T) {
-			var (
-				count       int
-				a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-			)
-			ok, err := state.SetOf(c, &Compound{
-				Functor: "^",
-				Args: []Term{
-					&Compound{
-						Functor: ",",
-						Args:    []Term{a, b},
-					},
-					&Compound{
-						Functor: "foo",
-						Args:    []Term{a, b, c},
-					},
+		},
+		{
+			title:    "setof(X-Xs, bagof(Y,d(X, Y),Xs), L).",
+			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			goal: Atom("^").Apply(
+				Variable("Y"),
+				Atom("bagof").Apply(
+					Variable("Y"),
+					Atom("d").Apply(Variable("X"), Variable("Y")),
+					Variable("Xs"),
+				),
+			),
+			instances: Variable("L"),
+			env: []map[Variable]Term{
+				{
+					"L": List(
+						Atom("-").Apply(Integer(1), List(Integer(1), Integer(2), Integer(1))),
+						Atom("-").Apply(Integer(2), List(Integer(2), Integer(1), Integer(2))),
+					),
+					"": NewVariable(),
 				},
-			}, cs, func(env *Env) *Promise {
-				switch count {
-				case 0:
-					assert.Equal(t, List(Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")), env.Resolve(cs))
-				default:
-					assert.Fail(t, "unreachable")
-				}
-				count++
-				return Bool(false)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
+			},
+		},
+
+		// 8.10.3.3 Errors
+		{
+			title:     "c",
+			template:  Atom("t"),
+			goal:      Atom("true"),
+			instances: ListRest(Integer(1), Atom("t")),
+			err:       TypeError(ValidTypeList, ListRest(Integer(1), Atom("t")), nil),
+		},
+	}
+
+	state := State{
+		VM: VM{
+			unknown: unknownWarning,
+		},
+	}
+	state.Register2("=", Unify)
+	state.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return state.Call(g1, func(env *Env) *Promise {
+			return state.Call(g2, k, env)
+		}, env)
+	})
+	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return Delay(func(context.Context) *Promise {
+			return state.Call(g1, k, env)
+		}, func(context.Context) *Promise {
+			return state.Call(g2, k, env)
 		})
 	})
-
-	t.Run("goal is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetOf(NewVariable(), Variable("Goal"), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
+	state.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
 	})
-
-	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		ok, err := state.SetOf(NewVariable(), Integer(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
-		assert.False(t, ok)
+	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+		return Bool(false)
 	})
+	state.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+		const a, f = Atom("$a"), Atom("f")
+		return Delay(func(context.Context) *Promise {
+			return Unify(a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
+		})
+	})
+	state.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+		const b = Atom("$b")
+		return Delay(func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+		})
+	})
+	state.Register2("d", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+		const d = Atom("$d")
+		return Delay(func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(1), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(2), Integer(1)), k, env)
+		}, func(context.Context) *Promise {
+			return Unify(d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
+		})
+	})
+	state.Register2("member", func(elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
+		var ks []func(context.Context) *Promise
+		iter := ListIterator{List: list, Env: env, AllowPartial: true}
+		for iter.Next() {
+			e := iter.Current()
+			ks = append(ks, func(context.Context) *Promise {
+				return Unify(elem, e, k, env)
+			})
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
+		return Delay(ks...)
+	})
+	state.Register3("setof", state.SetOf)
+	state.Register3("bagof", state.BagOf)
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+				assert.True(t, tt.warning)
+			}
+			_, err := state.SetOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+				for k, v := range tt.env[0] {
+					_, ok := v.Unify(k, false, env)
+					assert.True(t, ok)
+				}
+				tt.env = tt.env[1:]
+				return Bool(false)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.err, err)
+			assert.Empty(t, tt.env)
+		})
+	}
 }
 
 func TestState_FindAll(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 3}: clauses{
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("c")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("a"), Atom("b"), Atom("d")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("e")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("b"), Atom("c"), Atom("f")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-						{xrTable: []Term{Atom("c"), Atom("c"), Atom("g")}, bytecode: bytecode{
-							{opcode: opConst, operand: 0},
-							{opcode: opConst, operand: 1},
-							{opcode: opConst, operand: 2},
-							{opcode: opExit},
-						}},
-					},
-				},
-			},
-		}
+	tests := []struct {
+		title                     string
+		template, goal, instances Term
+		ok                        bool
+		err                       error
+		env                       map[Variable]Term
+	}{
+		// 8.10.1.4 Examples
+		{title: "1", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))), instances: Variable("S"), ok: true, env: map[Variable]Term{
+			"S": List(Integer(1), Integer(2)),
+		}},
+		{title: "2", template: Atom("+").Apply(Variable("X"), Variable("Y")), goal: Atom("=").Apply(Variable("X"), Integer(1)), instances: Variable("S"), ok: true, env: map[Variable]Term{
+			"S": List(Atom("+").Apply(Integer(1), NewVariable())),
+		}},
+		{title: "3", template: Variable("X"), goal: Atom("fail"), instances: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(),
+		}},
+		{title: "4", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(1))), instances: Variable("S"), ok: true, env: map[Variable]Term{
+			"S": List(Integer(1), Integer(1)),
+		}},
+		{title: "5", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(1))), instances: List(Integer(1), Integer(2)), ok: false},
+		{title: "6", template: Variable("X"), goal: Variable("Goal"), instances: Variable("S"), err: InstantiationError(nil)},
+		{title: "7", template: Variable("X"), goal: Integer(4), instances: Variable("S"), err: TypeError(ValidTypeCallable, Integer(4), nil)},
 
-		var (
-			count       int
-			a, b, c, cs = Variable("A"), Variable("B"), Variable("C"), Variable("Cs")
-		)
-		ok, err := state.FindAll(c, &Compound{
-			Functor: "foo",
-			Args:    []Term{a, b, c},
-		}, cs, func(env *Env) *Promise {
-			switch count {
-			case 0:
-				assert.Equal(t, List(Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")), env.Resolve(cs))
-			default:
-				assert.Fail(t, "unreachable")
-			}
-			count++
-			return Bool(false)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
+		// 8.10.1.3 Errors
+		{title: "c", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))), instances: Atom("foo"), err: TypeError(ValidTypeList, Atom("foo"), nil)},
+	}
+
+	var state State
+	state.Register2("=", Unify)
+	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return Delay(func(context.Context) *Promise {
+			return state.Call(g1, k, env)
+		}, func(context.Context) *Promise {
+			return state.Call(g2, k, env)
+		})
+	})
+	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+		return Bool(false)
 	})
 
-	t.Run("goal is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.FindAll(NewVariable(), Variable("Goal"), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		ok, err := state.FindAll(NewVariable(), Integer(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("goal fails", func(t *testing.T) {
-		instances := Variable("instances")
-
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "fail", Arity: 0}: predicate0(func(f func(*Env) *Promise, env *Env) *Promise {
-						return Bool(false)
-					}),
-				},
-			},
-		}
-		ok, err := state.FindAll(NewVariable(), Atom("fail"), instances, func(env *Env) *Promise {
-			assert.Equal(t, List(), env.Resolve(instances))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := state.FindAll(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := v.Unify(k, false, env)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestCompare(t *testing.T) {
@@ -6395,138 +6601,125 @@ func TestSubAtom(t *testing.T) {
 }
 
 func TestAtomChars(t *testing.T) {
-	t.Run("break down", func(t *testing.T) {
-		chars := Variable("Char")
+	tests := []struct {
+		title      string
+		atom, list Term
+		ok         bool
+		err        error
+		env        map[Variable]Term
+	}{
+		// 8.16.4.4 Examples
+		{title: "atom_chars('', L).", atom: Atom(""), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(),
+		}},
+		{title: "atom_chars([], L).", atom: Atom("[]"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Atom("["), Atom("]")),
+		}},
+		{title: "atom_chars('''', L).", atom: Atom("'"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Atom("'")),
+		}},
+		{title: "atom_chars('ant', L).", atom: Atom("ant"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Atom("a"), Atom("n"), Atom("t")),
+		}},
+		{title: "atom_chars(Str, ['s', 'o', 'p']).", atom: Variable("Str"), list: List(Atom("s"), Atom("o"), Atom("p")), ok: true, env: map[Variable]Term{
+			"Str": Atom("sop"),
+		}},
+		{title: "atom_chars('North', ['N' | X]).", atom: Atom("North"), list: ListRest(Variable("X"), Atom("N")), ok: true, env: map[Variable]Term{
+			"X": List(Atom("o"), Atom("r"), Atom("t"), Atom("h")),
+		}},
+		{title: "atom_chars('soap', ['s', 'o', 'p']).", atom: Atom("soap"), list: List(Atom("s"), Atom("o"), Atom("p")), ok: false},
+		{title: "atom_chars(X, Y).", atom: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
 
-		ok, err := AtomChars(Atom("foo"), chars, func(env *Env) *Promise {
-			assert.Equal(t, List(Atom("f"), Atom("o"), Atom("o")), env.Resolve(chars))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+		// 8.16.4.3 Errors
+		{title: "a", atom: Variable("X"), list: ListRest(Variable("Y"), Atom("a")), err: InstantiationError(nil)},
+		{title: "b", atom: Integer(0), list: List(Atom("a"), Atom("b"), Atom("c")), err: TypeError(ValidTypeAtom, Integer(0), nil)},
+		{title: "c: atom is a variable", atom: Variable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "c: atom is an atom", atom: Atom("a"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "d", atom: Variable("X"), list: List(Variable("Y"), Atom("a")), err: InstantiationError(nil)},
+		{title: "e: atom is a variable, more than one char", atom: Variable("X"), list: List(Atom("abc")), err: TypeError(ValidTypeCharacter, Atom("abc"), nil)},
+		{title: "e: atom is a variable, not an atom", atom: Variable("X"), list: List(Integer(0)), err: TypeError(ValidTypeCharacter, Integer(0), nil)},
+		{title: "e: atom is an atom, more than one char", atom: Atom("abc"), list: List(Atom("ab"), Atom("c")), err: TypeError(ValidTypeCharacter, Atom("ab"), nil)},
+		{title: "e: atom is an atom, not an atom", atom: Atom("abc"), list: List(Integer('a'), Atom("b"), Atom("c")), err: TypeError(ValidTypeCharacter, Integer('a'), nil)},
 
-	t.Run("construct", func(t *testing.T) {
-		atom := Variable("Atom")
+		{title: "atom_chars('ant', ['a', X, 't']).", atom: Atom("ant"), list: List(Atom("a"), Variable("X"), Atom("t")), ok: true, env: map[Variable]Term{
+			"X": Atom("n"),
+		}},
+	}
 
-		ok, err := AtomChars(atom, List(Atom("f"), Atom("o"), Atom("o")), func(env *Env) *Promise {
-			assert.Equal(t, Atom("foo"), env.Resolve(atom))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		_, err = AtomChars(NewVariable(), List(Integer(102), Integer(111), Integer(111)), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-	})
-
-	t.Run("atom is a variable and List is a partial list or list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			chars := ListRest(Variable("Rest"),
-				Atom("0"),
-				Atom("0"),
-			)
-
-			ok, err := AtomChars(NewVariable(), chars, Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := AtomChars(tt.atom, tt.list, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := k.Unify(v, false, env)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("variable element", func(t *testing.T) {
-			char := Variable("Char")
-			ok, err := AtomChars(NewVariable(), List(char, Atom("o"), Atom("o")), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := AtomChars(Integer(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
-		ok, err := AtomChars(NewVariable(), Atom("chars"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeList, Atom("chars"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("atom is a variable and an element E of the list List is neither a variable nor a one-character atom", func(t *testing.T) {
-		t.Run("not a one-character atom", func(t *testing.T) {
-			ok, err := AtomChars(NewVariable(), List(Atom("chars")), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeCharacter, Atom("chars"), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("not an atom", func(t *testing.T) {
-			ok, err := AtomChars(NewVariable(), List(Integer(0)), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeCharacter, Integer(0), nil), err)
-			assert.False(t, ok)
-		})
-	})
+	}
 }
 
 func TestAtomCodes(t *testing.T) {
-	t.Run("break up", func(t *testing.T) {
-		codes := Variable("Codes")
+	tests := []struct {
+		title      string
+		atom, list Term
+		ok         bool
+		err        error
+		env        map[Variable]Term
+	}{
+		// 8.16.5.4 Examples
+		{title: "atom_codes('', L).", atom: Atom(""), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(),
+		}},
+		{title: "atom_codes([], L).", atom: Atom("[]"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Integer('['), Integer(']')),
+		}},
+		{title: "atom_codes('''', L).", atom: Atom("'"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Integer('\'')),
+		}},
+		{title: "atom_codes('ant', L).", atom: Atom("ant"), list: Variable("L"), ok: true, env: map[Variable]Term{
+			"L": List(Integer('a'), Integer('n'), Integer('t')),
+		}},
+		{title: "atom_codes(Str, [0's, 0'o, 0'p]).", atom: Variable("Str"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: true, env: map[Variable]Term{
+			"Str": Atom("sop"),
+		}},
+		{title: "atom_codes('North', [0'N | X]).", atom: Atom("North"), list: ListRest(Variable("X"), Integer('N')), ok: true, env: map[Variable]Term{
+			"X": List(Integer('o'), Integer('r'), Integer('t'), Integer('h')),
+		}},
+		{title: "atom_codes('soap', [0's, 0'o, 0'p]).", atom: Atom("soap"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: false},
+		{title: "atom_codes(X, Y).", atom: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
 
-		ok, err := AtomCodes(Atom("foo"), codes, func(env *Env) *Promise {
-			assert.Equal(t, List(Integer(102), Integer(111), Integer(111)), env.Resolve(codes))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+		// 8.16.5.3 Errors
+		{title: "a", atom: Variable("X"), list: ListRest(Variable("Y"), Integer(0)), err: InstantiationError(nil)},
+		{title: "b", atom: Integer(0), list: Variable("L"), err: TypeError(ValidTypeAtom, Integer(0), nil)},
+		{title: "c: atom is a variable", atom: Variable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "c: atom is an atom", atom: Atom("abc"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "d", atom: Variable("X"), list: List(Variable("Y"), Integer('b'), Integer('c')), err: InstantiationError(nil)},
+		{title: "e: atom is a variable", atom: Variable("X"), list: List(Atom("a"), Integer('b'), Integer('c')), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
+		{title: "e: atom is an atom", atom: Atom("abc"), list: List(Atom("a"), Integer('b'), Integer('c')), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
+		{title: "f: atom is a variable", atom: Variable("X"), list: List(Integer(-1), Integer('b'), Integer('c')), err: RepresentationError(FlagCharacterCode, nil)},
+		{title: "f: atom is an atom", atom: Atom("abc"), list: List(Integer(-1), Integer('b'), Integer('c')), err: RepresentationError(FlagCharacterCode, nil)},
 
-	t.Run("construct", func(t *testing.T) {
-		atom := Variable("Atom")
+		{title: "atom_codes('ant', [0'a, X, 0't]).", atom: Atom("ant"), list: List(Integer('a'), Variable("X"), Integer('t')), ok: true, env: map[Variable]Term{
+			"X": Integer('n'),
+		}},
+	}
 
-		ok, err := AtomCodes(atom, List(Integer(102), Integer(111), Integer(111)), func(env *Env) *Promise {
-			assert.Equal(t, Atom("foo"), env.Resolve(atom))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("atom is a variable and List is a partial list or list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			codes := ListRest(Variable("Rest"),
-				Integer(111),
-				Integer(111),
-			)
-			ok, err := AtomCodes(NewVariable(), codes, Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := AtomCodes(tt.atom, tt.list, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := k.Unify(v, false, env)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("variable element", func(t *testing.T) {
-			code := Variable("Code")
-
-			ok, err := AtomCodes(NewVariable(), List(code, Integer(111), Integer(111)), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := AtomCodes(Integer(0), List(Integer(102), Integer(111), Integer(111)), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("atom is a variable and List is neither a list nor a partial list", func(t *testing.T) {
-		ok, err := AtomCodes(NewVariable(), Atom("codes"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeList, Atom("codes"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("atom is a variable and an element E of the list List is neither a variable nor a character-code", func(t *testing.T) {
-		ok, err := AtomCodes(NewVariable(), List(Atom("f"), Integer(111), Integer(111)), Success, nil).Force(context.Background())
-		assert.Equal(t, RepresentationError(FlagCharacterCode, nil), err)
-		assert.False(t, ok)
-	})
+	}
 }
 
 func TestNumberChars(t *testing.T) {

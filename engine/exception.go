@@ -11,7 +11,7 @@ type Exception struct {
 
 // NewException creates an exception from a copy of the given term.
 func NewException(term Term, env *Env) Exception {
-	return Exception{term: copyTerm(term, nil, env)}
+	return Exception{term: renamedCopy(term, nil, env)}
 }
 
 // Term returns the underlying term of the exception.
