@@ -701,7 +701,7 @@ func isLetterChar(r rune) bool {
 }
 
 func isSmallLetterChar(r rune) bool {
-	return unicode.In(r, unicode.Ll, unicode.Lo)
+	return unicode.In(r, unicode.Ll, unicode.Lo, unicode.Lm)
 }
 
 func isCapitalLetterChar(r rune) bool {

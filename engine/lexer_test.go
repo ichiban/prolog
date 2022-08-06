@@ -39,6 +39,7 @@ func TestLexer_Token(t *testing.T) {
 		{input: `프롤로그`, token: Token{Kind: TokenLetterDigit, Val: `프롤로그`}},
 		{input: `برولوغ`, token: Token{Kind: TokenLetterDigit, Val: `برولوغ`}},
 		{input: `פרולוג`, token: Token{Kind: TokenLetterDigit, Val: `פרולוג`}},
+		{input: `ゴー`, token: Token{Kind: TokenLetterDigit, Val: `ゴー`}},
 
 		{input: `..`, token: Token{Kind: TokenGraphic, Val: `..`}},
 		{input: `#`, token: Token{Kind: TokenGraphic, Val: `#`}},
