@@ -131,6 +131,10 @@ func TestParser_Term(t *testing.T) {
 		{input: `"\'".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom(`'`)},
 		{input: `"\"".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom(`"`)},
 		{input: "\"\\`\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("`")},
+
+		// https://github.com/ichiban/prolog/issues/219#issuecomment-1200489336
+		{input: `write('[]').`, term: &Compound{Functor: `write`, Args: []Term{Atom(`[]`)}}},
+		{input: `write('{}').`, term: &Compound{Functor: `write`, Args: []Term{Atom(`{}`)}}},
 	}
 
 	for _, tc := range tests {

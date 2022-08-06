@@ -761,11 +761,10 @@ func (p *Parser) arg() (Term, error) {
 				p.backup()
 			}
 		}
-		switch arg {
-		case "[]", "{}":
-			p.backup()
-		}
 		p.backup()
+		if p.current().Kind == TokenCloseList || p.current().Kind == TokenCloseCurly {
+			p.backup() // Unquoted [] or {} consist of 2 tokens.
+		}
 	}
 
 	return p.term(999)
