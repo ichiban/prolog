@@ -121,6 +121,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 		return err
 	}
 	_, _ = buf.WriteString(line)
+	_, _ = buf.WriteString("\n")
 
 	sols, err := p.QueryContext(ctx, buf.String())
 	switch err {
@@ -128,7 +129,6 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 		buf.Reset()
 		t.SetPrompt(prompt)
 	case engine.ErrInsufficient:
-		_, _ = buf.WriteRune('\n')
 		// Returns without resetting buf.
 		t.SetPrompt(contPrompt)
 		return nil
