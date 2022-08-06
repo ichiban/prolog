@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	prompt     = "?- "
-	contPrompt = "|- "
+	prompt          = "?- "
+	contPrompt      = "|- "
+	userInputPrompt = "|: "
 )
 
 var version = func() string {
@@ -66,7 +67,7 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := New(os.Stdin, t)
+	i := New(&userInput{t: t}, t)
 	i.Register1("halt", halt)
 	if verbose {
 		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
@@ -196,4 +197,27 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 	}
 
 	return nil
+}
+
+type userInput struct {
+	t   *terminal.Terminal
+	buf bytes.Buffer
+}
+
+func (u *userInput) Read(p []byte) (n int, err error) {
+	if u.buf.Len() == 0 {
+		u.t.SetPrompt(userInputPrompt)
+		defer u.t.SetPrompt(prompt)
+		line, err := u.t.ReadLine()
+		if err != nil {
+			return 0, err
+		}
+		u.buf.WriteString(line + "\n")
+	}
+
+	return u.buf.Read(p)
+}
+
+func (u *userInput) Write(b []byte) (n int, err error) {
+	return 0, nil
 }
