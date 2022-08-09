@@ -979,6 +979,12 @@ func TestUniv(t *testing.T) {
 			"X": Integer(1),
 		}},
 		{title: "term is an atomic, the length of list is not 1", term: Integer(1), list: List(), ok: false},
+
+		// https://github.com/ichiban/prolog/issues/244
+		{title: "term is atomic", term: Atom("c"), list: ListRest(Variable("As"), Variable("A")), ok: true, env: map[Variable]Term{
+			"A":  Atom("c"),
+			"As": List(),
+		}},
 	}
 
 	for _, tt := range tests {

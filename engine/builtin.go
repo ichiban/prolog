@@ -462,14 +462,13 @@ func Univ(t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 		return Unify(list, List(append([]Term{t.Functor}, t.Args...)...), k, env)
 	default:
-		elems, err := Slice(list, env)
-		if err != nil {
+		iter := ListIterator{List: list, Env: env, AllowPartial: true}
+		for iter.Next() {
+		}
+		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
-		if len(elems) != 1 {
-			return Bool(false)
-		}
-		return Unify(t, elems[0], k, env)
+		return Unify(list, List(t), k, env)
 	}
 }
 
