@@ -360,30 +360,36 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 		case Variable:
 			return Error(InstantiationError(env))
 		case Integer:
-			switch {
-			case arity < 0:
+			if arity < 0 {
 				return Error(DomainError(ValidDomainNotLessThanZero, arity, env))
-			case arity == 0:
-				return Unify(t, name, k, env)
 			}
 
-			switch name := env.Resolve(name).(type) {
+			name := env.Resolve(name)
+
+			switch name := name.(type) {
 			case Variable:
 				return Error(InstantiationError(env))
 			case *Compound:
 				return Error(TypeError(ValidTypeAtomic, name, env))
-			case Atom:
-				vs := make([]Term, arity)
-				for i := range vs {
-					vs[i] = NewVariable()
-				}
-				return Unify(t, &Compound{
-					Functor: name,
-					Args:    vs,
-				}, k, env)
-			default:
+			}
+
+			if arity == 0 {
+				return Unify(t, name, k, env)
+			}
+
+			n, ok := name.(Atom)
+			if !ok {
 				return Error(TypeError(ValidTypeAtom, name, env))
 			}
+
+			vs := make([]Term, arity)
+			for i := range vs {
+				vs[i] = NewVariable()
+			}
+			return Unify(t, &Compound{
+				Functor: n,
+				Args:    vs,
+			}, k, env)
 		default:
 			return Error(TypeError(ValidTypeInteger, arity, env))
 		}
