@@ -726,129 +726,65 @@ func TestAcyclicTerm(t *testing.T) {
 }
 
 func TestFunctor(t *testing.T) {
-	t.Run("term is instantiated", func(t *testing.T) {
-		t.Run("float", func(t *testing.T) {
-			name, arity := Variable("Name"), Variable("Arity")
-			ok, err := Functor(Float(2.0), name, arity, func(env *Env) *Promise {
-				assert.Equal(t, Float(2.0), env.Resolve(name))
-				assert.Equal(t, Integer(0), env.Resolve(arity))
+	tests := []struct {
+		title             string
+		term, name, arity Term
+		ok                bool
+		err               error
+		env               map[Variable]Term
+	}{
+		// 8.5.1.4 Examples
+		{title: `functor(foo(a, b, c), foo, 3).`, term: Atom("foo").Apply(Atom("a"), Atom("b"), Atom("c")), name: Atom("foo"), arity: Integer(3), ok: true},
+		{title: `functor(foo(a, b, c), X, Y).`, term: Atom("foo").Apply(Atom("a"), Atom("b"), Atom("c")), name: Variable("X"), arity: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Atom("foo"),
+			"Y": Integer(3),
+		}},
+		{title: `functor(X, foo, 3).`, term: Variable("X"), name: Atom("foo"), arity: Integer(3), ok: true, env: map[Variable]Term{
+			"X": Atom("foo").Apply(NewVariable(), NewVariable(), NewVariable()),
+		}},
+		{title: `functor(X, foo, 0).`, term: Variable("X"), name: Atom("foo"), arity: Integer(0), ok: true, env: map[Variable]Term{
+			"X": Atom("foo"),
+		}},
+		{title: `functor(mats(A, B), A, B).`, term: Atom("mats").Apply(Variable("A"), Variable("B")), name: Variable("A"), arity: Variable("B"), ok: true, env: map[Variable]Term{
+			"A": Atom("mats"),
+			"B": Integer(2),
+		}},
+		{title: `functor(foo(a), foo, 2).`, term: Atom("foo").Apply(Atom("a")), name: Atom("foo"), arity: Integer(2), ok: false},
+		{title: `functor(foo(a), fo, 1).`, term: Atom("foo").Apply(Atom("a")), name: Atom("fo"), arity: Integer(1), ok: false},
+		{title: `functor(1, X, Y).`, term: Integer(1), name: Variable("X"), arity: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+			"Y": Integer(0),
+		}},
+		{title: `functor(X, 1.1, 0).`, term: Variable("X"), name: Float(1.1), arity: Integer(0), ok: true, env: map[Variable]Term{
+			"X": Float(1.1),
+		}},
+		{title: `functor([_|_], '.', 2).`, term: Cons(NewVariable(), NewVariable()), name: Atom("."), arity: Integer(2), ok: true},
+		{title: `functor([], [], 0).`, term: Atom("[]"), name: Atom("[]"), arity: Integer(0), ok: true},
+		{title: `functor(X, Y, 3).`, term: Variable("X"), name: Variable("Y"), arity: Integer(3), err: InstantiationError(nil)},
+		{title: `functor(X, foo, N).`, term: Variable("X"), name: Atom("foo"), arity: Variable("N"), err: InstantiationError(nil)},
+		{title: `functor(X, foo, a).`, term: Variable("X"), name: Atom("foo"), arity: Atom("a"), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
+		{title: `functor(F, 1.5, 1).`, term: Variable("F"), name: Float(1.5), arity: Integer(1), err: TypeError(ValidTypeAtom, Float(1.5), nil)},
+		{title: `functor(F, foo(a), 1).`, term: Variable("F"), name: Atom("foo").Apply(Atom("a")), arity: Integer(1), err: TypeError(ValidTypeAtomic, Atom("foo").Apply(Atom("a")), nil)},
+		// {title: `current_prolog_flag(max_arity, A), X is A + 1, functor(T, foo, X).`}
+		{title: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, term: Variable("F"), name: Atom("foo"), arity: Integer(-1), err: DomainError(ValidDomainNotLessThanZero, Integer(-1), nil)},
+
+		// https://github.com/ichiban/prolog/issues/247
+		{title: `functor(X, Y, 0).`, term: Variable("X"), name: Variable("Y"), arity: Integer(0), err: InstantiationError(nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Functor(tt.term, tt.name, tt.arity, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := k.Unify(v, false, env)
+					assert.True(t, ok)
+				}
 				return Bool(true)
 			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("integer", func(t *testing.T) {
-			name, arity := NewVariable(), NewVariable()
-			ok, err := Functor(Integer(2), name, arity, func(env *Env) *Promise {
-				assert.Equal(t, Integer(2), env.Resolve(name))
-				assert.Equal(t, Integer(0), env.Resolve(arity))
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("atom", func(t *testing.T) {
-			name, arity := NewVariable(), NewVariable()
-			ok, err := Functor(Atom("foo"), name, arity, func(env *Env) *Promise {
-				assert.Equal(t, Atom("foo"), env.Resolve(name))
-				assert.Equal(t, Integer(0), env.Resolve(arity))
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("compound", func(t *testing.T) {
-			name, arity := NewVariable(), NewVariable()
-			ok, err := Functor(&Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
-			}, name, arity, func(env *Env) *Promise {
-				assert.Equal(t, Atom("f"), env.Resolve(name))
-				assert.Equal(t, Integer(3), env.Resolve(arity))
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-	})
-
-	t.Run("term is not instantiated", func(t *testing.T) {
-		t.Run("atom", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Functor(v, Atom("foo"), Integer(0), func(env *Env) *Promise {
-				assert.Equal(t, Atom("foo"), env.Resolve(v))
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("compound", func(t *testing.T) {
-			v := NewVariable()
-			ok, err := Functor(v, Atom("f"), Integer(2), func(env *Env) *Promise {
-				c, ok := env.Resolve(v).(*Compound)
-				assert.True(t, ok)
-				assert.Equal(t, Atom("f"), c.Functor)
-				assert.Len(t, c.Args, 2)
-				assert.True(t, c.Args[0].(Variable).Generated())
-				assert.True(t, c.Args[1].(Variable).Generated())
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("name is a variable", func(t *testing.T) {
-			name := NewVariable()
-			ok, err := Functor(NewVariable(), name, Integer(2), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("name is not atomic", func(t *testing.T) {
-			ok, err := Functor(NewVariable(), &Compound{
-				Functor: "foo",
-				Args: []Term{
-					Atom("a"),
-				},
-			}, Integer(1), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeAtomic, &Compound{
-				Functor: "foo",
-				Args: []Term{
-					Atom("a"),
-				},
-			}, nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("name is not an atom", func(t *testing.T) {
-			ok, err := Functor(NewVariable(), Integer(0), Integer(2), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("arity is a variable", func(t *testing.T) {
-			arity := NewVariable()
-			ok, err := Functor(NewVariable(), Atom("f"), arity, Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("arity is not an integer", func(t *testing.T) {
-			ok, err := Functor(NewVariable(), Atom("f"), Float(2.0), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeInteger, Float(2.0), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("arity is negative", func(t *testing.T) {
-			ok, err := Functor(NewVariable(), Atom("f"), Integer(-2), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-2), nil), err)
-			assert.False(t, ok)
-		})
-	})
+	}
 }
 
 func TestArg(t *testing.T) {
