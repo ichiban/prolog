@@ -8720,3 +8720,46 @@ func TestSkipMaxList(t *testing.T) {
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 	})
 }
+
+func TestState_Repeat(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := 0
+
+	var s State
+	_, err := s.Repeat(func(*Env) *Promise {
+		c++
+		cancel()
+		return Bool(true)
+	}, nil).Force(ctx)
+	assert.Equal(t, context.Canceled, err)
+
+	assert.Equal(t, 1, c)
+}
+
+func TestState_Negation(t *testing.T) {
+	e := errors.New("failed")
+
+	var s State
+	s.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+		return k(env)
+	})
+	s.Register0("false", func(k func(*Env) *Promise, env *Env) *Promise {
+		return Bool(false)
+	})
+	s.Register0("error", func(k func(*Env) *Promise, env *Env) *Promise {
+		return Error(e)
+	})
+
+	ok, err := s.Negation(Atom("true"), Success, nil).Force(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = s.Negation(Atom("false"), Success, nil).Force(context.Background())
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	_, err = s.Negation(Atom("error"), Success, nil).Force(context.Background())
+	assert.Equal(t, e, err)
+}
