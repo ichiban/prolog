@@ -1,47 +1,12 @@
 package engine
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestVariable_WriteTerm(t *testing.T) {
-	var m mockTerm
-	m.On("WriteTerm", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-	defer m.AssertExpectations(t)
-
-	mock := Variable("Mock")
-	env := NewEnv().Bind(mock, &m)
-
-	tests := []struct {
-		title         string
-		variableNames map[Variable]Atom
-		variable      Variable
-		output        string
-	}{
-		{title: "named", variable: `X`, output: `X`},
-		{title: "unnamed", variable: `` /* NewVariable() */, output: `_1`},
-		{title: "variable_names", variableNames: map[Variable]Atom{"X": "Foo"}, variable: `X`, output: `Foo`},
-		{title: "not a variable", variable: mock},
-	}
-
-	var buf bytes.Buffer
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			varCounter = 0
-			if tt.variable == "" {
-				tt.variable = NewVariable()
-			}
-			buf.Reset()
-			assert.NoError(t, tt.variable.WriteTerm(&buf, &WriteOptions{VariableNames: tt.variableNames}, env))
-			assert.Equal(t, tt.output, buf.String())
-		})
-	}
-}
 
 func TestVariable_Compare(t *testing.T) {
 	t.Run("free", func(t *testing.T) {

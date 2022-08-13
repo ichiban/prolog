@@ -1493,7 +1493,7 @@ func (state *State) Write(w io.Writer, t Term, opts *WriteOptions, env *Env) err
 	}
 	opts.ops = state.operators
 	opts.priority = 1200
-	return t.WriteTerm(w, opts, env)
+	return WriteTerm(w, t, opts, env)
 }
 
 func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
@@ -2417,7 +2417,7 @@ func numberCharsWrite(num, chars Term, k func(*Env) *Promise, env *Env) *Promise
 		}
 
 		var buf bytes.Buffer
-		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
+		_ = WriteTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 
 		cs := make([]Term, len(rs))
@@ -2476,7 +2476,7 @@ func NumberCodes(num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	case Integer, Float:
 		var buf bytes.Buffer
-		_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
+		_ = WriteTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 		cs := make([]Term, len(rs))
 		for i, r := range rs {

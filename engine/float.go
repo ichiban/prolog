@@ -1,50 +1,9 @@
 package engine
 
-import (
-	"fmt"
-	"io"
-	"strconv"
-	"strings"
-)
-
 // Float is a prolog floating-point number.
 type Float float64
 
 func (f Float) number() {}
-
-// WriteTerm writes the Float to the io.Writer.
-func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
-	ew := errWriter{w: w}
-	openClose := opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix && f > 0
-
-	if openClose || (f < 0 && opts.left != operator{}) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-
-	if openClose {
-		_, _ = fmt.Fprint(&ew, "(")
-	}
-
-	s := strconv.FormatFloat(float64(f), 'g', -1, 64)
-	if !strings.ContainsRune(s, '.') {
-		if strings.ContainsRune(s, 'e') {
-			s = strings.Replace(s, "e", ".0e", 1)
-		} else {
-			s += ".0"
-		}
-	}
-	_, _ = fmt.Fprint(&ew, s)
-
-	if openClose {
-		_, _ = fmt.Fprint(&ew, ")")
-	}
-
-	if !openClose && opts.right != (operator{}) && (opts.right.name == "e" || opts.right.name == "E") {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-
-	return ew.err
-}
 
 // Compare compares the float to another term.
 func (f Float) Compare(t Term, env *Env) int64 {

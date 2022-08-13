@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -24,20 +23,6 @@ var generatedPattern = regexp.MustCompile(`\A_\d+\z`)
 // Generated checks if the variable is generated.
 func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
-}
-
-// WriteTerm writes the Variable to the io.Writer.
-func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	switch v := env.Resolve(v).(type) {
-	case Variable:
-		if a, ok := opts.VariableNames[v]; ok {
-			return a.WriteTerm(w, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
-		}
-		_, err := fmt.Fprint(w, string(v))
-		return err
-	default:
-		return v.WriteTerm(w, opts, env)
-	}
 }
 
 // Compare compares the variable to another term.

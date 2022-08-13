@@ -1,15 +1,11 @@
 package engine
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"testing"
-	"unsafe"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewStream(t *testing.T) {
@@ -150,29 +146,6 @@ func TestStream_Close(t *testing.T) {
 	}()
 	assert.NoError(t, s.Close())
 	assert.True(t, called)
-}
-
-func TestStream_WriteTerm(t *testing.T) {
-	var notAliased Stream
-
-	tests := []struct {
-		title  string
-		quoted bool
-		stream *Stream
-		output string
-	}{
-		{title: "aliased", stream: &Stream{alias: "foo"}, output: `foo`},
-		{title: "not aliased", quoted: true, stream: &notAliased, output: fmt.Sprintf(`'$stream'(%d)`, uintptr(unsafe.Pointer(&notAliased)))},
-	}
-
-	var buf bytes.Buffer
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			buf.Reset()
-			assert.NoError(t, tt.stream.WriteTerm(&buf, &WriteOptions{Quoted: tt.quoted}, nil))
-			assert.Equal(t, tt.output, buf.String())
-		})
-	}
 }
 
 func TestStream_Compare(t *testing.T) {
