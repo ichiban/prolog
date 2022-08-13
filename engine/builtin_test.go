@@ -533,78 +533,109 @@ func TestState_CallNth(t *testing.T) {
 }
 
 func TestUnify(t *testing.T) {
-	t.Run("unifiable", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := Unify(x, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, func(env *Env) *Promise {
-			assert.Equal(t, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, env.Resolve(x))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	tests := []struct {
+		title   string
+		premise *Env
+		x, y    Term
+		ok      bool
+		err     error
+		env     map[Variable]Term
+	}{
+		// 8.2.1.4 Examples
+		{title: `'='(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
+		{title: `'='(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+		}},
+		{title: `'='(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Variable("Y"),
+		}},
+		{title: `'='(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
+		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			"X": Atom("abc"),
+			"Y": Atom("abc"),
+		}},
+		{title: `'='(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
+			"X": Atom("def"),
+			"Y": Atom("def"),
+		}},
+		{title: `'='(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
+		{title: `'='(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `'='(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
+		{title: `'='(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `'='(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: true},
+		{title: `'='(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
+		// {title: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+	}
 
-	t.Run("not unifiable", func(t *testing.T) {
-		ok, err := Unify(Atom("a"), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("loop", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := Unify(x, &Compound{
-			Functor: "f",
-			Args:    []Term{x},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Unify(tt.x, tt.y, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, tt.premise).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestUnifyWithOccursCheck(t *testing.T) {
-	t.Run("unifiable", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := UnifyWithOccursCheck(x, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, func(env *Env) *Promise {
-			assert.Equal(t, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, env.Resolve(x))
+	tests := []struct {
+		title   string
+		premise *Env
+		x, y    Term
+		ok      bool
+		err     error
+		env     map[Variable]Term
+	}{
+		// 8.2.2.4 Examples
+		{title: `unify_with_occurs_check(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
+		{title: `unify_with_occurs_check(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+		}},
+		{title: `unify_with_occurs_check(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Variable("Y"),
+		}},
+		{title: `unify_with_occurs_check(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
+		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			"X": Atom("abc"),
+			"Y": Atom("abc"),
+		}},
+		{title: `unify_with_occurs_check(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
+			"X": Atom("def"),
+			"Y": Atom("def"),
+		}},
+		{title: `unify_with_occurs_check(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
+		{title: `unify_with_occurs_check(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `unify_with_occurs_check(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+	}
 
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("not unifiable", func(t *testing.T) {
-		ok, err := UnifyWithOccursCheck(Atom("a"), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("loop", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := UnifyWithOccursCheck(x, &Compound{
-			Functor: "f",
-			Args:    []Term{x},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := UnifyWithOccursCheck(tt.x, tt.y, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, tt.premise).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestSubsumesTerm(t *testing.T) {
@@ -776,7 +807,7 @@ func TestFunctor(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := Functor(tt.term, tt.name, tt.arity, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -1595,7 +1626,7 @@ func TestState_BagOf(t *testing.T) {
 			}
 			_, err := state.BagOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -1989,7 +2020,7 @@ func TestState_SetOf(t *testing.T) {
 			}
 			_, err := state.SetOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -2047,7 +2078,7 @@ func TestState_FindAll(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := state.FindAll(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -4181,7 +4212,7 @@ func TestState_Close(t *testing.T) {
 			t.Run("force but the argument is a variable", func(t *testing.T) {
 				var state State
 				_, err := state.Close(&Stream{}, List(Atom("force").Apply(Variable("X"))), Success, nil).Force(context.Background())
-				_, ok := DomainError(ValidDomainStreamOption, Atom("force").Apply(NewVariable()), nil).term.Unify(err.(Exception).term, false, nil)
+				_, ok := NewEnv().Unify(DomainError(ValidDomainStreamOption, Atom("force").Apply(NewVariable()), nil).term, err.(Exception).term, false)
 				assert.True(t, ok)
 			})
 
@@ -4497,10 +4528,10 @@ func TestState_WriteTerm(t *testing.T) {
 				}), Success, nil).Force(context.Background())
 				e, ok := err.(Exception)
 				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
+				_, ok = NewEnv().Unify(e.term, DomainError(ValidDomainWriteOption, &Compound{
 					Functor: "variable_names",
 					Args:    []Term{ListRest(Atom("rest"), Atom("=").Apply(Atom("foo"), Variable("X")))},
-				}, nil).term, false, nil)
+				}, nil).term, false)
 				assert.True(t, ok)
 			})
 
@@ -4515,10 +4546,10 @@ func TestState_WriteTerm(t *testing.T) {
 				assert.Error(t, err)
 				e, ok := err.(Exception)
 				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
+				_, ok = NewEnv().Unify(e.term, DomainError(ValidDomainWriteOption, &Compound{
 					Functor: "variable_names",
 					Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
-				}, nil).term, false, nil)
+				}, nil).term, false)
 				assert.True(t, ok)
 			})
 		})
@@ -4550,12 +4581,12 @@ func TestState_WriteTerm(t *testing.T) {
 				assert.Error(t, err)
 				e, ok := err.(Exception)
 				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
+				_, ok = NewEnv().Unify(e.term, DomainError(ValidDomainWriteOption, &Compound{
 					Functor: "variable_names",
 					Args: []Term{List(
 						Atom("foo").Apply(Atom("n"), Variable("V")),
 					)},
-				}, nil).term, false, nil)
+				}, nil).term, false)
 				assert.True(t, ok)
 			})
 
@@ -4603,12 +4634,12 @@ func TestState_WriteTerm(t *testing.T) {
 			}), Success, nil).Force(context.Background())
 			e, ok := err.(Exception)
 			assert.True(t, ok)
-			_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
+			_, ok = NewEnv().Unify(e.term, DomainError(ValidDomainWriteOption, &Compound{
 				Functor: "variable_names",
 				Args: []Term{List(
 					Atom("=").Apply(Integer(0), Variable("X")),
 				)},
-			}, nil).term, false, nil)
+			}, nil).term, false)
 			assert.True(t, ok)
 		})
 	})
@@ -5358,7 +5389,7 @@ func TestState_ReadTerm(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.ReadTerm(s, &v, List(), func(env *Env) *Promise {
+		ok, err = state.ReadTerm(s, v, List(), func(env *Env) *Promise {
 			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("c")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -6603,7 +6634,7 @@ func TestAtomChars(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomChars(tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -6664,7 +6695,7 @@ func TestAtomCodes(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomCodes(tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -6758,7 +6789,7 @@ func TestNumberChars(t *testing.T) {
 
 		t.Run("list-ish", func(t *testing.T) {
 			_, err := NumberChars(Integer(0), ListRest(Atom("b"), Variable("A")), Success, nil).Force(context.Background())
-			_, ok := err.(Exception).Term().Unify(TypeError(ValidTypeList, ListRest(Atom("b"), NewVariable()), nil).Term(), false, nil)
+			_, ok := NewEnv().Unify(err.(Exception).Term(), TypeError(ValidTypeList, ListRest(Atom("b"), NewVariable()), nil).Term(), false)
 			assert.True(t, ok)
 		})
 	})

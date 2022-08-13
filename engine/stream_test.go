@@ -152,54 +152,6 @@ func TestStream_Close(t *testing.T) {
 	assert.True(t, called)
 }
 
-func TestStream_Unify(t *testing.T) {
-	t.Run("stream", func(t *testing.T) {
-		t.Run("same", func(t *testing.T) {
-			var s Stream
-			env := NewEnv().Bind("Foo", Atom("foo"))
-			e, ok := s.Unify(&s, false, env)
-			assert.True(t, ok)
-			assert.Equal(t, env, e)
-		})
-
-		t.Run("different", func(t *testing.T) {
-			var s1, s2 Stream
-			env := NewEnv().Bind("Foo", Atom("foo"))
-			e, ok := s1.Unify(&s2, false, env)
-			assert.False(t, ok)
-			assert.Equal(t, env, e)
-		})
-	})
-
-	t.Run("variable", func(t *testing.T) {
-		t.Run("free", func(t *testing.T) {
-			var s Stream
-			env := NewEnv().Bind("Foo", Atom("foo"))
-			env, ok := s.Unify(Variable("Bar"), false, env)
-			assert.True(t, ok)
-			assert.Equal(t, &s, env.Resolve(Variable("Bar")))
-		})
-
-		t.Run("bound", func(t *testing.T) {
-			t.Run("same", func(t *testing.T) {
-				var s Stream
-				env := NewEnv().Bind("Foo", &s)
-				env, ok := s.Unify(Variable("Foo"), false, env)
-				assert.True(t, ok)
-				assert.Equal(t, &s, env.Resolve(Variable("Foo")))
-			})
-
-			t.Run("different", func(t *testing.T) {
-				var s Stream
-				env := NewEnv().Bind("Foo", Atom("foo"))
-				e, ok := s.Unify(Variable("Foo"), false, env)
-				assert.False(t, ok)
-				assert.Equal(t, e, env)
-			})
-		})
-	})
-}
-
 func TestStream_WriteTerm(t *testing.T) {
 	var notAliased Stream
 

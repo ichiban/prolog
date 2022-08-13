@@ -12,31 +12,6 @@ type Compound struct {
 	Args    []Term
 }
 
-// Unify unifies the compound with t.
-func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case *Compound:
-		if c.Functor != t.Functor {
-			return env, false
-		}
-		if len(c.Args) != len(t.Args) {
-			return env, false
-		}
-		var ok bool
-		for i := range c.Args {
-			env, ok = c.Args[i].Unify(t.Args[i], occursCheck, env)
-			if !ok {
-				return env, false
-			}
-		}
-		return env, true
-	case Variable:
-		return t.Unify(c, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
 // WriteTerm writes the Compound to the io.Writer.
 func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	ok, err := c.visit(w, opts)

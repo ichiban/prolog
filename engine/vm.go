@@ -225,7 +225,7 @@ func (*VM) execConst(r *registers) *Promise {
 		Args:    []Term{x, arest},
 	}
 	var ok bool
-	r.env, ok = r.args.Unify(&cons, false, r.env)
+	r.env, ok = r.env.Unify(r.args, &cons, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -242,7 +242,7 @@ func (*VM) execVar(r *registers) *Promise {
 		Args:    []Term{v, arest},
 	}
 	var ok bool
-	r.env, ok = cons.Unify(r.args, false, r.env)
+	r.env, ok = r.env.Unify(&cons, r.args, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -259,7 +259,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 		Args:    []Term{arg, arest},
 	}
 	var ok bool
-	r.env, ok = r.args.Unify(&cons1, false, r.env)
+	r.env, ok = r.env.Unify(r.args, &cons1, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -295,7 +295,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 
 func (*VM) execPop(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -305,7 +305,7 @@ func (*VM) execPop(r *registers) *Promise {
 		Functor: ".",
 		Args:    []Term{a, arest},
 	}
-	r.env, ok = r.astack.Unify(&cons, false, r.env)
+	r.env, ok = r.env.Unify(r.astack, &cons, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -316,11 +316,11 @@ func (*VM) execPop(r *registers) *Promise {
 
 func (*VM) execEnter(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
-	r.env, ok = r.astack.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.astack, List(), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -334,7 +334,7 @@ func (*VM) execEnter(r *registers) *Promise {
 func (vm *VM) execCall(r *registers) *Promise {
 	pi := r.pi[r.pc[0].operand]
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}

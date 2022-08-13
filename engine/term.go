@@ -6,7 +6,6 @@ import (
 
 // Term is a prolog term.
 type Term interface {
-	Unify(Term, bool, *Env) (*Env, bool)
 	WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error
 	Compare(Term, *Env) int64
 }

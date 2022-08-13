@@ -159,18 +159,6 @@ func (s *Stream) Close() error {
 	return closeFile(s.file)
 }
 
-// Unify unifies the stream with t.
-func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case *Stream:
-		return env, s == t
-	case Variable:
-		return t.Unify(s, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
 // WriteTerm writes the Stream to the io.Writer.
 func (s *Stream) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	if s.alias != "" {

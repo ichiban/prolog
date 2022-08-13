@@ -250,18 +250,18 @@ func (state *State) CallNth(goal, nth Term, k func(*Env) *Promise, env *Env) *Pr
 	return p
 }
 
-// Unify unifies t1 and t2 without occurs check (i.e., X = f(X) is allowed).
-func Unify(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	env, ok := t1.Unify(t2, false, env)
+// Unify unifies x and y without occurs check (i.e., X = f(X) is allowed).
+func Unify(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	env, ok := env.Unify(x, y, false)
 	if !ok {
 		return Bool(false)
 	}
 	return k(env)
 }
 
-// UnifyWithOccursCheck unifies t1 and t2 with occurs check (i.e., X = f(X) is not allowed).
-func UnifyWithOccursCheck(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	env, ok := t1.Unify(t2, true, env)
+// UnifyWithOccursCheck unifies x and y with occurs check (i.e., X = f(X) is not allowed).
+func UnifyWithOccursCheck(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	env, ok := env.Unify(x, y, true)
 	if !ok {
 		return Bool(false)
 	}
@@ -270,7 +270,7 @@ func UnifyWithOccursCheck(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise
 
 // SubsumesTerm succeeds if general and specific are unifiable without binding variables in specific.
 func SubsumesTerm(general, specific Term, k func(*Env) *Promise, env *Env) *Promise {
-	theta, ok := general.Unify(specific, true, env)
+	theta, ok := env.Unify(general, specific, true)
 	if !ok {
 		return Bool(false)
 	}
@@ -854,7 +854,7 @@ func (state *State) collectionOf(agg func([]Term, *Env) Term, template, goal, in
 			ks = append(ks, func(context.Context) *Promise {
 				env := env
 				for _, w = range wList {
-					env, _ = witness.Unify(w, false, env)
+					env, _ = env.Unify(witness, w, false)
 				}
 				return Unify(agg(tList, env), instances, k, env)
 			})
@@ -1048,7 +1048,7 @@ func (state *State) Catch(goal, catcher, recover Term, k func(*Env) *Promise, en
 			return nil
 		}
 
-		env, ok := catcher.Unify(e.term, false, env)
+		env, ok := env.Unify(catcher, e.term, false)
 		if !ok {
 			return nil
 		}
@@ -1786,15 +1786,15 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		})
 	}
 
-	env, ok := (&Compound{Args: []Term{
+	env, ok := env.Unify(&Compound{Args: []Term{
 		opts.singletons,
 		opts.variables,
 		opts.variableNames,
-	}}).Unify(&Compound{Args: []Term{
+	}}, &Compound{Args: []Term{
 		List(singletons...),
 		List(variables...),
 		List(variableNames...),
-	}}, false, env)
+	}}, false)
 	if !ok {
 		return Bool(false)
 	}

@@ -17,18 +17,6 @@ var (
 // Atom is a prolog atom.
 type Atom string
 
-// Unify unifies the atom with t.
-func (a Atom) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case Atom:
-		return env, a == t
-	case Variable:
-		return t.Unify(a, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
 // Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
 // then returns itself.
 func (a Atom) Apply(args ...Term) Term {

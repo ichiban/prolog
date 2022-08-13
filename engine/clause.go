@@ -179,7 +179,7 @@ func (c *clause) compileArg(a Term) {
 
 func (c *clause) xrOffset(o Term) byte {
 	for i, r := range c.xrTable {
-		if _, ok := r.Unify(o, false, nil); ok {
+		if _, ok := NewEnv().Unify(r, o, false); ok {
 			return byte(i)
 		}
 	}

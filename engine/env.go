@@ -230,3 +230,47 @@ func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
 	}
 	return fvs
 }
+
+func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
+	x, y = e.Resolve(x), e.Resolve(y)
+	switch x := x.(type) {
+	case Variable:
+		switch {
+		case x == y:
+			return e, true
+		case occursCheck && Contains(y, x, e):
+			return e, false
+		default:
+			return e.Bind(x, y), true
+		}
+	case *Compound:
+		switch y := y.(type) {
+		case Variable:
+			return e.Unify(y, x, occursCheck)
+		case *Compound:
+			if x.Functor != y.Functor {
+				return e, false
+			}
+			if len(x.Args) != len(y.Args) {
+				return e, false
+			}
+			var ok bool
+			for i := range x.Args {
+				e, ok = e.Unify(x.Args[i], y.Args[i], occursCheck)
+				if !ok {
+					return e, false
+				}
+			}
+			return e, true
+		default:
+			return e, false
+		}
+	default: // atomic
+		switch y := y.(type) {
+		case Variable:
+			return e.Unify(y, x, occursCheck)
+		default:
+			return e, x == y
+		}
+	}
+}

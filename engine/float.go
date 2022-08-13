@@ -12,18 +12,6 @@ type Float float64
 
 func (f Float) number() {}
 
-// Unify unifies the float with t.
-func (f Float) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case Float:
-		return env, f == t
-	case Variable:
-		return t.Unify(f, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
 // WriteTerm writes the Float to the io.Writer.
 func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}

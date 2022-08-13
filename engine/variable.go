@@ -26,23 +26,6 @@ func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
 }
 
-// Unify unifies the variable with t.
-func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	r, t := env.Resolve(v), env.Resolve(t)
-	v, ok := r.(Variable)
-	if !ok {
-		return r.Unify(t, occursCheck, env)
-	}
-	switch {
-	case v == t:
-		return env, true
-	case occursCheck && Contains(t, v, env):
-		return env, false
-	default:
-		return env.Bind(v, t), true
-	}
-}
-
 // WriteTerm writes the Variable to the io.Writer.
 func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	switch v := env.Resolve(v).(type) {
