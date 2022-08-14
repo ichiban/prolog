@@ -4339,21 +4339,47 @@ func TestState_WriteTerm(t *testing.T) {
 		{title: `b: partial list`, sOrA: w, term: Atom("foo"), options: ListRest(Variable("X"), Atom("quoted").Apply(Atom("true"))), err: InstantiationError(nil)},
 		{title: `b: variable element`, sOrA: w, term: Atom("foo"), options: List(Variable("X")), err: InstantiationError(nil)},
 		{title: `b: variable component`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Variable("X"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, partial list`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Variable("L"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, element`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Variable("E")))), err: InstantiationError(nil)},
+		{title: `b: variable_names, name`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Variable("N"), Variable("V"))))), err: InstantiationError(nil)},
 		{title: `c`, sOrA: w, term: Atom("foo"), options: Atom("options"), err: TypeError(ValidTypeList, Atom("options"), nil)},
 		{title: `d`, sOrA: Integer(0), term: Atom("foo"), options: List(), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
-		{title: `e`, sOrA: w, term: Atom("foo"), options: List(Atom("bar")), err: DomainError(ValidDomainWriteOption, Atom("bar"), nil)},
+		{title: `e: not a compound`, sOrA: w, term: Atom("foo"), options: List(Atom("bar")), err: DomainError(ValidDomainWriteOption, Atom("bar"), nil)},
+		{title: `e: arity is not 1`, sOrA: w, term: Atom("foo"), options: List(Atom("bar").Apply(Atom("a"), Atom("b"))), err: DomainError(ValidDomainWriteOption, Atom("bar").Apply(Atom("a"), Atom("b")), nil)},
+		{title: `e: variable_names, not a list, atom`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Atom("a"))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(Atom("a")), nil)},
+		{title: `e: variable_names, not a list, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(Integer(0)), nil)},
+		{title: `e: variable_names, element is not a pair, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("a")))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("a"))), nil)},
+		{title: `e: variable_names, element is not a pair, compound`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a")))), nil)},
+		{title: `e: variable_names, name is not an atom`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("V"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("_2")))), nil)},
+		{title: `e: boolean option, not an atom`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Integer(0)), nil)},
+		{title: `e: unknown functor`, sOrA: w, term: Atom("foo"), options: List(Atom("bar").Apply(Atom("true"))), err: DomainError(ValidDomainWriteOption, Atom("bar").Apply(Atom("true")), nil)},
 		{title: `f`, sOrA: Atom("stream"), term: Atom("foo"), options: List(), err: ExistenceError(ObjectTypeStream, Atom("stream"), nil)},
 		{title: `g`, sOrA: r, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeStream, r, nil)},
 		{title: `h`, sOrA: b, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeBinaryStream, b, nil)},
+
+		// 7.10.5
+		{title: `a`, sOrA: w, term: Variable("X"), options: List(), ok: true, output: `_1`},
+
+		{title: `variable_names`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(
+			Atom("=").Apply(Atom("n"), Variable("V")), // left-most is used
+			Atom("=").Apply(Atom("m"), Variable("V")), // ignored
+			Atom("=").Apply(Atom("a"), Atom("b")),     // ignored
+		))), ok: true, output: `n`},
 	}
 
 	var state State
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
+			varCounter = 0
 			buf.Reset()
 			ok, err := state.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.err, err)
+			if tt.err == nil {
+				assert.NoError(t, err)
+			} else if te, ok := tt.err.(*Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(*Exception).term, false)
+				assert.True(t, ok)
+			}
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}
