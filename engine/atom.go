@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 )
@@ -27,56 +26,6 @@ func (a Atom) Apply(args ...Term) Term {
 		Functor: a,
 		Args:    args,
 	}
-}
-
-// WriteTerm writes the Atom to the io.Writer.
-func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
-	ew := errWriter{w: w}
-	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
-
-	if openClose {
-		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
-			_, _ = fmt.Fprint(&ew, " ")
-		}
-		_, _ = fmt.Fprint(&ew, "(")
-		opts = opts.withLeft(operator{}).withRight(operator{})
-	}
-
-	if opts.Quoted && needQuoted(a) {
-		_ = a.writeTermQuoted(&ew, opts)
-	} else {
-		_ = a.writeTermUnquoted(&ew, opts)
-	}
-
-	if openClose {
-		_, _ = fmt.Fprint(&ew, ")")
-	}
-
-	return ew.err
-}
-
-func (a Atom) writeTermQuoted(w io.Writer, opts *WriteOptions) error {
-	ew := errWriter{w: w}
-	if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	_, _ = fmt.Fprint(&ew, quote(string(a)))
-	if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'FOO''BAR'.
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	return ew.err
-}
-
-func (a Atom) writeTermUnquoted(w io.Writer, opts *WriteOptions) error {
-	ew := errWriter{w: w}
-	if (letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a)) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	_, _ = fmt.Fprint(&ew, string(a))
-	if (letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a)) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	return ew.err
 }
 
 // Compare compares the atom to another term.

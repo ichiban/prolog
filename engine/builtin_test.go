@@ -4310,34 +4310,48 @@ func TestState_FlushOutput(t *testing.T) {
 
 func TestState_WriteTerm(t *testing.T) {
 	var buf bytes.Buffer
-	s := NewStream(&rwc{w: &buf}, StreamModeWrite)
+	w := NewStream(&rwc{w: &buf}, StreamModeWrite)
+	r := NewStream(&rwc{r: &buf}, StreamModeRead)
+	b := NewStream(&rwc{w: &buf}, StreamModeWrite, WithStreamType(StreamTypeBinary))
 
 	tests := []struct {
-		title         string
-		term, options Term
-		env           *Env
-		ok            bool
-		err           error
-		output        string
+		title               string
+		sOrA, term, options Term
+		env                 *Env
+		ok                  bool
+		err                 error
+		output              string
 	}{
 		// 8.14.2.4 Examples
-		{title: `write_term(S, [1,2,3], []).`, term: List(Integer(1), Integer(2), Integer(3)), options: List(), ok: true, output: `[1,2,3]`},
-		{title: `write_canonical([1,2,3]).`, term: List(Integer(1), Integer(2), Integer(3)), options: List(Atom("quoted").Apply(Atom("true")), Atom("ignore_ops").Apply(Atom("true"))), ok: true, output: `'.'(1,'.'(2,'.'(3,[])))`},
-		{title: `write_term(S, '1<2', []).`, term: Atom("1<2"), options: List(), ok: true, output: `1<2`},
-		{title: `writeq(S, '1<2').`, term: Atom("1<2"), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `'1<2'`},
-		{title: `writeq('$VAR'(0)).`, term: Atom("$VAR").Apply(Integer(0)), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `A`},
-		{title: `write_term(S, '$VAR'(1), [numbervars(false)]).`, term: Atom("$VAR").Apply(Integer(1)), options: List(Atom("numbervars").Apply(Atom("false"))), ok: true, output: `$VAR(1)`},
-		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, term: Atom("$VAR").Apply(Integer(51)), options: List(Atom("numbervars").Apply(Atom("true"))), ok: true, output: `Z1`},
-		{title: `write_term(1, [quoted(non_boolean)]).`, term: Integer(1), options: List(Atom("quoted").Apply(Atom("non_boolean"))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Atom("non_boolean")), nil)},
-		{title: `write_term(1, [quoted(B)]).`, term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), err: InstantiationError(nil)},
-		{title: `B = true, write_term(1, [quoted(B)]).`, env: NewEnv().Bind("B", Atom("true")), term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), ok: true, output: `1`},
+		{title: `write_term(S, [1,2,3], []).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(), ok: true, output: `[1,2,3]`},
+		{title: `write_canonical([1,2,3]).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(Atom("quoted").Apply(Atom("true")), Atom("ignore_ops").Apply(Atom("true"))), ok: true, output: `'.'(1,'.'(2,'.'(3,[])))`},
+		{title: `write_term(S, '1<2', []).`, sOrA: w, term: Atom("1<2"), options: List(), ok: true, output: `1<2`},
+		{title: `writeq(S, '1<2').`, sOrA: w, term: Atom("1<2"), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `'1<2'`},
+		{title: `writeq('$VAR'(0)).`, sOrA: w, term: Atom("$VAR").Apply(Integer(0)), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `A`},
+		{title: `write_term(S, '$VAR'(1), [numbervars(false)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(1)), options: List(Atom("numbervars").Apply(Atom("false"))), ok: true, output: `$VAR(1)`},
+		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(51)), options: List(Atom("numbervars").Apply(Atom("true"))), ok: true, output: `Z1`},
+		{title: `write_term(1, [quoted(non_boolean)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Atom("non_boolean"))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Atom("non_boolean")), nil)},
+		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), err: InstantiationError(nil)},
+		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().Bind("B", Atom("true")), term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), ok: true, output: `1`},
+
+		// 8.14.2.3 Errors
+		{title: `a`, sOrA: Variable("S"), term: Atom("foo"), options: List(), err: InstantiationError(nil)},
+		{title: `b: partial list`, sOrA: w, term: Atom("foo"), options: ListRest(Variable("X"), Atom("quoted").Apply(Atom("true"))), err: InstantiationError(nil)},
+		{title: `b: variable element`, sOrA: w, term: Atom("foo"), options: List(Variable("X")), err: InstantiationError(nil)},
+		{title: `b: variable component`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Variable("X"))), err: InstantiationError(nil)},
+		{title: `c`, sOrA: w, term: Atom("foo"), options: Atom("options"), err: TypeError(ValidTypeList, Atom("options"), nil)},
+		{title: `d`, sOrA: Integer(0), term: Atom("foo"), options: List(), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
+		{title: `e`, sOrA: w, term: Atom("foo"), options: List(Atom("bar")), err: DomainError(ValidDomainWriteOption, Atom("bar"), nil)},
+		{title: `f`, sOrA: Atom("stream"), term: Atom("foo"), options: List(), err: ExistenceError(ObjectTypeStream, Atom("stream"), nil)},
+		{title: `g`, sOrA: r, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeStream, r, nil)},
+		{title: `h`, sOrA: b, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeBinaryStream, b, nil)},
 	}
 
 	var state State
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			ok, err := state.WriteTerm(s, tt.term, tt.options, Success, tt.env).Force(context.Background())
+			ok, err := state.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 			assert.Equal(t, tt.output, buf.String())

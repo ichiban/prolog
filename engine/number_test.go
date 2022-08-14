@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"io"
 	"math"
 	"testing"
 
@@ -1825,16 +1824,6 @@ func TestXor(t *testing.T) {
 
 type mockNumber struct {
 	mock.Mock
-}
-
-func (m *mockNumber) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	args := m.Called(t, occursCheck, env)
-	return args.Get(0).(*Env), args.Bool(1)
-}
-
-func (m *mockNumber) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	args := m.Called(w, opts, env)
-	return args.Error(0)
 }
 
 func (m *mockNumber) Compare(t Term, env *Env) int64 {

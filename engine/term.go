@@ -406,7 +406,7 @@ func writeCompoundOpInfix(w io.Writer, c *Compound, opts *WriteOptions, env *Env
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, c.Functor)
 	default:
-		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
+		_ = writeAtom(&ew, c.Functor, opts.withLeft(operator{}).withRight(operator{}))
 	}
 	_ = WriteTerm(&ew, c.Args[1], opts.withPriority(r).withLeft(*op), env)
 	if openClose {
@@ -418,7 +418,7 @@ func writeCompoundOpInfix(w io.Writer, c *Compound, opts *WriteOptions, env *Env
 func writeCompoundFunctionalNotation(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
 	opts = opts.withRight(operator{})
-	_ = c.Functor.WriteTerm(&ew, opts, env)
+	_ = writeAtom(&ew, c.Functor, opts)
 	_, _ = fmt.Fprint(&ew, "(")
 	opts = opts.withLeft(operator{}).withPriority(999)
 	for i, a := range c.Args {
