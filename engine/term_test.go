@@ -1,10 +1,10 @@
 package engine
 
 import (
+	"bytes"
 	"errors"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestContains(t *testing.T) {
@@ -139,5 +139,104 @@ func Test_variant(t *testing.T) {
 
 	for _, tt := range tests {
 		assert.Equal(t, tt.result, variant(tt.t1, tt.t2, nil))
+	}
+}
+
+func TestWriteTerm(t *testing.T) {
+	v := Variable("L")
+	l := ListRest(v, Atom("a"), Atom("b"))
+	w := Variable("R")
+	r := &Compound{Functor: "f", Args: []Term{w}}
+	env := NewEnv().Bind(v, l).Bind(w, r)
+
+	ops := operators{}
+	ops.define(1200, operatorSpecifierXFX, `:-`)
+	ops.define(1200, operatorSpecifierFX, `:-`)
+	ops.define(1200, operatorSpecifierXF, `-:`)
+	ops.define(1105, operatorSpecifierXFY, `|`)
+	ops.define(1000, operatorSpecifierXFY, `,`)
+	ops.define(900, operatorSpecifierFY, `\+`)
+	ops.define(900, operatorSpecifierYF, `+/`)
+	ops.define(500, operatorSpecifierYFX, `+`)
+	ops.define(400, operatorSpecifierYFX, `*`)
+	ops.define(200, operatorSpecifierFY, `-`)
+	ops.define(200, operatorSpecifierYF, `--`)
+
+	tests := []struct {
+		title  string
+		term   Term
+		opts   WriteOptions
+		output string
+	}{
+		{title: "named", term: Variable(`X`), output: `X`},
+		{title: "unnamed", term: Variable(``) /* NewVariable() */, output: `_1`},
+		{title: "variable_names", term: Variable(`X`), opts: WriteOptions{VariableNames: map[Variable]Atom{"X": "Foo"}}, output: `Foo`},
+
+		{term: Atom(`a`), opts: WriteOptions{Quoted: false}, output: `a`},
+		{term: Atom(`a`), opts: WriteOptions{Quoted: true}, output: `a`},
+		{term: Atom("\a\b\f\n\r\t\v\x00\\'\"`"), opts: WriteOptions{Quoted: false}, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
+		{term: Atom("\a\b\f\n\r\t\v\x00\\'\"`"), opts: WriteOptions{Quoted: true}, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\"`'"},
+		{term: Atom(`,`), opts: WriteOptions{Quoted: false}, output: `,`},
+		{term: Atom(`,`), opts: WriteOptions{Quoted: true}, output: `','`},
+		{term: Atom(`[]`), opts: WriteOptions{Quoted: false}, output: `[]`},
+		{term: Atom(`[]`), opts: WriteOptions{Quoted: true}, output: `[]`},
+		{term: Atom(`{}`), opts: WriteOptions{Quoted: false}, output: `{}`},
+		{term: Atom(`{}`), opts: WriteOptions{Quoted: true}, output: `{}`},
+		{term: Atom(`-`), output: `-`},
+		{term: Atom(`-`), opts: WriteOptions{ops: operators{"+": {}, "-": {}}, left: operator{specifier: operatorSpecifierFY, name: "+"}}, output: ` (-)`},
+		{term: Atom(`-`), opts: WriteOptions{ops: operators{"+": {}, "-": {}}, right: operator{name: "+"}}, output: `(-)`},
+		{term: Atom(`X`), opts: WriteOptions{Quoted: true, left: operator{name: `F`}}, output: ` 'X'`},  // So that it won't be 'F''X'.
+		{term: Atom(`X`), opts: WriteOptions{Quoted: true, right: operator{name: `F`}}, output: `'X' `}, // So that it won't be 'X''F'.
+		{term: Atom(`foo`), opts: WriteOptions{left: operator{name: `bar`}}, output: ` foo`},            // So that it won't be barfoo.
+		{term: Atom(`foo`), opts: WriteOptions{right: operator{name: `bar`}}, output: `foo `},           // So that it won't be foobar.},
+
+		{title: "positive", term: Integer(33), output: `33`},
+		{title: "positive following unary minus", term: Integer(33), opts: WriteOptions{left: operator{name: "-", specifier: operatorSpecifierFX}}, output: ` (33)`},
+		{title: "negative", term: Integer(-33), output: `-33`},
+		{title: "ambiguous 0b", term: Integer(0), opts: WriteOptions{right: operator{name: `b0`}}, output: `0 `},  // So that it won't be 0b0.
+		{title: "ambiguous 0o", term: Integer(0), opts: WriteOptions{right: operator{name: `o0`}}, output: `0 `},  // So that it won't be 0o0.
+		{title: "ambiguous 0x", term: Integer(0), opts: WriteOptions{right: operator{name: `x0`}}, output: `0 `},  // So that it won't be 0x0.
+		{title: "ambiguous 0'", term: Integer(0), opts: WriteOptions{right: operator{name: `Foo`}}, output: `0 `}, // So that it won't be 0'Foo'.
+
+		{title: "positive", term: Float(33.0), output: `33.0`},
+		{title: "with e", term: Float(3.0e+100), output: `3.0e+100`},
+		{title: "positive following unary minus", term: Float(33.0), opts: WriteOptions{left: operator{specifier: operatorSpecifierFX, name: "-"}}, output: ` (33.0)`},
+		{title: "negative", term: Float(-33.0), output: `-33.0`},
+		{title: "ambiguous e", term: Float(33.0), opts: WriteOptions{right: operator{name: `e`}}, output: `33.0 `}, // So that it won't be 33.0e.
+
+		{title: "list", term: List(Atom(`a`), Atom(`b`), Atom(`c`)), output: `[a,b,c]`},
+		{title: "list-ish", term: ListRest(Atom(`rest`), Atom(`a`), Atom(`b`)), output: `[a,b|rest]`},
+		{title: "circular list", term: l, output: `[a,b,a|...]`},
+		{title: "curly brackets", term: &Compound{Functor: `{}`, Args: []Term{Atom(`foo`)}}, output: `{foo}`},
+		{title: "fx", term: &Compound{Functor: `:-`, Args: []Term{&Compound{Functor: `:-`, Args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
+		{title: "fy", term: &Compound{Functor: `\+`, Args: []Term{&Compound{Functor: `-`, Args: []Term{&Compound{Functor: `\+`, Args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
+		{title: "xf", term: &Compound{Functor: `-:`, Args: []Term{&Compound{Functor: `-:`, Args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
+		{title: "yf", term: &Compound{Functor: `+/`, Args: []Term{&Compound{Functor: `--`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
+		{title: "xfx", term: &Compound{Functor: ":-", Args: []Term{Atom("foo"), &Compound{Functor: ":-", Args: []Term{Atom("bar"), Atom("baz")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
+		{title: "yfx", term: &Compound{Functor: "*", Args: []Term{Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
+		{title: "xfy", term: &Compound{Functor: ",", Args: []Term{Integer(2), &Compound{Functor: "|", Args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
+		{title: "ignore_ops(false)", term: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
+		{title: "ignore_ops(true)", term: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
+		{title: "number_vars(false)", term: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: false, ops: ops, priority: 1201}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "number_vars(true)", term: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: true, ops: ops, priority: 1201}, output: `f(A,B,Z,A1,B1)`},
+		{title: "prefix: spacing between operators", term: &Compound{Functor: `*`, Args: []Term{Atom("a"), &Compound{Functor: `-`, Args: []Term{Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `a* -b`},
+		{title: "postfix: spacing between unary minus and open/close", term: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom("a")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a+/)`},
+		{title: "infix: spacing between unary minus and open/close", term: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `*`, Args: []Term{Atom("a"), Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a*b)`},
+		{title: "recursive", term: r, output: `f(...)`},
+
+		{title: "stream", term: &Stream{}, output: `<*engine.Stream Value>`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			varCounter = 0
+			if tt.term == Variable("") {
+				tt.term = NewVariable()
+			}
+			assert.NoError(t, WriteTerm(&buf, tt.term, &tt.opts, env))
+			assert.Equal(t, tt.output, buf.String())
+		})
 	}
 }
