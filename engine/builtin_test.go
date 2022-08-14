@@ -4314,6 +4314,13 @@ func TestState_WriteTerm(t *testing.T) {
 	r := NewStream(&rwc{r: &buf}, StreamModeRead)
 	b := NewStream(&rwc{w: &buf}, StreamModeWrite, WithStreamType(StreamTypeBinary))
 
+	err := errors.New("failed")
+
+	var m mockWriter
+	m.On("Write", mock.Anything).Return(0, err)
+
+	mw := NewStream(&rwc{w: &m}, StreamModeWrite)
+
 	tests := []struct {
 		title               string
 		sOrA, term, options Term
@@ -4365,6 +4372,8 @@ func TestState_WriteTerm(t *testing.T) {
 			Atom("=").Apply(Atom("m"), Variable("V")), // ignored
 			Atom("=").Apply(Atom("a"), Atom("b")),     // ignored
 		))), ok: true, output: `n`},
+
+		{title: `failure`, sOrA: mw, term: Atom("foo"), options: List(), err: err},
 	}
 
 	var state State
