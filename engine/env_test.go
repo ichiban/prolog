@@ -181,7 +181,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `{} < {a:1}`, x: map[string]int{}, y: map[string]int{"a": 1}, o: OrderLess},
 
 		{title: `def > abc`, x: "def", y: "abc", o: OrderGreater},
-		{title: `abc = abc`, x: "abc", y: "abc", o: OrderGreater},
+		{title: `abc = abc`, x: "abc", y: "abc", o: OrderEqual},
 		{title: `abc < def`, x: "abc", y: "def", o: OrderLess},
 	}
 
