@@ -10,7 +10,6 @@ import (
 
 // Term is a prolog term.
 type Term interface {
-	Compare(Term, *Env) int64
 }
 
 // Contains checks if t contains s.

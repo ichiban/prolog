@@ -94,10 +94,6 @@ func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
 }
 
 func termOf(o reflect.Value) (Term, error) {
-	if t, ok := o.Interface().(Term); ok {
-		return t, nil
-	}
-
 	switch o.Kind() {
 	case reflect.Float32, reflect.Float64:
 		return Float(o.Float()), nil

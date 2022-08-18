@@ -2090,60 +2090,40 @@ func TestState_FindAll(t *testing.T) {
 }
 
 func TestCompare(t *testing.T) {
-	t.Run("less than", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(-1))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
+	tests := []struct {
+		title       string
+		order, x, y Term
+		ok          bool
+		err         error
+		env         map[Variable]Term
+	}{
+		// 8.4.2.4 Examples
+		{title: `compare(Order, 3, 5).`, order: Variable("Order"), x: Integer(3), y: Integer(5), ok: true, env: map[Variable]Term{
+			"Order": Atom("<"),
+		}},
+		{title: `compare(Order, d, d).`, order: Variable("Order"), x: Atom("d"), y: Atom("d"), ok: true, env: map[Variable]Term{
+			"Order": Atom("="),
+		}},
+		{title: `compare(Order, Order, <).`, order: Variable("Order"), x: Variable("Order"), y: Atom("<"), ok: true, env: map[Variable]Term{
+			"Order": Atom("<"),
+		}},
+		{title: `compare(<, <, <).`, order: Atom("<"), x: Atom("<"), y: Atom("<"), ok: false},
+		{title: `compare(1+2, 3, 3.0).`, order: Atom("+").Apply(Integer(1), Integer(2)), x: Integer(3), y: Float(3.0), ok: false, err: TypeError(ValidTypeAtom, Atom("+").Apply(Integer(1), Integer(2)), nil)},
+		{title: `compare(>=, 3, 3.0).`, order: Atom(">="), x: Integer(3), y: Float(3.0), ok: false, err: DomainError(ValidDomainOrder, Atom(">="), nil)},
 
-		ok, err := Compare(Atom("<"), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+		{title: `missing case for >`, order: Atom(">"), x: Integer(2), y: Integer(1), ok: true},
+	}
 
-	t.Run("greater than", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(1))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
-
-		ok, err := Compare(Atom(">"), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("equals to", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(0))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
-
-		ok, err := Compare(Atom("="), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("detect order", func(t *testing.T) {
-		order := Variable("Order")
-		ok, err := Compare(order, Atom("a"), Atom("b"), func(env *Env) *Promise {
-			assert.Equal(t, Atom("<"), env.Resolve(order))
+	for _, tt := range tests {
+		ok, err := Compare(tt.order, tt.x, tt.y, func(env *Env) *Promise {
+			for k, v := range tt.env {
+				assert.Equal(t, v, env.Resolve(k))
+			}
 			return Bool(true)
 		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("order is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := Compare(Integer(0), NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("order is an atom but not <, =, or >", func(t *testing.T) {
-		ok, err := Compare(Atom("foo"), NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainOrder, Atom("foo"), nil), err)
-		assert.False(t, ok)
-	})
+		assert.Equal(t, tt.ok, ok)
+		assert.Equal(t, tt.err, err)
+	}
 }
 
 func TestBetween(t *testing.T) {
@@ -4402,11 +4382,6 @@ type mockTerm struct {
 func (m *mockTerm) String() string {
 	args := m.Called()
 	return args.String(0)
-}
-
-func (m *mockTerm) Compare(t Term, env *Env) int64 {
-	args := m.Called(t, env)
-	return args.Get(0).(int64)
 }
 
 func TestCharCode(t *testing.T) {

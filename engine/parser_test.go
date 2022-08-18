@@ -150,18 +150,12 @@ func TestParser_Term(t *testing.T) {
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
-		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}), list)
+		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c"))), list)
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
@@ -178,11 +172,8 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}, "extra"))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
 
 		_, err := p.Term()
 		assert.Error(t, err)

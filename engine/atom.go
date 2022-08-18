@@ -28,18 +28,6 @@ func (a Atom) Apply(args ...Term) Term {
 	}
 }
 
-// Compare compares the atom to another term.
-func (a Atom) Compare(t Term, env *Env) int64 {
-	switch t := env.Resolve(t).(type) {
-	case Variable, Float, Integer:
-		return 1
-	case Atom:
-		return int64(strings.Compare(string(a), string(t)))
-	default:
-		return -1
-	}
-}
-
 func needQuoted(a Atom) bool {
 	p := newParser(bufio.NewReader(bytes.NewBufferString(string(a))))
 	parsed, err := p.atom()

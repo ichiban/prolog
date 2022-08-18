@@ -10,30 +10,6 @@ type Compound struct {
 	Args    []Term
 }
 
-// Compare compares the compound to another term.
-func (c *Compound) Compare(t Term, env *Env) int64 {
-	switch t := env.Resolve(t).(type) {
-	case *Compound:
-		if d := len(c.Args) - len(t.Args); d != 0 {
-			return int64(d)
-		}
-
-		if d := c.Functor.Compare(t.Functor, env); d != 0 {
-			return d
-		}
-
-		for i, a := range c.Args {
-			if d := a.Compare(t.Args[i], env); d != 0 {
-				return d
-			}
-		}
-
-		return 0
-	default:
-		return 1
-	}
-}
-
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
 	return &Compound{
@@ -59,11 +35,11 @@ func ListRest(rest Term, ts ...Term) Term {
 // Set returns a list of ts which elements are unique.
 func (e *Env) Set(ts ...Term) Term {
 	sort.Slice(ts, func(i, j int) bool {
-		return ts[i].Compare(ts[j], e) < 0
+		return e.Compare(ts[i], ts[j]) == OrderLess
 	})
 	us := make([]Term, 0, len(ts))
 	for _, t := range ts {
-		if len(us) > 0 && us[len(us)-1].Compare(t, e) == 0 {
+		if len(us) > 0 && e.Compare(us[len(us)-1], t) == OrderEqual {
 			continue
 		}
 		us = append(us, t)

@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"sync/atomic"
 )
 
@@ -23,21 +22,6 @@ var generatedPattern = regexp.MustCompile(`\A_\d+\z`)
 // Generated checks if the variable is generated.
 func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
-}
-
-// Compare compares the variable to another term.
-func (v Variable) Compare(t Term, env *Env) int64 {
-	switch v := env.Resolve(v).(type) {
-	case Variable:
-		switch t := env.Resolve(t).(type) {
-		case Variable:
-			return int64(strings.Compare(string(v), string(t)))
-		default:
-			return -1
-		}
-	default:
-		return v.Compare(t, env)
-	}
 }
 
 // variableSet is a set of variables. The key is the variable and the value is the number of occurrences.

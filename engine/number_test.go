@@ -1826,11 +1826,6 @@ type mockNumber struct {
 	mock.Mock
 }
 
-func (m *mockNumber) Compare(t Term, env *Env) int64 {
-	args := m.Called(t, env)
-	return int64(args.Int(0))
-}
-
 func (m *mockNumber) number() {
 	_ = m.Called()
 }

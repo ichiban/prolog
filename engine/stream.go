@@ -158,19 +158,6 @@ func (s *Stream) Close() error {
 	return closeFile(s.file)
 }
 
-// Compare compares the stream to another term.
-func (s *Stream) Compare(t Term, env *Env) int64 {
-	switch t := env.Resolve(t).(type) {
-	case *Stream:
-		if s == t {
-			return 0
-		}
-		return 1
-	default:
-		return 1
-	}
-}
-
 var fileStat = (*os.File).Stat
 
 func (s *Stream) properties() ([]Term, error) {
