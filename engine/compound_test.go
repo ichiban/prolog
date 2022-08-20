@@ -16,20 +16,20 @@ func TestEnv_Set(t *testing.T) {
 
 func TestSeq(t *testing.T) {
 	assert.Equal(t, Atom("a"), Seq(",", Atom("a")))
-	assert.Equal(t, &Compound{
-		Functor: ",",
-		Args: []Term{
+	assert.Equal(t, &compound{
+		functor: ",",
+		args: []Term{
 			Atom("a"),
 			Atom("b"),
 		},
 	}, Seq(",", Atom("a"), Atom("b")))
-	assert.Equal(t, &Compound{
-		Functor: ",",
-		Args: []Term{
+	assert.Equal(t, &compound{
+		functor: ",",
+		args: []Term{
 			Atom("a"),
-			&Compound{
-				Functor: ",",
-				Args: []Term{
+			&compound{
+				functor: ",",
+				args: []Term{
 					Atom("b"),
 					Atom("c"),
 				},

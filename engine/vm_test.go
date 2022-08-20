@@ -209,9 +209,9 @@ func TestVM_Arrive(t *testing.T) {
 				unknown: unknownError,
 			}
 			ok, err := vm.Arrive(ProcedureIndicator{Name: "foo", Arity: 1}, []Term{Atom("a")}, Success, nil).Force(context.Background())
-			assert.Equal(t, ExistenceError(ObjectTypeProcedure, &Compound{
-				Functor: "/",
-				Args:    []Term{Atom("foo"), Integer(1)},
+			assert.Equal(t, ExistenceError(ObjectTypeProcedure, &compound{
+				functor: "/",
+				args:    []Term{Atom("foo"), Integer(1)},
 			}, nil), err)
 			assert.False(t, ok)
 		})
@@ -246,9 +246,9 @@ func TestVM_Arrive(t *testing.T) {
 
 func TestNewProcedureIndicator(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(2)},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(2)},
 		}, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, ProcedureIndicator{Name: "foo", Arity: 2}, pi)
@@ -267,55 +267,55 @@ func TestNewProcedureIndicator(t *testing.T) {
 	})
 
 	t.Run("non-PI compound", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a"), Atom("b")},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "foo",
+			args:    []Term{Atom("a"), Atom("b")},
 		}, nil)
-		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a"), Atom("b")},
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+			functor: "foo",
+			args:    []Term{Atom("a"), Atom("b")},
 		}, nil), err)
 		assert.Zero(t, pi)
 	})
 
 	t.Run("variable functor", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "/",
-			Args:    []Term{Variable("Functor"), Integer(2)},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "/",
+			args:    []Term{Variable("functor"), Integer(2)},
 		}, nil)
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
 
 	t.Run("non-atom functor", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "/",
-			Args:    []Term{Integer(0), Integer(2)},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "/",
+			args:    []Term{Integer(0), Integer(2)},
 		}, nil)
-		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-			Functor: "/",
-			Args:    []Term{Integer(0), Integer(2)},
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+			functor: "/",
+			args:    []Term{Integer(0), Integer(2)},
 		}, nil), err)
 		assert.Zero(t, pi)
 	})
 
 	t.Run("variable arity", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Variable("Arity")},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Variable("Arity")},
 		}, nil)
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
 
 	t.Run("non-integer arity", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Atom("arity")},
+		pi, err := NewProcedureIndicator(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Atom("arity")},
 		}, nil)
-		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Atom("arity")},
+		assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Atom("arity")},
 		}, nil), err)
 		assert.Zero(t, pi)
 	})
@@ -327,9 +327,9 @@ func TestProcedureIndicator_String(t *testing.T) {
 }
 
 func TestProcedureIndicator_Term(t *testing.T) {
-	assert.Equal(t, &Compound{
-		Functor: "/",
-		Args:    []Term{Atom("foo"), Integer(2)},
+	assert.Equal(t, &compound{
+		functor: "/",
+		args:    []Term{Atom("foo"), Integer(2)},
 	}, ProcedureIndicator{Name: "foo", Arity: 2}.Term())
 }
 
@@ -337,9 +337,9 @@ func TestProcedureIndicator_Apply(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		c, err := ProcedureIndicator{Name: "foo", Arity: 2}.Apply(Atom("a"), Atom("b"))
 		assert.NoError(t, err)
-		assert.Equal(t, &Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a"), Atom("b")},
+		assert.Equal(t, &compound{
+			functor: "foo",
+			args:    []Term{Atom("a"), Atom("b")},
 		}, c)
 	})
 

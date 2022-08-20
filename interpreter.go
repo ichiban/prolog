@@ -151,8 +151,8 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 		}
 
 		// Directive
-		if c, ok := et.(*engine.Compound); ok && c.Functor == ":-" && len(c.Args) == 1 {
-			if _, err := i.Call(c.Args[0], engine.Success, nil).Force(ctx); err != nil {
+		if c, ok := et.(engine.Compound); ok && c.Functor() == ":-" && c.Arity() == 1 {
+			if _, err := i.Call(c.Arg(0), engine.Success, nil).Force(ctx); err != nil {
 				return err
 			}
 			continue
@@ -245,8 +245,8 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 			return engine.Error(err)
 		}
 		return k(env)
-	case *engine.Compound:
-		if f.Functor != "." || len(f.Args) != 2 {
+	case engine.Compound:
+		if f.Functor() != "." || f.Arity() != 2 {
 			return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
 		}
 		iter := engine.ListIterator{List: f, Env: env}

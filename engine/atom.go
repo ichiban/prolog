@@ -16,15 +16,15 @@ var (
 // Atom is a prolog atom.
 type Atom string
 
-// Apply returns a Compound which Functor is the Atom and Args are the arguments. If the arguments are empty,
+// Apply returns a Compound which Functor is the Atom and args are the arguments. If the arguments are empty,
 // then returns itself.
 func (a Atom) Apply(args ...Term) Term {
 	if len(args) == 0 {
 		return a
 	}
-	return &Compound{
-		Functor: a,
-		Args:    args,
+	return &compound{
+		functor: a,
+		args:    args,
 	}
 }
 

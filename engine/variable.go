@@ -34,8 +34,10 @@ func newVariableSet(t Term, env *Env) variableSet {
 		switch t := env.Resolve(t).(type) {
 		case Variable:
 			s[t] += 1
-		case *Compound:
-			terms = append(terms, t.Args...)
+		case Compound:
+			for i := 0; i < t.Arity(); i++ {
+				terms = append(terms, t.Arg(i))
+			}
 		}
 	}
 	return s
@@ -44,11 +46,11 @@ func newVariableSet(t Term, env *Env) variableSet {
 func newExistentialVariablesSet(t Term, env *Env) variableSet {
 	ev := variableSet{}
 	for terms := []Term{t}; len(terms) > 0; terms, t = terms[:len(terms)-1], terms[len(terms)-1] {
-		if c, ok := env.Resolve(t).(*Compound); ok && c.Functor == "^" && len(c.Args) == 2 {
-			for v, o := range newVariableSet(c.Args[0], env) {
+		if c, ok := env.Resolve(t).(Compound); ok && c.Functor() == "^" && c.Arity() == 2 {
+			for v, o := range newVariableSet(c.Arg(0), env) {
 				ev[v] = o
 			}
-			terms = append(terms, c.Args[1])
+			terms = append(terms, c.Arg(1))
 		}
 	}
 	return ev

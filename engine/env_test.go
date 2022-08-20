@@ -64,10 +64,10 @@ func TestEnv_Simplify(t *testing.T) {
 	assert.True(t, iter.Next())
 	assert.Equal(t, Atom("b"), iter.Current())
 	assert.False(t, iter.Next())
-	suffix, ok := iter.Suffix().(*Compound)
+	suffix, ok := iter.Suffix().(*compound)
 	assert.True(t, ok)
-	assert.Equal(t, Atom("."), suffix.Functor)
-	assert.Len(t, suffix.Args, 2)
+	assert.Equal(t, Atom("."), suffix.functor)
+	assert.Len(t, suffix.args, 2)
 }
 
 func TestEnv_Compare(t *testing.T) {

@@ -83,9 +83,9 @@ type clause struct {
 }
 
 func compile(t Term) (clauses, error) {
-	if t, ok := t.(*Compound); ok && t.Functor == ":-" && len(t.Args) == 2 {
+	if t, ok := t.(Compound); ok && t.Functor() == ":-" && t.Arity() == 2 {
 		var cs []clause
-		head, body := t.Args[0], t.Args[1]
+		head, body := t.Arg(0), t.Arg(1)
 		iter := AltIterator{Alt: body}
 		for iter.Next() {
 			c, err := compileClause(head, iter.Current())
@@ -108,10 +108,10 @@ func compileClause(head Term, body Term) (clause, error) {
 	switch head := head.(type) {
 	case Atom:
 		c.pi = ProcedureIndicator{Name: head, Arity: 0}
-	case *Compound:
-		c.pi = ProcedureIndicator{Name: head.Functor, Arity: Integer(len(head.Args))}
-		for _, a := range head.Args {
-			c.compileArg(a)
+	case Compound:
+		c.pi = ProcedureIndicator{Name: head.Functor(), Arity: Integer(head.Arity())}
+		for i := 0; i < head.Arity(); i++ {
+			c.compileArg(head.Arg(i))
 		}
 	}
 	if body != nil {
@@ -139,9 +139,9 @@ var errNotCallable = errors.New("not callable")
 func (c *clause) compilePred(p Term) error {
 	switch p := p.(type) {
 	case Variable:
-		return c.compilePred(&Compound{
-			Functor: "call",
-			Args:    []Term{p},
+		return c.compilePred(&compound{
+			functor: "call",
+			args:    []Term{p},
 		})
 	case Atom:
 		switch p {
@@ -151,11 +151,11 @@ func (c *clause) compilePred(p Term) error {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p, Arity: 0})})
 		return nil
-	case *Compound:
-		for _, a := range p.Args {
-			c.compileArg(a)
+	case Compound:
+		for i := 0; i < p.Arity(); i++ {
+			c.compileArg(p.Arg(i))
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor, Arity: Integer(len(p.Args))})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.piOffset(ProcedureIndicator{Name: p.Functor(), Arity: Integer(p.Arity())})})
 		return nil
 	default:
 		return errNotCallable
@@ -166,10 +166,10 @@ func (c *clause) compileArg(a Term) {
 	switch a := a.(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
-	case *Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor, Arity: Integer(len(a.Args))})})
-		for _, n := range a.Args {
-			c.compileArg(n)
+	case Compound:
+		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.piOffset(ProcedureIndicator{Name: a.Functor(), Arity: Integer(a.Arity())})})
+		for i := 0; i < a.Arity(); i++ {
+			c.compileArg(a.Arg(i))
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:

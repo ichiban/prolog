@@ -27,9 +27,9 @@ func (e Exception) Error() string {
 
 // InstantiationError returns an instantiation error exception.
 func InstantiationError(env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
 			Atom("instantiation_error"),
 			varContext,
 		},
@@ -81,12 +81,12 @@ func (t ValidType) Term() Term {
 
 // TypeError creates a new type error exception.
 func TypeError(validType ValidType, culprit Term, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "type_error",
-				Args:    []Term{validType.Term(), culprit},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "type_error",
+				args:    []Term{validType.Term(), culprit},
 			},
 			varContext,
 		},
@@ -145,12 +145,12 @@ func (vd ValidDomain) Term() Term {
 
 // DomainError creates a new domain error exception.
 func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "domain_error",
-				Args:    []Term{validDomain.Term(), culprit},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "domain_error",
+				args:    []Term{validDomain.Term(), culprit},
 			},
 			varContext,
 		},
@@ -178,12 +178,12 @@ func (ot ObjectType) Term() Term {
 
 // ExistenceError creates a new existence error exception.
 func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "existence_error",
-				Args:    []Term{objectType.Term(), culprit},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "existence_error",
+				args:    []Term{objectType.Term(), culprit},
 			},
 			varContext,
 		},
@@ -250,12 +250,12 @@ func (pt PermissionType) Term() Term {
 
 // PermissionError creates a new permission error exception.
 func PermissionError(operation Operation, permissionType PermissionType, culprit Term, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "permission_error",
-				Args:    []Term{operation.Term(), permissionType.Term(), culprit},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "permission_error",
+				args:    []Term{operation.Term(), permissionType.Term(), culprit},
 			},
 			varContext,
 		},
@@ -289,12 +289,12 @@ func (f Flag) Term() Term {
 
 // RepresentationError creates a new representation error exception.
 func RepresentationError(limit Flag, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "representation_error",
-				Args:    []Term{limit.Term()},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "representation_error",
+				args:    []Term{limit.Term()},
 			},
 			varContext,
 		},
@@ -319,12 +319,12 @@ func (r Resource) Term() Term {
 
 // ResourceError creates a new resource error exception.
 func ResourceError(resource Resource, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "resource_error",
-				Args:    []Term{resource.Term()},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "resource_error",
+				args:    []Term{resource.Term()},
 			},
 			varContext,
 		},
@@ -333,12 +333,12 @@ func ResourceError(resource Resource, env *Env) Exception {
 
 // SyntaxError creates a new syntax error exception.
 func SyntaxError(err error, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "syntax_error",
-				Args:    []Term{Atom(err.Error())},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "syntax_error",
+				args:    []Term{Atom(err.Error())},
 			},
 			varContext,
 		},
@@ -347,9 +347,9 @@ func SyntaxError(err error, env *Env) Exception {
 
 // SystemError creates a new system error exception.
 func SystemError(err error) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
 			Atom("system_error"),
 			Atom(err.Error()),
 		},
@@ -385,12 +385,12 @@ func (ev ExceptionalValue) Term() Term {
 
 // EvaluationError creates a new evaluation error exception.
 func EvaluationError(ev ExceptionalValue, env *Env) Exception {
-	return NewException(&Compound{
-		Functor: "error",
-		Args: []Term{
-			&Compound{
-				Functor: "evaluation_error",
-				Args:    []Term{ev.Term()},
+	return NewException(&compound{
+		functor: "error",
+		args: []Term{
+			&compound{
+				functor: "evaluation_error",
+				args:    []Term{ev.Term()},
 			},
 			varContext,
 		},

@@ -185,22 +185,22 @@ func (e *Env) Simplify(t Term) Term {
 	return simplify(t, nil, e)
 }
 
-func simplify(t Term, simplified map[*Compound]*Compound, env *Env) Term {
+func simplify(t Term, simplified map[Compound]Compound, env *Env) Term {
 	if simplified == nil {
-		simplified = map[*Compound]*Compound{}
+		simplified = map[Compound]Compound{}
 	}
 	switch t := env.Resolve(t).(type) {
-	case *Compound:
+	case Compound:
 		if c, ok := simplified[t]; ok {
 			return c
 		}
-		c := Compound{
-			Functor: t.Functor,
-			Args:    make([]Term, len(t.Args)),
+		c := compound{
+			functor: t.Functor(),
+			args:    make([]Term, t.Arity()),
 		}
 		simplified[t] = &c
-		for i, a := range t.Args {
-			c.Args[i] = simplify(a, simplified, env)
+		for i := 0; i < t.Arity(); i++ {
+			c.args[i] = simplify(t.Arg(i), simplified, env)
 		}
 		return &c
 	default:
@@ -228,9 +228,9 @@ func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
 			}
 		}
 		return append(fvs, t)
-	case *Compound:
-		for _, arg := range t.Args {
-			fvs = e.appendFreeVariables(fvs, arg)
+	case Compound:
+		for i := 0; i < t.Arity(); i++ {
+			fvs = e.appendFreeVariables(fvs, t.Arg(i))
 		}
 	}
 	return fvs
@@ -248,20 +248,20 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 		default:
 			return e.Bind(x, y), true
 		}
-	case *Compound:
+	case Compound:
 		switch y := y.(type) {
 		case Variable:
 			return e.Unify(y, x, occursCheck)
-		case *Compound:
-			if x.Functor != y.Functor {
+		case Compound:
+			if x.Functor() != y.Functor() {
 				return e, false
 			}
-			if len(x.Args) != len(y.Args) {
+			if x.Arity() != y.Arity() {
 				return e, false
 			}
 			var ok bool
-			for i := range x.Args {
-				e, ok = e.Unify(x.Args[i], y.Args[i], occursCheck)
+			for i := 0; i < x.Arity(); i++ {
+				e, ok = e.Unify(x.Arg(i), y.Arg(i), occursCheck)
 				if !ok {
 					return e, false
 				}
@@ -315,7 +315,7 @@ func (e *Env) Compare(x, y Term) Order {
 		return e.compareInteger(x, y)
 	case Atom:
 		return e.compareAtom(x, y)
-	case *Compound:
+	case Compound:
 		return e.compareCompound(x, y)
 	default:
 		return e.compareAny(x, y)
@@ -392,24 +392,24 @@ func (e *Env) compareAtom(x Atom, y Term) Order {
 	}
 }
 
-func (e *Env) compareCompound(x *Compound, y Term) Order {
+func (e *Env) compareCompound(x Compound, y Term) Order {
 	switch y := y.(type) {
 	case Variable, Float, Integer, Atom:
 		return OrderGreater
-	case *Compound:
-		switch x, y := len(x.Args), len(y.Args); {
+	case Compound:
+		switch x, y := x.Arity(), y.Arity(); {
 		case x > y:
 			return OrderGreater
 		case x < y:
 			return OrderLess
 		}
 
-		if o := e.Compare(x.Functor, y.Functor); o != OrderEqual {
+		if o := e.Compare(x.Functor(), y.Functor()); o != OrderEqual {
 			return o
 		}
 
-		for i, a := range x.Args {
-			if o := e.Compare(a, y.Args[i]); o != OrderEqual {
+		for i := 0; i < x.Arity(); i++ {
+			if o := e.Compare(x.Arg(i), y.Arg(i)); o != OrderEqual {
 				return o
 			}
 		}
@@ -421,7 +421,7 @@ func (e *Env) compareCompound(x *Compound, y Term) Order {
 
 func (e *Env) compareAny(x Term, y Term) Order {
 	switch y := y.(type) {
-	case Variable, Float, Integer, Atom, *Compound:
+	case Variable, Float, Integer, Atom, *compound:
 		return OrderGreater
 	default:
 		return deepCompare(reflect.ValueOf(x), reflect.ValueOf(y))

@@ -707,9 +707,9 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 		return nil, errExpectation
 	}
 
-	return &Compound{
-		Functor: "{}",
-		Args:    []Term{t},
+	return &compound{
+		functor: "{}",
+		args:    []Term{t},
 	}, nil
 }
 
@@ -730,9 +730,9 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 				}
 				args = append(args, arg)
 			case TokenClose:
-				return &Compound{
-					Functor: functor,
-					Args:    args,
+				return &compound{
+					functor: functor,
+					args:    args,
 				}, nil
 			default:
 				p.backup()

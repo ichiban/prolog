@@ -163,7 +163,7 @@ var fileStat = (*os.File).Stat
 func (s *Stream) properties() ([]Term, error) {
 	var properties []Term
 
-	properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom(s.mode.String())}})
+	properties = append(properties, &compound{functor: "mode", args: []Term{Atom(s.mode.String())}})
 
 	switch s.mode {
 	case StreamModeRead:
@@ -173,10 +173,10 @@ func (s *Stream) properties() ([]Term, error) {
 	}
 
 	if s.alias != "" {
-		properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
+		properties = append(properties, &compound{functor: "alias", args: []Term{s.alias}})
 	}
 
-	properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom(s.eofAction.String())}})
+	properties = append(properties, &compound{functor: "eof_action", args: []Term{Atom(s.eofAction.String())}})
 
 	if f, ok := s.file.(*os.File); ok {
 		pos, err := seek(f, 0, 1)
@@ -199,19 +199,19 @@ func (s *Stream) properties() ([]Term, error) {
 		}
 
 		properties = append(properties,
-			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
+			&compound{functor: "position", args: []Term{Integer(pos)}},
+			&compound{functor: "end_of_stream", args: []Term{Atom(eos)}},
 		)
 	}
 
 	if s.reposition {
-		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
+		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("true")}})
 	} else {
-		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
+		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("false")}})
 	}
 
-	properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom(s.streamType.String())}})
+	properties = append(properties, &compound{functor: "type", args: []Term{Atom(s.streamType.String())}})
 
 	return properties, nil
 }

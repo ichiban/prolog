@@ -220,9 +220,9 @@ func (vm *VM) exec(r registers) *Promise {
 func (*VM) execConst(r *registers) *Promise {
 	x := r.xr[r.pc[0].operand]
 	arest := NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{x, arest},
+	cons := compound{
+		functor: ".",
+		args:    []Term{x, arest},
 	}
 	var ok bool
 	r.env, ok = r.env.Unify(r.args, &cons, false)
@@ -237,9 +237,9 @@ func (*VM) execConst(r *registers) *Promise {
 func (*VM) execVar(r *registers) *Promise {
 	v := r.vars[r.pc[0].operand]
 	arest := NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{v, arest},
+	cons := compound{
+		functor: ".",
+		args:    []Term{v, arest},
 	}
 	var ok bool
 	r.env, ok = r.env.Unify(&cons, r.args, false)
@@ -254,9 +254,9 @@ func (*VM) execVar(r *registers) *Promise {
 func (*VM) execFunctor(r *registers) *Promise {
 	pi := r.pi[r.pc[0].operand]
 	arg, arest := NewVariable(), NewVariable()
-	cons1 := Compound{
-		Functor: ".",
-		Args:    []Term{arg, arest},
+	cons1 := compound{
+		functor: ".",
+		args:    []Term{arg, arest},
 	}
 	var ok bool
 	r.env, ok = r.env.Unify(r.args, &cons1, false)
@@ -275,9 +275,9 @@ func (*VM) execFunctor(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	cons2 := Compound{
-		Functor: ".",
-		Args:    []Term{pi.Name, r.args},
+	cons2 := compound{
+		functor: ".",
+		args:    []Term{pi.Name, r.args},
 	}
 	ok, err = Univ(arg, &cons2, func(e *Env) *Promise {
 		r.env = e
@@ -301,9 +301,9 @@ func (*VM) execPop(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	a, arest := NewVariable(), NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{a, arest},
+	cons := compound{
+		functor: ".",
+		args:    []Term{a, arest},
 	}
 	r.env, ok = r.env.Unify(r.astack, &cons, false)
 	if !ok {
@@ -485,15 +485,15 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 	switch p := env.Resolve(pi).(type) {
 	case Variable:
 		return ProcedureIndicator{}, InstantiationError(env)
-	case *Compound:
-		if p.Functor != "/" || len(p.Args) != 2 {
+	case Compound:
+		if p.Functor() != "/" || p.Arity() != 2 {
 			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 		}
-		switch f := env.Resolve(p.Args[0]).(type) {
+		switch f := env.Resolve(p.Arg(0)).(type) {
 		case Variable:
 			return ProcedureIndicator{}, InstantiationError(env)
 		case Atom:
-			switch a := env.Resolve(p.Args[1]).(type) {
+			switch a := env.Resolve(p.Arg(1)).(type) {
 			case Variable:
 				return ProcedureIndicator{}, InstantiationError(env)
 			case Integer:
@@ -521,9 +521,9 @@ func (p ProcedureIndicator) String() string {
 
 // Term returns p as term.
 func (p ProcedureIndicator) Term() Term {
-	return &Compound{
-		Functor: "/",
-		Args: []Term{
+	return &compound{
+		functor: "/",
+		args: []Term{
 			p.Name,
 			p.Arity,
 		},
@@ -544,8 +544,12 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 		return ProcedureIndicator{}, nil, InstantiationError(env)
 	case Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
-	case *Compound:
-		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
+	case Compound:
+		args := make([]Term, f.Arity())
+		for i := 0; i < f.Arity(); i++ {
+			args[i] = f.Arg(i)
+		}
+		return ProcedureIndicator{Name: f.Functor(), Arity: Integer(f.Arity())}, args, nil
 	default:
 		return ProcedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
 	}

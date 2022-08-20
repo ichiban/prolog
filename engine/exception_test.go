@@ -14,9 +14,9 @@ func TestException_Error(t *testing.T) {
 
 func TestInstantiationError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
 				Atom("instantiation_error"),
 				rootContext,
 			},
@@ -26,12 +26,12 @@ func TestInstantiationError(t *testing.T) {
 
 func TestTypeError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "type_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "type_error",
+					args: []Term{
 						Atom("atom"),
 						Integer(0),
 					},
@@ -44,12 +44,12 @@ func TestTypeError(t *testing.T) {
 
 func TestDomainError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "domain_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "domain_error",
+					args: []Term{
 						Atom("not_less_than_zero"),
 						Integer(-1),
 					},
@@ -63,12 +63,12 @@ func TestDomainError(t *testing.T) {
 func TestExistenceError(t *testing.T) {
 	pi := ProcedureIndicator{Name: "foo", Arity: 0}.Term()
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "existence_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "existence_error",
+					args: []Term{
 						Atom("procedure"),
 						pi,
 					},
@@ -82,12 +82,12 @@ func TestExistenceError(t *testing.T) {
 func TestPermissionError(t *testing.T) {
 	pi := ProcedureIndicator{Name: "foo", Arity: 0}.Term()
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "permission_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "permission_error",
+					args: []Term{
 						Atom("modify"),
 						Atom("static_procedure"),
 						pi,
@@ -101,12 +101,12 @@ func TestPermissionError(t *testing.T) {
 
 func TestRepresentationError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "representation_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "representation_error",
+					args: []Term{
 						Atom("max_integer"),
 					},
 				},
@@ -118,12 +118,12 @@ func TestRepresentationError(t *testing.T) {
 
 func TestResourceError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "resource_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "resource_error",
+					args: []Term{
 						Atom("finite_memory"),
 					},
 				},
@@ -135,12 +135,12 @@ func TestResourceError(t *testing.T) {
 
 func TestSyntaxError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "syntax_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "syntax_error",
+					args: []Term{
 						Atom("foo"),
 					},
 				},
@@ -152,9 +152,9 @@ func TestSyntaxError(t *testing.T) {
 
 func TestSystemError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
 				Atom("system_error"),
 				Atom("foo"),
 			},
@@ -164,12 +164,12 @@ func TestSystemError(t *testing.T) {
 
 func TestEvaluationError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &Compound{
-			Functor: "error",
-			Args: []Term{
-				&Compound{
-					Functor: "evaluation_error",
-					Args: []Term{
+		term: &compound{
+			functor: "error",
+			args: []Term{
+				&compound{
+					functor: "evaluation_error",
+					args: []Term{
 						Atom("int_overflow"),
 					},
 				},

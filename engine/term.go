@@ -24,12 +24,12 @@ func Contains(t, s Term, env *Env) bool {
 			return false
 		}
 		return Contains(ref, s, env)
-	case *Compound:
-		if s, ok := s.(Atom); ok && t.Functor == s {
+	case Compound:
+		if s, ok := s.(Atom); ok && t.Functor() == s {
 			return true
 		}
-		for _, a := range t.Args {
-			if Contains(a, s, env) {
+		for i := 0; i < t.Arity(); i++ {
+			if Contains(t.Arg(i), s, env) {
 				return true
 			}
 		}
@@ -42,10 +42,10 @@ func Contains(t, s Term, env *Env) bool {
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
 func Rulify(t Term, env *Env) Term {
 	t = env.Resolve(t)
-	if c, ok := t.(*Compound); ok && c.Functor == ":-" && len(c.Args) == 2 {
+	if c, ok := t.(Compound); ok && c.Functor() == ":-" && c.Arity() == 2 {
 		return t
 	}
-	return &Compound{Functor: ":-", Args: []Term{t, Atom("true")}}
+	return &compound{functor: ":-", args: []Term{t, Atom("true")}}
 }
 
 // WriteOptions specify how the Term writes itself.
@@ -114,7 +114,7 @@ func WriteTerm(w io.Writer, t Term, opts *WriteOptions, env *Env) error {
 		return writeInteger(w, t, opts)
 	case Float:
 		return writeFloat(w, t, opts)
-	case *Compound:
+	case Compound:
 		return writeCompound(w, t, opts, env)
 	default:
 		return writeAny(w, t)
@@ -227,22 +227,22 @@ func writeFloat(w io.Writer, f Float, opts *WriteOptions) error {
 	return ew.err
 }
 
-func writeCompound(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error {
+func writeCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error {
 	ok, err := writeCompoundVisit(w, c, opts)
 	if err != nil || ok {
 		return err
 	}
 
-	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 && n >= 0 {
+	if n, ok := env.Resolve(c.Arg(0)).(Integer); ok && opts.NumberVars && c.Functor() == "$VAR" && c.Arity() == 1 && n >= 0 {
 		return writeCompoundNumberVars(w, n)
 	}
 
 	if !opts.IgnoreOps {
-		if c.Functor == "." && len(c.Args) == 2 {
+		if c.Functor() == "." && c.Arity() == 2 {
 			return writeCompoundList(w, c, opts, env)
 		}
 
-		if c.Functor == "{}" && len(c.Args) == 1 {
+		if c.Functor() == "{}" && c.Arity() == 1 {
 			return writeCompoundCurlyBracketed(w, c, opts, env)
 		}
 	}
@@ -251,8 +251,8 @@ func writeCompound(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error
 		return writeCompoundFunctionalNotation(w, c, opts, env)
 	}
 
-	for _, o := range opts.ops[c.Functor] {
-		if o.specifier.arity() == len(c.Args) {
+	for _, o := range opts.ops[c.Functor()] {
+		if o.specifier.arity() == c.Arity() {
 			return writeCompoundOp(w, c, opts, env, &o)
 		}
 	}
@@ -260,7 +260,7 @@ func writeCompound(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error
 	return writeCompoundFunctionalNotation(w, c, opts, env)
 }
 
-func writeCompoundVisit(w io.Writer, c *Compound, opts *WriteOptions) (bool, error) {
+func writeCompoundVisit(w io.Writer, c Compound, opts *WriteOptions) (bool, error) {
 	if opts.visited == nil {
 		opts.visited = map[Term]struct{}{}
 	}
@@ -284,12 +284,12 @@ func writeCompoundNumberVars(w io.Writer, n Integer) error {
 	return ew.err
 }
 
-func writeCompoundList(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundList(w io.Writer, c Compound, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
 	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
 	_, _ = fmt.Fprint(&ew, "[")
-	_ = WriteTerm(&ew, c.Args[0], opts, env)
-	iter := ListIterator{List: c.Args[1], Env: env}
+	_ = WriteTerm(&ew, c.Arg(0), opts, env)
+	iter := ListIterator{List: c.Arg(1), Env: env}
 	for iter.Next() {
 		_, _ = fmt.Fprint(&ew, ",")
 		_ = WriteTerm(&ew, iter.Current(), opts, env)
@@ -297,7 +297,7 @@ func writeCompoundList(w io.Writer, c *Compound, opts *WriteOptions, env *Env) e
 	if err := iter.Err(); err != nil {
 		_, _ = fmt.Fprint(&ew, "|")
 		s := iter.Suffix()
-		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
+		if l, ok := iter.Suffix().(Compound); ok && l.Functor() == "." && l.Arity() == 2 {
 			_, _ = fmt.Fprint(&ew, "...")
 		} else {
 			_ = WriteTerm(&ew, s, opts, env)
@@ -307,15 +307,15 @@ func writeCompoundList(w io.Writer, c *Compound, opts *WriteOptions, env *Env) e
 	return ew.err
 }
 
-func writeCompoundCurlyBracketed(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundCurlyBracketed(w io.Writer, c Compound, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
 	_, _ = fmt.Fprint(&ew, "{")
-	_ = WriteTerm(&ew, c.Args[0], opts.withLeft(operator{}), env)
+	_ = WriteTerm(&ew, c.Arg(0), opts.withLeft(operator{}), env)
 	_, _ = fmt.Fprint(&ew, "}")
 	return ew.err
 }
 
-var writeCompoundOps = [...]func(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error{
+var writeCompoundOps = [...]func(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error{
 	operatorSpecifierFX:  nil,
 	operatorSpecifierFY:  nil,
 	operatorSpecifierXF:  nil,
@@ -326,7 +326,7 @@ var writeCompoundOps = [...]func(w io.Writer, c *Compound, opts *WriteOptions, e
 }
 
 func init() {
-	writeCompoundOps = [len(writeCompoundOps)]func(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error{
+	writeCompoundOps = [len(writeCompoundOps)]func(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error{
 		operatorSpecifierFX:  writeCompoundOpPrefix,
 		operatorSpecifierFY:  writeCompoundOpPrefix,
 		operatorSpecifierXF:  writeCompoundOpPostfix,
@@ -337,11 +337,11 @@ func init() {
 	}
 }
 
-func writeCompoundOp(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOp(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	return writeCompoundOps[op.specifier](w, c, opts, env, op)
 }
 
-func writeCompoundOpPrefix(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpPrefix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	_, r := op.bindingPriorities()
@@ -354,15 +354,15 @@ func writeCompoundOpPrefix(w io.Writer, c *Compound, opts *WriteOptions, env *En
 		_, _ = fmt.Fprint(&ew, "(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = writeAtom(&ew, c.Functor, opts.withLeft(operator{}).withRight(operator{}))
-	_ = WriteTerm(&ew, c.Args[0], opts.withPriority(r).withLeft(*op), env)
+	_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
+	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 	return ew.err
 }
 
-func writeCompoundOpPostfix(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpPostfix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
@@ -375,8 +375,8 @@ func writeCompoundOpPostfix(w io.Writer, c *Compound, opts *WriteOptions, env *E
 		_, _ = fmt.Fprint(&ew, "(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = WriteTerm(&ew, c.Args[0], opts.withPriority(l).withRight(*op), env)
-	_ = writeAtom(&ew, c.Functor, opts.withLeft(operator{}).withRight(operator{}))
+	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
+	_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	} else if opts.right != (operator{}) {
@@ -385,7 +385,7 @@ func writeCompoundOpPostfix(w io.Writer, c *Compound, opts *WriteOptions, env *E
 	return ew.err
 }
 
-func writeCompoundOpInfix(w io.Writer, c *Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpInfix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
@@ -400,31 +400,31 @@ func writeCompoundOpInfix(w io.Writer, c *Compound, opts *WriteOptions, env *Env
 		_, _ = fmt.Fprint(&ew, "(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = WriteTerm(&ew, c.Args[0], opts.withPriority(l).withRight(*op), env)
-	switch c.Functor {
+	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
+	switch c.Functor() {
 	case ",", "|":
-		_, _ = fmt.Fprint(&ew, c.Functor)
+		_, _ = fmt.Fprint(&ew, c.Functor())
 	default:
-		_ = writeAtom(&ew, c.Functor, opts.withLeft(operator{}).withRight(operator{}))
+		_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
 	}
-	_ = WriteTerm(&ew, c.Args[1], opts.withPriority(r).withLeft(*op), env)
+	_ = WriteTerm(&ew, c.Arg(1), opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 	return ew.err
 }
 
-func writeCompoundFunctionalNotation(w io.Writer, c *Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundFunctionalNotation(w io.Writer, c Compound, opts *WriteOptions, env *Env) error {
 	ew := errWriter{w: w}
 	opts = opts.withRight(operator{})
-	_ = writeAtom(&ew, c.Functor, opts)
+	_ = writeAtom(&ew, c.Functor(), opts)
 	_, _ = fmt.Fprint(&ew, "(")
 	opts = opts.withLeft(operator{}).withPriority(999)
-	for i, a := range c.Args {
+	for i := 0; i < c.Arity(); i++ {
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
 		}
-		_ = WriteTerm(&ew, a, opts, env)
+		_ = WriteTerm(&ew, c.Arg(i), opts, env)
 	}
 	_, _ = fmt.Fprint(&ew, ")")
 	return ew.err
@@ -453,11 +453,11 @@ func (ew *errWriter) Write(p []byte) (int, error) {
 
 func iteratedGoalTerm(t Term, env *Env) Term {
 	for {
-		c, ok := env.Resolve(t).(*Compound)
-		if !ok || c.Functor != "^" || len(c.Args) != 2 {
+		c, ok := env.Resolve(t).(Compound)
+		if !ok || c.Functor() != "^" || c.Arity() != 2 {
 			return t
 		}
-		t = c.Args[1]
+		t = c.Arg(1)
 	}
 }
 
@@ -484,14 +484,14 @@ func variant(t1, t2 Term, env *Env) bool {
 			default:
 				return false
 			}
-		case *Compound:
+		case Compound:
 			switch y := y.(type) {
-			case *Compound:
-				if x.Functor != y.Functor || len(x.Args) != len(y.Args) {
+			case Compound:
+				if x.Functor() != y.Functor() || x.Arity() != y.Arity() {
 					return false
 				}
-				for i := range x.Args {
-					rest = append(rest, [2]Term{x.Args[i], y.Args[i]})
+				for i := 0; i < x.Arity(); i++ {
+					rest = append(rest, [2]Term{x.Arg(i), y.Arg(i)})
 				}
 			default:
 				return false

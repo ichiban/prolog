@@ -14,29 +14,29 @@ func TestContains(t *testing.T) {
 	v := Variable("V")
 	env = env.Bind(v, Atom("a"))
 	assert.True(t, Contains(v, Atom("a"), env))
-	assert.True(t, Contains(&Compound{Functor: "a"}, Atom("a"), env))
-	assert.True(t, Contains(&Compound{Functor: "f", Args: []Term{Atom("a")}}, Atom("a"), env))
-	assert.False(t, Contains(&Compound{Functor: "f"}, Atom("a"), env))
+	assert.True(t, Contains(&compound{functor: "a"}, Atom("a"), env))
+	assert.True(t, Contains(&compound{functor: "f", args: []Term{Atom("a")}}, Atom("a"), env))
+	assert.False(t, Contains(&compound{functor: "f"}, Atom("a"), env))
 }
 
 func TestRulify(t *testing.T) {
-	assert.Equal(t, &Compound{
-		Functor: ":-",
-		Args:    []Term{Atom("a"), Atom("true")},
+	assert.Equal(t, &compound{
+		functor: ":-",
+		args:    []Term{Atom("a"), Atom("true")},
 	}, Rulify(Atom("a"), nil))
 	v := Variable("V")
 	env := NewEnv().
 		Bind(v, Atom("a"))
-	assert.Equal(t, &Compound{
-		Functor: ":-",
-		Args:    []Term{Atom("a"), Atom("true")},
+	assert.Equal(t, &compound{
+		functor: ":-",
+		args:    []Term{Atom("a"), Atom("true")},
 	}, Rulify(v, env))
-	assert.Equal(t, &Compound{
-		Functor: ":-",
-		Args:    []Term{Atom("a"), Atom("b")},
-	}, Rulify(&Compound{
-		Functor: ":-",
-		Args:    []Term{Atom("a"), Atom("b")},
+	assert.Equal(t, &compound{
+		functor: ":-",
+		args:    []Term{Atom("a"), Atom("b")},
+	}, Rulify(&compound{
+		functor: ":-",
+		args:    []Term{Atom("a"), Atom("b")},
 	}, nil))
 }
 
@@ -61,18 +61,18 @@ func Test_iteratedGoalTerm(t *testing.T) {
 	tests := []struct {
 		t, g Term
 	}{
-		{t: &Compound{
-			Functor: "^",
-			Args: []Term{
+		{t: &compound{
+			functor: "^",
+			args: []Term{
 				Variable("X"),
-				&Compound{
-					Functor: "foo",
-					Args:    []Term{Variable("X")},
+				&compound{
+					functor: "foo",
+					args:    []Term{Variable("X")},
 				},
 			},
-		}, g: &Compound{
-			Functor: "foo",
-			Args:    []Term{Variable("X")},
+		}, g: &compound{
+			functor: "foo",
+			args:    []Term{Variable("X")},
 		}},
 		{
 			t: Atom("^").Apply(NewVariable(), Atom("^").Apply(NewVariable(), Atom("=").Apply(Variable("X"), Integer(1)))),
@@ -91,42 +91,42 @@ func Test_variant(t *testing.T) {
 		result bool
 	}{
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B"), Variable("A")}},
-			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B"), Variable("A")}},
+			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
 			result: true,
 		},
 		{
-			t1:     &Compound{Functor: "g", Args: []Term{Variable("A"), Variable("B")}},
-			t2:     &Compound{Functor: "g", Args: []Term{NewVariable(), NewVariable()}},
+			t1:     &compound{functor: "g", args: []Term{Variable("A"), Variable("B")}},
+			t2:     &compound{functor: "g", args: []Term{NewVariable(), NewVariable()}},
 			result: true,
 		},
 		{
-			t1:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
-			t2:     &Compound{Functor: "+", Args: []Term{Variable("P"), Variable("Q")}},
+			t1:     &compound{functor: "+", args: []Term{Variable("P"), Variable("Q")}},
+			t2:     &compound{functor: "+", args: []Term{Variable("P"), Variable("Q")}},
 			result: true,
 		},
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
-			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y")}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("A")}},
+			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y")}},
 			result: false,
 		},
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("A")}},
-			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Integer(0)}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("A")}},
+			t2:     &compound{functor: "f", args: []Term{Variable("X"), Integer(0)}},
 			result: false,
 		},
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
-			t2:     &Compound{Functor: "g", Args: []Term{Variable("X"), Variable("Y")}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
+			t2:     &compound{functor: "g", args: []Term{Variable("X"), Variable("Y")}},
 			result: false,
 		},
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
-			t2:     &Compound{Functor: "f", Args: []Term{Variable("X"), Variable("Y"), Variable("Z")}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
+			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y"), Variable("Z")}},
 			result: false,
 		},
 		{
-			t1:     &Compound{Functor: "f", Args: []Term{Variable("A"), Variable("B")}},
+			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
 			t2:     Integer(0),
 			result: false,
 		},
@@ -146,7 +146,7 @@ func TestWriteTerm(t *testing.T) {
 	v := Variable("L")
 	l := ListRest(v, Atom("a"), Atom("b"))
 	w := Variable("R")
-	r := &Compound{Functor: "f", Args: []Term{w}}
+	r := &compound{functor: "f", args: []Term{w}}
 	env := NewEnv().Bind(v, l).Bind(w, r)
 
 	ops := operators{}
@@ -207,21 +207,21 @@ func TestWriteTerm(t *testing.T) {
 		{title: "list", term: List(Atom(`a`), Atom(`b`), Atom(`c`)), output: `[a,b,c]`},
 		{title: "list-ish", term: ListRest(Atom(`rest`), Atom(`a`), Atom(`b`)), output: `[a,b|rest]`},
 		{title: "circular list", term: l, output: `[a,b,a|...]`},
-		{title: "curly brackets", term: &Compound{Functor: `{}`, Args: []Term{Atom(`foo`)}}, output: `{foo}`},
-		{title: "fx", term: &Compound{Functor: `:-`, Args: []Term{&Compound{Functor: `:-`, Args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
-		{title: "fy", term: &Compound{Functor: `\+`, Args: []Term{&Compound{Functor: `-`, Args: []Term{&Compound{Functor: `\+`, Args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
-		{title: "xf", term: &Compound{Functor: `-:`, Args: []Term{&Compound{Functor: `-:`, Args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
-		{title: "yf", term: &Compound{Functor: `+/`, Args: []Term{&Compound{Functor: `--`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
-		{title: "xfx", term: &Compound{Functor: ":-", Args: []Term{Atom("foo"), &Compound{Functor: ":-", Args: []Term{Atom("bar"), Atom("baz")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
-		{title: "yfx", term: &Compound{Functor: "*", Args: []Term{Integer(2), &Compound{Functor: "+", Args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
-		{title: "xfy", term: &Compound{Functor: ",", Args: []Term{Integer(2), &Compound{Functor: "|", Args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
-		{title: "ignore_ops(false)", term: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
-		{title: "ignore_ops(true)", term: &Compound{Functor: "+", Args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
-		{title: "number_vars(false)", term: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: false, ops: ops, priority: 1201}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
-		{title: "number_vars(true)", term: &Compound{Functor: "f", Args: []Term{&Compound{Functor: "$VAR", Args: []Term{Integer(0)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(1)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(25)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(26)}}, &Compound{Functor: "$VAR", Args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: true, ops: ops, priority: 1201}, output: `f(A,B,Z,A1,B1)`},
-		{title: "prefix: spacing between operators", term: &Compound{Functor: `*`, Args: []Term{Atom("a"), &Compound{Functor: `-`, Args: []Term{Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `a* -b`},
-		{title: "postfix: spacing between unary minus and open/close", term: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `+/`, Args: []Term{Atom("a")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a+/)`},
-		{title: "infix: spacing between unary minus and open/close", term: &Compound{Functor: `-`, Args: []Term{&Compound{Functor: `*`, Args: []Term{Atom("a"), Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a*b)`},
+		{title: "curly brackets", term: &compound{functor: `{}`, args: []Term{Atom(`foo`)}}, output: `{foo}`},
+		{title: "fx", term: &compound{functor: `:-`, args: []Term{&compound{functor: `:-`, args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
+		{title: "fy", term: &compound{functor: `\+`, args: []Term{&compound{functor: `-`, args: []Term{&compound{functor: `\+`, args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
+		{title: "xf", term: &compound{functor: `-:`, args: []Term{&compound{functor: `-:`, args: []Term{Atom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
+		{title: "yf", term: &compound{functor: `+/`, args: []Term{&compound{functor: `--`, args: []Term{&compound{functor: `+/`, args: []Term{Atom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
+		{title: "xfx", term: &compound{functor: ":-", args: []Term{Atom("foo"), &compound{functor: ":-", args: []Term{Atom("bar"), Atom("baz")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
+		{title: "yfx", term: &compound{functor: "*", args: []Term{Integer(2), &compound{functor: "+", args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
+		{title: "xfy", term: &compound{functor: ",", args: []Term{Integer(2), &compound{functor: "|", args: []Term{Integer(2), Integer(2)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
+		{title: "ignore_ops(false)", term: &compound{functor: "+", args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
+		{title: "ignore_ops(true)", term: &compound{functor: "+", args: []Term{Integer(2), Integer(-2)}}, opts: WriteOptions{IgnoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
+		{title: "number_vars(false)", term: &compound{functor: "f", args: []Term{&compound{functor: "$VAR", args: []Term{Integer(0)}}, &compound{functor: "$VAR", args: []Term{Integer(1)}}, &compound{functor: "$VAR", args: []Term{Integer(25)}}, &compound{functor: "$VAR", args: []Term{Integer(26)}}, &compound{functor: "$VAR", args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: false, ops: ops, priority: 1201}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "number_vars(true)", term: &compound{functor: "f", args: []Term{&compound{functor: "$VAR", args: []Term{Integer(0)}}, &compound{functor: "$VAR", args: []Term{Integer(1)}}, &compound{functor: "$VAR", args: []Term{Integer(25)}}, &compound{functor: "$VAR", args: []Term{Integer(26)}}, &compound{functor: "$VAR", args: []Term{Integer(27)}}}}, opts: WriteOptions{Quoted: true, NumberVars: true, ops: ops, priority: 1201}, output: `f(A,B,Z,A1,B1)`},
+		{title: "prefix: spacing between operators", term: &compound{functor: `*`, args: []Term{Atom("a"), &compound{functor: `-`, args: []Term{Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `a* -b`},
+		{title: "postfix: spacing between unary minus and open/close", term: &compound{functor: `-`, args: []Term{&compound{functor: `+/`, args: []Term{Atom("a")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a+/)`},
+		{title: "infix: spacing between unary minus and open/close", term: &compound{functor: `-`, args: []Term{&compound{functor: `*`, args: []Term{Atom("a"), Atom("b")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a*b)`},
 		{title: "recursive", term: r, output: `f(...)`},
 
 		{title: "stream", term: &Stream{}, output: `<*engine.Stream Value>`},

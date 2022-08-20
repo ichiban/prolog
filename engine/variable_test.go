@@ -11,34 +11,34 @@ func Test_variableSet(t *testing.T) {
 		term Term
 		s    variableSet
 	}{
-		{term: &Compound{
-			Functor: "f",
-			Args:    []Term{Variable("X"), Variable("Y")},
+		{term: &compound{
+			functor: "f",
+			args:    []Term{Variable("X"), Variable("Y")},
 		}, s: map[Variable]int{
 			"X": 1,
 			"Y": 1,
 		}},
-		{term: &Compound{
-			Functor: "f",
-			Args:    []Term{Variable("Y"), Variable("X")},
+		{term: &compound{
+			functor: "f",
+			args:    []Term{Variable("Y"), Variable("X")},
 		}, s: map[Variable]int{
 			"X": 1,
 			"Y": 1,
 		}},
-		{term: &Compound{
-			Functor: "+",
-			Args:    []Term{Variable("X"), Variable("Y")},
+		{term: &compound{
+			functor: "+",
+			args:    []Term{Variable("X"), Variable("Y")},
 		}, s: map[Variable]int{
 			"X": 1,
 			"Y": 1,
 		}},
-		{term: &Compound{
-			Functor: "-",
-			Args: []Term{
+		{term: &compound{
+			functor: "-",
+			args: []Term{
 				Variable("Y"),
-				&Compound{
-					Functor: "-",
-					Args:    []Term{Variable("X"), Variable("X")},
+				&compound{
+					functor: "-",
+					args:    []Term{Variable("X"), Variable("X")},
 				},
 			},
 		}, s: map[Variable]int{
@@ -57,17 +57,17 @@ func Test_existentialVariableSet(t *testing.T) {
 		term Term
 		ev   variableSet
 	}{
-		{term: &Compound{
-			Functor: "^",
-			Args: []Term{
+		{term: &compound{
+			functor: "^",
+			args: []Term{
 				Variable("X"),
-				&Compound{
-					Functor: "^",
-					Args: []Term{
+				&compound{
+					functor: "^",
+					args: []Term{
 						Variable("Y"),
-						&Compound{
-							Functor: "f",
-							Args:    []Term{Variable("X"), Variable("Y"), Variable("Z")},
+						&compound{
+							functor: "f",
+							args:    []Term{Variable("X"), Variable("Y"), Variable("Z")},
 						},
 					},
 				},
@@ -76,28 +76,28 @@ func Test_existentialVariableSet(t *testing.T) {
 			"X": 1,
 			"Y": 1,
 		}},
-		{term: &Compound{
-			Functor: "^",
-			Args: []Term{
-				&Compound{
-					Functor: ",",
-					Args:    []Term{Variable("X"), Variable("Y")},
+		{term: &compound{
+			functor: "^",
+			args: []Term{
+				&compound{
+					functor: ",",
+					args:    []Term{Variable("X"), Variable("Y")},
 				},
-				&Compound{
-					Functor: "f",
-					Args:    []Term{Variable("Z"), Variable("Y"), Variable("X")},
+				&compound{
+					functor: "f",
+					args:    []Term{Variable("Z"), Variable("Y"), Variable("X")},
 				},
 			},
 		}, ev: variableSet{
 			"X": 1,
 			"Y": 1,
 		}},
-		{term: &Compound{
-			Functor: "^",
-			Args: []Term{
-				&Compound{
-					Functor: "+",
-					Args:    []Term{Variable("X"), Variable("Y")},
+		{term: &compound{
+			functor: "^",
+			args: []Term{
+				&compound{
+					functor: "+",
+					args:    []Term{Variable("X"), Variable("Y")},
 				},
 				Integer(3),
 			},
@@ -117,37 +117,37 @@ func Test_freeVariablesSet(t *testing.T) {
 		t, v Term
 		fv   variableSet
 	}{
-		{t: &Compound{
-			Functor: "+",
-			Args: []Term{
+		{t: &compound{
+			functor: "+",
+			args: []Term{
 				Variable("X"),
-				&Compound{
-					Functor: "+",
-					Args:    []Term{Variable("Y"), Variable("Z")},
+				&compound{
+					functor: "+",
+					args:    []Term{Variable("Y"), Variable("Z")},
 				},
 			},
-		}, v: &Compound{
-			Functor: "f",
-			Args:    []Term{Variable("Z")},
+		}, v: &compound{
+			functor: "f",
+			args:    []Term{Variable("Z")},
 		}, fv: variableSet{
 			"X": 1,
 			"Y": 1,
 		}},
-		{t: &Compound{
-			Functor: "^",
-			Args: []Term{
+		{t: &compound{
+			functor: "^",
+			args: []Term{
 				Variable("Z"),
-				&Compound{
-					Functor: "+",
-					Args: []Term{
+				&compound{
+					functor: "+",
+					args: []Term{
 						Variable("A"),
-						&Compound{
-							Functor: "+",
-							Args: []Term{
+						&compound{
+							functor: "+",
+							args: []Term{
 								Variable("X"),
-								&Compound{
-									Functor: "+",
-									Args: []Term{
+								&compound{
+									functor: "+",
+									args: []Term{
 										Variable("Y"),
 										Variable("Z"),
 									},

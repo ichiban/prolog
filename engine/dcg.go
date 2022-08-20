@@ -21,22 +21,22 @@ func (state *State) Phrase(grBody, s0, s Term, k func(*Env) *Promise, env *Env) 
 var errDCGNotApplicable = errors.New("not applicable")
 
 func expandDCG(term Term, env *Env) (Term, error) {
-	rule, ok := env.Resolve(term).(*Compound)
-	if !ok || rule.Functor != "-->" || len(rule.Args) != 2 {
+	rule, ok := env.Resolve(term).(Compound)
+	if !ok || rule.Functor() != "-->" || rule.Arity() != 2 {
 		return nil, errDCGNotApplicable
 	}
 
 	s0, s1, s := NewVariable(), NewVariable(), NewVariable()
-	if c, ok := env.Resolve(rule.Args[0]).(*Compound); ok && c.Functor == "," && len(c.Args) == 2 {
-		head, err := dcgNonTerminal(c.Args[0], s0, s, env)
+	if c, ok := env.Resolve(rule.Arg(0)).(Compound); ok && c.Functor() == "," && c.Arity() == 2 {
+		head, err := dcgNonTerminal(c.Arg(0), s0, s, env)
 		if err != nil {
 			return nil, err
 		}
-		goal1, err := dcgBody(rule.Args[1], s0, s1, env)
+		goal1, err := dcgBody(rule.Arg(1), s0, s1, env)
 		if err != nil {
 			return nil, err
 		}
-		goal2, err := dcgTerminals(c.Args[1], s, s1, env)
+		goal2, err := dcgTerminals(c.Arg(1), s, s1, env)
 		if err != nil {
 			return nil, err
 		}
@@ -44,11 +44,11 @@ func expandDCG(term Term, env *Env) (Term, error) {
 		return Atom(":-").Apply(head, body), nil
 	}
 
-	head, err := dcgNonTerminal(rule.Args[0], s0, s, env)
+	head, err := dcgNonTerminal(rule.Arg(0), s0, s, env)
 	if err != nil {
 		return nil, err
 	}
-	body, err := dcgBody(rule.Args[1], s0, s, env)
+	body, err := dcgBody(rule.Arg(1), s0, s, env)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func init() {
 		},
 		{Name: ";", Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			body := dcgBody
-			if t, ok := env.Resolve(args[0]).(*Compound); ok && t.Functor == "->" && len(t.Args) == 2 {
+			if t, ok := env.Resolve(args[0]).(Compound); ok && t.Functor() == "->" && t.Arity() == 2 {
 				body = dcgCBody
 			}
 			either, err := body(args[0], list, rest, env)

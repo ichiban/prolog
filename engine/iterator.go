@@ -48,13 +48,13 @@ func (i *ListIterator) Next() bool {
 			i.err = TypeError(ValidTypeList, i.List, i.Env)
 		}
 		return false
-	case *Compound:
-		if l.Functor != "." || len(l.Args) != 2 {
+	case Compound:
+		if l.Functor() != "." || l.Arity() != 2 {
 			i.err = TypeError(ValidTypeList, i.List, i.Env)
 			return false
 		}
 
-		i.current, i.hare = l.Args[0], i.Env.Resolve(l.Args[1])
+		i.current, i.hare = l.Arg(0), i.Env.Resolve(l.Arg(1))
 		i.lam++
 		return true
 	default:
@@ -94,14 +94,14 @@ func (i *SeqIterator) Next() bool {
 	switch s := i.Env.Resolve(i.Seq).(type) {
 	case nil:
 		return false
-	case *Compound:
-		if s.Functor != "," || len(s.Args) != 2 {
+	case Compound:
+		if s.Functor() != "," || s.Arity() != 2 {
 			i.current = s
 			i.Seq = nil
 			return true
 		}
-		i.Seq = s.Args[1]
-		i.current = s.Args[0]
+		i.Seq = s.Arg(1)
+		i.current = s.Arg(0)
 		return true
 	default:
 		i.current = s
@@ -128,22 +128,22 @@ func (i *AltIterator) Next() bool {
 	switch a := i.Env.Resolve(i.Alt).(type) {
 	case nil:
 		return false
-	case *Compound:
-		if a.Functor != ";" || len(a.Args) != 2 {
+	case Compound:
+		if a.Functor() != ";" || a.Arity() != 2 {
 			i.current = a
 			i.Alt = nil
 			return true
 		}
 
 		// if-then-else construct
-		if c, ok := i.Env.Resolve(a.Args[0]).(*Compound); ok && c.Functor == "->" && len(c.Args) == 2 {
+		if c, ok := i.Env.Resolve(a.Arg(0)).(Compound); ok && c.Functor() == "->" && c.Arity() == 2 {
 			i.current = a
 			i.Alt = nil
 			return true
 		}
 
-		i.Alt = a.Args[1]
-		i.current = a.Args[0]
+		i.Alt = a.Arg(1)
+		i.current = a.Arg(0)
 		return true
 	default:
 		i.current = a
@@ -171,7 +171,7 @@ type AnyIterator struct {
 // Next proceeds to the next element and returns true if there's such an element.
 func (i *AnyIterator) Next() bool {
 	if i.backend == nil {
-		if a, ok := i.Env.Resolve(i.Any).(*Compound); ok && a.Functor == "." && len(a.Args) == 2 {
+		if a, ok := i.Env.Resolve(i.Any).(Compound); ok && a.Functor() == "." && a.Arity() == 2 {
 			i.backend = &ListIterator{List: i.Any, Env: i.Env}
 		} else {
 			i.backend = &SeqIterator{Seq: i.Any, Env: i.Env}

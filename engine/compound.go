@@ -4,17 +4,35 @@ import (
 	"sort"
 )
 
-// Compound is a prolog compound.
-type Compound struct {
-	Functor Atom
-	Args    []Term
+// Compound is a Prolog compound.
+type Compound interface {
+	Functor() Atom
+	Arity() int
+	Arg(n int) Term
+}
+
+type compound struct {
+	functor Atom
+	args    []Term
+}
+
+func (c *compound) Functor() Atom {
+	return c.functor
+}
+
+func (c *compound) Arity() int {
+	return len(c.args)
+}
+
+func (c *compound) Arg(n int) Term {
+	return c.args[n]
 }
 
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
-	return &Compound{
-		Functor: ".",
-		Args:    []Term{car, cdr},
+	return &compound{
+		functor: ".",
+		args:    []Term{car, cdr},
 	}
 }
 
@@ -62,9 +80,9 @@ func Slice(list Term, env *Env) ([]Term, error) {
 func Seq(sep Atom, ts ...Term) Term {
 	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
 	for i := len(ts) - 1; i >= 0; i-- {
-		s = &Compound{
-			Functor: sep,
-			Args:    []Term{ts[i], s},
+		s = &compound{
+			functor: sep,
+			args:    []Term{ts[i], s},
 		}
 	}
 	return s
@@ -72,8 +90,8 @@ func Seq(sep Atom, ts ...Term) Term {
 
 // Pair returns a pair of k and v.
 func Pair(k, v Term) Term {
-	return &Compound{
-		Functor: "-",
-		Args:    []Term{k, v},
+	return &compound{
+		functor: "-",
+		args:    []Term{k, v},
 	}
 }
