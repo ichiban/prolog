@@ -113,8 +113,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `a, b.`, term: &compound{functor: ",", args: []Term{Atom("a"), Atom("b")}}},
 		{input: `+ * + .`, err: unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "+"}}},
 
-		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: List(Atom("a"), Atom("b"), Atom("c"))},
-		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: List(Integer(97), Integer(98), Integer(99))},
+		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: charList("abc")},
+		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: codeList("abc")},
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("abc")},
 		{input: `"don""t panic".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("don\"t panic")},
 		{input: "\"this is \\\na double-quoted string\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("this is a double-quoted string")},

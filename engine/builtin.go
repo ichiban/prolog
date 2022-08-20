@@ -2264,12 +2264,6 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 		return Unify(atom, Atom(sb.String()), k, env)
 	case Atom:
-		rs := []rune(a)
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Atom(r)
-		}
-
 		iter := ListIterator{List: chars, Env: env, AllowPartial: true}
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
@@ -2287,7 +2281,10 @@ func AtomChars(atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		return Unify(chars, List(cs...), k, env)
+		if a == "" {
+			return Unify(chars, Atom("[]"), k, env)
+		}
+		return Unify(chars, charList(a), k, env)
 	default:
 		return Error(TypeError(ValidTypeAtom, a, env))
 	}
@@ -2316,16 +2313,8 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(atom, Atom(sb.String()), k, env)
-		})
+		return Unify(atom, Atom(sb.String()), k, env)
 	case Atom:
-		rs := []rune(a)
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Integer(r)
-		}
-
 		iter := ListIterator{List: codes, Env: env, AllowPartial: true}
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
@@ -2343,9 +2332,10 @@ func AtomCodes(atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		return Delay(func(context.Context) *Promise {
-			return Unify(codes, List(cs...), k, env)
-		})
+		if a == "" {
+			return Unify(codes, Atom("[]"), k, env)
+		}
+		return Unify(codes, codeList(a), k, env)
 	default:
 		return Error(TypeError(ValidTypeAtom, atom, env))
 	}

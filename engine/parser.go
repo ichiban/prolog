@@ -519,17 +519,17 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	case TokenDoubleQuotedList:
 		switch p.doubleQuotes {
 		case doubleQuotesChars:
-			var chars []Term
-			for _, r := range unDoubleQuote(t.Val) {
-				chars = append(chars, Atom(r))
+			v := unDoubleQuote(t.Val)
+			if v == "" {
+				return Atom("[]"), nil
 			}
-			return List(chars...), nil
+			return charList(v), nil
 		case doubleQuotesCodes:
-			var codes []Term
-			for _, r := range unDoubleQuote(t.Val) {
-				codes = append(codes, Integer(r))
+			v := unDoubleQuote(t.Val)
+			if v == "" {
+				return Atom("[]"), nil
 			}
-			return List(codes...), nil
+			return codeList(v), nil
 		default:
 			p.backup()
 			break

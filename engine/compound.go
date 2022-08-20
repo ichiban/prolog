@@ -2,6 +2,7 @@ package engine
 
 import (
 	"sort"
+	"unicode/utf8"
 )
 
 // Compound is a Prolog compound.
@@ -174,5 +175,57 @@ func Pair(k, v Term) Term {
 	return &compound{
 		functor: "-",
 		args:    []Term{k, v},
+	}
+}
+
+type charList string
+
+func (c charList) Functor() Atom {
+	return "."
+}
+
+func (c charList) Arity() int {
+	return 2
+}
+
+func (c charList) Arg(n int) Term {
+	switch n {
+	case 0:
+		r, _ := utf8.DecodeRuneInString(string(c))
+		return Atom(r)
+	case 1:
+		_, i := utf8.DecodeRuneInString(string(c))
+		if i == len(c) {
+			return Atom("[]")
+		}
+		return c[i:]
+	default:
+		return nil
+	}
+}
+
+type codeList string
+
+func (c codeList) Functor() Atom {
+	return "."
+}
+
+func (c codeList) Arity() int {
+	return 2
+}
+
+func (c codeList) Arg(n int) Term {
+	switch n {
+	case 0:
+		r, _ := utf8.DecodeRuneInString(string(c))
+		return Integer(r)
+	case 1:
+		_, i := utf8.DecodeRuneInString(string(c))
+		if i == len(c) {
+			return Atom("[]")
+		}
+		return c[i:]
+	default:
+		return nil
 	}
 }
