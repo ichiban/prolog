@@ -82,13 +82,53 @@ func List(ts ...Term) Term {
 	return list(ts)
 }
 
+type partialList struct {
+	prefix list
+	suffix Term
+}
+
+func (p partialList) Functor() Atom {
+	return "."
+}
+
+func (p partialList) Arity() int {
+	return 2
+}
+
+func (p partialList) Arg(n int) Term {
+	switch n {
+	case 0:
+		return p.prefix.Arg(0)
+	case 1:
+		l := p.prefix.Arg(1)
+		if l == Atom("[]") {
+			return p.suffix
+		}
+		return partialList{prefix: l.(list), suffix: p.suffix}
+	default:
+		return nil
+	}
+}
+
+func (p partialList) TermIdentify() interface{} { // Slices are not comparable.
+	type partialListID struct {
+		prefixID, suffixID termID
+	}
+	return partialListID{
+		prefixID: identifier(p.prefix),
+		suffixID: identifier(p.suffix),
+	}
+}
+
 // ListRest returns a list of ts followed by rest.
 func ListRest(rest Term, ts ...Term) Term {
-	l := rest
-	for i := len(ts) - 1; i >= 0; i-- {
-		l = Cons(ts[i], l)
+	if len(ts) == 0 {
+		return rest
 	}
-	return l
+	return partialList{
+		prefix: ts,
+		suffix: rest,
+	}
 }
 
 // Set returns a list of ts which elements are unique.
