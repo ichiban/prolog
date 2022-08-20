@@ -36,9 +36,50 @@ func Cons(car, cdr Term) Term {
 	}
 }
 
+type list []Term
+
+func (l list) Functor() Atom {
+	return "."
+}
+
+func (l list) Arity() int {
+	return 2
+}
+
+func (l list) Arg(n int) Term {
+	switch n {
+	case 0:
+		return l[0]
+	case 1:
+		if len(l) == 1 {
+			return Atom("[]")
+		}
+		return l[1:]
+	default:
+		return nil
+	}
+}
+
+func (l list) TermIdentify() interface{} { // Slices are not comparable.
+	type listID struct {
+		len  int
+		head *Term
+	}
+	id := listID{
+		len: len(l),
+	}
+	if len(l) > 0 {
+		id.head = &l[0]
+	}
+	return id
+}
+
 // List returns a list of ts.
 func List(ts ...Term) Term {
-	return ListRest(Atom("[]"), ts...)
+	if len(ts) == 0 {
+		return Atom("[]")
+	}
+	return list(ts)
 }
 
 // ListRest returns a list of ts followed by rest.

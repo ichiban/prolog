@@ -138,7 +138,7 @@ func TestSolutions_Scan(t *testing.T) {
 			assert.Equal(t, engine.Integer(32), m["Int32"])
 			assert.Equal(t, engine.Integer(64), m["Int64"])
 			assert.Equal(t, engine.Atom("string"), m["String"])
-			assert.Equal(t, engine.List(engine.Atom("a"), engine.Atom("b"), engine.Atom("c")), m["Slice"])
+			assert.Equal(t, engine.Cons(engine.Atom("a"), engine.Cons(engine.Atom("b"), engine.Cons(engine.Atom("c"), engine.Atom("[]")))), m["Slice"])
 			assert.Equal(t, engine.Atom("foo"), m["Foo"])
 			assert.Equal(t, engine.Atom("bar"), m["Bar"])
 		})

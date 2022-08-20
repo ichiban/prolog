@@ -57,7 +57,7 @@ type WriteOptions struct {
 
 	ops         operators
 	priority    Integer
-	visited     map[Term]struct{}
+	visited     map[termID]struct{}
 	prefixMinus bool
 	left, right operator
 }
@@ -68,7 +68,7 @@ func (o WriteOptions) withQuoted(quoted bool) *WriteOptions {
 }
 
 func (o WriteOptions) withFreshVisited() *WriteOptions {
-	visited := make(map[Term]struct{}, len(o.visited))
+	visited := make(map[termID]struct{}, len(o.visited))
 	for k, v := range o.visited {
 		visited[k] = v
 	}
@@ -262,14 +262,14 @@ func writeCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error 
 
 func writeCompoundVisit(w io.Writer, c Compound, opts *WriteOptions) (bool, error) {
 	if opts.visited == nil {
-		opts.visited = map[Term]struct{}{}
+		opts.visited = map[termID]struct{}{}
 	}
 
-	if _, ok := opts.visited[c]; ok {
+	if _, ok := opts.visited[identifier(c)]; ok {
 		_, err := fmt.Fprint(w, "...")
 		return true, err
 	}
-	opts.visited[c] = struct{}{}
+	opts.visited[identifier(c)] = struct{}{}
 	return false, nil
 }
 
@@ -503,4 +503,20 @@ func variant(t1, t2 Term, env *Env) bool {
 		}
 	}
 	return true
+}
+
+// TermIdentifier lets a Term which is not comparable per se return its identifier for comparison.
+type TermIdentifier interface {
+	TermIdentify() interface{}
+}
+
+type termID interface{}
+
+func identifier(t Term) termID {
+	switch t := t.(type) {
+	case TermIdentifier:
+		return t.TermIdentify()
+	default:
+		return t // Assuming it's comparable.
+	}
 }

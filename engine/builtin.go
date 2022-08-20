@@ -485,12 +485,12 @@ func CopyTerm(in, out Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(renamedCopy(in, nil, env), out, k, env)
 }
 
-func renamedCopy(t Term, copied map[Term]Term, env *Env) Term {
+func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 	if copied == nil {
-		copied = map[Term]Term{}
+		copied = map[termID]Term{}
 	}
 	t = env.Resolve(t)
-	if c, ok := copied[t]; ok {
+	if c, ok := copied[identifier(t)]; ok {
 		return c
 	}
 	switch t := t.(type) {
@@ -503,7 +503,7 @@ func renamedCopy(t Term, copied map[Term]Term, env *Env) Term {
 			functor: t.Functor(),
 			args:    make([]Term, t.Arity()),
 		}
-		copied[t] = &c
+		copied[identifier(t)] = &c
 		for i := 0; i < t.Arity(); i++ {
 			c.args[i] = renamedCopy(t.Arg(i), copied, env)
 		}
