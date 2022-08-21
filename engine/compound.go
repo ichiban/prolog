@@ -39,29 +39,7 @@ func Cons(car, cdr Term) Term {
 
 type list []Term
 
-func (l list) Functor() Atom {
-	return "."
-}
-
-func (l list) Arity() int {
-	return 2
-}
-
-func (l list) Arg(n int) Term {
-	switch n {
-	case 0:
-		return l[0]
-	case 1:
-		if len(l) == 1 {
-			return Atom("[]")
-		}
-		return l[1:]
-	default:
-		return nil
-	}
-}
-
-func (l list) TermIdentify() interface{} { // Slices are not comparable.
+func (l list) ID() TermID { // Slices are not comparable.
 	type listID struct {
 		len  int
 		head *Term
@@ -75,6 +53,29 @@ func (l list) TermIdentify() interface{} { // Slices are not comparable.
 	return id
 }
 
+func (l list) Functor() Atom {
+	return "."
+}
+
+func (l list) Arity() int {
+	return 2
+}
+
+func (l list) Arg(n int) Term {
+	var t Term
+	switch n {
+	case 0:
+		t = l[0]
+	case 1:
+		if len(l) == 1 {
+			t = Atom("[]")
+			break
+		}
+		t = l[1:]
+	}
+	return t
+}
+
 // List returns a list of ts.
 func List(ts ...Term) Term {
 	if len(ts) == 0 {
@@ -83,42 +84,31 @@ func List(ts ...Term) Term {
 	return list(ts)
 }
 
-type partialList struct {
-	prefix list
+type partial struct {
+	Compound
 	suffix Term
 }
 
-func (p partialList) Functor() Atom {
-	return "."
+func (p partial) ID() TermID { // The underlying compound might not be comparable.
+	type partialID struct {
+		baseID, suffixID TermID
+	}
+	return partialID{
+		baseID:   ID(p.Compound),
+		suffixID: ID(p.suffix),
+	}
 }
 
-func (p partialList) Arity() int {
-	return 2
-}
-
-func (p partialList) Arg(n int) Term {
-	switch n {
-	case 0:
-		return p.prefix.Arg(0)
-	case 1:
-		l := p.prefix.Arg(1)
-		if l == Atom("[]") {
-			return p.suffix
+func (p partial) Arg(n int) Term {
+	t := p.Compound.Arg(n)
+	if c := p.Compound; c.Functor() == "." && c.Arity() == 2 && n == 1 {
+		if t == Atom("[]") {
+			t = p.suffix
+		} else {
+			t = partial{Compound: t.(Compound), suffix: p.suffix}
 		}
-		return partialList{prefix: l.(list), suffix: p.suffix}
-	default:
-		return nil
 	}
-}
-
-func (p partialList) TermIdentify() interface{} { // Slices are not comparable.
-	type partialListID struct {
-		prefixID, suffixID termID
-	}
-	return partialListID{
-		prefixID: identifier(p.prefix),
-		suffixID: identifier(p.suffix),
-	}
+	return t
 }
 
 // ListRest returns a list of ts followed by rest.
@@ -126,9 +116,9 @@ func ListRest(rest Term, ts ...Term) Term {
 	if len(ts) == 0 {
 		return rest
 	}
-	return partialList{
-		prefix: ts,
-		suffix: rest,
+	return partial{
+		Compound: list(ts),
+		suffix:   rest,
 	}
 }
 
@@ -189,19 +179,28 @@ func (c charList) Arity() int {
 }
 
 func (c charList) Arg(n int) Term {
+	var t Term
 	switch n {
 	case 0:
 		r, _ := utf8.DecodeRuneInString(string(c))
-		return Atom(r)
+		t = Atom(r)
 	case 1:
 		_, i := utf8.DecodeRuneInString(string(c))
 		if i == len(c) {
-			return Atom("[]")
+			t = Atom("[]")
+		} else {
+			t = c[i:]
 		}
-		return c[i:]
-	default:
-		return nil
 	}
+	return t
+}
+
+// CharList returns a character list.
+func CharList(s string) Term {
+	if s == "" {
+		return Atom("[]")
+	}
+	return charList(s)
 }
 
 type codeList string
@@ -215,17 +214,26 @@ func (c codeList) Arity() int {
 }
 
 func (c codeList) Arg(n int) Term {
+	var t Term
 	switch n {
 	case 0:
 		r, _ := utf8.DecodeRuneInString(string(c))
-		return Integer(r)
+		t = Integer(r)
 	case 1:
 		_, i := utf8.DecodeRuneInString(string(c))
 		if i == len(c) {
-			return Atom("[]")
+			t = Atom("[]")
+		} else {
+			t = c[i:]
 		}
-		return c[i:]
-	default:
-		return nil
 	}
+	return t
+}
+
+// CodeList returns a character code list.
+func CodeList(s string) Term {
+	if s == "" {
+		return Atom("[]")
+	}
+	return codeList(s)
 }

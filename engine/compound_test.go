@@ -31,7 +31,7 @@ func TestListRest(t *testing.T) {
 		list  Term
 	}{
 		{title: "empty", rest: Variable("X"), elems: nil, list: Variable("X")},
-		{title: "non-empty", rest: Variable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partialList{prefix: list{Atom("a"), Atom("b")}, suffix: Variable("X")}},
+		{title: "non-empty", rest: Variable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partial{Compound: list{Atom("a"), Atom("b")}, suffix: Variable("X")}},
 	}
 
 	for _, tt := range tests {
@@ -71,4 +71,14 @@ func TestSeq(t *testing.T) {
 			},
 		},
 	}, Seq(",", Atom("a"), Atom("b"), Atom("c")))
+}
+
+func TestCharList(t *testing.T) {
+	assert.Equal(t, Atom("[]"), CharList(""))
+	assert.Equal(t, charList("abc"), CharList("abc"))
+}
+
+func TestCodeList(t *testing.T) {
+	assert.Equal(t, Atom("[]"), CodeList(""))
+	assert.Equal(t, codeList("abc"), CodeList("abc"))
 }

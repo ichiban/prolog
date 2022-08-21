@@ -185,20 +185,20 @@ func (e *Env) Simplify(t Term) Term {
 	return simplify(t, nil, e)
 }
 
-func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
+func simplify(t Term, simplified map[TermID]Compound, env *Env) Term {
 	if simplified == nil {
-		simplified = map[termID]Compound{}
+		simplified = map[TermID]Compound{}
 	}
 	switch t := env.Resolve(t).(type) {
 	case Compound:
-		if c, ok := simplified[identifier(t)]; ok {
+		if c, ok := simplified[ID(t)]; ok {
 			return c
 		}
 		c := compound{
 			functor: t.Functor(),
 			args:    make([]Term, t.Arity()),
 		}
-		simplified[identifier(t)] = &c
+		simplified[ID(t)] = &c
 		for i := 0; i < t.Arity(); i++ {
 			c.args[i] = simplify(t.Arg(i), simplified, env)
 		}

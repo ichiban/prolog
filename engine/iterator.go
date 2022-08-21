@@ -26,7 +26,7 @@ func (i *ListIterator) Next() bool {
 		i.lam = 1
 	}
 
-	if identifier(i.tortoise) == identifier(i.hare) { // Detected a cycle.
+	if ID(i.tortoise) == ID(i.hare) { // Detected a cycle.
 		i.err = TypeError(ValidTypeList, i.List, i.Env)
 		return false
 	}
