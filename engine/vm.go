@@ -26,6 +26,8 @@ const (
 	opPop
 
 	opCut
+	opList
+	opPartial
 
 	_opLen
 )
@@ -191,9 +193,13 @@ type registers struct {
 	cont         func(*Env) *Promise
 	args, astack Term
 
-	pi        []ProcedureIndicator
 	env       *Env
 	cutParent *Promise
+}
+
+func (r *registers) updateEnv(e *Env) *Promise {
+	r.env = e
+	return Bool(true)
 }
 
 func (vm *VM) exec(r registers) *Promise {
@@ -206,11 +212,12 @@ func (vm *VM) exec(r registers) *Promise {
 		opCall:    vm.execCall,
 		opExit:    vm.execExit,
 		opCut:     vm.execCut,
+		opList:    vm.execList,
+		opPartial: vm.execPartial,
 	}
 	for len(r.pc) != 0 {
 		op := jumpTable[r.pc[0].opcode]
-		p := op(&r)
-		if p != nil {
+		if p := op(&r); p != nil {
 			return p
 		}
 	}
@@ -220,12 +227,8 @@ func (vm *VM) exec(r registers) *Promise {
 func (*VM) execConst(r *registers) *Promise {
 	x := r.xr[r.pc[0].operand]
 	arest := NewVariable()
-	cons := compound{
-		functor: ".",
-		args:    []Term{x, arest},
-	}
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, &cons, false)
+	r.env, ok = r.env.Unify(r.args, Cons(x, arest), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -237,12 +240,8 @@ func (*VM) execConst(r *registers) *Promise {
 func (*VM) execVar(r *registers) *Promise {
 	v := r.vars[r.pc[0].operand]
 	arest := NewVariable()
-	cons := compound{
-		functor: ".",
-		args:    []Term{v, arest},
-	}
 	var ok bool
-	r.env, ok = r.env.Unify(&cons, r.args, false)
+	r.env, ok = r.env.Unify(Cons(v, arest), r.args, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -252,21 +251,14 @@ func (*VM) execVar(r *registers) *Promise {
 }
 
 func (*VM) execFunctor(r *registers) *Promise {
-	pi := r.pi[r.pc[0].operand]
+	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
-	cons1 := compound{
-		functor: ".",
-		args:    []Term{arg, arest},
-	}
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, &cons1, false)
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Functor(arg, pi.Name, pi.Arity, func(e *Env) *Promise {
-		r.env = e
-		return Bool(true)
-	}, r.env).Force(context.Background())
+	ok, err := Functor(arg, pi.Name, pi.Arity, r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -275,14 +267,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	cons2 := compound{
-		functor: ".",
-		args:    []Term{pi.Name, r.args},
-	}
-	ok, err = Univ(arg, &cons2, func(e *Env) *Promise {
-		r.env = e
-		return Bool(true)
-	}, r.env).Force(context.Background())
+	ok, err = Univ(arg, Cons(pi.Name, r.args), r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -301,11 +286,7 @@ func (*VM) execPop(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	a, arest := NewVariable(), NewVariable()
-	cons := compound{
-		functor: ".",
-		args:    []Term{a, arest},
-	}
-	r.env, ok = r.env.Unify(r.astack, &cons, false)
+	r.env, ok = r.env.Unify(r.astack, Cons(a, arest), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -332,7 +313,7 @@ func (*VM) execEnter(r *registers) *Promise {
 }
 
 func (vm *VM) execCall(r *registers) *Promise {
-	pi := r.pi[r.pc[0].operand]
+	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
 	var ok bool
 	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
@@ -354,7 +335,6 @@ func (vm *VM) execCall(r *registers) *Promise {
 				cont:      r.cont,
 				args:      v,
 				astack:    v,
-				pi:        r.pi,
 				env:       env,
 				cutParent: r.cutParent,
 			})
@@ -369,7 +349,6 @@ func (*VM) execExit(r *registers) *Promise {
 func (vm *VM) execCut(r *registers) *Promise {
 	r.pc = r.pc[1:]
 	return Cut(r.cutParent, func(context.Context) *Promise {
-		env := r.env
 		return vm.exec(registers{
 			pc:        r.pc,
 			xr:        r.xr,
@@ -377,11 +356,60 @@ func (vm *VM) execCut(r *registers) *Promise {
 			cont:      r.cont,
 			args:      r.args,
 			astack:    r.astack,
-			pi:        r.pi,
-			env:       env,
+			env:       r.env,
 			cutParent: r.cutParent,
 		})
 	})
+}
+
+func (vm *VM) execList(r *registers) *Promise {
+	l := r.xr[r.pc[0].operand].(Integer)
+	arg, arest := NewVariable(), NewVariable()
+	var ok bool
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	if !ok {
+		return Bool(false)
+	}
+	ok, err := Length(arg, l, r.updateEnv, r.env).Force(context.Background())
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Bool(ok)
+	}
+	r.pc = r.pc[1:]
+	r.args = arg
+	r.astack = Cons(arest, r.astack)
+	return nil
+}
+
+func (vm *VM) execPartial(r *registers) *Promise {
+	l := r.xr[r.pc[0].operand].(Integer)
+	arg, arest := NewVariable(), NewVariable()
+	var ok bool
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	if !ok {
+		return Bool(false)
+	}
+	prefix, tail := NewVariable(), NewVariable()
+	ok, err := Length(prefix, l, r.updateEnv, r.env).Force(context.Background())
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Bool(false)
+	}
+	ok, err = Partial(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Bool(false)
+	}
+	r.pc = r.pc[1:]
+	r.args = Cons(tail, prefix)
+	r.astack = Cons(arest, r.astack)
+	return nil
 }
 
 type predicate0 func(func(*Env) *Promise, *Env) *Promise

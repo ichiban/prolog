@@ -32,6 +32,8 @@ We use the same VM opcodes you can find in the original paper:
 Also, we've added some extra opcodes:
 
 - `opCut` to perform cut operation
+- `opList` to handle lists
+- `opPartial` to handle partial lists
 
 ### Registers
 
@@ -46,6 +48,5 @@ We use the same registers you can find in the original paper:
 
 Also, we've added some extra registers:
 
-- `pi` to store procedure indicators instead of `xr`
 - `env` to keep track of variable bindings (environment)
 - `cutParent` to keep track of cut parent

@@ -86,16 +86,16 @@ func List(ts ...Term) Term {
 
 type partial struct {
 	Compound
-	suffix Term
+	tail Term
 }
 
 func (p partial) ID() TermID { // The underlying compound might not be comparable.
 	type partialID struct {
-		baseID, suffixID TermID
+		prefixID, tailID TermID
 	}
 	return partialID{
-		baseID:   ID(p.Compound),
-		suffixID: ID(p.suffix),
+		prefixID: ID(p.Compound),
+		tailID:   ID(p.tail),
 	}
 }
 
@@ -103,9 +103,9 @@ func (p partial) Arg(n int) Term {
 	t := p.Compound.Arg(n)
 	if c := p.Compound; c.Functor() == "." && c.Arity() == 2 && n == 1 {
 		if t == Atom("[]") {
-			t = p.suffix
+			t = p.tail
 		} else {
-			t = partial{Compound: t.(Compound), suffix: p.suffix}
+			t = partial{Compound: t.(Compound), tail: p.tail}
 		}
 	}
 	return t
@@ -118,7 +118,7 @@ func ListRest(rest Term, ts ...Term) Term {
 	}
 	return partial{
 		Compound: list(ts),
-		suffix:   rest,
+		tail:     rest,
 	}
 }
 

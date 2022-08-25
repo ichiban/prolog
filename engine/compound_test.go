@@ -31,7 +31,7 @@ func TestListRest(t *testing.T) {
 		list  Term
 	}{
 		{title: "empty", rest: Variable("X"), elems: nil, list: Variable("X")},
-		{title: "non-empty", rest: Variable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partial{Compound: list{Atom("a"), Atom("b")}, suffix: Variable("X")}},
+		{title: "non-empty", rest: Variable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partial{Compound: list{Atom("a"), Atom("b")}, tail: Variable("X")}},
 	}
 
 	for _, tt := range tests {

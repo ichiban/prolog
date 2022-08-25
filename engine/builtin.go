@@ -131,13 +131,13 @@ func (state *State) Call(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 			args[i] = fv
 		}
 		const call = Atom("$call")
-		cs, err := compile(env.Simplify(&compound{
+		cs, err := compile(&compound{
 			functor: ":-",
 			args: []Term{
 				call.Apply(args...),
 				g,
 			},
-		}))
+		}, env)
 		if err != nil {
 			return Error(err)
 		}
@@ -776,7 +776,7 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 		}
 	}
 
-	added, err := compile(env.Simplify(t))
+	added, err := compile(t, env)
 	if err != nil {
 		return err
 	}
@@ -3118,11 +3118,11 @@ func Length(list, length Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 func lengthRundown(list Variable, n Integer, k func(*Env) *Promise, env *Env) *Promise {
-	ret := Term(Atom("[]"))
-	for i := Integer(0); i < n; i++ {
-		ret = Atom(".").Apply(NewVariable(), ret)
+	elems := make([]Term, n)
+	for i := range elems {
+		elems[i] = NewVariable()
 	}
-	return Unify(list, ret, k, env)
+	return Unify(list, List(elems...), k, env)
 }
 
 func lengthAddendum(suffix Term, offset Integer, list, length Variable, k func(*Env) *Promise, env *Env) *Promise {
@@ -3164,4 +3164,34 @@ func SkipMaxList(skip, max, list, suffix Term, k func(*Env) *Promise, env *Env) 
 
 	const s = Atom("$skipped")
 	return Unify(s.Apply(skip, suffix), s.Apply(n, iter.Suffix()), k, env)
+}
+
+// Partial succeeds iff plist is an engine.partial which consists of prefix and tail.
+func Partial(prefix, tail, plist Term, k func(*Env) *Promise, env *Env) *Promise {
+	switch prefix := env.Resolve(prefix).(type) {
+	case Variable:
+		const f = Atom("$partial")
+		switch plist := env.Resolve(plist).(type) {
+		case Variable:
+			return Error(InstantiationError(env))
+		case partial:
+			return Unify(f.Apply(prefix, tail), f.Apply(plist.Compound, plist.tail), k, env)
+		default:
+			return Bool(false)
+		}
+	case Compound:
+		iter := ListIterator{List: prefix, Env: env}
+		for iter.Next() {
+		}
+		if err := iter.Err(); err != nil {
+			return Error(err)
+		}
+
+		return Unify(plist, partial{
+			Compound: prefix,
+			tail:     tail,
+		}, k, env)
+	default: // atomic
+		return Bool(false)
+	}
 }
