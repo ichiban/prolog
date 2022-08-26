@@ -505,19 +505,19 @@ func variant(t1, t2 Term, env *Env) bool {
 	return true
 }
 
-// IDer lets a Term which is not comparable per se return its ID for comparison.
-type IDer interface {
-	ID() TermID
+// TermIDer lets a Term which is not comparable per se return its TermID for comparison.
+type TermIDer interface {
+	TermID() TermID
 }
 
-// TermID is an ID for a Term.
+// TermID is an identifier for a Term.
 type TermID interface{}
 
 // ID returns a TermID for the Term.
 func ID(t Term) TermID {
 	switch t := t.(type) {
-	case IDer:
-		return t.ID()
+	case TermIDer:
+		return t.TermID()
 	default:
 		return t // Assuming it's comparable.
 	}

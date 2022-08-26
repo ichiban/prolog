@@ -39,7 +39,7 @@ func Cons(car, cdr Term) Term {
 
 type list []Term
 
-func (l list) ID() TermID { // Slices are not comparable.
+func (l list) TermID() TermID { // Slices are not comparable.
 	type listID struct {
 		len  int
 		head *Term
@@ -89,7 +89,7 @@ type partial struct {
 	tail Term
 }
 
-func (p partial) ID() TermID { // The underlying compound might not be comparable.
+func (p partial) TermID() TermID { // The underlying compound might not be comparable.
 	type partialID struct {
 		prefixID, tailID TermID
 	}
