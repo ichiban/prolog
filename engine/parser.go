@@ -674,6 +674,9 @@ func (p *Parser) list() (Term, error) {
 
 			switch t := p.next(); t.Kind {
 			case TokenCloseList:
+				if len(args) == 1 {
+					return Cons(args[0], rest), nil
+				}
 				return ListRest(rest, args...), nil
 			default:
 				p.backup()

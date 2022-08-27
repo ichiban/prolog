@@ -58,4 +58,12 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`\+call_nth(1, 0).`).Err())
 		assert.NoError(t, p.QuerySolution(`\+call_nth(V, 0).`).Err())
 	})
+
+	t.Run("go_string", func(t *testing.T) {
+		p := New(nil, nil)
+		assert.NoError(t, p.QuerySolution(`go_string("foo", '"foo"').`).Err())
+		assert.NoError(t, p.QuerySolution(`go_string(f(a), '&engine.compound{functor:"f", args:[]engine.Term{"a"}}').`).Err())
+		assert.NoError(t, p.QuerySolution(`go_string([a, b, c], 'engine.list{"a", "b", "c"}').`).Err())
+		assert.NoError(t, p.QuerySolution(`go_string([a, b|c], 'engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}').`).Err())
+	})
 }

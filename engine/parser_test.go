@@ -92,6 +92,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
+		{input: `[a|X].`, term: Cons(Atom("a"), Variable("X"))},
 		{input: `[a, b|X].`, term: ListRest(Variable("X"), Atom("a"), Atom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "d"}}},

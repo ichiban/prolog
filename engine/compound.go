@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -27,6 +29,10 @@ func (c *compound) Arity() int {
 
 func (c *compound) Arg(n int) Term {
 	return c.args[n]
+}
+
+func (c *compound) GoString() string {
+	return fmt.Sprintf(`&engine.compound{functor:%#v, args:%#v}`, c.functor, c.args)
 }
 
 // Cons returns a list consists of a first element car and the rest cdr.
@@ -76,6 +82,19 @@ func (l list) Arg(n int) Term {
 	return t
 }
 
+func (l list) GoString() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(`engine.list{`)
+	for i, e := range l {
+		if i != 0 {
+			_, _ = sb.WriteString(`, `)
+		}
+		_, _ = fmt.Fprintf(&sb, "%#v", e)
+	}
+	_, _ = sb.WriteString(`}`)
+	return sb.String()
+}
+
 // List returns a list of ts.
 func List(ts ...Term) Term {
 	if len(ts) == 0 {
@@ -109,6 +128,10 @@ func (p partial) Arg(n int) Term {
 		}
 	}
 	return t
+}
+
+func (p partial) GoString() string {
+	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, p.tail)
 }
 
 // ListRest returns a list of ts followed by rest.

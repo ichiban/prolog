@@ -6,8 +6,20 @@ import (
 	"sync/atomic"
 )
 
+// GoStringEnv is an Env which resolves a Variable when GoString() is called.
+var GoStringEnv *Env
+
 // Variable is a prolog variable.
 type Variable string
+
+func (v Variable) GoString() string {
+	switch t := GoStringEnv.Resolve(v).(type) {
+	case Variable:
+		return string(t)
+	default:
+		return fmt.Sprintf("%#v", t)
+	}
+}
 
 var varCounter uint64
 
