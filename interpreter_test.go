@@ -795,22 +795,16 @@ func TestInterpreter_Query(t *testing.T) {
 		assert.True(t, sols.Next())
 		assert.NoError(t, sols.Scan(m))
 		assert.Equal(t, map[string]engine.Term{
-			"X": &engine.Compound{
-				Functor: "cons",
-				Args: []engine.Term{
-					engine.Atom("a"),
-					&engine.Compound{
-						Functor: "cons",
-						Args: []engine.Term{
-							engine.Atom("b"),
-							&engine.Compound{
-								Functor: "cons",
-								Args:    []engine.Term{engine.Atom("c"), engine.Atom("nil")},
-							},
-						},
-					},
-				},
-			},
+			"X": engine.Atom("cons").Apply(
+				engine.Atom("a"),
+				engine.Atom("cons").Apply(
+					engine.Atom("b"),
+					engine.Atom("cons").Apply(
+						engine.Atom("c"),
+						engine.Atom("nil"),
+					),
+				),
+			),
 		}, m)
 	})
 

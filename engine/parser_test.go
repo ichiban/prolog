@@ -79,11 +79,11 @@ func TestParser_Term(t *testing.T) {
 		{input: `X.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("Z")},
 		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("_1")},
 
-		{input: `foo(a, b).`, term: &Compound{Functor: "foo", Args: []Term{Atom("a"), Atom("b")}}},
-		{input: `foo(-(a)).`, term: &Compound{Functor: "foo", Args: []Term{&Compound{Functor: "-", Args: []Term{Atom("a")}}}}},
-		{input: `foo(-).`, term: &Compound{Functor: "foo", Args: []Term{Atom("-")}}},
+		{input: `foo(a, b).`, term: &compound{functor: "foo", args: []Term{Atom("a"), Atom("b")}}},
+		{input: `foo(-(a)).`, term: &compound{functor: "foo", args: []Term{&compound{functor: "-", args: []Term{Atom("a")}}}}},
+		{input: `foo(-).`, term: &compound{functor: "foo", args: []Term{Atom("-")}}},
 		{input: `foo((), b).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
-		{input: `foo([]).`, term: &Compound{Functor: "foo", Args: []Term{Atom("[]")}}},
+		{input: `foo([]).`, term: &compound{functor: "foo", args: []Term{Atom("[]")}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 		{input: `foo(a, b`, err: ErrInsufficient},
@@ -92,29 +92,30 @@ func TestParser_Term(t *testing.T) {
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
+		{input: `[a|X].`, term: Cons(Atom("a"), Variable("X"))},
 		{input: `[a, b|X].`, term: ListRest(Variable("X"), Atom("a"), Atom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "d"}}},
 
-		{input: `{a}.`, term: &Compound{Functor: "{}", Args: []Term{Atom("a")}}},
+		{input: `{a}.`, term: &compound{functor: "{}", args: []Term{Atom("a")}}},
 		{input: `{()}.`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `{a b}.`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 
-		{input: `-a.`, term: &Compound{Functor: "-", Args: []Term{Atom("a")}}},
+		{input: `-a.`, term: &compound{functor: "-", args: []Term{Atom("a")}}},
 		{input: `- .`, term: Atom("-")},
 
-		{input: `a-- .`, term: &Compound{Functor: `--`, Args: []Term{Atom(`a`)}}},
+		{input: `a-- .`, term: &compound{functor: `--`, args: []Term{Atom(`a`)}}},
 
-		{input: `a + b.`, term: &Compound{Functor: "+", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `a + b.`, term: &compound{functor: "+", args: []Term{Atom("a"), Atom("b")}}},
 		{input: `a + ().`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
-		{input: `a * b + c.`, term: &Compound{Functor: "+", Args: []Term{&Compound{Functor: "*", Args: []Term{Atom("a"), Atom("b")}}, Atom("c")}}},
+		{input: `a * b + c.`, term: &compound{functor: "+", args: []Term{&compound{functor: "*", args: []Term{Atom("a"), Atom("b")}}, Atom("c")}}},
 		{input: `a [] b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenList, Val: "["}}},
 		{input: `a {} b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenCurly, Val: "{"}}},
-		{input: `a, b.`, term: &Compound{Functor: ",", Args: []Term{Atom("a"), Atom("b")}}},
+		{input: `a, b.`, term: &compound{functor: ",", args: []Term{Atom("a"), Atom("b")}}},
 		{input: `+ * + .`, err: unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "+"}}},
 
-		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: List(Atom("a"), Atom("b"), Atom("c"))},
-		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: List(Integer(97), Integer(98), Integer(99))},
+		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: charList("abc")},
+		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: codeList("abc")},
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("abc")},
 		{input: `"don""t panic".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("don\"t panic")},
 		{input: "\"this is \\\na double-quoted string\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("this is a double-quoted string")},
@@ -133,8 +134,8 @@ func TestParser_Term(t *testing.T) {
 		{input: "\"\\`\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("`")},
 
 		// https://github.com/ichiban/prolog/issues/219#issuecomment-1200489336
-		{input: `write('[]').`, term: &Compound{Functor: `write`, Args: []Term{Atom(`[]`)}}},
-		{input: `write('{}').`, term: &Compound{Functor: `write`, Args: []Term{Atom(`{}`)}}},
+		{input: `write('[]').`, term: &compound{functor: `write`, args: []Term{Atom(`[]`)}}},
+		{input: `write('{}').`, term: &compound{functor: `write`, args: []Term{Atom(`{}`)}}},
 	}
 
 	for _, tc := range tests {
@@ -150,18 +151,12 @@ func TestParser_Term(t *testing.T) {
 
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
-		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c")), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}), list)
+		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c"))), list)
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
@@ -178,11 +173,8 @@ func TestParser_Replace(t *testing.T) {
 	})
 
 	t.Run("too many arguments", func(t *testing.T) {
-		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("x")},
-		}, "extra"))
+		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
+		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
 
 		_, err := p.Term()
 		assert.Error(t, err)

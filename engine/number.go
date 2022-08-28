@@ -317,62 +317,62 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 	case Atom:
 		c, ok := e.Constant[t]
 		if !ok {
-			return nil, TypeError(ValidTypeEvaluable, &Compound{
-				Functor: "/",
-				Args:    []Term{t, Integer(0)},
+			return nil, TypeError(ValidTypeEvaluable, &compound{
+				functor: "/",
+				args:    []Term{t, Integer(0)},
 			}, env)
 		}
 		return c, nil
 	case Number:
 		return t, nil
-	case *Compound:
-		switch arity := len(t.Args); arity {
+	case Compound:
+		switch arity := t.Arity(); arity {
 		case 1:
-			f, ok := e.Unary[t.Functor]
+			f, ok := e.Unary[t.Functor()]
 			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, &Compound{
-					Functor: "/",
-					Args: []Term{
-						t.Functor,
+				return nil, TypeError(ValidTypeEvaluable, &compound{
+					functor: "/",
+					args: []Term{
+						t.Functor(),
 						Integer(1),
 					},
 				}, env)
 			}
-			x, err := e.eval(t.Args[0], env)
+			x, err := e.eval(t.Arg(0), env)
 			if err != nil {
 				return nil, err
 			}
 			return f(x)
 		case 2:
-			f, ok := e.Binary[t.Functor]
+			f, ok := e.Binary[t.Functor()]
 			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, &Compound{
-					Functor: "/",
-					Args: []Term{
-						t.Functor,
+				return nil, TypeError(ValidTypeEvaluable, &compound{
+					functor: "/",
+					args: []Term{
+						t.Functor(),
 						Integer(2),
 					},
 				}, env)
 			}
-			x, err := e.eval(t.Args[0], env)
+			x, err := e.eval(t.Arg(0), env)
 			if err != nil {
 				return nil, err
 			}
-			y, err := e.eval(t.Args[1], env)
+			y, err := e.eval(t.Arg(1), env)
 			if err != nil {
 				return nil, err
 			}
 			return f(x, y)
 		default:
-			return nil, TypeError(ValidTypeEvaluable, &Compound{
-				Functor: "/",
-				Args:    []Term{t.Functor, Integer(arity)},
+			return nil, TypeError(ValidTypeEvaluable, &compound{
+				functor: "/",
+				args:    []Term{t.Functor(), Integer(arity)},
 			}, env)
 		}
 	default:
-		return nil, TypeError(ValidTypeEvaluable, &Compound{
-			Functor: "/",
-			Args:    []Term{t, Integer(0)},
+		return nil, TypeError(ValidTypeEvaluable, &compound{
+			functor: "/",
+			args:    []Term{t, Integer(0)},
 		}, env)
 	}
 }

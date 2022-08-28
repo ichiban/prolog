@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -26,6 +25,8 @@ const (
 	opPop
 
 	opCut
+	opList
+	opPartial
 
 	_opLen
 )
@@ -191,9 +192,13 @@ type registers struct {
 	cont         func(*Env) *Promise
 	args, astack Term
 
-	pi        []ProcedureIndicator
 	env       *Env
 	cutParent *Promise
+}
+
+func (r *registers) updateEnv(e *Env) *Promise {
+	r.env = e
+	return Bool(true)
 }
 
 func (vm *VM) exec(r registers) *Promise {
@@ -206,26 +211,22 @@ func (vm *VM) exec(r registers) *Promise {
 		opCall:    vm.execCall,
 		opExit:    vm.execExit,
 		opCut:     vm.execCut,
+		opList:    vm.execList,
+		opPartial: vm.execPartial,
 	}
-	for len(r.pc) != 0 {
+	for {
 		op := jumpTable[r.pc[0].opcode]
-		p := op(&r)
-		if p != nil {
+		if p := op(&r); p != nil {
 			return p
 		}
 	}
-	return Error(errors.New("non-exit end of bytecode"))
 }
 
 func (*VM) execConst(r *registers) *Promise {
 	x := r.xr[r.pc[0].operand]
 	arest := NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{x, arest},
-	}
 	var ok bool
-	r.env, ok = r.args.Unify(&cons, false, r.env)
+	r.env, ok = r.env.Unify(r.args, Cons(x, arest), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -237,12 +238,8 @@ func (*VM) execConst(r *registers) *Promise {
 func (*VM) execVar(r *registers) *Promise {
 	v := r.vars[r.pc[0].operand]
 	arest := NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{v, arest},
-	}
 	var ok bool
-	r.env, ok = cons.Unify(r.args, false, r.env)
+	r.env, ok = r.env.Unify(Cons(v, arest), r.args, false)
 	if !ok {
 		return Bool(false)
 	}
@@ -252,21 +249,14 @@ func (*VM) execVar(r *registers) *Promise {
 }
 
 func (*VM) execFunctor(r *registers) *Promise {
-	pi := r.pi[r.pc[0].operand]
+	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
-	cons1 := Compound{
-		Functor: ".",
-		Args:    []Term{arg, arest},
-	}
 	var ok bool
-	r.env, ok = r.args.Unify(&cons1, false, r.env)
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Functor(arg, pi.Name, pi.Arity, func(e *Env) *Promise {
-		r.env = e
-		return Bool(true)
-	}, r.env).Force(context.Background())
+	ok, err := Functor(arg, pi.Name, pi.Arity, r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -275,14 +265,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	cons2 := Compound{
-		Functor: ".",
-		Args:    []Term{pi.Name, r.args},
-	}
-	ok, err = Univ(arg, &cons2, func(e *Env) *Promise {
-		r.env = e
-		return Bool(true)
-	}, r.env).Force(context.Background())
+	ok, err = Univ(arg, Cons(pi.Name, r.args), r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -295,17 +278,13 @@ func (*VM) execFunctor(r *registers) *Promise {
 
 func (*VM) execPop(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
 	a, arest := NewVariable(), NewVariable()
-	cons := Compound{
-		Functor: ".",
-		Args:    []Term{a, arest},
-	}
-	r.env, ok = r.astack.Unify(&cons, false, r.env)
+	r.env, ok = r.env.Unify(r.astack, Cons(a, arest), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -316,11 +295,11 @@ func (*VM) execPop(r *registers) *Promise {
 
 func (*VM) execEnter(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
-	r.env, ok = r.astack.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.astack, List(), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -332,9 +311,9 @@ func (*VM) execEnter(r *registers) *Promise {
 }
 
 func (vm *VM) execCall(r *registers) *Promise {
-	pi := r.pi[r.pc[0].operand]
+	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
 	var ok bool
-	r.env, ok = r.args.Unify(List(), false, r.env)
+	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -354,7 +333,6 @@ func (vm *VM) execCall(r *registers) *Promise {
 				cont:      r.cont,
 				args:      v,
 				astack:    v,
-				pi:        r.pi,
 				env:       env,
 				cutParent: r.cutParent,
 			})
@@ -369,7 +347,6 @@ func (*VM) execExit(r *registers) *Promise {
 func (vm *VM) execCut(r *registers) *Promise {
 	r.pc = r.pc[1:]
 	return Cut(r.cutParent, func(context.Context) *Promise {
-		env := r.env
 		return vm.exec(registers{
 			pc:        r.pc,
 			xr:        r.xr,
@@ -377,11 +354,42 @@ func (vm *VM) execCut(r *registers) *Promise {
 			cont:      r.cont,
 			args:      r.args,
 			astack:    r.astack,
-			pi:        r.pi,
-			env:       env,
+			env:       r.env,
 			cutParent: r.cutParent,
 		})
 	})
+}
+
+func (vm *VM) execList(r *registers) *Promise {
+	l := r.xr[r.pc[0].operand].(Integer)
+	arg, arest := NewVariable(), NewVariable()
+	var ok bool
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	if !ok {
+		return Bool(false)
+	}
+	_, _ = Length(arg, l, r.updateEnv, r.env).Force(context.Background())
+	r.pc = r.pc[1:]
+	r.args = arg
+	r.astack = Cons(arest, r.astack)
+	return nil
+}
+
+func (vm *VM) execPartial(r *registers) *Promise {
+	l := r.xr[r.pc[0].operand].(Integer)
+	arg, arest := NewVariable(), NewVariable()
+	var ok bool
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	if !ok {
+		return Bool(false)
+	}
+	prefix, tail := NewVariable(), NewVariable()
+	_, _ = Length(prefix, l, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Append(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
+	r.pc = r.pc[1:]
+	r.args = Cons(tail, prefix)
+	r.astack = Cons(arest, r.astack)
+	return nil
 }
 
 type predicate0 func(func(*Env) *Promise, *Env) *Promise
@@ -485,15 +493,15 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 	switch p := env.Resolve(pi).(type) {
 	case Variable:
 		return ProcedureIndicator{}, InstantiationError(env)
-	case *Compound:
-		if p.Functor != "/" || len(p.Args) != 2 {
+	case Compound:
+		if p.Functor() != "/" || p.Arity() != 2 {
 			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 		}
-		switch f := env.Resolve(p.Args[0]).(type) {
+		switch f := env.Resolve(p.Arg(0)).(type) {
 		case Variable:
 			return ProcedureIndicator{}, InstantiationError(env)
 		case Atom:
-			switch a := env.Resolve(p.Args[1]).(type) {
+			switch a := env.Resolve(p.Arg(1)).(type) {
 			case Variable:
 				return ProcedureIndicator{}, InstantiationError(env)
 			case Integer:
@@ -512,18 +520,18 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 
 func (p ProcedureIndicator) String() string {
 	var sb strings.Builder
-	_ = p.Name.WriteTerm(&sb, &WriteOptions{
+	_ = writeAtom(&sb, p.Name, &WriteOptions{
 		Quoted: true,
-	}, nil)
+	})
 	_, _ = fmt.Fprintf(&sb, "/%d", p.Arity)
 	return sb.String()
 }
 
 // Term returns p as term.
 func (p ProcedureIndicator) Term() Term {
-	return &Compound{
-		Functor: "/",
-		Args: []Term{
+	return &compound{
+		functor: "/",
+		args: []Term{
 			p.Name,
 			p.Arity,
 		},
@@ -544,8 +552,12 @@ func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
 		return ProcedureIndicator{}, nil, InstantiationError(env)
 	case Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
-	case *Compound:
-		return ProcedureIndicator{Name: f.Functor, Arity: Integer(len(f.Args))}, f.Args, nil
+	case Compound:
+		args := make([]Term, f.Arity())
+		for i := 0; i < f.Arity(); i++ {
+			args[i] = f.Arg(i)
+		}
+		return ProcedureIndicator{Name: f.Functor(), Arity: Integer(f.Arity())}, args, nil
 	default:
 		return ProcedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
 	}

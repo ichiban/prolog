@@ -162,110 +162,40 @@ func (m *mockCloser) Close() error {
 
 func TestState_Call(t *testing.T) {
 	var state State
-
-	t.Run("undefined atom", func(t *testing.T) {
-		ok, err := state.Call(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeProcedure, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(0)},
-		}, nil), err)
-		assert.False(t, ok)
+	state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
+		return Bool(false)
 	})
+	assert.NoError(t, state.Assert(Atom("foo"), nil))
+	assert.NoError(t, state.Assert(Atom("foo").Apply(NewVariable(), NewVariable()), nil))
+	assert.NoError(t, state.Assert(Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b"))))), nil))
 
-	state.procedures = map[ProcedureIndicator]procedure{{Name: "foo", Arity: 0}: clauses{}}
+	tests := []struct {
+		title string
+		goal  Term
+		ok    bool
+		err   error
+	}{
+		// TODO: redo test cases based on 7.8.3.4 Examples
+		{title: `undefined atom`, goal: Atom("bar"), ok: false, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(0)), nil)},
+		{title: `defined atom`, goal: Atom("foo"), ok: true},
+		{title: `undefined compound`, goal: Atom("bar").Apply(NewVariable(), NewVariable()), ok: false, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(2)), nil)},
+		{title: `defined compound`, goal: Atom("foo").Apply(NewVariable(), NewVariable()), ok: true},
+		{title: `variable: single predicate`, goal: Variable("X"), ok: false, err: InstantiationError(nil)},
+		{title: `variable: multiple predicates`, goal: Atom(",").Apply(Atom("fail"), Variable("X")), ok: false},
+		{title: `not callable: single predicate`, goal: Integer(0), ok: false, err: TypeError(ValidTypeCallable, Integer(0), nil)},
+		{title: `not callable: conjunction`, goal: Atom(",").Apply(Atom("true"), Integer(0)), ok: false, err: TypeError(ValidTypeCallable, Atom(",").Apply(Atom("true"), Integer(0)), nil)},
+		{title: `not callable: disjunction`, goal: Atom(";").Apply(Integer(1), Atom("true")), ok: false, err: TypeError(ValidTypeCallable, Atom(";").Apply(Integer(1), Atom("true")), nil)},
 
-	t.Run("defined atom", func(t *testing.T) {
-		ok, err := state.Call(Atom("foo"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
+		{title: `cover all`, goal: Atom(",").Apply(Atom("!"), Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b")))))), ok: true},
+	}
 
-	t.Run("undefined compound", func(t *testing.T) {
-		ok, err := state.Call(&Compound{Functor: "bar", Args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeProcedure, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("bar"), Integer(2)},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	state.procedures = map[ProcedureIndicator]procedure{{Name: "bar", Arity: 2}: clauses{}}
-
-	t.Run("defined compound", func(t *testing.T) {
-		ok, err := state.Call(&Compound{Functor: "bar", Args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("variable", func(t *testing.T) {
-		t.Run("single predicate", func(t *testing.T) {
-			ok, err := state.Call(Variable("X"), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := state.Call(tt.goal, Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("multiple predicates", func(t *testing.T) {
-			x := Variable("X")
-			state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
-				return Bool(false)
-			})
-			ok, err := state.Call(&Compound{
-				Functor: ",",
-				Args: []Term{
-					Atom("fail"),
-					x,
-				},
-			}, Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("not callable", func(t *testing.T) {
-		t.Run("single predicate", func(t *testing.T) {
-			ok, err := state.Call(Integer(0), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("multiple predicates", func(t *testing.T) {
-			t.Run("conjunction", func(t *testing.T) {
-				ok, err := state.Call(&Compound{
-					Functor: ",",
-					Args: []Term{
-						Atom("true"),
-						Integer(0),
-					},
-				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypeCallable, &Compound{
-					Functor: ",",
-					Args: []Term{
-						Atom("true"),
-						Integer(0),
-					},
-				}, nil), err)
-				assert.False(t, ok)
-			})
-
-			t.Run("disjunction", func(t *testing.T) {
-				ok, err := state.Call(&Compound{
-					Functor: ";",
-					Args: []Term{
-						Integer(1),
-						Atom("true"),
-					},
-				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypeCallable, &Compound{
-					Functor: ";",
-					Args: []Term{
-						Integer(1),
-						Atom("true"),
-					},
-				}, nil), err)
-				assert.False(t, ok)
-			})
-		})
-	})
+	}
 }
 
 func TestState_Call1(t *testing.T) {
@@ -533,78 +463,109 @@ func TestState_CallNth(t *testing.T) {
 }
 
 func TestUnify(t *testing.T) {
-	t.Run("unifiable", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := Unify(x, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, func(env *Env) *Promise {
-			assert.Equal(t, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, env.Resolve(x))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	tests := []struct {
+		title   string
+		premise *Env
+		x, y    Term
+		ok      bool
+		err     error
+		env     map[Variable]Term
+	}{
+		// 8.2.1.4 Examples
+		{title: `'='(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
+		{title: `'='(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+		}},
+		{title: `'='(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Variable("Y"),
+		}},
+		{title: `'='(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
+		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			"X": Atom("abc"),
+			"Y": Atom("abc"),
+		}},
+		{title: `'='(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
+			"X": Atom("def"),
+			"Y": Atom("def"),
+		}},
+		{title: `'='(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
+		{title: `'='(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `'='(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
+		{title: `'='(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `'='(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: true},
+		{title: `'='(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
+		// {title: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+	}
 
-	t.Run("not unifiable", func(t *testing.T) {
-		ok, err := Unify(Atom("a"), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("loop", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := Unify(x, &Compound{
-			Functor: "f",
-			Args:    []Term{x},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Unify(tt.x, tt.y, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, tt.premise).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestUnifyWithOccursCheck(t *testing.T) {
-	t.Run("unifiable", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := UnifyWithOccursCheck(x, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, func(env *Env) *Promise {
-			assert.Equal(t, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, env.Resolve(x))
+	tests := []struct {
+		title   string
+		premise *Env
+		x, y    Term
+		ok      bool
+		err     error
+		env     map[Variable]Term
+	}{
+		// 8.2.2.4 Examples
+		{title: `unify_with_occurs_check(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
+		{title: `unify_with_occurs_check(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			"X": Integer(1),
+		}},
+		{title: `unify_with_occurs_check(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
+			"X": Variable("Y"),
+		}},
+		{title: `unify_with_occurs_check(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
+		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			"X": Atom("abc"),
+			"Y": Atom("abc"),
+		}},
+		{title: `unify_with_occurs_check(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
+			"X": Atom("def"),
+			"Y": Atom("def"),
+		}},
+		{title: `unify_with_occurs_check(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
+		{title: `unify_with_occurs_check(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `unify_with_occurs_check(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+	}
 
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("not unifiable", func(t *testing.T) {
-		ok, err := UnifyWithOccursCheck(Atom("a"), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("loop", func(t *testing.T) {
-		x := Variable("X")
-		ok, err := UnifyWithOccursCheck(x, &Compound{
-			Functor: "f",
-			Args:    []Term{x},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := UnifyWithOccursCheck(tt.x, tt.y, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, tt.premise).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestSubsumesTerm(t *testing.T) {
@@ -685,9 +646,9 @@ func TestTypeAtom(t *testing.T) {
 
 func TestTypeCompound(t *testing.T) {
 	t.Run("compound", func(t *testing.T) {
-		ok, err := TypeCompound(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a")},
+		ok, err := TypeCompound(&compound{
+			functor: "foo",
+			args:    []Term{Atom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -709,14 +670,14 @@ func TestAcyclicTerm(t *testing.T) {
 
 	t.Run("compound", func(t *testing.T) {
 		t.Run("cyclic", func(t *testing.T) {
-			var c = Compound{
-				Functor: "f",
-				Args: []Term{
+			var c = compound{
+				functor: "f",
+				args: []Term{
 					Atom("a"),
 					nil, // placeholder
 				},
 			}
-			c.Args[1] = &c
+			c.args[1] = &c
 
 			ok, err := AcyclicTerm(&c, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -776,7 +737,7 @@ func TestFunctor(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := Functor(tt.term, tt.name, tt.arity, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -803,57 +764,57 @@ func TestArg(t *testing.T) {
 
 	t.Run("nth is a variable", func(t *testing.T) {
 		nth := NewVariable()
-		_, err := Arg(nth, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a"), Atom("b"), Atom("a")},
+		_, err := Arg(nth, &compound{
+			functor: "f",
+			args:    []Term{Atom("a"), Atom("b"), Atom("a")},
 		}, Atom("a"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("nth is an integer", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := Arg(Integer(1), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err := Arg(Integer(1), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("a"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			ok, err = Arg(Integer(2), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err = Arg(Integer(2), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("b"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
-			ok, err = Arg(Integer(3), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err = Arg(Integer(3), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("c"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			ok, err := Arg(Integer(0), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err := Arg(Integer(0), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, NewVariable(), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 
-			ok, err = Arg(Integer(4), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err = Arg(Integer(4), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, NewVariable(), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
 
 		t.Run("negative", func(t *testing.T) {
-			ok, err := Arg(Integer(-2), &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+			ok, err := Arg(Integer(-2), &compound{
+				functor: "f",
+				args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 			}, Atom("b"), Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-2), nil), err)
 			assert.False(t, ok)
@@ -861,9 +822,9 @@ func TestArg(t *testing.T) {
 	})
 
 	t.Run("nth is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := Arg(Atom("foo"), &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a"), Atom("b"), Atom("c")},
+		ok, err := Arg(Atom("foo"), &compound{
+			functor: "f",
+			args:    []Term{Atom("a"), Atom("b"), Atom("c")},
 		}, Atom("b"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, Atom("foo"), nil), err)
 		assert.False(t, ok)
@@ -1595,7 +1556,7 @@ func TestState_BagOf(t *testing.T) {
 			}
 			_, err := state.BagOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -1989,7 +1950,7 @@ func TestState_SetOf(t *testing.T) {
 			}
 			_, err := state.SetOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -2047,7 +2008,7 @@ func TestState_FindAll(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := state.FindAll(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := v.Unify(k, false, env)
+					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -2059,60 +2020,40 @@ func TestState_FindAll(t *testing.T) {
 }
 
 func TestCompare(t *testing.T) {
-	t.Run("less than", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(-1))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
+	tests := []struct {
+		title       string
+		order, x, y Term
+		ok          bool
+		err         error
+		env         map[Variable]Term
+	}{
+		// 8.4.2.4 Examples
+		{title: `compare(Order, 3, 5).`, order: Variable("Order"), x: Integer(3), y: Integer(5), ok: true, env: map[Variable]Term{
+			"Order": Atom("<"),
+		}},
+		{title: `compare(Order, d, d).`, order: Variable("Order"), x: Atom("d"), y: Atom("d"), ok: true, env: map[Variable]Term{
+			"Order": Atom("="),
+		}},
+		{title: `compare(Order, Order, <).`, order: Variable("Order"), x: Variable("Order"), y: Atom("<"), ok: true, env: map[Variable]Term{
+			"Order": Atom("<"),
+		}},
+		{title: `compare(<, <, <).`, order: Atom("<"), x: Atom("<"), y: Atom("<"), ok: false},
+		{title: `compare(1+2, 3, 3.0).`, order: Atom("+").Apply(Integer(1), Integer(2)), x: Integer(3), y: Float(3.0), ok: false, err: TypeError(ValidTypeAtom, Atom("+").Apply(Integer(1), Integer(2)), nil)},
+		{title: `compare(>=, 3, 3.0).`, order: Atom(">="), x: Integer(3), y: Float(3.0), ok: false, err: DomainError(ValidDomainOrder, Atom(">="), nil)},
 
-		ok, err := Compare(Atom("<"), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+		{title: `missing case for >`, order: Atom(">"), x: Integer(2), y: Integer(1), ok: true},
+	}
 
-	t.Run("greater than", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(1))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
-
-		ok, err := Compare(Atom(">"), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("equals to", func(t *testing.T) {
-		var x, y mockTerm
-		x.On("Compare", &y, (*Env)(nil)).Return(int64(0))
-		defer x.AssertExpectations(t)
-		defer y.AssertExpectations(t)
-
-		ok, err := Compare(Atom("="), &x, &y, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("detect order", func(t *testing.T) {
-		order := Variable("Order")
-		ok, err := Compare(order, Atom("a"), Atom("b"), func(env *Env) *Promise {
-			assert.Equal(t, Atom("<"), env.Resolve(order))
+	for _, tt := range tests {
+		ok, err := Compare(tt.order, tt.x, tt.y, func(env *Env) *Promise {
+			for k, v := range tt.env {
+				assert.Equal(t, v, env.Resolve(k))
+			}
 			return Bool(true)
 		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("order is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := Compare(Integer(0), NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("order is an atom but not <, =, or >", func(t *testing.T) {
-		ok, err := Compare(Atom("foo"), NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainOrder, Atom("foo"), nil), err)
-		assert.False(t, ok)
-	})
+		assert.Equal(t, tt.ok, ok)
+		assert.Equal(t, tt.err, err)
+	}
 }
 
 func TestBetween(t *testing.T) {
@@ -2270,8 +2211,8 @@ func TestSort(t *testing.T) {
 		})
 
 		t.Run("list-ish", func(t *testing.T) {
-			_, err := Sort(List(Atom("a")), &Compound{Functor: ".", Args: []Term{Atom("a")}}, Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeList, &Compound{Functor: ".", Args: []Term{Atom("a")}}, nil), err)
+			_, err := Sort(List(Atom("a")), &compound{functor: ".", args: []Term{Atom("a")}}, Success, nil).Force(context.Background())
+			assert.Equal(t, TypeError(ValidTypeList, &compound{functor: ".", args: []Term{Atom("a")}}, nil), err)
 		})
 	})
 }
@@ -2391,21 +2332,21 @@ func TestState_Catch(t *testing.T) {
 
 	t.Run("match", func(t *testing.T) {
 		v := NewVariable()
-		ok, err := state.Catch(&Compound{
-			Functor: "throw",
-			Args:    []Term{Atom("a")},
-		}, v, &Compound{
-			Functor: "=",
-			Args:    []Term{v, Atom("a")},
+		ok, err := state.Catch(&compound{
+			functor: "throw",
+			args:    []Term{Atom("a")},
+		}, v, &compound{
+			functor: "=",
+			args:    []Term{v, Atom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("not match", func(t *testing.T) {
-		ok, err := state.Catch(&Compound{
-			Functor: "throw",
-			Args:    []Term{Atom("a")},
+		ok, err := state.Catch(&compound{
+			functor: "throw",
+			args:    []Term{Atom("a")},
 		}, Atom("b"), Atom("fail"), Success, nil).Force(context.Background())
 		assert.False(t, ok)
 		ex, ok := err.(Exception)
@@ -2439,9 +2380,9 @@ func TestState_CurrentPredicate(t *testing.T) {
 		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: "foo", Arity: 1}: clauses{},
 		}}}
-		ok, err := state.CurrentPredicate(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.CurrentPredicate(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -2461,12 +2402,12 @@ func TestState_CurrentPredicate(t *testing.T) {
 			{Name: "baz", Arity: 1}: clauses{},
 		}}}
 		ok, err := state.CurrentPredicate(v, func(env *Env) *Promise {
-			c, ok := env.Resolve(v).(*Compound)
+			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
-			assert.Equal(t, Atom("/"), c.Functor)
-			assert.Len(t, c.Args, 2)
-			assert.Equal(t, Integer(1), c.Args[1])
-			switch c.Args[0] {
+			assert.Equal(t, Atom("/"), c.functor)
+			assert.Len(t, c.args, 2)
+			assert.Equal(t, Integer(1), c.args[1])
+			switch c.args[0] {
 			case Atom("foo"):
 				foo = true
 			case Atom("bar"):
@@ -2490,9 +2431,9 @@ func TestState_CurrentPredicate(t *testing.T) {
 		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: "=", Arity: 2}: predicate2(Unify),
 		}}}
-		ok, err := state.CurrentPredicate(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.CurrentPredicate(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("="),
 				Integer(2),
 			},
@@ -2512,39 +2453,39 @@ func TestState_CurrentPredicate(t *testing.T) {
 		t.Run("compound", func(t *testing.T) {
 			t.Run("non slash", func(t *testing.T) {
 				var state State
-				ok, err := state.CurrentPredicate(&Compound{
-					Functor: "f",
-					Args:    []Term{Atom("a")},
+				ok, err := state.CurrentPredicate(&compound{
+					functor: "f",
+					args:    []Term{Atom("a")},
 				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-					Functor: "f",
-					Args:    []Term{Atom("a")},
+				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+					functor: "f",
+					args:    []Term{Atom("a")},
 				}, nil), err)
 				assert.False(t, ok)
 			})
 
 			t.Run("slash but number", func(t *testing.T) {
 				var state State
-				ok, err := state.CurrentPredicate(&Compound{
-					Functor: "/",
-					Args:    []Term{Integer(0), Integer(0)},
+				ok, err := state.CurrentPredicate(&compound{
+					functor: "/",
+					args:    []Term{Integer(0), Integer(0)},
 				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-					Functor: "/",
-					Args:    []Term{Integer(0), Integer(0)},
+				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+					functor: "/",
+					args:    []Term{Integer(0), Integer(0)},
 				}, nil), err)
 				assert.False(t, ok)
 			})
 
 			t.Run("slash but path", func(t *testing.T) {
 				var state State
-				ok, err := state.CurrentPredicate(&Compound{
-					Functor: "/",
-					Args:    []Term{Atom("foo"), Atom("bar")},
+				ok, err := state.CurrentPredicate(&compound{
+					functor: "/",
+					args:    []Term{Atom("foo"), Atom("bar")},
 				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &Compound{
-					Functor: "/",
-					Args:    []Term{Atom("foo"), Atom("bar")},
+				assert.Equal(t, TypeError(ValidTypePredicateIndicator, &compound{
+					functor: "/",
+					args:    []Term{Atom("foo"), Atom("bar")},
 				}, nil), err)
 				assert.False(t, ok)
 			})
@@ -2556,16 +2497,16 @@ func TestState_Assertz(t *testing.T) {
 	t.Run("append", func(t *testing.T) {
 		var state State
 
-		ok, err := state.Assertz(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a")},
+		ok, err := state.Assertz(&compound{
+			functor: "foo",
+			args:    []Term{Atom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Assertz(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("b")},
+		ok, err = state.Assertz(&compound{
+			functor: "foo",
+			args:    []Term{Atom("b")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2576,9 +2517,9 @@ func TestState_Assertz(t *testing.T) {
 					Name:  "foo",
 					Arity: 1,
 				},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("a")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("a")},
 				},
 				xrTable: []Term{Atom("a")},
 				bytecode: bytecode{
@@ -2591,9 +2532,9 @@ func TestState_Assertz(t *testing.T) {
 					Name:  "foo",
 					Arity: 1,
 				},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("b")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("b")},
 				},
 				xrTable: []Term{Atom("b")},
 				bytecode: bytecode{
@@ -2627,9 +2568,9 @@ func TestState_Assertz(t *testing.T) {
 		head := Variable("Head")
 
 		var state State
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args:    []Term{head, Atom("true")},
+		ok, err := state.Assertz(&compound{
+			functor: ":-",
+			args:    []Term{head, Atom("true")},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
@@ -2637,9 +2578,9 @@ func TestState_Assertz(t *testing.T) {
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var state State
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0), Atom("true")},
+		ok, err := state.Assertz(&compound{
+			functor: ":-",
+			args:    []Term{Integer(0), Atom("true")},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
@@ -2647,22 +2588,22 @@ func TestState_Assertz(t *testing.T) {
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var state State
-		ok, err := state.Assertz(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		ok, err := state.Assertz(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
-				&Compound{
-					Functor: ",",
-					Args: []Term{
+				&compound{
+					functor: ",",
+					args: []Term{
 						Atom("true"),
 						Integer(0),
 					},
 				},
 			},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, &Compound{
-			Functor: ",",
-			Args: []Term{
+		assert.Equal(t, TypeError(ValidTypeCallable, &compound{
+			functor: ",",
+			args: []Term{
 				Atom("true"),
 				Integer(0),
 			},
@@ -2680,9 +2621,9 @@ func TestState_Assertz(t *testing.T) {
 		}
 
 		ok, err := state.Assertz(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
@@ -2700,9 +2641,9 @@ func TestState_Assertz(t *testing.T) {
 		}
 
 		ok, err := state.Assertz(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
@@ -2714,16 +2655,16 @@ func TestState_Assertz(t *testing.T) {
 func TestState_Asserta(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a")},
+		ok, err := state.Asserta(&compound{
+			functor: "foo",
+			args:    []Term{Atom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Asserta(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("b")},
+		ok, err = state.Asserta(&compound{
+			functor: "foo",
+			args:    []Term{Atom("b")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2731,9 +2672,9 @@ func TestState_Asserta(t *testing.T) {
 		assert.Equal(t, clauses{
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 1},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("b")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("b")},
 				},
 				xrTable: []Term{Atom("b")},
 				bytecode: bytecode{
@@ -2743,9 +2684,9 @@ func TestState_Asserta(t *testing.T) {
 			},
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 1},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("a")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("a")},
 				},
 				xrTable: []Term{Atom("a")},
 				bytecode: bytecode{
@@ -2758,29 +2699,29 @@ func TestState_Asserta(t *testing.T) {
 
 	t.Run("rule", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
-				&Compound{
-					Functor: "p",
-					Args:    []Term{Atom("b")},
+				&compound{
+					functor: "p",
+					args:    []Term{Atom("b")},
 				},
 			},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Asserta(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		ok, err = state.Asserta(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
-				&Compound{
-					Functor: ",",
-					Args: []Term{
-						&Compound{
-							Functor: "p",
-							Args:    []Term{Atom("a")},
+				&compound{
+					functor: ",",
+					args: []Term{
+						&compound{
+							functor: "p",
+							args:    []Term{Atom("a")},
 						},
 						Atom("!"),
 					},
@@ -2793,50 +2734,54 @@ func TestState_Asserta(t *testing.T) {
 		assert.Equal(t, clauses{
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 0},
-				raw: &Compound{
-					Functor: ":-",
-					Args: []Term{
+				raw: &compound{
+					functor: ":-",
+					args: []Term{
 						Atom("foo"),
-						&Compound{
-							Functor: ",",
-							Args: []Term{
-								&Compound{
-									Functor: "p",
-									Args:    []Term{Atom("a")},
+						&compound{
+							functor: ",",
+							args: []Term{
+								&compound{
+									functor: "p",
+									args:    []Term{Atom("a")},
 								},
 								Atom("!"),
 							},
 						},
 					},
 				},
-				xrTable: []Term{Atom("a")},
-				piTable: []ProcedureIndicator{{Name: "p", Arity: 1}},
+				xrTable: []Term{
+					Atom("a"),
+					ProcedureIndicator{Name: "p", Arity: 1},
+				},
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opConst, operand: 0},
-					{opcode: opCall, operand: 0},
+					{opcode: opCall, operand: 1},
 					{opcode: opCut},
 					{opcode: opExit},
 				},
 			},
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 0},
-				raw: &Compound{
-					Functor: ":-",
-					Args: []Term{
+				raw: &compound{
+					functor: ":-",
+					args: []Term{
 						Atom("foo"),
-						&Compound{
-							Functor: "p",
-							Args:    []Term{Atom("b")},
+						&compound{
+							functor: "p",
+							args:    []Term{Atom("b")},
 						},
 					},
 				},
-				xrTable: []Term{Atom("b")},
-				piTable: []ProcedureIndicator{{Name: "p", Arity: 1}},
+				xrTable: []Term{
+					Atom("b"),
+					ProcedureIndicator{Name: "p", Arity: 1},
+				},
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opConst, operand: 0},
-					{opcode: opCall, operand: 0},
+					{opcode: opCall, operand: 1},
 					{opcode: opExit},
 				},
 			},
@@ -2863,9 +2808,9 @@ func TestState_Asserta(t *testing.T) {
 		head := Variable("Head")
 
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{head, Atom("true")},
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args:    []Term{head, Atom("true")},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
@@ -2873,9 +2818,9 @@ func TestState_Asserta(t *testing.T) {
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0), Atom("true")},
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args:    []Term{Integer(0), Atom("true")},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
@@ -2883,9 +2828,9 @@ func TestState_Asserta(t *testing.T) {
 
 	t.Run("body is not callable", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args:    []Term{Atom("foo"), Integer(0)},
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args:    []Term{Atom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
@@ -2893,21 +2838,21 @@ func TestState_Asserta(t *testing.T) {
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
-				&Compound{
-					Functor: ",",
-					Args: []Term{
+				&compound{
+					functor: ",",
+					args: []Term{
 						Atom("true"),
 						Integer(0)},
 				},
 			},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, &Compound{
-			Functor: ",",
-			Args: []Term{
+		assert.Equal(t, TypeError(ValidTypeCallable, &compound{
+			functor: ",",
+			args: []Term{
 				Atom("true"),
 				Integer(0)},
 		}, nil), err)
@@ -2924,9 +2869,9 @@ func TestState_Asserta(t *testing.T) {
 		}
 
 		ok, err := state.Asserta(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
@@ -2944,9 +2889,9 @@ func TestState_Asserta(t *testing.T) {
 		}
 
 		ok, err := state.Asserta(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
@@ -2956,9 +2901,9 @@ func TestState_Asserta(t *testing.T) {
 
 	t.Run("cut", func(t *testing.T) {
 		var state State
-		ok, err := state.Asserta(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		ok, err := state.Asserta(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
 				Atom("!"),
 			},
@@ -2972,14 +2917,14 @@ func TestState_Assert(t *testing.T) {
 	t.Run("append", func(t *testing.T) {
 		var state State
 
-		assert.NoError(t, state.Assert(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("a")},
+		assert.NoError(t, state.Assert(&compound{
+			functor: "foo",
+			args:    []Term{Atom("a")},
 		}, nil))
 
-		assert.NoError(t, state.Assert(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("b")},
+		assert.NoError(t, state.Assert(&compound{
+			functor: "foo",
+			args:    []Term{Atom("b")},
 		}, nil))
 
 		assert.Equal(t, static{clauses{
@@ -2988,9 +2933,9 @@ func TestState_Assert(t *testing.T) {
 					Name:  "foo",
 					Arity: 1,
 				},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("a")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("a")},
 				},
 				xrTable: []Term{Atom("a")},
 				bytecode: bytecode{
@@ -3003,9 +2948,9 @@ func TestState_Assert(t *testing.T) {
 					Name:  "foo",
 					Arity: 1,
 				},
-				raw: &Compound{
-					Functor: "foo",
-					Args:    []Term{Atom("b")},
+				raw: &compound{
+					functor: "foo",
+					args:    []Term{Atom("b")},
 				},
 				xrTable: []Term{Atom("b")},
 				bytecode: bytecode{
@@ -3035,35 +2980,35 @@ func TestState_Assert(t *testing.T) {
 		head := Variable("Head")
 
 		var state State
-		assert.Equal(t, InstantiationError(nil), state.Assert(&Compound{
-			Functor: ":-",
-			Args:    []Term{head, Atom("true")},
+		assert.Equal(t, InstantiationError(nil), state.Assert(&compound{
+			functor: ":-",
+			args:    []Term{head, Atom("true")},
 		}, nil))
 	})
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var state State
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), state.Assert(&Compound{
-			Functor: ":-",
-			Args:    []Term{Integer(0), Atom("true")},
+		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), state.Assert(&compound{
+			functor: ":-",
+			args:    []Term{Integer(0), Atom("true")},
 		}, nil))
 	})
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var state State
-		assert.Equal(t, TypeError(ValidTypeCallable, &Compound{
-			Functor: ",",
-			Args: []Term{
+		assert.Equal(t, TypeError(ValidTypeCallable, &compound{
+			functor: ",",
+			args: []Term{
 				Atom("true"),
 				Integer(0),
 			},
-		}, nil), state.Assert(&Compound{
-			Functor: ":-",
-			Args: []Term{
+		}, nil), state.Assert(&compound{
+			functor: ":-",
+			args: []Term{
 				Atom("foo"),
-				&Compound{
-					Functor: ",",
-					Args: []Term{
+				&compound{
+					functor: ",",
+					args: []Term{
 						Atom("true"),
 						Integer(0),
 					},
@@ -3120,9 +3065,9 @@ func TestState_Assert(t *testing.T) {
 			},
 		}
 
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(0),
 			},
@@ -3136,24 +3081,24 @@ func TestState_Retract(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "foo", Arity: 1}: clauses{
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("b")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 					},
 				},
 			},
 		}
 
-		ok, err := state.Retract(&Compound{
-			Functor: "foo",
-			Args:    []Term{Variable("X")},
+		ok, err := state.Retract(&compound{
+			functor: "foo",
+			args:    []Term{Variable("X")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		assert.Equal(t, clauses{
-			{raw: &Compound{Functor: "foo", Args: []Term{Atom("b")}}},
-			{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+			{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
+			{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
@@ -3162,24 +3107,24 @@ func TestState_Retract(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "foo", Arity: 1}: clauses{
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("b")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 					},
 				},
 			},
 		}
 
-		ok, err := state.Retract(&Compound{
-			Functor: "foo",
-			Args:    []Term{Atom("b")},
+		ok, err := state.Retract(&compound{
+			functor: "foo",
+			args:    []Term{Atom("b")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		assert.Equal(t, clauses{
-			{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
-			{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+			{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
+			{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
@@ -3188,17 +3133,17 @@ func TestState_Retract(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "foo", Arity: 1}: clauses{
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("b")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 					},
 				},
 			},
 		}
 
-		ok, err := state.Retract(&Compound{
-			Functor: "foo",
-			Args:    []Term{Variable("X")},
+		ok, err := state.Retract(&compound{
+			functor: "foo",
+			args:    []Term{Variable("X")},
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -3222,9 +3167,9 @@ func TestState_Retract(t *testing.T) {
 	t.Run("no clause matches", func(t *testing.T) {
 		var state State
 
-		ok, err := state.Retract(&Compound{
-			Functor: "foo",
-			Args:    []Term{Variable("X")},
+		ok, err := state.Retract(&compound{
+			functor: "foo",
+			args:    []Term{Variable("X")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -3240,9 +3185,9 @@ func TestState_Retract(t *testing.T) {
 		}
 
 		ok, err := state.Retract(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(0)},
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(0)},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -3252,15 +3197,15 @@ func TestState_Retract(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "foo", Arity: 1}: clauses{
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 					},
 				},
 			},
 		}
 
-		ok, err := state.Retract(&Compound{
-			Functor: "foo",
-			Args:    []Term{Variable("X")},
+		ok, err := state.Retract(&compound{
+			functor: "foo",
+			args:    []Term{Variable("X")},
 		}, func(_ *Env) *Promise {
 			return Error(errors.New("failed"))
 		}, nil).Force(context.Background())
@@ -3278,17 +3223,17 @@ func TestState_Abolish(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "foo", Arity: 1}: clauses{
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("a")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("b")}}},
-						{raw: &Compound{Functor: "foo", Args: []Term{Atom("c")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
+						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
 					},
 				},
 			},
 		}
 
-		ok, err := state.Abolish(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(1)},
+		ok, err := state.Abolish(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(1)},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3307,9 +3252,9 @@ func TestState_Abolish(t *testing.T) {
 	t.Run("pi is a term Name/Arity and either Name or Arity is a variable", func(t *testing.T) {
 		t.Run("Name is a variable", func(t *testing.T) {
 			var state State
-			ok, err := state.Abolish(&Compound{
-				Functor: "/",
-				Args:    []Term{Variable("Name"), Integer(2)},
+			ok, err := state.Abolish(&compound{
+				functor: "/",
+				args:    []Term{Variable("Name"), Integer(2)},
 			}, Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3317,9 +3262,9 @@ func TestState_Abolish(t *testing.T) {
 
 		t.Run("Arity is a variable", func(t *testing.T) {
 			var state State
-			ok, err := state.Abolish(&Compound{
-				Functor: "/",
-				Args:    []Term{Atom("foo"), Variable("Arity")},
+			ok, err := state.Abolish(&compound{
+				functor: "/",
+				args:    []Term{Atom("foo"), Variable("Arity")},
 			}, Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3344,9 +3289,9 @@ func TestState_Abolish(t *testing.T) {
 
 	t.Run("pi is a term Name/Arity and Name is neither a variable nor an atom", func(t *testing.T) {
 		var state State
-		ok, err := state.Abolish(&Compound{
-			Functor: "/",
-			Args:    []Term{Integer(0), Integer(2)},
+		ok, err := state.Abolish(&compound{
+			functor: "/",
+			args:    []Term{Integer(0), Integer(2)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
@@ -3354,9 +3299,9 @@ func TestState_Abolish(t *testing.T) {
 
 	t.Run("pi is a term Name/Arity and Arity is neither a variable nor an integer", func(t *testing.T) {
 		var state State
-		ok, err := state.Abolish(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Atom("bar")},
+		ok, err := state.Abolish(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Atom("bar")},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, Atom("bar"), nil), err)
 		assert.False(t, ok)
@@ -3364,9 +3309,9 @@ func TestState_Abolish(t *testing.T) {
 
 	t.Run("pi is a term Name/Arity and Arity is an integer less than zero", func(t *testing.T) {
 		var state State
-		ok, err := state.Abolish(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(-2)},
+		ok, err := state.Abolish(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(-2)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-2), nil), err)
 		assert.False(t, ok)
@@ -3380,13 +3325,13 @@ func TestState_Abolish(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.Abolish(&Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(0)},
+		ok, err := state.Abolish(&compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("foo"), Integer(0)},
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args:    []Term{Atom("foo"), Integer(0)},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -3569,9 +3514,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("alias", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "alias",
-				Args:    []Term{Atom("input")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "alias",
+				args:    []Term{Atom("input")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3592,9 +3537,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("type text", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "type",
-				Args:    []Term{Atom("text")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "type",
+				args:    []Term{Atom("text")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3609,9 +3554,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("type binary", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "type",
-				Args:    []Term{Atom("binary")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "type",
+				args:    []Term{Atom("binary")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3626,9 +3571,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("reposition true", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "reposition",
-				Args:    []Term{Atom("true")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "reposition",
+				args:    []Term{Atom("true")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3643,9 +3588,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("reposition true", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "reposition",
-				Args:    []Term{Atom("false")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "reposition",
+				args:    []Term{Atom("false")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3660,9 +3605,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action error", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "eof_action",
-				Args:    []Term{Atom("error")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "eof_action",
+				args:    []Term{Atom("error")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3677,9 +3622,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action eof_code", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "eof_action",
-				Args:    []Term{Atom("eof_code")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "eof_action",
+				args:    []Term{Atom("eof_code")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3694,9 +3639,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action reset", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "eof_action",
-				Args:    []Term{Atom("reset")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "eof_action",
+				args:    []Term{Atom("reset")},
 			}), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
@@ -3711,9 +3656,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("unknown option", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "unknown",
-				Args:    []Term{Atom("option")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "unknown",
+				args:    []Term{Atom("option")},
 			}), func(env *Env) *Promise {
 				assert.Fail(t, "unreachable")
 				return Bool(true)
@@ -3724,9 +3669,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("wrong arity", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "type",
-				Args:    []Term{Atom("a"), Atom("b")},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "type",
+				args:    []Term{Atom("a"), Atom("b")},
 			}), func(env *Env) *Promise {
 				assert.Fail(t, "unreachable")
 				return Bool(true)
@@ -3737,9 +3682,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("variable arg", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "type",
-				Args:    []Term{NewVariable()},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "type",
+				args:    []Term{NewVariable()},
 			}), func(env *Env) *Promise {
 				assert.Fail(t, "unreachable")
 				return Bool(true)
@@ -3750,9 +3695,9 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("non-atom arg", func(t *testing.T) {
 			v := Variable("Stream")
-			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&Compound{
-				Functor: "type",
-				Args:    []Term{Integer(0)},
+			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
+				functor: "type",
+				args:    []Term{Integer(0)},
 			}), func(env *Env) *Promise {
 				assert.Fail(t, "unreachable")
 				return Bool(true)
@@ -3770,9 +3715,9 @@ func TestState_Open(t *testing.T) {
 
 		v := Variable("Stream")
 
-		ok, err := state.Open(Atom(n), Atom("write"), v, List(&Compound{
-			Functor: "alias",
-			Args:    []Term{Atom("output")},
+		ok, err := state.Open(Atom(n), Atom("write"), v, List(&compound{
+			functor: "alias",
+			args:    []Term{Atom("output")},
 		}), func(env *Env) *Promise {
 			ref, ok := env.Lookup(v)
 			assert.True(t, ok)
@@ -3814,9 +3759,9 @@ func TestState_Open(t *testing.T) {
 
 		v := Variable("Stream")
 
-		ok, err := state.Open(Atom(f.Name()), Atom("append"), v, List(&Compound{
-			Functor: "alias",
-			Args:    []Term{Atom("append")},
+		ok, err := state.Open(Atom(f.Name()), Atom("append"), v, List(&compound{
+			functor: "alias",
+			args:    []Term{Atom("append")},
 		}), func(env *Env) *Promise {
 			ref, ok := env.Lookup(v)
 			assert.True(t, ok)
@@ -3862,8 +3807,8 @@ func TestState_Open(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
 			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), ListRest(Variable("Rest"),
-				&Compound{Functor: "type", Args: []Term{Atom("text")}},
-				&Compound{Functor: "alias", Args: []Term{Atom("foo")}},
+				&compound{functor: "type", args: []Term{Atom("text")}},
+				&compound{functor: "alias", args: []Term{Atom("foo")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3873,8 +3818,8 @@ func TestState_Open(t *testing.T) {
 			var state State
 			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(
 				Variable("Option"),
-				&Compound{Functor: "type", Args: []Term{Atom("text")}},
-				&Compound{Functor: "alias", Args: []Term{Atom("foo")}},
+				&compound{functor: "type", args: []Term{Atom("text")}},
+				&compound{functor: "alias", args: []Term{Atom("foo")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3920,11 +3865,11 @@ func TestState_Open(t *testing.T) {
 		var state State
 		for _, o := range []Term{
 			Atom("foo"),
-			&Compound{Functor: "foo", Args: []Term{Atom("bar")}},
-			&Compound{Functor: "alias", Args: []Term{Integer(0)}},
-			&Compound{Functor: "type", Args: []Term{Integer(0)}},
-			&Compound{Functor: "reposition", Args: []Term{Integer(0)}},
-			&Compound{Functor: "eof_action", Args: []Term{Integer(0)}},
+			&compound{functor: "foo", args: []Term{Atom("bar")}},
+			&compound{functor: "alias", args: []Term{Integer(0)}},
+			&compound{functor: "type", args: []Term{Integer(0)}},
+			&compound{functor: "reposition", args: []Term{Integer(0)}},
+			&compound{functor: "eof_action", args: []Term{Integer(0)}},
 		} {
 			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainStreamOption, o, nil), err)
@@ -3937,10 +3882,10 @@ func TestState_Open(t *testing.T) {
 		var state State
 		for _, o := range []Term{
 			Variable("X"),
-			&Compound{Functor: "alias", Args: []Term{Variable("X")}},
-			&Compound{Functor: "type", Args: []Term{Variable("X")}},
-			&Compound{Functor: "reposition", Args: []Term{Variable("X")}},
-			&Compound{Functor: "eof_action", Args: []Term{Variable("X")}},
+			&compound{functor: "alias", args: []Term{Variable("X")}},
+			&compound{functor: "type", args: []Term{Variable("X")}},
+			&compound{functor: "reposition", args: []Term{Variable("X")}},
+			&compound{functor: "eof_action", args: []Term{Variable("X")}},
 		} {
 			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -3986,13 +3931,13 @@ func TestState_Open(t *testing.T) {
 				Atom("foo"): nil,
 			},
 		}
-		ok, err := state.Open(Atom(f.Name()), Atom("read"), Variable("Stream"), List(&Compound{
-			Functor: "alias",
-			Args:    []Term{Atom("foo")},
+		ok, err := state.Open(Atom(f.Name()), Atom("read"), Variable("Stream"), List(&compound{
+			functor: "alias",
+			args:    []Term{Atom("foo")},
 		}), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, &Compound{
-			Functor: "alias",
-			Args:    []Term{Atom("foo")},
+		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, &compound{
+			functor: "alias",
+			args:    []Term{Atom("foo")},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -4039,9 +3984,9 @@ func TestState_Close(t *testing.T) {
 			assert.NoError(t, err)
 
 			var state State
-			ok, err := state.Close(s, List(&Compound{
-				Functor: "force",
-				Args:    []Term{Atom("false")},
+			ok, err := state.Close(s, List(&compound{
+				functor: "force",
+				args:    []Term{Atom("false")},
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -4062,9 +4007,9 @@ func TestState_Close(t *testing.T) {
 			}()
 
 			var state State
-			ok, err := state.Close(s, List(&Compound{
-				Functor: "force",
-				Args:    []Term{Atom("false")},
+			ok, err := state.Close(s, List(&compound{
+				functor: "force",
+				args:    []Term{Atom("false")},
 			}), Success, nil).Force(context.Background())
 			assert.Equal(t, SystemError(errors.New("ng")), err)
 			assert.False(t, ok)
@@ -4077,9 +4022,9 @@ func TestState_Close(t *testing.T) {
 			assert.NoError(t, err)
 
 			var state State
-			ok, err := state.Close(s, List(&Compound{
-				Functor: "force",
-				Args:    []Term{Atom("true")},
+			ok, err := state.Close(s, List(&compound{
+				functor: "force",
+				args:    []Term{Atom("true")},
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -4100,9 +4045,9 @@ func TestState_Close(t *testing.T) {
 			}()
 
 			var state State
-			ok, err := state.Close(s, List(&Compound{
-				Functor: "force",
-				Args:    []Term{Atom("true")},
+			ok, err := state.Close(s, List(&compound{
+				functor: "force",
+				args:    []Term{Atom("true")},
 			}), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -4134,7 +4079,7 @@ func TestState_Close(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
 			ok, err := state.Close(&Stream{}, ListRest(Variable("Rest"),
-				&Compound{Functor: "force", Args: []Term{Atom("true")}},
+				&compound{functor: "force", args: []Term{Atom("true")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -4142,7 +4087,7 @@ func TestState_Close(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.Close(&Stream{}, List(Variable("Option"), &Compound{Functor: "force", Args: []Term{Atom("true")}}), Success, nil).Force(context.Background())
+			ok, err := state.Close(&Stream{}, List(Variable("Option"), &compound{functor: "force", args: []Term{Atom("true")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
@@ -4181,7 +4126,7 @@ func TestState_Close(t *testing.T) {
 			t.Run("force but the argument is a variable", func(t *testing.T) {
 				var state State
 				_, err := state.Close(&Stream{}, List(Atom("force").Apply(Variable("X"))), Success, nil).Force(context.Background())
-				_, ok := DomainError(ValidDomainStreamOption, Atom("force").Apply(NewVariable()), nil).term.Unify(err.(Exception).term, false, nil)
+				_, ok := NewEnv().Unify(DomainError(ValidDomainStreamOption, Atom("force").Apply(NewVariable()), nil).term, err.(Exception).term, false)
 				assert.True(t, ok)
 			})
 
@@ -4278,535 +4223,89 @@ func TestState_FlushOutput(t *testing.T) {
 }
 
 func TestState_WriteTerm(t *testing.T) {
-	s := NewStream(os.Stdout, StreamModeWrite)
+	var buf bytes.Buffer
+	w := NewStream(&rwc{w: &buf}, StreamModeWrite)
+	r := NewStream(&rwc{r: &buf}, StreamModeRead)
+	b := NewStream(&rwc{w: &buf}, StreamModeWrite, WithStreamType(StreamTypeBinary))
 
-	ops := operators{}
-	ops.define(500, operatorSpecifierYFX, `+`)
-	ops.define(200, operatorSpecifierFY, `-`)
+	err := errors.New("failed")
 
-	state := State{
-		operators: ops,
-		streams: map[Term]*Stream{
-			Atom("foo"): s,
-		},
+	var m mockWriter
+	m.On("Write", mock.Anything).Return(0, err)
+
+	mw := NewStream(&rwc{w: &m}, StreamModeWrite)
+
+	tests := []struct {
+		title               string
+		sOrA, term, options Term
+		env                 *Env
+		ok                  bool
+		err                 error
+		output              string
+	}{
+		// 8.14.2.4 Examples
+		{title: `write_term(S, [1,2,3], []).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(), ok: true, output: `[1,2,3]`},
+		{title: `write_canonical([1,2,3]).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(Atom("quoted").Apply(Atom("true")), Atom("ignore_ops").Apply(Atom("true"))), ok: true, output: `'.'(1,'.'(2,'.'(3,[])))`},
+		{title: `write_term(S, '1<2', []).`, sOrA: w, term: Atom("1<2"), options: List(), ok: true, output: `1<2`},
+		{title: `writeq(S, '1<2').`, sOrA: w, term: Atom("1<2"), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `'1<2'`},
+		{title: `writeq('$VAR'(0)).`, sOrA: w, term: Atom("$VAR").Apply(Integer(0)), options: List(Atom("quoted").Apply(Atom("true")), Atom("numbervars").Apply(Atom("true"))), ok: true, output: `A`},
+		{title: `write_term(S, '$VAR'(1), [numbervars(false)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(1)), options: List(Atom("numbervars").Apply(Atom("false"))), ok: true, output: `$VAR(1)`},
+		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(51)), options: List(Atom("numbervars").Apply(Atom("true"))), ok: true, output: `Z1`},
+		{title: `write_term(1, [quoted(non_boolean)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Atom("non_boolean"))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Atom("non_boolean")), nil)},
+		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), err: InstantiationError(nil)},
+		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().Bind("B", Atom("true")), term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), ok: true, output: `1`},
+
+		// 8.14.2.3 Errors
+		{title: `a`, sOrA: Variable("S"), term: Atom("foo"), options: List(), err: InstantiationError(nil)},
+		{title: `b: partial list`, sOrA: w, term: Atom("foo"), options: ListRest(Variable("X"), Atom("quoted").Apply(Atom("true"))), err: InstantiationError(nil)},
+		{title: `b: variable element`, sOrA: w, term: Atom("foo"), options: List(Variable("X")), err: InstantiationError(nil)},
+		{title: `b: variable component`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Variable("X"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, partial list`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Variable("L"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, element`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Variable("E")))), err: InstantiationError(nil)},
+		{title: `b: variable_names, name`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Variable("N"), Variable("V"))))), err: InstantiationError(nil)},
+		{title: `c`, sOrA: w, term: Atom("foo"), options: Atom("options"), err: TypeError(ValidTypeList, Atom("options"), nil)},
+		{title: `d`, sOrA: Integer(0), term: Atom("foo"), options: List(), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
+		{title: `e: not a compound`, sOrA: w, term: Atom("foo"), options: List(Atom("bar")), err: DomainError(ValidDomainWriteOption, Atom("bar"), nil)},
+		{title: `e: arity is not 1`, sOrA: w, term: Atom("foo"), options: List(Atom("bar").Apply(Atom("a"), Atom("b"))), err: DomainError(ValidDomainWriteOption, Atom("bar").Apply(Atom("a"), Atom("b")), nil)},
+		{title: `e: variable_names, not a list, atom`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Atom("a"))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(Atom("a")), nil)},
+		{title: `e: variable_names, not a list, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(Integer(0)), nil)},
+		{title: `e: variable_names, element is not a pair, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("a")))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("a"))), nil)},
+		{title: `e: variable_names, element is not a pair, compound`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a")))), nil)},
+		{title: `e: variable_names, name is not an atom`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("V"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("_2")))), nil)},
+		{title: `e: boolean option, not an atom`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Integer(0)), nil)},
+		{title: `e: unknown functor`, sOrA: w, term: Atom("foo"), options: List(Atom("bar").Apply(Atom("true"))), err: DomainError(ValidDomainWriteOption, Atom("bar").Apply(Atom("true")), nil)},
+		{title: `f`, sOrA: Atom("stream"), term: Atom("foo"), options: List(), err: ExistenceError(ObjectTypeStream, Atom("stream"), nil)},
+		{title: `g`, sOrA: r, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeStream, r, nil)},
+		{title: `h`, sOrA: b, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeBinaryStream, b, nil)},
+
+		// 7.10.5
+		{title: `a`, sOrA: w, term: Variable("X"), options: List(), ok: true, output: `_1`},
+
+		{title: `variable_names`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(
+			Atom("=").Apply(Atom("n"), Variable("V")), // left-most is used
+			Atom("=").Apply(Atom("m"), Variable("V")), // ignored
+			Atom("=").Apply(Atom("a"), Atom("b")),     // ignored
+		))), ok: true, output: `n`},
+
+		{title: `failure`, sOrA: mw, term: Atom("foo"), options: List(), err: err},
 	}
 
-	t.Run("without options", func(t *testing.T) {
-		var m mockTerm
-		m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-		defer m.AssertExpectations(t)
-
-		ok, err := state.WriteTerm(s, &m, List(), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.Equal(t, state.operators, m.ops)
-		assert.Equal(t, Integer(1200), m.priority)
-	})
-
-	t.Run("quoted", func(t *testing.T) {
-		t.Run("false", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "quoted",
-				Args:    []Term{Atom("false")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.False(t, m.Quoted)
-			assert.Equal(t, ops, m.ops)
-			assert.Equal(t, Integer(1200), m.priority)
-		})
-
-		t.Run("true", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "quoted",
-				Args:    []Term{Atom("true")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.True(t, m.Quoted)
-			assert.Equal(t, ops, m.ops)
-			assert.Equal(t, Integer(1200), m.priority)
-		})
-
-		t.Run("invalid atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "quoted",
-				Args:    []Term{Atom("meh")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "quoted",
-				Args:    []Term{Atom("meh")},
-			}, nil), err)
-		})
-
-		t.Run("variable", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "quoted",
-				Args:    []Term{Variable("Bool")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-		})
-
-		t.Run("not an atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "quoted",
-				Args:    []Term{Integer(0)},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "quoted",
-				Args:    []Term{Integer(0)},
-			}, nil), err)
-		})
-	})
-
-	t.Run("ignore_ops", func(t *testing.T) {
-		t.Run("false", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Atom("false")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.False(t, m.IgnoreOps)
-			assert.Equal(t, Integer(1200), m.priority)
-		})
-
-		t.Run("true", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Atom("true")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.True(t, m.IgnoreOps)
-			assert.Equal(t, Integer(1200), m.priority)
-		})
-
-		t.Run("invalid atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Atom("meh")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Atom("meh")},
-			}, nil), err)
-		})
-
-		t.Run("variable", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Variable("Bool")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-		})
-
-		t.Run("not an atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Integer(0)},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "ignore_ops",
-				Args:    []Term{Integer(0)},
-			}, nil), err)
-		})
-	})
-
-	t.Run("variable_names", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("=").Apply(Atom("foo"), Variable("X")),
-					Atom("=").Apply(Atom("bar"), Variable("X")),
-					Atom("=").Apply(Atom("baz"), Variable("Y")),
-				)},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.Equal(t, map[Variable]Atom{
-				"X": "foo", // The leftmost is used.
-				"Y": "baz",
-			}, m.VariableNames)
-		})
-
-		t.Run("argument is not a list", func(t *testing.T) {
-			t.Run("partial list", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args:    []Term{ListRest(Variable("L"), Atom("=").Apply(Atom("foo"), Variable("X")))},
-				}), Success, nil).Force(context.Background())
-				assert.Equal(t, InstantiationError(nil), err)
-			})
-
-			t.Run("suffix is atom", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args:    []Term{ListRest(Atom("rest"), Atom("=").Apply(Atom("foo"), Variable("X")))},
-				}), Success, nil).Force(context.Background())
-				e, ok := err.(Exception)
+	var state State
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			varCounter = 0
+			buf.Reset()
+			ok, err := state.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			if tt.err == nil {
+				assert.NoError(t, err)
+			} else if te, ok := tt.err.(*Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(*Exception).term, false)
 				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
-					Functor: "variable_names",
-					Args:    []Term{ListRest(Atom("rest"), Atom("=").Apply(Atom("foo"), Variable("X")))},
-				}, nil).term, false, nil)
-				assert.True(t, ok)
-			})
-
-			t.Run("suffix is compound", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
-				}), Success, nil).Force(context.Background())
-				assert.Error(t, err)
-				e, ok := err.(Exception)
-				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
-					Functor: "variable_names",
-					Args:    []Term{Atom("=").Apply(Atom("foo"), Variable("X"))},
-				}, nil).term, false, nil)
-				assert.True(t, ok)
-			})
+			}
+			assert.Equal(t, tt.output, buf.String())
 		})
-
-		t.Run("element is not name=Variable", func(t *testing.T) {
-			t.Run("a variable", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Variable("VN"),
-					)},
-				}), Success, nil).Force(context.Background())
-				assert.Equal(t, InstantiationError(nil), err)
-			})
-
-			t.Run("a compound which is not =/2", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Atom("foo").Apply(Atom("n"), Variable("V")),
-					)},
-				}), Success, nil).Force(context.Background())
-				assert.Error(t, err)
-				e, ok := err.(Exception)
-				assert.True(t, ok)
-				_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Atom("foo").Apply(Atom("n"), Variable("V")),
-					)},
-				}, nil).term, false, nil)
-				assert.True(t, ok)
-			})
-
-			t.Run("a compound of =/2 but lhs is not an atom", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Atom("=").Apply(Variable("N"), Variable("V")),
-					)},
-				}), Success, nil).Force(context.Background())
-				assert.Equal(t, InstantiationError(nil), err)
-			})
-
-			t.Run("neither a variable nor a compound", func(t *testing.T) {
-				var m mockTerm
-				defer m.AssertExpectations(t)
-
-				_, err := state.WriteTerm(s, &m, List(&Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Atom("foo"),
-					)},
-				}), Success, nil).Force(context.Background())
-				assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-					Functor: "variable_names",
-					Args: []Term{List(
-						Atom("foo"),
-					)},
-				}, nil), err)
-			})
-		})
-
-		t.Run("name is not an atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("=").Apply(Integer(0), Variable("X")),
-				)},
-			}), Success, nil).Force(context.Background())
-			e, ok := err.(Exception)
-			assert.True(t, ok)
-			_, ok = e.term.Unify(DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "variable_names",
-				Args: []Term{List(
-					Atom("=").Apply(Integer(0), Variable("X")),
-				)},
-			}, nil).term, false, nil)
-			assert.True(t, ok)
-		})
-	})
-
-	t.Run("numbervars", func(t *testing.T) {
-		t.Run("false", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "numbervars",
-				Args:    []Term{Atom("false")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.False(t, m.NumberVars)
-		})
-
-		t.Run("true", func(t *testing.T) {
-			var m mockTerm
-			m.On("WriteTerm", mock.Anything, mock.Anything, (*Env)(nil)).Return(nil).Once()
-			defer m.AssertExpectations(t)
-
-			ok, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "numbervars",
-				Args:    []Term{Atom("true")},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-
-			assert.True(t, m.NumberVars)
-		})
-
-		t.Run("invalid atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "numbervars",
-				Args:    []Term{Atom("meh")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "numbervars",
-				Args:    []Term{Atom("meh")},
-			}, nil), err)
-		})
-
-		t.Run("variable", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "numbervars",
-				Args:    []Term{Variable("Bool")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-		})
-
-		t.Run("not an atom", func(t *testing.T) {
-			var m mockTerm
-			defer m.AssertExpectations(t)
-
-			_, err := state.WriteTerm(s, &m, List(&Compound{
-				Functor: "numbervars",
-				Args:    []Term{Integer(0)},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "numbervars",
-				Args:    []Term{Integer(0)},
-			}, nil), err)
-		})
-	})
-
-	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.WriteTerm(Variable("Stream"), Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("options is a partial list or a list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			var state State
-			ok, err := state.WriteTerm(s, Atom("foo"), ListRest(Variable("Rest"),
-				&Compound{Functor: "quoted", Args: []Term{Atom("true")}},
-			), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("variable element", func(t *testing.T) {
-			var state State
-			ok, err := state.WriteTerm(s, Atom("foo"), List(Variable("Option"), &Compound{Functor: "quoted", Args: []Term{Atom("true")}}), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.WriteTerm(Integer(0), Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
-		var state State
-		ok, err := state.WriteTerm(s, Atom("foo"), Atom("options"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeList, Atom("options"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("an element E of the Options list is neither a variable nor a valid write-option", func(t *testing.T) {
-		t.Run("atom", func(t *testing.T) {
-			var state State
-			ok, err := state.WriteTerm(s, Atom("foo"), List(Atom("option")), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, Atom("option"), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("compound of arity n != 1", func(t *testing.T) {
-			var state State
-			ok, err := state.WriteTerm(s, Atom("foo"), List(&Compound{
-				Functor: "unknown",
-				Args:    []Term{Atom("foo"), Atom("bar")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "unknown",
-				Args:    []Term{Atom("foo"), Atom("bar")},
-			}, nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("unknown option of a boolean argument", func(t *testing.T) {
-			var state State
-			ok, err := state.WriteTerm(s, Atom("foo"), List(&Compound{
-				Functor: "unknown",
-				Args:    []Term{Atom("true")},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, DomainError(ValidDomainWriteOption, &Compound{
-				Functor: "unknown",
-				Args:    []Term{Atom("true")},
-			}, nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.WriteTerm(Atom("stream"), Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeStream, Atom("stream"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
-
-		var state State
-		ok, err := state.WriteTerm(s, Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
-
-		var state State
-		ok, err := state.WriteTerm(s, Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeBinaryStream, s, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("write error", func(t *testing.T) {
-		var f struct {
-			mockReader
-			mockWriter
-			mockCloser
-		}
-		f.mockWriter.On("Write", mock.Anything).Return(0, errors.New("failed"))
-		defer f.mockWriter.AssertExpectations(t)
-
-		s := NewStream(&f, StreamModeWrite)
-		_, err := state.WriteTerm(s, Atom("foo"), List(), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-	})
-
-	t.Run("variable names has to start with _", func(t *testing.T) { // https://github.com/ichiban/prolog/issues/188#issuecomment-1186180393
-		varCounter = 0
-		var buf bytes.Buffer
-		s := NewStream(readWriteCloser(&buf), StreamModeWrite)
-		ok, err := state.WriteTerm(s, Variable("X"), List(), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-		assert.Equal(t, "_1", buf.String())
-	})
+	}
 }
 
 type mockTerm struct {
@@ -4817,22 +4316,6 @@ type mockTerm struct {
 func (m *mockTerm) String() string {
 	args := m.Called()
 	return args.String(0)
-}
-
-func (m *mockTerm) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	args := m.Called(t, occursCheck, env)
-	return args.Get(0).(*Env), args.Bool(1)
-}
-
-func (m *mockTerm) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	args := m.Called(w, opts, env)
-	m.WriteOptions = *opts
-	return args.Error(0)
-}
-
-func (m *mockTerm) Compare(t Term, env *Env) int64 {
-	args := m.Called(t, env)
-	return args.Get(0).(int64)
 }
 
 func TestCharCode(t *testing.T) {
@@ -5232,20 +4715,20 @@ func TestState_ReadTerm(t *testing.T) {
 		v, singletons := Variable("Term"), Variable("Singletons")
 
 		var state State
-		ok, err := state.ReadTerm(s, v, List(&Compound{
-			Functor: "singletons",
-			Args:    []Term{singletons},
+		ok, err := state.ReadTerm(s, v, List(&compound{
+			functor: "singletons",
+			args:    []Term{singletons},
 		}), func(env *Env) *Promise {
-			c, ok := env.Resolve(v).(*Compound)
+			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
-			assert.Equal(t, Atom("f"), c.Functor)
-			assert.Len(t, c.Args, 3)
+			assert.Equal(t, Atom("f"), c.functor)
+			assert.Len(t, c.args, 3)
 
-			x, ok := c.Args[0].(Variable)
+			x, ok := c.args[0].(Variable)
 			assert.True(t, ok)
-			assert.Equal(t, x, c.Args[1])
+			assert.Equal(t, x, c.args[1])
 
-			y, ok := c.Args[2].(Variable)
+			y, ok := c.args[2].(Variable)
 			assert.True(t, ok)
 
 			assert.Equal(t, List(y), env.Resolve(singletons))
@@ -5266,20 +4749,20 @@ func TestState_ReadTerm(t *testing.T) {
 		v, variables := Variable("Term"), Variable("Variables")
 
 		var state State
-		ok, err := state.ReadTerm(s, v, List(&Compound{
-			Functor: "variables",
-			Args:    []Term{variables},
+		ok, err := state.ReadTerm(s, v, List(&compound{
+			functor: "variables",
+			args:    []Term{variables},
 		}), func(env *Env) *Promise {
-			c, ok := env.Resolve(v).(*Compound)
+			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
-			assert.Equal(t, Atom("f"), c.Functor)
-			assert.Len(t, c.Args, 3)
+			assert.Equal(t, Atom("f"), c.functor)
+			assert.Len(t, c.args, 3)
 
-			x, ok := c.Args[0].(Variable)
+			x, ok := c.args[0].(Variable)
 			assert.True(t, ok)
-			assert.Equal(t, x, c.Args[1])
+			assert.Equal(t, x, c.args[1])
 
-			y, ok := c.Args[2].(Variable)
+			y, ok := c.args[2].(Variable)
 			assert.True(t, ok)
 
 			assert.Equal(t, List(x, y), env.Resolve(variables))
@@ -5300,30 +4783,30 @@ func TestState_ReadTerm(t *testing.T) {
 		v, variableNames := Variable("Term"), Variable("VariableNames")
 
 		var state State
-		ok, err := state.ReadTerm(s, v, List(&Compound{
-			Functor: "variable_names",
-			Args:    []Term{variableNames},
+		ok, err := state.ReadTerm(s, v, List(&compound{
+			functor: "variable_names",
+			args:    []Term{variableNames},
 		}), func(env *Env) *Promise {
-			c, ok := env.Resolve(v).(*Compound)
+			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
-			assert.Equal(t, Atom("f"), c.Functor)
-			assert.Len(t, c.Args, 3)
+			assert.Equal(t, Atom("f"), c.functor)
+			assert.Len(t, c.args, 3)
 
-			x, ok := c.Args[0].(Variable)
+			x, ok := c.args[0].(Variable)
 			assert.True(t, ok)
-			assert.Equal(t, x, c.Args[1])
+			assert.Equal(t, x, c.args[1])
 
-			y, ok := c.Args[2].(Variable)
+			y, ok := c.args[2].(Variable)
 			assert.True(t, ok)
 
 			assert.Equal(t, List(
-				&Compound{
-					Functor: "=",
-					Args:    []Term{Atom("X"), x},
+				&compound{
+					functor: "=",
+					args:    []Term{Atom("X"), x},
 				},
-				&Compound{
-					Functor: "=",
-					Args:    []Term{Atom("Y"), y},
+				&compound{
+					functor: "=",
+					args:    []Term{Atom("Y"), y},
 				},
 			), env.Resolve(variableNames))
 
@@ -5345,21 +4828,21 @@ func TestState_ReadTerm(t *testing.T) {
 		var state State
 
 		ok, err := state.ReadTerm(s, v, List(), func(env *Env) *Promise {
-			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("a")}}, env.Resolve(v))
+			assert.Equal(t, &compound{functor: "foo", args: []Term{Atom("a")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
 		ok, err = state.ReadTerm(s, v, List(), func(env *Env) *Promise {
-			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("b")}}, env.Resolve(v))
+			assert.Equal(t, &compound{functor: "foo", args: []Term{Atom("b")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.ReadTerm(s, &v, List(), func(env *Env) *Promise {
-			assert.Equal(t, &Compound{Functor: "foo", Args: []Term{Atom("c")}}, env.Resolve(v))
+		ok, err = state.ReadTerm(s, v, List(), func(env *Env) *Promise {
+			assert.Equal(t, &compound{functor: "foo", args: []Term{Atom("c")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
@@ -5377,7 +4860,7 @@ func TestState_ReadTerm(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
 			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), ListRest(Variable("Rest"),
-				&Compound{Functor: "variables", Args: []Term{Variable("VL")}},
+				&compound{functor: "variables", args: []Term{Variable("VL")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -5385,7 +4868,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(Variable("Option"), &Compound{Functor: "variables", Args: []Term{Variable("VL")}}), Success, nil).Force(context.Background())
+			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(Variable("Option"), &compound{functor: "variables", args: []Term{Variable("VL")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
@@ -5407,13 +4890,13 @@ func TestState_ReadTerm(t *testing.T) {
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
 		var state State
-		ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(&Compound{
-			Functor: "unknown",
-			Args:    []Term{Atom("option")},
+		ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(&compound{
+			functor: "unknown",
+			args:    []Term{Atom("option")},
 		}), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainReadOption, &Compound{
-			Functor: "unknown",
-			Args:    []Term{Atom("option")},
+		assert.Equal(t, DomainError(ValidDomainReadOption, &compound{
+			functor: "unknown",
+			args:    []Term{Atom("option")},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -6246,29 +5729,29 @@ func TestState_Clause(t *testing.T) {
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
 					{Name: "green", Arity: 1}: clauses{
-						{raw: &Compound{
-							Functor: ":-", Args: []Term{
-								&Compound{Functor: "green", Args: []Term{x}},
-								&Compound{Functor: "moldy", Args: []Term{x}},
+						{raw: &compound{
+							functor: ":-", args: []Term{
+								&compound{functor: "green", args: []Term{x}},
+								&compound{functor: "moldy", args: []Term{x}},
 							},
 						}},
-						{raw: &Compound{Functor: "green", Args: []Term{Atom("kermit")}}},
+						{raw: &compound{functor: "green", args: []Term{Atom("kermit")}}},
 					},
 				},
 			},
 		}
-		ok, err := state.Clause(&Compound{
-			Functor: "green",
-			Args:    []Term{what},
+		ok, err := state.Clause(&compound{
+			functor: "green",
+			args:    []Term{what},
 		}, body, func(env *Env) *Promise {
 			switch c {
 			case 0:
 				assert.True(t, env.Resolve(what).(Variable).Generated())
-				b, ok := env.Resolve(body).(*Compound)
+				b, ok := env.Resolve(body).(*compound)
 				assert.True(t, ok)
-				assert.Equal(t, Atom("moldy"), b.Functor)
-				assert.Len(t, b.Args, 1)
-				assert.True(t, b.Args[0].(Variable).Generated())
+				assert.Equal(t, Atom("moldy"), b.functor)
+				assert.Len(t, b.args, 1)
+				assert.True(t, b.args[0].(Variable).Generated())
 			case 1:
 				assert.Equal(t, Atom("kermit"), env.Resolve(what))
 				assert.Equal(t, Atom("true"), env.Resolve(body))
@@ -6308,13 +5791,13 @@ func TestState_Clause(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.Clause(&Compound{
-			Functor: "green",
-			Args:    []Term{what},
+		ok, err := state.Clause(&compound{
+			functor: "green",
+			args:    []Term{what},
 		}, body, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationAccess, PermissionTypePrivateProcedure, &Compound{
-			Functor: "/",
-			Args:    []Term{Atom("green"), Integer(1)},
+		assert.Equal(t, PermissionError(OperationAccess, PermissionTypePrivateProcedure, &compound{
+			functor: "/",
+			args:    []Term{Atom("green"), Integer(1)},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -6603,7 +6086,7 @@ func TestAtomChars(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomChars(tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -6664,7 +6147,7 @@ func TestAtomCodes(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomCodes(tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := k.Unify(v, false, env)
+					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -6758,7 +6241,7 @@ func TestNumberChars(t *testing.T) {
 
 		t.Run("list-ish", func(t *testing.T) {
 			_, err := NumberChars(Integer(0), ListRest(Atom("b"), Variable("A")), Success, nil).Force(context.Background())
-			_, ok := err.(Exception).Term().Unify(TypeError(ValidTypeList, ListRest(Atom("b"), NewVariable()), nil).Term(), false, nil)
+			_, ok := NewEnv().Unify(err.(Exception).Term(), TypeError(ValidTypeList, ListRest(Atom("b"), NewVariable()), nil).Term(), false)
 			assert.True(t, ok)
 		})
 	})
@@ -6912,15 +6395,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("stream", func(t *testing.T) {
 		expected := []Term{
-			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			&compound{functor: "mode", args: []Term{Atom("read")}},
 			Atom("input"),
-			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
-			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
-			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(0)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
-			&Compound{Functor: "reposition", Args: []Term{Atom("true")}},
-			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+			&compound{functor: "alias", args: []Term{Atom("null")}},
+			&compound{functor: "eof_action", args: []Term{Atom("eof_code")}},
+			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
+			&compound{functor: "position", args: []Term{Integer(0)}},
+			&compound{functor: "end_of_stream", args: []Term{Atom("at")}},
+			&compound{functor: "reposition", args: []Term{Atom("true")}},
+			&compound{functor: "type", args: []Term{Atom("text")}},
 		}
 
 		s, err := Open(Atom(f.Name()), StreamModeRead)
@@ -6944,15 +6427,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("reposition false", func(t *testing.T) {
 		expected := []Term{
-			&Compound{Functor: "mode", Args: []Term{Atom("read")}},
+			&compound{functor: "mode", args: []Term{Atom("read")}},
 			Atom("input"),
-			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
-			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
-			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(0)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
-			&Compound{Functor: "reposition", Args: []Term{Atom("false")}},
-			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+			&compound{functor: "alias", args: []Term{Atom("null")}},
+			&compound{functor: "eof_action", args: []Term{Atom("eof_code")}},
+			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
+			&compound{functor: "position", args: []Term{Integer(0)}},
+			&compound{functor: "end_of_stream", args: []Term{Atom("at")}},
+			&compound{functor: "reposition", args: []Term{Atom("false")}},
+			&compound{functor: "type", args: []Term{Atom("text")}},
 		}
 
 		s, err := Open(Atom(f.Name()), StreamModeRead)
@@ -6977,15 +6460,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("stream alias", func(t *testing.T) {
 		expected := []Term{
-			&Compound{Functor: "mode", Args: []Term{Atom("write")}},
+			&compound{functor: "mode", args: []Term{Atom("write")}},
 			Atom("output"),
-			&Compound{Functor: "alias", Args: []Term{Atom("null")}},
-			&Compound{Functor: "eof_action", Args: []Term{Atom("eof_code")}},
-			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(0)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom("at")}},
-			&Compound{Functor: "reposition", Args: []Term{Atom("true")}},
-			&Compound{Functor: "type", Args: []Term{Atom("text")}},
+			&compound{functor: "alias", args: []Term{Atom("null")}},
+			&compound{functor: "eof_action", args: []Term{Atom("eof_code")}},
+			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
+			&compound{functor: "position", args: []Term{Integer(0)}},
+			&compound{functor: "end_of_stream", args: []Term{Atom("at")}},
+			&compound{functor: "reposition", args: []Term{Atom("true")}},
+			&compound{functor: "type", args: []Term{Atom("text")}},
 		}
 
 		s, err := Open(Atom(f.Name()), StreamModeWrite)
@@ -7033,9 +6516,9 @@ func TestState_StreamProperty(t *testing.T) {
 			}()
 
 			var state State
-			ok, err := state.StreamProperty(s, &Compound{
-				Functor: "mode",
-				Args:    []Term{Atom("read")},
+			ok, err := state.StreamProperty(s, &compound{
+				functor: "mode",
+				args:    []Term{Atom("read")},
 			}, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -7049,9 +6532,9 @@ func TestState_StreamProperty(t *testing.T) {
 			}()
 
 			var state State
-			ok, err := state.StreamProperty(s, &Compound{
-				Functor: "position",
-				Args:    []Term{Integer(0)},
+			ok, err := state.StreamProperty(s, &compound{
+				functor: "position",
+				args:    []Term{Integer(0)},
 			}, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -7094,9 +6577,9 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{
-			Functor: "mode",
-			Args:    []Term{Atom("read")},
+		ok, err := state.StreamProperty(s, &compound{
+			functor: "mode",
+			args:    []Term{Atom("read")},
 		}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
@@ -7117,9 +6600,9 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{
-			Functor: "mode",
-			Args:    []Term{Atom("read")},
+		ok, err := state.StreamProperty(s, &compound{
+			functor: "mode",
+			args:    []Term{Atom("read")},
 		}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
@@ -7140,9 +6623,9 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{
-			Functor: "end_of_stream",
-			Args:    []Term{Atom("past")},
+		ok, err := state.StreamProperty(s, &compound{
+			functor: "end_of_stream",
+			args:    []Term{Atom("past")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -7169,7 +6652,7 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{Functor: "foo", Args: []Term{NewVariable()}}, Success, nil).Force(context.Background())
+		ok, err := state.StreamProperty(s, &compound{functor: "foo", args: []Term{NewVariable()}}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -7182,7 +6665,7 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{Functor: "mode", Args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
+		ok, err := state.StreamProperty(s, &compound{functor: "mode", args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -7208,7 +6691,7 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{Functor: "mode", Args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
+		ok, err := state.StreamProperty(s, &compound{functor: "mode", args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -7221,7 +6704,7 @@ func TestState_StreamProperty(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.StreamProperty(s, &Compound{Functor: "position", Args: []Term{Atom("foo")}}, Success, nil).Force(context.Background())
+		ok, err := state.StreamProperty(s, &compound{functor: "position", args: []Term{Atom("foo")}}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -7647,9 +7130,9 @@ func TestState_SetPrologFlag(t *testing.T) {
 	t.Run("value is inadmissible for flag", func(t *testing.T) {
 		var state State
 		ok, err := state.SetPrologFlag(Atom("unknown"), Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainFlagValue, &Compound{
-			Functor: "+",
-			Args:    []Term{Atom("unknown"), Integer(0)},
+		assert.Equal(t, DomainError(ValidDomainFlagValue, &compound{
+			functor: "+",
+			args:    []Term{Atom("unknown"), Integer(0)},
 		}, nil), err)
 		assert.False(t, ok)
 	})
@@ -7767,9 +7250,9 @@ func TestState_Dynamic(t *testing.T) {
 
 	t.Run("procedure is not defined", func(t *testing.T) {
 		var state State
-		ok, err := state.Dynamic(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.Dynamic(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7788,9 +7271,9 @@ func TestState_Dynamic(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.Dynamic(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.Dynamic(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7807,16 +7290,16 @@ func TestState_Dynamic(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.Dynamic(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.Dynamic(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7826,9 +7309,9 @@ func TestState_Dynamic(t *testing.T) {
 
 	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
 		var state State
-		ok, err := state.Dynamic(ListRest(Variable("X"), &Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.Dynamic(ListRest(Variable("X"), &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7848,9 +7331,9 @@ func TestState_BuiltIn(t *testing.T) {
 
 	t.Run("procedure is not defined", func(t *testing.T) {
 		var state State
-		ok, err := state.BuiltIn(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.BuiltIn(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7869,9 +7352,9 @@ func TestState_BuiltIn(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.BuiltIn(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.BuiltIn(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7888,16 +7371,16 @@ func TestState_BuiltIn(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.BuiltIn(&Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.BuiltIn(&compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &Compound{
-			Functor: "/",
-			Args: []Term{
+		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7907,9 +7390,9 @@ func TestState_BuiltIn(t *testing.T) {
 
 	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
 		var state State
-		ok, err := state.BuiltIn(ListRest(Variable("X"), &Compound{
-			Functor: "/",
-			Args: []Term{
+		ok, err := state.BuiltIn(ListRest(Variable("X"), &compound{
+			functor: "/",
+			args: []Term{
 				Atom("foo"),
 				Integer(1),
 			},
@@ -7922,12 +7405,12 @@ func TestState_BuiltIn(t *testing.T) {
 func TestState_ExpandTerm(t *testing.T) {
 	t.Run("term_expansion/2 is undefined", func(t *testing.T) {
 		var state State
-		ok, err := state.ExpandTerm(&Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
-		}, &Compound{
-			Functor: "f",
-			Args:    []Term{Atom("a")},
+		ok, err := state.ExpandTerm(&compound{
+			functor: "f",
+			args:    []Term{Atom("a")},
+		}, &compound{
+			functor: "f",
+			args:    []Term{Atom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -7944,12 +7427,12 @@ func TestState_ExpandTerm(t *testing.T) {
 					},
 				},
 			}
-			ok, err := state.ExpandTerm(&Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
+			ok, err := state.ExpandTerm(&compound{
+				functor: "f",
+				args:    []Term{Atom("a")},
+			}, &compound{
+				functor: "f",
+				args:    []Term{Atom("a")},
 			}, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -7965,12 +7448,12 @@ func TestState_ExpandTerm(t *testing.T) {
 					},
 				},
 			}
-			ok, err := state.ExpandTerm(&Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, &Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
+			ok, err := state.ExpandTerm(&compound{
+				functor: "f",
+				args:    []Term{Atom("a")},
+			}, &compound{
+				functor: "f",
+				args:    []Term{Atom("a")},
 			}, Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
@@ -7981,20 +7464,20 @@ func TestState_ExpandTerm(t *testing.T) {
 				VM: VM{
 					procedures: map[ProcedureIndicator]procedure{
 						{Name: "term_expansion", Arity: 2}: predicate2(func(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise {
-							return Unify(t2, &Compound{
-								Functor: "g",
-								Args:    []Term{Atom("b")},
+							return Unify(t2, &compound{
+								functor: "g",
+								args:    []Term{Atom("b")},
 							}, k, env)
 						}),
 					},
 				},
 			}
-			ok, err := state.ExpandTerm(&Compound{
-				Functor: "f",
-				Args:    []Term{Atom("a")},
-			}, &Compound{
-				Functor: "g",
-				Args:    []Term{Atom("b")},
+			ok, err := state.ExpandTerm(&compound{
+				functor: "f",
+				args:    []Term{Atom("a")},
+			}, &compound{
+				functor: "g",
+				args:    []Term{Atom("b")},
 			}, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
@@ -8036,47 +7519,47 @@ func TestState_Expand(t *testing.T) {
 	t.Run("DCG", func(t *testing.T) {
 		t.Run("empty terminal-sequence", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), List()}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), List()}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
-				&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
 			}}, term)
 		})
 
 		t.Run("terminal sequence", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), List(Atom("a"))}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), List(Atom("a"))}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
-				&Compound{Functor: "=", Args: []Term{Variable("_1"), ListRest(Variable("_3"), Atom("a"))}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "=", args: []Term{Variable("_1"), ListRest(Variable("_3"), Atom("a"))}},
 			}}, term)
 		})
 
 		t.Run("concatenation", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
+				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
-				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				assert.Equal(t, &compound{functor: ":-", args: []Term{
+					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 					Seq(",",
-						&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
-						&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+						&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
+						&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
 					),
 				}}, term)
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -8085,29 +7568,29 @@ func TestState_Expand(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				t.Run("normal", func(t *testing.T) {
 					varCounter = 0
-					term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
+					term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
 					assert.NoError(t, err)
-					assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-						&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					assert.Equal(t, &compound{functor: ":-", args: []Term{
+						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 						Seq(";",
-							&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_3")}},
-							&Compound{Functor: "b", Args: []Term{Variable("_1"), Variable("_3")}},
+							&compound{functor: "a", args: []Term{Variable("_1"), Variable("_3")}},
+							&compound{functor: "b", args: []Term{Variable("_1"), Variable("_3")}},
 						),
 					}}, term)
 				})
 
 				t.Run("if-then-else", func(t *testing.T) {
 					varCounter = 0
-					term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
+					term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
 					assert.NoError(t, err)
-					assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-						&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+					assert.Equal(t, &compound{functor: ":-", args: []Term{
+						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 						Seq(";",
-							&Compound{Functor: "->", Args: []Term{
-								&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
-								&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+							&compound{functor: "->", args: []Term{
+								&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
+								&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
 							}},
-							&Compound{Functor: "c", Args: []Term{Variable("_1"), Variable("_3")}},
+							&compound{functor: "c", args: []Term{Variable("_1"), Variable("_3")}},
 						),
 					}}, term)
 				})
@@ -8115,13 +7598,13 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -8129,72 +7612,72 @@ func TestState_Expand(t *testing.T) {
 		t.Run("second form of alternative", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
+				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
-				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				assert.Equal(t, &compound{functor: ":-", args: []Term{
+					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 					Seq(";",
-						&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_3")}},
-						&Compound{Functor: "b", Args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "a", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "b", args: []Term{Variable("_1"), Variable("_3")}},
 					),
 				}}, term)
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
 
 		t.Run("grammar-body-goal", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "{}", Args: []Term{Atom("a")}}}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "{}", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 				Seq(",",
 					Atom("a"),
-					&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
 				),
 			}}, term)
 		})
 
 		t.Run("call", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "call", Args: []Term{Atom("a")}}}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "call", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
-				&Compound{Functor: "call", Args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "call", args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
 			}}, term)
 		})
 
 		t.Run("phrase", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "phrase", Args: []Term{Atom("a")}}}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "phrase", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
-				&Compound{Functor: "phrase", Args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "phrase", args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
 			}}, term)
 		})
 
 		t.Run("grammar-body-cut", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), Atom("!")}}, nil)
+			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Atom("!")}}, nil)
 			assert.NoError(t, err)
-			assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-				&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+			assert.Equal(t, &compound{functor: ":-", args: []Term{
+				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 				Seq(",",
 					Atom("!"),
-					&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
 				),
 			}}, term)
 		})
@@ -8202,20 +7685,20 @@ func TestState_Expand(t *testing.T) {
 		t.Run("grammar-body-not", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: `\+`, Args: []Term{Atom("a")}}}}, nil)
+				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Atom("a")}}}}, nil)
 				assert.NoError(t, err)
-				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
+				assert.Equal(t, &compound{functor: ":-", args: []Term{
+					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
 					Seq(",",
-						&Compound{Functor: `\+`, Args: []Term{&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}}}},
-						&Compound{Functor: "=", Args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: `\+`, args: []Term{&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}}}},
+						&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
 					),
 				}}, term)
 			})
 
 			t.Run("goal is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: `\+`, Args: []Term{Integer(0)}}}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -8223,15 +7706,15 @@ func TestState_Expand(t *testing.T) {
 		t.Run("if-then", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Atom("a"), Atom("b")}}}}, nil)
+				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}}}, nil)
 				assert.NoError(t, err)
-				assert.Equal(t, &Compound{Functor: ":-", Args: []Term{
-					&Compound{Functor: "s", Args: []Term{Variable("_1"), Variable("_3")}},
-					&Compound{
-						Functor: "->",
-						Args: []Term{
-							&Compound{Functor: "a", Args: []Term{Variable("_1"), Variable("_4")}},
-							&Compound{Functor: "b", Args: []Term{Variable("_4"), Variable("_3")}},
+				assert.Equal(t, &compound{functor: ":-", args: []Term{
+					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{
+						functor: "->",
+						args: []Term{
+							&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
+							&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
 						},
 					},
 				}}, term)
@@ -8239,13 +7722,13 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Integer(0), Atom("b")}}}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Integer(0), Atom("b")}}}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&Compound{Functor: "-->", Args: []Term{Atom("s"), &Compound{Functor: "->", Args: []Term{Atom("a"), Integer(0)}}}}, nil)
+				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -8255,21 +7738,21 @@ func TestState_Expand(t *testing.T) {
 				varCounter = 0
 				term, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.NoError(t, err)
-				assert.Equal(t, &Compound{
-					Functor: ":-",
-					Args: []Term{
-						&Compound{Functor: "phrase1", Args: []Term{Variable("_1"), Variable("_3")}},
-						&Compound{
-							Functor: ",",
-							Args: []Term{
-								&Compound{
-									Functor: ",",
-									Args: []Term{
-										&Compound{Functor: "phrase2", Args: []Term{Variable("_1"), Variable("_4")}},
-										&Compound{Functor: "phrase3", Args: []Term{Variable("_4"), Variable("_2")}},
+				assert.Equal(t, &compound{
+					functor: ":-",
+					args: []Term{
+						&compound{functor: "phrase1", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{
+							functor: ",",
+							args: []Term{
+								&compound{
+									functor: ",",
+									args: []Term{
+										&compound{functor: "phrase2", args: []Term{Variable("_1"), Variable("_4")}},
+										&compound{functor: "phrase3", args: []Term{Variable("_4"), Variable("_2")}},
 									},
 								},
-								&Compound{Functor: "=", Args: []Term{Variable("_3"), ListRest(Variable("_2"), Atom("word"))}},
+								&compound{functor: "=", args: []Term{Variable("_3"), ListRest(Variable("_2"), Atom("word"))}},
 							},
 						},
 					},
@@ -8698,4 +8181,46 @@ func TestState_Negation(t *testing.T) {
 
 	_, err = s.Negation(Atom("error"), Success, nil).Force(context.Background())
 	assert.Equal(t, e, err)
+}
+
+func TestAppend(t *testing.T) {
+	tests := []struct {
+		title      string
+		xs, ys, zs Term
+		ok         bool
+		err        error
+		env        []map[Variable]Term
+	}{
+		// p.p.2.4 Examples
+		{title: `append([a,b],[c,d], Xs).`, xs: List(Atom("a"), Atom("b")), ys: List(Atom("c"), Atom("d")), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
+			{"Xs": List(Atom("a"), Atom("b"), Atom("c"), Atom("d"))},
+		}},
+		{title: `append([a], nonlist, Xs).`, xs: List(Atom("a")), ys: Atom("nonlist"), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
+			{"Xs": ListRest(Atom("nonlist"), Atom("a"))},
+		}},
+		{title: `append([a], Ys, Zs).`, xs: List(Atom("a")), ys: Variable("Ys"), zs: Variable("Zs"), ok: true, env: []map[Variable]Term{
+			{"Zs": ListRest(Variable("Ys"), Atom("a"))},
+		}},
+		{title: `append(Xs, Ys, [a,b,c]).`, xs: Variable("Xs"), ys: Variable("Ys"), zs: List(Atom("a"), Atom("b"), Atom("c")), ok: true, env: []map[Variable]Term{
+			{"Xs": List(), "Ys": List(Atom("a"), Atom("b"), Atom("c"))},
+			{"Xs": List(Atom("a")), "Ys": List(Atom("b"), Atom("c"))},
+			{"Xs": List(Atom("a"), Atom("b")), "Ys": List(Atom("c"))},
+			{"Xs": List(Atom("a"), Atom("b"), Atom("c")), "Ys": List()},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Append(tt.xs, tt.ys, tt.zs, func(env *Env) *Promise {
+				for k, v := range tt.env[0] {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				tt.env = tt.env[1:]
+				return Bool(len(tt.env) == 0)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }

@@ -2,14 +2,24 @@ package engine
 
 import (
 	"fmt"
-	"io"
 	"regexp"
-	"strings"
 	"sync/atomic"
 )
 
+// GoStringEnv is an Env which resolves a Variable when GoString() is called.
+var GoStringEnv *Env
+
 // Variable is a prolog variable.
 type Variable string
+
+func (v Variable) GoString() string {
+	switch t := GoStringEnv.Resolve(v).(type) {
+	case Variable:
+		return string(t)
+	default:
+		return fmt.Sprintf("%#v", t)
+	}
+}
 
 var varCounter uint64
 
@@ -26,52 +36,6 @@ func (v Variable) Generated() bool {
 	return generatedPattern.MatchString(string(v))
 }
 
-// Unify unifies the variable with t.
-func (v Variable) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	r, t := env.Resolve(v), env.Resolve(t)
-	v, ok := r.(Variable)
-	if !ok {
-		return r.Unify(t, occursCheck, env)
-	}
-	switch {
-	case v == t:
-		return env, true
-	case occursCheck && Contains(t, v, env):
-		return env, false
-	default:
-		return env.Bind(v, t), true
-	}
-}
-
-// WriteTerm writes the Variable to the io.Writer.
-func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	switch v := env.Resolve(v).(type) {
-	case Variable:
-		if a, ok := opts.VariableNames[v]; ok {
-			return a.WriteTerm(w, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
-		}
-		_, err := fmt.Fprint(w, string(v))
-		return err
-	default:
-		return v.WriteTerm(w, opts, env)
-	}
-}
-
-// Compare compares the variable to another term.
-func (v Variable) Compare(t Term, env *Env) int64 {
-	switch v := env.Resolve(v).(type) {
-	case Variable:
-		switch t := env.Resolve(t).(type) {
-		case Variable:
-			return int64(strings.Compare(string(v), string(t)))
-		default:
-			return -1
-		}
-	default:
-		return v.Compare(t, env)
-	}
-}
-
 // variableSet is a set of variables. The key is the variable and the value is the number of occurrences.
 // So if you look at the value it's a multi set of variable occurrences and if you ignore the value it's a set of occurrences (witness).
 type variableSet map[Variable]int
@@ -82,8 +46,10 @@ func newVariableSet(t Term, env *Env) variableSet {
 		switch t := env.Resolve(t).(type) {
 		case Variable:
 			s[t] += 1
-		case *Compound:
-			terms = append(terms, t.Args...)
+		case Compound:
+			for i := 0; i < t.Arity(); i++ {
+				terms = append(terms, t.Arg(i))
+			}
 		}
 	}
 	return s
@@ -92,11 +58,11 @@ func newVariableSet(t Term, env *Env) variableSet {
 func newExistentialVariablesSet(t Term, env *Env) variableSet {
 	ev := variableSet{}
 	for terms := []Term{t}; len(terms) > 0; terms, t = terms[:len(terms)-1], terms[len(terms)-1] {
-		if c, ok := env.Resolve(t).(*Compound); ok && c.Functor == "^" && len(c.Args) == 2 {
-			for v, o := range newVariableSet(c.Args[0], env) {
+		if c, ok := env.Resolve(t).(Compound); ok && c.Functor() == "^" && c.Arity() == 2 {
+			for v, o := range newVariableSet(c.Arg(0), env) {
 				ev[v] = o
 			}
-			terms = append(terms, c.Args[1])
+			terms = append(terms, c.Arg(1))
 		}
 	}
 	return ev

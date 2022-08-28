@@ -94,10 +94,6 @@ func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
 }
 
 func termOf(o reflect.Value) (Term, error) {
-	if t, ok := o.Interface().(Term); ok {
-		return t, nil
-	}
-
 	switch o.Kind() {
 	case reflect.Float32, reflect.Float64:
 		return Float(o.Float()), nil
@@ -523,17 +519,9 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	case TokenDoubleQuotedList:
 		switch p.doubleQuotes {
 		case doubleQuotesChars:
-			var chars []Term
-			for _, r := range unDoubleQuote(t.Val) {
-				chars = append(chars, Atom(r))
-			}
-			return List(chars...), nil
+			return CharList(unDoubleQuote(t.Val)), nil
 		case doubleQuotesCodes:
-			var codes []Term
-			for _, r := range unDoubleQuote(t.Val) {
-				codes = append(codes, Integer(r))
-			}
-			return List(codes...), nil
+			return CodeList(unDoubleQuote(t.Val)), nil
 		default:
 			p.backup()
 			break
@@ -686,6 +674,9 @@ func (p *Parser) list() (Term, error) {
 
 			switch t := p.next(); t.Kind {
 			case TokenCloseList:
+				if len(args) == 1 {
+					return Cons(args[0], rest), nil
+				}
 				return ListRest(rest, args...), nil
 			default:
 				p.backup()
@@ -711,9 +702,9 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 		return nil, errExpectation
 	}
 
-	return &Compound{
-		Functor: "{}",
-		Args:    []Term{t},
+	return &compound{
+		functor: "{}",
+		args:    []Term{t},
 	}, nil
 }
 
@@ -734,9 +725,9 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 				}
 				args = append(args, arg)
 			case TokenClose:
-				return &Compound{
-					Functor: functor,
-					Args:    args,
+				return &compound{
+					functor: functor,
+					args:    args,
 				}, nil
 			default:
 				p.backup()

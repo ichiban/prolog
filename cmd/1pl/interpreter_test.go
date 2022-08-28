@@ -58,4 +58,9 @@ func TestNew(t *testing.T) {
 		assert.NoError(t, p.QuerySolution(`\+call_nth(1, 0).`).Err())
 		assert.NoError(t, p.QuerySolution(`\+call_nth(V, 0).`).Err())
 	})
+
+	t.Run("go_string", func(t *testing.T) {
+		p := New(nil, nil)
+		assert.NoError(t, p.QuerySolution(`go_string("foo", '"foo"').`).Err())
+	})
 }

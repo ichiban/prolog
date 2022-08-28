@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"unsafe"
 )
 
 // StreamMode describes what operations you can perform on the stream.
@@ -159,51 +158,12 @@ func (s *Stream) Close() error {
 	return closeFile(s.file)
 }
 
-// Unify unifies the stream with t.
-func (s *Stream) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case *Stream:
-		return env, s == t
-	case Variable:
-		return t.Unify(s, occursCheck, env)
-	default:
-		return env, false
-	}
-}
-
-// WriteTerm writes the Stream to the io.Writer.
-func (s *Stream) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	if s.alias != "" {
-		return s.alias.WriteTerm(w, opts, env)
-	}
-	c := Compound{
-		Functor: "$stream",
-		Args: []Term{
-			Integer(uintptr(unsafe.Pointer(s))),
-		},
-	}
-	return c.WriteTerm(w, opts, env)
-}
-
-// Compare compares the stream to another term.
-func (s *Stream) Compare(t Term, env *Env) int64 {
-	switch t := env.Resolve(t).(type) {
-	case *Stream:
-		if s == t {
-			return 0
-		}
-		return 1
-	default:
-		return 1
-	}
-}
-
 var fileStat = (*os.File).Stat
 
 func (s *Stream) properties() ([]Term, error) {
 	var properties []Term
 
-	properties = append(properties, &Compound{Functor: "mode", Args: []Term{Atom(s.mode.String())}})
+	properties = append(properties, &compound{functor: "mode", args: []Term{Atom(s.mode.String())}})
 
 	switch s.mode {
 	case StreamModeRead:
@@ -213,10 +173,10 @@ func (s *Stream) properties() ([]Term, error) {
 	}
 
 	if s.alias != "" {
-		properties = append(properties, &Compound{Functor: "alias", Args: []Term{s.alias}})
+		properties = append(properties, &compound{functor: "alias", args: []Term{s.alias}})
 	}
 
-	properties = append(properties, &Compound{Functor: "eof_action", Args: []Term{Atom(s.eofAction.String())}})
+	properties = append(properties, &compound{functor: "eof_action", args: []Term{Atom(s.eofAction.String())}})
 
 	if f, ok := s.file.(*os.File); ok {
 		pos, err := seek(f, 0, 1)
@@ -239,19 +199,19 @@ func (s *Stream) properties() ([]Term, error) {
 		}
 
 		properties = append(properties,
-			&Compound{Functor: "file_name", Args: []Term{Atom(f.Name())}},
-			&Compound{Functor: "position", Args: []Term{Integer(pos)}},
-			&Compound{Functor: "end_of_stream", Args: []Term{Atom(eos)}},
+			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
+			&compound{functor: "position", args: []Term{Integer(pos)}},
+			&compound{functor: "end_of_stream", args: []Term{Atom(eos)}},
 		)
 	}
 
 	if s.reposition {
-		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("true")}})
+		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("true")}})
 	} else {
-		properties = append(properties, &Compound{Functor: "reposition", Args: []Term{Atom("false")}})
+		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("false")}})
 	}
 
-	properties = append(properties, &Compound{Functor: "type", Args: []Term{Atom(s.streamType.String())}})
+	properties = append(properties, &compound{functor: "type", args: []Term{Atom(s.streamType.String())}})
 
 	return properties, nil
 }

@@ -1,5 +1,10 @@
 package engine
 
+import (
+	"reflect"
+	"strings"
+)
+
 const (
 	varContext  = Variable("$context")
 	rootContext = Atom("root")
@@ -180,22 +185,22 @@ func (e *Env) Simplify(t Term) Term {
 	return simplify(t, nil, e)
 }
 
-func simplify(t Term, simplified map[*Compound]*Compound, env *Env) Term {
+func simplify(t Term, simplified map[TermID]Compound, env *Env) Term {
 	if simplified == nil {
-		simplified = map[*Compound]*Compound{}
+		simplified = map[TermID]Compound{}
 	}
 	switch t := env.Resolve(t).(type) {
-	case *Compound:
-		if c, ok := simplified[t]; ok {
+	case Compound:
+		if c, ok := simplified[ID(t)]; ok {
 			return c
 		}
-		c := Compound{
-			Functor: t.Functor,
-			Args:    make([]Term, len(t.Args)),
+		c := compound{
+			functor: t.Functor(),
+			args:    make([]Term, t.Arity()),
 		}
-		simplified[t] = &c
-		for i, a := range t.Args {
-			c.Args[i] = simplify(a, simplified, env)
+		simplified[ID(t)] = &c
+		for i := 0; i < t.Arity(); i++ {
+			c.args[i] = simplify(t.Arg(i), simplified, env)
 		}
 		return &c
 	default:
@@ -223,10 +228,390 @@ func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
 			}
 		}
 		return append(fvs, t)
-	case *Compound:
-		for _, arg := range t.Args {
-			fvs = e.appendFreeVariables(fvs, arg)
+	case Compound:
+		for i := 0; i < t.Arity(); i++ {
+			fvs = e.appendFreeVariables(fvs, t.Arg(i))
 		}
 	}
 	return fvs
+}
+
+func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
+	x, y = e.Resolve(x), e.Resolve(y)
+	switch x := x.(type) {
+	case Variable:
+		switch {
+		case x == y:
+			return e, true
+		case occursCheck && Contains(y, x, e):
+			return e, false
+		default:
+			return e.Bind(x, y), true
+		}
+	case Compound:
+		switch y := y.(type) {
+		case Variable:
+			return e.Unify(y, x, occursCheck)
+		case Compound:
+			if x.Functor() != y.Functor() {
+				return e, false
+			}
+			if x.Arity() != y.Arity() {
+				return e, false
+			}
+			var ok bool
+			for i := 0; i < x.Arity(); i++ {
+				e, ok = e.Unify(x.Arg(i), y.Arg(i), occursCheck)
+				if !ok {
+					return e, false
+				}
+			}
+			return e, true
+		default:
+			return e, false
+		}
+	default: // atomic
+		switch y := y.(type) {
+		case Variable:
+			return e.Unify(y, x, occursCheck)
+		default:
+			return e, x == y
+		}
+	}
+}
+
+// Order indicates ordering of two terms.
+type Order int8
+
+// Order is either =, <, or >.
+const (
+	OrderEqual Order = iota
+	OrderLess
+	OrderGreater
+)
+
+func (o Order) GoString() string {
+	return string(o.Term().(Atom))
+}
+
+// Term returns the Atom representation of Order.
+func (o Order) Term() Term {
+	return [...]Term{
+		OrderEqual:   Atom("="),
+		OrderLess:    Atom("<"),
+		OrderGreater: Atom(">"),
+	}[o]
+}
+
+// Compare compares two terms.
+func (e *Env) Compare(x, y Term) Order {
+	x, y = e.Resolve(x), e.Resolve(y)
+	switch x := x.(type) {
+	case Variable:
+		return e.compareVariable(x, y)
+	case Float:
+		return e.compareFloat(x, y)
+	case Integer:
+		return e.compareInteger(x, y)
+	case Atom:
+		return e.compareAtom(x, y)
+	case Compound:
+		return e.compareCompound(x, y)
+	default:
+		return e.compareAny(x, y)
+	}
+}
+
+func (e *Env) compareVariable(x Variable, y Term) Order {
+	switch y := y.(type) {
+	case Variable:
+		switch d := strings.Compare(string(x), string(y)); {
+		case d > 0:
+			return OrderGreater
+		case d < 0:
+			return OrderLess
+		default:
+			return OrderEqual
+		}
+	default:
+		return OrderLess
+	}
+}
+
+func (e *Env) compareFloat(x Float, y Term) Order {
+	switch y := y.(type) {
+	case Variable:
+		return OrderGreater
+	case Float:
+		switch {
+		case x > y:
+			return OrderGreater
+		case x < y:
+			return OrderLess
+		default:
+			return OrderEqual
+		}
+	default:
+		return OrderLess
+	}
+}
+
+func (e *Env) compareInteger(x Integer, y Term) Order {
+	switch y := y.(type) {
+	case Variable, Float:
+		return OrderGreater
+	case Integer:
+		switch {
+		case x > y:
+			return OrderGreater
+		case x < y:
+			return OrderLess
+		default:
+			return OrderEqual
+		}
+	default:
+		return OrderLess
+	}
+}
+
+func (e *Env) compareAtom(x Atom, y Term) Order {
+	switch y := y.(type) {
+	case Variable, Float, Integer:
+		return OrderGreater
+	case Atom:
+		switch d := strings.Compare(string(x), string(y)); {
+		case d > 0:
+			return OrderGreater
+		case d < 0:
+			return OrderLess
+		default:
+			return OrderEqual
+		}
+	default:
+		return OrderLess
+	}
+}
+
+func (e *Env) compareCompound(x Compound, y Term) Order {
+	switch y := y.(type) {
+	case Variable, Float, Integer, Atom:
+		return OrderGreater
+	case Compound:
+		switch x, y := x.Arity(), y.Arity(); {
+		case x > y:
+			return OrderGreater
+		case x < y:
+			return OrderLess
+		}
+
+		if o := e.Compare(x.Functor(), y.Functor()); o != OrderEqual {
+			return o
+		}
+
+		for i := 0; i < x.Arity(); i++ {
+			if o := e.Compare(x.Arg(i), y.Arg(i)); o != OrderEqual {
+				return o
+			}
+		}
+		return OrderEqual
+	default:
+		return OrderLess
+	}
+}
+
+func (e *Env) compareAny(x Term, y Term) Order {
+	switch y := y.(type) {
+	case Variable, Float, Integer, Atom, *compound:
+		return OrderGreater
+	default:
+		return deepCompare(reflect.ValueOf(x), reflect.ValueOf(y))
+	}
+}
+
+var deepCompareFn []func(x, y reflect.Value) Order
+
+func deepCompare(x, y reflect.Value) Order {
+	var tx, ty string
+	if x != (reflect.Value{}) {
+		tx = x.Type().String()
+	}
+	if y != (reflect.Value{}) {
+		ty = y.Type().String()
+	}
+
+	switch {
+	case tx > ty:
+		return OrderGreater
+	case tx < ty:
+		return OrderLess
+	}
+
+	if deepCompareFn == nil {
+		deepCompareFn = []func(x, y reflect.Value) Order{
+			reflect.Bool:          deepCompareBool,
+			reflect.Int:           deepCompareInt,
+			reflect.Int8:          deepCompareInt,
+			reflect.Int16:         deepCompareInt,
+			reflect.Int32:         deepCompareInt,
+			reflect.Int64:         deepCompareInt,
+			reflect.Uint:          deepCompareUint,
+			reflect.Uint8:         deepCompareUint,
+			reflect.Uint16:        deepCompareUint,
+			reflect.Uint32:        deepCompareUint,
+			reflect.Uint64:        deepCompareUint,
+			reflect.Uintptr:       deepCompareUint,
+			reflect.Float32:       deepCompareFloat,
+			reflect.Float64:       deepCompareFloat,
+			reflect.Complex64:     deepCompareComplex,
+			reflect.Complex128:    deepCompareComplex,
+			reflect.Array:         deepCompareSlice,
+			reflect.Chan:          deepComparePointer,
+			reflect.Func:          deepComparePointer,
+			reflect.Interface:     deepCompareInterface,
+			reflect.Map:           deepCompareMap,
+			reflect.Pointer:       deepComparePointer,
+			reflect.Slice:         deepCompareSlice,
+			reflect.String:        deepCompareString,
+			reflect.Struct:        deepCompareStruct,
+			reflect.UnsafePointer: deepComparePointer,
+		}
+	}
+
+	if k := x.Kind(); int(k) < len(deepCompareFn) {
+		if f := deepCompareFn[k]; f != nil {
+			return f(x, y)
+		}
+	}
+	return OrderEqual
+}
+
+func deepCompareBool(x, y reflect.Value) Order {
+	switch x, y := x.Bool(), y.Bool(); {
+	case x && !y:
+		return OrderGreater
+	case !x && y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareInt(x, y reflect.Value) Order {
+	switch x, y := x.Int(), y.Int(); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareUint(x, y reflect.Value) Order {
+	switch x, y := x.Uint(), y.Uint(); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareFloat(x, y reflect.Value) Order {
+	switch x, y := x.Float(), y.Float(); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareComplex(vx, vy reflect.Value) Order {
+	x, y := vx.Complex(), vy.Complex()
+	switch x, y := real(x), real(y); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	}
+	switch x, y := imag(x), imag(y); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareSlice(x, y reflect.Value) Order {
+	lx, ly := x.Len(), y.Len()
+	l := lx
+	if l > ly {
+		l = ly
+	}
+	for i := 0; i < l; i++ {
+		if d := deepCompare(x.Index(i), y.Index(i)); d != 0 {
+			return d
+		}
+	}
+	switch {
+	case lx > ly:
+		return OrderGreater
+	case lx < ly:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepComparePointer(x, y reflect.Value) Order {
+	switch x, y := x.Pointer(), y.Pointer(); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareInterface(x, y reflect.Value) Order {
+	return deepCompare(x.Elem(), y.Elem())
+}
+
+func deepCompareMap(x, y reflect.Value) Order {
+	iter := x.MapRange()
+	for iter.Next() {
+		if d := deepCompare(iter.Value(), y.MapIndex(iter.Key())); d != 0 {
+			return d
+		}
+	}
+	if x.Len() < y.Len() {
+		return OrderLess
+	}
+	return OrderEqual
+}
+
+func deepCompareString(x, y reflect.Value) Order {
+	switch x, y := x.String(), y.String(); {
+	case x > y:
+		return OrderGreater
+	case x < y:
+		return OrderLess
+	default:
+		return OrderEqual
+	}
+}
+
+func deepCompareStruct(x, y reflect.Value) Order {
+	for i := 0; i < x.NumField(); i++ {
+		if d := deepCompare(x.Field(i), y.Field(i)); d != 0 {
+			return d
+		}
+	}
+	return OrderEqual
 }

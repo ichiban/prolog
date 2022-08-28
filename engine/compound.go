@@ -2,287 +2,157 @@ package engine
 
 import (
 	"fmt"
-	"io"
 	"sort"
+	"strings"
+	"unicode/utf8"
 )
 
-// Compound is a prolog compound.
-type Compound struct {
-	Functor Atom
-	Args    []Term
+// Compound is a Prolog compound.
+type Compound interface {
+	Functor() Atom
+	Arity() int
+	Arg(n int) Term
 }
 
-// Unify unifies the compound with t.
-func (c *Compound) Unify(t Term, occursCheck bool, env *Env) (*Env, bool) {
-	switch t := env.Resolve(t).(type) {
-	case *Compound:
-		if c.Functor != t.Functor {
-			return env, false
-		}
-		if len(c.Args) != len(t.Args) {
-			return env, false
-		}
-		var ok bool
-		for i := range c.Args {
-			env, ok = c.Args[i].Unify(t.Args[i], occursCheck, env)
-			if !ok {
-				return env, false
-			}
-		}
-		return env, true
-	case Variable:
-		return t.Unify(c, occursCheck, env)
-	default:
-		return env, false
-	}
+type compound struct {
+	functor Atom
+	args    []Term
 }
 
-// WriteTerm writes the Compound to the io.Writer.
-func (c *Compound) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
-	ok, err := c.visit(w, opts)
-	if err != nil || ok {
-		return err
-	}
-
-	if n, ok := env.Resolve(c.Args[0]).(Integer); ok && opts.NumberVars && c.Functor == "$VAR" && len(c.Args) == 1 && n >= 0 {
-		return c.writeTermNumberVars(w, n)
-	}
-
-	if !opts.IgnoreOps {
-		if c.Functor == "." && len(c.Args) == 2 {
-			return c.writeTermList(w, opts, env)
-		}
-
-		if c.Functor == "{}" && len(c.Args) == 1 {
-			return c.writeTermCurlyBracketed(w, opts, env)
-		}
-	}
-
-	if opts.IgnoreOps {
-		return c.writeTermFunctionalNotation(w, opts, env)
-	}
-
-	for _, o := range opts.ops[c.Functor] {
-		if o.specifier.arity() == len(c.Args) {
-			return c.writeTermOp(w, opts, env, &o)
-		}
-	}
-
-	return c.writeTermFunctionalNotation(w, opts, env)
+func (c *compound) Functor() Atom {
+	return c.functor
 }
 
-func (c *Compound) visit(w io.Writer, opts *WriteOptions) (bool, error) {
-	if opts.visited == nil {
-		opts.visited = map[Term]struct{}{}
-	}
-
-	if _, ok := opts.visited[c]; ok {
-		_, err := fmt.Fprint(w, "...")
-		return true, err
-	}
-	opts.visited[c] = struct{}{}
-	return false, nil
+func (c *compound) Arity() int {
+	return len(c.args)
 }
 
-func (c *Compound) writeTermNumberVars(w io.Writer, n Integer) error {
-	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	ew := errWriter{w: w}
-	i, j := int(n)%len(letters), int(n)/len(letters)
-	_, _ = fmt.Fprint(&ew, string(letters[i]))
-	if j != 0 {
-		_, _ = fmt.Fprint(&ew, j)
-	}
-	return ew.err
+func (c *compound) Arg(n int) Term {
+	return c.args[n]
 }
 
-func (c *Compound) writeTermList(w io.Writer, opts *WriteOptions, env *Env) error {
-	ew := errWriter{w: w}
-	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
-	_, _ = fmt.Fprint(&ew, "[")
-	_ = c.Args[0].WriteTerm(&ew, opts, env)
-	iter := ListIterator{List: c.Args[1], Env: env}
-	for iter.Next() {
-		_, _ = fmt.Fprint(&ew, ",")
-		_ = iter.Current().WriteTerm(&ew, opts, env)
-	}
-	if err := iter.Err(); err != nil {
-		_, _ = fmt.Fprint(&ew, "|")
-		s := iter.Suffix()
-		if l, ok := iter.Suffix().(*Compound); ok && l.Functor == "." && len(l.Args) == 2 {
-			_, _ = fmt.Fprint(&ew, "...")
-		} else {
-			_ = s.WriteTerm(&ew, opts, env)
-		}
-	}
-	_, _ = fmt.Fprint(&ew, "]")
-	return ew.err
-}
-
-func (c *Compound) writeTermCurlyBracketed(w io.Writer, opts *WriteOptions, env *Env) error {
-	ew := errWriter{w: w}
-	_, _ = fmt.Fprint(&ew, "{")
-	_ = c.Args[0].WriteTerm(&ew, opts.withLeft(operator{}), env)
-	_, _ = fmt.Fprint(&ew, "}")
-	return ew.err
-}
-
-func (c *Compound) writeTermFunctionalNotation(w io.Writer, opts *WriteOptions, env *Env) error {
-	ew := errWriter{w: w}
-	opts = opts.withRight(operator{})
-	_ = c.Functor.WriteTerm(&ew, opts, env)
-	_, _ = fmt.Fprint(&ew, "(")
-	opts = opts.withLeft(operator{}).withPriority(999)
-	for i, a := range c.Args {
-		if i != 0 {
-			_, _ = fmt.Fprint(&ew, ",")
-		}
-		_ = a.WriteTerm(&ew, opts, env)
-	}
-	_, _ = fmt.Fprint(&ew, ")")
-	return ew.err
-}
-
-var writeTermOps = [...]func(c *Compound, w io.Writer, opts *WriteOptions, env *Env, op *operator) error{
-	operatorSpecifierFX:  (*Compound).writeTermOpPrefix,
-	operatorSpecifierFY:  (*Compound).writeTermOpPrefix,
-	operatorSpecifierXF:  (*Compound).writeTermOpPostfix,
-	operatorSpecifierYF:  (*Compound).writeTermOpPostfix,
-	operatorSpecifierXFX: (*Compound).writeTermOpInfix,
-	operatorSpecifierXFY: (*Compound).writeTermOpInfix,
-	operatorSpecifierYFX: (*Compound).writeTermOpInfix,
-}
-
-func (c *Compound) writeTermOp(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
-	return writeTermOps[op.specifier](c, w, opts, env, op)
-}
-
-func (c *Compound) writeTermOpPrefix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
-	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
-	_, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.right != operator{} && r >= opts.right.priority)
-
-	if opts.left != (operator{}) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	if openClose {
-		_, _ = fmt.Fprint(&ew, "(")
-		opts = opts.withLeft(operator{}).withRight(operator{})
-	}
-	_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
-	if openClose {
-		_, _ = fmt.Fprint(&ew, ")")
-	}
-	return ew.err
-}
-
-func (c *Compound) writeTermOpPostfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
-	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
-	l, _ := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix)
-
-	if openClose {
-		if opts.left != (operator{}) {
-			_, _ = fmt.Fprint(&ew, " ")
-		}
-		_, _ = fmt.Fprint(&ew, "(")
-		opts = opts.withLeft(operator{}).withRight(operator{})
-	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
-	_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
-	if openClose {
-		_, _ = fmt.Fprint(&ew, ")")
-	} else if opts.right != (operator{}) {
-		_, _ = fmt.Fprint(&ew, " ")
-	}
-	return ew.err
-}
-
-func (c *Compound) writeTermOpInfix(w io.Writer, opts *WriteOptions, env *Env, op *operator) error {
-	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
-	l, r := op.bindingPriorities()
-	openClose := opts.priority < op.priority ||
-		(opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix) ||
-		(opts.right != operator{} && r >= opts.right.priority)
-
-	if openClose {
-		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
-			_, _ = fmt.Fprint(&ew, " ")
-		}
-		_, _ = fmt.Fprint(&ew, "(")
-		opts = opts.withLeft(operator{}).withRight(operator{})
-	}
-	_ = c.Args[0].WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
-	switch c.Functor {
-	case ",", "|":
-		_, _ = fmt.Fprint(&ew, c.Functor)
-	default:
-		_ = c.Functor.WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
-	}
-	_ = c.Args[1].WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
-	if openClose {
-		_, _ = fmt.Fprint(&ew, ")")
-	}
-	return ew.err
-}
-
-// Compare compares the compound to another term.
-func (c *Compound) Compare(t Term, env *Env) int64 {
-	switch t := env.Resolve(t).(type) {
-	case *Compound:
-		if d := len(c.Args) - len(t.Args); d != 0 {
-			return int64(d)
-		}
-
-		if d := c.Functor.Compare(t.Functor, env); d != 0 {
-			return d
-		}
-
-		for i, a := range c.Args {
-			if d := a.Compare(t.Args[i], env); d != 0 {
-				return d
-			}
-		}
-
-		return 0
-	default:
-		return 1
-	}
+func (c *compound) GoString() string {
+	return fmt.Sprintf(`&engine.compound{functor:%#v, args:%#v}`, c.functor, c.args)
 }
 
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
-	return &Compound{
-		Functor: ".",
-		Args:    []Term{car, cdr},
+	return &compound{
+		functor: ".",
+		args:    []Term{car, cdr},
 	}
+}
+
+type list []Term
+
+func (l list) TermID() TermID { // Slices are not comparable.
+	type listID struct {
+		len  int
+		head *Term
+	}
+	id := listID{
+		len: len(l),
+	}
+	if len(l) > 0 {
+		id.head = &l[0]
+	}
+	return id
+}
+
+func (l list) Functor() Atom {
+	return "."
+}
+
+func (l list) Arity() int {
+	return 2
+}
+
+func (l list) Arg(n int) Term {
+	var t Term
+	switch n {
+	case 0:
+		t = l[0]
+	case 1:
+		if len(l) == 1 {
+			t = Atom("[]")
+			break
+		}
+		t = l[1:]
+	}
+	return t
+}
+
+func (l list) GoString() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(`engine.list{`)
+	for i, e := range l {
+		if i != 0 {
+			_, _ = sb.WriteString(`, `)
+		}
+		_, _ = fmt.Fprintf(&sb, "%#v", e)
+	}
+	_, _ = sb.WriteString(`}`)
+	return sb.String()
 }
 
 // List returns a list of ts.
 func List(ts ...Term) Term {
-	return ListRest(Atom("[]"), ts...)
+	if len(ts) == 0 {
+		return Atom("[]")
+	}
+	return list(ts)
+}
+
+type partial struct {
+	Compound
+	tail Term
+}
+
+func (p partial) TermID() TermID { // The underlying compound might not be comparable.
+	type partialID struct {
+		prefixID, tailID TermID
+	}
+	return partialID{
+		prefixID: ID(p.Compound),
+		tailID:   ID(p.tail),
+	}
+}
+
+func (p partial) Arg(n int) Term {
+	t := p.Compound.Arg(n)
+	if c := p.Compound; c.Functor() == "." && c.Arity() == 2 && n == 1 {
+		if t == Atom("[]") {
+			t = p.tail
+		} else {
+			t = partial{Compound: t.(Compound), tail: p.tail}
+		}
+	}
+	return t
+}
+
+func (p partial) GoString() string {
+	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, p.tail)
 }
 
 // ListRest returns a list of ts followed by rest.
 func ListRest(rest Term, ts ...Term) Term {
-	l := rest
-	for i := len(ts) - 1; i >= 0; i-- {
-		l = Cons(ts[i], l)
+	if len(ts) == 0 {
+		return rest
 	}
-	return l
+	return partial{
+		Compound: list(ts),
+		tail:     rest,
+	}
 }
 
 // Set returns a list of ts which elements are unique.
 func (e *Env) Set(ts ...Term) Term {
 	sort.Slice(ts, func(i, j int) bool {
-		return ts[i].Compare(ts[j], e) < 0
+		return e.Compare(ts[i], ts[j]) == OrderLess
 	})
 	us := make([]Term, 0, len(ts))
 	for _, t := range ts {
-		if len(us) > 0 && us[len(us)-1].Compare(t, e) == 0 {
+		if len(us) > 0 && e.Compare(us[len(us)-1], t) == OrderEqual {
 			continue
 		}
 		us = append(us, t)
@@ -305,9 +175,9 @@ func Slice(list Term, env *Env) ([]Term, error) {
 func Seq(sep Atom, ts ...Term) Term {
 	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
 	for i := len(ts) - 1; i >= 0; i-- {
-		s = &Compound{
-			Functor: sep,
-			Args:    []Term{ts[i], s},
+		s = &compound{
+			functor: sep,
+			args:    []Term{ts[i], s},
 		}
 	}
 	return s
@@ -315,8 +185,78 @@ func Seq(sep Atom, ts ...Term) Term {
 
 // Pair returns a pair of k and v.
 func Pair(k, v Term) Term {
-	return &Compound{
-		Functor: "-",
-		Args:    []Term{k, v},
+	return &compound{
+		functor: "-",
+		args:    []Term{k, v},
 	}
+}
+
+type charList string
+
+func (c charList) Functor() Atom {
+	return "."
+}
+
+func (c charList) Arity() int {
+	return 2
+}
+
+func (c charList) Arg(n int) Term {
+	var t Term
+	switch n {
+	case 0:
+		r, _ := utf8.DecodeRuneInString(string(c))
+		t = Atom(r)
+	case 1:
+		_, i := utf8.DecodeRuneInString(string(c))
+		if i == len(c) {
+			t = Atom("[]")
+		} else {
+			t = c[i:]
+		}
+	}
+	return t
+}
+
+// CharList returns a character list.
+func CharList(s string) Term {
+	if s == "" {
+		return Atom("[]")
+	}
+	return charList(s)
+}
+
+type codeList string
+
+func (c codeList) Functor() Atom {
+	return "."
+}
+
+func (c codeList) Arity() int {
+	return 2
+}
+
+func (c codeList) Arg(n int) Term {
+	var t Term
+	switch n {
+	case 0:
+		r, _ := utf8.DecodeRuneInString(string(c))
+		t = Integer(r)
+	case 1:
+		_, i := utf8.DecodeRuneInString(string(c))
+		if i == len(c) {
+			t = Atom("[]")
+		} else {
+			t = c[i:]
+		}
+	}
+	return t
+}
+
+// CodeList returns a character code list.
+func CodeList(s string) Term {
+	if s == "" {
+		return Atom("[]")
+	}
+	return codeList(s)
 }

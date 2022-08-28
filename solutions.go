@@ -70,7 +70,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 					continue
 				}
 
-				val, err := convert(s.env.Simplify(v), f.Type(), s.env)
+				val, err := convert(v, f.Type(), s.env)
 				if err != nil {
 					return err
 				}
@@ -102,16 +102,16 @@ var errConversion = errors.New("conversion failed")
 func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
 	switch typ {
 	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
-		return reflect.ValueOf(t), nil
+		return reflect.ValueOf(env.Resolve(t)), nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
-		return convertFloat(t, typ)
+		return convertFloat(t, typ, env)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return convertInteger(t, typ)
+		return convertInteger(t, typ, env)
 	case reflect.String:
-		return convertAtom(t)
+		return convertAtom(t, env)
 	case reflect.Slice:
 		return convertList(t, typ, env)
 	default:
@@ -119,22 +119,22 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 	}
 }
 
-func convertFloat(t engine.Term, typ reflect.Type) (reflect.Value, error) {
-	if f, ok := t.(engine.Float); ok {
+func convertFloat(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
+	if f, ok := env.Resolve(t).(engine.Float); ok {
 		return reflect.ValueOf(f).Convert(typ), nil
 	}
 	return reflect.Value{}, errConversion
 }
 
-func convertInteger(t engine.Term, typ reflect.Type) (reflect.Value, error) {
-	if i, ok := t.(engine.Integer); ok {
+func convertInteger(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
+	if i, ok := env.Resolve(t).(engine.Integer); ok {
 		return reflect.ValueOf(i).Convert(typ), nil
 	}
 	return reflect.Value{}, errConversion
 }
 
-func convertAtom(t engine.Term) (reflect.Value, error) {
-	if a, ok := t.(engine.Atom); ok {
+func convertAtom(t engine.Term, env *engine.Env) (reflect.Value, error) {
+	if a, ok := env.Resolve(t).(engine.Atom); ok {
 		return reflect.ValueOf(string(a)), nil
 	}
 	return reflect.Value{}, errConversion
