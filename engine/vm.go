@@ -368,13 +368,7 @@ func (vm *VM) execList(r *registers) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Length(arg, l, r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
-	if !ok {
-		return Bool(ok)
-	}
+	_, _ = Length(arg, l, r.updateEnv, r.env).Force(context.Background())
 	r.pc = r.pc[1:]
 	r.args = arg
 	r.astack = Cons(arest, r.astack)
@@ -390,20 +384,8 @@ func (vm *VM) execPartial(r *registers) *Promise {
 		return Bool(false)
 	}
 	prefix, tail := NewVariable(), NewVariable()
-	ok, err := Length(prefix, l, r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
-	if !ok {
-		return Bool(false)
-	}
-	ok, err = Append(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
-	if !ok {
-		return Bool(false)
-	}
+	_, _ = Length(prefix, l, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Append(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
 	r.pc = r.pc[1:]
 	r.args = Cons(tail, prefix)
 	r.astack = Cons(arest, r.astack)
