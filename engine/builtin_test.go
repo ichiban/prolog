@@ -162,110 +162,40 @@ func (m *mockCloser) Close() error {
 
 func TestState_Call(t *testing.T) {
 	var state State
-
-	t.Run("undefined atom", func(t *testing.T) {
-		ok, err := state.Call(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeProcedure, &compound{
-			functor: "/",
-			args:    []Term{Atom("foo"), Integer(0)},
-		}, nil), err)
-		assert.False(t, ok)
+	state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
+		return Bool(false)
 	})
+	assert.NoError(t, state.Assert(Atom("foo"), nil))
+	assert.NoError(t, state.Assert(Atom("foo").Apply(NewVariable(), NewVariable()), nil))
+	assert.NoError(t, state.Assert(Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b"))))), nil))
 
-	state.procedures = map[ProcedureIndicator]procedure{{Name: "foo", Arity: 0}: clauses{}}
+	tests := []struct {
+		title string
+		goal  Term
+		ok    bool
+		err   error
+	}{
+		// TODO: redo test cases based on 7.8.3.4 Examples
+		{title: `undefined atom`, goal: Atom("bar"), ok: false, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(0)), nil)},
+		{title: `defined atom`, goal: Atom("foo"), ok: true},
+		{title: `undefined compound`, goal: Atom("bar").Apply(NewVariable(), NewVariable()), ok: false, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(2)), nil)},
+		{title: `defined compound`, goal: Atom("foo").Apply(NewVariable(), NewVariable()), ok: true},
+		{title: `variable: single predicate`, goal: Variable("X"), ok: false, err: InstantiationError(nil)},
+		{title: `variable: multiple predicates`, goal: Atom(",").Apply(Atom("fail"), Variable("X")), ok: false},
+		{title: `not callable: single predicate`, goal: Integer(0), ok: false, err: TypeError(ValidTypeCallable, Integer(0), nil)},
+		{title: `not callable: conjunction`, goal: Atom(",").Apply(Atom("true"), Integer(0)), ok: false, err: TypeError(ValidTypeCallable, Atom(",").Apply(Atom("true"), Integer(0)), nil)},
+		{title: `not callable: disjunction`, goal: Atom(";").Apply(Integer(1), Atom("true")), ok: false, err: TypeError(ValidTypeCallable, Atom(";").Apply(Integer(1), Atom("true")), nil)},
 
-	t.Run("defined atom", func(t *testing.T) {
-		ok, err := state.Call(Atom("foo"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
+		{title: `cover all`, goal: Atom(",").Apply(Atom("!"), Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b")))))), ok: true},
+	}
 
-	t.Run("undefined compound", func(t *testing.T) {
-		ok, err := state.Call(&compound{functor: "bar", args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeProcedure, &compound{
-			functor: "/",
-			args:    []Term{Atom("bar"), Integer(2)},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	state.procedures = map[ProcedureIndicator]procedure{{Name: "bar", Arity: 2}: clauses{}}
-
-	t.Run("defined compound", func(t *testing.T) {
-		ok, err := state.Call(&compound{functor: "bar", args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("variable", func(t *testing.T) {
-		t.Run("single predicate", func(t *testing.T) {
-			ok, err := state.Call(Variable("X"), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := state.Call(tt.goal, Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("multiple predicates", func(t *testing.T) {
-			x := Variable("X")
-			state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
-				return Bool(false)
-			})
-			ok, err := state.Call(&compound{
-				functor: ",",
-				args: []Term{
-					Atom("fail"),
-					x,
-				},
-			}, Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("not callable", func(t *testing.T) {
-		t.Run("single predicate", func(t *testing.T) {
-			ok, err := state.Call(Integer(0), Success, nil).Force(context.Background())
-			assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("multiple predicates", func(t *testing.T) {
-			t.Run("conjunction", func(t *testing.T) {
-				ok, err := state.Call(&compound{
-					functor: ",",
-					args: []Term{
-						Atom("true"),
-						Integer(0),
-					},
-				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypeCallable, &compound{
-					functor: ",",
-					args: []Term{
-						Atom("true"),
-						Integer(0),
-					},
-				}, nil), err)
-				assert.False(t, ok)
-			})
-
-			t.Run("disjunction", func(t *testing.T) {
-				ok, err := state.Call(&compound{
-					functor: ";",
-					args: []Term{
-						Integer(1),
-						Atom("true"),
-					},
-				}, Success, nil).Force(context.Background())
-				assert.Equal(t, TypeError(ValidTypeCallable, &compound{
-					functor: ";",
-					args: []Term{
-						Integer(1),
-						Atom("true"),
-					},
-				}, nil), err)
-				assert.False(t, ok)
-			})
-		})
-	})
+	}
 }
 
 func TestState_Call1(t *testing.T) {

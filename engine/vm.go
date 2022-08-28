@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -215,13 +214,12 @@ func (vm *VM) exec(r registers) *Promise {
 		opList:    vm.execList,
 		opPartial: vm.execPartial,
 	}
-	for len(r.pc) != 0 {
+	for {
 		op := jumpTable[r.pc[0].opcode]
 		if p := op(&r); p != nil {
 			return p
 		}
 	}
-	return Error(errors.New("non-exit end of bytecode"))
 }
 
 func (*VM) execConst(r *registers) *Promise {

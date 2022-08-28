@@ -8,10 +8,6 @@ import (
 type clauses []clause
 
 func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
-	if len(cs) == 0 {
-		return Bool(false)
-	}
-
 	if vm.OnCall == nil {
 		vm.OnCall = func(pi ProcedureIndicator, args []Term, env *Env) {}
 	}
