@@ -17,6 +17,5 @@ func New(r io.Reader, w io.Writer) *prolog.Interpreter {
 		engine.GoStringEnv = env
 		return engine.Unify(s, engine.Atom(fmt.Sprintf("%#v", term)), k, env)
 	})
-	i.Register3("partial", engine.Partial)
 	return i
 }

@@ -1,10 +1,28 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCompound_GoString(t *testing.T) {
+	tests := []struct {
+		term   Term
+		output string
+	}{
+		{term: Atom("f").Apply(Atom("a")), output: `&engine.compound{functor:"f", args:[]engine.Term{"a"}}`},
+		{term: List(Atom("a"), Atom("b"), Atom("c")), output: `engine.list{"a", "b", "c"}`},
+		{term: ListRest(Atom("c"), Atom("a"), Atom("b")), output: `engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.output, func(t *testing.T) {
+			assert.Equal(t, tt.output, tt.term.(fmt.GoStringer).GoString())
+		})
+	}
+}
 
 func TestList(t *testing.T) {
 	tests := []struct {

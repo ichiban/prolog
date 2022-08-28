@@ -198,10 +198,6 @@ retractall(_).
 :- built_in(false/0).
 false :- fail.
 
-:- built_in(append/3).
-append([], L, L).
-append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
-
 :- built_in(member/2).
 member(X, [X|_]).
 member(X, [_|Xs]) :- member(X, Xs).

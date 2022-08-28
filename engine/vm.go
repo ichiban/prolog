@@ -399,7 +399,7 @@ func (vm *VM) execPartial(r *registers) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	ok, err = Partial(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
+	ok, err = Append(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}

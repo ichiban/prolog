@@ -3166,32 +3166,37 @@ func SkipMaxList(skip, max, list, suffix Term, k func(*Env) *Promise, env *Env) 
 	return Unify(s.Apply(skip, suffix), s.Apply(n, iter.Suffix()), k, env)
 }
 
-// Partial succeeds iff plist is an engine.partial which consists of prefix and tail.
-func Partial(prefix, tail, plist Term, k func(*Env) *Promise, env *Env) *Promise {
-	switch prefix := env.Resolve(prefix).(type) {
-	case Variable:
-		const f = Atom("$partial")
-		switch plist := env.Resolve(plist).(type) {
-		case Variable:
-			return Error(InstantiationError(env))
-		case partial:
-			return Unify(f.Apply(prefix, tail), f.Apply(plist.Compound, plist.tail), k, env)
-		default:
-			return Bool(false)
-		}
-	case Compound:
-		iter := ListIterator{List: prefix, Env: env}
+// Append succeeds iff zs is the concatenation of lists xs and ys.
+func Append(xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
+	// A special case for non-empty lists without a variable in the spine.
+	if xs, ok := env.Resolve(xs).(Compound); ok {
+		iter := ListIterator{List: xs, Env: nil} // No variables allowed.
 		for iter.Next() {
 		}
-		if err := iter.Err(); err != nil {
-			return Error(err)
+		if err := iter.Err(); err == nil {
+			return Unify(zs, partial{
+				Compound: xs,
+				tail:     ys,
+			}, k, env)
 		}
-
-		return Unify(plist, partial{
-			Compound: prefix,
-			tail:     tail,
-		}, k, env)
-	default: // atomic
-		return Bool(false)
 	}
+
+	return appendLists(xs, ys, zs, k, env)
+}
+
+func appendLists(xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
+	/*
+		append([], L, L).
+		append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
+	*/
+	const f = Atom("$append")
+	return Delay(func(context.Context) *Promise {
+		return Unify(f.Apply(xs, ys), f.Apply(List(), zs), k, env)
+	}, func(context.Context) *Promise {
+		x := NewVariable()
+		l1, l3 := NewVariable(), NewVariable()
+		return Unify(f.Apply(xs, zs), f.Apply(Cons(x, l1), Cons(x, l3)), func(env *Env) *Promise {
+			return appendLists(l1, ys, l3, k, env)
+		}, env)
+	})
 }

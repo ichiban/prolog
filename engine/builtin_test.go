@@ -8252,3 +8252,45 @@ func TestState_Negation(t *testing.T) {
 	_, err = s.Negation(Atom("error"), Success, nil).Force(context.Background())
 	assert.Equal(t, e, err)
 }
+
+func TestAppend(t *testing.T) {
+	tests := []struct {
+		title      string
+		xs, ys, zs Term
+		ok         bool
+		err        error
+		env        []map[Variable]Term
+	}{
+		// p.p.2.4 Examples
+		{title: `append([a,b],[c,d], Xs).`, xs: List(Atom("a"), Atom("b")), ys: List(Atom("c"), Atom("d")), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
+			{"Xs": List(Atom("a"), Atom("b"), Atom("c"), Atom("d"))},
+		}},
+		{title: `append([a], nonlist, Xs).`, xs: List(Atom("a")), ys: Atom("nonlist"), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
+			{"Xs": ListRest(Atom("nonlist"), Atom("a"))},
+		}},
+		{title: `append([a], Ys, Zs).`, xs: List(Atom("a")), ys: Variable("Ys"), zs: Variable("Zs"), ok: true, env: []map[Variable]Term{
+			{"Zs": ListRest(Variable("Ys"), Atom("a"))},
+		}},
+		{title: `append(Xs, Ys, [a,b,c]).`, xs: Variable("Xs"), ys: Variable("Ys"), zs: List(Atom("a"), Atom("b"), Atom("c")), ok: true, env: []map[Variable]Term{
+			{"Xs": List(), "Ys": List(Atom("a"), Atom("b"), Atom("c"))},
+			{"Xs": List(Atom("a")), "Ys": List(Atom("b"), Atom("c"))},
+			{"Xs": List(Atom("a"), Atom("b")), "Ys": List(Atom("c"))},
+			{"Xs": List(Atom("a"), Atom("b"), Atom("c")), "Ys": List()},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := Append(tt.xs, tt.ys, tt.zs, func(env *Env) *Promise {
+				for k, v := range tt.env[0] {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				tt.env = tt.env[1:]
+				return Bool(len(tt.env) == 0)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
+}
