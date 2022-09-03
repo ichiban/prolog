@@ -113,6 +113,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("succ", engine.Succ)
 	i.Register2("length", engine.Length)
 	i.Register3("append", engine.Append)
+	i.Register1("initialization", i.Initialization)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}
@@ -135,6 +136,9 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 		}
 		query = query[i:]
 	}
+
+	var goals []engine.Term
+	ctx = context.WithValue(ctx, initializationCtxKey{}, &goals)
 
 	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
@@ -163,6 +167,13 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 	}
+
+	for _, g := range goals {
+		if _, err := i.Call(g, engine.Success, nil).Force(ctx); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -286,4 +297,18 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 	default:
 		return engine.TypeError(engine.ValidTypeAtom, file, env)
 	}
+}
+
+type initializationCtxKey = struct{}
+
+// Initialization registers the goal for execution right before exiting Exec or ExecContext.
+func (i *Interpreter) Initialization(g engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	return engine.Delay(func(ctx context.Context) *engine.Promise {
+		goals, ok := ctx.Value(initializationCtxKey{}).(*[]engine.Term)
+		if !ok {
+			return engine.Bool(false)
+		}
+		*goals = append(*goals, env.Simplify(g))
+		return k(env)
+	})
 }
