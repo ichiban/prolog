@@ -139,7 +139,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
 - **`:- discontiguous(PI)`** Not supported yet. *ISO*
 - **`:- op(Priority, Specifier, Op)`** Alters the operator table. *ISO*
 - **`:- char_conversion(In, Out)`** Alters the character conversion mapping. *ISO*
-- **`:- initialization(T)`** Not supported yet. *ISO*
+- **`:- initialization(T)`** Registers a goal for execution right before exiting `Exec()` or `ExecContext()`. *ISO*
 - **`:- include(F)`** Not supported yet. *ISO*
 - **`:- ensure_loaded(P)`** Not supported yet. *ISO*
 - **`:- set_prolog_flag(Flag, Value)`** Alters the value for the Prolog flag. *ISO*

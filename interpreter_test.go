@@ -757,6 +757,13 @@ append(nil, L, L).`))
 
 		assert.Error(t, i.Exec("a."))
 	})
+
+	t.Run("initialization", func(t *testing.T) {
+		i := New(nil, nil)
+
+		assert.NoError(t, i.Exec(`:- initialization(true).`))
+		assert.Error(t, i.Exec(`:- initialization(throw(ball)).`))
+	})
 }
 
 func TestInterpreter_Query(t *testing.T) {
@@ -1597,6 +1604,23 @@ func ExampleNew_arg() {
 	// error(instantiation_error,arg/3)
 	// error(type_error(compound,atom),arg/3)
 	// error(type_error(compound,3),arg/3)
+}
+
+func TestInterpreter_Initialization(t *testing.T) {
+	p := New(nil, nil)
+
+	ok, err := p.Initialization(engine.Atom("foo"), engine.Success, nil).Force(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	var goals []engine.Term
+	ctx := context.WithValue(context.Background(), initializationCtxKey{}, &goals)
+
+	ok, err = p.Initialization(engine.Atom("foo"), engine.Success, nil).Force(ctx)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	assert.Equal(t, []engine.Term{engine.Atom("foo")}, goals)
 }
 
 type readFn func(p []byte) (n int, err error)
