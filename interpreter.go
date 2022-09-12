@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed" // for go:embed
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -128,14 +129,7 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
-	// Ignore shebang line.
-	if len(query) > 2 && query[:2] == "#!" {
-		i := strings.Index(query, "\n")
-		if i < 0 {
-			i = len(query)
-		}
-		query = query[i:]
-	}
+	query = ignoreShebangLine(query)
 
 	var goals []engine.Term
 	ctx = context.WithValue(ctx, initializationCtxKey{}, &goals)
@@ -157,8 +151,15 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 
 		// Directive
 		if c, ok := et.(engine.Compound); ok && c.Functor() == ":-" && c.Arity() == 1 {
-			if _, err := i.Call(c.Arg(0), engine.Success, nil).Force(ctx); err != nil {
+			d := c.Arg(0)
+			ok, err := i.Call(d, engine.Success, nil).Force(ctx)
+			if err != nil {
 				return err
+			}
+			if !ok {
+				var sb strings.Builder
+				_ = i.Write(&sb, d, &engine.WriteOptions{Quoted: true}, nil)
+				return fmt.Errorf("failed directive: %s", sb.String())
 			}
 			continue
 		}
@@ -169,8 +170,14 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 	}
 
 	for _, g := range goals {
-		if _, err := i.Call(g, engine.Success, nil).Force(ctx); err != nil {
+		ok, err := i.Call(g, engine.Success, nil).Force(ctx)
+		if err != nil {
 			return err
+		}
+		if !ok {
+			var sb strings.Builder
+			_ = i.Write(&sb, g, &engine.WriteOptions{Quoted: true}, nil)
+			return fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
 
@@ -311,4 +318,15 @@ func (i *Interpreter) Initialization(g engine.Term, k func(*engine.Env) *engine.
 		*goals = append(*goals, env.Simplify(g))
 		return k(env)
 	})
+}
+
+func ignoreShebangLine(query string) string {
+	if !strings.HasPrefix(query, "#!") {
+		return query
+	}
+	i := strings.Index(query, "\n")
+	if i < 0 {
+		i = len(query)
+	}
+	return query[i:]
 }
