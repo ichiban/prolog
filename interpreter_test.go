@@ -657,113 +657,69 @@ a.`, output: `syntax err.`},
 }
 
 func TestInterpreter_Exec(t *testing.T) {
-	t.Run("fact", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
+	tests := []struct {
+		query   string
+		args    []interface{}
+		err     bool
+		premise string
+	}{
+		{query: `append(nil, L, L).`},
+		{query: `0.`, err: true},
+		{query: `append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`},
+
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}},
+		{query: `foo(?).`, args: []interface{}{nil}, err: true},
+
+		{query: `#!/usr/bin/env 1pl
+append(nil, L, L).`},
+		{query: `#!/usr/bin/env 1pl`},
+
+		{query: `:- consult(?).`, args: []interface{}{"testdata/empty.txt"}},
+		{query: `:- consult(?).`, args: []interface{}{"testdata/abc.txt"}, err: true},
+		{query: `:- consult(X).`, err: true},
+		{query: `:- consult(foo(bar)).`, err: true},
+		{query: `:- consult(1).`, err: true},
+
+		{query: `:- consult([]).`},
+		{query: `:- consult([?]).`, args: []interface{}{"testdata/empty.txt"}},
+		{query: `:- consult(?).`, args: []interface{}{[]string{"testdata/empty.txt", "testdata/empty.txt"}}},
+		{query: `:- consult([?|_]).`, args: []interface{}{"testdata/empty.txt"}, err: true},
+		{query: `:- consult([X]).`, err: true},
+		{query: `:- consult([1]).`, err: true},
+		{query: `:- consult([?]).`, args: []interface{}{"testdata/abc.txt"}, err: true},
+		{query: `:- consult([?]).`, args: []interface{}{"testdata/not_found.txt"}, err: true},
+
+		{query: `a.`, premise: `term_expansion(_, _) :- throw(fail).`, err: true},
+
+		{query: `:- fail.`, err: true},
+
+		{query: `:- initialization(true).`},
+		{query: `:- initialization(fail).`, err: true},
+		{query: `:- initialization(throw(ball)).`, err: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			assert.NoError(t, i.Exec(`append(nil, L, L).`))
-		})
-
-		t.Run("not callable", func(t *testing.T) {
-			var i Interpreter
-			assert.Error(t, i.Exec(`0.`))
-		})
-	})
-
-	t.Run("rule", func(t *testing.T) {
-		var i Interpreter
-		i.Register3("op", i.Op)
-		assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
-		assert.NoError(t, i.Exec(`append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`))
-	})
-
-	t.Run("bindvars", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec("foo(?, ?, ?, ?).", "a", 1, 2.0, []string{"abc", "def"}))
-	})
-
-	t.Run("shebang", func(t *testing.T) {
-		t.Run("multiple lines", func(t *testing.T) {
-			var i Interpreter
-			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl
-append(nil, L, L).`))
-		})
-
-		t.Run("only shebang line", func(t *testing.T) {
-			var i Interpreter
-			assert.NoError(t, i.Exec(`#!/usr/bin/env 1pl`))
-		})
-	})
-
-	t.Run("consult", func(t *testing.T) {
-		i := New(nil, nil)
-
-		t.Run("variable", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult(X)."))
-		})
-
-		t.Run("non-proper list", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult([?|_]).", "testdata/empty.txt"))
-		})
-
-		t.Run("proper list", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				assert.NoError(t, i.Exec(":- consult([])."))
-				assert.NoError(t, i.Exec(":- consult([?]).", "testdata/empty.txt"))
-				assert.NoError(t, i.Exec(":- consult(?).", []string{
-					"testdata/empty.txt",
-					"testdata/empty.txt",
-				}))
+			i.Register0("true", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+				return k(env)
 			})
-
-			t.Run("variable", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult([X])."))
+			i.Register0("fail", func(func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
+				return engine.Bool(false)
 			})
-
-			t.Run("not an atom", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult([1])."))
-			})
-
-			t.Run("invalid", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult([?]).", "testdata/abc.txt"))
-			})
-
-			t.Run("not found", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult([?]).", "testdata/not_found.txt"))
-			})
+			i.Register1("consult", i.consult)
+			i.Register1("initialization", i.Initialization)
+			i.Register3("op", i.Op)
+			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
+			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
+			assert.NoError(t, i.Exec(tt.premise))
+			if tt.err {
+				assert.Error(t, i.Exec(tt.query, tt.args...))
+			} else {
+				assert.NoError(t, i.Exec(tt.query, tt.args...))
+			}
 		})
-
-		t.Run("atom", func(t *testing.T) {
-			t.Run("ok", func(t *testing.T) {
-				assert.NoError(t, i.Exec(":- consult(?).", "testdata/empty.txt"))
-			})
-
-			t.Run("ng", func(t *testing.T) {
-				assert.Error(t, i.Exec(":- consult(?).", "testdata/abc.txt"))
-			})
-		})
-
-		t.Run("compound", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult(foo(bar))."))
-		})
-
-		t.Run("not an atom ", func(t *testing.T) {
-			assert.Error(t, i.Exec(":- consult(1)."))
-		})
-	})
-
-	t.Run("term_expansion/2 throws an exception", func(t *testing.T) {
-		i := New(nil, nil)
-		assert.NoError(t, i.Exec(`term_expansion(_, _) :- throw(fail).`))
-
-		assert.Error(t, i.Exec("a."))
-	})
-
-	t.Run("initialization", func(t *testing.T) {
-		i := New(nil, nil)
-
-		assert.NoError(t, i.Exec(`:- initialization(true).`))
-		assert.Error(t, i.Exec(`:- initialization(throw(ball)).`))
-	})
+	}
 }
 
 func TestInterpreter_Query(t *testing.T) {
