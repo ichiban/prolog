@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/ichiban/prolog/engine"
@@ -265,9 +265,6 @@ func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Pro
 		}
 		return k(env)
 	case engine.Compound:
-		if f.Functor() != "." || f.Arity() != 2 {
-			return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
-		}
 		iter := engine.ListIterator{List: f, Env: env}
 		for iter.Next() {
 			if err := i.consultOne(iter.Current(), env); err != nil {
@@ -289,7 +286,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 		return engine.InstantiationError(env)
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
-			b, err := ioutil.ReadFile(f)
+			b, err := os.ReadFile(f)
 			if err != nil {
 				continue
 			}
@@ -300,7 +297,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError(engine.ValidDomainSourceSink, file, env)
+		return engine.ExistenceError(engine.ObjectTypeSourceSink, file, env)
 	default:
 		return engine.TypeError(engine.ValidTypeAtom, file, env)
 	}
