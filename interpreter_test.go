@@ -779,6 +779,17 @@ func TestInterpreter_Query(t *testing.T) {
 	}
 }
 
+func TestInterpreter_Query_close(t *testing.T) {
+	var i Interpreter
+	i.Register0("do_not_call", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		assert.Fail(t, "unreachable")
+		return k(env)
+	})
+	sols, err := i.Query("do_not_call.")
+	assert.NoError(t, err)
+	assert.NoError(t, sols.Close())
+}
+
 func TestMisc(t *testing.T) {
 	t.Run("negation", func(t *testing.T) {
 		i := New(nil, nil)
