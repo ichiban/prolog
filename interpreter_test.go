@@ -674,24 +674,11 @@ func TestInterpreter_Exec(t *testing.T) {
 append(nil, L, L).`},
 		{query: `#!/usr/bin/env 1pl`},
 
-		{query: `:- consult(?).`, args: []interface{}{"testdata/empty.txt"}},
-		{query: `:- consult(?).`, args: []interface{}{"testdata/abc.txt"}, err: true},
-		{query: `:- consult(X).`, err: true},
-		{query: `:- consult(foo(bar)).`, err: true},
-		{query: `:- consult(1).`, err: true},
-
-		{query: `:- consult([]).`},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/empty.txt"}},
-		{query: `:- consult(?).`, args: []interface{}{[]string{"testdata/empty.txt", "testdata/empty.txt"}}},
-		{query: `:- consult([?|_]).`, args: []interface{}{"testdata/empty.txt"}, err: true},
-		{query: `:- consult([X]).`, err: true},
-		{query: `:- consult([1]).`, err: true},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/abc.txt"}, err: true},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/not_found.txt"}, err: true},
-
 		{query: `a.`, premise: `term_expansion(_, _) :- throw(fail).`, err: true},
 
+		{query: `:- true.`},
 		{query: `:- fail.`, err: true},
+		{query: `:- throw(ball).`, err: true},
 
 		{query: `:- initialization(true).`},
 		{query: `:- initialization(fail).`, err: true},
@@ -707,7 +694,7 @@ append(nil, L, L).`},
 			i.Register0("fail", func(func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1("consult", i.consult)
+			i.Register1("consult", i.Consult)
 			i.Register1("initialization", i.Initialization)
 			i.Register3("op", i.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
@@ -1577,6 +1564,47 @@ func TestInterpreter_Initialization(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, []engine.Term{engine.Atom("foo")}, goals)
+}
+
+func TestInterpreter_Consult(t *testing.T) {
+	tests := []struct {
+		title string
+		files engine.Term
+		ok    bool
+		err   error
+	}{
+		{title: `:- consult('testdata/empty.txt').`, files: engine.Atom("testdata/empty.txt"), ok: true},
+		{title: `:- consult([]).`, files: engine.List(), ok: true},
+		{title: `:- consult(['testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt")), ok: true},
+		{title: `:- consult(['testdata/empty.txt', 'testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt"), engine.Atom("testdata/empty.txt")), ok: true},
+
+		{title: `:- consult('testdata/abc.txt').`, files: engine.Atom("testdata/abc.txt"), err: engine.ErrInsufficient},
+		{title: `:- consult(['testdata/abc.txt']).`, files: engine.List(engine.Atom("testdata/abc.txt")), err: engine.ErrInsufficient},
+
+		{title: `:- consult(X).`, files: engine.Variable("X"), err: engine.InstantiationError(nil)},
+		{title: `:- consult(foo(bar)).`, files: engine.Atom("foo").Apply(engine.Atom("bar")), err: engine.TypeError(engine.ValidTypeAtom, engine.Atom("foo").Apply(engine.Atom("bar")), nil)},
+		{title: `:- consult(1).`, files: engine.Integer(1), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), err: engine.TypeError(engine.ValidTypeAtom, engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), nil)},
+		{title: `:- consult([X]).`, files: engine.List(engine.Variable("X")), err: engine.InstantiationError(nil)},
+		{title: `:- consult([1]).`, files: engine.List(engine.Integer(1)), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
+
+		{title: `:- consult('testdata/not_found.txt').`, files: engine.Atom("testdata/not_found.txt"), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
+		{title: `:- consult(['testdata/not_found.txt']).`, files: engine.List(engine.Atom("testdata/not_found.txt")), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			var i Interpreter
+			ok, err := i.Consult(tt.files, engine.Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			if e, ok := tt.err.(engine.Exception); ok {
+				_, ok := engine.NewEnv().Unify(e.Term(), err.(engine.Exception).Term(), false)
+				assert.True(t, ok)
+			} else {
+				assert.Equal(t, tt.err, err)
+			}
+		})
+	}
 }
 
 type readFn func(p []byte) (n int, err error)
