@@ -710,41 +710,25 @@ append(nil, L, L).`},
 }
 
 func TestInterpreter_Query(t *testing.T) {
-	var i Interpreter
-	i.Register3("op", i.Op)
-	assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
-	assert.NoError(t, i.Exec("append(nil, L, L)."))
-	assert.NoError(t, i.Exec("append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3)."))
+	type result struct {
+		A    string
+		B    int
+		C    float64
+		List []string `prolog:"D"`
+	}
 
-	t.Run("fact", func(t *testing.T) {
-		sols, err := i.Query(`append(X, Y, Z).`)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, sols.Close())
-		}()
-
-		m := map[string]engine.Term{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Len(t, m, 3)
-		assert.Equal(t, engine.Atom("nil"), m["X"])
-		assert.Equal(t, engine.Variable("Z"), m["Y"])
-		assert.Equal(t, engine.Variable("Z"), m["Z"])
-	})
-
-	t.Run("rule", func(t *testing.T) {
-		sols, err := i.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, sols.Close())
-		}()
-
-		m := map[string]engine.Term{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]engine.Term{
+	tests := []struct {
+		query             string
+		args              []interface{}
+		queryErr, scanErr bool
+		scan, result      interface{}
+	}{
+		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
+			"X": engine.Atom("nil"),
+			"Y": engine.Variable("Z"),
+			"Z": engine.Variable("Z"),
+		}},
+		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
 			"X": engine.Atom("cons").Apply(
 				engine.Atom("a"),
 				engine.Atom("cons").Apply(
@@ -755,48 +739,44 @@ func TestInterpreter_Query(t *testing.T) {
 					),
 				),
 			),
-		}, m)
-	})
-
-	t.Run("bindvars", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
-
-		sols, err := i.Query(`foo(?, ?, ?, ?).`, "a", 1, 2.0, []string{"abc", "def"})
-		assert.NoError(t, err)
-
-		m := map[string]interface{}{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]interface{}{}, m)
-	})
-
-	t.Run("scan to struct", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
-
-		sols, err := i.Query(`foo(A, B, C, D).`)
-		assert.NoError(t, err)
-
-		type result struct {
-			A    string
-			B    int
-			C    float64
-			List []string `prolog:"D"`
-		}
-
-		assert.True(t, sols.Next())
-
-		var r result
-		assert.NoError(t, sols.Scan(&r))
-		assert.Equal(t, result{
+		}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true},
+		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
 			A:    "a",
 			B:    1,
 			C:    2.0,
 			List: []string{"abc", "def"},
-		}, r)
-	})
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			var i Interpreter
+			i.Register3("op", i.Op)
+			assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
+			assert.NoError(t, i.Exec("append(nil, L, L)."))
+			assert.NoError(t, i.Exec("append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3)."))
+			assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
+
+			sols, err := i.Query(tt.query, tt.args...)
+			if tt.queryErr {
+				assert.Error(t, err)
+				return
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.True(t, sols.Next())
+			if tt.scanErr {
+				assert.Error(t, sols.Scan(tt.scan))
+				return
+			} else {
+				assert.NoError(t, sols.Scan(tt.scan))
+			}
+			assert.Equal(t, tt.result, tt.scan)
+		})
+	}
 }
 
 func TestMisc(t *testing.T) {
