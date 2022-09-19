@@ -202,13 +202,12 @@ func (c charList) Arity() int {
 }
 
 func (c charList) Arg(n int) Term {
+	_, i := utf8.DecodeRuneInString(string(c))
 	var t Term
 	switch n {
 	case 0:
-		r, _ := utf8.DecodeRuneInString(string(c))
-		t = Atom(r)
+		t = Atom(c[:i])
 	case 1:
-		_, i := utf8.DecodeRuneInString(string(c))
 		if i == len(c) {
 			t = Atom("[]")
 		} else {
