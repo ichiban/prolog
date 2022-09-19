@@ -4,8 +4,9 @@ import (
 	"context"
 	_ "embed" // for go:embed
 	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/ichiban/prolog/engine"
@@ -105,7 +106,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("dynamic", i.Dynamic)
 	i.Register1("built_in", i.BuiltIn)
 	i.Register2("expand_term", i.ExpandTerm)
-	i.Register1("consult", i.consult)
+	i.Register1("consult", i.Consult)
 	i.Register2("environ", engine.Environ)
 	i.Register3("phrase", i.Phrase)
 	i.Register3("nth0", engine.Nth0)
@@ -113,6 +114,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("succ", engine.Succ)
 	i.Register2("length", engine.Length)
 	i.Register3("append", engine.Append)
+	i.Register1("initialization", i.Initialization)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}
@@ -127,14 +129,10 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
-	// Ignore shebang line.
-	if len(query) > 2 && query[:2] == "#!" {
-		i := strings.Index(query, "\n")
-		if i < 0 {
-			i = len(query)
-		}
-		query = query[i:]
-	}
+	query = ignoreShebangLine(query)
+
+	var goals []engine.Term
+	ctx = context.WithValue(ctx, initializationCtxKey{}, &goals)
 
 	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
@@ -153,8 +151,15 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 
 		// Directive
 		if c, ok := et.(engine.Compound); ok && c.Functor() == ":-" && c.Arity() == 1 {
-			if _, err := i.Call(c.Arg(0), engine.Success, nil).Force(ctx); err != nil {
+			d := c.Arg(0)
+			ok, err := i.Call(d, engine.Success, nil).Force(ctx)
+			if err != nil {
 				return err
+			}
+			if !ok {
+				var sb strings.Builder
+				_ = i.Write(&sb, d, &engine.WriteOptions{Quoted: true}, nil)
+				return fmt.Errorf("failed directive: %s", sb.String())
 			}
 			continue
 		}
@@ -163,6 +168,19 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 			return err
 		}
 	}
+
+	for _, g := range goals {
+		ok, err := i.Call(g, engine.Success, nil).Force(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			var sb strings.Builder
+			_ = i.Write(&sb, g, &engine.WriteOptions{Quoted: true}, nil)
+			return fmt.Errorf("failed initialization goal: %s", sb.String())
+		}
+	}
+
 	return nil
 }
 
@@ -233,36 +251,21 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 	return &Solution{sols: sols, err: sols.Close()}
 }
 
-func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-	switch f := env.Resolve(files).(type) {
-	case engine.Variable:
-		return engine.Error(engine.InstantiationError(env))
-	case engine.Atom:
-		if f == "[]" {
-			return k(env)
-		}
-
-		if err := i.consultOne(f, env); err != nil {
+// Consult executes Prolog texts in files.
+func (i *Interpreter) Consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	iter := engine.ListIterator{List: files, Env: env}
+	for iter.Next() {
+		if err := i.consultOne(iter.Current(), env); err != nil {
 			return engine.Error(err)
 		}
-		return k(env)
-	case engine.Compound:
-		if f.Functor() != "." || f.Arity() != 2 {
-			return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
-		}
-		iter := engine.ListIterator{List: f, Env: env}
-		for iter.Next() {
-			if err := i.consultOne(iter.Current(), env); err != nil {
-				return engine.Error(err)
-			}
-		}
-		if err := iter.Err(); err != nil {
-			return engine.Error(err)
-		}
-		return k(env)
-	default:
-		return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
 	}
+	if err := iter.Err(); err != nil {
+		if err := i.consultOne(files, env); err != nil {
+			return engine.Error(err)
+		}
+	}
+
+	return k(env)
 }
 
 func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
@@ -271,7 +274,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 		return engine.InstantiationError(env)
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
-			b, err := ioutil.ReadFile(f)
+			b, err := os.ReadFile(f)
 			if err != nil {
 				continue
 			}
@@ -282,8 +285,33 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError(engine.ValidDomainSourceSink, file, env)
+		return engine.ExistenceError(engine.ObjectTypeSourceSink, file, env)
 	default:
 		return engine.TypeError(engine.ValidTypeAtom, file, env)
 	}
+}
+
+type initializationCtxKey = struct{}
+
+// Initialization registers the goal for execution right before exiting Exec or ExecContext.
+func (i *Interpreter) Initialization(g engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	return engine.Delay(func(ctx context.Context) *engine.Promise {
+		goals, ok := ctx.Value(initializationCtxKey{}).(*[]engine.Term)
+		if !ok {
+			return engine.Bool(false)
+		}
+		*goals = append(*goals, env.Simplify(g))
+		return k(env)
+	})
+}
+
+func ignoreShebangLine(query string) string {
+	if !strings.HasPrefix(query, "#!") {
+		return query
+	}
+	i := strings.Index(query, "\n")
+	if i < 0 {
+		i = len(query)
+	}
+	return query[i:]
 }
