@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/ichiban/prolog/engine"
@@ -106,7 +106,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register1("dynamic", i.Dynamic)
 	i.Register1("built_in", i.BuiltIn)
 	i.Register2("expand_term", i.ExpandTerm)
-	i.Register1("consult", i.consult)
+	i.Register1("consult", i.Consult)
 	i.Register2("environ", engine.Environ)
 	i.Register3("phrase", i.Phrase)
 	i.Register3("nth0", engine.Nth0)
@@ -251,36 +251,21 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 	return &Solution{sols: sols, err: sols.Close()}
 }
 
-func (i *Interpreter) consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
-	switch f := env.Resolve(files).(type) {
-	case engine.Variable:
-		return engine.Error(engine.InstantiationError(env))
-	case engine.Atom:
-		if f == "[]" {
-			return k(env)
-		}
-
-		if err := i.consultOne(f, env); err != nil {
+// Consult executes Prolog texts in files.
+func (i *Interpreter) Consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	iter := engine.ListIterator{List: files, Env: env}
+	for iter.Next() {
+		if err := i.consultOne(iter.Current(), env); err != nil {
 			return engine.Error(err)
 		}
-		return k(env)
-	case engine.Compound:
-		if f.Functor() != "." || f.Arity() != 2 {
-			return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
-		}
-		iter := engine.ListIterator{List: f, Env: env}
-		for iter.Next() {
-			if err := i.consultOne(iter.Current(), env); err != nil {
-				return engine.Error(err)
-			}
-		}
-		if err := iter.Err(); err != nil {
-			return engine.Error(err)
-		}
-		return k(env)
-	default:
-		return engine.Error(engine.TypeError(engine.ValidTypeList, f, env))
 	}
+	if err := iter.Err(); err != nil {
+		if err := i.consultOne(files, env); err != nil {
+			return engine.Error(err)
+		}
+	}
+
+	return k(env)
 }
 
 func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
@@ -289,7 +274,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 		return engine.InstantiationError(env)
 	case engine.Atom:
 		for _, f := range []string{string(f), string(f) + ".pl"} {
-			b, err := ioutil.ReadFile(f)
+			b, err := os.ReadFile(f)
 			if err != nil {
 				continue
 			}
@@ -300,7 +285,7 @@ func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
 
 			return nil
 		}
-		return engine.DomainError(engine.ValidDomainSourceSink, file, env)
+		return engine.ExistenceError(engine.ObjectTypeSourceSink, file, env)
 	default:
 		return engine.TypeError(engine.ValidTypeAtom, file, env)
 	}

@@ -674,24 +674,11 @@ func TestInterpreter_Exec(t *testing.T) {
 append(nil, L, L).`},
 		{query: `#!/usr/bin/env 1pl`},
 
-		{query: `:- consult(?).`, args: []interface{}{"testdata/empty.txt"}},
-		{query: `:- consult(?).`, args: []interface{}{"testdata/abc.txt"}, err: true},
-		{query: `:- consult(X).`, err: true},
-		{query: `:- consult(foo(bar)).`, err: true},
-		{query: `:- consult(1).`, err: true},
-
-		{query: `:- consult([]).`},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/empty.txt"}},
-		{query: `:- consult(?).`, args: []interface{}{[]string{"testdata/empty.txt", "testdata/empty.txt"}}},
-		{query: `:- consult([?|_]).`, args: []interface{}{"testdata/empty.txt"}, err: true},
-		{query: `:- consult([X]).`, err: true},
-		{query: `:- consult([1]).`, err: true},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/abc.txt"}, err: true},
-		{query: `:- consult([?]).`, args: []interface{}{"testdata/not_found.txt"}, err: true},
-
 		{query: `a.`, premise: `term_expansion(_, _) :- throw(fail).`, err: true},
 
+		{query: `:- true.`},
 		{query: `:- fail.`, err: true},
+		{query: `:- throw(ball).`, err: true},
 
 		{query: `:- initialization(true).`},
 		{query: `:- initialization(fail).`, err: true},
@@ -707,7 +694,7 @@ append(nil, L, L).`},
 			i.Register0("fail", func(func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1("consult", i.consult)
+			i.Register1("consult", i.Consult)
 			i.Register1("initialization", i.Initialization)
 			i.Register3("op", i.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
@@ -723,41 +710,25 @@ append(nil, L, L).`},
 }
 
 func TestInterpreter_Query(t *testing.T) {
-	var i Interpreter
-	i.Register3("op", i.Op)
-	assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
-	assert.NoError(t, i.Exec("append(nil, L, L)."))
-	assert.NoError(t, i.Exec("append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3)."))
+	type result struct {
+		A    string
+		B    int
+		C    float64
+		List []string `prolog:"D"`
+	}
 
-	t.Run("fact", func(t *testing.T) {
-		sols, err := i.Query(`append(X, Y, Z).`)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, sols.Close())
-		}()
-
-		m := map[string]engine.Term{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Len(t, m, 3)
-		assert.Equal(t, engine.Atom("nil"), m["X"])
-		assert.Equal(t, engine.Variable("Z"), m["Y"])
-		assert.Equal(t, engine.Variable("Z"), m["Z"])
-	})
-
-	t.Run("rule", func(t *testing.T) {
-		sols, err := i.Query(`append(cons(a, cons(b, nil)), cons(c, nil), X).`)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, sols.Close())
-		}()
-
-		m := map[string]engine.Term{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]engine.Term{
+	tests := []struct {
+		query             string
+		args              []interface{}
+		queryErr, scanErr bool
+		scan, result      interface{}
+	}{
+		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
+			"X": engine.Atom("nil"),
+			"Y": engine.Variable("Z"),
+			"Z": engine.Variable("Z"),
+		}},
+		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
 			"X": engine.Atom("cons").Apply(
 				engine.Atom("a"),
 				engine.Atom("cons").Apply(
@@ -768,48 +739,55 @@ func TestInterpreter_Query(t *testing.T) {
 					),
 				),
 			),
-		}, m)
-	})
-
-	t.Run("bindvars", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
-
-		sols, err := i.Query(`foo(?, ?, ?, ?).`, "a", 1, 2.0, []string{"abc", "def"})
-		assert.NoError(t, err)
-
-		m := map[string]interface{}{}
-
-		assert.True(t, sols.Next())
-		assert.NoError(t, sols.Scan(m))
-		assert.Equal(t, map[string]interface{}{}, m)
-	})
-
-	t.Run("scan to struct", func(t *testing.T) {
-		var i Interpreter
-		assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
-
-		sols, err := i.Query(`foo(A, B, C, D).`)
-		assert.NoError(t, err)
-
-		type result struct {
-			A    string
-			B    int
-			C    float64
-			List []string `prolog:"D"`
-		}
-
-		assert.True(t, sols.Next())
-
-		var r result
-		assert.NoError(t, sols.Scan(&r))
-		assert.Equal(t, result{
+		}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true},
+		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
 			A:    "a",
 			B:    1,
 			C:    2.0,
 			List: []string{"abc", "def"},
-		}, r)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			var i Interpreter
+			i.Register3("op", i.Op)
+			assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
+			assert.NoError(t, i.Exec("append(nil, L, L)."))
+			assert.NoError(t, i.Exec("append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3)."))
+			assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
+
+			sols, err := i.Query(tt.query, tt.args...)
+			if tt.queryErr {
+				assert.Error(t, err)
+				return
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.True(t, sols.Next())
+			if tt.scanErr {
+				assert.Error(t, sols.Scan(tt.scan))
+				return
+			} else {
+				assert.NoError(t, sols.Scan(tt.scan))
+			}
+			assert.Equal(t, tt.result, tt.scan)
+		})
+	}
+}
+
+func TestInterpreter_Query_close(t *testing.T) {
+	var i Interpreter
+	i.Register0("do_not_call", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		assert.Fail(t, "unreachable")
+		return k(env)
 	})
+	sols, err := i.Query("do_not_call.")
+	assert.NoError(t, err)
+	assert.NoError(t, sols.Close())
 }
 
 func TestMisc(t *testing.T) {
@@ -1577,6 +1555,47 @@ func TestInterpreter_Initialization(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, []engine.Term{engine.Atom("foo")}, goals)
+}
+
+func TestInterpreter_Consult(t *testing.T) {
+	tests := []struct {
+		title string
+		files engine.Term
+		ok    bool
+		err   error
+	}{
+		{title: `:- consult('testdata/empty.txt').`, files: engine.Atom("testdata/empty.txt"), ok: true},
+		{title: `:- consult([]).`, files: engine.List(), ok: true},
+		{title: `:- consult(['testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt")), ok: true},
+		{title: `:- consult(['testdata/empty.txt', 'testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt"), engine.Atom("testdata/empty.txt")), ok: true},
+
+		{title: `:- consult('testdata/abc.txt').`, files: engine.Atom("testdata/abc.txt"), err: engine.ErrInsufficient},
+		{title: `:- consult(['testdata/abc.txt']).`, files: engine.List(engine.Atom("testdata/abc.txt")), err: engine.ErrInsufficient},
+
+		{title: `:- consult(X).`, files: engine.Variable("X"), err: engine.InstantiationError(nil)},
+		{title: `:- consult(foo(bar)).`, files: engine.Atom("foo").Apply(engine.Atom("bar")), err: engine.TypeError(engine.ValidTypeAtom, engine.Atom("foo").Apply(engine.Atom("bar")), nil)},
+		{title: `:- consult(1).`, files: engine.Integer(1), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), err: engine.TypeError(engine.ValidTypeAtom, engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), nil)},
+		{title: `:- consult([X]).`, files: engine.List(engine.Variable("X")), err: engine.InstantiationError(nil)},
+		{title: `:- consult([1]).`, files: engine.List(engine.Integer(1)), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
+
+		{title: `:- consult('testdata/not_found.txt').`, files: engine.Atom("testdata/not_found.txt"), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
+		{title: `:- consult(['testdata/not_found.txt']).`, files: engine.List(engine.Atom("testdata/not_found.txt")), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			var i Interpreter
+			ok, err := i.Consult(tt.files, engine.Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			if e, ok := tt.err.(engine.Exception); ok {
+				_, ok := engine.NewEnv().Unify(e.Term(), err.(engine.Exception).Term(), false)
+				assert.True(t, ok)
+			} else {
+				assert.Equal(t, tt.err, err)
+			}
+		})
+	}
 }
 
 type readFn func(p []byte) (n int, err error)
