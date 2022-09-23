@@ -18,6 +18,7 @@ var bootstrap string
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
 	engine.State
+	loaded map[string]struct{}
 }
 
 // New creates a new Prolog interpreter with predefined predicates/operators.
@@ -115,6 +116,8 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("length", engine.Length)
 	i.Register3("append", engine.Append)
 	i.Register1("initialization", i.Initialization)
+	i.Register1("include", i.Include)
+	i.Register1("ensure_loaded", i.EnsureLoaded)
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
 	}
@@ -129,11 +132,29 @@ func (i *Interpreter) Exec(query string, args ...interface{}) error {
 
 // ExecContext executes a prolog program with context.
 func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...interface{}) error {
+	var t text
+	ctx = context.WithValue(ctx, textCtxKey{}, &t)
+	if err := i.execContext(ctx, query, args...); err != nil {
+		return err
+	}
+
+	for _, g := range t.goals {
+		ok, err := i.Call(g, engine.Success, nil).Force(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			var sb strings.Builder
+			_ = i.Write(&sb, g, &engine.WriteOptions{Quoted: true}, nil)
+			return fmt.Errorf("failed initialization goal: %s", sb.String())
+		}
+	}
+
+	return nil
+}
+
+func (i *Interpreter) execContext(ctx context.Context, query string, args ...interface{}) error {
 	query = ignoreShebangLine(query)
-
-	var goals []engine.Term
-	ctx = context.WithValue(ctx, initializationCtxKey{}, &goals)
-
 	p := i.Parser(strings.NewReader(query), nil)
 	if err := p.Replace("?", args...); err != nil {
 		return err
@@ -166,18 +187,6 @@ func (i *Interpreter) ExecContext(ctx context.Context, query string, args ...int
 
 		if err := i.Assert(et, nil); err != nil {
 			return err
-		}
-	}
-
-	for _, g := range goals {
-		ok, err := i.Call(g, engine.Success, nil).Force(ctx)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			var sb strings.Builder
-			_ = i.Write(&sb, g, &engine.WriteOptions{Quoted: true}, nil)
-			return fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
 
@@ -253,54 +262,67 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 
 // Consult executes Prolog texts in files.
 func (i *Interpreter) Consult(files engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	var filenames []engine.Term
 	iter := engine.ListIterator{List: files, Env: env}
 	for iter.Next() {
-		if err := i.consultOne(iter.Current(), env); err != nil {
-			return engine.Error(err)
-		}
+		filenames = append(filenames, iter.Current())
 	}
 	if err := iter.Err(); err != nil {
-		if err := i.consultOne(files, env); err != nil {
-			return engine.Error(err)
-		}
+		filenames = []engine.Term{files}
 	}
 
-	return k(env)
-}
-
-func (i *Interpreter) consultOne(file engine.Term, env *engine.Env) error {
-	switch f := env.Resolve(file).(type) {
-	case engine.Variable:
-		return engine.InstantiationError(env)
-	case engine.Atom:
-		for _, f := range []string{string(f), string(f) + ".pl"} {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				continue
+	return engine.Delay(func(ctx context.Context) *engine.Promise {
+		for _, filename := range filenames {
+			if err := i.ensureLoaded(ctx, filename, env); err != nil {
+				return engine.Error(err)
 			}
-
-			if err := i.Exec(string(b)); err != nil {
-				return err
-			}
-
-			return nil
 		}
-		return engine.ExistenceError(engine.ObjectTypeSourceSink, file, env)
-	default:
-		return engine.TypeError(engine.ValidTypeAtom, file, env)
-	}
+
+		return k(env)
+	})
 }
 
-type initializationCtxKey = struct{}
+type text struct {
+	filename string
+	goals    []engine.Term
+}
+
+type textCtxKey struct{}
 
 // Initialization registers the goal for execution right before exiting Exec or ExecContext.
 func (i *Interpreter) Initialization(g engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 	return engine.Delay(func(ctx context.Context) *engine.Promise {
-		goals, ok := ctx.Value(initializationCtxKey{}).(*[]engine.Term)
+		t, ok := ctx.Value(textCtxKey{}).(*text)
 		if !ok {
 			return engine.Bool(false)
 		}
-		*goals = append(*goals, env.Simplify(g))
+		t.goals = append(t.goals, env.Simplify(g))
+		return k(env)
+	})
+}
+
+// EnsureLoaded loads the Prolog text if not loaded.
+func (i *Interpreter) EnsureLoaded(file engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	return engine.Delay(func(ctx context.Context) *engine.Promise {
+		if err := i.ensureLoaded(ctx, file, env); err != nil {
+			return engine.Error(err)
+		}
+		return k(env)
+	})
+}
+
+// Include includes the Prolog text from file.
+func (i *Interpreter) Include(file engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	_, b, err := open(file, env)
+	if err != nil {
+		return engine.Error(err)
+	}
+
+	return engine.Delay(func(ctx context.Context) *engine.Promise {
+		if err := i.execContext(ctx, string(b)); err != nil {
+			return engine.Error(err)
+		}
+
 		return k(env)
 	})
 }
@@ -314,4 +336,42 @@ func ignoreShebangLine(query string) string {
 		i = len(query)
 	}
 	return query[i:]
+}
+
+func (i *Interpreter) ensureLoaded(ctx context.Context, file engine.Term, env *engine.Env) error {
+	f, b, err := open(file, env)
+	if err != nil {
+		return err
+	}
+
+	if i.loaded == nil {
+		i.loaded = map[string]struct{}{}
+	}
+	if _, ok := i.loaded[f]; ok {
+		return nil
+	}
+	defer func() {
+		i.loaded[f] = struct{}{}
+	}()
+
+	return i.ExecContext(ctx, string(b))
+}
+
+func open(file engine.Term, env *engine.Env) (string, []byte, error) {
+	switch f := env.Resolve(file).(type) {
+	case engine.Variable:
+		return "", nil, engine.InstantiationError(env)
+	case engine.Atom:
+		for _, f := range []string{string(f), string(f) + ".pl"} {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+
+			return f, b, nil
+		}
+		return "", nil, engine.ExistenceError(engine.ObjectTypeSourceSink, file, env)
+	default:
+		return "", nil, engine.TypeError(engine.ValidTypeAtom, file, env)
+	}
 }
