@@ -276,36 +276,46 @@ func (s operatorSpecifier) arity() int {
 
 type operators map[Atom][_operatorClassLen]operator
 
-func (ops operators) defined(name Atom) bool {
-	_, ok := ops[name]
+func (ops *operators) defined(name Atom) bool {
+	ops.init()
+	_, ok := (*ops)[name]
 	return ok
 }
 
-func (ops operators) definedInClass(name Atom, class operatorClass) bool {
-	return ops[name][class] != operator{}
+func (ops *operators) definedInClass(name Atom, class operatorClass) bool {
+	ops.init()
+	return (*ops)[name][class] != operator{}
 }
 
-func (ops operators) define(p Integer, spec operatorSpecifier, op Atom) {
+func (ops *operators) define(p Integer, spec operatorSpecifier, op Atom) {
 	if p == 0 {
 		return
 	}
-	os := ops[op]
+	ops.init()
+	os := (*ops)[op]
 	os[spec.class()] = operator{
 		priority:  p,
 		specifier: spec,
 		name:      op,
 	}
-	ops[op] = os
+	(*ops)[op] = os
 }
 
-func (ops operators) remove(name Atom, class operatorClass) {
-	os := ops[name]
-	os[class] = operator{}
-	if os == ([_operatorClassLen]operator{}) {
-		delete(ops, name)
+func (ops *operators) init() {
+	if *ops != nil {
 		return
 	}
-	ops[name] = os
+	*ops = map[Atom][3]operator{}
+}
+
+func (ops *operators) remove(name Atom, class operatorClass) {
+	os := (*ops)[name]
+	os[class] = operator{}
+	if os == ([_operatorClassLen]operator{}) {
+		delete(*ops, name)
+		return
+	}
+	(*ops)[name] = os
 }
 
 type operator struct {

@@ -5,6 +5,27 @@ import (
 	"errors"
 )
 
+type userDefined struct {
+	public        bool
+	dynamic       bool
+	multifile     bool
+	discontiguous bool
+
+	// 7.4.3 says "If no clauses are defined for a procedure indicated by a directive ... then the procedure shall exist but have no clauses."
+	clauses
+}
+
+func (u *userDefined) Add(t Term, env *Env) error {
+	added, err := compile(t, env)
+	if err != nil {
+		return err
+	}
+	u.clauses = append(u.clauses, added...)
+	return nil
+}
+
+type builtin struct{ clauses }
+
 type clauses []clause
 
 func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -61,25 +82,10 @@ func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Pr
 	return p
 }
 
-// some variants of clauses.
-// clauses itself is user-defined dynamic.
-type (
-	builtin struct{ clauses } // builtin static.
-	static  struct{ clauses } // user-defined static.
-)
-
-type clause struct {
-	pi       ProcedureIndicator
-	raw      Term
-	xrTable  []Term
-	vars     []Variable
-	bytecode bytecode
-}
-
 func compile(t Term, env *Env) (clauses, error) {
 	t = env.Resolve(t)
 	if t, ok := t.(Compound); ok && t.Functor() == ":-" && t.Arity() == 2 {
-		var cs []clause
+		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
 		iter := AltIterator{Alt: body, Env: env}
 		for iter.Next() {
@@ -96,6 +102,14 @@ func compile(t Term, env *Env) (clauses, error) {
 	c, err := compileClause(t, nil, env)
 	c.raw = env.Simplify(t)
 	return []clause{c}, err
+}
+
+type clause struct {
+	pi       ProcedureIndicator
+	raw      Term
+	xrTable  []Term
+	vars     []Variable
+	bytecode bytecode
 }
 
 func compileClause(head Term, body Term, env *Env) (clause, error) {

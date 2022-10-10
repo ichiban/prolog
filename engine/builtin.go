@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"sort"
 	"strings"
@@ -17,6 +18,9 @@ import (
 // State represents the internal state of an interpreter.
 type State struct {
 	VM
+
+	FS     fs.FS
+	loaded map[string]struct{}
 
 	// Internal/external expression
 	operators       operators
@@ -142,71 +146,57 @@ func (state *State) Call(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Error(err)
 		}
 
-		return cs.Call(&state.VM, args, k, env)
+		u := userDefined{clauses: cs}
+		return u.Call(&state.VM, args, k, env)
 	}
 }
 
 // Call1 succeeds if closure with an additional argument succeeds.
 func (state *State) Call1(closure, arg1 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1)...), k, env)
+	return state.callN(closure, []Term{arg1}, k, env)
 }
 
 // Call2 succeeds if closure with 2 additional arguments succeeds.
 func (state *State) Call2(closure, arg1, arg2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2)...), k, env)
+	return state.callN(closure, []Term{arg1, arg2}, k, env)
 }
 
 // Call3 succeeds if closure with 3 additional arguments succeeds.
 func (state *State) Call3(closure, arg1, arg2, arg3 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3)...), k, env)
+	return state.callN(closure, []Term{arg1, arg2, arg3}, k, env)
 }
 
 // Call4 succeeds if closure with 4 additional arguments succeeds.
 func (state *State) Call4(closure, arg1, arg2, arg3, arg4 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4)...), k, env)
+	return state.callN(closure, []Term{arg1, arg2, arg3, arg4}, k, env)
 }
 
 // Call5 succeeds if closure with 5 additional arguments succeeds.
 func (state *State) Call5(closure, arg1, arg2, arg3, arg4, arg5 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5)...), k, env)
+	return state.callN(closure, []Term{arg1, arg2, arg3, arg4, arg5}, k, env)
 }
 
 // Call6 succeeds if closure with 6 additional arguments succeeds.
 func (state *State) Call6(closure, arg1, arg2, arg3, arg4, arg5, arg6 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
-	if err != nil {
-		return Error(err)
-	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6)...), k, env)
+	return state.callN(closure, []Term{arg1, arg2, arg3, arg4, arg5, arg6}, k, env)
 }
 
 // Call7 succeeds if closure with 7 additional arguments succeeds.
 func (state *State) Call7(closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, args, err := piArgs(closure, env)
+	return state.callN(closure, []Term{arg1, arg2, arg3, arg4, arg5, arg6, arg7}, k, env)
+}
+
+func (state *State) callN(closure Term, additional []Term, k func(*Env) *Promise, env *Env) *Promise {
+	pi, arg, err := PI(closure, env)
 	if err != nil {
 		return Error(err)
 	}
-	return state.Call(pi.Name.Apply(append(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7)...), k, env)
+	args := make([]Term, pi.Arity, int(pi.Arity)+len(additional))
+	for i := 0; i < int(pi.Arity); i++ {
+		args[i] = arg(i)
+	}
+	args = append(args, additional...)
+	return state.Call(pi.Name.Apply(args...), k, env)
 }
 
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
@@ -612,10 +602,6 @@ func (state *State) Op(priority, specifier, op Term, k func(*Env) *Promise, env 
 		}
 	}
 
-	if state.operators == nil {
-		state.operators = operators{}
-	}
-
 	for _, name := range names {
 		if class := spec.class(); state.operators.definedInClass(name, spec.class()) {
 			state.operators.remove(name, class)
@@ -726,7 +712,7 @@ func (state *State) CurrentOp(priority, specifier, op Term, k func(*Env) *Promis
 
 // Assertz appends t to the database.
 func (state *State) Assertz(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	if err := state.assert(t, false, func(existing clauses, new clauses) clauses {
+	if err := state.assert(t, func(existing, new []clause) []clause {
 		return append(existing, new...)
 	}, env); err != nil {
 		return Error(err)
@@ -736,7 +722,7 @@ func (state *State) Assertz(t Term, k func(*Env) *Promise, env *Env) *Promise {
 
 // Asserta prepends t to the database.
 func (state *State) Asserta(t Term, k func(*Env) *Promise, env *Env) *Promise {
-	if err := state.assert(t, false, func(existing clauses, new clauses) clauses {
+	if err := state.assert(t, func(existing, new []clause) []clause {
 		return append(new, existing...)
 	}, env); err != nil {
 		return Error(err)
@@ -744,21 +730,14 @@ func (state *State) Asserta(t Term, k func(*Env) *Promise, env *Env) *Promise {
 	return k(env)
 }
 
-// Assert appends t to the database.
-func (state *State) Assert(t Term, env *Env) error {
-	return state.assert(t, true, func(existing clauses, new clauses) clauses {
-		return append(existing, new...)
-	}, env)
-}
-
-func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clauses, env *Env) error {
-	pi, args, err := piArgs(t, env)
+func (state *State) assert(t Term, merge func([]clause, []clause) []clause, env *Env) error {
+	pi, arg, err := PI(t, env)
 	if err != nil {
 		return err
 	}
 
 	if pi == (ProcedureIndicator{Name: ":-", Arity: 2}) {
-		pi, _, err = piArgs(args[0], env)
+		pi, _, err = PI(arg(0), env)
 		if err != nil {
 			return err
 		}
@@ -769,11 +748,8 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 	}
 	p, ok := state.procedures[pi]
 	if !ok {
-		if force {
-			p = static{}
-		} else {
-			p = clauses{}
-		}
+		p = &userDefined{dynamic: true}
+		state.procedures[pi] = p
 	}
 
 	added, err := compile(t, env)
@@ -781,21 +757,12 @@ func (state *State) assert(t Term, force bool, merge func(clauses, clauses) clau
 		return err
 	}
 
-	switch existing := p.(type) {
-	case clauses:
-		state.procedures[pi] = merge(existing, added)
-		return nil
-	case builtin:
-		if !force {
+	switch p := p.(type) {
+	case *userDefined:
+		if !p.dynamic {
 			return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
 		}
-		state.procedures[pi] = builtin{merge(existing.clauses, added)}
-		return nil
-	case static:
-		if !force {
-			return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
-		}
-		state.procedures[pi] = static{merge(existing.clauses, added)}
+		p.clauses = merge(p.clauses, added)
 		return nil
 	default:
 		return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
@@ -1080,14 +1047,14 @@ func (state *State) CurrentPredicate(pi Term, k func(*Env) *Promise, env *Env) *
 	ks := make([]func(context.Context) *Promise, 0, len(state.procedures))
 	for key, p := range state.procedures {
 		switch p.(type) {
-		case clauses, static:
+		case *userDefined:
+			c := key.Term()
+			ks = append(ks, func(context.Context) *Promise {
+				return Unify(pi, c, k, env)
+			})
 		default:
 			continue
 		}
-		c := key.Term()
-		ks = append(ks, func(context.Context) *Promise {
-			return Unify(pi, c, k, env)
-		})
 	}
 	return Delay(ks...)
 }
@@ -1097,7 +1064,7 @@ func (state *State) Retract(t Term, k func(*Env) *Promise, env *Env) *Promise {
 	t = Rulify(t, env)
 
 	h := t.(Compound).Arg(0)
-	pi, _, err := piArgs(h, env)
+	pi, _, err := PI(h, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1107,22 +1074,21 @@ func (state *State) Retract(t Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Bool(false)
 	}
 
-	cs, ok := p.(clauses)
-	if !ok {
+	u, ok := p.(*userDefined)
+	if !ok || !u.dynamic {
 		return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env))
 	}
 
 	deleted := 0
-	ks := make([]func(context.Context) *Promise, len(cs))
-	for i, c := range cs {
+	ks := make([]func(context.Context) *Promise, len(u.clauses))
+	for i, c := range u.clauses {
 		i := i
 		raw := Rulify(c.raw, env)
 		ks[i] = func(_ context.Context) *Promise {
 			return Unify(t, raw, func(env *Env) *Promise {
 				j := i - deleted
-				cs, cs[len(cs)-1] = append(cs[:j], cs[j+1:]...), clause{}
+				u.clauses, u.clauses[len(u.clauses)-1] = append(u.clauses[:j], u.clauses[j+1:]...), clause{}
 				deleted++
-				state.procedures[pi] = cs
 				return k(env)
 			}, env)
 		}
@@ -1154,7 +1120,7 @@ func (state *State) Abolish(pi Term, k func(*Env) *Promise, env *Env) *Promise {
 					return Error(DomainError(ValidDomainNotLessThanZero, arity, env))
 				}
 				key := ProcedureIndicator{Name: name, Arity: arity}
-				if _, ok := state.procedures[key].(clauses); !ok {
+				if u, ok := state.procedures[key].(*userDefined); !ok || !u.dynamic {
 					return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, key.Term(), env))
 				}
 				delete(state.procedures, key)
@@ -2068,7 +2034,7 @@ func Halt(n Term, k func(*Env) *Promise, env *Env) *Promise {
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
 func (state *State) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, _, err := piArgs(head, env)
+	pi, _, err := PI(head, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -2085,14 +2051,14 @@ func (state *State) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Pr
 		return Bool(false)
 	}
 
-	cs, ok := p.(clauses)
-	if !ok {
+	u, ok := p.(*userDefined)
+	if !ok || !u.public {
 		return Error(PermissionError(OperationAccess, PermissionTypePrivateProcedure, pi.Term(), env))
 	}
 
-	ks := make([]func(context.Context) *Promise, len(cs))
-	for i := range cs {
-		r := Rulify(renamedCopy(cs[i].raw, nil, env), env)
+	ks := make([]func(context.Context) *Promise, len(u.clauses))
+	for i, c := range u.clauses {
+		r := Rulify(renamedCopy(c.raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
 			return Unify(&compound{
 				functor: ":-",
@@ -2855,60 +2821,6 @@ func (state *State) stream(streamOrAlias Term, env *Env) (*Stream, error) {
 	default:
 		return nil, DomainError(ValidDomainStreamOrAlias, streamOrAlias, env)
 	}
-}
-
-// Dynamic declares a procedure indicated by pi is user-defined dynamic.
-func (state *State) Dynamic(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	iter := AnyIterator{Any: pi, Env: env}
-	for iter.Next() {
-		elem := iter.Current()
-		key, err := NewProcedureIndicator(elem, env)
-		if err != nil {
-			return Error(err)
-		}
-		if state.procedures == nil {
-			state.procedures = map[ProcedureIndicator]procedure{}
-		}
-		p, ok := state.procedures[key]
-		if !ok {
-			state.procedures[key] = clauses{}
-			continue
-		}
-		if _, ok := p.(clauses); !ok {
-			return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, elem, env))
-		}
-	}
-	if err := iter.Err(); err != nil {
-		return Error(err)
-	}
-	return k(env)
-}
-
-// BuiltIn declares a procedure indicated by pi is built-in and static.
-func (state *State) BuiltIn(pi Term, k func(*Env) *Promise, env *Env) *Promise {
-	iter := AnyIterator{Any: pi, Env: env}
-	for iter.Next() {
-		elem := iter.Current()
-		key, err := NewProcedureIndicator(elem, env)
-		if err != nil {
-			return Error(err)
-		}
-		if state.procedures == nil {
-			state.procedures = map[ProcedureIndicator]procedure{}
-		}
-		p, ok := state.procedures[key]
-		if !ok {
-			state.procedures[key] = builtin{}
-			continue
-		}
-		if _, ok := p.(builtin); !ok {
-			return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, elem, env))
-		}
-	}
-	if err := iter.Err(); err != nil {
-		return Error(err)
-	}
-	return k(env)
 }
 
 // ExpandTerm transforms term1 according to term_expansion/2 and DCG rules then unifies with term2.
