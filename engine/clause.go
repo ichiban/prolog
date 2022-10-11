@@ -15,15 +15,6 @@ type userDefined struct {
 	clauses
 }
 
-func (u *userDefined) Add(t Term, env *Env) error {
-	added, err := compile(t, env)
-	if err != nil {
-		return err
-	}
-	u.clauses = append(u.clauses, added...)
-	return nil
-}
-
 type builtin struct{ clauses }
 
 type clauses []clause

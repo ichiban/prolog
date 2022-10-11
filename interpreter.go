@@ -114,9 +114,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register2("succ", engine.Succ)
 	i.Register2("length", engine.Length)
 	i.Register3("append", engine.Append)
-	if err := i.Exec(bootstrap); err != nil {
-		panic(err)
-	}
+	_ = i.Exec(bootstrap)
 
 	return &i
 }

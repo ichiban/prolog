@@ -1550,6 +1550,13 @@ func ExampleNew_arg() {
 	// error(type_error(compound,3),arg/3)
 }
 
+func TestDefaultFS_Open(t *testing.T) {
+	var fs defaultFS
+	f, err := fs.Open("interpreter.go")
+	assert.NoError(t, err)
+	assert.NotNil(t, f)
+}
+
 type readFn func(p []byte) (n int, err error)
 
 func (f readFn) Read(p []byte) (n int, err error) {
