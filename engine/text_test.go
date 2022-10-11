@@ -235,12 +235,35 @@ foo :- 1.
 		{title: "error: included non-atom", text: `
 :- include(1).
 `, err: TypeError(ValidTypeAtom, Integer(1), nil)},
+		{title: "error: initialization exception", text: `
+:- initialization(bar).
+`, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(0)), nil)},
+		{title: "error: initialization failure", text: `
+:- initialization(foo(d)).
+`, err: errors.New("failed initialization goal: foo(d)")},
 		{title: "error: predicate-backed directive exception", text: `
 :- bar.
 `, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(0)), nil)},
 		{title: "error: predicate-backed directive failure", text: `
 :- foo(d).
 `, err: errors.New("failed directive: foo(d)")},
+		{title: "error: discontiguous, end of text", text: `
+foo(a).
+bar(a).
+foo(b).
+`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: "foo", Arity: 1}}},
+		{title: "error: discontiguous, before directive", text: `
+foo(a).
+bar(a).
+foo(b).
+:- foo(c).
+`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: "foo", Arity: 1}}},
+		{title: "error: discontiguous, before other facts", text: `
+foo(a).
+bar(a).
+foo(b).
+bar(b).
+`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: "foo", Arity: 1}}},
 	}
 
 	for _, tt := range tests {
@@ -310,4 +333,9 @@ func TestState_Consult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscontiguousError_Error(t *testing.T) {
+	e := DiscontiguousError{PI: ProcedureIndicator{Name: "foo", Arity: 1}}
+	assert.Equal(t, "foo/1 is discontiguous", e.Error())
 }
