@@ -20,6 +20,29 @@ func TestState_Compile(t *testing.T) {
 		err    error
 		result map[ProcedureIndicator]procedure
 	}{
+		{title: "shebang", text: `#!/foo/bar
+foo(a).
+`, result: map[ProcedureIndicator]procedure{
+			{Name: "foo", Arity: 1}: &userDefined{
+				clauses: clauses{
+					{pi: ProcedureIndicator{Name: "foo", Arity: 1}, raw: &compound{functor: "foo", args: []Term{Atom("a")}}, xrTable: []Term{Atom("a")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opExit},
+					}},
+				},
+			},
+		}},
+		{title: "shebang: no following lines", text: `#!/foo/bar`, result: map[ProcedureIndicator]procedure{
+			{Name: "foo", Arity: 1}: &userDefined{
+				multifile: true,
+				clauses: clauses{
+					{pi: ProcedureIndicator{Name: "foo", Arity: 1}, raw: &compound{functor: "foo", args: []Term{Atom("c")}}, xrTable: []Term{Atom("c")}, bytecode: bytecode{
+						{opcode: opConst, operand: 0},
+						{opcode: opExit},
+					}},
+				},
+			},
+		}},
 		{title: "facts", text: `
 foo(a).
 foo(b).
@@ -217,6 +240,10 @@ foo(?).
 		{title: "error: syntax error", text: `
 foo().
 `, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+		{title: "error: expansion error", text: `
+:- ensure_loaded('testdata/break_term_expansion').
+foo(a).
+`, err: InstantiationError(nil)},
 		{title: "error: variable fact", text: `
 X.
 `, err: InstantiationError(nil)},
@@ -226,6 +253,9 @@ X :- X.
 		{title: "error: non-callable rule body", text: `
 foo :- 1.
 `, err: TypeError(ValidTypeCallable, Integer(1), nil)},
+		{title: "error: non-PI argument", text: `
+:- dynamic(foo).
+`, err: TypeError(ValidTypePredicateIndicator, Atom("foo"), nil)},
 		{title: "error: included variable", text: `
 :- include(X).
 `, err: InstantiationError(nil)},
@@ -270,6 +300,7 @@ bar(b).
 		t.Run(tt.title, func(t *testing.T) {
 			var state State
 			state.operators.define(1200, operatorSpecifierXFX, ":-")
+			state.operators.define(1200, operatorSpecifierXFX, "-->")
 			state.operators.define(1200, operatorSpecifierFX, ":-")
 			state.operators.define(400, operatorSpecifierYFX, "/")
 			state.procedures = map[ProcedureIndicator]procedure{

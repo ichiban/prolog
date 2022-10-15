@@ -15,8 +15,6 @@ type userDefined struct {
 	clauses
 }
 
-type builtin struct{ clauses }
-
 type clauses []clause
 
 func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {

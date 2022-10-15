@@ -2825,7 +2825,7 @@ func (state *State) stream(streamOrAlias Term, env *Env) (*Stream, error) {
 
 // ExpandTerm transforms term1 according to term_expansion/2 and DCG rules then unifies with term2.
 func (state *State) ExpandTerm(term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	t, err := state.Expand(term1, env)
+	t, err := state.expand(term1, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -2833,8 +2833,7 @@ func (state *State) ExpandTerm(term1, term2 Term, k func(*Env) *Promise, env *En
 	return Unify(t, term2, k, env)
 }
 
-// Expand expands term according to term_expansion/2 and DCG rules.
-func (state *State) Expand(term Term, env *Env) (Term, error) {
+func (state *State) expand(term Term, env *Env) (Term, error) {
 	const termExpansion = Atom("term_expansion")
 
 	if _, ok := state.procedures[ProcedureIndicator{Name: termExpansion, Arity: 2}]; ok {

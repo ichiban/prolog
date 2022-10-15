@@ -93,7 +93,7 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 			return err
 		}
 
-		et, err := state.Expand(t, nil)
+		et, err := state.expand(t, nil)
 		if err != nil {
 			return err
 		}
