@@ -201,185 +201,192 @@ f(g([a, [b|X]])).
 }
 
 func TestState_Call1(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 1}: predicate1(func(_ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [1]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [1]Term{Atom("b")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [1]Term{Atom("b")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [1]Term{Atom("b")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call1(Atom("p"), Atom("a"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call1(Variable("P"), Atom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call1(Integer(3), Atom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call1(tt.closure, tt.additional[0], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call2(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [2]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [2]Term{Atom("b"), Atom("c")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [2]Term{Atom("b"), Atom("c")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [2]Term{Atom("b"), Atom("c")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call2(Atom("p"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call2(Variable("P"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call2(Integer(3), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call2(tt.closure, tt.additional[0], tt.additional[1], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call3(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [3]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call3(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call3(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call3(Integer(3), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call3(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call4(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [4]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call4(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call4(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call4(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call4(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call5(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [5]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call5(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call5(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call5(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call5(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call6(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [6]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call6(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call6(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call6(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call6(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call7(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [7]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call7(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call7(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call7(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 8}: predicate8(func(_, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call7(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], tt.additional[6], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_CallNth(t *testing.T) {
