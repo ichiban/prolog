@@ -381,7 +381,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
     - **`max_arity`** `Value` is always `unbounded`.
     - **`unknown`** `Value` is either `error` (default), `fail`, or `warning`.
     - **`double_quotes`** `Value` is either `chars` (default), `codes`, or `atom`.
-- **`halt(X)`** Exists the host program with the status code of `X`. *ISO*
+- **`halt(X)`** Exits the host program with the status code of `X`. *ISO*
 - **`halt`** Equivalent to `halt(0)`. *ISO*
 #### Definite clause grammars
 - **`expand_term(In, Out)`** Succeeds iff `Out` is an expansion of the term `In`.
