@@ -757,16 +757,13 @@ func (state *State) assert(t Term, merge func([]clause, []clause) []clause, env 
 		return err
 	}
 
-	switch p := p.(type) {
-	case *userDefined:
-		if !p.dynamic {
-			return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
-		}
-		p.clauses = merge(p.clauses, added)
-		return nil
-	default:
+	u, ok := p.(*userDefined)
+	if !ok || !u.dynamic {
 		return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
 	}
+
+	u.clauses = merge(u.clauses, added)
+	return nil
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.

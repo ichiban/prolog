@@ -5565,6 +5565,13 @@ func TestState_Clause(t *testing.T) {
 		assert.False(t, ok)
 	})
 
+	t.Run("not found", func(t *testing.T) {
+		var state State
+		ok, err := state.Clause(Atom("foo"), Atom("true"), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
 	t.Run("head is a variable", func(t *testing.T) {
 		var state State
 		ok, err := state.Clause(Variable("Head"), Atom("true"), Success, nil).Force(context.Background())
