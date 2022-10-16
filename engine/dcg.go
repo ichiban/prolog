@@ -56,11 +56,16 @@ func expandDCG(term Term, env *Env) (Term, error) {
 }
 
 func dcgNonTerminal(nonTerminal, list, rest Term, env *Env) (Term, error) {
-	pi, args, err := piArgs(nonTerminal, env)
+	pi, arg, err := PI(nonTerminal, env)
 	if err != nil {
 		return nil, err
 	}
-	return pi.Name.Apply(append(args, list, rest)...), nil
+	args := make([]Term, pi.Arity, pi.Arity+2)
+	for i := 0; i < int(pi.Arity); i++ {
+		args[i] = arg(i)
+	}
+	args = append(args, list, rest)
+	return pi.Name.Apply(args...), nil
 }
 
 func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
@@ -172,11 +177,15 @@ func dcgBody(term, list, rest Term, env *Env) (Term, error) {
 }
 
 func dcgCBody(term, list, rest Term, env *Env) (Term, error) {
-	pi, args, err := piArgs(term, env)
+	pi, arg, err := PI(term, env)
 	if err != nil {
 		return nil, err
 	}
 	if c, ok := dcgConstr[pi]; ok {
+		args := make([]Term, pi.Arity)
+		for i := 0; i < int(pi.Arity); i++ {
+			args[i] = arg(i)
+		}
 		return c(args, list, rest, env)
 	}
 	return nil, errDCGNotApplicable

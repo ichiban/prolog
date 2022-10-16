@@ -546,18 +546,14 @@ func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
 	return p.Name.Apply(args...), nil
 }
 
-func piArgs(t Term, env *Env) (ProcedureIndicator, []Term, error) {
+func PI(t Term, env *Env) (ProcedureIndicator, func(int) Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
 		return ProcedureIndicator{}, nil, InstantiationError(env)
 	case Atom:
 		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
 	case Compound:
-		args := make([]Term, f.Arity())
-		for i := 0; i < f.Arity(); i++ {
-			args[i] = f.Arg(i)
-		}
-		return ProcedureIndicator{Name: f.Functor(), Arity: Integer(f.Arity())}, args, nil
+		return ProcedureIndicator{Name: f.Functor(), Arity: Integer(f.Arity())}, f.Arg, nil
 	default:
 		return ProcedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
 	}

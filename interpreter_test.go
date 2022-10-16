@@ -695,7 +695,6 @@ append(nil, L, L).`},
 				return engine.Bool(false)
 			})
 			i.Register1("consult", i.Consult)
-			i.Register1("initialization", i.Initialization)
 			i.Register3("op", i.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
@@ -754,10 +753,14 @@ func TestInterpreter_Query(t *testing.T) {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
 			i.Register3("op", i.Op)
-			assert.NoError(t, i.Exec(":-(op(1200, xfx, :-))."))
-			assert.NoError(t, i.Exec("append(nil, L, L)."))
-			assert.NoError(t, i.Exec("append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3)."))
-			assert.NoError(t, i.Exec("foo(a, 1, 2.0, [abc, def])."))
+			assert.NoError(t, i.Exec(`
+:-(op(1200, xfx, :-)).
+
+append(nil, L, L).
+append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
+
+foo(a, 1, 2.0, [abc, def]).
+`))
 
 			sols, err := i.Query(tt.query, tt.args...)
 			if tt.queryErr {
@@ -1065,8 +1068,10 @@ studies(alex, physics).
 
 	t.Run("call cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec("foo :- call(true), !."))
-		assert.NoError(t, i.Exec("foo :- throw(unreachable)."))
+		assert.NoError(t, i.Exec(`
+foo :- call(true), !.
+foo :- throw(unreachable).
+`))
 		sols, err := i.Query("foo.")
 		assert.NoError(t, err)
 		assert.True(t, sols.Next())
@@ -1076,8 +1081,10 @@ studies(alex, physics).
 
 	t.Run("catch cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec("foo :- catch(true, _, true), !."))
-		assert.NoError(t, i.Exec("foo :- throw(unreachable)."))
+		assert.NoError(t, i.Exec(`
+foo :- catch(true, _, true), !.
+foo :- throw(unreachable).
+`))
 		sols, err := i.Query("foo.")
 		assert.NoError(t, err)
 		assert.True(t, sols.Next())
@@ -1087,9 +1094,12 @@ studies(alex, physics).
 
 	t.Run("counter", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec(":- dynamic(count/1)."))
-		assert.NoError(t, i.Exec("count(0)."))
-		assert.NoError(t, i.Exec("next(N) :- retract(count(X)), N is X + 1, asserta(count(N))."))
+		assert.NoError(t, i.Exec(`
+:- dynamic(count/1).
+count(0).
+
+next(N) :- retract(count(X)), N is X + 1, asserta(count(N)).
+`))
 
 		var s struct {
 			X int
@@ -1540,151 +1550,11 @@ func ExampleNew_arg() {
 	// error(type_error(compound,3),arg/3)
 }
 
-func TestInterpreter_Initialization(t *testing.T) {
-	p := New(nil, nil)
-
-	ok, err := p.Initialization(engine.Atom("foo"), engine.Success, nil).Force(context.Background())
+func TestDefaultFS_Open(t *testing.T) {
+	var fs defaultFS
+	f, err := fs.Open("interpreter.go")
 	assert.NoError(t, err)
-	assert.False(t, ok)
-
-	var pt text
-	ctx := context.WithValue(context.Background(), textCtxKey{}, &pt)
-
-	ok, err = p.Initialization(engine.Atom("foo"), engine.Success, nil).Force(ctx)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	assert.Equal(t, []engine.Term{engine.Atom("foo")}, pt.goals)
-}
-
-func TestInterpreter_Consult(t *testing.T) {
-	tests := []struct {
-		title string
-		files engine.Term
-		ok    bool
-		err   error
-	}{
-		{title: `:- consult('testdata/empty.txt').`, files: engine.Atom("testdata/empty.txt"), ok: true},
-		{title: `:- consult([]).`, files: engine.List(), ok: true},
-		{title: `:- consult(['testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt")), ok: true},
-		{title: `:- consult(['testdata/empty.txt', 'testdata/empty.txt']).`, files: engine.List(engine.Atom("testdata/empty.txt"), engine.Atom("testdata/empty.txt")), ok: true},
-
-		{title: `:- consult('testdata/abc.txt').`, files: engine.Atom("testdata/abc.txt"), err: engine.ErrInsufficient},
-		{title: `:- consult(['testdata/abc.txt']).`, files: engine.List(engine.Atom("testdata/abc.txt")), err: engine.ErrInsufficient},
-
-		{title: `:- consult(X).`, files: engine.Variable("X"), err: engine.InstantiationError(nil)},
-		{title: `:- consult(foo(bar)).`, files: engine.Atom("foo").Apply(engine.Atom("bar")), err: engine.TypeError(engine.ValidTypeAtom, engine.Atom("foo").Apply(engine.Atom("bar")), nil)},
-		{title: `:- consult(1).`, files: engine.Integer(1), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
-		{title: `:- consult(['testdata/empty.txt'|_]).`, files: engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), err: engine.TypeError(engine.ValidTypeAtom, engine.ListRest(engine.NewVariable(), engine.Atom("testdata/empty.txt")), nil)},
-		{title: `:- consult([X]).`, files: engine.List(engine.Variable("X")), err: engine.InstantiationError(nil)},
-		{title: `:- consult([1]).`, files: engine.List(engine.Integer(1)), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
-
-		{title: `:- consult('testdata/not_found.txt').`, files: engine.Atom("testdata/not_found.txt"), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
-		{title: `:- consult(['testdata/not_found.txt']).`, files: engine.List(engine.Atom("testdata/not_found.txt")), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found.txt"), nil)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			var i Interpreter
-			ok, err := i.Consult(tt.files, engine.Success, nil).Force(context.Background())
-			assert.Equal(t, tt.ok, ok)
-			if e, ok := tt.err.(engine.Exception); ok {
-				_, ok := engine.NewEnv().Unify(e.Term(), err.(engine.Exception).Term(), false)
-				assert.True(t, ok)
-			} else {
-				assert.Equal(t, tt.err, err)
-			}
-		})
-	}
-}
-
-func TestInterpreter_EnsureLoaded(t *testing.T) {
-	tests := []struct {
-		title  string
-		loaded []string
-		file   engine.Term
-		ok     bool
-		err    error
-		count  int
-	}{
-		{title: `:- ensure_loaded('testdata/foo').`, file: engine.Atom("testdata/foo"), ok: true, count: 1},
-		{title: `:- ensure_loaded('testdata/foo').`, loaded: []string{"testdata/foo"}, file: engine.Atom("testdata/foo"), ok: true, count: 1},
-
-		{title: `:- ensure_loaded(X).`, file: engine.Variable("X"), err: engine.InstantiationError(nil)},
-		{title: `:- ensure_loaded(1).`, file: engine.Integer(1), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
-		{title: `:- ensure_loaded('testdata/not_found').`, file: engine.Atom("testdata/not_found"), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found"), nil)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			var i Interpreter
-			for _, l := range tt.loaded {
-				ok, err := i.EnsureLoaded(engine.Atom(l), engine.Success, nil).Force(context.Background())
-				assert.True(t, ok)
-				assert.NoError(t, err)
-			}
-			ok, err := i.EnsureLoaded(tt.file, engine.Success, nil).Force(context.Background())
-			assert.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.err, err)
-
-			sols, err := i.Query(`foo.`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
-
-			var count int
-			for sols.Next() {
-				count++
-			}
-			assert.Equal(t, tt.count, count)
-		})
-	}
-}
-
-func TestInterpreter_Include(t *testing.T) {
-	tests := []struct {
-		title    string
-		included []string
-		file     engine.Term
-		ok       bool
-		err      error
-		count    int
-	}{
-		{title: `:- include('testdata/foo').`, file: engine.Atom("testdata/foo"), ok: true, count: 1},
-		{title: `:- include('testdata/foo').`, included: []string{"testdata/foo"}, file: engine.Atom("testdata/foo"), ok: true, count: 2},
-
-		{title: `:- include(X).`, file: engine.Variable("X"), err: engine.InstantiationError(nil)},
-		{title: `:- include(1).`, file: engine.Integer(1), err: engine.TypeError(engine.ValidTypeAtom, engine.Integer(1), nil)},
-		{title: `:- include('testdata/not_found').`, file: engine.Atom("testdata/not_found"), err: engine.ExistenceError(engine.ObjectTypeSourceSink, engine.Atom("testdata/not_found"), nil)},
-		{title: `:- include('testdata/abc.txt').`, file: engine.Atom("testdata/abc.txt"), err: engine.ErrInsufficient},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			var i Interpreter
-			for _, l := range tt.included {
-				ok, err := i.Include(engine.Atom(l), engine.Success, nil).Force(context.Background())
-				assert.True(t, ok)
-				assert.NoError(t, err)
-			}
-			ok, err := i.Include(tt.file, engine.Success, nil).Force(context.Background())
-			assert.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.err, err)
-
-			sols, err := i.Query(`foo.`)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, sols.Close())
-			}()
-
-			var count int
-			for sols.Next() {
-				count++
-			}
-			assert.Equal(t, tt.count, count)
-		})
-	}
+	assert.NotNil(t, f)
 }
 
 type readFn func(p []byte) (n int, err error)

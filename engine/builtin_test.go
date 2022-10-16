@@ -165,9 +165,11 @@ func TestState_Call(t *testing.T) {
 	state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
 		return Bool(false)
 	})
-	assert.NoError(t, state.Assert(Atom("foo"), nil))
-	assert.NoError(t, state.Assert(Atom("foo").Apply(NewVariable(), NewVariable()), nil))
-	assert.NoError(t, state.Assert(Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b"))))), nil))
+	assert.NoError(t, state.Compile(context.Background(), `
+foo.
+foo(_, _).
+f(g([a, [b|X]])).
+`))
 
 	tests := []struct {
 		title string
@@ -199,185 +201,192 @@ func TestState_Call(t *testing.T) {
 }
 
 func TestState_Call1(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 1}: predicate1(func(_ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [1]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [1]Term{Atom("b")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [1]Term{Atom("b")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [1]Term{Atom("b")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call1(Atom("p"), Atom("a"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call1(Variable("P"), Atom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call1(Integer(3), Atom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call1(tt.closure, tt.additional[0], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call2(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [2]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [2]Term{Atom("b"), Atom("c")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [2]Term{Atom("b"), Atom("c")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [2]Term{Atom("b"), Atom("c")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call2(Atom("p"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call2(Variable("P"), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call2(Integer(3), Atom("a"), Atom("b"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call2(tt.closure, tt.additional[0], tt.additional[1], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call3(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [3]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call3(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call3(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call3(Integer(3), Atom("a"), Atom("b"), Atom("c"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call3(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call4(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [4]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call4(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call4(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call4(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call4(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call5(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [5]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call5(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call5(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call5(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call5(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call6(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [6]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call6(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call6(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call6(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call6(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_Call7(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "p", Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
-				return k(env)
-			}),
-		}}}
+	tests := []struct {
+		title      string
+		closure    Term
+		additional [7]Term
+		ok         bool
+		err        error
+	}{
+		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, ok: true},
+		{title: "closure is a variable", closure: Variable("P"), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: InstantiationError(nil)},
+		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
+	}
 
-		ok, err := state.Call7(Atom("p"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("closure is a variable", func(t *testing.T) {
-		var state State
-		_, err := state.Call7(Variable("P"), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-	})
-
-	t.Run("closure is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		_, err := state.Call7(Integer(3), Atom("a"), Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Success, nil).Force(context.Background())
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(3), nil), err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+				{Name: "p", Arity: 8}: predicate8(func(_, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+					return k(env)
+				}),
+			}}}
+			ok, err := state.Call7(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], tt.additional[6], Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestState_CallNth(t *testing.T) {
@@ -2378,7 +2387,7 @@ func TestState_Catch(t *testing.T) {
 func TestState_CurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
 		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "foo", Arity: 1}: clauses{},
+			{Name: "foo", Arity: 1}: &userDefined{},
 		}}}
 		ok, err := state.CurrentPredicate(&compound{
 			functor: "/",
@@ -2397,9 +2406,9 @@ func TestState_CurrentPredicate(t *testing.T) {
 		v := Variable("V")
 
 		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: "foo", Arity: 1}: clauses{},
-			{Name: "bar", Arity: 1}: clauses{},
-			{Name: "baz", Arity: 1}: clauses{},
+			{Name: "foo", Arity: 1}: &userDefined{},
+			{Name: "bar", Arity: 1}: &userDefined{},
+			{Name: "baz", Arity: 1}: &userDefined{},
 		}}}
 		ok, err := state.CurrentPredicate(v, func(env *Env) *Promise {
 			c, ok := env.Resolve(v).(*compound)
@@ -2511,7 +2520,7 @@ func TestState_Assertz(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, clauses{
+		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
 				pi: ProcedureIndicator{
 					Name:  "foo",
@@ -2542,7 +2551,7 @@ func TestState_Assertz(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}, state.procedures[ProcedureIndicator{
+		}}, state.procedures[ProcedureIndicator{
 			Name:  "foo",
 			Arity: 1,
 		}])
@@ -2615,27 +2624,7 @@ func TestState_Assertz(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: static{},
-				},
-			},
-		}
-
-		ok, err := state.Assertz(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(0),
-			},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("built-in", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: builtin{},
+					{Name: "foo", Arity: 0}: &userDefined{dynamic: false},
 				},
 			},
 		}
@@ -2669,7 +2658,7 @@ func TestState_Asserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, clauses{
+		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 1},
 				raw: &compound{
@@ -2694,7 +2683,7 @@ func TestState_Asserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+		}}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
@@ -2731,7 +2720,7 @@ func TestState_Asserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, clauses{
+		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
 				pi: ProcedureIndicator{Name: "foo", Arity: 0},
 				raw: &compound{
@@ -2785,7 +2774,7 @@ func TestState_Asserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}])
+		}}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}])
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
@@ -2863,27 +2852,7 @@ func TestState_Asserta(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: static{},
-				},
-			},
-		}
-
-		ok, err := state.Asserta(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(0),
-			},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("built-in", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: builtin{},
+					{Name: "foo", Arity: 0}: &userDefined{dynamic: false},
 				},
 			},
 		}
@@ -2913,178 +2882,16 @@ func TestState_Asserta(t *testing.T) {
 	})
 }
 
-func TestState_Assert(t *testing.T) {
-	t.Run("append", func(t *testing.T) {
-		var state State
-
-		assert.NoError(t, state.Assert(&compound{
-			functor: "foo",
-			args:    []Term{Atom("a")},
-		}, nil))
-
-		assert.NoError(t, state.Assert(&compound{
-			functor: "foo",
-			args:    []Term{Atom("b")},
-		}, nil))
-
-		assert.Equal(t, static{clauses{
-			{
-				pi: ProcedureIndicator{
-					Name:  "foo",
-					Arity: 1,
-				},
-				raw: &compound{
-					functor: "foo",
-					args:    []Term{Atom("a")},
-				},
-				xrTable: []Term{Atom("a")},
-				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
-					{opcode: opExit},
-				},
-			},
-			{
-				pi: ProcedureIndicator{
-					Name:  "foo",
-					Arity: 1,
-				},
-				raw: &compound{
-					functor: "foo",
-					args:    []Term{Atom("b")},
-				},
-				xrTable: []Term{Atom("b")},
-				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
-					{opcode: opExit},
-				},
-			},
-		}}, state.procedures[ProcedureIndicator{
-			Name:  "foo",
-			Arity: 1,
-		}])
-	})
-
-	t.Run("clause is a variable", func(t *testing.T) {
-		clause := Variable("Term")
-
-		var state State
-		assert.Equal(t, InstantiationError(nil), state.Assert(clause, nil))
-	})
-
-	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), state.Assert(Integer(0), nil))
-	})
-
-	t.Run("head is a variable", func(t *testing.T) {
-		head := Variable("Head")
-
-		var state State
-		assert.Equal(t, InstantiationError(nil), state.Assert(&compound{
-			functor: ":-",
-			args:    []Term{head, Atom("true")},
-		}, nil))
-	})
-
-	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), state.Assert(&compound{
-			functor: ":-",
-			args:    []Term{Integer(0), Atom("true")},
-		}, nil))
-	})
-
-	t.Run("body contains a term which is not callable", func(t *testing.T) {
-		var state State
-		assert.Equal(t, TypeError(ValidTypeCallable, &compound{
-			functor: ",",
-			args: []Term{
-				Atom("true"),
-				Integer(0),
-			},
-		}, nil), state.Assert(&compound{
-			functor: ":-",
-			args: []Term{
-				Atom("foo"),
-				&compound{
-					functor: ",",
-					args: []Term{
-						Atom("true"),
-						Integer(0),
-					},
-				},
-			},
-		}, nil))
-	})
-
-	t.Run("static", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: static{},
-				},
-			},
-		}
-
-		assert.NoError(t, state.Assert(Atom("foo"), nil))
-		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(static).clauses, 1)
-	})
-
-	t.Run("dynamic", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: clauses{},
-				},
-			},
-		}
-
-		assert.NoError(t, state.Assert(Atom("foo"), nil))
-		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(clauses), 1)
-	})
-
-	t.Run("builtin", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: builtin{},
-				},
-			},
-		}
-
-		assert.NoError(t, state.Assert(Atom("foo"), nil))
-		assert.Len(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 0}].(builtin).clauses, 1)
-	})
-
-	t.Run("foreign", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: predicate0(nil),
-				},
-			},
-		}
-
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(0),
-			},
-		}, nil), state.Assert(Atom("foo"), nil))
-	})
-}
-
 func TestState_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{
+					{Name: "foo", Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -3096,21 +2903,21 @@ func TestState_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, clauses{
+		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
 			{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+		}}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{
+					{Name: "foo", Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -3122,21 +2929,21 @@ func TestState_Retract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, clauses{
+		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 			{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-		}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+		}}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
 	})
 
 	t.Run("retract all", func(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{
+					{Name: "foo", Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -3147,7 +2954,7 @@ func TestState_Retract(t *testing.T) {
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Empty(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+		assert.Empty(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}].(*userDefined).clauses)
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -3179,7 +2986,7 @@ func TestState_Retract(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: static{},
+					{Name: "foo", Arity: 0}: &userDefined{dynamic: false},
 				},
 			},
 		}
@@ -3196,9 +3003,9 @@ func TestState_Retract(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{
+					{Name: "foo", Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -3213,7 +3020,7 @@ func TestState_Retract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
+		assert.Empty(t, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}].(*userDefined).clauses)
 	})
 }
 
@@ -3222,11 +3029,11 @@ func TestState_Abolish(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{
+					{Name: "foo", Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 						{raw: &compound{functor: "foo", args: []Term{Atom("a")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("b")}}},
 						{raw: &compound{functor: "foo", args: []Term{Atom("c")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -3321,7 +3128,7 @@ func TestState_Abolish(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 0}: static{},
+					{Name: "foo", Arity: 0}: &userDefined{dynamic: false},
 				},
 			},
 		}
@@ -4666,7 +4473,7 @@ func TestState_PutCode(t *testing.T) {
 
 func TestState_ReadTerm(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open("testdata/foo.txt", StreamModeRead)
+		s, err := Open("testdata/foo.pl", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())
@@ -4684,7 +4491,7 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open("testdata/foo.txt", StreamModeRead)
+		s, err := Open("testdata/foo.pl", StreamModeRead)
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, s.Close())
@@ -5728,7 +5535,7 @@ func TestState_Clause(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "green", Arity: 1}: clauses{
+					{Name: "green", Arity: 1}: &userDefined{public: true, clauses: []clause{
 						{raw: &compound{
 							functor: ":-", args: []Term{
 								&compound{functor: "green", args: []Term{x}},
@@ -5736,7 +5543,7 @@ func TestState_Clause(t *testing.T) {
 							},
 						}},
 						{raw: &compound{functor: "green", args: []Term{Atom("kermit")}}},
-					},
+					}},
 				},
 			},
 		}
@@ -5761,6 +5568,13 @@ func TestState_Clause(t *testing.T) {
 			c++
 			return Bool(false)
 		}, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		var state State
+		ok, err := state.Clause(Atom("foo"), Atom("true"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -7240,168 +7054,6 @@ func TestState_CurrentPrologFlag(t *testing.T) {
 	})
 }
 
-func TestState_Dynamic(t *testing.T) {
-	t.Run("not a procedure indicator", func(t *testing.T) {
-		var state State
-		ok, err := state.Dynamic(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("procedure is not defined", func(t *testing.T) {
-		var state State
-		ok, err := state.Dynamic(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.IsType(t, clauses{}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
-	})
-
-	t.Run("procedure is already dynamic", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{},
-				},
-			},
-		}
-		ok, err := state.Dynamic(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("procedure is already static", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: static{},
-				},
-			},
-		}
-		ok, err := state.Dynamic(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
-		var state State
-		ok, err := state.Dynamic(ListRest(Variable("X"), &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-}
-
-func TestState_BuiltIn(t *testing.T) {
-	t.Run("not a procedure indicator", func(t *testing.T) {
-		var state State
-		ok, err := state.BuiltIn(Atom("foo"), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("procedure is not defined", func(t *testing.T) {
-		var state State
-		ok, err := state.BuiltIn(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-
-		assert.IsType(t, builtin{}, state.procedures[ProcedureIndicator{Name: "foo", Arity: 1}])
-	})
-
-	t.Run("procedure is already built-in", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: builtin{},
-				},
-			},
-		}
-		ok, err := state.BuiltIn(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("procedure is already dynamic", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: "foo", Arity: 1}: clauses{},
-				},
-			},
-		}
-		ok, err := state.BuiltIn(&compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, Success, nil).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("pi is neither a list nor a sequence", func(t *testing.T) {
-		var state State
-		ok, err := state.BuiltIn(ListRest(Variable("X"), &compound{
-			functor: "/",
-			args: []Term{
-				Atom("foo"),
-				Integer(1),
-			},
-		}), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-}
-
 func TestState_ExpandTerm(t *testing.T) {
 	t.Run("term_expansion/2 is undefined", func(t *testing.T) {
 		var state State
@@ -7519,7 +7171,7 @@ func TestState_Expand(t *testing.T) {
 	t.Run("DCG", func(t *testing.T) {
 		t.Run("empty terminal-sequence", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), List()}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), List()}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7529,7 +7181,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("terminal sequence", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), List(Atom("a"))}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), List(Atom("a"))}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7540,7 +7192,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("concatenation", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
+				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
 					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7553,13 +7205,13 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7568,7 +7220,7 @@ func TestState_Expand(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				t.Run("normal", func(t *testing.T) {
 					varCounter = 0
-					term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
+					term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: ":-", args: []Term{
 						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7581,7 +7233,7 @@ func TestState_Expand(t *testing.T) {
 
 				t.Run("if-then-else", func(t *testing.T) {
 					varCounter = 0
-					term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
+					term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: ":-", args: []Term{
 						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7598,13 +7250,13 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7612,7 +7264,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("second form of alternative", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
+				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
 					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7625,20 +7277,20 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
 
 		t.Run("grammar-body-goal", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "{}", args: []Term{Atom("a")}}}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "{}", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7651,7 +7303,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("call", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "call", args: []Term{Atom("a")}}}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "call", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7661,7 +7313,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("phrase", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "phrase", args: []Term{Atom("a")}}}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "phrase", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7671,7 +7323,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("grammar-body-cut", func(t *testing.T) {
 			varCounter = 0
-			term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), Atom("!")}}, nil)
+			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Atom("!")}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
 				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7685,7 +7337,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("grammar-body-not", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Atom("a")}}}}, nil)
+				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Atom("a")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
 					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7698,7 +7350,7 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("goal is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Integer(0)}}}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7706,7 +7358,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("if-then", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}}}, nil)
+				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
 					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
@@ -7722,13 +7374,13 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("lhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Integer(0), Atom("b")}}}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Integer(0), Atom("b")}}}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Integer(0)}}}}, nil)
+				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7736,7 +7388,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("with semicontexts", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				varCounter = 0
-				term, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				term, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{
 					functor: ":-",
@@ -7761,19 +7413,19 @@ func TestState_Expand(t *testing.T) {
 
 			t.Run("head is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Integer(0), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Integer(0), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("semicontext is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), Integer(0)), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
+				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), Integer(0)), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("body is not callable", func(t *testing.T) {
 				varCounter = 0
-				_, err := state.Expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Integer(0), Atom("phrase3"))), nil)
+				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Integer(0), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 		})

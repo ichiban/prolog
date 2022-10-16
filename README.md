@@ -135,15 +135,14 @@ $(go env GOPATH)/bin/1pl [<file>...]
 
 ### Directives
 - **`:- dynamic(PI)`** Specifies the predicates indicated by `PI` are dynamic. *ISO*
-- **`:- multifile(PI)`** Not supported yet. *ISO*
-- **`:- discontiguous(PI)`** Not supported yet. *ISO*
+- **`:- multifile(PI)`** Specified the predicates indicated by `PI` may be in multiple files. *ISO*
+- **`:- discontiguous(PI)`** Specifies the predicates indicated by `PI` may be defined by clauses which are not consecutive read-terms. *ISO*
 - **`:- op(Priority, Specifier, Op)`** Alters the operator table. *ISO*
 - **`:- char_conversion(In, Out)`** Alters the character conversion mapping. *ISO*
 - **`:- initialization(T)`** Registers a goal for execution right before exiting `Exec()` or `ExecContext()`. *ISO*
-- **`:- include(F)`** Loads the content of the file `F` as if it were there instead of ths directive. *ISO*
+- **`:- include(F)`** Loads the content of the file `F` as if it were there instead of this directive. *ISO*
 - **`:- ensure_loaded(P)`** Loads the content of the file `P` if not loaded. *ISO*
 - **`:- set_prolog_flag(Flag, Value)`** Alters the value for the Prolog flag. *ISO*
-- **`:- built_in(PI)`** Specifies the predicates indicated by `PI` are built-in.
 
 ### Predicates
 
@@ -382,7 +381,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
     - **`max_arity`** `Value` is always `unbounded`.
     - **`unknown`** `Value` is either `error` (default), `fail`, or `warning`.
     - **`double_quotes`** `Value` is either `chars` (default), `codes`, or `atom`.
-- **`halt(X)`** Exists the host program with the status code of `X`. *ISO*
+- **`halt(X)`** Exits the host program with the status code of `X`. *ISO*
 - **`halt`** Equivalent to `halt(0)`. *ISO*
 #### Definite clause grammars
 - **`expand_term(In, Out)`** Succeeds iff `Out` is an expansion of the term `In`.
