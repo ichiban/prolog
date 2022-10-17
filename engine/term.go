@@ -125,7 +125,7 @@ func writeVariable(w io.Writer, v Variable, opts *WriteOptions, env *Env) error 
 	if a, ok := opts.VariableNames[v]; ok {
 		return WriteTerm(w, a, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
 	}
-	_, err := fmt.Fprint(w, string(v))
+	_, err := fmt.Fprint(w, v.String())
 	return err
 }
 

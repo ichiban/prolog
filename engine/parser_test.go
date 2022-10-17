@@ -19,15 +19,16 @@ func TestParser_Term(t *testing.T) {
 	pvs := []ParsedVariable{
 		{
 			Name:     "X",
-			Variable: "Z",
+			Variable: NewNamedVariable("Z"),
 		},
 	}
 
 	tests := []struct {
-		input string
-		opts  []parserOption
-		term  Term
-		err   error
+		input     string
+		opts      []parserOption
+		term      Term
+		varOffset uint64
+		err       error
 	}{
 		{input: ``, err: io.EOF},
 		{input: `foo`, err: ErrInsufficient},
@@ -74,10 +75,10 @@ func TestParser_Term(t *testing.T) {
 		{input: `- 1.0.`, term: Float(-1)},
 		{input: `'-'1.0.`, term: Float(-1)},
 
-		{input: `X.`, term: Variable("X")},
-		{input: `_.`, term: Variable("_1")},
-		{input: `X.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("Z")},
-		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, term: Variable("_1")},
+		{input: `X.`, term: NewNamedVariable("X")},
+		{input: `_.`, varOffset: 1},
+		{input: `X.`, opts: []parserOption{withParsedVars(&pvs)}, term: NewNamedVariable("Z")},
+		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, varOffset: 1},
 
 		{input: `foo(a, b).`, term: &compound{functor: "foo", args: []Term{Atom("a"), Atom("b")}}},
 		{input: `foo(-(a)).`, term: &compound{functor: "foo", args: []Term{&compound{functor: "-", args: []Term{Atom("a")}}}}},
@@ -92,8 +93,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
-		{input: `[a|X].`, term: Cons(Atom("a"), Variable("X"))},
-		{input: `[a, b|X].`, term: ListRest(Variable("X"), Atom("a"), Atom("b"))},
+		{input: `[a|X].`, term: Cons(Atom("a"), NewNamedVariable("X"))},
+		{input: `[a, b|X].`, term: ListRest(NewNamedVariable("X"), Atom("a"), Atom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "d"}}},
 
@@ -140,11 +141,15 @@ func TestParser_Term(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			p := newParser(strings.NewReader(tc.input), append(tc.opts, withOperators(ops))...)
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
-			assert.Equal(t, tc.term, term)
+			if tc.varOffset != 0 {
+				assert.Equal(t, Variable(offset+tc.varOffset), term)
+			} else {
+				assert.Equal(t, tc.term, term)
+			}
 		})
 	}
 }

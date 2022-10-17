@@ -5,10 +5,9 @@ import (
 	"strings"
 )
 
-const (
-	varContext  = Variable("$context")
-	rootContext = Atom("root")
-)
+var varContext = NewNamedVariable("$context")
+
+const rootContext = Atom("root")
 
 type color uint8
 
@@ -325,7 +324,7 @@ func (e *Env) Compare(x, y Term) Order {
 func (e *Env) compareVariable(x Variable, y Term) Order {
 	switch y := y.(type) {
 	case Variable:
-		switch d := strings.Compare(string(x), string(y)); {
+		switch d := x - y; {
 		case d > 0:
 			return OrderGreater
 		case d < 0:

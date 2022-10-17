@@ -65,7 +65,8 @@ func (s *Solutions) Scan(dest interface{}) error {
 			}
 
 			for _, v := range s.vars {
-				f, ok := fields[string(v)]
+				n := v.String()
+				f, ok := fields[n]
 				if !ok {
 					continue
 				}
@@ -74,7 +75,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 				if err != nil {
 					return err
 				}
-				fields[string(v)].Set(val)
+				fields[n].Set(val)
 			}
 		}
 		return nil
@@ -89,7 +90,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 			if err != nil {
 				return err
 			}
-			o.SetMapIndex(reflect.ValueOf(string(v)), val)
+			o.SetMapIndex(reflect.ValueOf(v.String()), val)
 		}
 		return nil
 	default:
@@ -162,10 +163,10 @@ func (s *Solutions) Err() error {
 func (s *Solutions) Vars() []string {
 	ns := make([]string, 0, len(s.vars))
 	for _, v := range s.vars {
-		if v.Generated() {
+		if v.Anonymous() {
 			continue
 		}
-		ns = append(ns, string(v))
+		ns = append(ns, v.String())
 	}
 	return ns
 }

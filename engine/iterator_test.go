@@ -21,7 +21,7 @@ func TestListIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			iter := ListIterator{List: ListRest(Variable("X"), Atom("a"), Atom("b"))}
+			iter := ListIterator{List: ListRest(NewNamedVariable("X"), Atom("a"), Atom("b"))}
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("a"), iter.Current())
 			assert.True(t, iter.Next())
@@ -61,7 +61,7 @@ func TestListIterator_Next(t *testing.T) {
 		})
 
 		t.Run("circular list", func(t *testing.T) {
-			l := Variable("L")
+			l := NewNamedVariable("L")
 			const max = 500
 			elems := make([]Term, 0, max)
 			for i := 0; i < max; i++ {
@@ -159,7 +159,7 @@ func TestAnyIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			iter := AnyIterator{Any: ListRest(Variable("X"), Atom("a"), Atom("b"))}
+			iter := AnyIterator{Any: ListRest(NewNamedVariable("X"), Atom("a"), Atom("b"))}
 			assert.True(t, iter.Next())
 			assert.Equal(t, Atom("a"), iter.Current())
 			assert.True(t, iter.Next())

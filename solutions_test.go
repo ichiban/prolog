@@ -19,7 +19,7 @@ func TestSolutions_Close(t *testing.T) {
 
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		env := engine.NewEnv().Bind("Foo", engine.Atom("bar"))
+		env := engine.NewEnv().Bind(engine.NewNamedVariable("Foo"), engine.Atom("bar"))
 		more := make(chan bool, 1)
 		defer close(more)
 		next := make(chan *engine.Env, 1)
@@ -27,7 +27,7 @@ func TestSolutions_Next(t *testing.T) {
 		next <- env
 		sols := Solutions{more: more, next: next}
 		assert.True(t, sols.Next())
-		assert.Equal(t, engine.Atom("bar"), sols.env.Resolve(engine.Variable("Foo")))
+		assert.Equal(t, engine.Atom("bar"), sols.env.Resolve(engine.NewNamedVariable("Foo")))
 	})
 
 	t.Run("closed", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestSolutions_Next(t *testing.T) {
 
 func TestSolutions_Scan(t *testing.T) {
 	env := engine.NewEnv()
-	for k, v := range map[engine.Variable]engine.Term{
+	for k, v := range map[string]engine.Term{
 		"Float32": engine.Float(32),
 		"Float64": engine.Float(64),
 		"Int":     engine.Integer(1),
@@ -52,18 +52,20 @@ func TestSolutions_Scan(t *testing.T) {
 		"Bar":     engine.Atom("bar"),
 		"Baz":     engine.Atom("baz"),
 	} {
-		env = env.Bind(k, v)
+		env = env.Bind(engine.NewNamedVariable(k), v)
 	}
 
 	sols := Solutions{
 		env: env,
-		vars: []engine.Variable{
-			"Float32", "Float64",
-			"Int", "Int8", "Int16", "Int32", "Int64",
-			"String",
-			"Slice",
-			"Foo", "Bar", "Baz",
-		},
+	}
+	for _, n := range []string{
+		"Float32", "Float64",
+		"Int", "Int8", "Int16", "Int32", "Int64",
+		"String",
+		"Slice",
+		"Foo", "Bar", "Baz",
+	} {
+		sols.vars = append(sols.vars, engine.NewNamedVariable(n))
 	}
 
 	t.Run("struct", func(t *testing.T) {
@@ -169,7 +171,12 @@ func TestSolutions_Err(t *testing.T) {
 
 func TestSolutions_Vars(t *testing.T) {
 	sols := Solutions{
-		vars: []engine.Variable{"A", "B", "_1", "C"},
+		vars: []engine.Variable{
+			engine.NewNamedVariable("A"),
+			engine.NewNamedVariable("B"),
+			engine.NewVariable(),
+			engine.NewNamedVariable("C"),
+		},
 	}
 
 	assert.Equal(t, []string{"A", "B", "C"}, sols.Vars())

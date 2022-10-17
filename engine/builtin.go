@@ -1390,7 +1390,7 @@ func (state *State) Close(streamOrAlias, options Term, k func(*Env) *Promise, en
 	return k(env)
 }
 
-var sync = (*os.File).Sync
+var fileSync = (*os.File).Sync
 
 // FlushOutput sends any buffered output to the stream.
 func (state *State) FlushOutput(streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
@@ -1404,7 +1404,7 @@ func (state *State) FlushOutput(streamOrAlias Term, k func(*Env) *Promise, env *
 	}
 
 	if f, ok := s.file.(*os.File); ok {
-		if err := sync(f); err != nil {
+		if err := fileSync(f); err != nil {
 			return Error(err)
 		}
 	}
@@ -1429,7 +1429,7 @@ func (state *State) WriteTerm(streamOrAlias, t, options Term, k func(*Env) *Prom
 
 	// The character sequence for a variable begins with `_` (7.10.5.a).
 	for v := range newVariableSet(t, env) {
-		if !strings.HasPrefix(string(v), "_") {
+		if !v.Anonymous() {
 			env = env.Bind(v, NewVariable())
 		}
 	}

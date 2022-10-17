@@ -14,7 +14,7 @@ func TestEnv_Bind(t *testing.T) {
 		color: black,
 		right: &Env{
 			binding: binding{
-				variable: "A",
+				variable: NewNamedVariable("A"),
 				value:    Atom("a"),
 			},
 		},
@@ -22,13 +22,13 @@ func TestEnv_Bind(t *testing.T) {
 			variable: varContext,
 			value:    Atom("root"),
 		},
-	}, env.Bind("A", Atom("a")))
+	}, env.Bind(NewNamedVariable("A"), Atom("a")))
 }
 
 func TestEnv_Lookup(t *testing.T) {
 	vars := make([]Variable, 1000)
 	for i := range vars {
-		vars[i] = Variable(fmt.Sprintf("V%d", i))
+		vars[i] = NewNamedVariable(fmt.Sprintf("V%d", i))
 	}
 
 	rand.Shuffle(len(vars), func(i, j int) {
@@ -45,7 +45,7 @@ func TestEnv_Lookup(t *testing.T) {
 	})
 
 	for _, v := range vars {
-		t.Run(string(v), func(t *testing.T) {
+		t.Run(v.String(), func(t *testing.T) {
 			w, ok := env.Lookup(v)
 			assert.True(t, ok)
 			assert.Equal(t, v, w)
@@ -55,7 +55,7 @@ func TestEnv_Lookup(t *testing.T) {
 
 func TestEnv_Simplify(t *testing.T) {
 	// L = [a, b|L] ==> [a, b, a, b, ...]
-	l := Variable("L")
+	l := NewNamedVariable("L")
 	env := NewEnv().Bind(l, ListRest(l, Atom("a"), Atom("b")))
 	c := env.Simplify(l)
 	iter := ListIterator{List: c, Env: env}
@@ -82,16 +82,16 @@ func TestEnv_Compare(t *testing.T) {
 		x, y  Term
 		o     Order
 	}{
-		{title: `X > W`, x: Variable("X"), y: Variable("W"), o: OrderGreater},
-		{title: `X = X`, x: Variable("X"), y: Variable("X"), o: OrderEqual},
-		{title: `X < Y`, x: Variable("X"), y: Variable("Y"), o: OrderLess},
-		{title: `X < 0.0`, x: Variable("X"), y: Float(0), o: OrderLess},
-		{title: `X < 0`, x: Variable("X"), y: Integer(0), o: OrderLess},
-		{title: `X < a`, x: Variable("X"), y: Atom("a"), o: OrderLess},
-		{title: `X < f(a)`, x: Variable("X"), y: Atom("f").Apply(Atom("a")), o: OrderLess},
-		{title: `X < any`, x: Variable("X"), y: A{}, o: OrderLess},
+		{title: `X > W`, x: NewNamedVariable("X"), y: NewNamedVariable("W"), o: OrderGreater},
+		{title: `X = X`, x: NewNamedVariable("X"), y: NewNamedVariable("X"), o: OrderEqual},
+		{title: `X < Y`, x: NewNamedVariable("X"), y: NewNamedVariable("Y"), o: OrderLess},
+		{title: `X < 0.0`, x: NewNamedVariable("X"), y: Float(0), o: OrderLess},
+		{title: `X < 0`, x: NewNamedVariable("X"), y: Integer(0), o: OrderLess},
+		{title: `X < a`, x: NewNamedVariable("X"), y: Atom("a"), o: OrderLess},
+		{title: `X < f(a)`, x: NewNamedVariable("X"), y: Atom("f").Apply(Atom("a")), o: OrderLess},
+		{title: `X < any`, x: NewNamedVariable("X"), y: A{}, o: OrderLess},
 
-		{title: `1.0 > X`, x: Float(1), y: Variable("X"), o: OrderGreater},
+		{title: `1.0 > X`, x: Float(1), y: NewNamedVariable("X"), o: OrderGreater},
 		{title: `1.0 > 0.0`, x: Float(1), y: Float(0), o: OrderGreater},
 		{title: `1.0 = 1.0`, x: Float(1), y: Float(1), o: OrderEqual},
 		{title: `1.0 < 2.0`, x: Float(1), y: Float(2), o: OrderLess},
@@ -100,7 +100,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `1.0 < f(a)`, x: Float(1), y: Atom("f").Apply(Atom("a")), o: OrderLess},
 		{title: `1.0 < any`, x: Float(1), y: A{}, o: OrderLess},
 
-		{title: `1 > X`, x: Integer(1), y: Variable("X"), o: OrderGreater},
+		{title: `1 > X`, x: Integer(1), y: NewNamedVariable("X"), o: OrderGreater},
 		{title: `1 > 1.0`, x: Integer(1), y: Float(1), o: OrderGreater},
 		{title: `1 > 0`, x: Integer(1), y: Integer(0), o: OrderGreater},
 		{title: `1 = 1`, x: Integer(1), y: Integer(1), o: OrderEqual},
@@ -109,7 +109,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `1 < f(a)`, x: Integer(1), y: Atom("f").Apply(Atom("a")), o: OrderLess},
 		{title: `1 < any`, x: Integer(1), y: A{}, o: OrderLess},
 
-		{title: `a > X`, x: Atom("a"), y: Variable("X"), o: OrderGreater},
+		{title: `a > X`, x: Atom("a"), y: NewNamedVariable("X"), o: OrderGreater},
 		{title: `a > 1.0`, x: Atom("a"), y: Float(1), o: OrderGreater},
 		{title: `a > 1`, x: Atom("a"), y: Integer(1), o: OrderGreater},
 		{title: `a > 'Z'`, x: Atom("a"), y: Atom("Z"), o: OrderGreater},
@@ -118,7 +118,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `a < f(a)`, x: Atom("a"), y: Atom("f").Apply(Atom("a")), o: OrderLess},
 		{title: `a < any`, x: Atom("a"), y: A{}, o: OrderLess},
 
-		{title: `f(a) > X`, x: Atom("f").Apply(Atom("a")), y: Variable("X"), o: OrderGreater},
+		{title: `f(a) > X`, x: Atom("f").Apply(Atom("a")), y: NewNamedVariable("X"), o: OrderGreater},
 		{title: `f(a) > 1.0`, x: Atom("f").Apply(Atom("a")), y: Float(1), o: OrderGreater},
 		{title: `f(a) > 1`, x: Atom("f").Apply(Atom("a")), y: Integer(1), o: OrderGreater},
 		{title: `f(a) > a`, x: Atom("f").Apply(Atom("a")), y: Atom("a"), o: OrderGreater}, {title: `f(a) > f('Z')`, x: Atom("f").Apply(Atom("a")), y: Atom("f").Apply(Atom("Z")), o: OrderGreater},
@@ -132,7 +132,7 @@ func TestEnv_Compare(t *testing.T) {
 
 		{title: `nil = nil`, x: nil, y: nil, o: OrderEqual},
 
-		{title: `A{} > X`, x: A{}, y: Variable("X"), o: OrderGreater},
+		{title: `A{} > X`, x: A{}, y: NewNamedVariable("X"), o: OrderGreater},
 		{title: `A{} > 1.0`, x: A{}, y: Float(1), o: OrderGreater},
 		{title: `A{} > 1`, x: A{}, y: Integer(1), o: OrderGreater},
 		{title: `A{} > a`, x: A{}, y: Atom("a"), o: OrderGreater},
