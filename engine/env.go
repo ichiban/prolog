@@ -324,7 +324,7 @@ func (e *Env) Compare(x, y Term) Order {
 func (e *Env) compareVariable(x Variable, y Term) Order {
 	switch y := y.(type) {
 	case Variable:
-		switch d := x - y; {
+		switch d := strings.Compare(x.String(), y.String()); {
 		case d > 0:
 			return OrderGreater
 		case d < 0:
