@@ -46,7 +46,6 @@ func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Pr
 				vars[i] = NewVariable()
 			}
 			return Delay(func(context.Context) *Promise {
-				env := env
 				return vm.exec(registers{
 					pc:   c.bytecode,
 					xr:   c.xrTable,
@@ -61,7 +60,6 @@ func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Pr
 					cutParent: p,
 				})
 			}, func(context.Context) *Promise {
-				env := env
 				vm.OnFail(c.pi, args, env)
 				return Bool(false)
 			})

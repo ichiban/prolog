@@ -12,15 +12,15 @@ func TestEnv_Bind(t *testing.T) {
 	var env *Env
 	assert.Equal(t, &Env{
 		color: black,
-		right: &Env{
+		left: &Env{
 			binding: binding{
-				variable: NewNamedVariable("A"),
-				value:    Atom("a"),
+				key:   newEnvKey(NewNamedVariable("A")),
+				value: Atom("a"),
 			},
 		},
 		binding: binding{
-			variable: varContext,
-			value:    Atom("root"),
+			key:   newEnvKey(varContext),
+			value: Atom("root"),
 		},
 	}, env.Bind(NewNamedVariable("A"), Atom("a")))
 }

@@ -319,8 +319,7 @@ func (vm *VM) execCall(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	return Delay(func(context.Context) *Promise {
-		env := r.env
-		args, err := Slice(r.astack, env)
+		args, err := Slice(r.astack, r.env)
 		if err != nil {
 			return Error(err)
 		}
@@ -336,7 +335,7 @@ func (vm *VM) execCall(r *registers) *Promise {
 				env:       env,
 				cutParent: r.cutParent,
 			})
-		}, env)
+		}, r.env)
 	})
 }
 

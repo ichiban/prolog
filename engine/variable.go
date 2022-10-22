@@ -10,7 +10,7 @@ import (
 var GoStringEnv *Env
 
 var (
-	varCounter uint64
+	varCounter int64
 	varTable   = struct {
 		sync.RWMutex
 		names map[Variable]string
@@ -22,11 +22,11 @@ var (
 )
 
 // Variable is a prolog variable.
-type Variable uint64
+type Variable int64
 
 // NewVariable creates a new anonymous variable.
 func NewVariable() Variable {
-	n := atomic.AddUint64(&varCounter, 1)
+	n := atomic.AddInt64(&varCounter, 1)
 	return Variable(n)
 }
 

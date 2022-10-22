@@ -27,7 +27,7 @@ func TestParser_Term(t *testing.T) {
 		input     string
 		opts      []parserOption
 		term      Term
-		varOffset uint64
+		varOffset int64
 		err       error
 	}{
 		{input: ``, err: io.EOF},
