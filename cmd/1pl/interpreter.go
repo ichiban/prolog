@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io"
-
 	"github.com/ichiban/prolog"
 	"github.com/ichiban/prolog/engine"
+	"io"
 )
 
 // New creates a prolog.Interpreter with some helper predicates.

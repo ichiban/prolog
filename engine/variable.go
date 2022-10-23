@@ -2,38 +2,76 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
+	"sync"
 	"sync/atomic"
 )
 
 // GoStringEnv is an Env which resolves a Variable when GoString() is called.
 var GoStringEnv *Env
 
+var (
+	varCounter int64
+	varTable   = struct {
+		sync.RWMutex
+		names map[Variable]string
+		vars  map[string]Variable
+	}{
+		names: map[Variable]string{},
+		vars:  map[string]Variable{},
+	}
+)
+
 // Variable is a prolog variable.
-type Variable string
+type Variable int64
+
+// NewVariable creates a new anonymous variable.
+func NewVariable() Variable {
+	n := atomic.AddInt64(&varCounter, 1)
+	return Variable(n)
+}
+
+func NewNamedVariable(name string) Variable {
+	varTable.Lock()
+	defer varTable.Unlock()
+
+	v, ok := varTable.vars[name]
+	if ok {
+		return v
+	}
+
+	v = NewVariable()
+	varTable.vars[name] = v
+	varTable.names[v] = name
+	return v
+}
+
+func (v Variable) String() string {
+	varTable.RLock()
+	defer varTable.RUnlock()
+
+	n, ok := varTable.names[v]
+	if ok {
+		return n
+	}
+
+	return fmt.Sprintf("_%d", v)
+}
 
 func (v Variable) GoString() string {
 	switch t := GoStringEnv.Resolve(v).(type) {
 	case Variable:
-		return string(t)
+		return t.String()
 	default:
 		return fmt.Sprintf("%#v", t)
 	}
 }
 
-var varCounter uint64
-
-// NewVariable creates a new generated variable.
-func NewVariable() Variable {
-	n := atomic.AddUint64(&varCounter, 1)
-	return Variable(fmt.Sprintf("_%d", n))
-}
-
-var generatedPattern = regexp.MustCompile(`\A_\d+\z`)
-
-// Generated checks if the variable is generated.
-func (v Variable) Generated() bool {
-	return generatedPattern.MatchString(string(v))
+// Anonymous checks if the variable has no name.
+func (v Variable) Anonymous() bool {
+	varTable.RLock()
+	defer varTable.RUnlock()
+	_, ok := varTable.names[v]
+	return !ok
 }
 
 // variableSet is a set of variables. The key is the variable and the value is the number of occurrences.

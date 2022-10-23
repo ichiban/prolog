@@ -5,10 +5,21 @@ import (
 	"strings"
 )
 
-const (
-	varContext  = Variable("$context")
-	rootContext = Atom("root")
-)
+var varContext = NewNamedVariable("$context")
+
+const rootContext = Atom("root")
+
+type envKey int64
+
+func newEnvKey(v Variable) envKey {
+	// A new Variable is always bigger than the previous ones.
+	// So, if we used the Variable itself as the key, insertions to the Env tree would be skewed to the right.
+	k := envKey(v)
+	if k/2 != 0 {
+		k *= -1
+	}
+	return k
+}
 
 type color uint8
 
@@ -26,15 +37,15 @@ type Env struct {
 }
 
 type binding struct {
-	variable Variable
-	value    Term
+	key   envKey
+	value Term
 	// attributes?
 }
 
 var rootEnv = &Env{
 	binding: binding{
-		variable: varContext,
-		value:    rootContext,
+		key:   newEnvKey(varContext),
+		value: rootContext,
 	},
 }
 
@@ -44,7 +55,9 @@ func NewEnv() *Env {
 }
 
 // Lookup returns a term that the given variable is bound to.
-func (e *Env) Lookup(k Variable) (Term, bool) {
+func (e *Env) Lookup(v Variable) (Term, bool) {
+	k := newEnvKey(v)
+
 	node := e
 	if node == nil {
 		node = rootEnv
@@ -54,9 +67,9 @@ func (e *Env) Lookup(k Variable) (Term, bool) {
 			return nil, false
 		}
 		switch {
-		case k < node.variable:
+		case k < node.key:
 			node = node.left
-		case k > node.variable:
+		case k > node.key:
 			node = node.right
 		default:
 			return node.value, true
@@ -65,27 +78,29 @@ func (e *Env) Lookup(k Variable) (Term, bool) {
 }
 
 // Bind adds a new entry to the environment.
-func (e *Env) Bind(k Variable, v Term) *Env {
+func (e *Env) Bind(v Variable, t Term) *Env {
+	k := newEnvKey(v)
+
 	node := e
 	if node == nil {
 		node = rootEnv
 	}
-	ret := *node.insert(k, v)
+	ret := *node.insert(k, t)
 	ret.color = black
 	return &ret
 }
 
-func (e *Env) insert(k Variable, v Term) *Env {
+func (e *Env) insert(k envKey, v Term) *Env {
 	if e == nil {
-		return &Env{color: red, binding: binding{variable: k, value: v}}
+		return &Env{color: red, binding: binding{key: k, value: v}}
 	}
 	switch {
-	case k < e.variable:
+	case k < e.key:
 		ret := *e
 		ret.left = e.left.insert(k, v)
 		ret.balance()
 		return &ret
-	case k > e.variable:
+	case k > e.key:
 		ret := *e
 		ret.right = e.right.insert(k, v)
 		ret.balance()
@@ -325,7 +340,7 @@ func (e *Env) Compare(x, y Term) Order {
 func (e *Env) compareVariable(x Variable, y Term) Order {
 	switch y := y.(type) {
 	case Variable:
-		switch d := strings.Compare(string(x), string(y)); {
+		switch d := strings.Compare(x.String(), y.String()); {
 		case d > 0:
 			return OrderGreater
 		case d < 0:

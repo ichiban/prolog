@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -182,13 +183,13 @@ f(g([a, [b|X]])).
 		{title: `defined atom`, goal: Atom("foo"), ok: true},
 		{title: `undefined compound`, goal: Atom("bar").Apply(NewVariable(), NewVariable()), ok: false, err: ExistenceError(ObjectTypeProcedure, Atom("/").Apply(Atom("bar"), Integer(2)), nil)},
 		{title: `defined compound`, goal: Atom("foo").Apply(NewVariable(), NewVariable()), ok: true},
-		{title: `variable: single predicate`, goal: Variable("X"), ok: false, err: InstantiationError(nil)},
-		{title: `variable: multiple predicates`, goal: Atom(",").Apply(Atom("fail"), Variable("X")), ok: false},
+		{title: `variable: single predicate`, goal: NewNamedVariable("X"), ok: false, err: InstantiationError(nil)},
+		{title: `variable: multiple predicates`, goal: Atom(",").Apply(Atom("fail"), NewNamedVariable("X")), ok: false},
 		{title: `not callable: single predicate`, goal: Integer(0), ok: false, err: TypeError(ValidTypeCallable, Integer(0), nil)},
 		{title: `not callable: conjunction`, goal: Atom(",").Apply(Atom("true"), Integer(0)), ok: false, err: TypeError(ValidTypeCallable, Atom(",").Apply(Atom("true"), Integer(0)), nil)},
 		{title: `not callable: disjunction`, goal: Atom(";").Apply(Integer(1), Atom("true")), ok: false, err: TypeError(ValidTypeCallable, Atom(";").Apply(Integer(1), Atom("true")), nil)},
 
-		{title: `cover all`, goal: Atom(",").Apply(Atom("!"), Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(Variable("X"), Atom("b")))))), ok: true},
+		{title: `cover all`, goal: Atom(",").Apply(Atom("!"), Atom("f").Apply(Atom("g").Apply(List(Atom("a"), ListRest(NewNamedVariable("X"), Atom("b")))))), ok: true},
 	}
 
 	for _, tt := range tests {
@@ -209,7 +210,7 @@ func TestState_Call1(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [1]Term{Atom("b")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [1]Term{Atom("b")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [1]Term{Atom("b")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [1]Term{Atom("b")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -236,7 +237,7 @@ func TestState_Call2(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [2]Term{Atom("b"), Atom("c")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [2]Term{Atom("b"), Atom("c")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [2]Term{Atom("b"), Atom("c")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [2]Term{Atom("b"), Atom("c")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -263,7 +264,7 @@ func TestState_Call3(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [3]Term{Atom("b"), Atom("c"), Atom("d")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -290,7 +291,7 @@ func TestState_Call4(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [4]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -317,7 +318,7 @@ func TestState_Call5(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [5]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -344,7 +345,7 @@ func TestState_Call6(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [6]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -371,7 +372,7 @@ func TestState_Call7(t *testing.T) {
 		err        error
 	}{
 		{title: "ok", closure: Atom("p").Apply(Atom("a")), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, ok: true},
-		{title: "closure is a variable", closure: Variable("P"), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: InstantiationError(nil)},
+		{title: "closure is a variable", closure: NewNamedVariable("P"), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [7]Term{Atom("b"), Atom("c"), Atom("d"), Atom("e"), Atom("f"), Atom("g"), Atom("h")}, err: TypeError(ValidTypeCallable, Integer(3), nil)},
 	}
 
@@ -409,8 +410,8 @@ func TestState_CallNth(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		t.Run("nth is a variable", func(t *testing.T) {
 			var ns []Integer
-			ok, err := state.CallNth(Atom("foo"), Variable("Nth"), func(env *Env) *Promise {
-				n, ok := env.Resolve(Variable("Nth")).(Integer)
+			ok, err := state.CallNth(Atom("foo"), NewNamedVariable("Nth"), func(env *Env) *Promise {
+				n, ok := env.Resolve(NewNamedVariable("Nth")).(Integer)
 				assert.True(t, ok)
 				ns = append(ns, n)
 				switch n {
@@ -442,7 +443,7 @@ func TestState_CallNth(t *testing.T) {
 	})
 
 	t.Run("goal is a variable and nth is not zero", func(t *testing.T) {
-		_, err := state.CallNth(Variable("Goal"), Integer(3), Success, nil).Force(context.Background())
+		_, err := state.CallNth(NewNamedVariable("Goal"), Integer(3), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -472,6 +473,7 @@ func TestState_CallNth(t *testing.T) {
 }
 
 func TestUnify(t *testing.T) {
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 	tests := []struct {
 		title   string
 		premise *Env
@@ -482,31 +484,31 @@ func TestUnify(t *testing.T) {
 	}{
 		// 8.2.1.4 Examples
 		{title: `'='(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
-		{title: `'='(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
-			"X": Integer(1),
+		{title: `'='(X, 1).`, x: NewNamedVariable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			x: Integer(1),
 		}},
-		{title: `'='(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
-			"X": Variable("Y"),
+		{title: `'='(X, Y).`, x: NewNamedVariable("X"), y: NewNamedVariable("Y"), ok: true, env: map[Variable]Term{
+			x: NewNamedVariable("Y"),
 		}},
 		{title: `'='(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
-		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
-			"X": Atom("abc"),
-			"Y": Atom("abc"),
+		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().Bind(x, NewNamedVariable("Y")), x: NewNamedVariable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			x: Atom("abc"),
+			y: Atom("abc"),
 		}},
-		{title: `'='(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
-			"X": Atom("def"),
-			"Y": Atom("def"),
+		{title: `'='(f(X, def), f(def, Y)).`, x: Atom("f").Apply(NewNamedVariable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), NewNamedVariable("Y")), ok: true, env: map[Variable]Term{
+			x: Atom("def"),
+			y: Atom("def"),
 		}},
 		{title: `'='(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
 		{title: `'='(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
-		{title: `'='(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
-		{title: `'='(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
-		{title: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
-		{title: `'='(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: true},
-		{title: `'='(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
-		{title: `'='(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
-		{title: `'='(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
-		// {title: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `'='(g(X), f(f(X))).`, x: Atom("g").Apply(NewNamedVariable("X")), y: Atom("f").Apply(Atom("f").Apply(NewNamedVariable("X"))), ok: false},
+		{title: `'='(f(X, 1), f(a(X))).`, x: Atom("f").Apply(NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X"))), ok: false},
+		{title: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("X")), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Atom("a").Apply(NewNamedVariable("Y")), NewNamedVariable("Y"), Integer(2)), ok: false},
+		{title: `'='(X, a(X)).`, x: NewNamedVariable("X"), y: Atom("a").Apply(NewNamedVariable("X")), ok: true},
+		{title: `'='(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(NewNamedVariable("X")), Integer(2)), ok: false},
+		{title: `'='(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), NewNamedVariable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(NewNamedVariable("X"))), ok: false},
+		// {title: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Atom("a").Apply(NewNamedVariable("Y")), NewNamedVariable("Y"), Integer(2)), ok: false},
 	}
 
 	for _, tt := range tests {
@@ -525,6 +527,7 @@ func TestUnify(t *testing.T) {
 }
 
 func TestUnifyWithOccursCheck(t *testing.T) {
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 	tests := []struct {
 		title   string
 		premise *Env
@@ -535,31 +538,31 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 	}{
 		// 8.2.2.4 Examples
 		{title: `unify_with_occurs_check(1, 1).`, x: Integer(1), y: Integer(1), ok: true},
-		{title: `unify_with_occurs_check(X, 1).`, x: Variable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
-			"X": Integer(1),
+		{title: `unify_with_occurs_check(X, 1).`, x: NewNamedVariable("X"), y: Integer(1), ok: true, env: map[Variable]Term{
+			x: Integer(1),
 		}},
-		{title: `unify_with_occurs_check(X, Y).`, x: Variable("X"), y: Variable("Y"), ok: true, env: map[Variable]Term{
-			"X": Variable("Y"),
+		{title: `unify_with_occurs_check(X, Y).`, x: NewNamedVariable("X"), y: NewNamedVariable("Y"), ok: true, env: map[Variable]Term{
+			x: NewNamedVariable("Y"),
 		}},
 		{title: `unify_with_occurs_check(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
-		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().Bind("X", Variable("Y")), x: Variable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
-			"X": Atom("abc"),
-			"Y": Atom("abc"),
+		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().Bind(x, NewNamedVariable("Y")), x: NewNamedVariable("X"), y: Atom("abc"), ok: true, env: map[Variable]Term{
+			x: Atom("abc"),
+			y: Atom("abc"),
 		}},
-		{title: `unify_with_occurs_check(f(X, def), f(def, Y)).`, x: Atom("f").Apply(Variable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), Variable("Y")), ok: true, env: map[Variable]Term{
-			"X": Atom("def"),
-			"Y": Atom("def"),
+		{title: `unify_with_occurs_check(f(X, def), f(def, Y)).`, x: Atom("f").Apply(NewNamedVariable("X"), Atom("def")), y: Atom("f").Apply(Atom("def"), NewNamedVariable("Y")), ok: true, env: map[Variable]Term{
+			x: Atom("def"),
+			y: Atom("def"),
 		}},
 		{title: `unify_with_occurs_check(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
 		{title: `unify_with_occurs_check(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
-		{title: `unify_with_occurs_check(g(X), f(f(X))).`, x: Atom("g").Apply(Variable("X")), y: Atom("f").Apply(Atom("f").Apply(Variable("X"))), ok: false},
-		{title: `unify_with_occurs_check(f(X, 1), f(a(X))).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X"))), ok: false},
-		{title: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X")), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
-		{title: `unify_with_occurs_check(X, a(X)).`, x: Variable("X"), y: Atom("a").Apply(Variable("X")), ok: false},
-		{title: `unify_with_occurs_check(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
-		{title: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), Variable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X")), Integer(2)), ok: false},
-		{title: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), Variable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(Variable("X"))), ok: false},
-		{title: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(Variable("X"), Variable("Y"), Variable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(Variable("X")), Atom("a").Apply(Variable("Y")), Variable("Y"), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(g(X), f(f(X))).`, x: Atom("g").Apply(NewNamedVariable("X")), y: Atom("f").Apply(Atom("f").Apply(NewNamedVariable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X))).`, x: Atom("f").Apply(NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("X")), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Atom("a").Apply(NewNamedVariable("Y")), NewNamedVariable("Y"), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(X, a(X)).`, x: NewNamedVariable("X"), y: Atom("a").Apply(NewNamedVariable("X")), ok: false},
+		{title: `unify_with_occurs_check(f(X, 1), f(a(X), 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, x: Atom("f").Apply(Integer(1), NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Integer(2), Atom("a").Apply(NewNamedVariable("X")), Integer(2)), ok: false},
+		{title: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, x: Atom("f").Apply(Integer(1), NewNamedVariable("X")), y: Atom("f").Apply(Integer(2), Atom("a").Apply(NewNamedVariable("X"))), ok: false},
+		{title: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, x: Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("X"), Integer(1)), y: Atom("f").Apply(Atom("a").Apply(NewNamedVariable("X")), Atom("a").Apply(NewNamedVariable("Y")), NewNamedVariable("Y"), Integer(2)), ok: false},
 	}
 
 	for _, tt := range tests {
@@ -579,7 +582,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 
 func TestSubsumesTerm(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ok, err := SubsumesTerm(Variable("X"), Atom("a"), Success, nil).Force(context.Background())
+		ok, err := SubsumesTerm(NewNamedVariable("X"), Atom("a"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -591,7 +594,7 @@ func TestSubsumesTerm(t *testing.T) {
 	})
 
 	t.Run("specific-general", func(t *testing.T) {
-		ok, err := SubsumesTerm(Atom("a"), Variable("X"), Success, nil).Force(context.Background())
+		ok, err := SubsumesTerm(Atom("a"), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -696,6 +699,8 @@ func TestAcyclicTerm(t *testing.T) {
 }
 
 func TestFunctor(t *testing.T) {
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
+	a, b := NewNamedVariable("A"), NewNamedVariable("B")
 	tests := []struct {
 		title             string
 		term, name, arity Term
@@ -705,41 +710,41 @@ func TestFunctor(t *testing.T) {
 	}{
 		// 8.5.1.4 Examples
 		{title: `functor(foo(a, b, c), foo, 3).`, term: Atom("foo").Apply(Atom("a"), Atom("b"), Atom("c")), name: Atom("foo"), arity: Integer(3), ok: true},
-		{title: `functor(foo(a, b, c), X, Y).`, term: Atom("foo").Apply(Atom("a"), Atom("b"), Atom("c")), name: Variable("X"), arity: Variable("Y"), ok: true, env: map[Variable]Term{
-			"X": Atom("foo"),
-			"Y": Integer(3),
+		{title: `functor(foo(a, b, c), X, Y).`, term: Atom("foo").Apply(Atom("a"), Atom("b"), Atom("c")), name: NewNamedVariable("X"), arity: NewNamedVariable("Y"), ok: true, env: map[Variable]Term{
+			x: Atom("foo"),
+			y: Integer(3),
 		}},
-		{title: `functor(X, foo, 3).`, term: Variable("X"), name: Atom("foo"), arity: Integer(3), ok: true, env: map[Variable]Term{
-			"X": Atom("foo").Apply(NewVariable(), NewVariable(), NewVariable()),
+		{title: `functor(X, foo, 3).`, term: NewNamedVariable("X"), name: Atom("foo"), arity: Integer(3), ok: true, env: map[Variable]Term{
+			x: Atom("foo").Apply(NewVariable(), NewVariable(), NewVariable()),
 		}},
-		{title: `functor(X, foo, 0).`, term: Variable("X"), name: Atom("foo"), arity: Integer(0), ok: true, env: map[Variable]Term{
-			"X": Atom("foo"),
+		{title: `functor(X, foo, 0).`, term: NewNamedVariable("X"), name: Atom("foo"), arity: Integer(0), ok: true, env: map[Variable]Term{
+			x: Atom("foo"),
 		}},
-		{title: `functor(mats(A, B), A, B).`, term: Atom("mats").Apply(Variable("A"), Variable("B")), name: Variable("A"), arity: Variable("B"), ok: true, env: map[Variable]Term{
-			"A": Atom("mats"),
-			"B": Integer(2),
+		{title: `functor(mats(A, B), A, B).`, term: Atom("mats").Apply(NewNamedVariable("A"), NewNamedVariable("B")), name: NewNamedVariable("A"), arity: NewNamedVariable("B"), ok: true, env: map[Variable]Term{
+			a: Atom("mats"),
+			b: Integer(2),
 		}},
 		{title: `functor(foo(a), foo, 2).`, term: Atom("foo").Apply(Atom("a")), name: Atom("foo"), arity: Integer(2), ok: false},
 		{title: `functor(foo(a), fo, 1).`, term: Atom("foo").Apply(Atom("a")), name: Atom("fo"), arity: Integer(1), ok: false},
-		{title: `functor(1, X, Y).`, term: Integer(1), name: Variable("X"), arity: Variable("Y"), ok: true, env: map[Variable]Term{
-			"X": Integer(1),
-			"Y": Integer(0),
+		{title: `functor(1, X, Y).`, term: Integer(1), name: NewNamedVariable("X"), arity: NewNamedVariable("Y"), ok: true, env: map[Variable]Term{
+			x: Integer(1),
+			y: Integer(0),
 		}},
-		{title: `functor(X, 1.1, 0).`, term: Variable("X"), name: Float(1.1), arity: Integer(0), ok: true, env: map[Variable]Term{
-			"X": Float(1.1),
+		{title: `functor(X, 1.1, 0).`, term: NewNamedVariable("X"), name: Float(1.1), arity: Integer(0), ok: true, env: map[Variable]Term{
+			x: Float(1.1),
 		}},
 		{title: `functor([_|_], '.', 2).`, term: Cons(NewVariable(), NewVariable()), name: Atom("."), arity: Integer(2), ok: true},
 		{title: `functor([], [], 0).`, term: Atom("[]"), name: Atom("[]"), arity: Integer(0), ok: true},
-		{title: `functor(X, Y, 3).`, term: Variable("X"), name: Variable("Y"), arity: Integer(3), err: InstantiationError(nil)},
-		{title: `functor(X, foo, N).`, term: Variable("X"), name: Atom("foo"), arity: Variable("N"), err: InstantiationError(nil)},
-		{title: `functor(X, foo, a).`, term: Variable("X"), name: Atom("foo"), arity: Atom("a"), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
-		{title: `functor(F, 1.5, 1).`, term: Variable("F"), name: Float(1.5), arity: Integer(1), err: TypeError(ValidTypeAtom, Float(1.5), nil)},
-		{title: `functor(F, foo(a), 1).`, term: Variable("F"), name: Atom("foo").Apply(Atom("a")), arity: Integer(1), err: TypeError(ValidTypeAtomic, Atom("foo").Apply(Atom("a")), nil)},
+		{title: `functor(X, Y, 3).`, term: NewNamedVariable("X"), name: NewNamedVariable("Y"), arity: Integer(3), err: InstantiationError(nil)},
+		{title: `functor(X, foo, N).`, term: NewNamedVariable("X"), name: Atom("foo"), arity: NewNamedVariable("N"), err: InstantiationError(nil)},
+		{title: `functor(X, foo, a).`, term: NewNamedVariable("X"), name: Atom("foo"), arity: Atom("a"), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
+		{title: `functor(F, 1.5, 1).`, term: NewNamedVariable("F"), name: Float(1.5), arity: Integer(1), err: TypeError(ValidTypeAtom, Float(1.5), nil)},
+		{title: `functor(F, foo(a), 1).`, term: NewNamedVariable("F"), name: Atom("foo").Apply(Atom("a")), arity: Integer(1), err: TypeError(ValidTypeAtomic, Atom("foo").Apply(Atom("a")), nil)},
 		// {title: `current_prolog_flag(max_arity, A), X is A + 1, functor(T, foo, X).`}
-		{title: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, term: Variable("F"), name: Atom("foo"), arity: Integer(-1), err: DomainError(ValidDomainNotLessThanZero, Integer(-1), nil)},
+		{title: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, term: NewNamedVariable("F"), name: Atom("foo"), arity: Integer(-1), err: DomainError(ValidDomainNotLessThanZero, Integer(-1), nil)},
 
 		// https://github.com/ichiban/prolog/issues/247
-		{title: `functor(X, Y, 0).`, term: Variable("X"), name: Variable("Y"), arity: Integer(0), err: InstantiationError(nil)},
+		{title: `functor(X, Y, 0).`, term: NewNamedVariable("X"), name: NewNamedVariable("Y"), arity: Integer(0), err: InstantiationError(nil)},
 	}
 
 	for _, tt := range tests {
@@ -841,6 +846,9 @@ func TestArg(t *testing.T) {
 }
 
 func TestUniv(t *testing.T) {
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
+	l := NewNamedVariable("L")
+	a, as := NewNamedVariable("A"), NewNamedVariable("As")
 	tests := []struct {
 		title      string
 		term, list Term
@@ -850,46 +858,46 @@ func TestUniv(t *testing.T) {
 	}{
 		// 8.5.3.4 Examples
 		{title: "1", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: List(Atom("foo"), Atom("a"), Atom("b")), ok: true},
-		{title: "2", term: Variable("X"), list: List(Atom("foo"), Atom("a"), Atom("b")), ok: true, env: map[Variable]Term{
-			"X": Atom("foo").Apply(Atom("a"), Atom("b")),
+		{title: "2", term: NewNamedVariable("X"), list: List(Atom("foo"), Atom("a"), Atom("b")), ok: true, env: map[Variable]Term{
+			x: Atom("foo").Apply(Atom("a"), Atom("b")),
 		}},
-		{title: "3", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Atom("foo"), Atom("a"), Atom("b")),
+		{title: "3", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Atom("foo"), Atom("a"), Atom("b")),
 		}},
-		{title: "4", term: Atom("foo").Apply(Variable("X"), Atom("b")), list: List(Atom("foo"), Atom("a"), Variable("Y")), ok: true, env: map[Variable]Term{
-			"X": Atom("a"),
-			"Y": Atom("b"),
+		{title: "4", term: Atom("foo").Apply(NewNamedVariable("X"), Atom("b")), list: List(Atom("foo"), Atom("a"), NewNamedVariable("Y")), ok: true, env: map[Variable]Term{
+			x: Atom("a"),
+			y: Atom("b"),
 		}},
 		{title: "5", term: Integer(1), list: List(Integer(1)), ok: true},
 		{title: "6", term: Atom("foo").Apply(Atom("a"), Atom("b")), list: List(Atom("foo"), Atom("b"), Atom("a")), ok: false},
-		{title: "7", term: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
-		{title: "8", term: Variable("X"), list: ListRest(Variable("Y"), Atom("foo"), Atom("a")), err: InstantiationError(nil)},
-		{title: "9", term: Variable("X"), list: ListRest(Atom("bar"), Atom("foo")), err: TypeError(ValidTypeList, ListRest(Atom("bar"), Atom("foo")), nil)},
-		{title: "10", term: Variable("X"), list: List(Variable("Foo"), Atom("bar")), err: InstantiationError(nil)},
-		{title: "11", term: Variable("X"), list: List(Integer(3), Integer(1)), err: TypeError(ValidTypeAtom, Integer(3), nil)},
-		{title: "12", term: Variable("X"), list: List(Float(1.1), Atom("foo")), err: TypeError(ValidTypeAtom, Float(1.1), nil)},
-		{title: "13", term: Variable("X"), list: List(Atom("a").Apply(Atom("b")), Integer(1)), err: TypeError(ValidTypeAtom, Atom("a").Apply(Atom("b")), nil)},
-		{title: "14", term: Variable("X"), list: Integer(4), err: TypeError(ValidTypeList, Integer(4), nil)},
-		{title: "15", term: Atom("f").Apply(Variable("X")), list: List(Atom("f"), Atom("u").Apply(Variable("X"))), ok: true, env: map[Variable]Term{
-			"X": Atom("u").Apply(Variable("X")),
+		{title: "7", term: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
+		{title: "8", term: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), Atom("foo"), Atom("a")), err: InstantiationError(nil)},
+		{title: "9", term: NewNamedVariable("X"), list: ListRest(Atom("bar"), Atom("foo")), err: TypeError(ValidTypeList, ListRest(Atom("bar"), Atom("foo")), nil)},
+		{title: "10", term: NewNamedVariable("X"), list: List(NewNamedVariable("Foo"), Atom("bar")), err: InstantiationError(nil)},
+		{title: "11", term: NewNamedVariable("X"), list: List(Integer(3), Integer(1)), err: TypeError(ValidTypeAtom, Integer(3), nil)},
+		{title: "12", term: NewNamedVariable("X"), list: List(Float(1.1), Atom("foo")), err: TypeError(ValidTypeAtom, Float(1.1), nil)},
+		{title: "13", term: NewNamedVariable("X"), list: List(Atom("a").Apply(Atom("b")), Integer(1)), err: TypeError(ValidTypeAtom, Atom("a").Apply(Atom("b")), nil)},
+		{title: "14", term: NewNamedVariable("X"), list: Integer(4), err: TypeError(ValidTypeList, Integer(4), nil)},
+		{title: "15", term: Atom("f").Apply(NewNamedVariable("X")), list: List(Atom("f"), Atom("u").Apply(NewNamedVariable("X"))), ok: true, env: map[Variable]Term{
+			x: Atom("u").Apply(NewNamedVariable("X")),
 		}},
 
 		// 8.5.3.3 Errors
 		{title: "b: term is a compound", term: Atom("f").Apply(Atom("a")), list: ListRest(Atom("a"), Atom("f")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("f")), nil)},
 		{title: "b: term is an atomic", term: Integer(1), list: ListRest(Atom("a"), Atom("f")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("f")), nil)},
-		{title: "c", term: Variable("X"), list: List(Variable("Y")), err: InstantiationError(nil)},
-		{title: "e", term: Variable("X"), list: List(Atom("f").Apply(Atom("a"))), err: TypeError(ValidTypeAtomic, Atom("f").Apply(Atom("a")), nil)},
-		{title: "f", term: Variable("X"), list: List(), err: DomainError(ValidDomainNonEmptyList, List(), nil)},
+		{title: "c", term: NewNamedVariable("X"), list: List(NewNamedVariable("Y")), err: InstantiationError(nil)},
+		{title: "e", term: NewNamedVariable("X"), list: List(Atom("f").Apply(Atom("a"))), err: TypeError(ValidTypeAtomic, Atom("f").Apply(Atom("a")), nil)},
+		{title: "f", term: NewNamedVariable("X"), list: List(), err: DomainError(ValidDomainNonEmptyList, List(), nil)},
 
-		{title: "term is a variable, list has exactly one member which is an atomic", term: Variable("X"), list: List(Integer(1)), ok: true, env: map[Variable]Term{
-			"X": Integer(1),
+		{title: "term is a variable, list has exactly one member which is an atomic", term: NewNamedVariable("X"), list: List(Integer(1)), ok: true, env: map[Variable]Term{
+			x: Integer(1),
 		}},
 		{title: "term is an atomic, the length of list is not 1", term: Integer(1), list: List(), ok: false},
 
 		// https://github.com/ichiban/prolog/issues/244
-		{title: "term is atomic", term: Atom("c"), list: ListRest(Variable("As"), Variable("A")), ok: true, env: map[Variable]Term{
-			"A":  Atom("c"),
-			"As": List(),
+		{title: "term is atomic", term: Atom("c"), list: ListRest(NewNamedVariable("As"), NewNamedVariable("A")), ok: true, env: map[Variable]Term{
+			a:  Atom("c"),
+			as: List(),
 		}},
 	}
 
@@ -908,8 +916,8 @@ func TestUniv(t *testing.T) {
 }
 
 func TestCopyTerm(t *testing.T) {
-	in := Variable("In")
-	out := Variable("Out")
+	in := NewNamedVariable("In")
+	out := NewNamedVariable("Out")
 	env := NewEnv().
 		Bind(in, Atom("a"))
 	ok, err := CopyTerm(in, out, func(env *Env) *Promise {
@@ -921,6 +929,9 @@ func TestCopyTerm(t *testing.T) {
 }
 
 func TestTermVariables(t *testing.T) {
+	vars := NewNamedVariable("Vars")
+	vs, vt := NewNamedVariable("S"), NewNamedVariable("T")
+	b := NewNamedVariable("B")
 	tests := []struct {
 		title      string
 		term, vars Term
@@ -929,39 +940,39 @@ func TestTermVariables(t *testing.T) {
 		env        map[Variable]Term
 	}{
 		// 8.5.5.4 Examples
-		{title: "1", term: Atom("t"), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
-			"Vars": List(),
+		{title: "1", term: Atom("t"), vars: NewNamedVariable("Vars"), ok: true, env: map[Variable]Term{
+			vars: List(),
 		}},
 		{title: "2", term: Atom("-").Apply(
 			Atom("+").Apply(
-				Variable("A"),
+				NewNamedVariable("A"),
 				Atom("/").Apply(
 					Atom("*").Apply(
-						Variable("B"),
-						Variable("C"),
+						NewNamedVariable("B"),
+						NewNamedVariable("C"),
 					),
-					Variable("B"),
+					NewNamedVariable("B"),
 				),
 			),
-			Variable("D"),
-		), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
-			"Vars": List(Variable("A"), Variable("B"), Variable("C"), Variable("D")),
+			NewNamedVariable("D"),
+		), vars: NewNamedVariable("Vars"), ok: true, env: map[Variable]Term{
+			vars: List(NewNamedVariable("A"), NewNamedVariable("B"), NewNamedVariable("C"), NewNamedVariable("D")),
 		}},
 		{title: "3", term: Atom("t"), vars: ListRest(Atom("a"), Atom("x"), Atom("y")), err: TypeError(ValidTypeList, ListRest(Atom("a"), Atom("x"), Atom("y")), nil)},
-		{title: "4, 5", term: Variable("S"), vars: Variable("Vars"), ok: true, env: map[Variable]Term{
-			"Vars": List(Variable("B"), Variable("A")),
-			"S":    Atom("+").Apply(Variable("B"), Variable("T")),
-			"T":    Atom("*").Apply(Variable("A"), Variable("B")),
+		{title: "4, 5", term: NewNamedVariable("S"), vars: NewNamedVariable("Vars"), ok: true, env: map[Variable]Term{
+			vars: List(NewNamedVariable("B"), NewNamedVariable("A")),
+			vs:   Atom("+").Apply(NewNamedVariable("B"), NewNamedVariable("T")),
+			vt:   Atom("*").Apply(NewNamedVariable("A"), NewNamedVariable("B")),
 		}},
-		{title: "6", term: Atom("+").Apply(Atom("+").Apply(Variable("A"), Variable("B")), Variable("B")), vars: ListRest(Variable("Vars"), Variable("B")), ok: true, env: map[Variable]Term{
-			"B":    Variable("A"),
-			"Vars": List(Variable("B")),
+		{title: "6", term: Atom("+").Apply(Atom("+").Apply(NewNamedVariable("A"), NewNamedVariable("B")), NewNamedVariable("B")), vars: ListRest(NewNamedVariable("Vars"), NewNamedVariable("B")), ok: true, env: map[Variable]Term{
+			b:    NewNamedVariable("A"),
+			vars: List(NewNamedVariable("B")),
 		}},
 	}
 
 	env := NewEnv().
-		Bind("S", Atom("+").Apply(Variable("B"), Variable("T"))).
-		Bind("T", Atom("*").Apply(Variable("A"), Variable("B")))
+		Bind(vs, Atom("+").Apply(NewNamedVariable("B"), NewNamedVariable("T"))).
+		Bind(vt, Atom("*").Apply(NewNamedVariable("A"), NewNamedVariable("B")))
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := TermVariables(tt.term, tt.vars, func(env *Env) *Promise {
@@ -1111,14 +1122,14 @@ func TestState_Op(t *testing.T) {
 
 	t.Run("priority is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Op(Variable("X"), Atom("xfx"), Atom("+"), Success, nil).Force(context.Background())
+		ok, err := state.Op(NewNamedVariable("X"), Atom("xfx"), Atom("+"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Op(Integer(1000), Variable("X"), Atom("+"), Success, nil).Force(context.Background())
+		ok, err := state.Op(Integer(1000), NewNamedVariable("X"), Atom("+"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -1288,7 +1299,7 @@ func TestState_CurrentOp(t *testing.T) {
 	})
 
 	t.Run("multiple solutions", func(t *testing.T) {
-		priority, specifier, operator := Variable("Priority"), Variable("Specifier"), Variable("Operator")
+		priority, specifier, operator := NewNamedVariable("Priority"), NewNamedVariable("Specifier"), NewNamedVariable("Operator")
 		ok, err := state.CurrentOp(priority, specifier, operator, func(env *Env) *Promise {
 			switch env.Resolve(operator) {
 			case Atom("+++"):
@@ -1345,6 +1356,9 @@ func TestState_CurrentOp(t *testing.T) {
 }
 
 func TestState_BagOf(t *testing.T) {
+	s := NewNamedVariable("S")
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
+	l := NewNamedVariable("L")
 	tests := []struct {
 		title                     string
 		template, goal, instances Term
@@ -1355,147 +1369,147 @@ func TestState_BagOf(t *testing.T) {
 		// 8.10.2.4 Examples
 		{
 			title:     "bagof(X, (X=1 ; X=2), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), Integer(2))},
+				{s: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:     "bagof(X, (X=1 ; X=2), X).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
-			instances: Variable("X"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))),
+			instances: NewNamedVariable("X"),
 			env: []map[Variable]Term{
-				{"X": List(Integer(1), Integer(2))},
+				{x: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:     "bagof(X, (X=Y ; X=Z), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Variable("Y")), Atom("=").Apply(Variable("X"), Variable("Z"))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Y")), Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Z"))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Variable("Y"), Variable("Z"))},
+				{s: List(NewNamedVariable("Y"), NewNamedVariable("Z"))},
 			},
 		},
 		{
 			title:     "bagof(X, fail, S).",
-			template:  Variable("X"),
+			template:  NewNamedVariable("X"),
 			goal:      Atom("fail"),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env:       nil,
 		},
 		{
 			title:     "bagof(1, (Y=1 ; Y=2), L).",
 			template:  Integer(1),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("Y"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(2))),
-			instances: Variable("L"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("Y"), Integer(1)), Atom("=").Apply(NewNamedVariable("Y"), Integer(2))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1)), "Y": Integer(1)},
-				{"L": List(Integer(1)), "Y": Integer(2)},
+				{l: List(Integer(1)), y: Integer(1)},
+				{l: List(Integer(1)), y: Integer(2)},
 			},
 		},
 		{
 			title:     "bagof(f(X, Y), (X=a ; Y=b), L).",
-			template:  Atom("f").Apply(Variable("X"), Variable("Y")),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Atom("a")), Atom("=").Apply(Variable("Y"), Atom("b"))),
-			instances: Variable("L"),
+			template:  Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Atom("a")), Atom("=").Apply(NewNamedVariable("Y"), Atom("b"))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
+				{l: List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
 			},
 		},
 		{
 			title:    "bagof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).",
-			template: Variable("X"),
-			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			template: NewNamedVariable("X"),
+			goal: Atom("^").Apply(NewNamedVariable("Y"), Atom(";").Apply(
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("Y"), Integer(2))),
 			)),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), Integer(2))},
+				{s: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:    "bagof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).",
-			template: Variable("X"),
-			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
-				Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			template: NewNamedVariable("X"),
+			goal: Atom("^").Apply(NewNamedVariable("Y"), Atom(";").Apply(
+				Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("Y"), Integer(2))),
 			)),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), NewVariable(), Integer(2))},
+				{s: List(Integer(1), NewVariable(), Integer(2))},
 			},
 		},
 		{
 			title:    "bagof(X, (Y^(X=1 ; Y=2) ; X=3), S).",
-			template: Variable("X"),
+			template: NewNamedVariable("X"),
 			goal: Atom(";").Apply(
 				Atom("^").Apply(
-					Variable("Y"),
+					NewNamedVariable("Y"),
 					Atom(";").Apply(
-						Atom("=").Apply(Variable("X"), Integer(1)),
-						Atom("=").Apply(Variable("Y"), Integer(2)),
+						Atom("=").Apply(NewNamedVariable("X"), Integer(1)),
+						Atom("=").Apply(NewNamedVariable("Y"), Integer(2)),
 					),
 				),
-				Atom("=").Apply(Variable("X"), Integer(3)),
+				Atom("=").Apply(NewNamedVariable("X"), Integer(3)),
 			),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(3)), "Y": NewVariable()},
+				{s: List(Integer(3)), y: NewVariable()},
 			},
 			warning: true,
 		},
 		{
 			title:    "bagof(X, (X=Y ; X=Z ; Y=1), S).",
-			template: Variable("X"),
+			template: NewNamedVariable("X"),
 			goal: Atom(";").Apply(
-				Atom("=").Apply(Variable("X"), Variable("Y")),
+				Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
 				Atom(";").Apply(
-					Atom("=").Apply(Variable("X"), Variable("Z")),
-					Atom("=").Apply(Variable("Y"), Integer(1)),
+					Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Z")),
+					Atom("=").Apply(NewNamedVariable("Y"), Integer(1)),
 				),
 			),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Variable("Y"), Variable("Z"))},
-				{"S": List(NewVariable())},
+				{s: List(NewNamedVariable("Y"), NewNamedVariable("Z"))},
+				{s: List(NewVariable())},
 			},
 		},
 		{
 			title:     "bagof(X, a(X, Y), L).",
-			template:  Variable("X"),
-			goal:      Atom("a").Apply(Variable("X"), Variable("Y")),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("a").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1), Integer(2)), "Y": Atom("f").Apply(NewVariable())},
+				{l: List(Integer(1), Integer(2)), y: Atom("f").Apply(NewVariable())},
 			},
 		},
 		{
 			title:     "bagof(X, b(X, Y), L).",
-			template:  Variable("X"),
-			goal:      Atom("b").Apply(Variable("X"), Variable("Y")),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("b").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1), Integer(1), Integer(2)), "Y": Integer(1)},
-				{"L": List(Integer(1), Integer(2), Integer(2)), "Y": Integer(2)},
+				{l: List(Integer(1), Integer(1), Integer(2)), y: Integer(1)},
+				{l: List(Integer(1), Integer(2), Integer(2)), y: Integer(2)},
 			},
 		},
 		{
 			title:     "bagof(X, Y^Z, L).",
-			template:  Variable("X"),
-			goal:      Atom("^").Apply(Variable("X"), Variable("Z")),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("^").Apply(NewNamedVariable("X"), NewNamedVariable("Z")),
+			instances: NewNamedVariable("L"),
 			err:       InstantiationError(nil),
 		},
 		{
 			title:     "bagof(X, 1, L).",
-			template:  Variable("X"),
+			template:  NewNamedVariable("X"),
 			goal:      Integer(1),
-			instances: Variable("L"),
+			instances: NewNamedVariable("L"),
 			err:       TypeError(ValidTypeCallable, Integer(1), nil),
 		},
 
@@ -1578,6 +1592,10 @@ func TestState_BagOf(t *testing.T) {
 }
 
 func TestState_SetOf(t *testing.T) {
+	s := NewNamedVariable("S")
+	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
+	l := NewNamedVariable("L")
+	u, v := NewNamedVariable("U"), NewNamedVariable("V")
 	tests := []struct {
 		title                     string
 		template, goal, instances Term
@@ -1588,199 +1606,199 @@ func TestState_SetOf(t *testing.T) {
 		// 8.10.3.4 Examples
 		{
 			title:     "setof(X, (X=1; X=2), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), Integer(2))},
+				{s: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:     "setof(X, (X=1; X=2), X).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))),
-			instances: Variable("X"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))),
+			instances: NewNamedVariable("X"),
 			env: []map[Variable]Term{
-				{"X": List(Integer(1), Integer(2))},
+				{x: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:     "setof(X, (X=2; X=1), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(1))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("X"), Integer(1))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), Integer(2))},
+				{s: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:     "setof(X, (X=2; X=2), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(2))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(2))},
+				{s: List(Integer(2))},
 			},
 		},
 		{
 			title:     "setof(X, (X=Y ; X=Z), S).",
-			template:  Variable("X"),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Variable("Y")), Atom("=").Apply(Variable("X"), Variable("Z"))),
-			instances: Variable("S"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Y")), Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Z"))),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Variable("Y"), Variable("Z"))},
+				{s: List(NewNamedVariable("Y"), NewNamedVariable("Z"))},
 			},
 		},
 		{
 			title:     "setof(X, fail, S).",
-			template:  Variable("X"),
+			template:  NewNamedVariable("X"),
 			goal:      Atom("fail"),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env:       nil,
 		},
 		{
 			title:     "setof(1, (Y=2; Y=1), L).",
 			template:  Integer(1),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("Y"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(1))),
-			instances: Variable("L"),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("Y"), Integer(2)), Atom("=").Apply(NewNamedVariable("Y"), Integer(1))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1)), "Y": Integer(2)},
-				{"L": List(Integer(1)), "Y": Integer(1)},
+				{l: List(Integer(1)), y: Integer(2)},
+				{l: List(Integer(1)), y: Integer(1)},
 			},
 		},
 		{
 			title:     "setof(f(X, Y), (X=a ; Y=b), L).",
-			template:  Atom("f").Apply(Variable("X"), Variable("Y")),
-			goal:      Atom(";").Apply(Atom("=").Apply(Variable("X"), Atom("a")), Atom("=").Apply(Variable("Y"), Atom("b"))),
-			instances: Variable("L"),
+			template:  Atom("f").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			goal:      Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Atom("a")), Atom("=").Apply(NewNamedVariable("Y"), Atom("b"))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
+				{l: List(Atom("f").Apply(Atom("a"), NewVariable()), Atom("f").Apply(NewVariable(), Atom("b")))},
 			},
 		},
 		{
 			title:    "setof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).",
-			template: Variable("X"),
-			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			template: NewNamedVariable("X"),
+			goal: Atom("^").Apply(NewNamedVariable("Y"), Atom(";").Apply(
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("Y"), Integer(2))),
 			)),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(1), Integer(2))},
+				{s: List(Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:    "setof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).",
-			template: Variable("X"),
-			goal: Atom("^").Apply(Variable("Y"), Atom(";").Apply(
-				Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("Y"), Integer(1))),
-				Atom(",").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("Y"), Integer(2))),
+			template: NewNamedVariable("X"),
+			goal: Atom("^").Apply(NewNamedVariable("Y"), Atom(";").Apply(
+				Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("Y"), Integer(1))),
+				Atom(",").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("Y"), Integer(2))),
 			)),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(NewVariable(), Integer(1), Integer(2))},
+				{s: List(NewVariable(), Integer(1), Integer(2))},
 			},
 		},
 		{
 			title:    "setof(X, (Y^(X=1 ; Y=2) ; X=3), S).",
-			template: Variable("X"),
+			template: NewNamedVariable("X"),
 			goal: Atom(";").Apply(
 				Atom("^").Apply(
-					Variable("Y"),
+					NewNamedVariable("Y"),
 					Atom(";").Apply(
-						Atom("=").Apply(Variable("X"), Integer(1)),
-						Atom("=").Apply(Variable("Y"), Integer(2)),
+						Atom("=").Apply(NewNamedVariable("X"), Integer(1)),
+						Atom("=").Apply(NewNamedVariable("Y"), Integer(2)),
 					),
 				),
-				Atom("=").Apply(Variable("X"), Integer(3)),
+				Atom("=").Apply(NewNamedVariable("X"), Integer(3)),
 			),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Integer(3)), "Y": NewVariable()},
+				{s: List(Integer(3)), y: NewVariable()},
 			},
 			warning: true,
 		},
 		{
 			title:    "setof(X, (X=Y ; X=Z ; Y=1), S).",
-			template: Variable("X"),
+			template: NewNamedVariable("X"),
 			goal: Atom(";").Apply(
-				Atom("=").Apply(Variable("X"), Variable("Y")),
+				Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
 				Atom(";").Apply(
-					Atom("=").Apply(Variable("X"), Variable("Z")),
-					Atom("=").Apply(Variable("Y"), Integer(1)),
+					Atom("=").Apply(NewNamedVariable("X"), NewNamedVariable("Z")),
+					Atom("=").Apply(NewNamedVariable("Y"), Integer(1)),
 				),
 			),
-			instances: Variable("S"),
+			instances: NewNamedVariable("S"),
 			env: []map[Variable]Term{
-				{"S": List(Variable("Y"), Variable("Z"))},
-				{"S": List(NewVariable())},
+				{s: List(NewNamedVariable("Y"), NewNamedVariable("Z"))},
+				{s: List(NewVariable())},
 			},
 		},
 		{
 			title:     "setof(X, a(X, Y), L).",
-			template:  Variable("X"),
-			goal:      Atom("a").Apply(Variable("X"), Variable("Y")),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("a").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1), Integer(2)), "Y": Atom("f").Apply(NewVariable())},
+				{l: List(Integer(1), Integer(2)), y: Atom("f").Apply(NewVariable())},
 			},
 		},
 		{
 			title:     "setof(X, member(X,[f(U,b),f(V,c)]), L).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(Atom("f").Apply(NewNamedVariable("U"), Atom("b")), Atom("f").Apply(NewNamedVariable("V"), Atom("c")))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))},
+				{l: List(Atom("f").Apply(NewNamedVariable("U"), Atom("b")), Atom("f").Apply(NewNamedVariable("V"), Atom("c")))},
 			},
 		},
 		{
 			title:     "setof(X, member(X,[f(U,b),f(V,c)]), [f(a,c),f(a,b)]).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Variable("U"), Atom("b")), Atom("f").Apply(Variable("V"), Atom("c")))),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(Atom("f").Apply(NewNamedVariable("U"), Atom("b")), Atom("f").Apply(NewNamedVariable("V"), Atom("c")))),
 			instances: List(Atom("f").Apply(Atom("a"), Atom("c")), Atom("f").Apply(Atom("a"), Atom("b"))),
 			env:       nil,
 		},
 		{
 			title:     "setof(X, member(X,[f(b,U),f(c,V)]), [f(b,a),f(c,a)]).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Atom("f").Apply(Atom("b"), Variable("U")), Atom("f").Apply(Atom("c"), Variable("V")))),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(Atom("f").Apply(Atom("b"), NewNamedVariable("U")), Atom("f").Apply(Atom("c"), NewNamedVariable("V")))),
 			instances: List(Atom("f").Apply(Atom("b"), Atom("a")), Atom("f").Apply(Atom("c"), Atom("a"))),
 			env: []map[Variable]Term{
-				{"U": Atom("a"), "V": Atom("a")},
+				{u: Atom("a"), v: Atom("a")},
 			},
 		},
 		{
 			title:     "setof(X, member(X,[V,U,f(U),f(V)]), L).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(NewNamedVariable("V"), NewNamedVariable("U"), Atom("f").Apply(NewNamedVariable("U")), Atom("f").Apply(NewNamedVariable("V")))),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Variable("U"), Variable("V"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))},
+				{l: List(NewNamedVariable("U"), NewNamedVariable("V"), Atom("f").Apply(NewNamedVariable("U")), Atom("f").Apply(NewNamedVariable("V")))},
 			},
 		},
 		{
 			title:     "setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(a),f(b)]).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(NewNamedVariable("V"), NewNamedVariable("U"), Atom("f").Apply(NewNamedVariable("U")), Atom("f").Apply(NewNamedVariable("V")))),
 			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("a")), Atom("f").Apply(Atom("b"))),
 			env: []map[Variable]Term{
-				{"U": Atom("a"), "V": Atom("b")},
+				{u: Atom("a"), v: Atom("b")},
 			},
 		},
 		{
 			title:     "setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(b),f(a)]).",
-			template:  Variable("X"),
-			goal:      Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("member").Apply(NewNamedVariable("X"), List(NewNamedVariable("V"), NewNamedVariable("U"), Atom("f").Apply(NewNamedVariable("U")), Atom("f").Apply(NewNamedVariable("V")))),
 			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("b")), Atom("f").Apply(Atom("a"))),
 			env:       nil,
 		},
 		{
 			title:    "setof(X, (exists(U,V)^member(X,[V,U,f(U),f(V)])), [a,b,f(b),f(a)]).",
-			template: Variable("X"),
+			template: NewNamedVariable("X"),
 			goal: Atom("^").Apply(
-				Atom("exists").Apply(Variable("U"), Variable("V")),
-				Atom("member").Apply(Variable("X"), List(Variable("V"), Variable("U"), Atom("f").Apply(Variable("U")), Atom("f").Apply(Variable("V")))),
+				Atom("exists").Apply(NewNamedVariable("U"), NewNamedVariable("V")),
+				Atom("member").Apply(NewNamedVariable("X"), List(NewNamedVariable("V"), NewNamedVariable("U"), Atom("f").Apply(NewNamedVariable("U")), Atom("f").Apply(NewNamedVariable("V")))),
 			),
 			instances: List(Atom("a"), Atom("b"), Atom("f").Apply(Atom("b")), Atom("f").Apply(Atom("a"))),
 			env: []map[Variable]Term{
@@ -1789,28 +1807,28 @@ func TestState_SetOf(t *testing.T) {
 		},
 		{
 			title:     "setof(X, b(X, Y), L).",
-			template:  Variable("X"),
-			goal:      Atom("b").Apply(Variable("X"), Variable("Y")),
-			instances: Variable("L"),
+			template:  NewNamedVariable("X"),
+			goal:      Atom("b").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(Integer(1), Integer(2)), "Y": Integer(1)},
-				{"L": List(Integer(1), Integer(2)), "Y": Integer(2)},
+				{l: List(Integer(1), Integer(2)), y: Integer(1)},
+				{l: List(Integer(1), Integer(2)), y: Integer(2)},
 			},
 		},
 		{
 			title:    "setof(X-Xs, Y^setof(Y,b(X, Y),Xs), L).",
-			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			template: Atom("-").Apply(NewNamedVariable("X"), NewNamedVariable("Xs")),
 			goal: Atom("^").Apply(
-				Variable("Y"),
+				NewNamedVariable("Y"),
 				Atom("setof").Apply(
-					Variable("Y"),
-					Atom("b").Apply(Variable("X"), Variable("Y")),
-					Variable("Xs"),
+					NewNamedVariable("Y"),
+					Atom("b").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+					NewNamedVariable("Xs"),
 				),
 			),
-			instances: Variable("L"),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
-				{"L": List(
+				{l: List(
 					Atom("-").Apply(Integer(1), List(Integer(1), Integer(2))),
 					Atom("-").Apply(Integer(2), List(Integer(1), Integer(2))),
 				)},
@@ -1818,45 +1836,43 @@ func TestState_SetOf(t *testing.T) {
 		},
 		{
 			title:    "setof(X-Xs, setof(Y,b(X, Y),Xs), L).",
-			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			template: Atom("-").Apply(NewNamedVariable("X"), NewNamedVariable("Xs")),
 			goal: Atom("^").Apply(
-				Variable("Y"),
+				NewNamedVariable("Y"),
 				Atom("setof").Apply(
-					Variable("Y"),
-					Atom("b").Apply(Variable("X"), Variable("Y")),
-					Variable("Xs"),
+					NewNamedVariable("Y"),
+					Atom("b").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+					NewNamedVariable("Xs"),
 				),
 			),
-			instances: Variable("L"),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
 				{
-					"L": List(
+					l: List(
 						Atom("-").Apply(Integer(1), List(Integer(1), Integer(2))),
 						Atom("-").Apply(Integer(2), List(Integer(1), Integer(2))),
 					),
-					"": NewVariable(),
 				},
 			},
 		},
 		{
 			title:    "setof(X-Xs, bagof(Y,d(X, Y),Xs), L).",
-			template: Atom("-").Apply(Variable("X"), Variable("Xs")),
+			template: Atom("-").Apply(NewNamedVariable("X"), NewNamedVariable("Xs")),
 			goal: Atom("^").Apply(
-				Variable("Y"),
+				NewNamedVariable("Y"),
 				Atom("bagof").Apply(
-					Variable("Y"),
-					Atom("d").Apply(Variable("X"), Variable("Y")),
-					Variable("Xs"),
+					NewNamedVariable("Y"),
+					Atom("d").Apply(NewNamedVariable("X"), NewNamedVariable("Y")),
+					NewNamedVariable("Xs"),
 				),
 			),
-			instances: Variable("L"),
+			instances: NewNamedVariable("L"),
 			env: []map[Variable]Term{
 				{
-					"L": List(
+					l: List(
 						Atom("-").Apply(Integer(1), List(Integer(1), Integer(2), Integer(1))),
 						Atom("-").Apply(Integer(2), List(Integer(2), Integer(1), Integer(2))),
 					),
-					"": NewVariable(),
 				},
 			},
 		},
@@ -1972,6 +1988,8 @@ func TestState_SetOf(t *testing.T) {
 }
 
 func TestState_FindAll(t *testing.T) {
+	s := NewNamedVariable("S")
+	l := NewNamedVariable("L")
 	tests := []struct {
 		title                     string
 		template, goal, instances Term
@@ -1980,24 +1998,24 @@ func TestState_FindAll(t *testing.T) {
 		env                       map[Variable]Term
 	}{
 		// 8.10.1.4 Examples
-		{title: "1", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))), instances: Variable("S"), ok: true, env: map[Variable]Term{
-			"S": List(Integer(1), Integer(2)),
+		{title: "1", template: NewNamedVariable("X"), goal: Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))), instances: NewNamedVariable("S"), ok: true, env: map[Variable]Term{
+			s: List(Integer(1), Integer(2)),
 		}},
-		{title: "2", template: Atom("+").Apply(Variable("X"), Variable("Y")), goal: Atom("=").Apply(Variable("X"), Integer(1)), instances: Variable("S"), ok: true, env: map[Variable]Term{
-			"S": List(Atom("+").Apply(Integer(1), NewVariable())),
+		{title: "2", template: Atom("+").Apply(NewNamedVariable("X"), NewNamedVariable("Y")), goal: Atom("=").Apply(NewNamedVariable("X"), Integer(1)), instances: NewNamedVariable("S"), ok: true, env: map[Variable]Term{
+			s: List(Atom("+").Apply(Integer(1), NewVariable())),
 		}},
-		{title: "3", template: Variable("X"), goal: Atom("fail"), instances: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(),
+		{title: "3", template: NewNamedVariable("X"), goal: Atom("fail"), instances: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(),
 		}},
-		{title: "4", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(1))), instances: Variable("S"), ok: true, env: map[Variable]Term{
-			"S": List(Integer(1), Integer(1)),
+		{title: "4", template: NewNamedVariable("X"), goal: Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(1))), instances: NewNamedVariable("S"), ok: true, env: map[Variable]Term{
+			s: List(Integer(1), Integer(1)),
 		}},
-		{title: "5", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(2)), Atom("=").Apply(Variable("X"), Integer(1))), instances: List(Integer(1), Integer(2)), ok: false},
-		{title: "6", template: Variable("X"), goal: Variable("Goal"), instances: Variable("S"), err: InstantiationError(nil)},
-		{title: "7", template: Variable("X"), goal: Integer(4), instances: Variable("S"), err: TypeError(ValidTypeCallable, Integer(4), nil)},
+		{title: "5", template: NewNamedVariable("X"), goal: Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(2)), Atom("=").Apply(NewNamedVariable("X"), Integer(1))), instances: List(Integer(1), Integer(2)), ok: false},
+		{title: "6", template: NewNamedVariable("X"), goal: NewNamedVariable("Goal"), instances: NewNamedVariable("S"), err: InstantiationError(nil)},
+		{title: "7", template: NewNamedVariable("X"), goal: Integer(4), instances: NewNamedVariable("S"), err: TypeError(ValidTypeCallable, Integer(4), nil)},
 
 		// 8.10.1.3 Errors
-		{title: "c", template: Variable("X"), goal: Atom(";").Apply(Atom("=").Apply(Variable("X"), Integer(1)), Atom("=").Apply(Variable("X"), Integer(2))), instances: Atom("foo"), err: TypeError(ValidTypeList, Atom("foo"), nil)},
+		{title: "c", template: NewNamedVariable("X"), goal: Atom(";").Apply(Atom("=").Apply(NewNamedVariable("X"), Integer(1)), Atom("=").Apply(NewNamedVariable("X"), Integer(2))), instances: Atom("foo"), err: TypeError(ValidTypeList, Atom("foo"), nil)},
 	}
 
 	var state State
@@ -2029,6 +2047,7 @@ func TestState_FindAll(t *testing.T) {
 }
 
 func TestCompare(t *testing.T) {
+	order := NewNamedVariable("Order")
 	tests := []struct {
 		title       string
 		order, x, y Term
@@ -2037,14 +2056,14 @@ func TestCompare(t *testing.T) {
 		env         map[Variable]Term
 	}{
 		// 8.4.2.4 Examples
-		{title: `compare(Order, 3, 5).`, order: Variable("Order"), x: Integer(3), y: Integer(5), ok: true, env: map[Variable]Term{
-			"Order": Atom("<"),
+		{title: `compare(Order, 3, 5).`, order: NewNamedVariable("Order"), x: Integer(3), y: Integer(5), ok: true, env: map[Variable]Term{
+			order: Atom("<"),
 		}},
-		{title: `compare(Order, d, d).`, order: Variable("Order"), x: Atom("d"), y: Atom("d"), ok: true, env: map[Variable]Term{
-			"Order": Atom("="),
+		{title: `compare(Order, d, d).`, order: NewNamedVariable("Order"), x: Atom("d"), y: Atom("d"), ok: true, env: map[Variable]Term{
+			order: Atom("="),
 		}},
-		{title: `compare(Order, Order, <).`, order: Variable("Order"), x: Variable("Order"), y: Atom("<"), ok: true, env: map[Variable]Term{
-			"Order": Atom("<"),
+		{title: `compare(Order, Order, <).`, order: NewNamedVariable("Order"), x: NewNamedVariable("Order"), y: Atom("<"), ok: true, env: map[Variable]Term{
+			order: Atom("<"),
 		}},
 		{title: `compare(<, <, <).`, order: Atom("<"), x: Atom("<"), y: Atom("<"), ok: false},
 		{title: `compare(1+2, 3, 3.0).`, order: Atom("+").Apply(Integer(1), Integer(2)), x: Integer(3), y: Float(3.0), ok: false, err: TypeError(ValidTypeAtom, Atom("+").Apply(Integer(1), Integer(2)), nil)},
@@ -2118,7 +2137,7 @@ func TestBetween(t *testing.T) {
 
 	t.Run("value is a variable", func(t *testing.T) {
 		t.Run("lower and upper are equal integers", func(t *testing.T) {
-			value := Variable("Value")
+			value := NewNamedVariable("Value")
 			ok, err := Between(Integer(1), Integer(1), value, func(env *Env) *Promise {
 				assert.Equal(t, Integer(1), env.Resolve(value))
 				return Bool(true)
@@ -2128,7 +2147,7 @@ func TestBetween(t *testing.T) {
 		})
 
 		t.Run("lower and upper are MaxInt64", func(t *testing.T) {
-			value := Variable("Value")
+			value := NewNamedVariable("Value")
 			ok, err := Between(Integer(math.MaxInt64), Integer(math.MaxInt64), value, func(env *Env) *Promise {
 				assert.Equal(t, Integer(math.MaxInt64), env.Resolve(value))
 				return Bool(true)
@@ -2139,7 +2158,7 @@ func TestBetween(t *testing.T) {
 
 		t.Run("multiple choice points", func(t *testing.T) {
 			var n int
-			value := Variable("Value")
+			value := NewNamedVariable("Value")
 			ok, err := Between(Integer(0), Integer(3), value, func(env *Env) *Promise {
 				assert.Equal(t, Integer(n), env.Resolve(value))
 				n++
@@ -2151,7 +2170,7 @@ func TestBetween(t *testing.T) {
 		})
 
 		t.Run("lower > upper", func(t *testing.T) {
-			value := Variable("Value")
+			value := NewNamedVariable("Value")
 			ok, err := Between(Integer(3), Integer(0), value, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
@@ -2159,12 +2178,12 @@ func TestBetween(t *testing.T) {
 	})
 
 	t.Run("lower is uninstantiated", func(t *testing.T) {
-		_, err := Between(Variable("X"), Integer(2), Integer(1), Success, nil).Force(context.Background())
+		_, err := Between(NewNamedVariable("X"), Integer(2), Integer(1), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("upper is uninstantiated", func(t *testing.T) {
-		_, err := Between(Integer(1), Variable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := Between(Integer(1), NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -2187,7 +2206,7 @@ func TestBetween(t *testing.T) {
 func TestSort(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			sorted := Variable("Sorted")
+			sorted := NewNamedVariable("Sorted")
 			ok, err := Sort(List(Atom("a"), Atom("c"), Atom("b"), Atom("a")), sorted, func(env *Env) *Promise {
 				assert.Equal(t, List(Atom("a"), Atom("b"), Atom("c")), env.Resolve(sorted))
 				return Bool(true)
@@ -2204,12 +2223,12 @@ func TestSort(t *testing.T) {
 	})
 
 	t.Run("list is a partial list", func(t *testing.T) {
-		_, err := Sort(ListRest(Variable("X"), Atom("a"), Atom("b")), Variable("Sorted"), Success, nil).Force(context.Background())
+		_, err := Sort(ListRest(NewNamedVariable("X"), Atom("a"), Atom("b")), NewNamedVariable("Sorted"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("list is neither a partial list nor a list", func(t *testing.T) {
-		_, err := Sort(Atom("a"), Variable("Sorted"), Success, nil).Force(context.Background())
+		_, err := Sort(Atom("a"), NewNamedVariable("Sorted"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, Atom("a"), nil), err)
 	})
 
@@ -2229,7 +2248,7 @@ func TestSort(t *testing.T) {
 func TestKeySort(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			sorted := Variable("Sorted")
+			sorted := NewNamedVariable("Sorted")
 			ok, err := KeySort(List(
 				Pair(Atom("c"), Atom("4")),
 				Pair(Atom("b"), Atom("3")),
@@ -2249,7 +2268,7 @@ func TestKeySort(t *testing.T) {
 		})
 
 		t.Run("list", func(t *testing.T) {
-			second := Variable("Second")
+			second := NewNamedVariable("Second")
 			ok, err := KeySort(List(
 				Pair(Atom("c"), Atom("4")),
 				Pair(Atom("b"), Atom("3")),
@@ -2270,7 +2289,7 @@ func TestKeySort(t *testing.T) {
 	})
 
 	t.Run("pairs is a partial list", func(t *testing.T) {
-		_, err := KeySort(ListRest(Variable("Rest"), Pair(Atom("a"), Integer(1))), NewVariable(), Success, nil).Force(context.Background())
+		_, err := KeySort(ListRest(NewNamedVariable("Rest"), Pair(Atom("a"), Integer(1))), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -2285,7 +2304,7 @@ func TestKeySort(t *testing.T) {
 	})
 
 	t.Run("an element of a list prefix of pairs is a variable", func(t *testing.T) {
-		_, err := KeySort(List(Variable("X")), NewVariable(), Success, nil).Force(context.Background())
+		_, err := KeySort(List(NewNamedVariable("X")), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -2322,7 +2341,7 @@ func TestThrow(t *testing.T) {
 	})
 
 	t.Run("ball is a variable", func(t *testing.T) {
-		ok, err := Throw(Variable("Ball"), Success, nil).Force(context.Background())
+		ok, err := Throw(NewNamedVariable("Ball"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -2403,7 +2422,7 @@ func TestState_CurrentPredicate(t *testing.T) {
 	t.Run("variable", func(t *testing.T) {
 		var foo, bar, baz bool
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 
 		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: "foo", Arity: 1}: &userDefined{},
@@ -2558,7 +2577,7 @@ func TestState_Assertz(t *testing.T) {
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
-		clause := Variable("Term")
+		clause := NewNamedVariable("Term")
 
 		var state State
 		ok, err := state.Assertz(clause, Success, nil).Force(context.Background())
@@ -2574,7 +2593,7 @@ func TestState_Assertz(t *testing.T) {
 	})
 
 	t.Run("head is a variable", func(t *testing.T) {
-		head := Variable("Head")
+		head := NewNamedVariable("Head")
 
 		var state State
 		ok, err := state.Assertz(&compound{
@@ -2778,7 +2797,7 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
-		clause := Variable("Term")
+		clause := NewNamedVariable("Term")
 
 		var state State
 		ok, err := state.Asserta(clause, Success, nil).Force(context.Background())
@@ -2794,7 +2813,7 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("head is a variable", func(t *testing.T) {
-		head := Variable("Head")
+		head := NewNamedVariable("Head")
 
 		var state State
 		ok, err := state.Asserta(&compound{
@@ -2898,7 +2917,7 @@ func TestState_Retract(t *testing.T) {
 
 		ok, err := state.Retract(&compound{
 			functor: "foo",
-			args:    []Term{Variable("X")},
+			args:    []Term{NewNamedVariable("X")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -2950,7 +2969,7 @@ func TestState_Retract(t *testing.T) {
 
 		ok, err := state.Retract(&compound{
 			functor: "foo",
-			args:    []Term{Variable("X")},
+			args:    []Term{NewNamedVariable("X")},
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -2959,7 +2978,7 @@ func TestState_Retract(t *testing.T) {
 
 	t.Run("variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Retract(Variable("X"), Success, nil).Force(context.Background())
+		ok, err := state.Retract(NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -2976,7 +2995,7 @@ func TestState_Retract(t *testing.T) {
 
 		ok, err := state.Retract(&compound{
 			functor: "foo",
-			args:    []Term{Variable("X")},
+			args:    []Term{NewNamedVariable("X")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
@@ -3012,7 +3031,7 @@ func TestState_Retract(t *testing.T) {
 
 		ok, err := state.Retract(&compound{
 			functor: "foo",
-			args:    []Term{Variable("X")},
+			args:    []Term{NewNamedVariable("X")},
 		}, func(_ *Env) *Promise {
 			return Error(errors.New("failed"))
 		}, nil).Force(context.Background())
@@ -3051,7 +3070,7 @@ func TestState_Abolish(t *testing.T) {
 
 	t.Run("pi is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Abolish(Variable("PI"), Success, nil).Force(context.Background())
+		ok, err := state.Abolish(NewNamedVariable("PI"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -3061,7 +3080,7 @@ func TestState_Abolish(t *testing.T) {
 			var state State
 			ok, err := state.Abolish(&compound{
 				functor: "/",
-				args:    []Term{Variable("Name"), Integer(2)},
+				args:    []Term{NewNamedVariable("Name"), Integer(2)},
 			}, Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3071,7 +3090,7 @@ func TestState_Abolish(t *testing.T) {
 			var state State
 			ok, err := state.Abolish(&compound{
 				functor: "/",
-				args:    []Term{Atom("foo"), Variable("Arity")},
+				args:    []Term{Atom("foo"), NewNamedVariable("Arity")},
 			}, Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -3186,7 +3205,7 @@ func TestState_CurrentOutput(t *testing.T) {
 
 func TestState_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 		s := NewStream(os.Stdin, StreamModeRead)
 		env := NewEnv().
 			Bind(v, s)
@@ -3198,7 +3217,7 @@ func TestState_SetInput(t *testing.T) {
 	})
 
 	t.Run("alias", func(t *testing.T) {
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 		s := NewStream(os.Stdin, StreamModeRead)
 		env := NewEnv().
 			Bind(v, s)
@@ -3215,7 +3234,7 @@ func TestState_SetInput(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.SetInput(Variable("Stream"), Success, nil).Force(context.Background())
+		ok, err := state.SetInput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -3235,7 +3254,7 @@ func TestState_SetInput(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(v, NewStream(os.Stdout, StreamModeWrite))
 		var state State
@@ -3247,7 +3266,7 @@ func TestState_SetInput(t *testing.T) {
 
 func TestState_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 		s := NewStream(os.Stdout, StreamModeWrite)
 		env := NewEnv().
 			Bind(v, s)
@@ -3273,7 +3292,7 @@ func TestState_SetOutput(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.SetOutput(Variable("Stream"), Success, nil).Force(context.Background())
+		ok, err := state.SetOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -3293,7 +3312,7 @@ func TestState_SetOutput(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, NewStream(os.Stdin, StreamModeRead))
 
@@ -3320,7 +3339,7 @@ func TestState_Open(t *testing.T) {
 		assert.NoError(t, f.Close())
 
 		t.Run("alias", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "alias",
 				args:    []Term{Atom("input")},
@@ -3343,7 +3362,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("type text", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "type",
 				args:    []Term{Atom("text")},
@@ -3360,7 +3379,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("type binary", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "type",
 				args:    []Term{Atom("binary")},
@@ -3377,7 +3396,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("reposition true", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "reposition",
 				args:    []Term{Atom("true")},
@@ -3394,7 +3413,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("reposition true", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "reposition",
 				args:    []Term{Atom("false")},
@@ -3411,7 +3430,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("eof_action error", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "eof_action",
 				args:    []Term{Atom("error")},
@@ -3428,7 +3447,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("eof_action eof_code", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "eof_action",
 				args:    []Term{Atom("eof_code")},
@@ -3445,7 +3464,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("eof_action reset", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "eof_action",
 				args:    []Term{Atom("reset")},
@@ -3462,7 +3481,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("unknown option", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "unknown",
 				args:    []Term{Atom("option")},
@@ -3475,7 +3494,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("wrong arity", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "type",
 				args:    []Term{Atom("a"), Atom("b")},
@@ -3488,7 +3507,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("variable arg", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "type",
 				args:    []Term{NewVariable()},
@@ -3501,7 +3520,7 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("non-atom arg", func(t *testing.T) {
-			v := Variable("Stream")
+			v := NewNamedVariable("Stream")
 			ok, err := state.Open(Atom(f.Name()), Atom("read"), v, List(&compound{
 				functor: "type",
 				args:    []Term{Integer(0)},
@@ -3520,7 +3539,7 @@ func TestState_Open(t *testing.T) {
 			assert.NoError(t, os.Remove(n))
 		}()
 
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 
 		ok, err := state.Open(Atom(n), Atom("write"), v, List(&compound{
 			functor: "alias",
@@ -3564,7 +3583,7 @@ func TestState_Open(t *testing.T) {
 
 		assert.NoError(t, f.Close())
 
-		v := Variable("Stream")
+		v := NewNamedVariable("Stream")
 
 		ok, err := state.Open(Atom(f.Name()), Atom("append"), v, List(&compound{
 			functor: "alias",
@@ -3598,14 +3617,14 @@ func TestState_Open(t *testing.T) {
 
 	t.Run("sourceSink is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Variable("Source_Sink"), Atom("read"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(NewNamedVariable("Source_Sink"), Atom("read"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Atom("/dev/null"), Variable("Mode"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom("/dev/null"), NewNamedVariable("Mode"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -3613,7 +3632,7 @@ func TestState_Open(t *testing.T) {
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
-			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), ListRest(Variable("Rest"),
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), NewNamedVariable("Stream"), ListRest(NewNamedVariable("Rest"),
 				&compound{functor: "type", args: []Term{Atom("text")}},
 				&compound{functor: "alias", args: []Term{Atom("foo")}},
 			), Success, nil).Force(context.Background())
@@ -3623,8 +3642,8 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(
-				Variable("Option"),
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), NewNamedVariable("Stream"), List(
+				NewNamedVariable("Option"),
 				&compound{functor: "type", args: []Term{Atom("text")}},
 				&compound{functor: "alias", args: []Term{Atom("foo")}},
 			), Success, nil).Force(context.Background())
@@ -3635,14 +3654,14 @@ func TestState_Open(t *testing.T) {
 
 	t.Run("mode is neither a variable nor an atom", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Atom("/dev/null"), Integer(0), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom("/dev/null"), Integer(0), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), Atom("list"), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom("/dev/null"), Atom("read"), NewNamedVariable("Stream"), Atom("list"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, Atom("list"), nil), err)
 		assert.False(t, ok)
 	})
@@ -3656,14 +3675,14 @@ func TestState_Open(t *testing.T) {
 
 	t.Run("sourceSink is neither a variable nor a source/sink", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Integer(0), Atom("read"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Integer(0), Atom("read"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainSourceSink, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is an atom but not an input/output mode", func(t *testing.T) {
 		var state State
-		ok, err := state.Open(Atom("/dev/null"), Atom("foo"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom("/dev/null"), Atom("foo"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainIOMode, Atom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -3678,7 +3697,7 @@ func TestState_Open(t *testing.T) {
 			&compound{functor: "reposition", args: []Term{Integer(0)}},
 			&compound{functor: "eof_action", args: []Term{Integer(0)}},
 		} {
-			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainStreamOption, o, nil), err)
 			assert.False(t, ok)
 		}
@@ -3688,13 +3707,13 @@ func TestState_Open(t *testing.T) {
 	t.Run("a component of an element E of the options list is a variable", func(t *testing.T) {
 		var state State
 		for _, o := range []Term{
-			Variable("X"),
-			&compound{functor: "alias", args: []Term{Variable("X")}},
-			&compound{functor: "type", args: []Term{Variable("X")}},
-			&compound{functor: "reposition", args: []Term{Variable("X")}},
-			&compound{functor: "eof_action", args: []Term{Variable("X")}},
+			NewNamedVariable("X"),
+			&compound{functor: "alias", args: []Term{NewNamedVariable("X")}},
+			&compound{functor: "type", args: []Term{NewNamedVariable("X")}},
+			&compound{functor: "reposition", args: []Term{NewNamedVariable("X")}},
+			&compound{functor: "eof_action", args: []Term{NewNamedVariable("X")}},
 		} {
-			ok, err := state.Open(Atom("/dev/null"), Atom("read"), Variable("Stream"), List(o), Success, nil).Force(context.Background())
+			ok, err := state.Open(Atom("/dev/null"), Atom("read"), NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		}
@@ -3706,7 +3725,7 @@ func TestState_Open(t *testing.T) {
 		assert.NoError(t, os.Remove(f.Name()))
 
 		var state State
-		ok, err := state.Open(Atom(f.Name()), Atom("read"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom(f.Name()), Atom("read"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeSourceSink, Atom(f.Name()), nil), err)
 		assert.False(t, ok)
 	})
@@ -3721,7 +3740,7 @@ func TestState_Open(t *testing.T) {
 		assert.NoError(t, f.Chmod(0200))
 
 		var state State
-		ok, err := state.Open(Atom(f.Name()), Atom("read"), Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Open(Atom(f.Name()), Atom("read"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, Atom(f.Name()), nil), err)
 		assert.False(t, ok)
 	})
@@ -3738,7 +3757,7 @@ func TestState_Open(t *testing.T) {
 				Atom("foo"): nil,
 			},
 		}
-		ok, err := state.Open(Atom(f.Name()), Atom("read"), Variable("Stream"), List(&compound{
+		ok, err := state.Open(Atom(f.Name()), Atom("read"), NewNamedVariable("Stream"), List(&compound{
 			functor: "alias",
 			args:    []Term{Atom("foo")},
 		}), Success, nil).Force(context.Background())
@@ -3877,7 +3896,7 @@ func TestState_Close(t *testing.T) {
 
 	t.Run("streamOrAlias ia a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Close(Variable("Stream"), List(), Success, nil).Force(context.Background())
+		ok, err := state.Close(NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -3885,7 +3904,7 @@ func TestState_Close(t *testing.T) {
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
-			ok, err := state.Close(&Stream{}, ListRest(Variable("Rest"),
+			ok, err := state.Close(&Stream{}, ListRest(NewNamedVariable("Rest"),
 				&compound{functor: "force", args: []Term{Atom("true")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -3894,7 +3913,7 @@ func TestState_Close(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.Close(&Stream{}, List(Variable("Option"), &compound{functor: "force", args: []Term{Atom("true")}}), Success, nil).Force(context.Background())
+			ok, err := state.Close(&Stream{}, List(NewNamedVariable("Option"), &compound{functor: "force", args: []Term{Atom("true")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
@@ -3932,7 +3951,7 @@ func TestState_Close(t *testing.T) {
 
 			t.Run("force but the argument is a variable", func(t *testing.T) {
 				var state State
-				_, err := state.Close(&Stream{}, List(Atom("force").Apply(Variable("X"))), Success, nil).Force(context.Background())
+				_, err := state.Close(&Stream{}, List(Atom("force").Apply(NewNamedVariable("X"))), Success, nil).Force(context.Background())
 				_, ok := NewEnv().Unify(DomainError(ValidDomainStreamOption, Atom("force").Apply(NewVariable()), nil).term, err.(Exception).term, false)
 				assert.True(t, ok)
 			})
@@ -3975,11 +3994,11 @@ func TestState_FlushOutput(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		sync = func(f *os.File) error {
+		fileSync = func(f *os.File) error {
 			return errors.New("ng")
 		}
 		defer func() {
-			sync = (*os.File).Sync
+			fileSync = (*os.File).Sync
 		}()
 
 		var state State
@@ -4000,7 +4019,7 @@ func TestState_FlushOutput(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.FlushOutput(Variable("Stream"), Success, nil).Force(context.Background())
+		ok, err := state.FlushOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4049,6 +4068,7 @@ func TestState_WriteTerm(t *testing.T) {
 		ok                  bool
 		err                 error
 		output              string
+		outputPattern       *regexp.Regexp
 	}{
 		// 8.14.2.4 Examples
 		{title: `write_term(S, [1,2,3], []).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(), ok: true, output: `[1,2,3]`},
@@ -4059,17 +4079,17 @@ func TestState_WriteTerm(t *testing.T) {
 		{title: `write_term(S, '$VAR'(1), [numbervars(false)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(1)), options: List(Atom("numbervars").Apply(Atom("false"))), ok: true, output: `$VAR(1)`},
 		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, sOrA: w, term: Atom("$VAR").Apply(Integer(51)), options: List(Atom("numbervars").Apply(Atom("true"))), ok: true, output: `Z1`},
 		{title: `write_term(1, [quoted(non_boolean)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Atom("non_boolean"))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Atom("non_boolean")), nil)},
-		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), err: InstantiationError(nil)},
-		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().Bind("B", Atom("true")), term: Integer(1), options: List(Atom("quoted").Apply(Variable("B"))), ok: true, output: `1`},
+		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(Atom("quoted").Apply(NewNamedVariable("B"))), err: InstantiationError(nil)},
+		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().Bind(NewNamedVariable("B"), Atom("true")), term: Integer(1), options: List(Atom("quoted").Apply(NewNamedVariable("B"))), ok: true, output: `1`},
 
 		// 8.14.2.3 Errors
-		{title: `a`, sOrA: Variable("S"), term: Atom("foo"), options: List(), err: InstantiationError(nil)},
-		{title: `b: partial list`, sOrA: w, term: Atom("foo"), options: ListRest(Variable("X"), Atom("quoted").Apply(Atom("true"))), err: InstantiationError(nil)},
-		{title: `b: variable element`, sOrA: w, term: Atom("foo"), options: List(Variable("X")), err: InstantiationError(nil)},
-		{title: `b: variable component`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Variable("X"))), err: InstantiationError(nil)},
-		{title: `b: variable_names, partial list`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Variable("L"))), err: InstantiationError(nil)},
-		{title: `b: variable_names, element`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Variable("E")))), err: InstantiationError(nil)},
-		{title: `b: variable_names, name`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Variable("N"), Variable("V"))))), err: InstantiationError(nil)},
+		{title: `a`, sOrA: NewNamedVariable("S"), term: Atom("foo"), options: List(), err: InstantiationError(nil)},
+		{title: `b: partial list`, sOrA: w, term: Atom("foo"), options: ListRest(NewNamedVariable("X"), Atom("quoted").Apply(Atom("true"))), err: InstantiationError(nil)},
+		{title: `b: variable element`, sOrA: w, term: Atom("foo"), options: List(NewNamedVariable("X")), err: InstantiationError(nil)},
+		{title: `b: variable component`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(NewNamedVariable("X"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, partial list`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(NewNamedVariable("L"))), err: InstantiationError(nil)},
+		{title: `b: variable_names, element`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(NewNamedVariable("E")))), err: InstantiationError(nil)},
+		{title: `b: variable_names, name`, sOrA: w, term: NewNamedVariable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(NewNamedVariable("N"), NewNamedVariable("V"))))), err: InstantiationError(nil)},
 		{title: `c`, sOrA: w, term: Atom("foo"), options: Atom("options"), err: TypeError(ValidTypeList, Atom("options"), nil)},
 		{title: `d`, sOrA: Integer(0), term: Atom("foo"), options: List(), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
 		{title: `e: not a compound`, sOrA: w, term: Atom("foo"), options: List(Atom("bar")), err: DomainError(ValidDomainWriteOption, Atom("bar"), nil)},
@@ -4078,7 +4098,7 @@ func TestState_WriteTerm(t *testing.T) {
 		{title: `e: variable_names, not a list, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(Integer(0)), nil)},
 		{title: `e: variable_names, element is not a pair, atomic`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("a")))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("a"))), nil)},
 		{title: `e: variable_names, element is not a pair, compound`, sOrA: w, term: Atom("foo"), options: List(Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("f").Apply(Atom("a")))), nil)},
-		{title: `e: variable_names, name is not an atom`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("V"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), Variable("_2")))), nil)},
+		{title: `e: variable_names, name is not an atom`, sOrA: w, term: NewNamedVariable("V"), options: List(Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), NewNamedVariable("V"))))), err: DomainError(ValidDomainWriteOption, Atom("variable_names").Apply(List(Atom("=").Apply(Integer(0), NewVariable()))), nil)},
 		{title: `e: boolean option, not an atom`, sOrA: w, term: Atom("foo"), options: List(Atom("quoted").Apply(Integer(0))), err: DomainError(ValidDomainWriteOption, Atom("quoted").Apply(Integer(0)), nil)},
 		{title: `e: unknown functor`, sOrA: w, term: Atom("foo"), options: List(Atom("bar").Apply(Atom("true"))), err: DomainError(ValidDomainWriteOption, Atom("bar").Apply(Atom("true")), nil)},
 		{title: `f`, sOrA: Atom("stream"), term: Atom("foo"), options: List(), err: ExistenceError(ObjectTypeStream, Atom("stream"), nil)},
@@ -4086,12 +4106,12 @@ func TestState_WriteTerm(t *testing.T) {
 		{title: `h`, sOrA: b, term: Atom("foo"), options: List(), err: PermissionError(OperationOutput, PermissionTypeBinaryStream, b, nil)},
 
 		// 7.10.5
-		{title: `a`, sOrA: w, term: Variable("X"), options: List(), ok: true, output: `_1`},
+		{title: `a`, sOrA: w, term: NewNamedVariable("X"), options: List(), ok: true, outputPattern: regexp.MustCompile(`_\d+`)},
 
-		{title: `variable_names`, sOrA: w, term: Variable("V"), options: List(Atom("variable_names").Apply(List(
-			Atom("=").Apply(Atom("n"), Variable("V")), // left-most is used
-			Atom("=").Apply(Atom("m"), Variable("V")), // ignored
-			Atom("=").Apply(Atom("a"), Atom("b")),     // ignored
+		{title: `variable_names`, sOrA: w, term: NewNamedVariable("V"), options: List(Atom("variable_names").Apply(List(
+			Atom("=").Apply(Atom("n"), NewNamedVariable("V")), // left-most is used
+			Atom("=").Apply(Atom("m"), NewNamedVariable("V")), // ignored
+			Atom("=").Apply(Atom("a"), Atom("b")),             // ignored
 		))), ok: true, output: `n`},
 
 		{title: `failure`, sOrA: mw, term: Atom("foo"), options: List(), err: err},
@@ -4100,7 +4120,6 @@ func TestState_WriteTerm(t *testing.T) {
 	var state State
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			varCounter = 0
 			buf.Reset()
 			ok, err := state.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
@@ -4110,7 +4129,11 @@ func TestState_WriteTerm(t *testing.T) {
 				_, ok := NewEnv().Unify(te.term, err.(*Exception).term, false)
 				assert.True(t, ok)
 			}
-			assert.Equal(t, tt.output, buf.String())
+			if tt.outputPattern == nil {
+				assert.Equal(t, tt.output, buf.String())
+			} else {
+				assert.Regexp(t, tt.outputPattern, buf.String())
+			}
 		})
 	}
 }
@@ -4139,7 +4162,7 @@ func TestCharCode(t *testing.T) {
 	})
 
 	t.Run("query char", func(t *testing.T) {
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		ok, err := CharCode(v, Integer(128512), func(env *Env) *Promise {
 			assert.Equal(t, Atom("😀"), env.Resolve(v))
@@ -4150,7 +4173,7 @@ func TestCharCode(t *testing.T) {
 	})
 
 	t.Run("query code", func(t *testing.T) {
-		v := Variable("Code")
+		v := NewNamedVariable("Code")
 		ok, err := CharCode(Atom("😀"), v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(128512), env.Resolve(v))
 			return Bool(true)
@@ -4160,7 +4183,7 @@ func TestCharCode(t *testing.T) {
 	})
 
 	t.Run("char and code are variables", func(t *testing.T) {
-		char, code := Variable("Char"), Variable("Code")
+		char, code := NewNamedVariable("Char"), NewNamedVariable("Code")
 
 		ok, err := CharCode(char, code, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -4262,7 +4285,7 @@ func TestState_PutByte(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PutByte(Variable("Stream"), Integer(97), Success, nil).Force(context.Background())
+		ok, err := state.PutByte(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4272,7 +4295,7 @@ func TestState_PutByte(t *testing.T) {
 		s.streamType = StreamTypeBinary
 
 		var state State
-		ok, err := state.PutByte(s, Variable("Byte"), Success, nil).Force(context.Background())
+		ok, err := state.PutByte(s, NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4304,7 +4327,7 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, NewStream(os.Stdin, StreamModeRead))
 
@@ -4315,7 +4338,7 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, NewStream(os.Stdout, StreamModeWrite))
 
@@ -4383,14 +4406,14 @@ func TestState_PutCode(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PutCode(Variable("Stream"), Integer(97), Success, nil).Force(context.Background())
+		ok, err := state.PutCode(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), Variable("Code"), Success, nil).Force(context.Background())
+		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), NewNamedVariable("Code"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4417,7 +4440,7 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, NewStream(os.Stdin, StreamModeRead))
 
@@ -4431,7 +4454,7 @@ func TestState_PutCode(t *testing.T) {
 		stream := NewStream(os.Stdout, StreamModeWrite)
 		stream.streamType = StreamTypeBinary
 
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, stream)
 
@@ -4479,7 +4502,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Term")
+		v := NewNamedVariable("Term")
 
 		var state State
 		ok, err := state.ReadTerm(s, v, List(), func(env *Env) *Promise {
@@ -4497,7 +4520,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Term")
+		v := NewNamedVariable("Term")
 
 		state := State{
 			streams: map[Term]*Stream{
@@ -4519,7 +4542,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v, singletons := Variable("Term"), Variable("Singletons")
+		v, singletons := NewNamedVariable("Term"), NewNamedVariable("Singletons")
 
 		var state State
 		ok, err := state.ReadTerm(s, v, List(&compound{
@@ -4553,7 +4576,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v, variables := Variable("Term"), Variable("Variables")
+		v, variables := NewNamedVariable("Term"), NewNamedVariable("Variables")
 
 		var state State
 		ok, err := state.ReadTerm(s, v, List(&compound{
@@ -4587,7 +4610,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v, variableNames := Variable("Term"), Variable("VariableNames")
+		v, variableNames := NewNamedVariable("Term"), NewNamedVariable("VariableNames")
 
 		var state State
 		ok, err := state.ReadTerm(s, v, List(&compound{
@@ -4630,7 +4653,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Term")
+		v := NewNamedVariable("Term")
 
 		var state State
 
@@ -4658,7 +4681,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.ReadTerm(Variable("Stream"), NewVariable(), List(), Success, nil).Force(context.Background())
+		ok, err := state.ReadTerm(NewNamedVariable("Stream"), NewVariable(), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4666,8 +4689,8 @@ func TestState_ReadTerm(t *testing.T) {
 	t.Run("options is a partial list or a list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
-			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), ListRest(Variable("Rest"),
-				&compound{functor: "variables", args: []Term{Variable("VL")}},
+			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), ListRest(NewNamedVariable("Rest"),
+				&compound{functor: "variables", args: []Term{NewNamedVariable("VL")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
@@ -4675,7 +4698,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(Variable("Option"), &compound{functor: "variables", args: []Term{Variable("VL")}}), Success, nil).Force(context.Background())
+			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(NewNamedVariable("Option"), &compound{functor: "variables", args: []Term{NewNamedVariable("VL")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
@@ -4716,7 +4739,7 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, NewStream(os.Stdout, StreamModeWrite))
 
@@ -4730,7 +4753,7 @@ func TestState_ReadTerm(t *testing.T) {
 		stream := NewStream(os.Stdin, StreamModeRead)
 		stream.streamType = StreamTypeBinary
 
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, stream)
 
@@ -4749,7 +4772,7 @@ func TestState_ReadTerm(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, stream)
 
@@ -4811,7 +4834,7 @@ func TestState_GetByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		var state State
 		ok, err := state.GetByte(s, v, func(env *Env) *Promise {
@@ -4830,7 +4853,7 @@ func TestState_GetByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		state := State{
 			streams: map[Term]*Stream{
@@ -4853,7 +4876,7 @@ func TestState_GetByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		var state State
 		ok, err := state.GetByte(s, v, func(env *Env) *Promise {
@@ -4877,14 +4900,14 @@ func TestState_GetByte(t *testing.T) {
 
 		var state State
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 		_, err := state.GetByte(s, v, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.GetByte(Variable("Stream"), Variable("InByte"), Success, nil).Force(context.Background())
+		ok, err := state.GetByte(NewNamedVariable("Stream"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4910,36 +4933,36 @@ func TestState_GetByte(t *testing.T) {
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
 		var state State
-		ok, err := state.GetByte(Integer(0), Variable("InByte"), Success, nil).Force(context.Background())
+		ok, err := state.GetByte(Integer(0), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
 		var state State
-		ok, err := state.GetByte(Atom("foo"), Variable("InByte"), Success, nil).Force(context.Background())
+		ok, err := state.GetByte(Atom("foo"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, Atom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
 
 		var state State
-		ok, err := state.GetByte(streamOrAlias, Variable("InByte"), Success, env).Force(context.Background())
+		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdin, StreamModeRead))
 
 		var state State
-		ok, err := state.GetByte(streamOrAlias, Variable("InByte"), Success, env).Force(context.Background())
+		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4954,12 +4977,12 @@ func TestState_GetByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.GetByte(streamOrAlias, Variable("InByte"), Success, env).Force(context.Background())
+		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4973,7 +4996,7 @@ func TestState_GetChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		var state State
 		ok, err := state.GetChar(s, v, func(env *Env) *Promise {
@@ -4991,7 +5014,7 @@ func TestState_GetChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		state := State{
 			streams: map[Term]*Stream{
@@ -5013,7 +5036,7 @@ func TestState_GetChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		var state State
 		ok, err := state.GetChar(s, v, func(env *Env) *Promise {
@@ -5032,7 +5055,7 @@ func TestState_GetChar(t *testing.T) {
 			readRune = (*bufio.Reader).ReadRune
 		}()
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 
 		var state State
 		ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), v, Success, nil).Force(context.Background())
@@ -5042,7 +5065,7 @@ func TestState_GetChar(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.GetChar(Variable("Stream"), Variable("Char"), Success, nil).Force(context.Background())
+		ok, err := state.GetChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -5065,18 +5088,18 @@ func TestState_GetChar(t *testing.T) {
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var state State
-		ok, err := state.GetChar(Integer(0), Variable("Char"), Success, nil).Force(context.Background())
+		ok, err := state.GetChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
 
 		var state State
-		ok, err := state.GetChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5085,12 +5108,12 @@ func TestState_GetChar(t *testing.T) {
 		s := NewStream(os.Stdin, StreamModeRead)
 		s.streamType = StreamTypeBinary
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.GetChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5104,12 +5127,12 @@ func TestState_GetChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.GetChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5121,12 +5144,12 @@ func TestState_GetChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.GetChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 		assert.False(t, ok)
 	})
@@ -5142,7 +5165,7 @@ func TestState_PeekByte(t *testing.T) {
 
 		s.streamType = StreamTypeBinary
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		var state State
 		ok, err := state.PeekByte(s, v, func(env *Env) *Promise {
@@ -5165,7 +5188,7 @@ func TestState_PeekByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		state := State{
 			streams: map[Term]*Stream{
@@ -5188,7 +5211,7 @@ func TestState_PeekByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Byte")
+		v := NewNamedVariable("Byte")
 
 		var state State
 		ok, err := state.PeekByte(s, v, func(env *Env) *Promise {
@@ -5210,7 +5233,7 @@ func TestState_PeekByte(t *testing.T) {
 		s := NewStream(os.Stdin, StreamModeRead)
 		s.streamType = StreamTypeBinary
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 
 		var state State
 		ok, err := state.PeekByte(s, v, Success, nil).Force(context.Background())
@@ -5220,7 +5243,7 @@ func TestState_PeekByte(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PeekByte(Variable("Stream"), Variable("Byte"), Success, nil).Force(context.Background())
+		ok, err := state.PeekByte(NewNamedVariable("Stream"), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -5246,29 +5269,29 @@ func TestState_PeekByte(t *testing.T) {
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var state State
-		ok, err := state.PeekByte(Integer(0), Variable("Byte"), Success, nil).Force(context.Background())
+		ok, err := state.PeekByte(Integer(0), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
 
 		var state State
-		ok, err := state.PeekByte(streamOrAlias, Variable("Byte"), Success, env).Force(context.Background())
+		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdin, StreamModeRead))
 
 		var state State
-		ok, err := state.PeekByte(streamOrAlias, Variable("Byte"), Success, env).Force(context.Background())
+		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5283,12 +5306,12 @@ func TestState_PeekByte(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.PeekByte(streamOrAlias, Variable("Byte"), Success, env).Force(context.Background())
+		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5302,7 +5325,7 @@ func TestState_PeekChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		var state State
 		ok, err := state.PeekChar(s, v, func(env *Env) *Promise {
@@ -5327,7 +5350,7 @@ func TestState_PeekChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		state := State{
 			streams: map[Term]*Stream{
@@ -5349,7 +5372,7 @@ func TestState_PeekChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("Char")
+		v := NewNamedVariable("Char")
 
 		var state State
 		ok, err := state.PeekChar(s, v, func(env *Env) *Promise {
@@ -5369,7 +5392,7 @@ func TestState_PeekChar(t *testing.T) {
 				readRune = (*bufio.Reader).ReadRune
 			}()
 
-			v := Variable("V")
+			v := NewNamedVariable("V")
 
 			var state State
 			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), v, Success, nil).Force(context.Background())
@@ -5391,7 +5414,7 @@ func TestState_PeekChar(t *testing.T) {
 				assert.NoError(t, s.Close())
 			}()
 
-			v := Variable("V")
+			v := NewNamedVariable("V")
 
 			var state State
 			ok, err := state.PeekChar(s, v, Success, nil).Force(context.Background())
@@ -5402,7 +5425,7 @@ func TestState_PeekChar(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PeekChar(Variable("Stream"), Variable("Char"), Success, nil).Force(context.Background())
+		ok, err := state.PeekChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -5425,18 +5448,18 @@ func TestState_PeekChar(t *testing.T) {
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
 		var state State
-		ok, err := state.PeekChar(Integer(0), Variable("Char"), Success, nil).Force(context.Background())
+		ok, err := state.PeekChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
 
 		var state State
-		ok, err := state.PeekChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5445,12 +5468,12 @@ func TestState_PeekChar(t *testing.T) {
 		s := NewStream(os.Stdin, StreamModeRead)
 		s.streamType = StreamTypeBinary
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.PeekChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5464,12 +5487,12 @@ func TestState_PeekChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.PeekChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5481,12 +5504,12 @@ func TestState_PeekChar(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		streamOrAlias := Variable("Stream")
+		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
 		var state State
-		ok, err := state.PeekChar(streamOrAlias, Variable("Char"), Success, env).Force(context.Background())
+		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 		assert.False(t, ok)
 	})
@@ -5511,7 +5534,7 @@ func Test_Halt(t *testing.T) {
 	})
 
 	t.Run("n is a variable", func(t *testing.T) {
-		n := Variable("N")
+		n := NewNamedVariable("N")
 
 		ok, err := Halt(n, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -5527,8 +5550,8 @@ func Test_Halt(t *testing.T) {
 
 func TestState_Clause(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		x := Variable("X")
-		what, body := Variable("What"), Variable("Body")
+		x := NewNamedVariable("X")
+		what, body := NewNamedVariable("What"), NewNamedVariable("Body")
 
 		var c int
 
@@ -5553,12 +5576,12 @@ func TestState_Clause(t *testing.T) {
 		}, body, func(env *Env) *Promise {
 			switch c {
 			case 0:
-				assert.True(t, env.Resolve(what).(Variable).Generated())
+				assert.True(t, env.Resolve(what).(Variable).Anonymous())
 				b, ok := env.Resolve(body).(*compound)
 				assert.True(t, ok)
 				assert.Equal(t, Atom("moldy"), b.functor)
 				assert.Len(t, b.args, 1)
-				assert.True(t, b.args[0].(Variable).Generated())
+				assert.True(t, b.args[0].(Variable).Anonymous())
 			case 1:
 				assert.Equal(t, Atom("kermit"), env.Resolve(what))
 				assert.Equal(t, Atom("true"), env.Resolve(body))
@@ -5581,7 +5604,7 @@ func TestState_Clause(t *testing.T) {
 
 	t.Run("head is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.Clause(Variable("Head"), Atom("true"), Success, nil).Force(context.Background())
+		ok, err := state.Clause(NewNamedVariable("Head"), Atom("true"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -5594,7 +5617,7 @@ func TestState_Clause(t *testing.T) {
 	})
 
 	t.Run("the predicate indicator Pred of Head is that of a private (ie. Not public) procedure", func(t *testing.T) {
-		what, body := Variable("What"), Variable("Body")
+		what, body := NewNamedVariable("What"), NewNamedVariable("Body")
 
 		state := State{
 			VM: VM{
@@ -5638,7 +5661,7 @@ func TestAtomLength(t *testing.T) {
 	})
 
 	t.Run("atom is a variable", func(t *testing.T) {
-		atom := Variable("Atom")
+		atom := NewNamedVariable("Atom")
 		ok, err := AtomLength(atom, Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
@@ -5665,7 +5688,7 @@ func TestAtomLength(t *testing.T) {
 
 func TestAtomConcat(t *testing.T) {
 	t.Run("atom3 is a variable", func(t *testing.T) {
-		atom3 := Variable("Atom3")
+		atom3 := NewNamedVariable("Atom3")
 
 		ok, err := AtomConcat(Atom("foo"), Atom("bar"), atom3, func(env *Env) *Promise {
 			assert.Equal(t, Atom("foobar"), env.Resolve(atom3))
@@ -5677,7 +5700,7 @@ func TestAtomConcat(t *testing.T) {
 
 	t.Run("atom3 is an atom", func(t *testing.T) {
 		var c int
-		v1, v2 := Variable("V1"), Variable("V2")
+		v1, v2 := NewNamedVariable("V1"), NewNamedVariable("V2")
 		ok, err := AtomConcat(v1, v2, Atom("foo"), func(env *Env) *Promise {
 			switch c {
 			case 0:
@@ -5703,7 +5726,7 @@ func TestAtomConcat(t *testing.T) {
 	})
 
 	t.Run("atom1 and atom3 are variables", func(t *testing.T) {
-		atom1, atom3 := Variable("Atom1"), Variable("Atom3")
+		atom1, atom3 := NewNamedVariable("Atom1"), NewNamedVariable("Atom3")
 
 		ok, err := AtomConcat(atom1, Atom("bar"), atom3, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -5711,7 +5734,7 @@ func TestAtomConcat(t *testing.T) {
 	})
 
 	t.Run("atom2 and atom3 are variables", func(t *testing.T) {
-		atom2, atom3 := Variable("Atom2"), Variable("Atom3")
+		atom2, atom3 := NewNamedVariable("Atom2"), NewNamedVariable("Atom3")
 
 		ok, err := AtomConcat(Atom("foo"), atom2, atom3, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -5720,7 +5743,7 @@ func TestAtomConcat(t *testing.T) {
 
 	t.Run("atom1 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
-			ok, err := AtomConcat(Integer(1), Atom("bar"), Variable("Atom3"), Success, nil).Force(context.Background())
+			ok, err := AtomConcat(Integer(1), Atom("bar"), NewNamedVariable("Atom3"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeAtom, Integer(1), nil), err)
 			assert.False(t, ok)
 		})
@@ -5734,7 +5757,7 @@ func TestAtomConcat(t *testing.T) {
 
 	t.Run("atom2 is neither a variable nor an atom", func(t *testing.T) {
 		t.Run("atom3 is a variable", func(t *testing.T) {
-			ok, err := AtomConcat(Atom("foo"), Integer(2), Variable("Atom3"), Success, nil).Force(context.Background())
+			ok, err := AtomConcat(Atom("foo"), Integer(2), NewNamedVariable("Atom3"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeAtom, Integer(2), nil), err)
 			assert.False(t, ok)
 		})
@@ -5755,7 +5778,7 @@ func TestAtomConcat(t *testing.T) {
 
 func TestSubAtom(t *testing.T) {
 	t.Run("multiple solutions", func(t *testing.T) {
-		before, length, after := Variable("Before"), Variable("Length"), Variable("After")
+		before, length, after := NewNamedVariable("Before"), NewNamedVariable("Length"), NewNamedVariable("After")
 		var c int
 		ok, err := SubAtom(Atom("xATGATGAxATGAxATGAx"), before, length, after, Atom("ATGA"), func(env *Env) *Promise {
 			switch c {
@@ -5786,7 +5809,7 @@ func TestSubAtom(t *testing.T) {
 	})
 
 	t.Run("get the first char", func(t *testing.T) {
-		char := Variable("Char")
+		char := NewNamedVariable("Char")
 		ok, err := SubAtom(Atom("a"), Integer(0), Integer(1), Integer(0), char, func(env *Env) *Promise {
 			assert.Equal(t, Atom("a"), env.Resolve(char))
 			return Bool(true)
@@ -5796,61 +5819,64 @@ func TestSubAtom(t *testing.T) {
 	})
 
 	t.Run("atom is a variable", func(t *testing.T) {
-		ok, err := SubAtom(Variable("Atom"), Variable("Before"), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(NewNamedVariable("Atom"), NewNamedVariable("Before"), NewNamedVariable("Length"), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := SubAtom(Integer(0), Variable("Before"), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Integer(0), NewNamedVariable("Before"), NewNamedVariable("Length"), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("subAtom is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Variable("Before"), Variable("Length"), Variable("After"), Integer(0), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), NewNamedVariable("Before"), NewNamedVariable("Length"), NewNamedVariable("After"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Atom("before"), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), Atom("before"), NewNamedVariable("Length"), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, Atom("before"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Variable("Before"), Atom("length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), NewNamedVariable("Before"), Atom("length"), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, Atom("length"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Variable("Before"), Variable("Length"), Atom("after"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), NewNamedVariable("Before"), NewNamedVariable("Length"), Atom("after"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, Atom("after"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("before is an integer less than zero", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Integer(-1), Variable("Length"), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), Integer(-1), NewNamedVariable("Length"), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("length is an integer less than zero", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Variable("Before"), Integer(-1), Variable("After"), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), NewNamedVariable("Before"), Integer(-1), NewNamedVariable("After"), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("after is an integer less than zero", func(t *testing.T) {
-		ok, err := SubAtom(Atom("foo"), Variable("Before"), Variable("Length"), Integer(-1), Variable("SubAtom"), Success, nil).Force(context.Background())
+		ok, err := SubAtom(Atom("foo"), NewNamedVariable("Before"), NewNamedVariable("Length"), Integer(-1), NewNamedVariable("SubAtom"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 		assert.False(t, ok)
 	})
 }
 
 func TestAtomChars(t *testing.T) {
+	l := NewNamedVariable("L")
+	str := NewNamedVariable("Str")
+	x := NewNamedVariable("X")
 	tests := []struct {
 		title      string
 		atom, list Term
@@ -5859,40 +5885,40 @@ func TestAtomChars(t *testing.T) {
 		env        map[Variable]Term
 	}{
 		// 8.16.4.4 Examples
-		{title: "atom_chars('', L).", atom: Atom(""), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(),
+		{title: "atom_chars('', L).", atom: Atom(""), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(),
 		}},
-		{title: "atom_chars([], L).", atom: Atom("[]"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Atom("["), Atom("]")),
+		{title: "atom_chars([], L).", atom: Atom("[]"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Atom("["), Atom("]")),
 		}},
-		{title: "atom_chars('''', L).", atom: Atom("'"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Atom("'")),
+		{title: "atom_chars('''', L).", atom: Atom("'"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Atom("'")),
 		}},
-		{title: "atom_chars('ant', L).", atom: Atom("ant"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Atom("a"), Atom("n"), Atom("t")),
+		{title: "atom_chars('ant', L).", atom: Atom("ant"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Atom("a"), Atom("n"), Atom("t")),
 		}},
-		{title: "atom_chars(Str, ['s', 'o', 'p']).", atom: Variable("Str"), list: List(Atom("s"), Atom("o"), Atom("p")), ok: true, env: map[Variable]Term{
-			"Str": Atom("sop"),
+		{title: "atom_chars(Str, ['s', 'o', 'p']).", atom: NewNamedVariable("Str"), list: List(Atom("s"), Atom("o"), Atom("p")), ok: true, env: map[Variable]Term{
+			str: Atom("sop"),
 		}},
-		{title: "atom_chars('North', ['N' | X]).", atom: Atom("North"), list: ListRest(Variable("X"), Atom("N")), ok: true, env: map[Variable]Term{
-			"X": List(Atom("o"), Atom("r"), Atom("t"), Atom("h")),
+		{title: "atom_chars('North', ['N' | X]).", atom: Atom("North"), list: ListRest(NewNamedVariable("X"), Atom("N")), ok: true, env: map[Variable]Term{
+			x: List(Atom("o"), Atom("r"), Atom("t"), Atom("h")),
 		}},
 		{title: "atom_chars('soap', ['s', 'o', 'p']).", atom: Atom("soap"), list: List(Atom("s"), Atom("o"), Atom("p")), ok: false},
-		{title: "atom_chars(X, Y).", atom: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
+		{title: "atom_chars(X, Y).", atom: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
 
 		// 8.16.4.3 Errors
-		{title: "a", atom: Variable("X"), list: ListRest(Variable("Y"), Atom("a")), err: InstantiationError(nil)},
+		{title: "a", atom: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), Atom("a")), err: InstantiationError(nil)},
 		{title: "b", atom: Integer(0), list: List(Atom("a"), Atom("b"), Atom("c")), err: TypeError(ValidTypeAtom, Integer(0), nil)},
-		{title: "c: atom is a variable", atom: Variable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "c: atom is a variable", atom: NewNamedVariable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: Atom("a"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
-		{title: "d", atom: Variable("X"), list: List(Variable("Y"), Atom("a")), err: InstantiationError(nil)},
-		{title: "e: atom is a variable, more than one char", atom: Variable("X"), list: List(Atom("abc")), err: TypeError(ValidTypeCharacter, Atom("abc"), nil)},
-		{title: "e: atom is a variable, not an atom", atom: Variable("X"), list: List(Integer(0)), err: TypeError(ValidTypeCharacter, Integer(0), nil)},
+		{title: "d", atom: NewNamedVariable("X"), list: List(NewNamedVariable("Y"), Atom("a")), err: InstantiationError(nil)},
+		{title: "e: atom is a variable, more than one char", atom: NewNamedVariable("X"), list: List(Atom("abc")), err: TypeError(ValidTypeCharacter, Atom("abc"), nil)},
+		{title: "e: atom is a variable, not an atom", atom: NewNamedVariable("X"), list: List(Integer(0)), err: TypeError(ValidTypeCharacter, Integer(0), nil)},
 		{title: "e: atom is an atom, more than one char", atom: Atom("abc"), list: List(Atom("ab"), Atom("c")), err: TypeError(ValidTypeCharacter, Atom("ab"), nil)},
 		{title: "e: atom is an atom, not an atom", atom: Atom("abc"), list: List(Integer('a'), Atom("b"), Atom("c")), err: TypeError(ValidTypeCharacter, Integer('a'), nil)},
 
-		{title: "atom_chars('ant', ['a', X, 't']).", atom: Atom("ant"), list: List(Atom("a"), Variable("X"), Atom("t")), ok: true, env: map[Variable]Term{
-			"X": Atom("n"),
+		{title: "atom_chars('ant', ['a', X, 't']).", atom: Atom("ant"), list: List(Atom("a"), NewNamedVariable("X"), Atom("t")), ok: true, env: map[Variable]Term{
+			x: Atom("n"),
 		}},
 	}
 
@@ -5912,6 +5938,9 @@ func TestAtomChars(t *testing.T) {
 }
 
 func TestAtomCodes(t *testing.T) {
+	l := NewNamedVariable("L")
+	str := NewNamedVariable("Str")
+	x := NewNamedVariable("X")
 	tests := []struct {
 		title      string
 		atom, list Term
@@ -5920,40 +5949,40 @@ func TestAtomCodes(t *testing.T) {
 		env        map[Variable]Term
 	}{
 		// 8.16.5.4 Examples
-		{title: "atom_codes('', L).", atom: Atom(""), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(),
+		{title: "atom_codes('', L).", atom: Atom(""), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(),
 		}},
-		{title: "atom_codes([], L).", atom: Atom("[]"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Integer('['), Integer(']')),
+		{title: "atom_codes([], L).", atom: Atom("[]"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Integer('['), Integer(']')),
 		}},
-		{title: "atom_codes('''', L).", atom: Atom("'"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Integer('\'')),
+		{title: "atom_codes('''', L).", atom: Atom("'"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Integer('\'')),
 		}},
-		{title: "atom_codes('ant', L).", atom: Atom("ant"), list: Variable("L"), ok: true, env: map[Variable]Term{
-			"L": List(Integer('a'), Integer('n'), Integer('t')),
+		{title: "atom_codes('ant', L).", atom: Atom("ant"), list: NewNamedVariable("L"), ok: true, env: map[Variable]Term{
+			l: List(Integer('a'), Integer('n'), Integer('t')),
 		}},
-		{title: "atom_codes(Str, [0's, 0'o, 0'p]).", atom: Variable("Str"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: true, env: map[Variable]Term{
-			"Str": Atom("sop"),
+		{title: "atom_codes(Str, [0's, 0'o, 0'p]).", atom: NewNamedVariable("Str"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: true, env: map[Variable]Term{
+			str: Atom("sop"),
 		}},
-		{title: "atom_codes('North', [0'N | X]).", atom: Atom("North"), list: ListRest(Variable("X"), Integer('N')), ok: true, env: map[Variable]Term{
-			"X": List(Integer('o'), Integer('r'), Integer('t'), Integer('h')),
+		{title: "atom_codes('North', [0'N | X]).", atom: Atom("North"), list: ListRest(NewNamedVariable("X"), Integer('N')), ok: true, env: map[Variable]Term{
+			x: List(Integer('o'), Integer('r'), Integer('t'), Integer('h')),
 		}},
 		{title: "atom_codes('soap', [0's, 0'o, 0'p]).", atom: Atom("soap"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: false},
-		{title: "atom_codes(X, Y).", atom: Variable("X"), list: Variable("Y"), err: InstantiationError(nil)},
+		{title: "atom_codes(X, Y).", atom: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
 
 		// 8.16.5.3 Errors
-		{title: "a", atom: Variable("X"), list: ListRest(Variable("Y"), Integer(0)), err: InstantiationError(nil)},
-		{title: "b", atom: Integer(0), list: Variable("L"), err: TypeError(ValidTypeAtom, Integer(0), nil)},
-		{title: "c: atom is a variable", atom: Variable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
+		{title: "a", atom: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), Integer(0)), err: InstantiationError(nil)},
+		{title: "b", atom: Integer(0), list: NewNamedVariable("L"), err: TypeError(ValidTypeAtom, Integer(0), nil)},
+		{title: "c: atom is a variable", atom: NewNamedVariable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: Atom("abc"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
-		{title: "d", atom: Variable("X"), list: List(Variable("Y"), Integer('b'), Integer('c')), err: InstantiationError(nil)},
-		{title: "e: atom is a variable", atom: Variable("X"), list: List(Atom("a"), Integer('b'), Integer('c')), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
+		{title: "d", atom: NewNamedVariable("X"), list: List(NewNamedVariable("Y"), Integer('b'), Integer('c')), err: InstantiationError(nil)},
+		{title: "e: atom is a variable", atom: NewNamedVariable("X"), list: List(Atom("a"), Integer('b'), Integer('c')), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
 		{title: "e: atom is an atom", atom: Atom("abc"), list: List(Atom("a"), Integer('b'), Integer('c')), err: TypeError(ValidTypeInteger, Atom("a"), nil)},
-		{title: "f: atom is a variable", atom: Variable("X"), list: List(Integer(-1), Integer('b'), Integer('c')), err: RepresentationError(FlagCharacterCode, nil)},
+		{title: "f: atom is a variable", atom: NewNamedVariable("X"), list: List(Integer(-1), Integer('b'), Integer('c')), err: RepresentationError(FlagCharacterCode, nil)},
 		{title: "f: atom is an atom", atom: Atom("abc"), list: List(Integer(-1), Integer('b'), Integer('c')), err: RepresentationError(FlagCharacterCode, nil)},
 
-		{title: "atom_codes('ant', [0'a, X, 0't]).", atom: Atom("ant"), list: List(Integer('a'), Variable("X"), Integer('t')), ok: true, env: map[Variable]Term{
-			"X": Integer('n'),
+		{title: "atom_codes('ant', [0'a, X, 0't]).", atom: Atom("ant"), list: List(Integer('a'), NewNamedVariable("X"), Integer('t')), ok: true, env: map[Variable]Term{
+			x: Integer('n'),
 		}},
 	}
 
@@ -5975,7 +6004,7 @@ func TestAtomCodes(t *testing.T) {
 func TestNumberChars(t *testing.T) {
 	t.Run("number to chars", func(t *testing.T) {
 		t.Run("chars is a partial list", func(t *testing.T) {
-			chars := Variable("Chars")
+			chars := NewNamedVariable("Chars")
 
 			ok, err := NumberChars(Float(23.4), chars, func(env *Env) *Promise {
 				assert.Equal(t, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), env.Resolve(chars))
@@ -5986,7 +6015,7 @@ func TestNumberChars(t *testing.T) {
 		})
 
 		t.Run("chars is a list with variables", func(t *testing.T) {
-			char := Variable("Char")
+			char := NewNamedVariable("Char")
 
 			ok, err := NumberChars(Float(23.4), List(char, Atom("3"), Atom("."), Atom("4")), func(env *Env) *Promise {
 				assert.Equal(t, Atom("2"), env.Resolve(char))
@@ -5998,7 +6027,7 @@ func TestNumberChars(t *testing.T) {
 	})
 
 	t.Run("chars to number", func(t *testing.T) {
-		num := Variable("Num")
+		num := NewNamedVariable("Num")
 
 		ok, err := NumberChars(num, List(Atom("2"), Atom("3"), Atom("."), Atom("4")), func(env *Env) *Promise {
 			assert.Equal(t, Float(23.4), env.Resolve(num))
@@ -6023,7 +6052,7 @@ func TestNumberChars(t *testing.T) {
 	})
 
 	t.Run("num is a variable and chars is a partial list", func(t *testing.T) {
-		chars := ListRest(Variable("Rest"),
+		chars := ListRest(NewNamedVariable("Rest"),
 			Atom("2"), Atom("3"), Atom("."), Atom("4"),
 		)
 
@@ -6054,7 +6083,7 @@ func TestNumberChars(t *testing.T) {
 		})
 
 		t.Run("list-ish", func(t *testing.T) {
-			_, err := NumberChars(Integer(0), ListRest(Atom("b"), Variable("A")), Success, nil).Force(context.Background())
+			_, err := NumberChars(Integer(0), ListRest(Atom("b"), NewNamedVariable("A")), Success, nil).Force(context.Background())
 			_, ok := NewEnv().Unify(err.(Exception).Term(), TypeError(ValidTypeList, ListRest(Atom("b"), NewVariable()), nil).Term(), false)
 			assert.True(t, ok)
 		})
@@ -6113,7 +6142,7 @@ func TestNumberChars(t *testing.T) {
 
 func TestNumberCodes(t *testing.T) {
 	t.Run("number to codes", func(t *testing.T) {
-		codes := Variable("Codes")
+		codes := NewNamedVariable("Codes")
 
 		ok, err := NumberCodes(Float(23.4), codes, func(env *Env) *Promise {
 			assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), env.Resolve(codes))
@@ -6124,7 +6153,7 @@ func TestNumberCodes(t *testing.T) {
 	})
 
 	t.Run("codes to number", func(t *testing.T) {
-		num := Variable("Num")
+		num := NewNamedVariable("Num")
 
 		ok, err := NumberCodes(num, List(Integer(50), Integer(51), Integer(46), Integer(52)), func(env *Env) *Promise {
 			assert.Equal(t, Float(23.4), env.Resolve(num))
@@ -6156,7 +6185,7 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("num is a variable and codes is a partial list or list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
-			codes := ListRest(Variable("Rest"),
+			codes := ListRest(NewNamedVariable("Rest"),
 				Integer(50), Integer(51), Integer(46), Integer(52),
 			)
 
@@ -6166,7 +6195,7 @@ func TestNumberCodes(t *testing.T) {
 		})
 
 		t.Run("variable element", func(t *testing.T) {
-			code := Variable("Code")
+			code := NewNamedVariable("Code")
 
 			ok, err := NumberCodes(NewVariable(), List(code, Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -6227,7 +6256,7 @@ func TestState_StreamProperty(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 		c := 0
 		var state State
 		ok, err := state.StreamProperty(s, v, func(env *Env) *Promise {
@@ -6260,7 +6289,7 @@ func TestState_StreamProperty(t *testing.T) {
 			assert.NoError(t, s.Close())
 		}()
 
-		v := Variable("V")
+		v := NewNamedVariable("V")
 		c := 0
 		var state State
 		ok, err := state.StreamProperty(s, v, func(env *Env) *Promise {
@@ -6297,7 +6326,7 @@ func TestState_StreamProperty(t *testing.T) {
 				Atom("null"): s,
 			},
 		}
-		v := Variable("V")
+		v := NewNamedVariable("V")
 		c := 0
 		ok, err := state.StreamProperty(Atom("null"), v, func(env *Env) *Promise {
 			assert.Equal(t, expected[c], env.Resolve(v))
@@ -6560,7 +6589,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.SetStreamPosition(Variable("Stream"), Integer(0), Success, nil).Force(context.Background())
+		ok, err := state.SetStreamPosition(NewNamedVariable("Stream"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -6573,7 +6602,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 		}()
 
 		var state State
-		ok, err := state.SetStreamPosition(s, Variable("Pos"), Success, nil).Force(context.Background())
+		ok, err := state.SetStreamPosition(s, NewNamedVariable("Pos"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -6597,7 +6626,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 
 		assert.False(t, stream.reposition)
 
-		s := Variable("Stream")
+		s := NewNamedVariable("Stream")
 		env := NewEnv().
 			Bind(s, stream)
 
@@ -6634,14 +6663,14 @@ func TestState_CharConversion(t *testing.T) {
 
 	t.Run("inChar is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.CharConversion(Variable("In"), Atom("a"), Success, nil).Force(context.Background())
+		ok, err := state.CharConversion(NewNamedVariable("In"), Atom("a"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("outChar is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.CharConversion(Atom("a"), Variable("Out"), Success, nil).Force(context.Background())
+		ok, err := state.CharConversion(Atom("a"), NewNamedVariable("Out"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -6701,7 +6730,7 @@ func TestState_CurrentCharConversion(t *testing.T) {
 	})
 
 	t.Run("not specified", func(t *testing.T) {
-		x, y := Variable("X"), Variable("Y")
+		x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 
 		var r rune
 		var state State
@@ -6915,14 +6944,14 @@ func TestState_SetPrologFlag(t *testing.T) {
 
 	t.Run("flag is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.SetPrologFlag(Variable("Flag"), Atom("fail"), Success, nil).Force(context.Background())
+		ok, err := state.SetPrologFlag(NewNamedVariable("Flag"), Atom("fail"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("value is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.SetPrologFlag(Atom("unknown"), Variable("Value"), Success, nil).Force(context.Background())
+		ok, err := state.SetPrologFlag(Atom("unknown"), NewNamedVariable("Value"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -6997,7 +7026,7 @@ func TestState_CurrentPrologFlag(t *testing.T) {
 	})
 
 	t.Run("not specified", func(t *testing.T) {
-		flag, value := Variable("Flag"), Variable("Value")
+		flag, value := NewNamedVariable("Flag"), NewNamedVariable("Value")
 		var c int
 		ok, err := state.CurrentPrologFlag(flag, value, func(env *Env) *Promise {
 			switch c {
@@ -7144,8 +7173,8 @@ func TestEnviron(t *testing.T) {
 
 	var (
 		count = 0
-		key   = Variable("Key")
-		value = Variable("Value")
+		key   = NewNamedVariable("Key")
+		value = NewNamedVariable("Value")
 	)
 	ok, err := Environ(key, value, func(env *Env) *Promise {
 		count++
@@ -7170,47 +7199,45 @@ func TestState_Expand(t *testing.T) {
 
 	t.Run("DCG", func(t *testing.T) {
 		t.Run("empty terminal-sequence", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), List()}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
-				&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+				&compound{functor: "=", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 			}}, term)
 		})
 
 		t.Run("terminal sequence", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), List(Atom("a"))}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
-				&compound{functor: "=", args: []Term{Variable("_1"), ListRest(Variable("_3"), Atom("a"))}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+				&compound{functor: "=", args: []Term{Variable(offset + 1), ListRest(Variable(offset+3), Atom("a"))}},
 			}}, term)
 		})
 
 		t.Run("concatenation", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				varCounter = 0
+				offset := varCounter
 				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
-					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					Seq(",",
-						&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
-						&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
+						&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 4)}},
+						&compound{functor: "b", args: []Term{Variable(offset + 4), Variable(offset + 3)}},
 					),
 				}}, term)
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(",", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
@@ -7219,43 +7246,41 @@ func TestState_Expand(t *testing.T) {
 		t.Run("alternative", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				t.Run("normal", func(t *testing.T) {
-					varCounter = 0
+					offset := varCounter
 					term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Atom("b"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: ":-", args: []Term{
-						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 						Seq(";",
-							&compound{functor: "a", args: []Term{Variable("_1"), Variable("_3")}},
-							&compound{functor: "b", args: []Term{Variable("_1"), Variable("_3")}},
+							&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+							&compound{functor: "b", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 						),
 					}}, term)
 				})
 
 				t.Run("if-then-else", func(t *testing.T) {
-					varCounter = 0
+					offset := varCounter
 					term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}, Atom("c"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: ":-", args: []Term{
-						&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 						Seq(";",
 							&compound{functor: "->", args: []Term{
-								&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
-								&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
+								&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 4)}},
+								&compound{functor: "b", args: []Term{Variable(offset + 4), Variable(offset + 3)}},
 							}},
-							&compound{functor: "c", args: []Term{Variable("_1"), Variable("_3")}},
+							&compound{functor: "c", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 						),
 					}}, term)
 				})
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq(";", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
@@ -7263,93 +7288,90 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("second form of alternative", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				varCounter = 0
+				offset := varCounter
 				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Atom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
-					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					Seq(";",
-						&compound{functor: "a", args: []Term{Variable("_1"), Variable("_3")}},
-						&compound{functor: "b", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+						&compound{functor: "b", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					),
 				}}, term)
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Integer(0), Atom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Seq("|", Atom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
 
 		t.Run("grammar-body-goal", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "{}", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 				Seq(",",
 					Atom("a"),
-					&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "=", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 				),
 			}}, term)
 		})
 
 		t.Run("call", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "call", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
-				&compound{functor: "call", args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+				&compound{functor: "call", args: []Term{Atom("a"), Variable(offset + 1), Variable(offset + 3)}},
 			}}, term)
 		})
 
 		t.Run("phrase", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "phrase", args: []Term{Atom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
-				&compound{functor: "phrase", args: []Term{Atom("a"), Variable("_1"), Variable("_3")}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
+				&compound{functor: "phrase", args: []Term{Atom("a"), Variable(offset + 1), Variable(offset + 3)}},
 			}}, term)
 		})
 
 		t.Run("grammar-body-cut", func(t *testing.T) {
-			varCounter = 0
+			offset := varCounter
 			term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), Atom("!")}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: ":-", args: []Term{
-				&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+				&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 				Seq(",",
 					Atom("!"),
-					&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "=", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 				),
 			}}, term)
 		})
 
 		t.Run("grammar-body-not", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				varCounter = 0
+				offset := varCounter
 				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Atom("a")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
-					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					Seq(",",
-						&compound{functor: `\+`, args: []Term{&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}}}},
-						&compound{functor: "=", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: `\+`, args: []Term{&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 4)}}}},
+						&compound{functor: "=", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					),
 				}}, term)
 			})
 
 			t.Run("goal is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: `\+`, args: []Term{Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
@@ -7357,29 +7379,27 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("if-then", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				varCounter = 0
+				offset := varCounter
 				term, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Atom("b")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: ":-", args: []Term{
-					&compound{functor: "s", args: []Term{Variable("_1"), Variable("_3")}},
+					&compound{functor: "s", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					&compound{
 						functor: "->",
 						args: []Term{
-							&compound{functor: "a", args: []Term{Variable("_1"), Variable("_4")}},
-							&compound{functor: "b", args: []Term{Variable("_4"), Variable("_3")}},
+							&compound{functor: "a", args: []Term{Variable(offset + 1), Variable(offset + 4)}},
+							&compound{functor: "b", args: []Term{Variable(offset + 4), Variable(offset + 3)}},
 						},
 					},
 				}}, term)
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Integer(0), Atom("b")}}}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(&compound{functor: "-->", args: []Term{Atom("s"), &compound{functor: "->", args: []Term{Atom("a"), Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
@@ -7387,24 +7407,24 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("with semicontexts", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				varCounter = 0
+				offset := varCounter
 				term, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{
 					functor: ":-",
 					args: []Term{
-						&compound{functor: "phrase1", args: []Term{Variable("_1"), Variable("_3")}},
+						&compound{functor: "phrase1", args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 						&compound{
 							functor: ",",
 							args: []Term{
 								&compound{
 									functor: ",",
 									args: []Term{
-										&compound{functor: "phrase2", args: []Term{Variable("_1"), Variable("_4")}},
-										&compound{functor: "phrase3", args: []Term{Variable("_4"), Variable("_2")}},
+										&compound{functor: "phrase2", args: []Term{Variable(offset + 1), Variable(offset + 4)}},
+										&compound{functor: "phrase3", args: []Term{Variable(offset + 4), Variable(offset + 2)}},
 									},
 								},
-								&compound{functor: "=", args: []Term{Variable("_3"), ListRest(Variable("_2"), Atom("word"))}},
+								&compound{functor: "=", args: []Term{Variable(offset + 3), ListRest(Variable(offset+2), Atom("word"))}},
 							},
 						},
 					},
@@ -7412,19 +7432,16 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("head is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Integer(0), List(Atom("word"))), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("semicontext is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), Integer(0)), Atom(",").Apply(Atom("phrase2"), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("body is not callable", func(t *testing.T) {
-				varCounter = 0
 				_, err := state.expand(Atom("-->").Apply(Atom(",").Apply(Atom("phrase1"), List(Atom("word"))), Atom(",").Apply(Integer(0), Atom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
@@ -7437,8 +7454,8 @@ func TestNth0(t *testing.T) {
 		t.Run("list is a proper list", func(t *testing.T) {
 			const pair = Atom("-")
 			var (
-				n       = Variable("N")
-				elem    = Variable("Elem")
+				n       = NewNamedVariable("N")
+				elem    = NewNamedVariable("Elem")
 				results []Term
 			)
 			ok, err := Nth0(n, List(Atom("a"), Atom("b"), Atom("c")), elem, func(env *Env) *Promise {
@@ -7456,7 +7473,7 @@ func TestNth0(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth0(Variable("N"), ListRest(Variable("X"), Atom("a")), Variable("Elem"), Failure, nil).Force(context.Background())
+			_, err := Nth0(NewNamedVariable("N"), ListRest(NewNamedVariable("X"), Atom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -7499,8 +7516,8 @@ func TestNth1(t *testing.T) {
 		t.Run("list is a proper list", func(t *testing.T) {
 			const pair = Atom("-")
 			var (
-				n       = Variable("N")
-				elem    = Variable("Elem")
+				n       = NewNamedVariable("N")
+				elem    = NewNamedVariable("Elem")
 				results []Term
 			)
 			ok, err := Nth1(n, List(Atom("a"), Atom("b"), Atom("c")), elem, func(env *Env) *Promise {
@@ -7518,7 +7535,7 @@ func TestNth1(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth1(Variable("N"), ListRest(Variable("X"), Atom("a")), Variable("Elem"), Failure, nil).Force(context.Background())
+			_, err := Nth1(NewNamedVariable("N"), ListRest(NewNamedVariable("X"), Atom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -7559,13 +7576,13 @@ func TestNth1(t *testing.T) {
 func TestSucc(t *testing.T) {
 	t.Run("x is a variable", func(t *testing.T) {
 		t.Run("s is a variable", func(t *testing.T) {
-			_, err := Succ(Variable("X"), Variable("S"), Success, nil).Force(context.Background())
+			_, err := Succ(NewNamedVariable("X"), NewNamedVariable("S"), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 
 		t.Run("s is an integer", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
-				x := Variable("X")
+				x := NewNamedVariable("X")
 				ok, err := Succ(x, Integer(1), func(env *Env) *Promise {
 					assert.Equal(t, Integer(0), env.Resolve(x))
 					return Bool(true)
@@ -7575,26 +7592,26 @@ func TestSucc(t *testing.T) {
 			})
 
 			t.Run("s < 0", func(t *testing.T) {
-				_, err := Succ(Variable("X"), Integer(-1), Success, nil).Force(context.Background())
+				_, err := Succ(NewNamedVariable("X"), Integer(-1), Success, nil).Force(context.Background())
 				assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 			})
 
 			t.Run("s = 0", func(t *testing.T) {
-				ok, err := Succ(Variable("X"), Integer(0), Success, nil).Force(context.Background())
+				ok, err := Succ(NewNamedVariable("X"), Integer(0), Success, nil).Force(context.Background())
 				assert.NoError(t, err)
 				assert.False(t, ok)
 			})
 		})
 
 		t.Run("s is neither a variable nor an integer", func(t *testing.T) {
-			_, err := Succ(Variable("X"), Float(1), Success, nil).Force(context.Background())
+			_, err := Succ(NewNamedVariable("X"), Float(1), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInteger, Float(1), nil), err)
 		})
 	})
 
 	t.Run("x is an integer", func(t *testing.T) {
 		t.Run("s is a variable", func(t *testing.T) {
-			s := Variable("S")
+			s := NewNamedVariable("S")
 			ok, err := Succ(Integer(0), s, func(env *Env) *Promise {
 				assert.Equal(t, Integer(1), env.Resolve(s))
 				return Bool(true)
@@ -7639,7 +7656,7 @@ func TestSucc(t *testing.T) {
 func TestLength(t *testing.T) {
 	t.Run("list is a list", func(t *testing.T) {
 		t.Run("length is a variable", func(t *testing.T) {
-			n := Variable("N")
+			n := NewNamedVariable("N")
 			ok, err := Length(List(Atom("a"), Atom("b"), Atom("c")), n, func(env *Env) *Promise {
 				assert.Equal(t, Integer(3), env.Resolve(n))
 				return Bool(true)
@@ -7666,8 +7683,8 @@ func TestLength(t *testing.T) {
 	t.Run("list is a partial list", func(t *testing.T) {
 		t.Run("length is a variable", func(t *testing.T) {
 			t.Run("length and the suffix of list are different", func(t *testing.T) {
-				l := Variable("L")
-				n := Variable("N")
+				l := NewNamedVariable("L")
+				n := NewNamedVariable("N")
 				var count int
 				ok, err := Length(ListRest(l, Atom("a"), Atom("b")), n, func(env *Env) *Promise {
 					var ret []Variable
@@ -7699,14 +7716,14 @@ func TestLength(t *testing.T) {
 			})
 
 			t.Run("length and the suffix of list are the same", func(t *testing.T) {
-				l := Variable("L")
+				l := NewNamedVariable("L")
 				_, err := Length(ListRest(l, Atom("a"), Atom("b")), l, Success, nil).Force(context.Background())
 				assert.Equal(t, ResourceError(ResourceFiniteMemory, nil), err)
 			})
 		})
 
 		t.Run("length is an integer", func(t *testing.T) {
-			l := Variable("L")
+			l := NewNamedVariable("L")
 			ok, err := Length(ListRest(l, Atom("a"), Atom("b")), Integer(3), func(env *Env) *Promise {
 				iter := ListIterator{List: l, Env: env}
 				assert.True(t, iter.Next())
@@ -7836,6 +7853,7 @@ func TestState_Negation(t *testing.T) {
 }
 
 func TestAppend(t *testing.T) {
+	xs, ys, zs := NewNamedVariable("Xs"), NewNamedVariable("Ys"), NewNamedVariable("Zs")
 	tests := []struct {
 		title      string
 		xs, ys, zs Term
@@ -7844,20 +7862,20 @@ func TestAppend(t *testing.T) {
 		env        []map[Variable]Term
 	}{
 		// p.p.2.4 Examples
-		{title: `append([a,b],[c,d], Xs).`, xs: List(Atom("a"), Atom("b")), ys: List(Atom("c"), Atom("d")), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
-			{"Xs": List(Atom("a"), Atom("b"), Atom("c"), Atom("d"))},
+		{title: `append([a,b],[c,d], Xs).`, xs: List(Atom("a"), Atom("b")), ys: List(Atom("c"), Atom("d")), zs: NewNamedVariable("Xs"), ok: true, env: []map[Variable]Term{
+			{xs: List(Atom("a"), Atom("b"), Atom("c"), Atom("d"))},
 		}},
-		{title: `append([a], nonlist, Xs).`, xs: List(Atom("a")), ys: Atom("nonlist"), zs: Variable("Xs"), ok: true, env: []map[Variable]Term{
-			{"Xs": ListRest(Atom("nonlist"), Atom("a"))},
+		{title: `append([a], nonlist, Xs).`, xs: List(Atom("a")), ys: Atom("nonlist"), zs: NewNamedVariable("Xs"), ok: true, env: []map[Variable]Term{
+			{xs: ListRest(Atom("nonlist"), Atom("a"))},
 		}},
-		{title: `append([a], Ys, Zs).`, xs: List(Atom("a")), ys: Variable("Ys"), zs: Variable("Zs"), ok: true, env: []map[Variable]Term{
-			{"Zs": ListRest(Variable("Ys"), Atom("a"))},
+		{title: `append([a], Ys, Zs).`, xs: List(Atom("a")), ys: NewNamedVariable("Ys"), zs: NewNamedVariable("Zs"), ok: true, env: []map[Variable]Term{
+			{zs: ListRest(NewNamedVariable("Ys"), Atom("a"))},
 		}},
-		{title: `append(Xs, Ys, [a,b,c]).`, xs: Variable("Xs"), ys: Variable("Ys"), zs: List(Atom("a"), Atom("b"), Atom("c")), ok: true, env: []map[Variable]Term{
-			{"Xs": List(), "Ys": List(Atom("a"), Atom("b"), Atom("c"))},
-			{"Xs": List(Atom("a")), "Ys": List(Atom("b"), Atom("c"))},
-			{"Xs": List(Atom("a"), Atom("b")), "Ys": List(Atom("c"))},
-			{"Xs": List(Atom("a"), Atom("b"), Atom("c")), "Ys": List()},
+		{title: `append(Xs, Ys, [a,b,c]).`, xs: NewNamedVariable("Xs"), ys: NewNamedVariable("Ys"), zs: List(Atom("a"), Atom("b"), Atom("c")), ok: true, env: []map[Variable]Term{
+			{xs: List(), ys: List(Atom("a"), Atom("b"), Atom("c"))},
+			{xs: List(Atom("a")), ys: List(Atom("b"), Atom("c"))},
+			{xs: List(Atom("a"), Atom("b")), ys: List(Atom("c"))},
+			{xs: List(Atom("a"), Atom("b"), Atom("c")), ys: List()},
 		}},
 	}
 

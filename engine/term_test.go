@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -11,7 +12,7 @@ func TestContains(t *testing.T) {
 	var env *Env
 	assert.True(t, Contains(Atom("a"), Atom("a"), env))
 	assert.False(t, Contains(NewVariable(), Atom("a"), env))
-	v := Variable("V")
+	v := NewNamedVariable("V")
 	env = env.Bind(v, Atom("a"))
 	assert.True(t, Contains(v, Atom("a"), env))
 	assert.True(t, Contains(&compound{functor: "a"}, Atom("a"), env))
@@ -24,7 +25,7 @@ func TestRulify(t *testing.T) {
 		functor: ":-",
 		args:    []Term{Atom("a"), Atom("true")},
 	}, Rulify(Atom("a"), nil))
-	v := Variable("V")
+	v := NewNamedVariable("V")
 	env := NewEnv().
 		Bind(v, Atom("a"))
 	assert.Equal(t, &compound{
@@ -64,19 +65,19 @@ func Test_iteratedGoalTerm(t *testing.T) {
 		{t: &compound{
 			functor: "^",
 			args: []Term{
-				Variable("X"),
+				NewNamedVariable("X"),
 				&compound{
 					functor: "foo",
-					args:    []Term{Variable("X")},
+					args:    []Term{NewNamedVariable("X")},
 				},
 			},
 		}, g: &compound{
 			functor: "foo",
-			args:    []Term{Variable("X")},
+			args:    []Term{NewNamedVariable("X")},
 		}},
 		{
-			t: Atom("^").Apply(NewVariable(), Atom("^").Apply(NewVariable(), Atom("=").Apply(Variable("X"), Integer(1)))),
-			g: Atom("=").Apply(Variable("X"), Integer(1)),
+			t: Atom("^").Apply(NewVariable(), Atom("^").Apply(NewVariable(), Atom("=").Apply(NewNamedVariable("X"), Integer(1)))),
+			g: Atom("=").Apply(NewNamedVariable("X"), Integer(1)),
 		},
 	}
 
@@ -91,42 +92,42 @@ func Test_variant(t *testing.T) {
 		result bool
 	}{
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B"), Variable("A")}},
-			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y"), Variable("X")}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("B"), NewNamedVariable("A")}},
+			t2:     &compound{functor: "f", args: []Term{NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("X")}},
 			result: true,
 		},
 		{
-			t1:     &compound{functor: "g", args: []Term{Variable("A"), Variable("B")}},
+			t1:     &compound{functor: "g", args: []Term{NewNamedVariable("A"), NewNamedVariable("B")}},
 			t2:     &compound{functor: "g", args: []Term{NewVariable(), NewVariable()}},
 			result: true,
 		},
 		{
-			t1:     &compound{functor: "+", args: []Term{Variable("P"), Variable("Q")}},
-			t2:     &compound{functor: "+", args: []Term{Variable("P"), Variable("Q")}},
+			t1:     &compound{functor: "+", args: []Term{NewNamedVariable("P"), NewNamedVariable("Q")}},
+			t2:     &compound{functor: "+", args: []Term{NewNamedVariable("P"), NewNamedVariable("Q")}},
 			result: true,
 		},
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("A")}},
-			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y")}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("A")}},
+			t2:     &compound{functor: "f", args: []Term{NewNamedVariable("X"), NewNamedVariable("Y")}},
 			result: false,
 		},
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("A")}},
-			t2:     &compound{functor: "f", args: []Term{Variable("X"), Integer(0)}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("A")}},
+			t2:     &compound{functor: "f", args: []Term{NewNamedVariable("X"), Integer(0)}},
 			result: false,
 		},
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
-			t2:     &compound{functor: "g", args: []Term{Variable("X"), Variable("Y")}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("B")}},
+			t2:     &compound{functor: "g", args: []Term{NewNamedVariable("X"), NewNamedVariable("Y")}},
 			result: false,
 		},
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
-			t2:     &compound{functor: "f", args: []Term{Variable("X"), Variable("Y"), Variable("Z")}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("B")}},
+			t2:     &compound{functor: "f", args: []Term{NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("Z")}},
 			result: false,
 		},
 		{
-			t1:     &compound{functor: "f", args: []Term{Variable("A"), Variable("B")}},
+			t1:     &compound{functor: "f", args: []Term{NewNamedVariable("A"), NewNamedVariable("B")}},
 			t2:     Integer(0),
 			result: false,
 		},
@@ -143,9 +144,9 @@ func Test_variant(t *testing.T) {
 }
 
 func TestWriteTerm(t *testing.T) {
-	v := Variable("L")
+	v := NewNamedVariable("L")
 	l := ListRest(v, Atom("a"), Atom("b"))
-	w := Variable("R")
+	w := NewNamedVariable("R")
 	r := &compound{functor: "f", args: []Term{w}}
 	env := NewEnv().Bind(v, l).Bind(w, r)
 
@@ -168,9 +169,9 @@ func TestWriteTerm(t *testing.T) {
 		opts   WriteOptions
 		output string
 	}{
-		{title: "named", term: Variable(`X`), output: `X`},
-		{title: "unnamed", term: Variable(``) /* NewVariable() */, output: `_1`},
-		{title: "variable_names", term: Variable(`X`), opts: WriteOptions{VariableNames: map[Variable]Atom{"X": "Foo"}}, output: `Foo`},
+		{title: "named", term: NewNamedVariable(`X`), output: `X`},
+		{title: "unnamed", term: NewVariable(), output: fmt.Sprintf("_%d", varCounter)},
+		{title: "variable_names", term: NewNamedVariable(`X`), opts: WriteOptions{VariableNames: map[Variable]Atom{NewNamedVariable("X"): "Foo"}}, output: `Foo`},
 
 		{term: Atom(`a`), opts: WriteOptions{Quoted: false}, output: `a`},
 		{term: Atom(`a`), opts: WriteOptions{Quoted: true}, output: `a`},
@@ -231,10 +232,6 @@ func TestWriteTerm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			varCounter = 0
-			if tt.term == Variable("") {
-				tt.term = NewVariable()
-			}
 			assert.NoError(t, WriteTerm(&buf, tt.term, &tt.opts, env))
 			assert.Equal(t, tt.output, buf.String())
 		})

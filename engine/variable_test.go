@@ -13,37 +13,37 @@ func Test_variableSet(t *testing.T) {
 	}{
 		{term: &compound{
 			functor: "f",
-			args:    []Term{Variable("X"), Variable("Y")},
+			args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 		}, s: map[Variable]int{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
 			functor: "f",
-			args:    []Term{Variable("Y"), Variable("X")},
+			args:    []Term{NewNamedVariable("Y"), NewNamedVariable("X")},
 		}, s: map[Variable]int{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
 			functor: "+",
-			args:    []Term{Variable("X"), Variable("Y")},
+			args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 		}, s: map[Variable]int{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
 			functor: "-",
 			args: []Term{
-				Variable("Y"),
+				NewNamedVariable("Y"),
 				&compound{
 					functor: "-",
-					args:    []Term{Variable("X"), Variable("X")},
+					args:    []Term{NewNamedVariable("X"), NewNamedVariable("X")},
 				},
 			},
 		}, s: map[Variable]int{
-			"X": 2,
-			"Y": 1,
+			NewNamedVariable("X"): 2,
+			NewNamedVariable("Y"): 1,
 		}},
 	}
 
@@ -60,50 +60,50 @@ func Test_existentialVariableSet(t *testing.T) {
 		{term: &compound{
 			functor: "^",
 			args: []Term{
-				Variable("X"),
+				NewNamedVariable("X"),
 				&compound{
 					functor: "^",
 					args: []Term{
-						Variable("Y"),
+						NewNamedVariable("Y"),
 						&compound{
 							functor: "f",
-							args:    []Term{Variable("X"), Variable("Y"), Variable("Z")},
+							args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("Z")},
 						},
 					},
 				},
 			},
 		}, ev: variableSet{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
 			functor: "^",
 			args: []Term{
 				&compound{
 					functor: ",",
-					args:    []Term{Variable("X"), Variable("Y")},
+					args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 				},
 				&compound{
 					functor: "f",
-					args:    []Term{Variable("Z"), Variable("Y"), Variable("X")},
+					args:    []Term{NewNamedVariable("Z"), NewNamedVariable("Y"), NewNamedVariable("X")},
 				},
 			},
 		}, ev: variableSet{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
 			functor: "^",
 			args: []Term{
 				&compound{
 					functor: "+",
-					args:    []Term{Variable("X"), Variable("Y")},
+					args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 				},
 				Integer(3),
 			},
 		}, ev: variableSet{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 	}
 
@@ -120,36 +120,36 @@ func Test_freeVariablesSet(t *testing.T) {
 		{t: &compound{
 			functor: "+",
 			args: []Term{
-				Variable("X"),
+				NewNamedVariable("X"),
 				&compound{
 					functor: "+",
-					args:    []Term{Variable("Y"), Variable("Z")},
+					args:    []Term{NewNamedVariable("Y"), NewNamedVariable("Z")},
 				},
 			},
 		}, v: &compound{
 			functor: "f",
-			args:    []Term{Variable("Z")},
+			args:    []Term{NewNamedVariable("Z")},
 		}, fv: variableSet{
-			"X": 1,
-			"Y": 1,
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 		{t: &compound{
 			functor: "^",
 			args: []Term{
-				Variable("Z"),
+				NewNamedVariable("Z"),
 				&compound{
 					functor: "+",
 					args: []Term{
-						Variable("A"),
+						NewNamedVariable("A"),
 						&compound{
 							functor: "+",
 							args: []Term{
-								Variable("X"),
+								NewNamedVariable("X"),
 								&compound{
 									functor: "+",
 									args: []Term{
-										Variable("Y"),
-										Variable("Z"),
+										NewNamedVariable("Y"),
+										NewNamedVariable("Z"),
 									},
 								},
 							},
@@ -157,9 +157,9 @@ func Test_freeVariablesSet(t *testing.T) {
 					},
 				},
 			},
-		}, v: Variable("A"), fv: variableSet{
-			"X": 1,
-			"Y": 1,
+		}, v: NewNamedVariable("A"), fv: variableSet{
+			NewNamedVariable("X"): 1,
+			NewNamedVariable("Y"): 1,
 		}},
 	}
 

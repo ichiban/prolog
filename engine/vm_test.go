@@ -255,7 +255,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 	})
 
 	t.Run("variable", func(t *testing.T) {
-		pi, err := NewProcedureIndicator(Variable("PI"), nil)
+		pi, err := NewProcedureIndicator(NewNamedVariable("PI"), nil)
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
 	})
@@ -281,7 +281,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 	t.Run("variable functor", func(t *testing.T) {
 		pi, err := NewProcedureIndicator(&compound{
 			functor: "/",
-			args:    []Term{Variable("functor"), Integer(2)},
+			args:    []Term{NewNamedVariable("functor"), Integer(2)},
 		}, nil)
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)
@@ -302,7 +302,7 @@ func TestNewProcedureIndicator(t *testing.T) {
 	t.Run("variable arity", func(t *testing.T) {
 		pi, err := NewProcedureIndicator(&compound{
 			functor: "/",
-			args:    []Term{Atom("foo"), Variable("Arity")},
+			args:    []Term{Atom("foo"), NewNamedVariable("Arity")},
 		}, nil)
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.Zero(t, pi)

@@ -48,8 +48,8 @@ func TestListRest(t *testing.T) {
 		elems []Term
 		list  Term
 	}{
-		{title: "empty", rest: Variable("X"), elems: nil, list: Variable("X")},
-		{title: "non-empty", rest: Variable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partial{Compound: list{Atom("a"), Atom("b")}, tail: Variable("X")}},
+		{title: "empty", rest: NewNamedVariable("X"), elems: nil, list: NewNamedVariable("X")},
+		{title: "non-empty", rest: NewNamedVariable("X"), elems: []Term{Atom("a"), Atom("b")}, list: partial{Compound: list{Atom("a"), Atom("b")}, tail: NewNamedVariable("X")}},
 	}
 
 	for _, tt := range tests {

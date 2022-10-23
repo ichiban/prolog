@@ -586,7 +586,7 @@ func (p *Parser) variable(s string) (Term, error) {
 		return NewVariable(), nil
 	}
 	if p.vars == nil {
-		return Variable(s), nil
+		return NewNamedVariable(s), nil
 	}
 	n := Atom(s)
 	for i, v := range *p.vars {
