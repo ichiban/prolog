@@ -70,7 +70,7 @@ func (vm *VM) Register0(name string, p func(func(*Env) *Promise, *Env) *Promise)
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 0}] = predicate0(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 0}] = predicate0(p)
 }
 
 // Register1 registers a predicate of arity 1.
@@ -78,7 +78,7 @@ func (vm *VM) Register1(name string, p func(Term, func(*Env) *Promise, *Env) *Pr
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 1}] = predicate1(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 1}] = predicate1(p)
 }
 
 // Register2 registers a predicate of arity 2.
@@ -86,7 +86,7 @@ func (vm *VM) Register2(name string, p func(Term, Term, func(*Env) *Promise, *En
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 2}] = predicate2(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 2}] = predicate2(p)
 }
 
 // Register3 registers a predicate of arity 3.
@@ -94,7 +94,7 @@ func (vm *VM) Register3(name string, p func(Term, Term, Term, func(*Env) *Promis
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 3}] = predicate3(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 3}] = predicate3(p)
 }
 
 // Register4 registers a predicate of arity 4.
@@ -102,7 +102,7 @@ func (vm *VM) Register4(name string, p func(Term, Term, Term, Term, func(*Env) *
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 4}] = predicate4(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 4}] = predicate4(p)
 }
 
 // Register5 registers a predicate of arity 5.
@@ -110,7 +110,7 @@ func (vm *VM) Register5(name string, p func(Term, Term, Term, Term, Term, func(*
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 5}] = predicate5(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 5}] = predicate5(p)
 }
 
 // Register6 registers a predicate of arity 6.
@@ -118,7 +118,7 @@ func (vm *VM) Register6(name string, p func(Term, Term, Term, Term, Term, Term, 
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 6}] = predicate6(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 6}] = predicate6(p)
 }
 
 // Register7 registers a predicate of arity 7.
@@ -126,7 +126,7 @@ func (vm *VM) Register7(name string, p func(Term, Term, Term, Term, Term, Term, 
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 7}] = predicate7(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 7}] = predicate7(p)
 }
 
 // Register8 registers a predicate of arity 8.
@@ -134,7 +134,7 @@ func (vm *VM) Register8(name string, p func(Term, Term, Term, Term, Term, Term, 
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: Atom(name), Arity: 8}] = predicate8(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 8}] = predicate8(p)
 }
 
 type unknownAction int
@@ -493,7 +493,7 @@ func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
 	case Variable:
 		return ProcedureIndicator{}, InstantiationError(env)
 	case Compound:
-		if p.Functor() != "/" || p.Arity() != 2 {
+		if p.Functor() != atomSlash || p.Arity() != 2 {
 			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
 		}
 		switch f := env.Resolve(p.Arg(0)).(type) {
@@ -529,7 +529,7 @@ func (p ProcedureIndicator) String() string {
 // Term returns p as term.
 func (p ProcedureIndicator) Term() Term {
 	return &compound{
-		functor: "/",
+		functor: atomSlash,
 		args: []Term{
 			p.Name,
 			p.Arity,

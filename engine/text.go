@@ -83,7 +83,7 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 
 	s = ignoreShebangLine(s)
 	p := state.Parser(strings.NewReader(s), nil)
-	if err := p.Replace("?", args...); err != nil {
+	if err := p.Replace(NewAtom("?"), args...); err != nil {
 		return err
 	}
 
@@ -103,12 +103,12 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 			return err
 		}
 		switch pi {
-		case ProcedureIndicator{Name: ":-", Arity: 1}: // Directive
+		case ProcedureIndicator{Name: atomIf, Arity: 1}: // Directive
 			if err := state.directive(ctx, text, arg(0)); err != nil {
 				return err
 			}
 			continue
-		case ProcedureIndicator{Name: ":-", Arity: 2}: // Rule
+		case ProcedureIndicator{Name: atomIf, Arity: 2}: // Rule
 			pi, arg, err = PI(arg(0), nil)
 			if err != nil {
 				return err
@@ -138,30 +138,30 @@ func (state *State) directive(ctx context.Context, text *text, d Term) error {
 	}
 
 	switch pi, arg, _ := PI(d, nil); pi {
-	case ProcedureIndicator{Name: "dynamic", Arity: 1}:
+	case ProcedureIndicator{Name: atomDynamic, Arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.dynamic = true
 			u.public = true
 		})
-	case ProcedureIndicator{Name: "multifile", Arity: 1}:
+	case ProcedureIndicator{Name: atomMultifile, Arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.multifile = true
 		})
-	case ProcedureIndicator{Name: "discontiguous", Arity: 1}:
+	case ProcedureIndicator{Name: atomDiscontiguous, Arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.discontiguous = true
 		})
-	case ProcedureIndicator{Name: "initialization", Arity: 1}:
+	case ProcedureIndicator{Name: atomInitialization, Arity: 1}:
 		text.goals = append(text.goals, arg(0))
 		return nil
-	case ProcedureIndicator{Name: "include", Arity: 1}:
+	case ProcedureIndicator{Name: atomInclude, Arity: 1}:
 		_, b, err := state.open(arg(0), nil)
 		if err != nil {
 			return err
 		}
 
 		return state.compile(ctx, text, string(b))
-	case ProcedureIndicator{Name: "ensure_loaded", Arity: 1}:
+	case ProcedureIndicator{Name: atomEnsureLoaded, Arity: 1}:
 		return state.ensureLoaded(ctx, arg(0), nil)
 	default:
 		ok, err := state.Call(d, Success, nil).Force(ctx)
@@ -201,7 +201,8 @@ func (state *State) open(file Term, env *Env) (string, []byte, error) {
 	case Variable:
 		return "", nil, InstantiationError(env)
 	case Atom:
-		for _, f := range []string{string(f), string(f) + ".pl"} {
+		s := f.String()
+		for _, f := range []string{s, s + ".pl"} {
 			b, err := fs.ReadFile(state.FS, f)
 			if err != nil {
 				continue

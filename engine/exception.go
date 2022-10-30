@@ -28,9 +28,9 @@ func (e Exception) Error() string {
 // InstantiationError returns an instantiation error exception.
 func InstantiationError(env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
-			Atom("instantiation_error"),
+			NewAtom("instantiation_error"),
 			varContext,
 		},
 	}, env)
@@ -61,31 +61,31 @@ const (
 // Term returns an Atom for the ValidType.
 func (t ValidType) Term() Term {
 	return [...]Atom{
-		ValidTypeAtom:               "atom",
-		ValidTypeAtomic:             "atomic",
-		ValidTypeByte:               "byte",
-		ValidTypeCallable:           "callable",
-		ValidTypeCharacter:          "character",
-		ValidTypeCompound:           "compound",
-		ValidTypeEvaluable:          "evaluable",
-		ValidTypeInByte:             "in_byte",
-		ValidTypeInCharacter:        "in_character",
-		ValidTypeInteger:            "integer",
-		ValidTypeList:               "list",
-		ValidTypeNumber:             "number",
-		ValidTypePredicateIndicator: "predicate_indicator",
-		ValidTypePair:               "pair",
-		ValidTypeFloat:              "float",
+		ValidTypeAtom:               atomAtom,
+		ValidTypeAtomic:             atomAtomic,
+		ValidTypeByte:               atomByte,
+		ValidTypeCallable:           atomCallable,
+		ValidTypeCharacter:          atomCharacter,
+		ValidTypeCompound:           atomCompound,
+		ValidTypeEvaluable:          atomEvaluable,
+		ValidTypeInByte:             atomInByte,
+		ValidTypeInCharacter:        atomInCharacter,
+		ValidTypeInteger:            atomInteger,
+		ValidTypeList:               atomList,
+		ValidTypeNumber:             atomNumber,
+		ValidTypePredicateIndicator: atomPredicateIndicator,
+		ValidTypePair:               atomPair,
+		ValidTypeFloat:              atomFloat,
 	}[t]
 }
 
 // TypeError creates a new type error exception.
 func TypeError(validType ValidType, culprit Term, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "type_error",
+				functor: NewAtom("type_error"),
 				args:    []Term{validType.Term(), culprit},
 			},
 			varContext,
@@ -122,34 +122,34 @@ const (
 // Term returns an Atom for the ValidDomain.
 func (vd ValidDomain) Term() Term {
 	return [...]Atom{
-		ValidDomainCharacterCodeList: "character_code_list",
-		ValidDomainCloseOption:       "close_option",
-		ValidDomainFlagValue:         "flag_value",
-		ValidDomainIOMode:            "io_mode",
-		ValidDomainNonEmptyList:      "non_empty_list",
-		ValidDomainNotLessThanZero:   "not_less_than_zero",
-		ValidDomainOperatorPriority:  "operator_priority",
-		ValidDomainOperatorSpecifier: "operator_specifier",
-		ValidDomainPrologFlag:        "prolog_flag",
-		ValidDomainReadOption:        "read_option",
-		ValidDomainSourceSink:        "source_sink",
-		ValidDomainStream:            "stream",
-		ValidDomainStreamOption:      "stream_option",
-		ValidDomainStreamOrAlias:     "stream_or_alias",
-		ValidDomainStreamPosition:    "stream_position",
-		ValidDomainStreamProperty:    "stream_property",
-		ValidDomainWriteOption:       "write_option",
-		ValidDomainOrder:             "order",
+		ValidDomainCharacterCodeList: atomCharacterCodeList,
+		ValidDomainCloseOption:       atomCloseOption,
+		ValidDomainFlagValue:         atomFlagValue,
+		ValidDomainIOMode:            atomIOMode,
+		ValidDomainNonEmptyList:      atomNonEmptyList,
+		ValidDomainNotLessThanZero:   atomNotLessThanZero,
+		ValidDomainOperatorPriority:  atomOperatorPriority,
+		ValidDomainOperatorSpecifier: atomOperatorSpecifier,
+		ValidDomainPrologFlag:        atomPrologFlag,
+		ValidDomainReadOption:        atomReadOption,
+		ValidDomainSourceSink:        atomSourceSink,
+		ValidDomainStream:            atomStream,
+		ValidDomainStreamOption:      atomStreamOption,
+		ValidDomainStreamOrAlias:     atomStreamOrAlias,
+		ValidDomainStreamPosition:    atomStreamPosition,
+		ValidDomainStreamProperty:    atomStreamProperty,
+		ValidDomainWriteOption:       atomWriteOption,
+		ValidDomainOrder:             atomOrder,
 	}[vd]
 }
 
 // DomainError creates a new domain error exception.
 func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "domain_error",
+				functor: NewAtom("domain_error"),
 				args:    []Term{validDomain.Term(), culprit},
 			},
 			varContext,
@@ -170,19 +170,19 @@ const (
 // Term returns an Atom for the ObjectType.
 func (ot ObjectType) Term() Term {
 	return [...]Atom{
-		ObjectTypeProcedure:  "procedure",
-		ObjectTypeSourceSink: "source_sink",
-		ObjectTypeStream:     "stream",
+		ObjectTypeProcedure:  atomProcedure,
+		ObjectTypeSourceSink: atomSourceSink,
+		ObjectTypeStream:     atomStream,
 	}[ot]
 }
 
 // ExistenceError creates a new existence error exception.
 func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "existence_error",
+				functor: NewAtom("existence_error"),
 				args:    []Term{objectType.Term(), culprit},
 			},
 			varContext,
@@ -207,13 +207,13 @@ const (
 // Term returns an Atom for the Operation.
 func (o Operation) Term() Term {
 	return [...]Atom{
-		OperationAccess:     "access",
-		OperationCreate:     "create",
-		OperationInput:      "input",
-		OperationModify:     "modify",
-		OperationOpen:       "open",
-		OperationOutput:     "output",
-		OperationReposition: "reposition",
+		OperationAccess:     atomAccess,
+		OperationCreate:     atomCreate,
+		OperationInput:      atomInput,
+		OperationModify:     atomModify,
+		OperationOpen:       atomOpen,
+		OperationOutput:     atomOutput,
+		OperationReposition: atomReposition,
 	}[o]
 }
 
@@ -236,25 +236,25 @@ const (
 // Term returns an Atom for the PermissionType.
 func (pt PermissionType) Term() Term {
 	return [...]Atom{
-		PermissionTypeBinaryStream:     "binary_stream",
-		PermissionTypeFlag:             "flag",
-		PermissionTypeOperator:         "operator",
-		PermissionTypePastEndOfStream:  "past_enf_of_stream",
-		PermissionTypePrivateProcedure: "private_procedure",
-		PermissionTypeStaticProcedure:  "static_procedure",
-		PermissionTypeSourceSink:       "source_sink",
-		PermissionTypeStream:           "stream",
-		PermissionTypeTextStream:       "text_stream",
+		PermissionTypeBinaryStream:     atomBinaryStream,
+		PermissionTypeFlag:             atomFlag,
+		PermissionTypeOperator:         atomOperator,
+		PermissionTypePastEndOfStream:  atomPastEndOfStream,
+		PermissionTypePrivateProcedure: atomPrivateProcedure,
+		PermissionTypeStaticProcedure:  atomStaticProcedure,
+		PermissionTypeSourceSink:       atomSourceSink,
+		PermissionTypeStream:           atomStream,
+		PermissionTypeTextStream:       atomTextStream,
 	}[pt]
 }
 
 // PermissionError creates a new permission error exception.
 func PermissionError(operation Operation, permissionType PermissionType, culprit Term, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "permission_error",
+				functor: NewAtom("permission_error"),
 				args:    []Term{operation.Term(), permissionType.Term(), culprit},
 			},
 			varContext,
@@ -278,22 +278,22 @@ const (
 // Term returns an Atom for the Flag.
 func (f Flag) Term() Term {
 	return [...]Atom{
-		FlagCharacter:       "character",
-		FlagCharacterCode:   "character_code",
-		FlagInCharacterCode: "in_character_code",
-		FlagMaxArity:        "max_arity",
-		FlagMaxInteger:      "max_integer",
-		FlagMinInteger:      "min_integer",
+		FlagCharacter:       atomCharacter,
+		FlagCharacterCode:   atomCharacterCode,
+		FlagInCharacterCode: atomInCharacterCode,
+		FlagMaxArity:        atomMaxArity,
+		FlagMaxInteger:      atomMaxInteger,
+		FlagMinInteger:      atomMinInteger,
 	}[f]
 }
 
 // RepresentationError creates a new representation error exception.
 func RepresentationError(limit Flag, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "representation_error",
+				functor: NewAtom("representation_error"),
 				args:    []Term{limit.Term()},
 			},
 			varContext,
@@ -313,17 +313,17 @@ const (
 // Term returns an Atom for the Resource.
 func (r Resource) Term() Term {
 	return [...]Atom{
-		ResourceFiniteMemory: "finite_memory",
+		ResourceFiniteMemory: atomFiniteMemory,
 	}[r]
 }
 
 // ResourceError creates a new resource error exception.
 func ResourceError(resource Resource, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "resource_error",
+				functor: NewAtom("resource_error"),
 				args:    []Term{resource.Term()},
 			},
 			varContext,
@@ -334,11 +334,11 @@ func ResourceError(resource Resource, env *Env) Exception {
 // SyntaxError creates a new syntax error exception.
 func SyntaxError(err error, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "syntax_error",
-				args:    []Term{Atom(err.Error())},
+				functor: NewAtom("syntax_error"),
+				args:    []Term{NewAtom(err.Error())},
 			},
 			varContext,
 		},
@@ -348,10 +348,10 @@ func SyntaxError(err error, env *Env) Exception {
 // SystemError creates a new system error exception.
 func SystemError(err error) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
-			Atom("system_error"),
-			Atom(err.Error()),
+			NewAtom("system_error"),
+			NewAtom(err.Error()),
 		},
 	}, nil)
 }
@@ -369,27 +369,27 @@ const (
 )
 
 func (ev ExceptionalValue) Error() string {
-	return string(ev.Term().(Atom))
+	return ev.Term().(Atom).String()
 }
 
 // Term returns an Atom for the ExceptionalValue.
 func (ev ExceptionalValue) Term() Term {
 	return [...]Atom{
-		ExceptionalValueFloatOverflow: "float_overflow",
-		ExceptionalValueIntOverflow:   "int_overflow",
-		ExceptionalValueUnderflow:     "underflow",
-		ExceptionalValueZeroDivisor:   "zero_divisor",
-		ExceptionalValueUndefined:     "undefined",
+		ExceptionalValueFloatOverflow: atomFloatOverflow,
+		ExceptionalValueIntOverflow:   atomIntOverflow,
+		ExceptionalValueUnderflow:     atomUnderflow,
+		ExceptionalValueZeroDivisor:   atomZeroDivisor,
+		ExceptionalValueUndefined:     atomUndefined,
 	}[ev]
 }
 
 // EvaluationError creates a new evaluation error exception.
 func EvaluationError(ev ExceptionalValue, env *Env) Exception {
 	return NewException(&compound{
-		functor: "error",
+		functor: atomError,
 		args: []Term{
 			&compound{
-				functor: "evaluation_error",
+				functor: NewAtom("evaluation_error"),
 				args:    []Term{ev.Term()},
 			},
 			varContext,

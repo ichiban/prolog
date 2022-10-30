@@ -136,7 +136,7 @@ var openFile = os.OpenFile
 
 // Open opens a file and creates a new stream out of it.
 func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
-	f, err := openFile(string(name), int(mode), 0644)
+	f, err := openFile(name.String(), int(mode), 0644)
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
@@ -163,20 +163,20 @@ var fileStat = (*os.File).Stat
 func (s *Stream) properties() ([]Term, error) {
 	var properties []Term
 
-	properties = append(properties, &compound{functor: "mode", args: []Term{Atom(s.mode.String())}})
+	properties = append(properties, &compound{functor: atomMode, args: []Term{NewAtom(s.mode.String())}})
 
 	switch s.mode {
 	case StreamModeRead:
-		properties = append(properties, Atom("input"))
+		properties = append(properties, atomInput)
 	case StreamModeWrite, StreamModeAppend:
-		properties = append(properties, Atom("output"))
+		properties = append(properties, atomOutput)
 	}
 
-	if s.alias != "" {
-		properties = append(properties, &compound{functor: "alias", args: []Term{s.alias}})
+	if s.alias != 0 {
+		properties = append(properties, &compound{functor: atomAlias, args: []Term{s.alias}})
 	}
 
-	properties = append(properties, &compound{functor: "eof_action", args: []Term{Atom(s.eofAction.String())}})
+	properties = append(properties, &compound{functor: atomEOFAction, args: []Term{NewAtom(s.eofAction.String())}})
 
 	if f, ok := s.file.(*os.File); ok {
 		pos, err := seek(f, 0, 1)
@@ -199,19 +199,19 @@ func (s *Stream) properties() ([]Term, error) {
 		}
 
 		properties = append(properties,
-			&compound{functor: "file_name", args: []Term{Atom(f.Name())}},
-			&compound{functor: "position", args: []Term{Integer(pos)}},
-			&compound{functor: "end_of_stream", args: []Term{Atom(eos)}},
+			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
+			&compound{functor: atomPosition, args: []Term{Integer(pos)}},
+			&compound{functor: atomEndOfStream, args: []Term{NewAtom(eos)}},
 		)
 	}
 
 	if s.reposition {
-		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("true")}})
+		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomTrue}})
 	} else {
-		properties = append(properties, &compound{functor: "reposition", args: []Term{Atom("false")}})
+		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomFalse}})
 	}
 
-	properties = append(properties, &compound{functor: "type", args: []Term{Atom(s.streamType.String())}})
+	properties = append(properties, &compound{functor: atomType, args: []Term{NewAtom(s.streamType.String())}})
 
 	return properties, nil
 }

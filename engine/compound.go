@@ -38,7 +38,7 @@ func (c *compound) GoString() string {
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
 	return &compound{
-		functor: ".",
+		functor: atomDot,
 		args:    []Term{car, cdr},
 	}
 }
@@ -60,7 +60,7 @@ func (l list) TermID() TermID { // Slices are not comparable.
 }
 
 func (l list) Functor() Atom {
-	return "."
+	return atomDot
 }
 
 func (l list) Arity() int {
@@ -74,7 +74,7 @@ func (l list) Arg(n int) Term {
 		t = l[0]
 	case 1:
 		if len(l) == 1 {
-			t = Atom("[]")
+			t = atomEmptyList
 			break
 		}
 		t = l[1:]
@@ -98,7 +98,7 @@ func (l list) GoString() string {
 // List returns a list of ts.
 func List(ts ...Term) Term {
 	if len(ts) == 0 {
-		return Atom("[]")
+		return atomEmptyList
 	}
 	return list(ts)
 }
@@ -120,8 +120,8 @@ func (p partial) TermID() TermID { // The underlying compound might not be compa
 
 func (p partial) Arg(n int) Term {
 	t := p.Compound.Arg(n)
-	if c := p.Compound; c.Functor() == "." && c.Arity() == 2 && n == 1 {
-		if t == Atom("[]") {
+	if c := p.Compound; c.Functor() == atomDot && c.Arity() == 2 && n == 1 {
+		if t == atomEmptyList {
 			t = p.tail
 		} else {
 			t = partial{Compound: t.(Compound), tail: p.tail}
@@ -186,7 +186,7 @@ func Seq(sep Atom, ts ...Term) Term {
 // Pair returns a pair of k and v.
 func Pair(k, v Term) Term {
 	return &compound{
-		functor: "-",
+		functor: atomMinus,
 		args:    []Term{k, v},
 	}
 }
@@ -194,7 +194,7 @@ func Pair(k, v Term) Term {
 type charList string
 
 func (c charList) Functor() Atom {
-	return "."
+	return atomDot
 }
 
 func (c charList) Arity() int {
@@ -206,10 +206,10 @@ func (c charList) Arg(n int) Term {
 	var t Term
 	switch n {
 	case 0:
-		t = Atom(c[:i])
+		t = NewAtom(string(c[:i]))
 	case 1:
 		if i == len(c) {
-			t = Atom("[]")
+			t = atomEmptyList
 		} else {
 			t = c[i:]
 		}
@@ -220,7 +220,7 @@ func (c charList) Arg(n int) Term {
 // CharList returns a character list.
 func CharList(s string) Term {
 	if s == "" {
-		return Atom("[]")
+		return atomEmptyList
 	}
 	return charList(s)
 }
@@ -228,7 +228,7 @@ func CharList(s string) Term {
 type codeList string
 
 func (c codeList) Functor() Atom {
-	return "."
+	return atomDot
 }
 
 func (c codeList) Arity() int {
@@ -244,7 +244,7 @@ func (c codeList) Arg(n int) Term {
 	case 1:
 		_, i := utf8.DecodeRuneInString(string(c))
 		if i == len(c) {
-			t = Atom("[]")
+			t = atomEmptyList
 		} else {
 			t = c[i:]
 		}
@@ -255,7 +255,7 @@ func (c codeList) Arg(n int) Term {
 // CodeList returns a character code list.
 func CodeList(s string) Term {
 	if s == "" {
-		return Atom("[]")
+		return atomEmptyList
 	}
 	return codeList(s)
 }

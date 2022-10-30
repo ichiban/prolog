@@ -42,10 +42,10 @@ func Contains(t, s Term, env *Env) bool {
 // Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
 func Rulify(t Term, env *Env) Term {
 	t = env.Resolve(t)
-	if c, ok := t.(Compound); ok && c.Functor() == ":-" && c.Arity() == 2 {
+	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
 		return t
 	}
-	return &compound{functor: ":-", args: []Term{t, Atom("true")}}
+	return &compound{functor: atomIf, args: []Term{t, atomTrue}}
 }
 
 // WriteOptions specify how the Term writes itself.
@@ -93,11 +93,11 @@ func (o WriteOptions) withRight(op operator) *WriteOptions {
 
 var defaultWriteOptions = WriteOptions{
 	ops: operators{
-		"+": [_operatorClassLen]operator{
-			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: "+"}, // for flag+value
+		atomPlus: [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: atomPlus}, // for flag+value
 		},
-		"/": [_operatorClassLen]operator{
-			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: "/"}, // for principal functors
+		atomSlash: [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: atomSlash}, // for principal functors
 		},
 	},
 	VariableNames: map[Variable]Atom{},
@@ -134,7 +134,7 @@ func writeAtom(w io.Writer, a Atom, opts *WriteOptions) error {
 	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
 
 	if openClose {
-		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
+		if opts.left.name != 0 && opts.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
@@ -145,7 +145,7 @@ func writeAtom(w io.Writer, a Atom, opts *WriteOptions) error {
 		if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
-		_, _ = fmt.Fprint(&ew, quote(string(a)))
+		_, _ = fmt.Fprint(&ew, quote(a.String()))
 		if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
@@ -153,7 +153,7 @@ func writeAtom(w io.Writer, a Atom, opts *WriteOptions) error {
 		if (letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
-		_, _ = fmt.Fprint(&ew, string(a))
+		_, _ = fmt.Fprint(&ew, a.String())
 		if (letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
@@ -168,7 +168,7 @@ func writeAtom(w io.Writer, a Atom, opts *WriteOptions) error {
 
 func writeInteger(w io.Writer, i Integer, opts *WriteOptions) error {
 	ew := errWriter{w: w}
-	openClose := opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix && i > 0
+	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && i > 0
 
 	if openClose {
 		_, _ = fmt.Fprint(&ew, " (")
@@ -187,7 +187,7 @@ func writeInteger(w io.Writer, i Integer, opts *WriteOptions) error {
 	}
 
 	// Avoid ambiguous 0b, 0o, 0x or 0'.
-	if !openClose && opts.right != (operator{}) && (letterDigit(opts.right.name) || (needQuoted(opts.right.name) && opts.right.name != "," && opts.right.name != "|")) {
+	if !openClose && opts.right != (operator{}) && (letterDigit(opts.right.name) || (needQuoted(opts.right.name) && opts.right.name != atomComma && opts.right.name != atomBar)) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 
@@ -196,7 +196,7 @@ func writeInteger(w io.Writer, i Integer, opts *WriteOptions) error {
 
 func writeFloat(w io.Writer, f Float, opts *WriteOptions) error {
 	ew := errWriter{w: w}
-	openClose := opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix && f > 0
+	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && f > 0
 
 	if openClose || (f < 0 && opts.left != operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
@@ -220,7 +220,7 @@ func writeFloat(w io.Writer, f Float, opts *WriteOptions) error {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
 
-	if !openClose && opts.right != (operator{}) && (opts.right.name == "e" || opts.right.name == "E") {
+	if !openClose && opts.right != (operator{}) && (opts.right.name == atomSmallE || opts.right.name == atomE) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 
@@ -233,16 +233,16 @@ func writeCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error 
 		return err
 	}
 
-	if n, ok := env.Resolve(c.Arg(0)).(Integer); ok && opts.NumberVars && c.Functor() == "$VAR" && c.Arity() == 1 && n >= 0 {
+	if n, ok := env.Resolve(c.Arg(0)).(Integer); ok && opts.NumberVars && c.Functor() == atomVar && c.Arity() == 1 && n >= 0 {
 		return writeCompoundNumberVars(w, n)
 	}
 
 	if !opts.IgnoreOps {
-		if c.Functor() == "." && c.Arity() == 2 {
+		if c.Functor() == atomDot && c.Arity() == 2 {
 			return writeCompoundList(w, c, opts, env)
 		}
 
-		if c.Functor() == "{}" && c.Arity() == 1 {
+		if c.Functor() == atomEmptyBlock && c.Arity() == 1 {
 			return writeCompoundCurlyBracketed(w, c, opts, env)
 		}
 	}
@@ -297,7 +297,7 @@ func writeCompoundList(w io.Writer, c Compound, opts *WriteOptions, env *Env) er
 	if err := iter.Err(); err != nil {
 		_, _ = fmt.Fprint(&ew, "|")
 		s := iter.Suffix()
-		if l, ok := iter.Suffix().(Compound); ok && l.Functor() == "." && l.Arity() == 2 {
+		if l, ok := iter.Suffix().(Compound); ok && l.Functor() == atomDot && l.Arity() == 2 {
 			_, _ = fmt.Fprint(&ew, "...")
 		} else {
 			_ = WriteTerm(&ew, s, opts, env)
@@ -366,7 +366,7 @@ func writeCompoundOpPostfix(w io.Writer, c Compound, opts *WriteOptions, env *En
 	ew := errWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
-	openClose := opts.priority < op.priority || (opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix)
+	openClose := opts.priority < op.priority || (opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix)
 
 	if openClose {
 		if opts.left != (operator{}) {
@@ -390,11 +390,11 @@ func writeCompoundOpInfix(w io.Writer, c Compound, opts *WriteOptions, env *Env,
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority ||
-		(opts.left.name == "-" && opts.left.specifier.class() == operatorClassPrefix) ||
+		(opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix) ||
 		(opts.right != operator{} && r >= opts.right.priority)
 
 	if openClose {
-		if opts.left.name != "" && opts.left.specifier.class() == operatorClassPrefix {
+		if opts.left.name != 0 && opts.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
@@ -402,7 +402,7 @@ func writeCompoundOpInfix(w io.Writer, c Compound, opts *WriteOptions, env *Env,
 	}
 	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
 	switch c.Functor() {
-	case ",", "|":
+	case atomComma, atomBar:
 		_, _ = fmt.Fprint(&ew, c.Functor())
 	default:
 		_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
@@ -454,7 +454,7 @@ func (ew *errWriter) Write(p []byte) (int, error) {
 func iteratedGoalTerm(t Term, env *Env) Term {
 	for {
 		c, ok := env.Resolve(t).(Compound)
-		if !ok || c.Functor() != "^" || c.Arity() != 2 {
+		if !ok || c.Functor() != atomCaret || c.Arity() != 2 {
 			return t
 		}
 		t = c.Arg(1)

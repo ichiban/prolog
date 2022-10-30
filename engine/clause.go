@@ -71,7 +71,7 @@ func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Pr
 
 func compile(t Term, env *Env) (clauses, error) {
 	t = env.Resolve(t)
-	if t, ok := t.(Compound); ok && t.Functor() == ":-" && t.Arity() == 2 {
+	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
 		iter := AltIterator{Alt: body, Env: env}
@@ -136,12 +136,12 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	switch p := env.Resolve(p).(type) {
 	case Variable:
 		return c.compilePred(&compound{
-			functor: "call",
+			functor: atomCall,
 			args:    []Term{p},
 		}, env)
 	case Atom:
 		switch p {
-		case "!":
+		case atomCut:
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}

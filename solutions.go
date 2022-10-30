@@ -112,7 +112,7 @@ func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, e
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return convertInteger(t, typ, env)
 	case reflect.String:
-		return convertAtom(t, env)
+		return convertNewAtom(t, env)
 	case reflect.Slice:
 		return convertList(t, typ, env)
 	default:
@@ -134,9 +134,9 @@ func convertInteger(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.V
 	return reflect.Value{}, errConversion
 }
 
-func convertAtom(t engine.Term, env *engine.Env) (reflect.Value, error) {
+func convertNewAtom(t engine.Term, env *engine.Env) (reflect.Value, error) {
 	if a, ok := env.Resolve(t).(engine.Atom); ok {
-		return reflect.ValueOf(string(a)), nil
+		return reflect.ValueOf(a.String()), nil
 	}
 	return reflect.Value{}, errConversion
 }
