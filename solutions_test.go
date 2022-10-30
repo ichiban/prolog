@@ -19,7 +19,7 @@ func TestSolutions_Close(t *testing.T) {
 
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		env := engine.NewEnv().Bind(engine.NewNamedVariable("Foo"), engine.Atom("bar"))
+		env := engine.NewEnv().Bind(engine.NewNamedVariable("Foo"), engine.NewAtom("bar"))
 		more := make(chan bool, 1)
 		defer close(more)
 		next := make(chan *engine.Env, 1)
@@ -27,7 +27,7 @@ func TestSolutions_Next(t *testing.T) {
 		next <- env
 		sols := Solutions{more: more, next: next}
 		assert.True(t, sols.Next())
-		assert.Equal(t, engine.Atom("bar"), sols.env.Resolve(engine.NewNamedVariable("Foo")))
+		assert.Equal(t, engine.NewAtom("bar"), sols.env.Resolve(engine.NewNamedVariable("Foo")))
 	})
 
 	t.Run("closed", func(t *testing.T) {
@@ -46,11 +46,11 @@ func TestSolutions_Scan(t *testing.T) {
 		"Int16":   engine.Integer(16),
 		"Int32":   engine.Integer(32),
 		"Int64":   engine.Integer(64),
-		"String":  engine.Atom("string"),
-		"Slice":   engine.List(engine.Atom("a"), engine.Atom("b"), engine.Atom("c")),
-		"Foo":     engine.Atom("foo"),
-		"Bar":     engine.Atom("bar"),
-		"Baz":     engine.Atom("baz"),
+		"String":  engine.NewAtom("string"),
+		"Slice":   engine.List(engine.NewAtom("a"), engine.NewAtom("b"), engine.NewAtom("c")),
+		"Foo":     engine.NewAtom("foo"),
+		"Bar":     engine.NewAtom("bar"),
+		"Baz":     engine.NewAtom("baz"),
 	} {
 		env = env.Bind(engine.NewNamedVariable(k), v)
 	}
@@ -94,7 +94,7 @@ func TestSolutions_Scan(t *testing.T) {
 			assert.Equal(t, "string", s.String)
 			assert.Equal(t, []string{"a", "b", "c"}, s.Slice)
 			assert.Equal(t, "foo", s.Tagged)
-			assert.Equal(t, engine.Atom("bar"), s.Bar)
+			assert.Equal(t, engine.NewAtom("bar"), s.Bar)
 		})
 
 		t.Run("ng", func(t *testing.T) {
@@ -139,10 +139,10 @@ func TestSolutions_Scan(t *testing.T) {
 			assert.Equal(t, engine.Integer(16), m["Int16"])
 			assert.Equal(t, engine.Integer(32), m["Int32"])
 			assert.Equal(t, engine.Integer(64), m["Int64"])
-			assert.Equal(t, engine.Atom("string"), m["String"])
-			assert.Equal(t, engine.Cons(engine.Atom("a"), engine.Cons(engine.Atom("b"), engine.Cons(engine.Atom("c"), engine.Atom("[]")))), m["Slice"])
-			assert.Equal(t, engine.Atom("foo"), m["Foo"])
-			assert.Equal(t, engine.Atom("bar"), m["Bar"])
+			assert.Equal(t, engine.NewAtom("string"), m["String"])
+			assert.Equal(t, engine.Cons(engine.NewAtom("a"), engine.Cons(engine.NewAtom("b"), engine.Cons(engine.NewAtom("c"), engine.NewAtom("[]")))), m["Slice"])
+			assert.Equal(t, engine.NewAtom("foo"), m["Foo"])
+			assert.Equal(t, engine.NewAtom("bar"), m["Bar"])
 		})
 
 		t.Run("ng", func(t *testing.T) {

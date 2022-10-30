@@ -12,30 +12,30 @@ import (
 func TestEvaluableFunctors_Is(t *testing.T) {
 	efs := EvaluableFunctors{
 		Constant: map[Atom]Number{
-			"foo": Integer(1),
+			NewAtom("foo"): Integer(1),
 		},
 		Unary: map[Atom]func(x Number) (Number, error){
-			"foo": func(_ Number) (Number, error) {
+			NewAtom("foo"): func(_ Number) (Number, error) {
 				return Integer(1), nil
 			},
-			"zero_divisor": func(_ Number) (Number, error) {
+			NewAtom("zero_divisor"): func(_ Number) (Number, error) {
 				return nil, ExceptionalValueZeroDivisor
 			},
-			"int_overflow": func(_ Number) (Number, error) {
+			NewAtom("int_overflow"): func(_ Number) (Number, error) {
 				return nil, ExceptionalValueIntOverflow
 			},
-			"float_overflow": func(_ Number) (Number, error) {
+			NewAtom("float_overflow"): func(_ Number) (Number, error) {
 				return nil, ExceptionalValueFloatOverflow
 			},
-			"underflow": func(_ Number) (Number, error) {
+			NewAtom("underflow"): func(_ Number) (Number, error) {
 				return nil, ExceptionalValueUnderflow
 			},
-			"undefined": func(_ Number) (Number, error) {
+			NewAtom("undefined"): func(_ Number) (Number, error) {
 				return nil, ExceptionalValueUndefined
 			},
 		},
 		Binary: map[Atom]func(x Number, y Number) (Number, error){
-			"foo": func(_, _ Number) (Number, error) {
+			NewAtom("foo"): func(_, _ Number) (Number, error) {
 				return Integer(1), nil
 			},
 		},
@@ -43,62 +43,62 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 
 	t.Run("constant", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), Atom("foo"), Success, nil).Force(context.Background())
+			ok, err := efs.Is(Integer(1), NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("bar"), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("bar"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("unary", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), Atom("foo").Apply(Integer(0)), Success, nil).Force(context.Background())
+			ok, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("bar").Apply(Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("bar").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid argument", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("foo").Apply(NewNamedVariable("X")), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("foo").Apply(NewNamedVariable("X")), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("exceptional value", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("undefined").Apply(Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("undefined").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("binary", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), Atom("foo").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
+			ok, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("bar").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("bar").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid argument", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), Atom("foo").Apply(NewNamedVariable("X"), Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(Integer(1), NewAtom("foo").Apply(NewNamedVariable("X"), Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
-			_, err = efs.Is(Integer(1), Atom("foo").Apply(Integer(0), NewNamedVariable("X")), Success, nil).Force(context.Background())
+			_, err = efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), NewNamedVariable("X")), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("tertiary", func(t *testing.T) {
-		_, err := efs.Is(Integer(1), Atom("foo").Apply(Integer(0), Integer(0), Integer(0)), Success, nil).Force(context.Background())
+		_, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0), Integer(0)), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 

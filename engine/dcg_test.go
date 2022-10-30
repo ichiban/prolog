@@ -13,7 +13,7 @@ func TestState_Phrase(t *testing.T) {
 		state := State{
 			VM: VM{
 				procedures: map[ProcedureIndicator]procedure{
-					{Name: "a", Arity: 2}: predicate2(func(s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
+					{Name: NewAtom("a"), Arity: 2}: predicate2(func(s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
 						called = true
 						return k(env)
 					}),
@@ -22,7 +22,7 @@ func TestState_Phrase(t *testing.T) {
 		}
 
 		s0, s := NewVariable(), NewVariable()
-		ok, err := state.Phrase(Atom("a"), s0, s, Success, nil).Force(context.Background())
+		ok, err := state.Phrase(NewAtom("a"), s0, s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 

@@ -12,32 +12,32 @@ func Test_variableSet(t *testing.T) {
 		s    variableSet
 	}{
 		{term: &compound{
-			functor: "f",
+			functor: NewAtom("f"),
 			args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 		}, s: map[Variable]int{
 			NewNamedVariable("X"): 1,
 			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
-			functor: "f",
+			functor: NewAtom("f"),
 			args:    []Term{NewNamedVariable("Y"), NewNamedVariable("X")},
 		}, s: map[Variable]int{
 			NewNamedVariable("X"): 1,
 			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
-			functor: "+",
+			functor: atomPlus,
 			args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 		}, s: map[Variable]int{
 			NewNamedVariable("X"): 1,
 			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
-			functor: "-",
+			functor: atomMinus,
 			args: []Term{
 				NewNamedVariable("Y"),
 				&compound{
-					functor: "-",
+					functor: atomMinus,
 					args:    []Term{NewNamedVariable("X"), NewNamedVariable("X")},
 				},
 			},
@@ -58,15 +58,15 @@ func Test_existentialVariableSet(t *testing.T) {
 		ev   variableSet
 	}{
 		{term: &compound{
-			functor: "^",
+			functor: atomCaret,
 			args: []Term{
 				NewNamedVariable("X"),
 				&compound{
-					functor: "^",
+					functor: atomCaret,
 					args: []Term{
 						NewNamedVariable("Y"),
 						&compound{
-							functor: "f",
+							functor: NewAtom("f"),
 							args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y"), NewNamedVariable("Z")},
 						},
 					},
@@ -77,14 +77,14 @@ func Test_existentialVariableSet(t *testing.T) {
 			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
-			functor: "^",
+			functor: atomCaret,
 			args: []Term{
 				&compound{
-					functor: ",",
+					functor: atomComma,
 					args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 				},
 				&compound{
-					functor: "f",
+					functor: NewAtom("f"),
 					args:    []Term{NewNamedVariable("Z"), NewNamedVariable("Y"), NewNamedVariable("X")},
 				},
 			},
@@ -93,10 +93,10 @@ func Test_existentialVariableSet(t *testing.T) {
 			NewNamedVariable("Y"): 1,
 		}},
 		{term: &compound{
-			functor: "^",
+			functor: atomCaret,
 			args: []Term{
 				&compound{
-					functor: "+",
+					functor: atomPlus,
 					args:    []Term{NewNamedVariable("X"), NewNamedVariable("Y")},
 				},
 				Integer(3),
@@ -118,35 +118,35 @@ func Test_freeVariablesSet(t *testing.T) {
 		fv   variableSet
 	}{
 		{t: &compound{
-			functor: "+",
+			functor: atomPlus,
 			args: []Term{
 				NewNamedVariable("X"),
 				&compound{
-					functor: "+",
+					functor: atomPlus,
 					args:    []Term{NewNamedVariable("Y"), NewNamedVariable("Z")},
 				},
 			},
 		}, v: &compound{
-			functor: "f",
+			functor: NewAtom("f"),
 			args:    []Term{NewNamedVariable("Z")},
 		}, fv: variableSet{
 			NewNamedVariable("X"): 1,
 			NewNamedVariable("Y"): 1,
 		}},
 		{t: &compound{
-			functor: "^",
+			functor: atomCaret,
 			args: []Term{
 				NewNamedVariable("Z"),
 				&compound{
-					functor: "+",
+					functor: atomPlus,
 					args: []Term{
 						NewNamedVariable("A"),
 						&compound{
-							functor: "+",
+							functor: atomPlus,
 							args: []Term{
 								NewNamedVariable("X"),
 								&compound{
-									functor: "+",
+									functor: atomPlus,
 									args: []Term{
 										NewNamedVariable("Y"),
 										NewNamedVariable("Z"),

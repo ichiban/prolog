@@ -96,7 +96,7 @@ func newVariableSet(t Term, env *Env) variableSet {
 func newExistentialVariablesSet(t Term, env *Env) variableSet {
 	ev := variableSet{}
 	for terms := []Term{t}; len(terms) > 0; terms, t = terms[:len(terms)-1], terms[len(terms)-1] {
-		if c, ok := env.Resolve(t).(Compound); ok && c.Functor() == "^" && c.Arity() == 2 {
+		if c, ok := env.Resolve(t).(Compound); ok && c.Functor() == atomCaret && c.Arity() == 2 {
 			for v, o := range newVariableSet(c.Arg(0), env) {
 				ev[v] = o
 			}

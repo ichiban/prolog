@@ -13,56 +13,56 @@ var (
 // DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
 var DefaultEvaluableFunctors = EvaluableFunctors{
 	Constant: map[Atom]Number{
-		`pi`: Float(math.Pi),
+		atomPi: Float(math.Pi),
 	},
 	Unary: map[Atom]func(Number) (Number, error){
-		`-`:                     Neg,
-		`abs`:                   Abs,
-		`sign`:                  Sign,
-		`float_integer_part`:    FloatIntegerPart,
-		`float_fractional_part`: FloatFractionalPart,
-		`float`:                 AsFloat,
-		`floor`:                 Floor,
-		`truncate`:              Truncate,
-		`round`:                 Round,
-		`ceiling`:               Ceiling,
+		atomMinus:               Neg,
+		atomAbs:                 Abs,
+		atomSign:                Sign,
+		atomFloatIntegerPart:    FloatIntegerPart,
+		atomFloatFractionalPart: FloatFractionalPart,
+		atomFloat:               AsFloat,
+		atomFloor:               Floor,
+		atomTruncate:            Truncate,
+		atomRound:               Round,
+		atomCeiling:             Ceiling,
 
-		`sin`:  Sin,
-		`cos`:  Cos,
-		`atan`: Atan,
-		`exp`:  Exp,
-		`log`:  Log,
-		`sqrt`: Sqrt,
+		atomSin:  Sin,
+		atomCos:  Cos,
+		atomAtan: Atan,
+		atomExp:  Exp,
+		atomLog:  Log,
+		atomSqrt: Sqrt,
 
-		`\`: BitwiseComplement,
+		atomBackSlash: BitwiseComplement,
 
-		`+`:    Pos,
-		`asin`: Asin,
-		`acos`: Acos,
-		`tan`:  Tan,
+		atomPlus: Pos,
+		atomAsin: Asin,
+		atomAcos: Acos,
+		atomTan:  Tan,
 	},
 	Binary: map[Atom]func(Number, Number) (Number, error){
-		`+`:   Add,
-		`-`:   Sub,
-		`*`:   Mul,
-		`//`:  IntDiv,
-		`/`:   Div,
-		`rem`: Rem,
-		`mod`: Mod,
+		atomPlus:       Add,
+		atomMinus:      Sub,
+		atomAsterisk:   Mul,
+		atomSlashSlash: IntDiv,
+		atomSlash:      Div,
+		atomRem:        Rem,
+		atomMod:        Mod,
 
-		`**`: Power,
+		atomAsteriskAsterisk: Power,
 
-		`>>`: BitwiseRightShift,
-		`<<`: BitwiseLeftShift,
-		`/\`: BitwiseAnd,
-		`\/`: BitwiseOr,
+		atomBitwiseRightShift: BitwiseRightShift,
+		atomBitwiseLeftShift:  BitwiseLeftShift,
+		atomBitwiseAnd:        BitwiseAnd,
+		atomBitwiseOr:         BitwiseOr,
 
-		`div`:   IntFloorDiv,
-		`max`:   Max,
-		`min`:   Min,
-		`^`:     IntegerPower,
-		`atan2`: Atan2,
-		`xor`:   Xor,
+		atomDiv:   IntFloorDiv,
+		atomMax:   Max,
+		atomMin:   Min,
+		atomCaret: IntegerPower,
+		atomAtan2: Atan2,
+		atomXor:   Xor,
 	},
 }
 
@@ -318,7 +318,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 		c, ok := e.Constant[t]
 		if !ok {
 			return nil, TypeError(ValidTypeEvaluable, &compound{
-				functor: "/",
+				functor: atomSlash,
 				args:    []Term{t, Integer(0)},
 			}, env)
 		}
@@ -331,7 +331,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 			f, ok := e.Unary[t.Functor()]
 			if !ok {
 				return nil, TypeError(ValidTypeEvaluable, &compound{
-					functor: "/",
+					functor: atomSlash,
 					args: []Term{
 						t.Functor(),
 						Integer(1),
@@ -347,7 +347,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 			f, ok := e.Binary[t.Functor()]
 			if !ok {
 				return nil, TypeError(ValidTypeEvaluable, &compound{
-					functor: "/",
+					functor: atomSlash,
 					args: []Term{
 						t.Functor(),
 						Integer(2),
@@ -365,13 +365,13 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 			return f(x, y)
 		default:
 			return nil, TypeError(ValidTypeEvaluable, &compound{
-				functor: "/",
+				functor: atomSlash,
 				args:    []Term{t.Functor(), Integer(arity)},
 			}, env)
 		}
 	default:
 		return nil, TypeError(ValidTypeEvaluable, &compound{
-			functor: "/",
+			functor: atomSlash,
 			args:    []Term{t, Integer(0)},
 		}, env)
 	}

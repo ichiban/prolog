@@ -723,18 +723,18 @@ func TestInterpreter_Query(t *testing.T) {
 		scan, result      interface{}
 	}{
 		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.Atom("nil"),
+			"X": engine.NewAtom("nil"),
 			"Y": engine.NewNamedVariable("Z"),
 			"Z": engine.NewNamedVariable("Z"),
 		}},
 		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.Atom("cons").Apply(
-				engine.Atom("a"),
-				engine.Atom("cons").Apply(
-					engine.Atom("b"),
-					engine.Atom("cons").Apply(
-						engine.Atom("c"),
-						engine.Atom("nil"),
+			"X": engine.NewAtom("cons").Apply(
+				engine.NewAtom("a"),
+				engine.NewAtom("cons").Apply(
+					engine.NewAtom("b"),
+					engine.NewAtom("cons").Apply(
+						engine.NewAtom("c"),
+						engine.NewAtom("nil"),
 					),
 				),
 			),

@@ -7,7 +7,7 @@ import (
 
 var varContext = NewNamedVariable("$context")
 
-const rootContext = Atom("root")
+var rootContext = NewAtom("root")
 
 type envKey int64
 
@@ -306,15 +306,15 @@ const (
 )
 
 func (o Order) GoString() string {
-	return string(o.Term().(Atom))
+	return o.Term().(Atom).String()
 }
 
 // Term returns the Atom representation of Order.
 func (o Order) Term() Term {
 	return [...]Term{
-		OrderEqual:   Atom("="),
-		OrderLess:    Atom("<"),
-		OrderGreater: Atom(">"),
+		OrderEqual:   atomEqual,
+		OrderLess:    atomLessThan,
+		OrderGreater: atomGreaterThan,
 	}[o]
 }
 
@@ -329,7 +329,7 @@ func (e *Env) Compare(x, y Term) Order {
 	case Integer:
 		return e.compareInteger(x, y)
 	case Atom:
-		return e.compareAtom(x, y)
+		return e.compareNewAtom(x, y)
 	case Compound:
 		return e.compareCompound(x, y)
 	default:
@@ -389,12 +389,12 @@ func (e *Env) compareInteger(x Integer, y Term) Order {
 	}
 }
 
-func (e *Env) compareAtom(x Atom, y Term) Order {
+func (e *Env) compareNewAtom(x Atom, y Term) Order {
 	switch y := y.(type) {
 	case Variable, Float, Integer:
 		return OrderGreater
 	case Atom:
-		switch d := strings.Compare(string(x), string(y)); {
+		switch d := strings.Compare(x.String(), y.String()); {
 		case d > 0:
 			return OrderGreater
 		case d < 0:

@@ -100,7 +100,7 @@ func termOf(o reflect.Value) (Term, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return Integer(o.Int()), nil
 	case reflect.String:
-		return Atom(o.String()), nil
+		return NewAtom(o.String()), nil
 	case reflect.Array, reflect.Slice:
 		l := o.Len()
 		es := make([]Term, l)
@@ -190,7 +190,7 @@ func (p *Parser) Number() (Number, error) {
 			return nil, errNotANumber
 		}
 
-		if a != "-" {
+		if a != atomMinus {
 			p.backup()
 			return nil, errNotANumber
 		}
@@ -252,13 +252,13 @@ func (s operatorSpecifier) class() operatorClass {
 
 func (s operatorSpecifier) term() Term {
 	return [...]Term{
-		operatorSpecifierFX:  Atom("fx"),
-		operatorSpecifierFY:  Atom("fy"),
-		operatorSpecifierXF:  Atom("xf"),
-		operatorSpecifierYF:  Atom("yf"),
-		operatorSpecifierXFX: Atom("xfx"),
-		operatorSpecifierXFY: Atom("xfy"),
-		operatorSpecifierYFX: Atom("yfx"),
+		operatorSpecifierFX:  atomFX,
+		operatorSpecifierFY:  atomFY,
+		operatorSpecifierXF:  atomXF,
+		operatorSpecifierYF:  atomYF,
+		operatorSpecifierXFX: atomXFX,
+		operatorSpecifierXFY: atomXFY,
+		operatorSpecifierYFX: atomYFX,
 	}[s]
 }
 
@@ -412,7 +412,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	if a == "-" {
+	if a == atomMinus {
 		switch t := p.next(); t.Kind {
 		case TokenInteger, TokenFloatNumber:
 			p.backup()
@@ -470,18 +470,18 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	if a, err := p.atom(); err == nil {
 		switch a {
-		case "[]":
+		case atomEmptyList:
 			p.backup()
 			if p.current().Kind == TokenCloseList {
 				p.backup()
 			}
-			return "", errNoOp
-		case "{}":
+			return 0, errNoOp
+		case atomEmptyBlock:
 			p.backup()
 			if p.current().Kind == TokenCloseCurly {
 				p.backup()
 			}
-			return "", errNoOp
+			return 0, errNoOp
 		default:
 			return a, nil
 		}
@@ -490,14 +490,14 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	switch t := p.next(); t.Kind {
 	case TokenComma:
 		if maxPriority >= 1000 {
-			return Atom(t.Val), nil
+			return NewAtom(t.Val), nil
 		}
 	case TokenBar:
-		return Atom(t.Val), nil
+		return NewAtom(t.Val), nil
 	}
 
 	p.backup()
-	return "", errExpectation
+	return 0, errExpectation
 }
 
 func (p *Parser) term0(maxPriority Integer) (Term, error) {
@@ -540,16 +540,16 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 	}
 
-	return p.term0Atom(maxPriority)
+	return p.term0NewAtom(maxPriority)
 }
 
-func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
+func (p *Parser) term0NewAtom(maxPriority Integer) (Term, error) {
 	a, err := p.atom()
 	if err != nil {
 		return nil, err
 	}
 
-	if a == "-" {
+	if a == atomMinus {
 		switch t := p.next(); t.Kind {
 		case TokenInteger:
 			return integer(-1, t.Val)
@@ -571,7 +571,7 @@ func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 		return nil, errExpectation
 	}
 
-	if p.placeholder != "" && t == p.placeholder {
+	if p.placeholder != 0 && t == p.placeholder {
 		if len(p.args) == 0 {
 			return nil, errPlaceholder
 		}
@@ -588,7 +588,7 @@ func (p *Parser) variable(s string) (Term, error) {
 	if p.vars == nil {
 		return NewNamedVariable(s), nil
 	}
-	n := Atom(s)
+	n := NewAtom(s)
 	for i, v := range *p.vars {
 		if v.Name == n {
 			(*p.vars)[i].Count++
@@ -621,44 +621,44 @@ func (p *Parser) atom() (Atom, error) {
 	case TokenOpenList:
 		switch t := p.next(); t.Kind {
 		case TokenCloseList:
-			return "[]", nil
+			return atomEmptyList, nil
 		default:
 			p.backup()
 			p.backup()
-			return "", errExpectation
+			return 0, errExpectation
 		}
 	case TokenOpenCurly:
 		switch t := p.next(); t.Kind {
 		case TokenCloseCurly:
-			return "{}", nil
+			return atomEmptyBlock, nil
 		default:
 			p.backup()
 			p.backup()
-			return "", errExpectation
+			return 0, errExpectation
 		}
 	case TokenDoubleQuotedList:
 		switch p.doubleQuotes {
 		case doubleQuotesAtom:
-			return Atom(unDoubleQuote(t.Val)), nil
+			return NewAtom(unDoubleQuote(t.Val)), nil
 		default:
 			p.backup()
-			return "", errExpectation
+			return 0, errExpectation
 		}
 	default:
 		p.backup()
-		return "", errExpectation
+		return 0, errExpectation
 	}
 }
 
 func (p *Parser) name() (Atom, error) {
 	switch t := p.next(); t.Kind {
 	case TokenLetterDigit, TokenGraphic, TokenSemicolon, TokenCut:
-		return Atom(t.Val), nil
+		return NewAtom(t.Val), nil
 	case TokenQuoted:
-		return Atom(unquote(t.Val)), nil
+		return NewAtom(unquote(t.Val)), nil
 	default:
 		p.backup()
-		return "", errExpectation
+		return 0, errExpectation
 	}
 }
 
@@ -713,7 +713,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 	}
 
 	return &compound{
-		functor: "{}",
+		functor: atomEmptyBlock,
 		args:    []Term{t},
 	}, nil
 }

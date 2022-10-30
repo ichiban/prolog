@@ -8,16 +8,16 @@ import (
 )
 
 func TestException_Error(t *testing.T) {
-	e := Exception{term: Atom("foo")}
+	e := Exception{term: NewAtom("foo")}
 	assert.Equal(t, "foo", e.Error())
 }
 
 func TestInstantiationError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
-				Atom("instantiation_error"),
+				NewAtom("instantiation_error"),
 				rootContext,
 			},
 		},
@@ -27,12 +27,12 @@ func TestInstantiationError(t *testing.T) {
 func TestTypeError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "type_error",
+					functor: NewAtom("type_error"),
 					args: []Term{
-						Atom("atom"),
+						atomAtom,
 						Integer(0),
 					},
 				},
@@ -45,12 +45,12 @@ func TestTypeError(t *testing.T) {
 func TestDomainError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "domain_error",
+					functor: NewAtom("domain_error"),
 					args: []Term{
-						Atom("not_less_than_zero"),
+						NewAtom("not_less_than_zero"),
 						Integer(-1),
 					},
 				},
@@ -61,15 +61,15 @@ func TestDomainError(t *testing.T) {
 }
 
 func TestExistenceError(t *testing.T) {
-	pi := ProcedureIndicator{Name: "foo", Arity: 0}.Term()
+	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "existence_error",
+					functor: NewAtom("existence_error"),
 					args: []Term{
-						Atom("procedure"),
+						NewAtom("procedure"),
 						pi,
 					},
 				},
@@ -80,16 +80,16 @@ func TestExistenceError(t *testing.T) {
 }
 
 func TestPermissionError(t *testing.T) {
-	pi := ProcedureIndicator{Name: "foo", Arity: 0}.Term()
+	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "permission_error",
+					functor: NewAtom("permission_error"),
 					args: []Term{
-						Atom("modify"),
-						Atom("static_procedure"),
+						NewAtom("modify"),
+						NewAtom("static_procedure"),
 						pi,
 					},
 				},
@@ -102,12 +102,12 @@ func TestPermissionError(t *testing.T) {
 func TestRepresentationError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "representation_error",
+					functor: NewAtom("representation_error"),
 					args: []Term{
-						Atom("max_integer"),
+						atomMaxInteger,
 					},
 				},
 				rootContext,
@@ -119,12 +119,12 @@ func TestRepresentationError(t *testing.T) {
 func TestResourceError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "resource_error",
+					functor: NewAtom("resource_error"),
 					args: []Term{
-						Atom("finite_memory"),
+						NewAtom("finite_memory"),
 					},
 				},
 				rootContext,
@@ -136,12 +136,12 @@ func TestResourceError(t *testing.T) {
 func TestSyntaxError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "syntax_error",
+					functor: NewAtom("syntax_error"),
 					args: []Term{
-						Atom("foo"),
+						NewAtom("foo"),
 					},
 				},
 				rootContext,
@@ -153,10 +153,10 @@ func TestSyntaxError(t *testing.T) {
 func TestSystemError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
-				Atom("system_error"),
-				Atom("foo"),
+				NewAtom("system_error"),
+				NewAtom("foo"),
 			},
 		},
 	}, SystemError(errors.New("foo")))
@@ -165,12 +165,12 @@ func TestSystemError(t *testing.T) {
 func TestEvaluationError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: &compound{
-			functor: "error",
+			functor: atomError,
 			args: []Term{
 				&compound{
-					functor: "evaluation_error",
+					functor: NewAtom("evaluation_error"),
 					args: []Term{
-						Atom("int_overflow"),
+						NewAtom("int_overflow"),
 					},
 				},
 				rootContext,

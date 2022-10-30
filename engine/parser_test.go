@@ -10,15 +10,15 @@ import (
 
 func TestParser_Term(t *testing.T) {
 	ops := operators{}
-	ops.define(1000, operatorSpecifierXFY, `,`)
-	ops.define(500, operatorSpecifierYFX, `+`)
-	ops.define(400, operatorSpecifierYFX, `*`)
-	ops.define(200, operatorSpecifierFY, `-`)
-	ops.define(200, operatorSpecifierYF, `--`)
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
 
 	pvs := []ParsedVariable{
 		{
-			Name:     "X",
+			Name:     NewAtom("X"),
 			Variable: NewNamedVariable("Z"),
 		},
 	}
@@ -34,30 +34,30 @@ func TestParser_Term(t *testing.T) {
 		{input: `foo`, err: ErrInsufficient},
 		{input: `.`, err: unexpectedTokenError{actual: Token{Kind: TokenEnd, Val: "."}}},
 
-		{input: `(foo).`, term: Atom("foo")},
+		{input: `(foo).`, term: NewAtom("foo")},
 		{input: `(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 
-		{input: `foo.`, term: Atom("foo")},
-		{input: `[].`, term: Atom("[]")},
-		{input: `[ ].`, term: Atom("[]")},
-		{input: `{}.`, term: Atom("{}")},
-		{input: `{ }.`, term: Atom("{}")},
-		{input: `'abc'.`, term: Atom("abc")},
-		{input: `'don''t panic'.`, term: Atom("don't panic")},
-		{input: "'this is \\\na quoted ident'.", term: Atom("this is a quoted ident")},
-		{input: `'\a'.`, term: Atom("\a")},
-		{input: `'\b'.`, term: Atom("\b")},
-		{input: `'\f'.`, term: Atom("\f")},
-		{input: `'\n'.`, term: Atom("\n")},
-		{input: `'\r'.`, term: Atom("\r")},
-		{input: `'\t'.`, term: Atom("\t")},
-		{input: `'\v'.`, term: Atom("\v")},
-		{input: `'\43\'.`, term: Atom("#")},
-		{input: `'\xa3\'.`, term: Atom("£")},
-		{input: `'\\'.`, term: Atom(`\`)},
-		{input: `'\''.`, term: Atom(`'`)},
-		{input: `'\"'.`, term: Atom(`"`)},
-		{input: "'\\`'.", term: Atom("`")},
+		{input: `foo.`, term: NewAtom("foo")},
+		{input: `[].`, term: atomEmptyList},
+		{input: `[ ].`, term: atomEmptyList},
+		{input: `{}.`, term: atomEmptyBlock},
+		{input: `{ }.`, term: atomEmptyBlock},
+		{input: `'abc'.`, term: NewAtom("abc")},
+		{input: `'don''t panic'.`, term: NewAtom("don't panic")},
+		{input: "'this is \\\na quoted ident'.", term: NewAtom("this is a quoted ident")},
+		{input: `'\a'.`, term: NewAtom("\a")},
+		{input: `'\b'.`, term: NewAtom("\b")},
+		{input: `'\f'.`, term: NewAtom("\f")},
+		{input: `'\n'.`, term: NewAtom("\n")},
+		{input: `'\r'.`, term: NewAtom("\r")},
+		{input: `'\t'.`, term: NewAtom("\t")},
+		{input: `'\v'.`, term: NewAtom("\v")},
+		{input: `'\43\'.`, term: NewAtom("#")},
+		{input: `'\xa3\'.`, term: NewAtom("£")},
+		{input: `'\\'.`, term: NewAtom(`\`)},
+		{input: `'\''.`, term: NewAtom(`'`)},
+		{input: `'\"'.`, term: NewAtom(`"`)},
+		{input: "'\\`'.", term: NewAtom("`")},
 
 		{input: `1.`, term: Integer(1)},
 		{input: `0'1.`, term: Integer(49)},
@@ -80,63 +80,63 @@ func TestParser_Term(t *testing.T) {
 		{input: `X.`, opts: []parserOption{withParsedVars(&pvs)}, term: NewNamedVariable("Z")},
 		{input: `Y.`, opts: []parserOption{withParsedVars(&pvs)}, varOffset: 1},
 
-		{input: `foo(a, b).`, term: &compound{functor: "foo", args: []Term{Atom("a"), Atom("b")}}},
-		{input: `foo(-(a)).`, term: &compound{functor: "foo", args: []Term{&compound{functor: "-", args: []Term{Atom("a")}}}}},
-		{input: `foo(-).`, term: &compound{functor: "foo", args: []Term{Atom("-")}}},
+		{input: `foo(a, b).`, term: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a"), NewAtom("b")}}},
+		{input: `foo(-(a)).`, term: &compound{functor: NewAtom("foo"), args: []Term{&compound{functor: atomMinus, args: []Term{NewAtom("a")}}}}},
+		{input: `foo(-).`, term: &compound{functor: NewAtom("foo"), args: []Term{atomMinus}}},
 		{input: `foo((), b).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
-		{input: `foo([]).`, term: &compound{functor: "foo", args: []Term{Atom("[]")}}},
+		{input: `foo([]).`, term: &compound{functor: NewAtom("foo"), args: []Term{atomEmptyList}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 		{input: `foo(a, b`, err: ErrInsufficient},
 
-		{input: `[a, b].`, term: List(Atom("a"), Atom("b"))},
+		{input: `[a, b].`, term: List(NewAtom("a"), NewAtom("b"))},
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
-		{input: `[a|X].`, term: Cons(Atom("a"), NewNamedVariable("X"))},
-		{input: `[a, b|X].`, term: ListRest(NewNamedVariable("X"), Atom("a"), Atom("b"))},
+		{input: `[a|X].`, term: Cons(NewAtom("a"), NewNamedVariable("X"))},
+		{input: `[a, b|X].`, term: ListRest(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "d"}}},
 
-		{input: `{a}.`, term: &compound{functor: "{}", args: []Term{Atom("a")}}},
+		{input: `{a}.`, term: &compound{functor: atomEmptyBlock, args: []Term{NewAtom("a")}}},
 		{input: `{()}.`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `{a b}.`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
 
-		{input: `-a.`, term: &compound{functor: "-", args: []Term{Atom("a")}}},
-		{input: `- .`, term: Atom("-")},
+		{input: `-a.`, term: &compound{functor: atomMinus, args: []Term{NewAtom("a")}}},
+		{input: `- .`, term: atomMinus},
 
-		{input: `a-- .`, term: &compound{functor: `--`, args: []Term{Atom(`a`)}}},
+		{input: `a-- .`, term: &compound{functor: NewAtom(`--`), args: []Term{NewAtom(`a`)}}},
 
-		{input: `a + b.`, term: &compound{functor: "+", args: []Term{Atom("a"), Atom("b")}}},
+		{input: `a + b.`, term: &compound{functor: atomPlus, args: []Term{NewAtom("a"), NewAtom("b")}}},
 		{input: `a + ().`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
-		{input: `a * b + c.`, term: &compound{functor: "+", args: []Term{&compound{functor: "*", args: []Term{Atom("a"), Atom("b")}}, Atom("c")}}},
+		{input: `a * b + c.`, term: &compound{functor: atomPlus, args: []Term{&compound{functor: NewAtom("*"), args: []Term{NewAtom("a"), NewAtom("b")}}, NewAtom("c")}}},
 		{input: `a [] b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenList, Val: "["}}},
 		{input: `a {} b.`, err: unexpectedTokenError{actual: Token{Kind: TokenOpenCurly, Val: "{"}}},
-		{input: `a, b.`, term: &compound{functor: ",", args: []Term{Atom("a"), Atom("b")}}},
+		{input: `a, b.`, term: &compound{functor: atomComma, args: []Term{NewAtom("a"), NewAtom("b")}}},
 		{input: `+ * + .`, err: unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "+"}}},
 
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesChars)}, term: charList("abc")},
 		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesCodes)}, term: codeList("abc")},
-		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("abc")},
-		{input: `"don""t panic".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("don\"t panic")},
-		{input: "\"this is \\\na double-quoted string\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("this is a double-quoted string")},
-		{input: `"\a".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\a")},
-		{input: `"\b".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\b")},
-		{input: `"\f".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\f")},
-		{input: `"\n".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\n")},
-		{input: `"\r".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\r")},
-		{input: `"\t".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\t")},
-		{input: `"\v".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("\v")},
-		{input: `"\xa3\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("£")},
-		{input: `"\43\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("#")},
-		{input: `"\\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom(`\`)},
-		{input: `"\'".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom(`'`)},
-		{input: `"\"".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom(`"`)},
-		{input: "\"\\`\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: Atom("`")},
+		{input: `"abc".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("abc")},
+		{input: `"don""t panic".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("don\"t panic")},
+		{input: "\"this is \\\na double-quoted string\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("this is a double-quoted string")},
+		{input: `"\a".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\a")},
+		{input: `"\b".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\b")},
+		{input: `"\f".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\f")},
+		{input: `"\n".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\n")},
+		{input: `"\r".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\r")},
+		{input: `"\t".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\t")},
+		{input: `"\v".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("\v")},
+		{input: `"\xa3\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("£")},
+		{input: `"\43\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("#")},
+		{input: `"\\".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom(`\`)},
+		{input: `"\'".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom(`'`)},
+		{input: `"\"".`, opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom(`"`)},
+		{input: "\"\\`\".", opts: []parserOption{withDoubleQuotes(doubleQuotesAtom)}, term: NewAtom("`")},
 
 		// https://github.com/ichiban/prolog/issues/219#issuecomment-1200489336
-		{input: `write('[]').`, term: &compound{functor: `write`, args: []Term{Atom(`[]`)}}},
-		{input: `write('{}').`, term: &compound{functor: `write`, args: []Term{Atom(`{}`)}}},
+		{input: `write('[]').`, term: &compound{functor: NewAtom(`write`), args: []Term{NewAtom(`[]`)}}},
+		{input: `write('{}').`, term: &compound{functor: NewAtom(`write`), args: []Term{NewAtom(`{}`)}}},
 	}
 
 	for _, tc := range tests {
@@ -157,21 +157,21 @@ func TestParser_Term(t *testing.T) {
 func TestParser_Replace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
-		assert.Equal(t, List(Float(1.0), Integer(2), Atom("foo"), List(Atom("a"), Atom("b"), Atom("c"))), list)
+		assert.Equal(t, List(Float(1.0), Integer(2), NewAtom("foo"), List(NewAtom("a"), NewAtom("b"), NewAtom("c"))), list)
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {
 		p := newParser(strings.NewReader(`[?].`))
-		assert.Error(t, p.Replace("?", []struct{}{{}}))
+		assert.Error(t, p.Replace(NewAtom("?"), []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
 		p := newParser(strings.NewReader(`[?, ?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
 		assert.Error(t, err)
@@ -179,7 +179,7 @@ func TestParser_Replace(t *testing.T) {
 
 	t.Run("too many arguments", func(t *testing.T) {
 		p := newParser(strings.NewReader(`[?, ?, ?, ?].`))
-		assert.NoError(t, p.Replace("?", 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
 
 		_, err := p.Term()
 		assert.Error(t, err)
@@ -236,10 +236,10 @@ func TestParser_More(t *testing.T) {
 	p := newParser(strings.NewReader(`foo. bar.`))
 	term, err := p.Term()
 	assert.NoError(t, err)
-	assert.Equal(t, Atom("foo"), term)
+	assert.Equal(t, NewAtom("foo"), term)
 	assert.True(t, p.More())
 	term, err = p.Term()
 	assert.NoError(t, err)
-	assert.Equal(t, Atom("bar"), term)
+	assert.Equal(t, NewAtom("bar"), term)
 	assert.False(t, p.More())
 }

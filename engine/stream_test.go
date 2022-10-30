@@ -18,7 +18,7 @@ func TestNewStream(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		s := NewStream(f, StreamModeAppend)
 		assert.Equal(t, f, s.file)
-		assert.Equal(t, Atom(""), s.alias)
+		assert.Equal(t, Atom(0), s.alias)
 		assert.Equal(t, EOFActionEOFCode, s.eofAction)
 		assert.Equal(t, StreamModeAppend, s.mode)
 		assert.True(t, s.reposition)
@@ -27,21 +27,21 @@ func TestNewStream(t *testing.T) {
 
 	t.Run("with alias", func(t *testing.T) {
 		var state State
-		s := NewStream(f, StreamModeAppend, WithAlias(&state, "foo"))
+		s := NewStream(f, StreamModeAppend, WithAlias(&state, NewAtom("foo")))
 		assert.Equal(t, f, s.file)
-		assert.Equal(t, Atom("foo"), s.alias)
+		assert.Equal(t, NewAtom("foo"), s.alias)
 		assert.Equal(t, EOFActionEOFCode, s.eofAction)
 		assert.Equal(t, StreamModeAppend, s.mode)
 		assert.True(t, s.reposition)
 		assert.Equal(t, StreamTypeText, s.streamType)
 
-		assert.Equal(t, s, state.streams[Atom("foo")])
+		assert.Equal(t, s, state.streams[NewAtom("foo")])
 	})
 
 	t.Run("with EOF action", func(t *testing.T) {
 		s := NewStream(f, StreamModeAppend, WithEOFAction(EOFActionError))
 		assert.Equal(t, f, s.file)
-		assert.Equal(t, Atom(""), s.alias)
+		assert.Equal(t, Atom(0), s.alias)
 		assert.Equal(t, EOFActionError, s.eofAction)
 		assert.Equal(t, StreamModeAppend, s.mode)
 		assert.True(t, s.reposition)
@@ -51,7 +51,7 @@ func TestNewStream(t *testing.T) {
 	t.Run("with reposition", func(t *testing.T) {
 		s := NewStream(f, StreamModeAppend, WithReposition(false))
 		assert.Equal(t, f, s.file)
-		assert.Equal(t, Atom(""), s.alias)
+		assert.Equal(t, Atom(0), s.alias)
 		assert.Equal(t, EOFActionEOFCode, s.eofAction)
 		assert.Equal(t, StreamModeAppend, s.mode)
 		assert.False(t, s.reposition)
@@ -61,7 +61,7 @@ func TestNewStream(t *testing.T) {
 	t.Run("with stream type", func(t *testing.T) {
 		s := NewStream(f, StreamModeAppend, WithStreamType(StreamTypeBinary))
 		assert.Equal(t, f, s.file)
-		assert.Equal(t, Atom(""), s.alias)
+		assert.Equal(t, Atom(0), s.alias)
 		assert.Equal(t, EOFActionEOFCode, s.eofAction)
 		assert.Equal(t, StreamModeAppend, s.mode)
 		assert.True(t, s.reposition)
@@ -84,7 +84,7 @@ func TestOpen(t *testing.T) {
 			openFile = os.OpenFile
 		}()
 
-		s, err := Open("/this/file/exists", StreamModeRead)
+		s, err := Open(NewAtom("/this/file/exists"), StreamModeRead)
 		assert.NoError(t, err)
 		assert.Equal(t, f, s.file)
 	})
@@ -97,8 +97,8 @@ func TestOpen(t *testing.T) {
 			openFile = os.OpenFile
 		}()
 
-		s, err := Open("/this/file/does/not/exist", StreamModeRead)
-		assert.Equal(t, ExistenceError(ObjectTypeSourceSink, Atom("/this/file/does/not/exist"), nil), err)
+		s, err := Open(NewAtom("/this/file/does/not/exist"), StreamModeRead)
+		assert.Equal(t, ExistenceError(ObjectTypeSourceSink, NewAtom("/this/file/does/not/exist"), nil), err)
 		assert.Nil(t, s)
 	})
 
@@ -110,8 +110,8 @@ func TestOpen(t *testing.T) {
 			openFile = os.OpenFile
 		}()
 
-		s, err := Open("/this/file/is/protected", StreamModeRead)
-		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, Atom("/this/file/is/protected"), nil), err)
+		s, err := Open(NewAtom("/this/file/is/protected"), StreamModeRead)
+		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, NewAtom("/this/file/is/protected"), nil), err)
 		assert.Nil(t, s)
 	})
 
@@ -124,7 +124,7 @@ func TestOpen(t *testing.T) {
 			openFile = os.OpenFile
 		}()
 
-		s, err := Open("/this/file/is/protected", StreamModeRead)
+		s, err := Open(NewAtom("/this/file/is/protected"), StreamModeRead)
 		assert.Equal(t, SystemError(errFailed), err)
 		assert.Nil(t, s)
 	})

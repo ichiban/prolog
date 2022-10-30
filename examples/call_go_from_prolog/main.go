@@ -20,7 +20,7 @@ func main() {
 		}
 
 		// Do whatever you want with the given inputs.
-		resp, err := http.Get(string(u))
+		resp, err := http.Get(u.String())
 		if err != nil {
 			return engine.Error(err)
 		}

@@ -44,12 +44,12 @@ func (i *ListIterator) Next() bool {
 		}
 		return false
 	case Atom:
-		if l != "[]" {
+		if l != atomEmptyList {
 			i.err = TypeError(ValidTypeList, i.List, i.Env)
 		}
 		return false
 	case Compound:
-		if l.Functor() != "." || l.Arity() != 2 {
+		if l.Functor() != atomDot || l.Arity() != 2 {
 			i.err = TypeError(ValidTypeList, i.List, i.Env)
 			return false
 		}
@@ -95,7 +95,7 @@ func (i *SeqIterator) Next() bool {
 	case nil:
 		return false
 	case Compound:
-		if s.Functor() != "," || s.Arity() != 2 {
+		if s.Functor() != atomComma || s.Arity() != 2 {
 			i.current = s
 			i.Seq = nil
 			return true
@@ -129,14 +129,14 @@ func (i *AltIterator) Next() bool {
 	case nil:
 		return false
 	case Compound:
-		if a.Functor() != ";" || a.Arity() != 2 {
+		if a.Functor() != atomSemiColon || a.Arity() != 2 {
 			i.current = a
 			i.Alt = nil
 			return true
 		}
 
 		// if-then-else construct
-		if c, ok := i.Env.Resolve(a.Arg(0)).(Compound); ok && c.Functor() == "->" && c.Arity() == 2 {
+		if c, ok := i.Env.Resolve(a.Arg(0)).(Compound); ok && c.Functor() == atomThen && c.Arity() == 2 {
 			i.current = a
 			i.Alt = nil
 			return true
@@ -171,7 +171,7 @@ type AnyIterator struct {
 // Next proceeds to the next element and returns true if there's such an element.
 func (i *AnyIterator) Next() bool {
 	if i.backend == nil {
-		if a, ok := i.Env.Resolve(i.Any).(Compound); ok && a.Functor() == "." && a.Arity() == 2 {
+		if a, ok := i.Env.Resolve(i.Any).(Compound); ok && a.Functor() == atomDot && a.Arity() == 2 {
 			i.backend = &ListIterator{List: i.Any, Env: i.Env}
 		} else {
 			i.backend = &SeqIterator{Seq: i.Any, Env: i.Env}
