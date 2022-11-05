@@ -140,13 +140,13 @@ func init() {
 		{Name: atomCut, Arity: 0}: func(_ []Term, list, rest Term, env *Env) (Term, error) {
 			return atomComma.Apply(atomCut, atomEqual.Apply(list, rest)), nil
 		},
-		{Name: atomNot, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{Name: atomNegation, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()
 			g, err := dcgBody(args[0], list, v, env)
 			if err != nil {
 				return nil, err
 			}
-			return atomComma.Apply(atomNot.Apply(g), atomEqual.Apply(list, rest)), nil
+			return atomComma.Apply(atomNegation.Apply(g), atomEqual.Apply(list, rest)), nil
 		},
 		{Name: atomThen, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()

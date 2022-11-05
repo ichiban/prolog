@@ -751,7 +751,7 @@ type runeRingBuffer struct {
 }
 
 func newRuneRingBuffer(r io.Reader) runeRingBuffer {
-	br, ok := r.(*bufio.Reader)
+	br, ok := r.(io.RuneReader)
 	if !ok {
 		br = bufio.NewReader(r)
 	}

@@ -2,216 +2,260 @@ package engine
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
 )
 
-// StreamMode describes what operations you can perform on the stream.
-type StreamMode int
+// ioMode describes what operations you can perform on the stream.
+type ioMode int
 
 const (
-	// StreamModeRead means you can read from the stream.
-	StreamModeRead = StreamMode(os.O_RDONLY)
-	// StreamModeWrite means you can write to the stream.
-	StreamModeWrite = StreamMode(os.O_CREATE | os.O_WRONLY)
-	// StreamModeAppend means you can append to the stream.
-	StreamModeAppend = StreamMode(os.O_APPEND) | StreamModeWrite
+	// ioModeRead means you can read from the stream.
+	ioModeRead = ioMode(os.O_RDONLY)
+	// ioModeWrite means you can write to the stream.
+	ioModeWrite = ioMode(os.O_CREATE | os.O_WRONLY)
+	// ioModeAppend means you can append to the stream.
+	ioModeAppend = ioMode(os.O_APPEND) | ioModeWrite
 )
 
-func (m StreamMode) String() string {
-	return [...]string{
-		StreamModeRead:   "read",
-		StreamModeWrite:  "write",
-		StreamModeAppend: "append",
+func (m ioMode) Term() Term {
+	return [...]Term{
+		ioModeRead:   atomRead,
+		ioModeWrite:  atomWrite,
+		ioModeAppend: atomAppend,
 	}[m]
 }
 
-// EOFAction describes what happens when you reached to the end of the stream.
-type EOFAction int
+// eofAction describes what happens when you reached to the end of the stream.
+type eofAction int
 
 const (
-	// EOFActionEOFCode means either an atom `end_of_file`, or an integer `-1` will be returned.
-	EOFActionEOFCode EOFAction = iota
-	// EOFActionError means an error will be raised.
-	EOFActionError
-	// EOFActionReset means another attempt will be made.
-	EOFActionReset
+	// eofActionEOFCode means either an atom `end_of_file`, or an integer `-1` will be returned.
+	eofActionEOFCode eofAction = iota
+	// eofActionError means an error will be raised.
+	eofActionError
+	// eofActionReset means another attempt will be made.
+	eofActionReset
 )
 
-func (a EOFAction) String() string {
-	return [...]string{
-		EOFActionError:   "error",
-		EOFActionEOFCode: "eof_code",
-		EOFActionReset:   "reset",
+func (a eofAction) Term() Term {
+	return [...]Term{
+		eofActionError:   atomError,
+		eofActionEOFCode: atomEOFCode,
+		eofActionReset:   atomReset,
 	}[a]
 }
 
-// StreamType describes what will be transferred in the stream, either text or binary.
-type StreamType int
+// streamType describes what will be transferred in the stream, either text or binary.
+type streamType int
 
 const (
-	// StreamTypeText means text.
-	StreamTypeText StreamType = iota
-	// StreamTypeBinary means binary.
-	StreamTypeBinary
+	// streamTypeText means text.
+	streamTypeText streamType = iota
+	// streamTypeBinary means binary.
+	streamTypeBinary
 )
 
-func (t StreamType) String() string {
-	return [...]string{
-		StreamTypeText:   "text",
-		StreamTypeBinary: "false",
+func (t streamType) Term() Term {
+	return [...]Atom{
+		streamTypeText:   atomText,
+		streamTypeBinary: atomBinary,
 	}[t]
 }
 
+var errNotSupported = errors.New("not supported")
+
 // Stream is a prolog stream.
 type Stream struct {
-	file       io.ReadWriteCloser
+	sourceSink interface{} // Either io.Reader or io.Writer.
 	buf        *bufio.Reader
-	mode       StreamMode
+	mode       ioMode
 	alias      Atom
-	eofAction  EOFAction
+	eofAction  eofAction
 	reposition bool
-	streamType StreamType
+	streamType streamType
 }
 
-// NewStream creates a new stream from an opened file.
-func NewStream(f io.ReadWriteCloser, mode StreamMode, opts ...StreamOption) *Stream {
-	s := Stream{
-		file: f,
-		mode: mode,
+// Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".
+func (s *Stream) Name() string {
+	type namer interface {
+		Name() string
 	}
-	if f, ok := f.(*os.File); ok {
-		if stat, err := f.Stat(); err == nil {
-			s.reposition = stat.Mode()&fs.ModeType == 0
-		}
+	f, ok := s.sourceSink.(namer)
+	if !ok {
+		return ""
 	}
-	for _, opt := range opts {
-		opt(&s)
-	}
-	if a, ok := f.(*rwc); ok && a.r != nil {
-		s.buf = bufio.NewReader(a.r)
-	} else {
-		s.buf = bufio.NewReader(f)
-	}
-	return &s
+
+	return f.Name()
 }
 
-// StreamOption describes an option on stream creation.
-type StreamOption func(*Stream)
-
-// WithAlias sets an alias for the stream.
-func WithAlias(state *State, alias Atom) StreamOption {
-	return func(s *Stream) {
-		s.alias = alias
-		if state.streams == nil {
-			state.streams = map[Term]*Stream{}
-		}
-		state.streams[alias] = s
+// Stat returns the underlying source/sink's fs.FileInfo.
+func (s *Stream) Stat() (fs.FileInfo, error) {
+	f, ok := s.sourceSink.(fs.File)
+	if !ok {
+		return nil, errNotSupported
 	}
+
+	return f.Stat()
 }
 
-// WithEOFAction sets eof_action for the stream.
-func WithEOFAction(eofAction EOFAction) StreamOption {
-	return func(s *Stream) {
-		s.eofAction = eofAction
+// Read reads from the underlying source.
+func (s *Stream) Read(p []byte) (int, error) {
+	if err := s.initBuf(); err != nil {
+		return 0, err
 	}
+	return s.buf.Read(p)
 }
 
-// WithReposition sets if the stream is random access.
-func WithReposition(b bool) StreamOption {
-	return func(s *Stream) {
-		s.reposition = b
+// ReadByte reads a byte from the underlying source.
+func (s *Stream) ReadByte() (byte, error) {
+	if err := s.initBuf(); err != nil {
+		return 0, err
 	}
+	return s.buf.ReadByte()
 }
 
-// WithStreamType sets type of the stream.
-func WithStreamType(streamType StreamType) StreamOption {
-	return func(s *Stream) {
-		s.streamType = streamType
+// Peek peeks the next n bytes from the underlying source.
+func (s *Stream) Peek(n int) ([]byte, error) {
+	if err := s.initBuf(); err != nil {
+		return nil, err
 	}
+	return s.buf.Peek(n)
 }
 
-var openFile = os.OpenFile
+// ReadRune reads the next rune from the underlying source.
+func (s *Stream) ReadRune() (r rune, size int, err error) {
+	if err := s.initBuf(); err != nil {
+		return 0, 0, err
+	}
+	return s.buf.ReadRune()
+}
 
-// Open opens a file and creates a new stream out of it.
-func Open(name Atom, mode StreamMode, opts ...StreamOption) (*Stream, error) {
-	f, err := openFile(name.String(), int(mode), 0644)
+func (s *Stream) UnreadRune() error {
+	if err := s.initBuf(); err != nil {
+		return err
+	}
+	return s.buf.UnreadRune()
+}
+
+// Seek sets the offset to the underlying source/sink.
+func (s *Stream) Seek(offset int64, whence int) (int64, error) {
+	sk, ok := s.sourceSink.(io.Seeker)
+	if !ok {
+		return 0, errNotSupported
+	}
+
+	n, err := sk.Seek(offset, whence)
 	if err != nil {
-		switch {
-		case os.IsNotExist(err):
-			return nil, ExistenceError(ObjectTypeSourceSink, name, nil)
-		case os.IsPermission(err):
-			return nil, PermissionError(OperationOpen, PermissionTypeSourceSink, name, nil)
-		default:
-			return nil, SystemError(err)
-		}
+		return n, err
 	}
 
-	return NewStream(f, mode, opts...), nil
+	if r, ok := sk.(io.Reader); ok && s.buf != nil {
+		s.buf.Reset(r)
+	}
+
+	return n, nil
 }
 
-var closeFile = io.Closer.Close
+func (s *Stream) Write(p []byte) (int, error) {
+	w, ok := s.sourceSink.(io.Writer)
+	if !ok {
+		return 0, errNotSupported
+	}
+
+	return w.Write(p)
+}
+
+// Flush flushes the buffered output to the sink.
+func (s *Stream) Flush() error {
+	// E.g. *bufio.Writer.
+	type flusher interface {
+		Flush() error
+	}
+
+	// E.g. *os.File.
+	type syncer interface {
+		Sync() error
+	}
+
+	switch f := s.sourceSink.(type) {
+	case flusher:
+		return f.Flush()
+	case syncer:
+		return f.Sync()
+	default:
+		return nil
+	}
+}
 
 // Close closes the underlying file of the stream.
 func (s *Stream) Close() error {
-	return closeFile(s.file)
+	if c, ok := s.sourceSink.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }
 
-var fileStat = (*os.File).Stat
+func (s *Stream) initBuf() error {
+	if s.buf != nil {
+		return nil
+	}
 
-func (s *Stream) properties() ([]Term, error) {
-	var properties []Term
+	r, ok := s.sourceSink.(io.Reader)
+	if !ok {
+		return errNotSupported
+	}
+	s.buf = bufio.NewReader(r)
+	return nil
+}
 
-	properties = append(properties, &compound{functor: atomMode, args: []Term{NewAtom(s.mode.String())}})
+func (s *Stream) properties() []Term {
+	ps := []Term{
+		atomMode.Apply(s.mode.Term()),
+	}
 
 	switch s.mode {
-	case StreamModeRead:
-		properties = append(properties, atomInput)
-	case StreamModeWrite, StreamModeAppend:
-		properties = append(properties, atomOutput)
+	case ioModeRead:
+		ps = append(ps, atomInput)
+	case ioModeWrite, ioModeAppend:
+		ps = append(ps, atomOutput)
 	}
 
 	if s.alias != 0 {
-		properties = append(properties, &compound{functor: atomAlias, args: []Term{s.alias}})
+		ps = append(ps, atomAlias.Apply(s.alias))
 	}
 
-	properties = append(properties, &compound{functor: atomEOFAction, args: []Term{NewAtom(s.eofAction.String())}})
+	ps = append(ps, atomEOFAction.Apply(s.eofAction.Term()))
 
-	if f, ok := s.file.(*os.File); ok {
-		pos, err := seek(f, 0, 1)
-		if err != nil {
-			return nil, err
+	if n := s.Name(); n != "" {
+		ps = append(ps, atomFileName.Apply(NewAtom(n)))
+	}
+
+	if pos, err := s.Seek(0, 1); err == nil {
+		ps = append(ps, atomPosition.Apply(Integer(pos)))
+
+		if fi, err := s.Stat(); err == nil {
+			size := fi.Size()
+			eos := atomNot
+			switch {
+			case pos == size:
+				eos = atomAt
+			case pos > size:
+				eos = atomPast
+			}
+			ps = append(ps, atomEndOfStream.Apply(eos))
 		}
-		pos -= int64(s.buf.Buffered())
-
-		fi, err := fileStat(f)
-		if err != nil {
-			return nil, err
-		}
-
-		eos := "not"
-		switch {
-		case pos == fi.Size():
-			eos = "at"
-		case pos > fi.Size():
-			eos = "past"
-		}
-
-		properties = append(properties,
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(pos)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom(eos)}},
-		)
 	}
 
 	if s.reposition {
-		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomTrue}})
+		ps = append(ps, atomReposition.Apply(atomTrue))
 	} else {
-		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomFalse}})
+		ps = append(ps, atomReposition.Apply(atomFalse))
 	}
 
-	properties = append(properties, &compound{functor: atomType, args: []Term{NewAtom(s.streamType.String())}})
+	ps = append(ps, atomType.Apply(s.streamType.Term()))
 
-	return properties, nil
+	return ps
 }
