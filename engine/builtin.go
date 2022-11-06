@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -1726,15 +1725,16 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 	if err != nil {
 		switch {
 		case errors.Is(err, io.EOF):
-			return [...]*Promise{
-				eofActionError: Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env)),
-				eofActionEOFCode: Delay(func(context.Context) *Promise {
-					return Unify(out, atomEndOfFile, k, env)
-				}),
-				eofActionReset: Delay(func(context.Context) *Promise {
+			switch s.eofAction {
+			case eofActionError:
+				return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+			case eofActionReset:
+				return Delay(func(context.Context) *Promise {
 					return state.ReadTerm(streamOrAlias, out, options, k, env)
-				}),
-			}[s.eofAction]
+				})
+			default:
+				return Unify(out, atomEndOfFile, k, env)
+			}
 		default:
 			return Error(SyntaxError(err, env))
 		}
@@ -1829,16 +1829,12 @@ func (state *State) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, e
 		switch s.eofAction {
 		case eofActionError:
 			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionEOFCode:
-			return Delay(func(context.Context) *Promise {
-				return Unify(inByte, Integer(-1), k, env)
-			})
 		case eofActionReset:
 			return Delay(func(context.Context) *Promise {
 				return state.GetByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+			return Unify(inByte, Integer(-1), k, env)
 		}
 	default:
 		return Error(err)
@@ -1881,15 +1877,16 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 			return Unify(char, NewAtom(string(r)), k, env)
 		})
 	case io.EOF:
-		return [...]*Promise{
-			eofActionError: Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env)),
-			eofActionEOFCode: Delay(func(context.Context) *Promise {
-				return Unify(char, atomEndOfFile, k, env)
-			}),
-			eofActionReset: Delay(func(context.Context) *Promise {
+		switch s.eofAction {
+		case eofActionError:
+			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		case eofActionReset:
+			return Delay(func(context.Context) *Promise {
 				return state.GetChar(streamOrAlias, char, k, env)
-			}),
-		}[s.eofAction]
+			})
+		default:
+			return Unify(char, atomEndOfFile, k, env)
+		}
 	default:
 		return Error(SystemError(err))
 	}
@@ -1930,16 +1927,12 @@ func (state *State) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, 
 		switch s.eofAction {
 		case eofActionError:
 			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionEOFCode:
-			return Delay(func(context.Context) *Promise {
-				return Unify(inByte, Integer(-1), k, env)
-			})
 		case eofActionReset:
 			return Delay(func(context.Context) *Promise {
 				return state.PeekByte(streamOrAlias, inByte, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+			return Unify(inByte, Integer(-1), k, env)
 		}
 	default:
 		return Error(SystemError(err))
@@ -1987,16 +1980,12 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 		switch s.eofAction {
 		case eofActionError:
 			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionEOFCode:
-			return Delay(func(context.Context) *Promise {
-				return Unify(char, atomEndOfFile, k, env)
-			})
 		case eofActionReset:
 			return Delay(func(context.Context) *Promise {
 				return state.PeekChar(streamOrAlias, char, k, env)
 			})
 		default:
-			return Error(SystemError(fmt.Errorf("unknown EOF action: %d", s.eofAction)))
+			return Unify(char, atomEndOfFile, k, env)
 		}
 	default:
 		return Error(SystemError(err))
