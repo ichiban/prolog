@@ -3666,47 +3666,65 @@ func TestState_Open(t *testing.T) {
 }
 
 func TestState_Close(t *testing.T) {
-	f, err := os.CreateTemp("", "")
-	assert.NoError(t, err)
-	defer func() {
-		_ = os.Remove(f.Name())
-	}()
-
 	t.Run("without options", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(&Stream{sourceSink: f}, List(), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		t.Run("ok", func(t *testing.T) {
+			t.Run("stream", func(t *testing.T) {
+				var m mockCloser
+				m.On("Close").Return(nil).Once()
+				defer m.AssertExpectations(t)
+
+				var state State
+				ok, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("alias", func(t *testing.T) {
+				var m mockCloser
+				m.On("Close").Return(nil).Once()
+				defer m.AssertExpectations(t)
+
+				foo := NewAtom("foo")
+
+				state := State{
+					streams: map[Term]*Stream{
+						foo: {sourceSink: &m, alias: foo},
+					},
+				}
+				ok, err := state.Close(foo, List(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+		})
+
+		t.Run("ng", func(t *testing.T) {
+			var m mockCloser
+			m.On("Close").Return(errors.New("failed")).Once()
+			defer m.AssertExpectations(t)
+
+			var state State
+			_, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+			assert.Equal(t, SystemError(errors.New("failed")), err)
+		})
 	})
 
 	t.Run("force false", func(t *testing.T) {
-		var m mockFile
-		m.On("Close").Return(nil).Once()
+		var m mockCloser
+		m.On("Close").Return(errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := &Stream{sourceSink: &m}
-
 		var state State
-		ok, err := state.Close(s, List(&compound{
-			functor: atomForce,
-			args:    []Term{atomFalse},
-		}), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
+		_, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomFalse)), Success, nil).Force(context.Background())
+		assert.Equal(t, SystemError(errors.New("failed")), err)
 	})
 
 	t.Run("force true", func(t *testing.T) {
-		var m mockFile
-		m.On("Close").Return(nil).Once()
+		var m mockCloser
+		m.On("Close").Return(errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		s := &Stream{sourceSink: &m}
-
 		var state State
-		ok, err := state.Close(s, List(&compound{
-			functor: atomForce,
-			args:    []Term{atomTrue},
-		}), Success, nil).Force(context.Background())
+		ok, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomTrue)), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})

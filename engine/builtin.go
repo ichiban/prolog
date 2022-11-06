@@ -72,7 +72,7 @@ func (state *State) SetUserOutput(w io.Writer) {
 
 // Parser creates a new parser from the current State and io.Reader.
 // If non-nil, vars will hold the information on variables it parses.
-func (state *State) Parser(r io.Reader, vars *[]ParsedVariable) *Parser {
+func (state *State) Parser(r io.RuneReader, vars *[]ParsedVariable) *Parser {
 	if state.operators == nil {
 		state.operators = operators{}
 	}

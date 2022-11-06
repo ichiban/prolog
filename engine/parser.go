@@ -39,7 +39,7 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input io.Reader, opts ...parserOption) *Parser {
+func newParser(input io.RuneReader, opts ...parserOption) *Parser {
 	p := Parser{
 		lexer: Lexer{
 			input: newRuneRingBuffer(input),

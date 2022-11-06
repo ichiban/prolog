@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"bytes"
 	"io"
 	"strings"
@@ -750,12 +749,8 @@ type runeRingBuffer struct {
 	start, end int
 }
 
-func newRuneRingBuffer(r io.Reader) runeRingBuffer {
-	br, ok := r.(io.RuneReader)
-	if !ok {
-		br = bufio.NewReader(r)
-	}
-	return runeRingBuffer{base: br}
+func newRuneRingBuffer(r io.RuneReader) runeRingBuffer {
+	return runeRingBuffer{base: r}
 }
 
 func (b *runeRingBuffer) ReadRune() (rune, int, error) {
