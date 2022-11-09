@@ -1233,6 +1233,8 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 		return Error(err)
 	}
 
+	s.checkEOS()
+
 	return Unify(stream, &s, k, env)
 }
 
@@ -1715,6 +1717,11 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		return Error(err)
 	}
 
+	s.skipEOSCheck = true
+	defer func() {
+		s.skipEOSCheck = false
+	}()
+
 	var vars []ParsedVariable
 	p := state.Parser(s, &vars)
 	defer func() {
@@ -1728,10 +1735,6 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 			switch s.eofAction {
 			case eofActionError:
 				return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-			case eofActionReset:
-				return Delay(func(context.Context) *Promise {
-					return state.ReadTerm(streamOrAlias, out, options, k, env)
-				})
 			default:
 				return Unify(out, atomEndOfFile, k, env)
 			}
@@ -1965,28 +1968,27 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 		return Error(TypeError(ValidTypeInCharacter, char, env))
 	}
 
-	switch r, _, err := s.ReadRune(); err {
-	case nil:
-		_ = s.UnreadRune()
+	s.skipEOSCheck = true
+	defer func() {
+		s.skipEOSCheck = false
+	}()
 
+	r, _, err := s.ReadRune()
+	defer func() {
+		_ = s.UnreadRune()
+	}()
+	switch err {
+	case nil:
 		if r == unicode.ReplacementChar {
 			return Error(RepresentationError(FlagCharacter, env))
 		}
 
-		return Delay(func(context.Context) *Promise {
-			return Unify(char, NewAtom(string(r)), k, env)
-		})
+		return Unify(char, NewAtom(string(r)), k, env)
 	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
+		if s.eofAction == eofActionError {
 			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionReset:
-			return Delay(func(context.Context) *Promise {
-				return state.PeekChar(streamOrAlias, char, k, env)
-			})
-		default:
-			return Unify(char, atomEndOfFile, k, env)
 		}
+		return Unify(char, atomEndOfFile, k, env)
 	default:
 		return Error(SystemError(err))
 	}

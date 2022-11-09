@@ -3730,7 +3730,7 @@ func TestState_Close(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		var m mockFile
+		var m mockCloser
 		m.On("Close").Return(nil).Once()
 		defer m.AssertExpectations(t)
 
@@ -6042,15 +6042,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("stream", func(t *testing.T) {
 		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomRead}},
+			atomFileName.Apply(NewAtom(f.Name())),
+			atomMode.Apply(atomRead),
 			atomInput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomTrue}},
-			&compound{functor: atomType, args: []Term{atomText}},
+			atomAlias.Apply(NewAtom("null")),
+			atomPosition.Apply(Integer(0)),
+			atomEndOfStream.Apply(atomNot),
+			atomEOFAction.Apply(atomEOFCode),
+			atomReposition.Apply(atomTrue),
+			atomType.Apply(atomText),
 		}
 
 		s := &Stream{sourceSink: f, mode: ioModeRead, alias: NewAtom("null"), reposition: true}
@@ -6069,15 +6069,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("reposition false", func(t *testing.T) {
 		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomRead}},
+			atomFileName.Apply(NewAtom(f.Name())),
+			atomMode.Apply(atomRead),
 			atomInput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomFalse}},
-			&compound{functor: atomType, args: []Term{atomText}},
+			atomAlias.Apply(NewAtom("null")),
+			atomPosition.Apply(Integer(0)),
+			atomEndOfStream.Apply(atomNot),
+			atomEOFAction.Apply(atomEOFCode),
+			atomReposition.Apply(atomFalse),
+			atomType.Apply(atomText),
 		}
 
 		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: false, alias: NewAtom("null")}
@@ -6096,15 +6096,15 @@ func TestState_StreamProperty(t *testing.T) {
 
 	t.Run("stream alias", func(t *testing.T) {
 		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomWrite}},
+			atomFileName.Apply(NewAtom(f.Name())),
+			atomMode.Apply(atomWrite),
 			atomOutput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomFalse}},
-			&compound{functor: atomType, args: []Term{atomText}},
+			atomAlias.Apply(NewAtom("null")),
+			atomPosition.Apply(Integer(0)),
+			atomEndOfStream.Apply(atomNot),
+			atomEOFAction.Apply(atomEOFCode),
+			atomReposition.Apply(atomFalse),
+			atomType.Apply(atomText),
 		}
 
 		state := State{
@@ -6177,60 +6177,6 @@ func TestState_StreamProperty(t *testing.T) {
 		ok, err := state.StreamProperty(NewAtom("foo"), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
-	})
-
-	t.Run("seek failed", func(t *testing.T) {
-		var m mockFile
-		m.On("Seek", mock.Anything, mock.Anything).Return(int64(0), errors.New("failed")).Once()
-		defer m.AssertExpectations(t)
-
-		s := &Stream{sourceSink: &m, mode: ioModeRead}
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{
-			functor: atomMode,
-			args:    []Term{atomRead},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("stat failed", func(t *testing.T) {
-		var mfi mockFileInfo
-		defer mfi.AssertExpectations(t)
-
-		var m mockFile
-		m.On("Seek", mock.Anything, mock.Anything).Return(int64(0), nil).Once()
-		m.On("Stat").Return(&mfi, errors.New("failed")).Once()
-		defer m.AssertExpectations(t)
-
-		s := &Stream{sourceSink: &m, mode: ioModeRead}
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{
-			functor: atomMode,
-			args:    []Term{atomRead},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("end_of_stream past", func(t *testing.T) {
-		var mfi mockFileInfo
-		mfi.On("Size").Return(int64(100)).Once()
-		defer mfi.AssertExpectations(t)
-
-		var mf mockFile
-		mf.On("Seek", int64(0), 1).Return(int64(101), nil).Once()
-		mf.On("Stat").Return(&mfi, nil).Once()
-		defer mf.AssertExpectations(t)
-
-		s := &Stream{sourceSink: &mf, mode: ioModeRead}
-
-		var state State
-		ok, err := state.StreamProperty(s, atomEndOfStream.Apply(atomPast), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
 	})
 
 	t.Run("unknown atom", func(t *testing.T) {

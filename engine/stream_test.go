@@ -95,28 +95,6 @@ func (m *mockFile) Seek(offset int64, whence int) (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func TestStream_Stat(t *testing.T) {
-	t.Run("file", func(t *testing.T) {
-		var mfi mockFileInfo
-		defer mfi.AssertExpectations(t)
-
-		var m mockFile
-		m.On("Stat").Return(&mfi, nil).Once()
-		defer m.AssertExpectations(t)
-
-		s := &Stream{sourceSink: &m}
-		fi, err := s.Stat()
-		assert.NoError(t, err)
-		assert.Equal(t, &mfi, fi)
-	})
-
-	t.Run("not file", func(t *testing.T) {
-		s := &Stream{sourceSink: "not file"}
-		_, err := s.Stat()
-		assert.Error(t, err)
-	})
-}
-
 type mockCloser struct {
 	mock.Mock
 }
@@ -158,7 +136,7 @@ func (m *mockReader) Read(p []byte) (int, error) {
 func TestStream_Read(t *testing.T) {
 	t.Run("reader", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(1, nil).Once()
+		m.On("Read", mock.Anything).Return(1, nil).Twice()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{sourceSink: &m}
@@ -217,21 +195,6 @@ func TestStream_ReadRune(t *testing.T) {
 		s := &Stream{sourceSink: "not reader"}
 		_, _, err := s.ReadRune()
 		assert.Error(t, err)
-	})
-}
-
-func TestStream_UnreadRune(t *testing.T) {
-	t.Run("reader", func(t *testing.T) {
-		s := &Stream{sourceSink: bytes.NewReader([]byte("abc"))}
-		_, _, err := s.ReadRune()
-		assert.NoError(t, err)
-
-		assert.NoError(t, s.UnreadRune())
-	})
-
-	t.Run("not reader", func(t *testing.T) {
-		s := &Stream{sourceSink: "not reader"}
-		assert.Error(t, s.UnreadRune())
 	})
 }
 

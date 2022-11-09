@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"io/fs"
 	"os"
 )
 
@@ -65,17 +64,39 @@ func (t streamType) Term() Term {
 	}[t]
 }
 
+type endOfStream uint8
+
+const (
+	endOfStreamNot endOfStream = iota
+	endOfStreamAt
+	endOfStreamPast
+)
+
+func (e endOfStream) Term() Term {
+	return [...]Atom{
+		endOfStreamNot:  atomNot,
+		endOfStreamAt:   atomAt,
+		endOfStreamPast: atomPast,
+	}[e]
+}
+
 var errNotSupported = errors.New("not supported")
 
 // Stream is a prolog stream.
 type Stream struct {
-	sourceSink interface{} // Either io.Reader or io.Writer.
-	buf        *bufio.Reader
-	mode       ioMode
-	alias      Atom
-	eofAction  eofAction
-	reposition bool
-	streamType streamType
+	sourceSink   interface{} // Either io.Reader or io.Writer.
+	buf          *bufio.Reader
+	lastRuneSize int
+
+	mode        ioMode
+	alias       Atom
+	position    int64
+	endOfStream endOfStream
+	eofAction   eofAction
+	reposition  bool
+	streamType  streamType
+
+	skipEOSCheck bool
 }
 
 // Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".
@@ -91,22 +112,15 @@ func (s *Stream) Name() string {
 	return f.Name()
 }
 
-// Stat returns the underlying source/sink's fs.FileInfo.
-func (s *Stream) Stat() (fs.FileInfo, error) {
-	f, ok := s.sourceSink.(fs.File)
-	if !ok {
-		return nil, errNotSupported
-	}
-
-	return f.Stat()
-}
-
 // Read reads from the underlying source.
 func (s *Stream) Read(p []byte) (int, error) {
 	if err := s.initBuf(); err != nil {
 		return 0, err
 	}
-	return s.buf.Read(p)
+	n, err := s.buf.Read(p)
+	s.position += int64(n)
+	s.checkEOS()
+	return n, err
 }
 
 // ReadByte reads a byte from the underlying source.
@@ -114,7 +128,12 @@ func (s *Stream) ReadByte() (byte, error) {
 	if err := s.initBuf(); err != nil {
 		return 0, err
 	}
-	return s.buf.ReadByte()
+	b, err := s.buf.ReadByte()
+	if err == nil {
+		s.position += 1
+		s.checkEOS()
+	}
+	return b, err
 }
 
 // Peek peeks the next n bytes from the underlying source.
@@ -130,14 +149,25 @@ func (s *Stream) ReadRune() (r rune, size int, err error) {
 	if err := s.initBuf(); err != nil {
 		return 0, 0, err
 	}
-	return s.buf.ReadRune()
+	r, n, err := s.buf.ReadRune()
+	if n > 0 {
+		s.position += int64(n)
+		s.checkEOS()
+	}
+	return r, n, err
 }
 
 func (s *Stream) UnreadRune() error {
 	if err := s.initBuf(); err != nil {
 		return err
 	}
-	return s.buf.UnreadRune()
+	err := s.buf.UnreadRune()
+	if err == nil {
+		s.position -= int64(s.lastRuneSize)
+		s.lastRuneSize = 0
+		s.checkEOS()
+	}
+	return err
 }
 
 // Seek sets the offset to the underlying source/sink.
@@ -152,8 +182,11 @@ func (s *Stream) Seek(offset int64, whence int) (int64, error) {
 		return n, err
 	}
 
+	s.position = n
+
 	if r, ok := sk.(io.Reader); ok && s.buf != nil {
 		s.buf.Reset(r)
+		s.checkEOS()
 	}
 
 	return n, nil
@@ -165,7 +198,9 @@ func (s *Stream) Write(p []byte) (int, error) {
 		return 0, errNotSupported
 	}
 
-	return w.Write(p)
+	n, err := w.Write(p)
+	s.position += int64(n)
+	return n, err
 }
 
 // Flush flushes the buffered output to the sink.
@@ -211,10 +246,34 @@ func (s *Stream) initBuf() error {
 	return nil
 }
 
-func (s *Stream) properties() []Term {
-	ps := []Term{
-		atomMode.Apply(s.mode.Term()),
+func (s *Stream) checkEOS() {
+	if s.skipEOSCheck {
+		return
 	}
+
+	if err := s.initBuf(); err != nil {
+		return
+	}
+	switch _, err := s.buf.Peek(1); err {
+	case nil:
+		s.endOfStream = endOfStreamNot
+	case io.EOF:
+		s.endOfStream = [...]endOfStream{
+			endOfStreamNot:  endOfStreamAt,
+			endOfStreamAt:   endOfStreamPast,
+			endOfStreamPast: endOfStreamPast,
+		}[s.endOfStream]
+	}
+}
+
+func (s *Stream) properties() []Term {
+	ps := make([]Term, 0, 9)
+
+	if n := s.Name(); n != "" {
+		ps = append(ps, atomFileName.Apply(NewAtom(n)))
+	}
+
+	ps = append(ps, atomMode.Apply(s.mode.Term()))
 
 	switch s.mode {
 	case ioModeRead:
@@ -227,27 +286,11 @@ func (s *Stream) properties() []Term {
 		ps = append(ps, atomAlias.Apply(s.alias))
 	}
 
-	ps = append(ps, atomEOFAction.Apply(s.eofAction.Term()))
-
-	if n := s.Name(); n != "" {
-		ps = append(ps, atomFileName.Apply(NewAtom(n)))
-	}
-
-	if pos, err := s.Seek(0, 1); err == nil {
-		ps = append(ps, atomPosition.Apply(Integer(pos)))
-
-		if fi, err := s.Stat(); err == nil {
-			size := fi.Size()
-			eos := atomNot
-			switch {
-			case pos == size:
-				eos = atomAt
-			case pos > size:
-				eos = atomPast
-			}
-			ps = append(ps, atomEndOfStream.Apply(eos))
-		}
-	}
+	ps = append(ps,
+		atomPosition.Apply(Integer(s.position)),
+		atomEndOfStream.Apply(s.endOfStream.Term()),
+		atomEOFAction.Apply(s.eofAction.Term()),
+	)
 
 	if s.reposition {
 		ps = append(ps, atomReposition.Apply(atomTrue))
