@@ -1233,7 +1233,9 @@ func (state *State) Open(SourceSink, mode, stream, options Term, k func(*Env) *P
 		return Error(err)
 	}
 
-	s.checkEOS()
+	if err := s.initRead(); err == nil {
+		s.checkEOS()
+	}
 
 	return Unify(stream, &s, k, env)
 }
@@ -1717,11 +1719,6 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		return Error(err)
 	}
 
-	s.skipEOSCheck = true
-	defer func() {
-		s.skipEOSCheck = false
-	}()
-
 	var vars []ParsedVariable
 	p := state.Parser(s, &vars)
 	defer func() {
@@ -1730,14 +1727,11 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 
 	t, err := p.Term()
 	if err != nil {
-		switch {
-		case errors.Is(err, io.EOF):
-			switch s.eofAction {
-			case eofActionError:
-				return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-			default:
-				return Unify(out, atomEndOfFile, k, env)
-			}
+		switch err {
+		case io.EOF:
+			return Unify(out, atomEndOfFile, k, env)
+		case ErrPastEndOfStream:
+			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 		default:
 			return Error(SyntaxError(err, env))
 		}
@@ -1755,20 +1749,18 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		})
 	}
 
-	env, ok := env.Unify(&compound{args: []Term{
+	readTerm := NewAtom("$read_term")
+	return Unify(readTerm.Apply(
+		out,
 		opts.singletons,
 		opts.variables,
 		opts.variableNames,
-	}}, &compound{args: []Term{
+	), readTerm.Apply(
+		t,
 		List(singletons...),
 		List(variables...),
 		List(variableNames...),
-	}}, false)
-	if !ok {
-		return Bool(false)
-	}
-
-	return Unify(out, t, k, env)
+	), k, env)
 }
 
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {
@@ -1825,22 +1817,13 @@ func (state *State) GetByte(streamOrAlias, inByte Term, k func(*Env) *Promise, e
 
 	switch b, err := s.ReadByte(); err {
 	case nil:
-		return Delay(func(context.Context) *Promise {
-			return Unify(inByte, Integer(b), k, env)
-		})
+		return Unify(inByte, Integer(b), k, env)
 	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionReset:
-			return Delay(func(context.Context) *Promise {
-				return state.GetByte(streamOrAlias, inByte, k, env)
-			})
-		default:
-			return Unify(inByte, Integer(-1), k, env)
-		}
+		return Unify(inByte, Integer(-1), k, env)
+	case ErrPastEndOfStream:
+		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(err)
+		return Error(SystemError(err))
 	}
 }
 
@@ -1872,24 +1855,15 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 
 	switch r, _, err := s.ReadRune(); err {
 	case nil:
-		if r == unicode.ReplacementChar {
+		if r == utf8.RuneError {
 			return Error(RepresentationError(FlagCharacter, env))
 		}
 
-		return Delay(func(context.Context) *Promise {
-			return Unify(char, NewAtom(string(r)), k, env)
-		})
+		return Unify(char, NewAtom(string(r)), k, env)
 	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionReset:
-			return Delay(func(context.Context) *Promise {
-				return state.GetChar(streamOrAlias, char, k, env)
-			})
-		default:
-			return Unify(char, atomEndOfFile, k, env)
-		}
+		return Unify(char, atomEndOfFile, k, env)
+	case ErrPastEndOfStream:
+		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
 		return Error(SystemError(err))
 	}
@@ -1923,20 +1897,11 @@ func (state *State) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, 
 
 	switch b, err := s.Peek(1); err {
 	case nil:
-		return Delay(func(context.Context) *Promise {
-			return Unify(inByte, Integer(b[0]), k, env)
-		})
+		return Unify(inByte, Integer(b[0]), k, env)
 	case io.EOF:
-		switch s.eofAction {
-		case eofActionError:
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		case eofActionReset:
-			return Delay(func(context.Context) *Promise {
-				return state.PeekByte(streamOrAlias, inByte, k, env)
-			})
-		default:
-			return Unify(inByte, Integer(-1), k, env)
-		}
+		return Unify(inByte, Integer(-1), k, env)
+	case ErrPastEndOfStream:
+		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
 		return Error(SystemError(err))
 	}
@@ -1968,11 +1933,6 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 		return Error(TypeError(ValidTypeInCharacter, char, env))
 	}
 
-	s.skipEOSCheck = true
-	defer func() {
-		s.skipEOSCheck = false
-	}()
-
 	r, _, err := s.ReadRune()
 	defer func() {
 		_ = s.UnreadRune()
@@ -1985,10 +1945,9 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 
 		return Unify(char, NewAtom(string(r)), k, env)
 	case io.EOF:
-		if s.eofAction == eofActionError {
-			return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
-		}
 		return Unify(char, atomEndOfFile, k, env)
+	case ErrPastEndOfStream:
+		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
 		return Error(SystemError(err))
 	}

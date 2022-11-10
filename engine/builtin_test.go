@@ -4596,15 +4596,17 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		f, err := os.Open("testdata/empty.txt")
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, f.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, &Stream{sourceSink: f, mode: ioModeRead, eofAction: eofActionError})
+			Bind(s, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
@@ -4803,15 +4805,18 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		f, err := os.Open("testdata/empty.txt")
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, f.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, eofAction: eofActionError})
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				streamType:  streamTypeBinary,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
@@ -4885,7 +4890,7 @@ func TestState_GetChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Times(2)
 		defer m.AssertExpectations(t)
 
 		v := NewNamedVariable("V")
@@ -4952,15 +4957,17 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		f, err := os.Open("testdata/empty.txt")
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, f.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead, eofAction: eofActionError})
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5125,15 +5132,18 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		f, err := os.Open("testdata/empty.txt")
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, f.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, eofAction: eofActionError})
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				streamType:  streamTypeBinary,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
@@ -5214,7 +5224,7 @@ func TestState_PeekChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
 		defer m.AssertExpectations(t)
 
 		v := NewNamedVariable("V")
@@ -5281,20 +5291,16 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		f, err := os.Open("testdata/empty.txt")
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, f.Close())
-		}()
-
-		s := &Stream{
-			sourceSink: f,
-			eofAction:  eofActionError,
-		}
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())

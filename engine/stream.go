@@ -82,6 +82,8 @@ func (e endOfStream) Term() Term {
 
 var errNotSupported = errors.New("not supported")
 
+var ErrPastEndOfStream = errors.New("past end of stream")
+
 // Stream is a prolog stream.
 type Stream struct {
 	sourceSink   interface{} // Either io.Reader or io.Writer.
@@ -95,8 +97,6 @@ type Stream struct {
 	eofAction   eofAction
 	reposition  bool
 	streamType  streamType
-
-	skipEOSCheck bool
 }
 
 // Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".
@@ -114,7 +114,7 @@ func (s *Stream) Name() string {
 
 // Read reads from the underlying source.
 func (s *Stream) Read(p []byte) (int, error) {
-	if err := s.initBuf(); err != nil {
+	if err := s.initRead(); err != nil {
 		return 0, err
 	}
 	n, err := s.buf.Read(p)
@@ -125,7 +125,7 @@ func (s *Stream) Read(p []byte) (int, error) {
 
 // ReadByte reads a byte from the underlying source.
 func (s *Stream) ReadByte() (byte, error) {
-	if err := s.initBuf(); err != nil {
+	if err := s.initRead(); err != nil {
 		return 0, err
 	}
 	b, err := s.buf.ReadByte()
@@ -138,7 +138,7 @@ func (s *Stream) ReadByte() (byte, error) {
 
 // Peek peeks the next n bytes from the underlying source.
 func (s *Stream) Peek(n int) ([]byte, error) {
-	if err := s.initBuf(); err != nil {
+	if err := s.initRead(); err != nil {
 		return nil, err
 	}
 	return s.buf.Peek(n)
@@ -146,26 +146,36 @@ func (s *Stream) Peek(n int) ([]byte, error) {
 
 // ReadRune reads the next rune from the underlying source.
 func (s *Stream) ReadRune() (r rune, size int, err error) {
-	if err := s.initBuf(); err != nil {
+	if err := s.initRead(); err != nil {
 		return 0, 0, err
 	}
+
+	// After reading a rune, we might be at the end of stream.
+	b, _ := s.buf.Peek(5) // A rune is 1~4 bytes.
+
 	r, n, err := s.buf.ReadRune()
-	if n > 0 {
-		s.position += int64(n)
-		s.checkEOS()
+	s.position += int64(n)
+	s.lastRuneSize = n
+	switch {
+	case n == 0:
+		s.endOfStream = endOfStreamPast
+	case n < len(b):
+		s.endOfStream = endOfStreamNot
+	case n == len(b):
+		s.endOfStream = endOfStreamAt
 	}
 	return r, n, err
 }
 
 func (s *Stream) UnreadRune() error {
-	if err := s.initBuf(); err != nil {
+	if err := s.initRead(); err != nil {
 		return err
 	}
 	err := s.buf.UnreadRune()
 	if err == nil {
 		s.position -= int64(s.lastRuneSize)
+		s.endOfStream = endOfStreamNot
 		s.lastRuneSize = 0
-		s.checkEOS()
 	}
 	return err
 }
@@ -233,7 +243,17 @@ func (s *Stream) Close() error {
 	return nil
 }
 
-func (s *Stream) initBuf() error {
+func (s *Stream) initRead() error {
+	if s.endOfStream == endOfStreamPast {
+		switch s.eofAction {
+		case eofActionError:
+			return ErrPastEndOfStream
+		case eofActionReset:
+			_, err := s.Seek(0, io.SeekStart)
+			return err
+		}
+	}
+
 	if s.buf != nil {
 		return nil
 	}
@@ -247,22 +267,14 @@ func (s *Stream) initBuf() error {
 }
 
 func (s *Stream) checkEOS() {
-	if s.skipEOSCheck {
-		return
-	}
-
-	if err := s.initBuf(); err != nil {
-		return
-	}
-	switch _, err := s.buf.Peek(1); err {
-	case nil:
+	b, err := s.buf.Peek(1)
+	switch {
+	case err == io.EOF:
+		s.endOfStream = endOfStreamPast
+	case len(b) == 0:
+		s.endOfStream = endOfStreamAt
+	default:
 		s.endOfStream = endOfStreamNot
-	case io.EOF:
-		s.endOfStream = [...]endOfStream{
-			endOfStreamNot:  endOfStreamAt,
-			endOfStreamAt:   endOfStreamPast,
-			endOfStreamPast: endOfStreamPast,
-		}[s.endOfStream]
 	}
 }
 

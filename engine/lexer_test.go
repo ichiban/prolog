@@ -142,7 +142,8 @@ a quoted ident"`}},
 		t.Run(tt.input, func(t *testing.T) {
 			l := Lexer{input: newRuneRingBuffer(strings.NewReader(tt.input)), charConversions: tt.charConversions}
 
-			token := l.Token()
+			token, err := l.Token()
+			assert.NoError(t, err)
 			assert.Equal(t, tt.token, token)
 		})
 	}

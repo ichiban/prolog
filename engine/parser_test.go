@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"io"
 	"strings"
 	"testing"
 
@@ -30,7 +29,7 @@ func TestParser_Term(t *testing.T) {
 		varOffset int64
 		err       error
 	}{
-		{input: ``, err: io.EOF},
+		{input: ``, err: ErrInsufficient},
 		{input: `foo`, err: ErrInsufficient},
 		{input: `.`, err: unexpectedTokenError{actual: Token{Kind: TokenEnd, Val: "."}}},
 

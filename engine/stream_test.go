@@ -3,13 +3,12 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"io"
 	"io/fs"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 type mockNamer struct {
@@ -184,11 +183,53 @@ func TestStream_Peek(t *testing.T) {
 
 func TestStream_ReadRune(t *testing.T) {
 	t.Run("reader", func(t *testing.T) {
-		s := &Stream{sourceSink: bytes.NewReader([]byte("abc"))}
-		r, n, err := s.ReadRune()
-		assert.NoError(t, err)
-		assert.Equal(t, 'a', r)
-		assert.Equal(t, 1, n)
+		t.Run("abc", func(t *testing.T) {
+			s := &Stream{sourceSink: bytes.NewReader([]byte("abc"))}
+			assert.NoError(t, s.initRead())
+			s.checkEOS()
+
+			r, n, err := s.ReadRune()
+			assert.NoError(t, err)
+			assert.Equal(t, 'a', r)
+			assert.Equal(t, 1, n)
+			assert.Equal(t, endOfStreamNot, s.endOfStream)
+		})
+
+		t.Run("bc", func(t *testing.T) {
+			s := &Stream{sourceSink: bytes.NewReader([]byte("bc"))}
+			assert.NoError(t, s.initRead())
+			s.checkEOS()
+
+			r, n, err := s.ReadRune()
+			assert.NoError(t, err)
+			assert.Equal(t, 'b', r)
+			assert.Equal(t, 1, n)
+			assert.Equal(t, endOfStreamNot, s.endOfStream)
+		})
+
+		t.Run("c", func(t *testing.T) {
+			s := &Stream{sourceSink: bytes.NewReader([]byte("c"))}
+			assert.NoError(t, s.initRead())
+			s.checkEOS()
+
+			r, n, err := s.ReadRune()
+			assert.NoError(t, err)
+			assert.Equal(t, 'c', r)
+			assert.Equal(t, 1, n)
+			assert.Equal(t, endOfStreamAt, s.endOfStream)
+		})
+
+		t.Run("empty", func(t *testing.T) {
+			s := &Stream{sourceSink: bytes.NewReader([]byte(""))}
+			assert.NoError(t, s.initRead())
+			s.checkEOS()
+
+			r, n, err := s.ReadRune()
+			assert.Error(t, err)
+			assert.Equal(t, rune(0), r)
+			assert.Equal(t, 0, n)
+			assert.Equal(t, endOfStreamPast, s.endOfStream)
+		})
 	})
 
 	t.Run("not reader", func(t *testing.T) {
