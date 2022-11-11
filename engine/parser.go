@@ -9,16 +9,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 var (
-	// ErrInsufficient is a parsing error which can be resolved by adding more characters to the input.
-	ErrInsufficient = errors.New("insufficient")
-	errExpectation  = errors.New("expectation error")
-	errNoOp         = errors.New("no op")
-	errNotANumber   = errors.New("not a number")
-	errPlaceholder  = errors.New("not enough arguments for placeholders")
+	errExpectation = errors.New("expectation error")
+	errNoOp        = errors.New("no op")
+	errNotANumber  = errors.New("not a number")
+	errPlaceholder = errors.New("not enough arguments for placeholders")
 )
 
 // Parser turns bytes into Term.
@@ -143,12 +140,7 @@ func (p *Parser) Term() (Term, error) {
 	case nil:
 		break
 	case errExpectation:
-		switch cur := p.current(); cur.Kind {
-		case TokenEOF, TokenInsufficient:
-			return nil, ErrInsufficient
-		default:
-			return nil, unexpectedTokenError{actual: cur}
-		}
+		return nil, unexpectedTokenError{actual: p.current()}
 	default:
 		return nil, err
 	}
@@ -160,8 +152,6 @@ func (p *Parser) Term() (Term, error) {
 	switch tk.Kind {
 	case TokenEnd:
 		break
-	case TokenEOF, TokenInsufficient:
-		return nil, ErrInsufficient
 	default:
 		p.backup()
 		return nil, unexpectedTokenError{actual: p.current()}
@@ -205,7 +195,7 @@ func (p *Parser) Number() (Number, error) {
 		var t Token
 		t, err = p.next()
 		if err != nil {
-			return nil, err
+			return nil, errNotANumber
 		}
 		switch t.Kind {
 		case TokenInteger:
@@ -223,25 +213,23 @@ func (p *Parser) Number() (Number, error) {
 	}
 
 	// No more runes after a number.
-	r, err := p.lexer.rawNext()
-	if err != nil {
+	switch _, err := p.lexer.rawNext(); err {
+	case nil:
+		return nil, errNotANumber
+	case io.EOF:
+		return n, nil
+	default:
 		return nil, err
 	}
-	if r != utf8.RuneError || !p.buf.empty() {
-		return nil, errNotANumber
-	}
-
-	return n, nil
 }
 
 // More checks if the parser has more tokens to read.
 func (p *Parser) More() bool {
-	t, err := p.next()
-	if err != nil {
+	if _, err := p.next(); err != nil {
 		return false
 	}
 	p.backup()
-	return t.Kind != TokenEOF && t.Kind != TokenInsufficient
+	return true
 }
 
 type operatorClass uint8

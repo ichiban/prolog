@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -12,8 +13,9 @@ func TestLexer_Token(t *testing.T) {
 		input           string
 		charConversions map[rune]rune
 		token           Token
+		err             error
 	}{
-		{input: ``, token: Token{Kind: TokenEOF}},
+		{input: ``, err: io.EOF},
 
 		{input: ".", token: Token{Kind: TokenEnd, Val: "."}},
 		{input: ";", token: Token{Kind: TokenSemicolon, Val: ";"}},
@@ -30,7 +32,7 @@ func TestLexer_Token(t *testing.T) {
 
 		{input: "% comment\nfoo", token: Token{Kind: TokenLetterDigit, Val: "foo"}},
 		{input: "/* comment \n * also comment \n */foo", token: Token{Kind: TokenLetterDigit, Val: "foo"}},
-		{input: "/* comment ", token: Token{Kind: TokenInsufficient}},
+		{input: "/* comment ", err: io.EOF},
 		{input: `/ *`, token: Token{Kind: TokenGraphic, Val: `/`}},
 
 		{input: `改善`, token: Token{Kind: TokenLetterDigit, Val: `改善`}},
@@ -66,11 +68,11 @@ a quoted ident'`, token: Token{Kind: TokenQuoted, Val: "'this is \\\na quoted id
 		{input: `'\"'`, token: Token{Kind: TokenQuoted, Val: `'\"'`}},
 		{input: "'`'", token: Token{Kind: TokenQuoted, Val: "'`'"}},
 		{input: "'\\`'", token: Token{Kind: TokenQuoted, Val: "'\\`'"}},
-		{input: `'`, token: Token{Kind: TokenInsufficient, Val: `'`}},
-		{input: `'\`, token: Token{Kind: TokenInsufficient, Val: `'\`}},
-		{input: `'\x`, token: Token{Kind: TokenInsufficient, Val: `'\x`}},
+		{input: `'`, err: io.EOF},
+		{input: `'\`, err: io.EOF},
+		{input: `'\x`, err: io.EOF},
 		{input: `'\xG`, token: Token{Kind: TokenInvalid, Val: `'\xG`}},
-		{input: `'\0`, token: Token{Kind: TokenInsufficient, Val: `'\0`}},
+		{input: `'\0`, err: io.EOF},
 		{input: `'\08`, token: Token{Kind: TokenInvalid, Val: `'\08`}},
 		{input: "'\x01'", token: Token{Kind: TokenInvalid, Val: "'\x01"}},
 
@@ -90,10 +92,10 @@ a quoted ident'`, token: Token{Kind: TokenQuoted, Val: "'this is \\\na quoted id
 		{input: `0'\n`, token: Token{Kind: TokenInteger, Val: `0'\n`}},
 		{input: `0'\
 `, token: Token{Kind: TokenInteger, Val: `0`}},
-		{input: `0'\`, token: Token{Kind: TokenInsufficient, Val: `0'\`}},
+		{input: `0'\`, err: io.EOF},
 		{input: `0'\q`, token: Token{Kind: TokenInvalid, Val: `0'\q`}},
 		{input: `0'\😀`, token: Token{Kind: TokenInvalid, Val: `0'\😀`}},
-		{input: `0'`, token: Token{Kind: TokenInsufficient, Val: `0'`}},
+		{input: `0'`, err: io.EOF},
 		{input: "0'\x01", token: Token{Kind: TokenInvalid, Val: "0'\x01"}},
 		{input: `0`, token: Token{Kind: TokenInteger, Val: "0"}},
 		{input: `0.`, token: Token{Kind: TokenInteger, Val: "0"}},
@@ -120,17 +122,17 @@ a quoted ident"`}},
 		{input: `"\t"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\t"`}},
 		{input: `"\v"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\v"`}},
 		{input: `"\xa3\"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\xa3\"`}},
-		{input: `"\xa3`, token: Token{Kind: TokenInsufficient, Val: `"\xa3`}},
+		{input: `"\xa3`, err: io.EOF},
 		{input: `"\xa3g`, token: Token{Kind: TokenInvalid, Val: `"\xa3g`}},
 		{input: `"\43\"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\43\"`}},
-		{input: `"\43`, token: Token{Kind: TokenInsufficient, Val: `"\43`}},
+		{input: `"\43`, err: io.EOF},
 		{input: `"\438`, token: Token{Kind: TokenInvalid, Val: `"\438`}},
 		{input: `"\\"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\\"`}},
 		{input: `"\'"`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\'"`}},
 		{input: `"\""`, token: Token{Kind: TokenDoubleQuotedList, Val: `"\""`}},
 		{input: "\"\\`\"", token: Token{Kind: TokenDoubleQuotedList, Val: "\"\\`\""}},
-		{input: `"`, token: Token{Kind: TokenInsufficient, Val: `"`}},
-		{input: `"\`, token: Token{Kind: TokenInsufficient, Val: `"\`}},
+		{input: `"`, err: io.EOF},
+		{input: `"\`, err: io.EOF},
 
 		{input: "\x01", token: Token{Kind: TokenInvalid, Val: "\x01"}},
 
@@ -143,8 +145,8 @@ a quoted ident"`}},
 			l := Lexer{input: newRuneRingBuffer(strings.NewReader(tt.input)), charConversions: tt.charConversions}
 
 			token, err := l.Token()
-			assert.NoError(t, err)
 			assert.Equal(t, tt.token, token)
+			assert.Equal(t, tt.err, err)
 		})
 	}
 }

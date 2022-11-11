@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -29,8 +30,8 @@ func TestParser_Term(t *testing.T) {
 		varOffset int64
 		err       error
 	}{
-		{input: ``, err: ErrInsufficient},
-		{input: `foo`, err: ErrInsufficient},
+		{input: ``, err: io.EOF},
+		{input: `foo`, err: io.EOF},
 		{input: `.`, err: unexpectedTokenError{actual: Token{Kind: TokenEnd, Val: "."}}},
 
 		{input: `(foo).`, term: NewAtom("foo")},
@@ -86,7 +87,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `foo([]).`, term: &compound{functor: NewAtom("foo"), args: []Term{atomEmptyList}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
-		{input: `foo(a, b`, err: ErrInsufficient},
+		{input: `foo(a, b`, err: io.EOF},
 
 		{input: `[a, b].`, term: List(NewAtom("a"), NewAtom("b"))},
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},

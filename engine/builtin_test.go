@@ -4639,10 +4639,14 @@ func TestState_ReadTerm(t *testing.T) {
 
 			s := &Stream{sourceSink: f, mode: ioModeRead}
 
+			out := NewVariable()
 			var state State
-			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
-			assert.Equal(t, SyntaxError(ErrInsufficient, nil), err)
-			assert.False(t, ok)
+			ok, err := state.ReadTerm(s, out, List(), func(env *Env) *Promise {
+				assert.Equal(t, atomEndOfFile, env.Resolve(out))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
 		})
 
 	})
