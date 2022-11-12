@@ -145,11 +145,7 @@ func (p *Parser) Term() (Term, error) {
 		return nil, err
 	}
 
-	tk, err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	switch tk.Kind {
+	switch t, _ := p.next(); t.Kind {
 	case TokenEnd:
 		break
 	default:
@@ -214,12 +210,10 @@ func (p *Parser) Number() (Number, error) {
 
 	// No more runes after a number.
 	switch _, err := p.lexer.rawNext(); err {
-	case nil:
-		return nil, errNotANumber
 	case io.EOF:
 		return n, nil
 	default:
-		return nil, err
+		return nil, errNotANumber
 	}
 }
 
@@ -334,24 +328,19 @@ type operator struct {
 // Pratt parser's binding powers but in Prolog priority.
 func (o *operator) bindingPriorities() (Integer, Integer) {
 	const max = Integer(1202)
-	switch o.specifier {
-	case operatorSpecifierFX:
-		return max, o.priority - 1
-	case operatorSpecifierFY:
-		return max, o.priority
-	case operatorSpecifierXF:
-		return o.priority - 1, max
-	case operatorSpecifierYF:
-		return o.priority, max
-	case operatorSpecifierXFX:
-		return o.priority - 1, o.priority - 1
-	case operatorSpecifierXFY:
-		return o.priority - 1, o.priority
-	case operatorSpecifierYFX:
-		return o.priority, o.priority - 1
-	default:
-		return max, max
+	type lr struct {
+		left, right Integer
 	}
+	p := [...]lr{
+		operatorSpecifierFX:  {max, o.priority - 1},
+		operatorSpecifierFY:  {max, o.priority},
+		operatorSpecifierXF:  {o.priority - 1, max},
+		operatorSpecifierYF:  {o.priority, max},
+		operatorSpecifierXFX: {o.priority - 1, o.priority - 1},
+		operatorSpecifierXFY: {o.priority - 1, o.priority},
+		operatorSpecifierYFX: {o.priority, o.priority - 1},
+	}[o.specifier]
+	return p.left, p.right
 }
 
 type doubleQuotes int
@@ -412,10 +401,6 @@ func (p *Parser) term(maxPriority Integer) (Term, error) {
 }
 
 func (p *Parser) prefix(maxPriority Integer) (operator, error) {
-	if p.operators == nil {
-		return operator{}, errNoOp
-	}
-
 	a, err := p.op(maxPriority)
 	if err != nil {
 		return operator{}, errNoOp
@@ -458,10 +443,6 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 }
 
 func (p *Parser) infix(maxPriority Integer) (operator, error) {
-	if p.operators == nil {
-		return operator{}, errNoOp
-	}
-
 	a, err := p.op(maxPriority)
 	if err != nil {
 		return operator{}, errNoOp
@@ -536,11 +517,7 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	case TokenVariable:
 		return p.variable(t.Val)
 	case TokenOpenList:
-		t, err := p.next()
-		if err != nil {
-			return nil, err
-		}
-		if t.Kind == TokenCloseList {
+		if t, _ := p.next(); t.Kind == TokenCloseList {
 			p.backup()
 			p.backup()
 			break
@@ -548,11 +525,7 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 		return p.list()
 	case TokenOpenCurly:
-		t, err := p.next()
-		if err != nil {
-			return nil, err
-		}
-		if t.Kind == TokenCloseCurly {
+		if t, _ := p.next(); t.Kind == TokenCloseCurly {
 			p.backup()
 			p.backup()
 			break
@@ -573,10 +546,10 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 	}
 
-	return p.term0NewAtom(maxPriority)
+	return p.term0Atom(maxPriority)
 }
 
-func (p *Parser) term0NewAtom(maxPriority Integer) (Term, error) {
+func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	a, err := p.atom()
 	if err != nil {
 		return nil, err
@@ -642,11 +615,7 @@ func (p *Parser) openClose() (Term, error) {
 	if err != nil {
 		return nil, err
 	}
-	tk, err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	if tk.Kind != TokenClose {
+	if t, _ := p.next(); t.Kind != TokenClose {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -726,11 +695,7 @@ func (p *Parser) list() (Term, error) {
 	}
 	args := []Term{arg}
 	for {
-		t, err := p.next()
-		if err != nil {
-			return nil, err
-		}
-		switch t.Kind {
+		switch t, _ := p.next(); t.Kind {
 		case TokenComma:
 			arg, err := p.arg()
 			if err != nil {
@@ -743,11 +708,7 @@ func (p *Parser) list() (Term, error) {
 				return nil, err
 			}
 
-			t, err := p.next()
-			if err != nil {
-				return nil, err
-			}
-			switch t.Kind {
+			switch t, _ := p.next(); t.Kind {
 			case TokenCloseList:
 				if len(args) == 1 {
 					return Cons(args[0], rest), nil
@@ -772,11 +733,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 		return nil, err
 	}
 
-	tk, err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	if tk.Kind != TokenCloseCurly {
+	if t, _ := p.next(); t.Kind != TokenCloseCurly {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -788,11 +745,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 }
 
 func (p *Parser) functionalNotation(functor Atom) (Term, error) {
-	t, err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	switch t.Kind {
+	switch t, _ := p.next(); t.Kind {
 	case TokenOpenCT:
 		arg, err := p.arg()
 		if err != nil {
@@ -800,11 +753,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 		}
 		args := []Term{arg}
 		for {
-			t, err := p.next()
-			if err != nil {
-				return nil, err
-			}
-			switch t.Kind {
+			switch t, _ := p.next(); t.Kind {
 			case TokenComma:
 				arg, err := p.arg()
 				if err != nil {
@@ -831,11 +780,7 @@ func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
 		if p.operators.defined(arg) {
 			// Check if this atom is not followed by its own arguments.
-			t, err := p.next()
-			if err != nil {
-				return nil, err
-			}
-			switch t.Kind {
+			switch t, _ := p.next(); t.Kind {
 			case TokenComma, TokenClose, TokenBar, TokenCloseList:
 				p.backup()
 				return arg, nil
