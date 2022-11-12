@@ -196,8 +196,7 @@ func (l *Lexer) token(afterLayout bool) (Token, error) {
 		l.accept(r)
 		return l.variableToken()
 	case isDecimalDigitChar(r):
-		l.backup()
-		return l.integerToken()
+		return l.integerToken(r)
 	case r == '"':
 		l.accept(r)
 		return l.doubleQuotedListToken()
@@ -471,13 +470,11 @@ func (l *Lexer) variableToken() (Token, error) {
 
 //// Integer numbers
 
-func (l *Lexer) integerToken() (Token, error) {
-	switch r, err := l.next(); {
-	case err != nil:
-		return Token{}, err
-	case r == '0':
-		l.accept(r)
-		switch r, err = l.next(); {
+func (l *Lexer) integerToken(first rune) (Token, error) {
+	switch first {
+	case '0':
+		l.accept(first)
+		switch r, err := l.next(); {
 		case err == io.EOF:
 			return l.integerConstant()
 		case err != nil:
@@ -578,7 +575,7 @@ func (l *Lexer) integerToken() (Token, error) {
 			return l.integerConstant()
 		}
 	default:
-		l.accept(r)
+		l.accept(first)
 		return l.integerConstant()
 	}
 }
@@ -621,10 +618,7 @@ func (l *Lexer) characterCodeConstant() (Token, error) {
 		return Token{}, err
 	case r == '\'':
 		l.accept(r)
-		r, err := l.next() // r == '\''
-		if err != nil {
-			return Token{}, err
-		}
+		r, _ := l.next() // r == '\''
 		l.accept(r)
 		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
 	case r == '\\':
