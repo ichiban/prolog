@@ -1895,9 +1895,13 @@ func (state *State) PeekByte(streamOrAlias, inByte Term, k func(*Env) *Promise, 
 		return Error(TypeError(ValidTypeInByte, inByte, env))
 	}
 
-	switch b, err := s.Peek(1); err {
+	b, err := s.ReadByte()
+	defer func() {
+		_ = s.UnreadByte()
+	}()
+	switch err {
 	case nil:
-		return Unify(inByte, Integer(b[0]), k, env)
+		return Unify(inByte, Integer(b), k, env)
 	case io.EOF:
 		return Unify(inByte, Integer(-1), k, env)
 	case ErrPastEndOfStream:

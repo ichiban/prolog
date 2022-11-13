@@ -128,20 +128,35 @@ func (s *Stream) ReadByte() (byte, error) {
 	if err := s.initRead(); err != nil {
 		return 0, err
 	}
+
+	// After reading a byte, we might be at the end of stream.
+	bs, err := s.buf.Peek(2)
+
 	b, err := s.buf.ReadByte()
 	if err == nil {
 		s.position += 1
-		s.checkEOS()
+	}
+	switch len(bs) {
+	case 2:
+		s.endOfStream = endOfStreamNot
+	case 1:
+		s.endOfStream = endOfStreamAt
+	case 0:
+		s.endOfStream = endOfStreamPast
 	}
 	return b, err
 }
 
-// Peek peeks the next n bytes from the underlying source.
-func (s *Stream) Peek(n int) ([]byte, error) {
+func (s *Stream) UnreadByte() error {
 	if err := s.initRead(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.buf.Peek(n)
+	err := s.buf.UnreadByte()
+	if err == nil {
+		s.position -= 1
+		s.endOfStream = endOfStreamNot
+	}
+	return err
 }
 
 // ReadRune reads the next rune from the underlying source.

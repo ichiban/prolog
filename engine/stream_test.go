@@ -166,21 +166,6 @@ func TestStream_ReadByte(t *testing.T) {
 	})
 }
 
-func TestStream_Peek(t *testing.T) {
-	t.Run("reader", func(t *testing.T) {
-		s := &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3})}
-		b, err := s.Peek(2)
-		assert.Equal(t, []byte{1, 2}, b)
-		assert.NoError(t, err)
-	})
-
-	t.Run("not reader", func(t *testing.T) {
-		s := &Stream{sourceSink: "not reader"}
-		_, err := s.Peek(2)
-		assert.Error(t, err)
-	})
-}
-
 func TestStream_ReadRune(t *testing.T) {
 	t.Run("reader", func(t *testing.T) {
 		t.Run("abc", func(t *testing.T) {

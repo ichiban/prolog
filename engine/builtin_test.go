@@ -4734,7 +4734,7 @@ func TestState_GetByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{sourceSink: &m, mode: ioModeRead, streamType: streamTypeBinary}
@@ -5066,7 +5066,7 @@ func TestState_PeekByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{sourceSink: &m, mode: ioModeRead}
