@@ -41,19 +41,19 @@ func TestRulify(t *testing.T) {
 	}, nil))
 }
 
-func TestErrWriter_Write(t *testing.T) {
+func TestErrStringWriter_WriteString(t *testing.T) {
 	var failed = errors.New("failed")
 
-	var m mockWriter
-	m.On("Write", []byte("foo")).Return(0, failed).Once()
+	var m mockStringWriter
+	m.On("WriteString", "foo").Return(0, failed).Once()
 	defer m.AssertExpectations(t)
 
-	ew := errWriter{w: &m}
-	_, err := ew.Write([]byte("foo"))
+	ew := errStringWriter{w: &m}
+	_, err := ew.WriteString("foo")
 	assert.NoError(t, err)
-	_, err = ew.Write([]byte("bar"))
+	_, err = ew.WriteString("bar")
 	assert.NoError(t, err)
-	_, err = ew.Write([]byte("baz"))
+	_, err = ew.WriteString("baz")
 	assert.NoError(t, err)
 	assert.Equal(t, failed, ew.err)
 }
