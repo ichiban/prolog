@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -335,8 +336,8 @@ func TestState_Consult(t *testing.T) {
 		{title: `:- consult(['testdata/empty.txt']).`, files: List(NewAtom("testdata/empty.txt")), ok: true},
 		{title: `:- consult(['testdata/empty.txt', 'testdata/empty.txt']).`, files: List(NewAtom("testdata/empty.txt"), NewAtom("testdata/empty.txt")), ok: true},
 
-		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: ErrInsufficient},
-		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: ErrInsufficient},
+		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
+		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 
 		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: InstantiationError(nil)},
 		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: TypeError(ValidTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
