@@ -134,14 +134,7 @@ func (state *State) Call(goal Term, k func(*Env) *Promise, env *Env) *Promise {
 		for i, fv := range fvs {
 			args[i] = fv
 		}
-		call := NewAtom("$call")
-		cs, err := compile(&compound{
-			functor: atomIf,
-			args: []Term{
-				call.Apply(args...),
-				g,
-			},
-		}, env)
+		cs, err := compile(atomIf.Apply(tuple(args...), g), env)
 		if err != nil {
 			return Error(err)
 		}
@@ -376,19 +369,14 @@ func Functor(t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
 			for i := range vs {
 				vs[i] = NewVariable()
 			}
-			return Unify(t, &compound{
-				functor: n,
-				args:    vs,
-			}, k, env)
+			return Unify(t, n.Apply(vs...), k, env)
 		default:
 			return Error(TypeError(ValidTypeInteger, arity, env))
 		}
 	case Compound:
-		pattern := compound{args: []Term{name, arity}}
-		return Unify(&pattern, &compound{args: []Term{t.Functor(), Integer(t.Arity())}}, k, env)
+		return Unify(tuple(name, arity), tuple(t.Functor(), Integer(t.Arity())), k, env)
 	default: // atomic
-		pattern := compound{args: []Term{name, arity}}
-		return Unify(&pattern, &compound{args: []Term{t, Integer(0)}}, k, env)
+		return Unify(tuple(name, arity), tuple(t, Integer(0)), k, env)
 	}
 }
 
@@ -694,7 +682,7 @@ func (state *State) CurrentOp(priority, specifier, op Term, k func(*Env) *Promis
 		return Error(TypeError(ValidTypeAtom, op, env))
 	}
 
-	pattern := compound{args: []Term{priority, specifier, op}}
+	pattern := tuple(priority, specifier, op)
 	ks := make([]func(context.Context) *Promise, 0, len(state.operators)*int(_operatorClassLen))
 	for _, ops := range state.operators {
 		for _, op := range ops {
@@ -703,7 +691,7 @@ func (state *State) CurrentOp(priority, specifier, op Term, k func(*Env) *Promis
 				continue
 			}
 			ks = append(ks, func(context.Context) *Promise {
-				return Unify(&pattern, &compound{args: []Term{op.priority, op.specifier.term(), op.name}}, k, env)
+				return Unify(pattern, tuple(op.priority, op.specifier.term(), op.name), k, env)
 			})
 		}
 	}
@@ -789,7 +777,7 @@ func (state *State) collectionOf(agg func([]Term, *Env) Term, template, goal, in
 	sort.Slice(w, func(i, j int) bool {
 		return w[i].(Variable) < w[j].(Variable)
 	})
-	witness := NewAtom("$witness").Apply(w...)
+	witness := tuple(w...)
 	g := iteratedGoalTerm(goal, env)
 	s := Term(NewVariable())
 
@@ -1743,21 +1731,18 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 			singletons = append(singletons, v.Variable)
 		}
 		variables = append(variables, v.Variable)
-		variableNames = append(variableNames, &compound{
-			functor: atomEqual,
-			args:    []Term{v.Name, v.Variable},
-		})
+		variableNames = append(variableNames, atomEqual.Apply(v.Name, v.Variable))
 	}
 
-	env, ok := env.Unify(&compound{args: []Term{
+	env, ok := env.Unify(tuple(
 		opts.singletons,
 		opts.variables,
 		opts.variableNames,
-	}}, &compound{args: []Term{
+	), tuple(
 		List(singletons...),
 		List(variables...),
 		List(variableNames...),
-	}}, false)
+	), false)
 	if !ok {
 		return Bool(false)
 	}
@@ -2057,10 +2042,7 @@ func (state *State) Clause(head, body Term, k func(*Env) *Promise, env *Env) *Pr
 	for i, c := range u.clauses {
 		r := Rulify(renamedCopy(c.raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
-			return Unify(&compound{
-				functor: atomIf,
-				args:    []Term{head, body},
-			}, r, k, env)
+			return Unify(atomIf.Apply(head, body), r, k, env)
 		}
 	}
 	return Delay(ks...)
@@ -2127,17 +2109,17 @@ func AtomConcat(atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Prom
 			return Error(TypeError(ValidTypeAtom, atom2, env))
 		}
 
-		pattern := compound{args: []Term{atom1, atom2}}
+		pattern := tuple(atom1, atom2)
 		s := a3.String()
 		ks := make([]func(context.Context) *Promise, 0, len(s)+1)
 		for i := range s {
 			a1, a2 := s[:i], s[i:]
 			ks = append(ks, func(context.Context) *Promise {
-				return Unify(&pattern, &compound{args: []Term{NewAtom(a1), NewAtom(a2)}}, k, env)
+				return Unify(&pattern, tuple(NewAtom(a1), NewAtom(a2)), k, env)
 			})
 		}
 		ks = append(ks, func(context.Context) *Promise {
-			return Unify(&pattern, &compound{args: []Term{a3, atomEmpty}}, k, env)
+			return Unify(&pattern, tuple(a3, atomEmpty), k, env)
 		})
 		return Delay(ks...)
 	default:
@@ -2172,14 +2154,13 @@ func SubAtom(atom, before, length, after, subAtom Term, k func(*Env) *Promise, e
 			return Error(TypeError(ValidTypeAtom, subAtom, env))
 		}
 
-		subAtomPattern := NewAtom("$sub_atom_pattern")
-		pattern := subAtomPattern.Apply(before, length, after, subAtom)
+		pattern := tuple(before, length, after, subAtom)
 		var ks []func(context.Context) *Promise
 		for i := 0; i <= len(rs); i++ {
 			for j := i; j <= len(rs); j++ {
 				before, length, after, subAtom := Integer(i), Integer(j-i), Integer(len(rs)-j), NewAtom(string(rs[i:j]))
 				ks = append(ks, func(context.Context) *Promise {
-					return Unify(pattern, subAtomPattern.Apply(before, length, after, subAtom), k, env)
+					return Unify(pattern, tuple(before, length, after, subAtom), k, env)
 				})
 			}
 		}
@@ -2632,16 +2613,12 @@ func (state *State) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Pr
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
 		r := []rune(c1.String())
 		if r, ok := state.charConversions[r[0]]; ok {
-			return Delay(func(context.Context) *Promise {
-				return Unify(outChar, NewAtom(string(r)), k, env)
-			})
+			return Unify(outChar, NewAtom(string(r)), k, env)
 		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(outChar, c1, k, env)
-		})
+		return Unify(outChar, c1, k, env)
 	}
 
-	pattern := compound{args: []Term{inChar, outChar}}
+	pattern := tuple(inChar, outChar)
 	ks := make([]func(context.Context) *Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
@@ -2651,7 +2628,7 @@ func (state *State) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Pr
 		}
 
 		ks[i] = func(context.Context) *Promise {
-			return Unify(&pattern, &compound{args: []Term{NewAtom(string(r)), NewAtom(string(cr))}}, k, env)
+			return Unify(pattern, tuple(NewAtom(string(r)), NewAtom(string(cr))), k, env)
 		}
 	}
 	return Delay(ks...)
@@ -2688,10 +2665,7 @@ func (state *State) SetPrologFlag(flag, value Term, k func(*Env) *Promise, env *
 			}
 			return k(env)
 		default:
-			return Error(DomainError(ValidDomainFlagValue, &compound{
-				functor: atomPlus,
-				args:    []Term{flag, value},
-			}, env))
+			return Error(DomainError(ValidDomainFlagValue, atomPlus.Apply(flag, value), env))
 		}
 	default:
 		return Error(TypeError(ValidTypeAtom, f, env))
@@ -2705,10 +2679,7 @@ func (state *State) modifyCharConversion(value Atom) error {
 	case atomOff:
 		state.charConvEnabled = false
 	default:
-		return DomainError(ValidDomainFlagValue, &compound{
-			functor: atomPlus,
-			args:    []Term{atomCharConversion, value},
-		}, nil)
+		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomCharConversion, value), nil)
 	}
 	return nil
 }
@@ -2720,10 +2691,7 @@ func (state *State) modifyDebug(value Atom) error {
 	case atomOff:
 		state.debug = false
 	default:
-		return DomainError(ValidDomainFlagValue, &compound{
-			functor: atomPlus,
-			args:    []Term{atomDebug, value},
-		}, nil)
+		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomDebug, value), nil)
 	}
 	return nil
 }
@@ -2737,10 +2705,7 @@ func (state *State) modifyUnknown(value Atom) error {
 	case atomFail:
 		state.unknown = unknownFail
 	default:
-		return DomainError(ValidDomainFlagValue, &compound{
-			functor: atomPlus,
-			args:    []Term{atomUnknown, value},
-		}, nil)
+		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomUnknown, value), nil)
 	}
 	return nil
 }
@@ -2754,10 +2719,7 @@ func (state *State) modifyDoubleQuotes(value Atom) error {
 	case atomAtom:
 		state.doubleQuotes = doubleQuotesAtom
 	default:
-		return DomainError(ValidDomainFlagValue, &compound{
-			functor: atomPlus,
-			args:    []Term{atomDoubleQuotes, value},
-		}, nil)
+		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomDoubleQuotes, value), nil)
 	}
 	return nil
 }
@@ -2778,23 +2740,23 @@ func (state *State) CurrentPrologFlag(flag, value Term, k func(*Env) *Promise, e
 		return Error(TypeError(ValidTypeAtom, f, env))
 	}
 
-	pattern := compound{args: []Term{flag, value}}
+	pattern := tuple(flag, value)
 	flags := []Term{
-		&compound{args: []Term{atomBounded, atomTrue}},
-		&compound{args: []Term{atomMaxInteger, maxInt}},
-		&compound{args: []Term{atomMinInteger, minInt}},
-		&compound{args: []Term{atomIntegerRoundingFunction, atomTowardZero}},
-		&compound{args: []Term{atomCharConversion, onOff(state.charConvEnabled)}},
-		&compound{args: []Term{atomDebug, onOff(state.debug)}},
-		&compound{args: []Term{atomMaxArity, atomUnbounded}},
-		&compound{args: []Term{atomUnknown, NewAtom(state.unknown.String())}},
-		&compound{args: []Term{atomDoubleQuotes, NewAtom(state.doubleQuotes.String())}},
+		tuple(atomBounded, atomTrue),
+		tuple(atomMaxInteger, maxInt),
+		tuple(atomMinInteger, minInt),
+		tuple(atomIntegerRoundingFunction, atomTowardZero),
+		tuple(atomCharConversion, onOff(state.charConvEnabled)),
+		tuple(atomDebug, onOff(state.debug)),
+		tuple(atomMaxArity, atomUnbounded),
+		tuple(atomUnknown, NewAtom(state.unknown.String())),
+		tuple(atomDoubleQuotes, NewAtom(state.doubleQuotes.String())),
 	}
 	ks := make([]func(context.Context) *Promise, len(flags))
 	for i := range flags {
 		f := flags[i]
 		ks[i] = func(context.Context) *Promise {
-			return Unify(&pattern, f, k, env)
+			return Unify(pattern, f, k, env)
 		}
 	}
 	return Delay(ks...)
@@ -2866,11 +2828,7 @@ func Environ(key, value Term, k func(*Env) *Promise, env *Env) *Promise {
 	for i, l := range lines {
 		kv := strings.SplitN(l, "=", 2)
 		ks[i] = func(ctx context.Context) *Promise {
-			return Unify(&compound{
-				args: []Term{key, value},
-			}, &compound{
-				args: []Term{NewAtom(kv[0]), NewAtom(kv[1])},
-			}, k, env)
+			return Unify(tuple(key, value), tuple(NewAtom(kv[0]), NewAtom(kv[1])), k, env)
 		}
 	}
 	return Delay(ks...)
@@ -2889,13 +2847,12 @@ func Nth1(n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
 func nth(base Integer, n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch n := env.Resolve(n).(type) {
 	case Variable:
-		idx := NewAtom("$idx")
 		var ks []func(context.Context) *Promise
 		iter := ListIterator{List: list, Env: env}
 		for i := base; iter.Next(); i++ {
 			i, e := i, iter.Current()
 			ks = append(ks, func(context.Context) *Promise {
-				return Unify(idx.Apply(n, elem), idx.Apply(i, e), k, env)
+				return Unify(tuple(n, elem), tuple(i, e), k, env)
 			})
 		}
 		if err := iter.Err(); err != nil {
@@ -3039,8 +2996,7 @@ func lengthRundown(list Variable, n Integer, k func(*Env) *Promise, env *Env) *P
 
 func lengthAddendum(suffix Term, offset Integer, list, length Variable, k func(*Env) *Promise, env *Env) *Promise {
 	return Delay(func(context.Context) *Promise {
-		a := NewAtom("$addendum")
-		return Unify(a.Apply(list, length), a.Apply(suffix, offset), k, env)
+		return Unify(tuple(list, length), tuple(suffix, offset), k, env)
 	}, func(context.Context) *Promise {
 		suffix := atomDot.Apply(NewVariable(), suffix)
 		offset, err := addI(offset, 1)
@@ -3074,8 +3030,7 @@ func SkipMaxList(skip, max, list, suffix Term, k func(*Env) *Promise, env *Env) 
 		n++
 	}
 
-	s := NewAtom("$skipped")
-	return Unify(s.Apply(skip, suffix), s.Apply(n, iter.Suffix()), k, env)
+	return Unify(tuple(skip, suffix), tuple(n, iter.Suffix()), k, env)
 }
 
 // Append succeeds iff zs is the concatenation of lists xs and ys.
@@ -3101,13 +3056,12 @@ func appendLists(xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
 		append([], L, L).
 		append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 	*/
-	f := NewAtom("$append")
 	return Delay(func(context.Context) *Promise {
-		return Unify(f.Apply(xs, ys), f.Apply(List(), zs), k, env)
+		return Unify(tuple(xs, ys), tuple(List(), zs), k, env)
 	}, func(context.Context) *Promise {
 		x := NewVariable()
 		l1, l3 := NewVariable(), NewVariable()
-		return Unify(f.Apply(xs, zs), f.Apply(Cons(x, l1), Cons(x, l3)), func(env *Env) *Promise {
+		return Unify(tuple(xs, zs), tuple(Cons(x, l1), Cons(x, l3)), func(env *Env) *Promise {
 			return appendLists(l1, ys, l3, k, env)
 		}, env)
 	})

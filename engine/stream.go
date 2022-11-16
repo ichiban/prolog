@@ -163,7 +163,7 @@ var fileStat = (*os.File).Stat
 func (s *Stream) properties() ([]Term, error) {
 	var properties []Term
 
-	properties = append(properties, &compound{functor: atomMode, args: []Term{NewAtom(s.mode.String())}})
+	properties = append(properties, atomMode.Apply(NewAtom(s.mode.String())))
 
 	switch s.mode {
 	case StreamModeRead:
@@ -173,10 +173,10 @@ func (s *Stream) properties() ([]Term, error) {
 	}
 
 	if s.alias != 0 {
-		properties = append(properties, &compound{functor: atomAlias, args: []Term{s.alias}})
+		properties = append(properties, atomAlias.Apply(s.alias))
 	}
 
-	properties = append(properties, &compound{functor: atomEOFAction, args: []Term{NewAtom(s.eofAction.String())}})
+	properties = append(properties, atomEOFAction.Apply(NewAtom(s.eofAction.String())))
 
 	if f, ok := s.file.(*os.File); ok {
 		pos, err := seek(f, 0, 1)
@@ -199,19 +199,19 @@ func (s *Stream) properties() ([]Term, error) {
 		}
 
 		properties = append(properties,
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(pos)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom(eos)}},
+			atomFileName.Apply(NewAtom(f.Name())),
+			atomPosition.Apply(Integer(pos)),
+			atomEndOfStream.Apply(NewAtom(eos)),
 		)
 	}
 
 	if s.reposition {
-		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomTrue}})
+		properties = append(properties, atomReposition.Apply(atomTrue))
 	} else {
-		properties = append(properties, &compound{functor: atomReposition, args: []Term{atomFalse}})
+		properties = append(properties, atomReposition.Apply(atomFalse))
 	}
 
-	properties = append(properties, &compound{functor: atomType, args: []Term{NewAtom(s.streamType.String())}})
+	properties = append(properties, atomType.Apply(NewAtom(s.streamType.String())))
 
 	return properties, nil
 }

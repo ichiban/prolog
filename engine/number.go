@@ -317,10 +317,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 	case Atom:
 		c, ok := e.Constant[t]
 		if !ok {
-			return nil, TypeError(ValidTypeEvaluable, &compound{
-				functor: atomSlash,
-				args:    []Term{t, Integer(0)},
-			}, env)
+			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
 		}
 		return c, nil
 	case Number:
@@ -330,13 +327,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 		case 1:
 			f, ok := e.Unary[t.Functor()]
 			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, &compound{
-					functor: atomSlash,
-					args: []Term{
-						t.Functor(),
-						Integer(1),
-					},
-				}, env)
+				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)), env)
 			}
 			x, err := e.eval(t.Arg(0), env)
 			if err != nil {
@@ -346,13 +337,7 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 		case 2:
 			f, ok := e.Binary[t.Functor()]
 			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, &compound{
-					functor: atomSlash,
-					args: []Term{
-						t.Functor(),
-						Integer(2),
-					},
-				}, env)
+				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)), env)
 			}
 			x, err := e.eval(t.Arg(0), env)
 			if err != nil {
@@ -364,16 +349,10 @@ func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error)
 			}
 			return f(x, y)
 		default:
-			return nil, TypeError(ValidTypeEvaluable, &compound{
-				functor: atomSlash,
-				args:    []Term{t.Functor(), Integer(arity)},
-			}, env)
+			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)), env)
 		}
 	default:
-		return nil, TypeError(ValidTypeEvaluable, &compound{
-			functor: atomSlash,
-			args:    []Term{t, Integer(0)},
-		}, env)
+		return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
 	}
 }
 

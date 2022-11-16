@@ -135,10 +135,7 @@ var errNotCallable = errors.New("not callable")
 func (c *clause) compilePred(p Term, env *Env) error {
 	switch p := env.Resolve(p).(type) {
 	case Variable:
-		return c.compilePred(&compound{
-			functor: atomCall,
-			args:    []Term{p},
-		}, env)
+		return c.compilePred(atomCall.Apply(p), env)
 	case Atom:
 		switch p {
 		case atomCut:

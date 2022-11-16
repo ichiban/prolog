@@ -528,13 +528,7 @@ func (p ProcedureIndicator) String() string {
 
 // Term returns p as term.
 func (p ProcedureIndicator) Term() Term {
-	return &compound{
-		functor: atomSlash,
-		args: []Term{
-			p.Name,
-			p.Arity,
-		},
-	}
+	return atomSlash.Apply(p.Name, p.Arity)
 }
 
 // Apply applies p to args.

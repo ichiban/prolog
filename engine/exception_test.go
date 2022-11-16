@@ -152,13 +152,7 @@ func TestSyntaxError(t *testing.T) {
 
 func TestSystemError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: &compound{
-			functor: atomError,
-			args: []Term{
-				NewAtom("system_error"),
-				NewAtom("foo"),
-			},
-		},
+		term: atomError.Apply(NewAtom("system_error"), NewAtom("foo")),
 	}, SystemError(errors.New("foo")))
 }
 

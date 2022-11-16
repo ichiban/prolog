@@ -45,7 +45,7 @@ func Rulify(t Term, env *Env) Term {
 	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
 		return t
 	}
-	return &compound{functor: atomIf, args: []Term{t, atomTrue}}
+	return atomIf.Apply(t, atomTrue)
 }
 
 // WriteOptions specify how the Term writes itself.
