@@ -31,7 +31,7 @@ func TestParser_Term(t *testing.T) {
 		err       error
 	}{
 		{input: ``, err: io.EOF},
-		{input: `foo`, err: ErrInsufficient},
+		{input: `foo`, err: io.EOF},
 		{input: `.`, err: unexpectedTokenError{actual: Token{Kind: TokenEnd, Val: "."}}},
 
 		{input: `(foo).`, term: NewAtom("foo")},
@@ -58,6 +58,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `'\''.`, term: NewAtom(`'`)},
 		{input: `'\"'.`, term: NewAtom(`"`)},
 		{input: "'\\`'.", term: NewAtom("`")},
+		{input: `[`, err: io.EOF},
+		{input: `{`, err: io.EOF},
 
 		{input: `1.`, term: Integer(1)},
 		{input: `0'1.`, term: Integer(49)},
@@ -69,6 +71,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `'-'1.`, term: Integer(-1)},
 		{input: `9223372036854775808.`, err: RepresentationError(FlagMaxInteger, nil)},
 		{input: `-9223372036854775809.`, err: RepresentationError(FlagMinInteger, nil)},
+		{input: `-`, err: io.EOF},
+		{input: `- -`, err: io.EOF},
 
 		{input: `1.0.`, term: Float(1)},
 		{input: `-1.0.`, term: Float(-1)},
@@ -87,7 +91,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `foo([]).`, term: &compound{functor: NewAtom("foo"), args: []Term{atomEmptyList}}},
 		{input: `foo(a, ()).`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `foo(a b).`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "b"}}},
-		{input: `foo(a, b`, err: ErrInsufficient},
+		{input: `foo(a, b`, err: io.EOF},
 
 		{input: `[a, b].`, term: List(NewAtom("a"), NewAtom("b"))},
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
@@ -97,6 +101,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `[a, b|X].`, term: ListRest(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "d"}}},
+		{input: `[a `, err: io.EOF},
 
 		{input: `{a}.`, term: &compound{functor: atomEmptyBlock, args: []Term{NewAtom("a")}}},
 		{input: `{()}.`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
@@ -214,11 +219,14 @@ func TestParser_Number(t *testing.T) {
 		{input: `- 3.3`, number: Float(-3.3)},
 		{input: `'-'3.3`, number: Float(-3.3)},
 
+		{input: ``, err: io.EOF},
+		{input: `X`, err: errNotANumber},
 		{input: `33 three`, err: errNotANumber},
 		{input: `3 `, err: errNotANumber},
 		{input: `3.`, err: errNotANumber},
 		{input: `three`, err: errNotANumber},
 		{input: `-`, err: errNotANumber},
+		{input: `-a.`, err: errNotANumber},
 		{input: `()`, err: errNotANumber},
 	}
 

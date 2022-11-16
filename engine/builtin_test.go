@@ -1,13 +1,11 @@
 package engine
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -23,56 +21,9 @@ func TestState_SetUserInput(t *testing.T) {
 		var state State
 		state.SetUserInput(os.Stdin)
 
-		s, ok := state.streams[atomUserInput]
+		s, ok := state.streams.lookup(atomUserInput)
 		assert.True(t, ok)
-		assert.Equal(t, os.Stdin, s.file)
-	})
-
-	t.Run("ReadCloser", func(t *testing.T) {
-		var r struct {
-			mockReader
-			mockCloser
-		}
-		r.mockReader.On("Read", mock.Anything).Return(0, nil).Once()
-		defer r.mockReader.AssertExpectations(t)
-		r.mockCloser.On("Close").Return(nil).Once()
-		defer r.mockCloser.AssertExpectations(t)
-
-		var state State
-		state.SetUserInput(&r)
-
-		s, ok := state.streams[atomUserInput]
-		assert.True(t, ok)
-
-		n, err := s.file.Read(nil)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, n)
-
-		_, err = s.file.Write(nil)
-		assert.Equal(t, errNotSupported, err)
-
-		assert.NoError(t, s.file.Close())
-	})
-
-	t.Run("Reader", func(t *testing.T) {
-		var r mockReader
-		r.On("Read", mock.Anything).Return(0, nil).Once()
-		defer r.AssertExpectations(t)
-
-		var state State
-		state.SetUserInput(&r)
-
-		s, ok := state.streams[atomUserInput]
-		assert.True(t, ok)
-
-		n, err := s.file.Read(nil)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, n)
-
-		_, err = s.file.Write(nil)
-		assert.Equal(t, errNotSupported, err)
-
-		assert.Equal(t, errNotSupported, s.file.Close())
+		assert.Equal(t, os.Stdin, s.sourceSink)
 	})
 }
 
@@ -81,84 +32,10 @@ func TestState_SetUserOutput(t *testing.T) {
 		var state State
 		state.SetUserOutput(os.Stdout)
 
-		s, ok := state.streams[atomUserOutput]
+		s, ok := state.streams.lookup(atomUserOutput)
 		assert.True(t, ok)
-		assert.Equal(t, os.Stdout, s.file)
+		assert.Equal(t, os.Stdout, s.sourceSink)
 	})
-
-	t.Run("WriteCloser", func(t *testing.T) {
-		var w struct {
-			mockWriter
-			mockCloser
-		}
-		w.mockWriter.On("Write", mock.Anything).Return(0, nil).Once()
-		defer w.mockWriter.AssertExpectations(t)
-		w.mockCloser.On("Close").Return(nil).Once()
-		defer w.mockCloser.AssertExpectations(t)
-
-		var state State
-		state.SetUserOutput(&w)
-
-		s, ok := state.streams[atomUserOutput]
-		assert.True(t, ok)
-
-		_, err := s.file.Read(nil)
-		assert.Equal(t, errNotSupported, err)
-
-		n, err := s.file.Write(nil)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, n)
-
-		assert.NoError(t, s.file.Close())
-	})
-
-	t.Run("Writer", func(t *testing.T) {
-		var w mockWriter
-		w.On("Write", mock.Anything).Return(0, nil).Once()
-		defer w.AssertExpectations(t)
-
-		var state State
-		state.SetUserOutput(&w)
-
-		s, ok := state.streams[atomUserOutput]
-		assert.True(t, ok)
-
-		_, err := s.file.Read(nil)
-		assert.Equal(t, errNotSupported, err)
-
-		n, err := s.file.Write(nil)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, n)
-
-		assert.Equal(t, errNotSupported, s.file.Close())
-	})
-}
-
-type mockReader struct {
-	mock.Mock
-}
-
-func (m *mockReader) Read(p []byte) (int, error) {
-	args := m.Called(p)
-	return args.Int(0), args.Error(1)
-}
-
-type mockWriter struct {
-	mock.Mock
-}
-
-func (m *mockWriter) Write(p []byte) (int, error) {
-	args := m.Called(p)
-	return args.Int(0), args.Error(1)
-}
-
-type mockCloser struct {
-	mock.Mock
-}
-
-func (m *mockCloser) Close() error {
-	args := m.Called()
-	return args.Error(0)
 }
 
 func TestState_Call(t *testing.T) {
@@ -3206,7 +3083,7 @@ func TestState_CurrentOutput(t *testing.T) {
 func TestState_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		v := NewNamedVariable("Stream")
-		s := NewStream(os.Stdin, StreamModeRead)
+		s := &Stream{sourceSink: os.Stdin}
 		env := NewEnv().
 			Bind(v, s)
 		var state State
@@ -3218,14 +3095,11 @@ func TestState_SetInput(t *testing.T) {
 
 	t.Run("alias", func(t *testing.T) {
 		v := NewNamedVariable("Stream")
-		s := NewStream(os.Stdin, StreamModeRead)
+		s := &Stream{sourceSink: os.Stdin, alias: NewAtom("x")}
 		env := NewEnv().
 			Bind(v, s)
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("x"): s,
-			},
-		}
+		var state State
+		state.streams.add(s)
 		ok, err := state.SetInput(v, Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3252,22 +3126,12 @@ func TestState_SetInput(t *testing.T) {
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("x"), nil), err)
 		assert.False(t, ok)
 	})
-
-	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
-		v := NewNamedVariable("Stream")
-		env := NewEnv().
-			Bind(v, NewStream(os.Stdout, StreamModeWrite))
-		var state State
-		ok, err := state.SetInput(v, Success, env).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, v, env), err)
-		assert.False(t, ok)
-	})
 }
 
 func TestState_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		v := NewNamedVariable("Stream")
-		s := NewStream(os.Stdout, StreamModeWrite)
+		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
 		env := NewEnv().
 			Bind(v, s)
 		var state State
@@ -3278,12 +3142,9 @@ func TestState_SetOutput(t *testing.T) {
 	})
 
 	t.Run("alias", func(t *testing.T) {
-		s := NewStream(os.Stdout, StreamModeWrite)
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("x"): s,
-			},
-		}
+		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend, alias: NewAtom("x")}
+		var state State
+		state.streams.add(s)
 		ok, err := state.SetOutput(NewAtom("x"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3314,7 +3175,7 @@ func TestState_SetOutput(t *testing.T) {
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, NewStream(os.Stdin, StreamModeRead))
+			Bind(s, &Stream{sourceSink: os.Stdin})
 
 		var state State
 		ok, err := state.SetOutput(s, Success, env).Force(context.Background())
@@ -3327,7 +3188,7 @@ func TestState_Open(t *testing.T) {
 	var state State
 
 	t.Run("read", func(t *testing.T) {
-		f, err := ioutil.TempFile("", "open_test_read")
+		f, err := os.CreateTemp("", "open_test_read")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, os.Remove(f.Name()))
@@ -3340,18 +3201,19 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("alias", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
-				functor: atomAlias,
-				args:    []Term{atomInput},
-			}), func(env *Env) *Promise {
+			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(
+				atomAlias.Apply(atomInput),
+			), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
 
-				assert.Equal(t, state.streams[atomInput], s)
+				l, ok := state.streams.lookup(atomInput)
+				assert.True(t, ok)
+				assert.Equal(t, l, s)
 
-				b, err := ioutil.ReadAll(bufio.NewReader(s.file))
+				b, err := io.ReadAll(s.buf)
 				assert.NoError(t, err)
 				assert.Equal(t, "test\n", string(b))
 
@@ -3371,7 +3233,7 @@ func TestState_Open(t *testing.T) {
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
-				assert.Equal(t, StreamTypeText, s.streamType)
+				assert.Equal(t, streamTypeText, s.streamType)
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -3388,7 +3250,7 @@ func TestState_Open(t *testing.T) {
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
-				assert.Equal(t, StreamTypeBinary, s.streamType)
+				assert.Equal(t, streamTypeBinary, s.streamType)
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -3439,7 +3301,7 @@ func TestState_Open(t *testing.T) {
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
-				assert.Equal(t, EOFActionError, s.eofAction)
+				assert.Equal(t, eofActionError, s.eofAction)
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -3456,7 +3318,7 @@ func TestState_Open(t *testing.T) {
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
-				assert.Equal(t, EOFActionEOFCode, s.eofAction)
+				assert.Equal(t, eofActionEOFCode, s.eofAction)
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -3473,7 +3335,7 @@ func TestState_Open(t *testing.T) {
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
-				assert.Equal(t, EOFActionReset, s.eofAction)
+				assert.Equal(t, eofActionReset, s.eofAction)
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -3550,9 +3412,14 @@ func TestState_Open(t *testing.T) {
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
 
-			assert.Equal(t, state.streams[atomOutput], s)
+			l, ok := state.streams.lookup(atomOutput)
+			assert.True(t, ok)
+			assert.Equal(t, l, s)
 
-			_, err := fmt.Fprintf(s.file, "test\n")
+			w, ok := s.sourceSink.(io.Writer)
+			assert.True(t, ok)
+
+			_, err := fmt.Fprintf(w, "test\n")
 			assert.NoError(t, err)
 
 			f, err := os.Open(n)
@@ -3561,7 +3428,7 @@ func TestState_Open(t *testing.T) {
 				assert.NoError(t, f.Close())
 			}()
 
-			b, err := ioutil.ReadAll(f)
+			b, err := io.ReadAll(f)
 			assert.NoError(t, err)
 			assert.Equal(t, "test\n", string(b))
 
@@ -3572,7 +3439,7 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("append", func(t *testing.T) {
-		f, err := ioutil.TempFile("", "open_test_append")
+		f, err := os.CreateTemp("", "open_test_append")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, os.Remove(f.Name()))
@@ -3594,9 +3461,14 @@ func TestState_Open(t *testing.T) {
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
 
-			assert.Equal(t, state.streams[atomAppend], s)
+			l, ok := state.streams.lookup(atomAppend)
+			assert.True(t, ok)
+			assert.Equal(t, l, s)
 
-			_, err = fmt.Fprintf(s.file, "test\n")
+			w, ok := s.sourceSink.(io.Writer)
+			assert.True(t, ok)
+
+			_, err = fmt.Fprintf(w, "test\n")
 			assert.NoError(t, err)
 
 			f, err = os.Open(f.Name())
@@ -3605,7 +3477,7 @@ func TestState_Open(t *testing.T) {
 				assert.NoError(t, f.Close())
 			}()
 
-			b, err := ioutil.ReadAll(f)
+			b, err := io.ReadAll(f)
 			assert.NoError(t, err)
 			assert.Equal(t, "test\ntest\n", string(b))
 
@@ -3720,7 +3592,7 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("the source/sink specified by sourceSink does not exist", func(t *testing.T) {
-		f, err := ioutil.TempFile("", "open_test_existence")
+		f, err := os.CreateTemp("", "open_test_existence")
 		assert.NoError(t, err)
 		assert.NoError(t, os.Remove(f.Name()))
 
@@ -3731,7 +3603,7 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("the source/sink specified by sourceSink cannot be opened", func(t *testing.T) {
-		f, err := ioutil.TempFile("", "open_test_permission")
+		f, err := os.CreateTemp("", "open_test_permission")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, os.Remove(f.Name()))
@@ -3746,17 +3618,14 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("an element E of the options list is alias and A is already associated with an open stream", func(t *testing.T) {
-		f, err := ioutil.TempFile("", "open_test_dup_alias")
+		f, err := os.CreateTemp("", "open_test_dup_alias")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, os.Remove(f.Name()))
 		}()
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): nil,
-			},
-		}
+		var state State
+		state.streams.add(&Stream{alias: NewAtom("foo")})
 		ok, err := state.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(&compound{
 			functor: atomAlias,
 			args:    []Term{NewAtom("foo")},
@@ -3767,128 +3636,92 @@ func TestState_Open(t *testing.T) {
 		}, nil), err)
 		assert.False(t, ok)
 	})
+
+	t.Run("system error", func(t *testing.T) {
+		openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+			return nil, errors.New("failed")
+		}
+		defer func() {
+			openFile = os.OpenFile
+		}()
+
+		var state State
+		_, err := state.Open(NewAtom("foo"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		assert.Equal(t, SystemError(errors.New("failed")), err)
+	})
 }
 
 func TestState_Close(t *testing.T) {
-	f, err := ioutil.TempFile("", "")
-	assert.NoError(t, err)
-	defer func() {
-		_ = os.Remove(f.Name())
-	}()
-
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			var state State
-			ok, err := state.Close(NewStream(f, StreamModeRead), List(), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+			t.Run("stream", func(t *testing.T) {
+				var m mockCloser
+				m.On("Close").Return(nil).Once()
+				defer m.AssertExpectations(t)
+
+				var state State
+				ok, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("alias", func(t *testing.T) {
+				var m mockCloser
+				m.On("Close").Return(nil).Once()
+				defer m.AssertExpectations(t)
+
+				foo := NewAtom("foo")
+
+				var state State
+				state.streams.add(&Stream{sourceSink: &m, alias: foo})
+				ok, err := state.Close(foo, List(), Success, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
 		})
 
 		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f io.Closer) error {
-				return errors.New("ng")
-			}
-			defer func() {
-				closeFile = io.Closer.Close
-			}()
-
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.file.Close())
-			}()
+			var m mockCloser
+			m.On("Close").Return(errors.New("failed")).Once()
+			defer m.AssertExpectations(t)
 
 			var state State
-			_, err = state.Close(s, List(), Success, nil).Force(context.Background())
-			assert.Error(t, err)
+			_, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+			assert.Equal(t, SystemError(errors.New("failed")), err)
 		})
 	})
 
 	t.Run("force false", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
+		var m mockCloser
+		m.On("Close").Return(errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
 
-			var state State
-			ok, err := state.Close(s, List(&compound{
-				functor: atomForce,
-				args:    []Term{atomFalse},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f io.Closer) error {
-				return errors.New("ng")
-			}
-			defer func() {
-				closeFile = io.Closer.Close
-			}()
-
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.file.Close())
-			}()
-
-			var state State
-			ok, err := state.Close(s, List(&compound{
-				functor: atomForce,
-				args:    []Term{atomFalse},
-			}), Success, nil).Force(context.Background())
-			assert.Equal(t, SystemError(errors.New("ng")), err)
-			assert.False(t, ok)
-		})
+		var state State
+		_, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomFalse)), Success, nil).Force(context.Background())
+		assert.Equal(t, SystemError(errors.New("failed")), err)
 	})
 
 	t.Run("force true", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
+		var m mockCloser
+		m.On("Close").Return(errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
 
-			var state State
-			ok, err := state.Close(s, List(&compound{
-				functor: atomForce,
-				args:    []Term{atomTrue},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("ng", func(t *testing.T) {
-			closeFile = func(f io.Closer) error {
-				return errors.New("ng")
-			}
-			defer func() {
-				closeFile = io.Closer.Close
-			}()
-
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.file.Close())
-			}()
-
-			var state State
-			ok, err := state.Close(s, List(&compound{
-				functor: atomForce,
-				args:    []Term{atomTrue},
-			}), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
+		var state State
+		ok, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomTrue)), Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, ok)
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
+		var m mockCloser
+		m.On("Close").Return(nil).Once()
+		defer m.AssertExpectations(t)
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
+		foo := NewAtom("foo")
+		s := &Stream{sourceSink: &m, alias: foo}
+
+		var state State
+		state.streams.add(s)
 		ok, err := state.Close(NewAtom("foo"), List(), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -3974,17 +3807,14 @@ func TestState_Close(t *testing.T) {
 }
 
 func TestState_FlushOutput(t *testing.T) {
-	f, err := ioutil.TempFile("", "")
+	f, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
 	defer func() {
 		assert.NoError(t, os.Remove(f.Name()))
 	}()
 
-	s, err := Open(NewAtom(f.Name()), StreamModeWrite)
-	assert.NoError(t, err)
-	defer func() {
-		assert.NoError(t, s.Close())
-	}()
+	foo := NewAtom("foo")
+	s := &Stream{sourceSink: f, mode: ioModeWrite, alias: foo}
 
 	t.Run("ok", func(t *testing.T) {
 		var state State
@@ -3994,12 +3824,11 @@ func TestState_FlushOutput(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		fileSync = func(f *os.File) error {
-			return errors.New("ng")
-		}
-		defer func() {
-			fileSync = (*os.File).Sync
-		}()
+		var m mockSyncer
+		m.On("Sync").Return(errors.New("ng")).Once()
+		defer m.AssertExpectations(t)
+
+		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
 		var state State
 		_, err := state.FlushOutput(s, Success, nil).Force(context.Background())
@@ -4007,12 +3836,9 @@ func TestState_FlushOutput(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
-		ok, err := state.FlushOutput(NewAtom("foo"), Success, nil).Force(context.Background())
+		var state State
+		state.streams.add(s)
+		ok, err := state.FlushOutput(foo, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4039,7 +3865,7 @@ func TestState_FlushOutput(t *testing.T) {
 	})
 
 	t.Run("SorA is an input stream", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
+		s := &Stream{sourceSink: os.Stdin}
 
 		var state State
 		ok, err := state.FlushOutput(s, Success, nil).Force(context.Background())
@@ -4050,16 +3876,16 @@ func TestState_FlushOutput(t *testing.T) {
 
 func TestState_WriteTerm(t *testing.T) {
 	var buf bytes.Buffer
-	w := NewStream(&rwc{w: &buf}, StreamModeWrite)
-	r := NewStream(&rwc{r: &buf}, StreamModeRead)
-	b := NewStream(&rwc{w: &buf}, StreamModeWrite, WithStreamType(StreamTypeBinary))
+	w := &Stream{sourceSink: &buf, mode: ioModeWrite}
+	r := &Stream{sourceSink: &buf, mode: ioModeRead}
+	b := &Stream{sourceSink: &buf, mode: ioModeWrite, streamType: streamTypeBinary}
 
 	err := errors.New("failed")
 
 	var m mockWriter
 	m.On("Write", mock.Anything).Return(0, err)
 
-	mw := NewStream(&rwc{w: &m}, StreamModeWrite)
+	mw := &Stream{sourceSink: &m, mode: ioModeWrite}
 
 	tests := []struct {
 		title               string
@@ -4227,16 +4053,11 @@ func TestCharCode(t *testing.T) {
 
 func TestState_PutByte(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{97}, b)
-			return 1, nil
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{97}).Return(1, nil).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary}
 
 		var state State
 		ok, err := state.PutByte(s, Integer(97), Success, nil).Force(context.Background())
@@ -4245,16 +4066,11 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{97}, b)
-			return 0, errors.New("")
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{97}).Return(0, errors.New("")).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary}
 
 		var state State
 		_, err := state.PutByte(s, Integer(97), Success, nil).Force(context.Background())
@@ -4262,22 +4078,15 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{97}, b)
-			return 1, nil
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{97}).Return(1, nil).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
+		foo := NewAtom("foo")
+		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary, alias: foo}
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
+		var state State
+		state.streams.add(s)
 		ok, err := state.PutByte(NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -4291,8 +4100,8 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("byt is a variable", func(t *testing.T) {
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
+		s.streamType = streamTypeBinary
 
 		var state State
 		ok, err := state.PutByte(s, NewNamedVariable("Byte"), Success, nil).Force(context.Background())
@@ -4301,8 +4110,8 @@ func TestState_PutByte(t *testing.T) {
 	})
 
 	t.Run("byt is neither a variable nor an byte", func(t *testing.T) {
-		s := NewStream(os.Stdout, StreamModeWrite)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
+		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
 			var state State
@@ -4329,7 +4138,7 @@ func TestState_PutByte(t *testing.T) {
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, NewStream(os.Stdin, StreamModeRead))
+			Bind(s, &Stream{sourceSink: os.Stdin, mode: ioModeRead, streamType: streamTypeBinary})
 
 		var state State
 		ok, err := state.PutByte(s, Integer(97), Success, env).Force(context.Background())
@@ -4340,7 +4149,7 @@ func TestState_PutByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, NewStream(os.Stdout, StreamModeWrite))
+			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.PutByte(s, Integer(97), Success, env).Force(context.Background())
@@ -4351,15 +4160,11 @@ func TestState_PutByte(t *testing.T) {
 
 func TestState_PutCode(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
-			return 1, nil
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
+		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
 		var state State
 		ok, err := state.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
@@ -4368,15 +4173,11 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
-			return 0, errors.New("")
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(0, errors.New("")).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
+		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
 		var state State
 		_, err := state.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
@@ -4384,21 +4185,15 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		write = func(f io.Writer, b []byte) (int, error) {
-			assert.Equal(t, []byte{0xf0, 0x9f, 0x98, 0x80}, b)
-			return 1, nil
-		}
-		defer func() {
-			write = io.Writer.Write
-		}()
+		var m mockWriter
+		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdout, StreamModeWrite)
+		foo := NewAtom("foo")
+		s := &Stream{sourceSink: &m, mode: ioModeWrite, alias: foo}
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
+		var state State
+		state.streams.add(s)
 		ok, err := state.PutCode(NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -4413,14 +4208,14 @@ func TestState_PutCode(t *testing.T) {
 
 	t.Run("code is a variable", func(t *testing.T) {
 		var state State
-		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), NewNamedVariable("Code"), Success, nil).Force(context.Background())
+		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewNamedVariable("Code"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
 		var state State
-		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), NewAtom("code"), Success, nil).Force(context.Background())
+		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewAtom("code"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, NewAtom("code"), nil), err)
 		assert.False(t, ok)
 	})
@@ -4442,7 +4237,7 @@ func TestState_PutCode(t *testing.T) {
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, NewStream(os.Stdin, StreamModeRead))
+			Bind(s, &Stream{sourceSink: os.Stdin})
 
 		var state State
 		ok, err := state.PutCode(s, Integer(97), Success, env).Force(context.Background())
@@ -4451,8 +4246,8 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		stream := NewStream(os.Stdout, StreamModeWrite)
-		stream.streamType = StreamTypeBinary
+		stream := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
+		stream.streamType = streamTypeBinary
 
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
@@ -4466,7 +4261,7 @@ func TestState_PutCode(t *testing.T) {
 
 	t.Run("code is an integer but not an character code", func(t *testing.T) {
 		var state State
-		ok, err := state.PutCode(NewStream(os.Stdout, StreamModeWrite), Integer(-1), Success, nil).Force(context.Background())
+		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, Integer(-1), Success, nil).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacterCode, nil), err)
 		assert.False(t, ok)
 	})
@@ -4484,7 +4279,7 @@ func TestState_PutCode(t *testing.T) {
 	})
 
 	t.Run("not a code", func(t *testing.T) {
-		s := NewStream(os.Stdout, StreamModeWrite)
+		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
 
 		t.Run("not an integer", func(t *testing.T) {
 			var state State
@@ -4496,11 +4291,13 @@ func TestState_PutCode(t *testing.T) {
 
 func TestState_ReadTerm(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/foo.pl"), StreamModeRead)
+		f, err := os.Open("testdata/foo.pl")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Term")
 
@@ -4514,19 +4311,19 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/foo.pl"), StreamModeRead)
+		f, err := os.Open("testdata/foo.pl")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		foo := NewAtom("foo")
+		s := &Stream{sourceSink: f, mode: ioModeRead, alias: foo}
 
 		v := NewNamedVariable("Term")
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
+		var state State
+		state.streams.add(s)
 		ok, err := state.ReadTerm(NewAtom("foo"), v, List(), func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("foo"), env.Resolve(v))
 			return Bool(true)
@@ -4536,11 +4333,13 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("singletons", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/vars.txt"), StreamModeRead)
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v, singletons := NewNamedVariable("Term"), NewNamedVariable("Singletons")
 
@@ -4570,11 +4369,13 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("variables", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/vars.txt"), StreamModeRead)
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v, variables := NewNamedVariable("Term"), NewNamedVariable("Variables")
 
@@ -4604,11 +4405,13 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("variable_names", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/vars.txt"), StreamModeRead)
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v, variableNames := NewNamedVariable("Term"), NewNamedVariable("VariableNames")
 
@@ -4647,11 +4450,13 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("multiple reads", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/multi.txt"), StreamModeRead)
+		f, err := os.Open("testdata/multi.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Term")
 
@@ -4689,7 +4494,7 @@ func TestState_ReadTerm(t *testing.T) {
 	t.Run("options is a partial list or a list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var state State
-			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), ListRest(NewNamedVariable("Rest"),
+			ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), ListRest(NewNamedVariable("Rest"),
 				&compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -4698,7 +4503,7 @@ func TestState_ReadTerm(t *testing.T) {
 
 		t.Run("variable element", func(t *testing.T) {
 			var state State
-			ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(NewNamedVariable("Option"), &compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}}), Success, nil).Force(context.Background())
+			ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(NewNamedVariable("Option"), &compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
@@ -4713,14 +4518,14 @@ func TestState_ReadTerm(t *testing.T) {
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
 		var state State
-		ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), NewAtom("options"), Success, nil).Force(context.Background())
+		ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), NewAtom("options"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, NewAtom("options"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
 		var state State
-		ok, err := state.ReadTerm(NewStream(os.Stdin, StreamModeRead), NewVariable(), List(&compound{
+		ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(&compound{
 			functor: atomUnknown,
 			args:    []Term{NewAtom("option")},
 		}), Success, nil).Force(context.Background())
@@ -4741,7 +4546,7 @@ func TestState_ReadTerm(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, NewStream(os.Stdout, StreamModeWrite))
+			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
@@ -4750,8 +4555,8 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		stream := NewStream(os.Stdin, StreamModeRead)
-		stream.streamType = StreamTypeBinary
+		stream := &Stream{sourceSink: os.Stdin}
+		stream.streamType = streamTypeBinary
 
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
@@ -4764,17 +4569,17 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		stream, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead,
-			WithEOFAction(EOFActionError),
-		)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, stream.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		s := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(s, stream)
+			Bind(s, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
@@ -4784,11 +4589,13 @@ func TestState_ReadTerm(t *testing.T) {
 
 	t.Run("one or more characters were input, but they cannot be parsed as a sequence of tokens", func(t *testing.T) {
 		t.Run("unexpected token", func(t *testing.T) {
-			s, err := Open(NewAtom("testdata/unexpected_token.txt"), StreamModeRead)
+			f, err := os.Open("testdata/unexpected_token.txt")
 			assert.NoError(t, err)
 			defer func() {
-				assert.NoError(t, s.Close())
+				assert.NoError(t, f.Close())
 			}()
+
+			s := &Stream{sourceSink: f, mode: ioModeRead}
 
 			var state State
 			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
@@ -4797,26 +4604,34 @@ func TestState_ReadTerm(t *testing.T) {
 		})
 
 		t.Run("insufficient", func(t *testing.T) {
-			s, err := Open(NewAtom("testdata/insufficient.txt"), StreamModeRead)
+			f, err := os.Open("testdata/insufficient.txt")
 			assert.NoError(t, err)
 			defer func() {
-				assert.NoError(t, s.Close())
+				assert.NoError(t, f.Close())
 			}()
 
+			s := &Stream{sourceSink: f, mode: ioModeRead}
+
+			out := NewVariable()
 			var state State
-			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
-			assert.Equal(t, SyntaxError(ErrInsufficient, nil), err)
-			assert.False(t, ok)
+			ok, err := state.ReadTerm(s, out, List(), func(env *Env) *Promise {
+				assert.Equal(t, atomEndOfFile, env.Resolve(out))
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
 		})
 
 	})
 
 	t.Run("the sequence of tokens cannot be parsed as a term using the current set of operator definitions", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/unexpected_op.txt"), StreamModeRead)
+		f, err := os.Open("testdata/unexpected_op.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		var state State
 		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
@@ -4827,12 +4642,13 @@ func TestState_ReadTerm(t *testing.T) {
 
 func TestState_GetByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/a.txt"), StreamModeRead)
+		f, err := os.Open("testdata/a.txt")
 		assert.NoError(t, err)
-		s.streamType = StreamTypeBinary
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary}
 
 		v := NewNamedVariable("Byte")
 
@@ -4846,21 +4662,20 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/a.txt"), StreamModeRead)
+		f, err := os.Open("testdata/a.txt")
 		assert.NoError(t, err)
-		s.streamType = StreamTypeBinary
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		foo := NewAtom("foo")
+		s := &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, alias: foo}
 
 		v := NewNamedVariable("Byte")
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
-		ok, err := state.GetByte(NewAtom("foo"), v, func(env *Env) *Promise {
+		var state State
+		state.streams.add(s)
+		ok, err := state.GetByte(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4869,12 +4684,13 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
-		s.streamType = StreamTypeBinary
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary}
 
 		v := NewNamedVariable("Byte")
 
@@ -4888,15 +4704,11 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		readByte = func(r *bufio.Reader) (byte, error) {
-			return 0, errors.New("failed")
-		}
-		defer func() {
-			readByte = (*bufio.Reader).ReadByte
-		}()
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: &m, mode: ioModeRead, streamType: streamTypeBinary}
 
 		var state State
 
@@ -4913,8 +4725,8 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdin}
+		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
 			var state State
@@ -4948,7 +4760,7 @@ func TestState_GetByte(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
@@ -4959,7 +4771,7 @@ func TestState_GetByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdin, StreamModeRead))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
 		var state State
 		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
@@ -4968,18 +4780,18 @@ func TestState_GetByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead,
-			WithStreamType(StreamTypeBinary),
-			WithEOFAction(EOFActionError),
-		)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				streamType:  streamTypeBinary,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
@@ -4990,11 +4802,13 @@ func TestState_GetByte(t *testing.T) {
 
 func TestState_GetChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/smile.txt"), StreamModeRead)
+		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Char")
 
@@ -5008,20 +4822,18 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/smile.txt"), StreamModeRead)
+		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
 		v := NewNamedVariable("Char")
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
-		ok, err := state.GetChar(NewAtom("foo"), v, func(env *Env) *Promise {
+		foo := NewAtom("foo")
+		var state State
+		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
+		ok, err := state.GetChar(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5030,11 +4842,13 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Char")
 
@@ -5048,17 +4862,14 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		readRune = func(r *bufio.Reader) (rune, int, error) {
-			return 0, 0, errors.New("failed")
-		}
-		defer func() {
-			readRune = (*bufio.Reader).ReadRune
-		}()
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Times(2)
+		defer m.AssertExpectations(t)
 
 		v := NewNamedVariable("V")
 
 		var state State
-		ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), v, Success, nil).Force(context.Background())
+		ok, err := state.GetChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
@@ -5073,14 +4884,14 @@ func TestState_GetChar(t *testing.T) {
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var state State
-			ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
+			ok, err := state.GetChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom", func(t *testing.T) {
 			var state State
-			ok, err := state.GetChar(NewStream(os.Stdin, StreamModeRead), NewAtom("ab"), Success, nil).Force(context.Background())
+			ok, err := state.GetChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, NewAtom("ab"), nil), err)
 			assert.False(t, ok)
 		})
@@ -5096,7 +4907,7 @@ func TestState_GetChar(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5105,8 +4916,8 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdin}
+		s.streamType = streamTypeBinary
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
@@ -5119,17 +4930,17 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead,
-			WithEOFAction(EOFActionError),
-		)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5138,15 +4949,15 @@ func TestState_GetChar(t *testing.T) {
 	})
 
 	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/replacement.txt"), StreamModeRead)
+		f, err := os.Open("testdata/replacement.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
 		var state State
 		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5157,13 +4968,13 @@ func TestState_GetChar(t *testing.T) {
 
 func TestState_PeekByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/abc.txt"), StreamModeRead)
+		f, err := os.Open("testdata/abc.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary}
 
 		v := NewNamedVariable("Byte")
 
@@ -5181,20 +4992,17 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/abc.txt"), StreamModeRead)
+		f, err := os.Open("testdata/abc.txt")
 		assert.NoError(t, err)
-		s.streamType = StreamTypeBinary
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
 		v := NewNamedVariable("Byte")
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
+		foo := NewAtom("foo")
+		var state State
+		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, alias: foo})
 		ok, err := state.PeekByte(NewAtom("foo"), v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
@@ -5204,12 +5012,13 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
-		s.streamType = StreamTypeBinary
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary}
 
 		v := NewNamedVariable("Byte")
 
@@ -5223,15 +5032,12 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		peek = func(r *bufio.Reader, n int) ([]byte, error) {
-			return nil, errors.New("failed")
-		}
-		defer func() {
-			peek = (*bufio.Reader).Peek
-		}()
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		defer m.AssertExpectations(t)
 
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: &m, mode: ioModeRead}
+		s.streamType = streamTypeBinary
 
 		v := NewNamedVariable("V")
 
@@ -5249,8 +5055,8 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("inByte is neither a variable nor an in-byte", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdin}
+		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
 			var state State
@@ -5277,7 +5083,7 @@ func TestState_PeekByte(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
@@ -5288,7 +5094,7 @@ func TestState_PeekByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdin, StreamModeRead))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
 		var state State
 		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
@@ -5297,18 +5103,18 @@ func TestState_PeekByte(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead,
-			WithStreamType(StreamTypeBinary),
-			WithEOFAction(EOFActionError),
-		)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				mode:        ioModeRead,
+				streamType:  streamTypeBinary,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
@@ -5319,11 +5125,13 @@ func TestState_PeekByte(t *testing.T) {
 
 func TestState_PeekChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/smile.txt"), StreamModeRead)
+		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Char")
 
@@ -5344,20 +5152,18 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/smile.txt"), StreamModeRead)
+		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
 		v := NewNamedVariable("Char")
 
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("foo"): s,
-			},
-		}
-		ok, err := state.PeekChar(NewAtom("foo"), v, func(env *Env) *Promise {
+		foo := NewAtom("foo")
+		var state State
+		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
+		ok, err := state.PeekChar(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5366,11 +5172,13 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("eof", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead}
 
 		v := NewNamedVariable("Char")
 
@@ -5384,43 +5192,16 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		t.Run("error on read rune", func(t *testing.T) {
-			readRune = func(r *bufio.Reader) (rune, int, error) {
-				return 0, 0, errors.New("failed")
-			}
-			defer func() {
-				readRune = (*bufio.Reader).ReadRune
-			}()
+		var m mockReader
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		defer m.AssertExpectations(t)
 
-			v := NewNamedVariable("V")
+		v := NewNamedVariable("V")
 
-			var state State
-			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), v, Success, nil).Force(context.Background())
-			assert.Equal(t, SystemError(errors.New("failed")), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("error on unread rune", func(t *testing.T) {
-			unreadRune = func(r *bufio.Reader) error {
-				return errors.New("failed")
-			}
-			defer func() {
-				unreadRune = (*bufio.Reader).UnreadRune
-			}()
-
-			s, err := Open(NewAtom("testdata/a.txt"), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.Close())
-			}()
-
-			v := NewNamedVariable("V")
-
-			var state State
-			ok, err := state.PeekChar(s, v, Success, nil).Force(context.Background())
-			assert.Equal(t, SystemError(errors.New("failed")), err)
-			assert.False(t, ok)
-		})
+		var state State
+		ok, err := state.PeekChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
+		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
@@ -5433,14 +5214,14 @@ func TestState_PeekChar(t *testing.T) {
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
 			var state State
-			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), Integer(0), Success, nil).Force(context.Background())
+			ok, err := state.PeekChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom", func(t *testing.T) {
 			var state State
-			ok, err := state.PeekChar(NewStream(os.Stdin, StreamModeRead), NewAtom("ab"), Success, nil).Force(context.Background())
+			ok, err := state.PeekChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, NewAtom("ab"), nil), err)
 			assert.False(t, ok)
 		})
@@ -5456,7 +5237,7 @@ func TestState_PeekChar(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, NewStream(os.Stdout, StreamModeWrite))
+			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var state State
 		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5465,8 +5246,8 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		s := NewStream(os.Stdin, StreamModeRead)
-		s.streamType = StreamTypeBinary
+		s := &Stream{sourceSink: os.Stdin}
+		s.streamType = streamTypeBinary
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
@@ -5479,17 +5260,16 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream properties end_of_stream(past) and eof_action(error)", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead,
-			WithEOFAction(EOFActionError),
-		)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		var m mockReader
+		defer m.AssertExpectations(t)
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{
+				sourceSink:  &m,
+				eofAction:   eofActionError,
+				endOfStream: endOfStreamPast,
+			})
 
 		var state State
 		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -5498,15 +5278,15 @@ func TestState_PeekChar(t *testing.T) {
 	})
 
 	t.Run("the entity input from the stream is not a character", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/replacement.txt"), StreamModeRead)
+		f, err := os.Open("testdata/replacement.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
 
 		streamOrAlias := NewNamedVariable("Stream")
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
 		var state State
 		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
@@ -6229,337 +6009,113 @@ func TestNumberCodes(t *testing.T) {
 }
 
 func TestState_StreamProperty(t *testing.T) {
-	f, err := ioutil.TempFile("", "")
+	f, err := os.Open("testdata/empty.txt")
 	assert.NoError(t, err)
-
 	defer func() {
-		assert.NoError(t, os.Remove(f.Name()))
+		assert.NoError(t, f.Close())
 	}()
 
-	t.Run("stream", func(t *testing.T) {
-		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomRead}},
-			atomInput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomTrue}},
-			&compound{functor: atomType, args: []Term{atomText}},
-		}
+	ss := []*Stream{
+		{sourceSink: f, mode: ioModeRead, alias: NewAtom("a"), reposition: true},
+		{sourceSink: f, mode: ioModeWrite, alias: NewAtom("b"), reposition: false},
+		{sourceSink: f, mode: ioModeAppend, alias: NewAtom("c"), reposition: true},
+	}
 
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		s.alias = NewAtom("null")
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+	var state State
+	for _, s := range ss {
+		state.streams.add(s)
+	}
 
-		v := NewNamedVariable("V")
-		c := 0
-		var state State
-		ok, err := state.StreamProperty(s, v, func(env *Env) *Promise {
-			assert.Equal(t, expected[c], env.Resolve(v))
-			c++
-			return Bool(false)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("reposition false", func(t *testing.T) {
-		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomRead}},
-			atomInput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomFalse}},
-			&compound{functor: atomType, args: []Term{atomText}},
-		}
-
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		s.reposition = false
-		assert.NoError(t, err)
-		s.alias = NewAtom("null")
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		v := NewNamedVariable("V")
-		c := 0
-		var state State
-		ok, err := state.StreamProperty(s, v, func(env *Env) *Promise {
-			assert.Equal(t, expected[c], env.Resolve(v))
-			c++
-			return Bool(false)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("stream alias", func(t *testing.T) {
-		expected := []Term{
-			&compound{functor: atomMode, args: []Term{atomWrite}},
-			atomOutput,
-			&compound{functor: atomAlias, args: []Term{NewAtom("null")}},
-			&compound{functor: atomEOFAction, args: []Term{atomEOFCode}},
-			&compound{functor: atomFileName, args: []Term{NewAtom(f.Name())}},
-			&compound{functor: atomPosition, args: []Term{Integer(0)}},
-			&compound{functor: atomEndOfStream, args: []Term{NewAtom("at")}},
-			&compound{functor: atomReposition, args: []Term{atomTrue}},
-			&compound{functor: atomType, args: []Term{atomText}},
-		}
-
-		s, err := Open(NewAtom(f.Name()), StreamModeWrite)
-		assert.NoError(t, err)
-		s.alias = NewAtom("null")
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		state := State{
-			streams: map[Term]*Stream{
-				NewAtom("null"): s,
+	tests := []struct {
+		title            string
+		stream, property Term
+		ok               bool
+		err              error
+		env              []map[Variable]Term
+	}{
+		{
+			title:    "stream",
+			stream:   &Stream{sourceSink: f, mode: ioModeRead, alias: NewAtom("null"), reposition: true},
+			property: NewNamedVariable("P"),
+			ok:       true,
+			env: []map[Variable]Term{
+				{NewNamedVariable("P"): atomFileName.Apply(NewAtom(f.Name()))},
+				{NewNamedVariable("P"): atomMode.Apply(atomRead)},
+				{NewNamedVariable("P"): atomInput},
+				{NewNamedVariable("P"): atomAlias.Apply(NewAtom("null"))},
+				{NewNamedVariable("P"): atomPosition.Apply(Integer(0))},
+				{NewNamedVariable("P"): atomEndOfStream.Apply(atomNot)},
+				{NewNamedVariable("P"): atomEOFAction.Apply(atomEOFCode)},
+				{NewNamedVariable("P"): atomReposition.Apply(atomTrue)},
+				{NewNamedVariable("P"): atomType.Apply(atomText)},
 			},
-		}
-		v := NewNamedVariable("V")
-		c := 0
-		ok, err := state.StreamProperty(NewAtom("null"), v, func(env *Env) *Promise {
-			assert.Equal(t, expected[c], env.Resolve(v))
-			c++
-			return Bool(false)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.False(t, ok)
-	})
+		},
+		{
+			title:    "output",
+			stream:   NewNamedVariable("S"),
+			property: atomOutput,
+			ok:       true,
+			env: []map[Variable]Term{
+				{NewNamedVariable("S"): ss[1]},
+				{NewNamedVariable("S"): ss[2]},
+			},
+		},
+		{
+			title:    "alias",
+			stream:   NewNamedVariable("S"),
+			property: atomAlias.Apply(NewAtom("b")),
+			ok:       true,
+			env: []map[Variable]Term{
+				{NewNamedVariable("S"): ss[1]},
+			},
+		},
+		{
+			title:    "position",
+			stream:   NewNamedVariable("S"),
+			property: atomPosition.Apply(Integer(0)),
+			ok:       true,
+			env: []map[Variable]Term{
+				{NewNamedVariable("S"): ss[0]},
+				{NewNamedVariable("S"): ss[1]},
+				{NewNamedVariable("S"): ss[2]},
+			},
+		},
 
-	t.Run("correct property value", func(t *testing.T) {
-		t.Run("input", func(t *testing.T) {
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.Close())
-			}()
+		// 8.11.8.3 Errors
+		{title: "b", stream: Integer(0), property: NewNamedVariable("P"), err: DomainError(ValidDomainStream, Integer(0), nil)},
+		{title: "c: unknown atom", stream: NewNamedVariable("S"), property: NewAtom("foo"), err: DomainError(ValidDomainStreamProperty, NewAtom("foo"), nil)},
+		{title: "c: compound with multiple args", stream: NewNamedVariable("S"), property: NewAtom("f").Apply(NewAtom("a"), NewAtom("b")), err: DomainError(ValidDomainStreamProperty, NewAtom("f").Apply(NewAtom("a"), NewAtom("b")), nil)},
+		{title: "c: compound with an unexpected integer arg", stream: NewNamedVariable("S"), property: atomAlias.Apply(Integer(0)), err: DomainError(ValidDomainStreamProperty, atomAlias.Apply(Integer(0)), nil)},
+		{title: "c: compound with an unexpected atom arg", stream: NewNamedVariable("S"), property: atomPosition.Apply(NewAtom("foo")), err: DomainError(ValidDomainStreamProperty, atomPosition.Apply(NewAtom("foo")), nil)},
+		{title: "c: unknown compound", stream: NewNamedVariable("S"), property: NewAtom("foo").Apply(NewAtom("bar")), err: DomainError(ValidDomainStreamProperty, NewAtom("foo").Apply(NewAtom("bar")), nil)},
+		{title: "c: unexpected arg", stream: NewNamedVariable("S"), property: Integer(0), err: DomainError(ValidDomainStreamProperty, Integer(0), nil)},
+	}
 
-			var state State
-			ok, err := state.StreamProperty(s, atomInput, Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := state.StreamProperty(tt.stream, tt.property, func(env *Env) *Promise {
+				for k, v := range tt.env[0] {
+					_, ok := env.Unify(k, v, false)
+					assert.True(t, ok)
+				}
+				tt.env = tt.env[1:]
+				return Bool(len(tt.env) == 0)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-
-		t.Run("mode", func(t *testing.T) {
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.Close())
-			}()
-
-			var state State
-			ok, err := state.StreamProperty(s, &compound{
-				functor: atomMode,
-				args:    []Term{atomRead},
-			}, Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-
-		t.Run("position", func(t *testing.T) {
-			s, err := Open(NewAtom(f.Name()), StreamModeRead)
-			assert.NoError(t, err)
-			defer func() {
-				assert.NoError(t, s.Close())
-			}()
-
-			var state State
-			ok, err := state.StreamProperty(s, &compound{
-				functor: atomPosition,
-				args:    []Term{Integer(0)},
-			}, Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-	})
-
-	t.Run("streamOrAlias is neither a variable, a stream-term, nor an alias", func(t *testing.T) {
-		var state State
-		ok, err := state.StreamProperty(Integer(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("property is neither a variable nor a stream property", func(t *testing.T) {
-		var state State
-		ok, err := state.StreamProperty(NewVariable(), NewAtom("property"), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamProperty, NewAtom("property"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.StreamProperty(NewAtom("foo"), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("seek failed", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		seek = func(s io.Seeker, offset int64, whence int) (int64, error) {
-			return 0, errors.New("failed")
-		}
-		defer func() {
-			seek = io.Seeker.Seek
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{
-			functor: atomMode,
-			args:    []Term{atomRead},
-		}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("stat failed", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		fileStat = func(f *os.File) (os.FileInfo, error) {
-			return nil, errors.New("fialed")
-		}
-		defer func() {
-			fileStat = (*os.File).Stat
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{
-			functor: atomMode,
-			args:    []Term{atomRead},
-		}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("end_of_stream past", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		seek = func(s io.Seeker, offset int64, whence int) (int64, error) {
-			return 1000, nil
-		}
-		defer func() {
-			seek = io.Seeker.Seek
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{
-			functor: atomEndOfStream,
-			args:    []Term{NewAtom("past")},
-		}, Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("unknown atom", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, NewAtom("foo"), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("unknown compound", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{functor: NewAtom("foo"), args: []Term{NewVariable()}}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("wrong arity", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{functor: atomMode, args: []Term{NewVariable(), NewVariable()}}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("integer", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, Integer(0), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("non-atom for atom property", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{functor: atomMode, args: []Term{Integer(0)}}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
-
-	t.Run("non-integer for integer property", func(t *testing.T) {
-		s, err := Open(NewAtom(f.Name()), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
-
-		var state State
-		ok, err := state.StreamProperty(s, &compound{functor: atomPosition, args: []Term{NewAtom("foo")}}, Success, nil).Force(context.Background())
-		assert.Error(t, err)
-		assert.False(t, ok)
-	})
+	}
 }
 
 func TestState_SetStreamPosition(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: true}
 
 		var state State
 		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
@@ -6568,18 +6124,11 @@ func TestState_SetStreamPosition(t *testing.T) {
 	})
 
 	t.Run("seek failed", func(t *testing.T) {
-		seek = func(f io.Seeker, offset int64, whence int) (int64, error) {
-			return 0, errors.New("failed")
-		}
-		defer func() {
-			seek = io.Seeker.Seek
-		}()
+		var m mockFile
+		m.On("Seek", mock.Anything, mock.Anything).Return(int64(0), errors.New("failed")).Once()
+		defer m.AssertExpectations(t)
 
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
-		assert.NoError(t, err)
-		defer func() {
-			assert.NoError(t, s.Close())
-		}()
+		s := &Stream{sourceSink: &m, mode: ioModeRead, reposition: true}
 
 		var state State
 		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
@@ -6595,11 +6144,13 @@ func TestState_SetStreamPosition(t *testing.T) {
 	})
 
 	t.Run("position is a variable", func(t *testing.T) {
-		s, err := Open(NewAtom("testdata/empty.txt"), StreamModeRead)
+		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
 		defer func() {
-			assert.NoError(t, s.Close())
+			assert.NoError(t, f.Close())
 		}()
+
+		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: true}
 
 		var state State
 		ok, err := state.SetStreamPosition(s, NewNamedVariable("Pos"), Success, nil).Force(context.Background())
@@ -6622,7 +6173,7 @@ func TestState_SetStreamPosition(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias has stream property reposition(false)", func(t *testing.T) {
-		stream := NewStream(os.Stdin, StreamModeRead)
+		stream := &Stream{sourceSink: os.Stdin}
 
 		assert.False(t, stream.reposition)
 
@@ -7360,19 +6911,19 @@ func TestState_Expand(t *testing.T) {
 		t.Run("grammar-body-not", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNot, args: []Term{NewAtom("a")}}}}, nil)
+				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{NewAtom("a")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: atomIf, args: []Term{
 					&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					Seq(atomComma,
-						&compound{functor: atomNot, args: []Term{&compound{functor: NewAtom("a"), args: []Term{Variable(offset + 1), Variable(offset + 4)}}}},
+						&compound{functor: atomNegation, args: []Term{&compound{functor: NewAtom("a"), args: []Term{Variable(offset + 1), Variable(offset + 4)}}}},
 						&compound{functor: atomEqual, args: []Term{Variable(offset + 1), Variable(offset + 3)}},
 					),
 				}}, term)
 			})
 
 			t.Run("goal is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNot, args: []Term{Integer(0)}}}}, nil)
+				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7893,4 +7444,22 @@ func TestAppend(t *testing.T) {
 			assert.Equal(t, tt.err, err)
 		})
 	}
+}
+
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(p []byte) (int, error) {
+	args := m.Called(p)
+	return args.Int(0), args.Error(1)
+}
+
+type mockStringWriter struct {
+	mock.Mock
+}
+
+func (m *mockStringWriter) WriteString(s string) (int, error) {
+	args := m.Called(s)
+	return args.Int(0), args.Error(1)
 }

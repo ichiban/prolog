@@ -41,19 +41,19 @@ func TestRulify(t *testing.T) {
 	}, nil))
 }
 
-func TestErrWriter_Write(t *testing.T) {
+func TestErrStringWriter_WriteString(t *testing.T) {
 	var failed = errors.New("failed")
 
-	var m mockWriter
-	m.On("Write", []byte("foo")).Return(0, failed).Once()
+	var m mockStringWriter
+	m.On("WriteString", "foo").Return(0, failed).Once()
 	defer m.AssertExpectations(t)
 
-	ew := errWriter{w: &m}
-	_, err := ew.Write([]byte("foo"))
+	ew := errStringWriter{w: &m}
+	_, err := ew.WriteString("foo")
 	assert.NoError(t, err)
-	_, err = ew.Write([]byte("bar"))
+	_, err = ew.WriteString("bar")
 	assert.NoError(t, err)
-	_, err = ew.Write([]byte("baz"))
+	_, err = ew.WriteString("baz")
 	assert.NoError(t, err)
 	assert.Equal(t, failed, ew.err)
 }
@@ -156,7 +156,7 @@ func TestWriteTerm(t *testing.T) {
 	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`))
 	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`))
 	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-	ops.define(900, operatorSpecifierFY, atomNot)
+	ops.define(900, operatorSpecifierFY, atomNegation)
 	ops.define(900, operatorSpecifierYF, NewAtom(`+/`))
 	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
 	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
@@ -210,7 +210,7 @@ func TestWriteTerm(t *testing.T) {
 		{title: "circular list", term: l, output: `[a,b,a|...]`},
 		{title: "curly brackets", term: &compound{functor: NewAtom(`{}`), args: []Term{NewAtom(`foo`)}}, output: `{foo}`},
 		{title: "fx", term: &compound{functor: NewAtom(`:-`), args: []Term{&compound{functor: NewAtom(`:-`), args: []Term{NewAtom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
-		{title: "fy", term: &compound{functor: atomNot, args: []Term{&compound{functor: NewAtom(`-`), args: []Term{&compound{functor: atomNot, args: []Term{NewAtom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
+		{title: "fy", term: &compound{functor: atomNegation, args: []Term{&compound{functor: NewAtom(`-`), args: []Term{&compound{functor: atomNegation, args: []Term{NewAtom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
 		{title: "xf", term: &compound{functor: NewAtom(`-:`), args: []Term{&compound{functor: NewAtom(`-:`), args: []Term{NewAtom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
 		{title: "yf", term: &compound{functor: NewAtom(`+/`), args: []Term{&compound{functor: NewAtom(`--`), args: []Term{&compound{functor: NewAtom(`+/`), args: []Term{NewAtom(`foo`)}}}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
 		{title: "xfx", term: &compound{functor: atomIf, args: []Term{NewAtom("foo"), &compound{functor: atomIf, args: []Term{NewAtom("bar"), NewAtom("baz")}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
