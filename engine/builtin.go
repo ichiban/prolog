@@ -1688,20 +1688,17 @@ func (state *State) ReadTerm(streamOrAlias, out, options Term, k func(*Env) *Pro
 		variableNames = append(variableNames, atomEqual.Apply(v.Name, v.Variable))
 	}
 
-	env, ok := env.Unify(tuple(
+	return Unify(tuple(
+		out,
 		opts.singletons,
 		opts.variables,
 		opts.variableNames,
 	), tuple(
+		t,
 		List(singletons...),
 		List(variables...),
 		List(variableNames...),
-	), false)
-	if !ok {
-		return Bool(false)
-	}
-
-	return Unify(out, t, k, env)
+	), k, env)
 }
 
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {
