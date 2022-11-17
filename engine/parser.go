@@ -738,10 +738,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 		return nil, errExpectation
 	}
 
-	return &compound{
-		functor: atomEmptyBlock,
-		args:    []Term{t},
-	}, nil
+	return atomEmptyBlock.Apply(t), nil
 }
 
 func (p *Parser) functionalNotation(functor Atom) (Term, error) {
@@ -761,10 +758,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 				}
 				args = append(args, arg)
 			case TokenClose:
-				return &compound{
-					functor: functor,
-					args:    args,
-				}, nil
+				return functor.Apply(args...), nil
 			default:
 				p.backup()
 				return nil, errExpectation

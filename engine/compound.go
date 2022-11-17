@@ -37,10 +37,7 @@ func (c *compound) GoString() string {
 
 // Cons returns a list consists of a first element car and the rest cdr.
 func Cons(car, cdr Term) Term {
-	return &compound{
-		functor: atomDot,
-		args:    []Term{car, cdr},
-	}
+	return atomDot.Apply(car, cdr)
 }
 
 type list []Term
@@ -175,20 +172,18 @@ func Slice(list Term, env *Env) ([]Term, error) {
 func Seq(sep Atom, ts ...Term) Term {
 	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
 	for i := len(ts) - 1; i >= 0; i-- {
-		s = &compound{
-			functor: sep,
-			args:    []Term{ts[i], s},
-		}
+		s = sep.Apply(ts[i], s)
 	}
 	return s
 }
 
 // Pair returns a pair of k and v.
 func Pair(k, v Term) Term {
-	return &compound{
-		functor: atomMinus,
-		args:    []Term{k, v},
-	}
+	return atomMinus.Apply(k, v)
+}
+
+func tuple(args ...Term) Term {
+	return atomEmpty.Apply(args...)
 }
 
 type charList string

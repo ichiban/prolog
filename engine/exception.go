@@ -27,13 +27,7 @@ func (e Exception) Error() string {
 
 // InstantiationError returns an instantiation error exception.
 func InstantiationError(env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			NewAtom("instantiation_error"),
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("instantiation_error"), varContext), env)
 }
 
 // ValidType is the correct type for an argument or one of its components.
@@ -81,16 +75,7 @@ func (t ValidType) Term() Term {
 
 // TypeError creates a new type error exception.
 func TypeError(validType ValidType, culprit Term, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("type_error"),
-				args:    []Term{validType.Term(), culprit},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("type_error").Apply(validType.Term(), culprit), varContext), env)
 }
 
 // ValidDomain is the domain which the procedure defines.
@@ -145,16 +130,7 @@ func (vd ValidDomain) Term() Term {
 
 // DomainError creates a new domain error exception.
 func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("domain_error"),
-				args:    []Term{validDomain.Term(), culprit},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("domain_error").Apply(validDomain.Term(), culprit), varContext), env)
 }
 
 // ObjectType is the object on which an operation is to be performed.
@@ -178,16 +154,7 @@ func (ot ObjectType) Term() Term {
 
 // ExistenceError creates a new existence error exception.
 func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("existence_error"),
-				args:    []Term{objectType.Term(), culprit},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("existence_error").Apply(objectType.Term(), culprit), varContext), env)
 }
 
 // Operation is the operation to be performed.
@@ -250,16 +217,7 @@ func (pt PermissionType) Term() Term {
 
 // PermissionError creates a new permission error exception.
 func PermissionError(operation Operation, permissionType PermissionType, culprit Term, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("permission_error"),
-				args:    []Term{operation.Term(), permissionType.Term(), culprit},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("permission_error").Apply(operation.Term(), permissionType.Term(), culprit), varContext), env)
 }
 
 // Flag is an implementation defined limit.
@@ -289,16 +247,7 @@ func (f Flag) Term() Term {
 
 // RepresentationError creates a new representation error exception.
 func RepresentationError(limit Flag, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("representation_error"),
-				args:    []Term{limit.Term()},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("representation_error").Apply(limit.Term()), varContext), env)
 }
 
 // Resource is a resource required to complete execution.
@@ -307,7 +256,6 @@ type Resource uint8
 // Resource is one of these values.
 const (
 	ResourceFiniteMemory Resource = iota
-	resourceLen
 )
 
 // Term returns an Atom for the Resource.
@@ -319,41 +267,17 @@ func (r Resource) Term() Term {
 
 // ResourceError creates a new resource error exception.
 func ResourceError(resource Resource, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("resource_error"),
-				args:    []Term{resource.Term()},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("resource_error").Apply(resource.Term()), varContext), env)
 }
 
 // SyntaxError creates a new syntax error exception.
 func SyntaxError(err error, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("syntax_error"),
-				args:    []Term{NewAtom(err.Error())},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("syntax_error").Apply(NewAtom(err.Error())), varContext), env)
 }
 
 // SystemError creates a new system error exception.
 func SystemError(err error) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			NewAtom("system_error"),
-			NewAtom(err.Error()),
-		},
-	}, nil)
+	return NewException(atomError.Apply(NewAtom("system_error"), NewAtom(err.Error())), nil)
 }
 
 // ExceptionalValue is an evaluable functor's result which is not a number.
@@ -385,14 +309,5 @@ func (ev ExceptionalValue) Term() Term {
 
 // EvaluationError creates a new evaluation error exception.
 func EvaluationError(ev ExceptionalValue, env *Env) Exception {
-	return NewException(&compound{
-		functor: atomError,
-		args: []Term{
-			&compound{
-				functor: NewAtom("evaluation_error"),
-				args:    []Term{ev.Term()},
-			},
-			varContext,
-		},
-	}, env)
+	return NewException(atomError.Apply(NewAtom("evaluation_error").Apply(ev.Term()), varContext), env)
 }

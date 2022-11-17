@@ -27,8 +27,6 @@ const (
 	opCut
 	opList
 	opPartial
-
-	_opLen
 )
 
 var (
@@ -143,11 +141,10 @@ const (
 	unknownError unknownAction = iota
 	unknownFail
 	unknownWarning
-	_unknownActionLen
 )
 
 func (u unknownAction) String() string {
-	return [_unknownActionLen]string{
+	return [...]string{
 		unknownError:   "error",
 		unknownFail:    "fail",
 		unknownWarning: "warning",
@@ -167,15 +164,13 @@ func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 	p, ok := vm.procedures[pi]
 	if !ok {
 		switch vm.unknown {
-		case unknownError:
-			return Error(ExistenceError(ObjectTypeProcedure, pi.Term(), env))
 		case unknownWarning:
 			vm.OnUnknown(pi, args, env)
 			fallthrough
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(SystemError(fmt.Errorf("unknown unknown: %s", vm.unknown)))
+			return Error(ExistenceError(ObjectTypeProcedure, pi.Term(), env))
 		}
 	}
 
@@ -202,7 +197,7 @@ func (r *registers) updateEnv(e *Env) *Promise {
 }
 
 func (vm *VM) exec(r registers) *Promise {
-	jumpTable := [_opLen]func(r *registers) *Promise{
+	jumpTable := [...]func(r *registers) *Promise{
 		opConst:   vm.execConst,
 		opVar:     vm.execVar,
 		opFunctor: vm.execFunctor,
@@ -318,25 +313,20 @@ func (vm *VM) execCall(r *registers) *Promise {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
-	return Delay(func(context.Context) *Promise {
-		args, err := Slice(r.astack, r.env)
-		if err != nil {
-			return Error(err)
-		}
-		return vm.Arrive(pi, args, func(env *Env) *Promise {
-			v := NewVariable()
-			return vm.exec(registers{
-				pc:        r.pc,
-				xr:        r.xr,
-				vars:      r.vars,
-				cont:      r.cont,
-				args:      v,
-				astack:    v,
-				env:       env,
-				cutParent: r.cutParent,
-			})
-		}, r.env)
-	})
+	args, _ := Slice(r.astack, r.env)
+	return vm.Arrive(pi, args, func(env *Env) *Promise {
+		v := NewVariable()
+		return vm.exec(registers{
+			pc:        r.pc,
+			xr:        r.xr,
+			vars:      r.vars,
+			cont:      r.cont,
+			args:      v,
+			astack:    v,
+			env:       env,
+			cutParent: r.cutParent,
+		})
+	}, r.env)
 }
 
 func (*VM) execExit(r *registers) *Promise {
@@ -528,13 +518,7 @@ func (p ProcedureIndicator) String() string {
 
 // Term returns p as term.
 func (p ProcedureIndicator) Term() Term {
-	return &compound{
-		functor: atomSlash,
-		args: []Term{
-			p.Name,
-			p.Arity,
-		},
-	}
+	return atomSlash.Apply(p.Name, p.Arity)
 }
 
 // Apply applies p to args.
