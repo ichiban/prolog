@@ -344,7 +344,6 @@ func (s *Stream) properties() []Term {
 	}
 
 	if s.alias != 0 {
-
 		ps = append(ps, atomAlias.Apply(s.alias))
 	}
 

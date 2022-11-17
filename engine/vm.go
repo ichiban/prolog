@@ -313,10 +313,7 @@ func (vm *VM) execCall(r *registers) *Promise {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
-	args, err := Slice(r.astack, r.env)
-	if err != nil {
-		return Error(err)
-	}
+	args, _ := Slice(r.astack, r.env)
 	return vm.Arrive(pi, args, func(env *Env) *Promise {
 		v := NewVariable()
 		return vm.exec(registers{
