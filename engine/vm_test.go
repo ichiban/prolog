@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -241,6 +242,28 @@ func TestVM_Arrive(t *testing.T) {
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
+	})
+}
+
+func TestVM_SetUserInput(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		var vm VM
+		vm.SetUserInput(os.Stdin)
+
+		s, ok := vm.streams.lookup(atomUserInput)
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdin, s.sourceSink)
+	})
+}
+
+func TestVM_SetUserOutput(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		var vm VM
+		vm.SetUserOutput(os.Stdout)
+
+		s, ok := vm.streams.lookup(atomUserOutput)
+		assert.True(t, ok)
+		assert.Equal(t, os.Stdout, s.sourceSink)
 	})
 }
 

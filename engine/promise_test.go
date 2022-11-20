@@ -62,7 +62,7 @@ func TestPromise_Force(t *testing.T) {
 
 	t.Run("repeat", func(t *testing.T) {
 		count := 0
-		k := Repeat(func(context.Context) *Promise {
+		k := repeat(func(context.Context) *Promise {
 			count++
 			return Bool(count >= 10)
 		})

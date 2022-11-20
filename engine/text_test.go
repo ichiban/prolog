@@ -241,10 +241,6 @@ foo(?).
 		{title: "error: syntax error", text: `
 foo().
 `, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
-		{title: "error: expansion error", text: `
-:- ensure_loaded('testdata/break_term_expansion').
-foo(a).
-`, err: InstantiationError(nil)},
 		{title: "error: variable fact", text: `
 X.
 `, err: InstantiationError(nil)},
@@ -355,7 +351,7 @@ func TestVM_Consult(t *testing.T) {
 			vm := VM{
 				FS: testdata,
 			}
-			ok, err := vm.Consult(nil, tt.files, Success, nil).Force(context.Background())
+			ok, err := Consult(&vm, tt.files, Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			if e, ok := tt.err.(Exception); ok {
 				_, ok := NewEnv().Unify(e.Term(), err.(Exception).Term(), false)

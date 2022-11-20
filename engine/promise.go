@@ -55,18 +55,18 @@ func Cut(parent *Promise, k func(context.Context) *Promise) *Promise {
 	}
 }
 
-// Repeat returns a promise that repeats k.
-func Repeat(k func(context.Context) *Promise) *Promise {
+// repeat returns a promise that repeats k.
+func repeat(k func(context.Context) *Promise) *Promise {
 	return &Promise{
 		delayed: []func(context.Context) *Promise{k},
 		repeat:  true,
 	}
 }
 
-// Catch returns a promise with a recovering function.
+// catch returns a promise with a recovering function.
 // Once a promise results in error, the error goes through ancestor promises looking for a recovering function that
 // returns a non-nil promise to continue on.
-func Catch(recover func(error) *Promise, k func(context.Context) *Promise) *Promise {
+func catch(recover func(error) *Promise, k func(context.Context) *Promise) *Promise {
 	return &Promise{
 		delayed: []func(context.Context) *Promise{k},
 		recover: recover,

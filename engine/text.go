@@ -40,7 +40,7 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	}
 
 	for _, g := range t.goals {
-		ok, err := vm.Call(vm, g, Success, nil).Force(ctx)
+		ok, err := Call(vm, g, Success, nil).Force(ctx)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 }
 
 // Consult executes Prolog texts in files.
-func (vm *VM) Consult(_ *VM, files Term, k func(*Env) *Promise, env *Env) *Promise {
+func Consult(vm *VM, files Term, k func(*Env) *Promise, env *Env) *Promise {
 	var filenames []Term
 	iter := ListIterator{List: files, Env: env}
 	for iter.Next() {
@@ -93,7 +93,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 			return err
 		}
 
-		et, err := vm.expand(t, nil)
+		et, err := expand(vm, t, nil)
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 	case ProcedureIndicator{Name: atomEnsureLoaded, Arity: 1}:
 		return vm.ensureLoaded(ctx, arg(0), nil)
 	default:
-		ok, err := vm.Call(vm, d, Success, nil).Force(ctx)
+		ok, err := Call(vm, d, Success, nil).Force(ctx)
 		if err != nil {
 			return err
 		}

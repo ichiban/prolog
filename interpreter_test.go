@@ -694,8 +694,8 @@ append(nil, L, L).`},
 			i.Register0("fail", func(*engine.VM, func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1("consult", i.Consult)
-			i.Register3("op", i.Op)
+			i.Register1("consult", engine.Consult)
+			i.Register3("op", engine.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
 			assert.NoError(t, i.Exec(tt.premise))
@@ -752,7 +752,7 @@ func TestInterpreter_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register3("op", i.Op)
+			i.Register3("op", engine.Op)
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
 

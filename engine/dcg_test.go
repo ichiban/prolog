@@ -20,7 +20,7 @@ func TestVM_Phrase(t *testing.T) {
 		}
 
 		s0, s := NewVariable(), NewVariable()
-		ok, err := vm.Phrase(nil, NewAtom("a"), s0, s, Success, nil).Force(context.Background())
+		ok, err := Phrase(&vm, NewAtom("a"), s0, s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -30,7 +30,7 @@ func TestVM_Phrase(t *testing.T) {
 	t.Run("failed", func(t *testing.T) {
 		s0, s := NewVariable(), NewVariable()
 		var vm VM
-		_, err := vm.Phrase(nil, Integer(0), s0, s, Success, nil).Force(context.Background())
+		_, err := Phrase(&vm, Integer(0), s0, s, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 }

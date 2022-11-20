@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 )
@@ -396,6 +397,75 @@ func (vm *VM) execPartial(r *registers) *Promise {
 	r.args = Cons(tail, prefix)
 	r.astack = Cons(arest, r.astack)
 	return nil
+}
+
+// SetUserInput sets the given reader as a stream with an alias of user_input.
+func (vm *VM) SetUserInput(r io.Reader) {
+	s := Stream{
+		vm:         vm,
+		sourceSink: r,
+		mode:       ioModeRead,
+		alias:      atomUserInput,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeText,
+	}
+	vm.streams.add(&s)
+	vm.input = &s
+}
+
+// SetUserOutput sets the given writer as a stream with an alias of user_output.
+func (vm *VM) SetUserOutput(w io.Writer) {
+	s := Stream{
+		vm:         vm,
+		sourceSink: w,
+		mode:       ioModeAppend,
+		alias:      atomUserOutput,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeText,
+	}
+	vm.streams.add(&s)
+	vm.output = &s
+}
+
+// Parser creates a new parser from the current VM and io.Reader.
+// If non-nil, vars will hold the information on variables it parses.
+func (vm *VM) Parser(r io.RuneReader, vars *[]ParsedVariable) *Parser {
+	if vm.operators == nil {
+		vm.operators = operators{}
+	}
+	return newParser(r,
+		withCharConversions(vm.charConversions),
+		withOperators(vm.operators),
+		withDoubleQuotes(vm.doubleQuotes),
+		withParsedVars(vars),
+	)
+}
+
+// Write outputs term to the writer.
+func (vm *VM) Write(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
+	opts.ops = vm.operators
+	opts.priority = 1200
+	return writeTerm(w, t, opts, env)
+}
+
+// Stream returns a stream represented by streamOrAlias.
+func (vm *VM) Stream(streamOrAlias Term, env *Env) (*Stream, error) {
+	switch s := env.Resolve(streamOrAlias).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		v, ok := vm.streams.lookup(s)
+		if !ok {
+			return nil, ExistenceError(ObjectTypeStream, streamOrAlias, env)
+		}
+		return v, nil
+	case *Stream:
+		return s, nil
+	default:
+		return nil, DomainError(ValidDomainStreamOrAlias, streamOrAlias, env)
+	}
 }
 
 // Predicate0 is a predicate of arity 0.

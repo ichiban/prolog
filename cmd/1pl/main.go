@@ -112,7 +112,7 @@ Type Ctrl-C or 'halt.' to exit.
 func goal(i *prolog.Interpreter, pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) string {
 	goal, _ := pi.Apply(args...)
 	var buf bytes.Buffer
-	_ = engine.WriteTerm(&buf, goal, &engine.WriteOptions{Quoted: true}, env)
+	_ = i.Write(&buf, goal, &engine.WriteOptions{Quoted: true}, env)
 	return buf.String()
 }
 
