@@ -322,7 +322,6 @@ func TestNewProcedureIndicator(t *testing.T) {
 }
 
 func TestProcedureIndicator_String(t *testing.T) {
-	assert.Equal(t, `''/0`, ProcedureIndicator{}.String())
 	assert.Equal(t, `foo/2`, ProcedureIndicator{Name: NewAtom("foo"), Arity: 2}.String())
 }
 

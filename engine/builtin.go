@@ -1541,7 +1541,7 @@ func CharCode(char, code Term, k func(*Env) *Promise, env *Env) *Promise {
 			}
 
 			return Delay(func(context.Context) *Promise {
-				return Unify(ch, NewAtom(string(r)), k, env)
+				return Unify(ch, Atom(r), k, env)
 			})
 		default:
 			return Error(TypeError(ValidTypeInteger, code, env))
@@ -1785,7 +1785,7 @@ func (state *State) GetChar(streamOrAlias, char Term, k func(*Env) *Promise, env
 			return Error(RepresentationError(FlagCharacter, env))
 		}
 
-		return Unify(char, NewAtom(string(r)), k, env)
+		return Unify(char, Atom(r), k, env)
 	case io.EOF:
 		return Unify(char, atomEndOfFile, k, env)
 	case errWrongIOMode:
@@ -1865,7 +1865,7 @@ func (state *State) PeekChar(streamOrAlias, char Term, k func(*Env) *Promise, en
 			return Error(RepresentationError(FlagCharacter, env))
 		}
 
-		return Unify(char, NewAtom(string(r)), k, env)
+		return Unify(char, Atom(r), k, env)
 	case io.EOF:
 		return Unify(char, atomEndOfFile, k, env)
 	case errWrongIOMode:
@@ -2240,7 +2240,7 @@ func numberCharsWrite(num, chars Term, k func(*Env) *Promise, env *Env) *Promise
 
 		cs := make([]Term, len(rs))
 		for i, r := range rs {
-			cs[i] = NewAtom(string(r))
+			cs[i] = Atom(r)
 		}
 		return Unify(chars, List(cs...), k, env)
 	default:
@@ -2470,7 +2470,7 @@ func (state *State) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Pr
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
 		r := []rune(c1.String())
 		if r, ok := state.charConversions[r[0]]; ok {
-			return Unify(outChar, NewAtom(string(r)), k, env)
+			return Unify(outChar, Atom(r), k, env)
 		}
 		return Unify(outChar, c1, k, env)
 	}
@@ -2485,7 +2485,7 @@ func (state *State) CurrentCharConversion(inChar, outChar Term, k func(*Env) *Pr
 		}
 
 		ks[i] = func(context.Context) *Promise {
-			return Unify(pattern, tuple(NewAtom(string(r)), NewAtom(string(cr))), k, env)
+			return Unify(pattern, tuple(Atom(r), Atom(cr)), k, env)
 		}
 	}
 	return Delay(ks...)
