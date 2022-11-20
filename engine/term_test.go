@@ -143,7 +143,7 @@ func Test_variant(t *testing.T) {
 	}
 }
 
-func TestWriteTerm(t *testing.T) {
+func Test_writeTerm(t *testing.T) {
 	v := NewNamedVariable("L")
 	l := ListRest(v, NewAtom("a"), NewAtom("b"))
 	w := NewNamedVariable("R")
@@ -232,7 +232,7 @@ func TestWriteTerm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, WriteTerm(&buf, tt.term, &tt.opts, env))
+			assert.NoError(t, writeTerm(&buf, tt.term, &tt.opts, env))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}

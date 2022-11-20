@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"math"
 )
 
@@ -10,8 +9,8 @@ var (
 	minInt = Integer(math.MinInt64)
 )
 
-// DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
-var DefaultEvaluableFunctors = EvaluableFunctors{
+// DefaultEval is an Eval with builtin arithmetic functors.
+var DefaultEval = Eval{
 	Constant: map[Atom]Number{
 		atomPi: Float(math.Pi),
 	},
@@ -72,8 +71,8 @@ type Number interface {
 	number()
 }
 
-// EvaluableFunctors is a set of unary/binary functions.
-type EvaluableFunctors struct {
+// Eval is a set of unary/binary functions.
+type Eval struct {
 	// Constant is a set of constants.
 	Constant map[Atom]Number
 
@@ -82,278 +81,6 @@ type EvaluableFunctors struct {
 
 	// Binary is a set of functions of arity 2.
 	Binary map[Atom]func(x, y Number) (Number, error)
-}
-
-// Is evaluates expression and unifies the result with result.
-func (e EvaluableFunctors) Is(result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
-	v, err := e.eval(expression, env)
-	if err != nil {
-		return Error(err)
-	}
-	return Unify(result, v, k, env)
-}
-
-// Equal succeeds iff e1 equals to e2.
-func (e EvaluableFunctors) Equal(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = eqI(ev1, ev2)
-		case Float:
-			ok = eqIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = eqFI(ev1, ev2)
-		case Float:
-			ok = eqF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-// NotEqual succeeds iff e1 doesn't equal to e2.
-func (e EvaluableFunctors) NotEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = neqI(ev1, ev2)
-		case Float:
-			ok = neqIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = neqFI(ev1, ev2)
-		case Float:
-			ok = neqF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-// LessThan succeeds iff e1 is less than e2.
-func (e EvaluableFunctors) LessThan(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = lssI(ev1, ev2)
-		case Float:
-			ok = lssIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = lssFI(ev1, ev2)
-		case Float:
-			ok = lssF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-// GreaterThan succeeds iff e1 is greater than e2.
-func (e EvaluableFunctors) GreaterThan(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = gtrI(ev1, ev2)
-		case Float:
-			ok = gtrIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = gtrFI(ev1, ev2)
-		case Float:
-			ok = gtrF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-// LessThanOrEqual succeeds iff e1 is less than or equal to e2.
-func (e EvaluableFunctors) LessThanOrEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = leqI(ev1, ev2)
-		case Float:
-			ok = leqIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = leqFI(ev1, ev2)
-		case Float:
-			ok = leqF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-// GreaterThanOrEqual succeeds iff e1 is greater than or equal to e2.
-func (e EvaluableFunctors) GreaterThanOrEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	ev2, err := e.eval(e2, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var ok bool
-	switch ev1 := ev1.(type) {
-	case Integer:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = geqI(ev1, ev2)
-		case Float:
-			ok = geqIF(ev1, ev2)
-		}
-	case Float:
-		switch ev2 := ev2.(type) {
-		case Integer:
-			ok = geqFI(ev1, ev2)
-		case Float:
-			ok = geqF(ev1, ev2)
-		}
-	}
-	if !ok {
-		return Bool(false)
-	}
-	return k(env)
-}
-
-func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error) {
-	defer func() {
-		var ev ExceptionalValue
-		if errors.As(err, &ev) {
-			err = EvaluationError(ev, env)
-		}
-	}()
-
-	switch t := env.Resolve(expression).(type) {
-	case Variable:
-		return nil, InstantiationError(env)
-	case Atom:
-		c, ok := e.Constant[t]
-		if !ok {
-			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
-		}
-		return c, nil
-	case Number:
-		return t, nil
-	case Compound:
-		switch arity := t.Arity(); arity {
-		case 1:
-			f, ok := e.Unary[t.Functor()]
-			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)), env)
-			}
-			x, err := e.eval(t.Arg(0), env)
-			if err != nil {
-				return nil, err
-			}
-			return f(x)
-		case 2:
-			f, ok := e.Binary[t.Functor()]
-			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)), env)
-			}
-			x, err := e.eval(t.Arg(0), env)
-			if err != nil {
-				return nil, err
-			}
-			y, err := e.eval(t.Arg(1), env)
-			if err != nil {
-				return nil, err
-			}
-			return f(x, y)
-		default:
-			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)), env)
-		}
-	default:
-		return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
-	}
 }
 
 // Add returns sum of 2 numbers.

@@ -9,7 +9,7 @@ import (
 
 func TestVM_Register0(t *testing.T) {
 	var vm VM
-	vm.Register0("foo", func(k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0("foo", func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}]
@@ -31,7 +31,7 @@ func TestVM_Register0(t *testing.T) {
 
 func TestVM_Register1(t *testing.T) {
 	var vm VM
-	vm.Register1("foo", func(a Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register1("foo", func(_ *VM, a Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}]
@@ -51,7 +51,7 @@ func TestVM_Register1(t *testing.T) {
 
 func TestVM_Register2(t *testing.T) {
 	var vm VM
-	vm.Register2("foo", func(a, b Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("foo", func(_ *VM, a, b Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 2}]
@@ -71,7 +71,7 @@ func TestVM_Register2(t *testing.T) {
 
 func TestVM_Register3(t *testing.T) {
 	var vm VM
-	vm.Register3("foo", func(a, b, c Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register3("foo", func(_ *VM, a, b, c Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 3}]
@@ -91,7 +91,7 @@ func TestVM_Register3(t *testing.T) {
 
 func TestVM_Register4(t *testing.T) {
 	var vm VM
-	vm.Register4("foo", func(a, b, c, d Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register4("foo", func(_ *VM, a, b, c, d Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 4}]
@@ -111,7 +111,7 @@ func TestVM_Register4(t *testing.T) {
 
 func TestVM_Register5(t *testing.T) {
 	var vm VM
-	vm.Register5("foo", func(a, b, c, d, e Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register5("foo", func(_ *VM, a, b, c, d, e Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 5}]
@@ -131,7 +131,7 @@ func TestVM_Register5(t *testing.T) {
 
 func TestVM_Register6(t *testing.T) {
 	var vm VM
-	vm.Register6("foo", func(a, b, c, d, e, f Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register6("foo", func(_ *VM, a, b, c, d, e, f Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 6}]
@@ -151,7 +151,7 @@ func TestVM_Register6(t *testing.T) {
 
 func TestVM_Register7(t *testing.T) {
 	var vm VM
-	vm.Register7("foo", func(a, b, c, d, e, f, g Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register7("foo", func(_ *VM, a, b, c, d, e, f, g Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 7}]
@@ -171,7 +171,7 @@ func TestVM_Register7(t *testing.T) {
 
 func TestVM_Register8(t *testing.T) {
 	var vm VM
-	vm.Register8("foo", func(a, b, c, d, e, f, g, h Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register8("foo", func(_ *VM, a, b, c, d, e, f, g, h Term, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 8}]
@@ -193,7 +193,7 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: predicate1(func(t Term, k func(*Env) *Promise, env *Env) *Promise {
+				{Name: NewAtom("foo"), Arity: 1}: Predicate1(func(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			},
@@ -220,11 +220,13 @@ func TestVM_Arrive(t *testing.T) {
 			var warned bool
 			vm := VM{
 				unknown: unknownWarning,
-				OnUnknown: func(pi ProcedureIndicator, args []Term, env *Env) {
-					assert.Equal(t, ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, pi)
-					assert.Equal(t, []Term{NewAtom("a")}, args)
-					assert.Nil(t, env)
-					warned = true
+				Hooks: Hooks{
+					OnUnknown: func(pi ProcedureIndicator, args []Term, env *Env) {
+						assert.Equal(t, ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, pi)
+						assert.Equal(t, []Term{NewAtom("a")}, args)
+						assert.Nil(t, env)
+						warned = true
+					},
 				},
 			}
 			ok, err := vm.Arrive(ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, []Term{NewAtom("a")}, Success, nil).Force(context.Background())

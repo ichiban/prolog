@@ -17,9 +17,9 @@ func (e *DiscontiguousError) Error() string {
 }
 
 // Compile compiles the Prolog text and updates the DB accordingly.
-func (state *State) Compile(ctx context.Context, s string, args ...interface{}) error {
+func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
 	var t text
-	if err := state.compile(ctx, &t, s, args...); err != nil {
+	if err := vm.compile(ctx, &t, s, args...); err != nil {
 		return err
 	}
 
@@ -27,26 +27,26 @@ func (state *State) Compile(ctx context.Context, s string, args ...interface{}) 
 		return err
 	}
 
-	if state.procedures == nil {
-		state.procedures = map[ProcedureIndicator]procedure{}
+	if vm.procedures == nil {
+		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
 	for pi, u := range t.clauses {
-		if existing, ok := state.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
+		if existing, ok := vm.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
 			existing.clauses = append(existing.clauses, u.clauses...)
 			continue
 		}
 
-		state.procedures[pi] = u
+		vm.procedures[pi] = u
 	}
 
 	for _, g := range t.goals {
-		ok, err := state.Call(g, Success, nil).Force(ctx)
+		ok, err := Call(vm, g, Success, nil).Force(ctx)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			var sb strings.Builder
-			_ = state.Write(&sb, g, &WriteOptions{Quoted: true}, nil)
+			_ = vm.Write(&sb, g, &WriteOptions{Quoted: true}, nil)
 			return fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
@@ -54,35 +54,13 @@ func (state *State) Compile(ctx context.Context, s string, args ...interface{}) 
 	return nil
 }
 
-// Consult executes Prolog texts in files.
-func (state *State) Consult(files Term, k func(*Env) *Promise, env *Env) *Promise {
-	var filenames []Term
-	iter := ListIterator{List: files, Env: env}
-	for iter.Next() {
-		filenames = append(filenames, iter.Current())
-	}
-	if err := iter.Err(); err != nil {
-		filenames = []Term{files}
-	}
-
-	return Delay(func(ctx context.Context) *Promise {
-		for _, filename := range filenames {
-			if err := state.ensureLoaded(ctx, filename, env); err != nil {
-				return Error(err)
-			}
-		}
-
-		return k(env)
-	})
-}
-
-func (state *State) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
+func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
 	if text.clauses == nil {
 		text.clauses = map[ProcedureIndicator]*userDefined{}
 	}
 
 	s = ignoreShebangLine(s)
-	p := state.Parser(strings.NewReader(s), nil)
+	p := vm.Parser(strings.NewReader(s), nil)
 	if err := p.Replace(NewAtom("?"), args...); err != nil {
 		return err
 	}
@@ -93,7 +71,7 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 			return err
 		}
 
-		et, err := state.expand(t, nil)
+		et, err := expand(vm, t, nil)
 		if err != nil {
 			return err
 		}
@@ -104,7 +82,7 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 		}
 		switch pi {
 		case ProcedureIndicator{Name: atomIf, Arity: 1}: // Directive
-			if err := state.directive(ctx, text, arg(0)); err != nil {
+			if err := vm.directive(ctx, text, arg(0)); err != nil {
 				return err
 			}
 			continue
@@ -132,7 +110,7 @@ func (state *State) compile(ctx context.Context, text *text, s string, args ...i
 	return nil
 }
 
-func (state *State) directive(ctx context.Context, text *text, d Term) error {
+func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 	if err := text.flush(); err != nil {
 		return err
 	}
@@ -155,55 +133,55 @@ func (state *State) directive(ctx context.Context, text *text, d Term) error {
 		text.goals = append(text.goals, arg(0))
 		return nil
 	case ProcedureIndicator{Name: atomInclude, Arity: 1}:
-		_, b, err := state.open(arg(0), nil)
+		_, b, err := vm.open(arg(0), nil)
 		if err != nil {
 			return err
 		}
 
-		return state.compile(ctx, text, string(b))
+		return vm.compile(ctx, text, string(b))
 	case ProcedureIndicator{Name: atomEnsureLoaded, Arity: 1}:
-		return state.ensureLoaded(ctx, arg(0), nil)
+		return vm.ensureLoaded(ctx, arg(0), nil)
 	default:
-		ok, err := state.Call(d, Success, nil).Force(ctx)
+		ok, err := Call(vm, d, Success, nil).Force(ctx)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			var sb strings.Builder
-			_ = state.Write(&sb, d, &WriteOptions{Quoted: true}, nil)
+			_ = vm.Write(&sb, d, &WriteOptions{Quoted: true}, nil)
 			return fmt.Errorf("failed directive: %s", sb.String())
 		}
 		return nil
 	}
 }
 
-func (state *State) ensureLoaded(ctx context.Context, file Term, env *Env) error {
-	f, b, err := state.open(file, env)
+func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
+	f, b, err := vm.open(file, env)
 	if err != nil {
 		return err
 	}
 
-	if state.loaded == nil {
-		state.loaded = map[string]struct{}{}
+	if vm.loaded == nil {
+		vm.loaded = map[string]struct{}{}
 	}
-	if _, ok := state.loaded[f]; ok {
+	if _, ok := vm.loaded[f]; ok {
 		return nil
 	}
 	defer func() {
-		state.loaded[f] = struct{}{}
+		vm.loaded[f] = struct{}{}
 	}()
 
-	return state.Compile(ctx, string(b))
+	return vm.Compile(ctx, string(b))
 }
 
-func (state *State) open(file Term, env *Env) (string, []byte, error) {
+func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 	switch f := env.Resolve(file).(type) {
 	case Variable:
 		return "", nil, InstantiationError(env)
 	case Atom:
 		s := f.String()
 		for _, f := range []string{s, s + ".pl"} {
-			b, err := fs.ReadFile(state.FS, f)
+			b, err := fs.ReadFile(vm.FS, f)
 			if err != nil {
 				continue
 			}

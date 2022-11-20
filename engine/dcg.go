@@ -1,22 +1,10 @@
 package engine
 
 import (
-	"context"
 	"errors"
 )
 
 // based on: https://www.complang.tuwien.ac.at/ulrich/iso-prolog/dcgs/dcgsdin150408.pdf
-
-// Phrase succeeds if the difference list of s0-s satisfies the grammar rule of grBody.
-func (state *State) Phrase(grBody, s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
-	goal, err := dcgBody(grBody, s0, s, env)
-	if err != nil {
-		return Error(err)
-	}
-	return Delay(func(context.Context) *Promise {
-		return state.Call(goal, k, env)
-	})
-}
 
 var errDCGNotApplicable = errors.New("not applicable")
 

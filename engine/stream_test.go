@@ -75,14 +75,14 @@ func TestStream_Close(t *testing.T) {
 	var ngCloser mockCloser
 	ngCloser.On("Close").Return(errors.New("ng"))
 
-	var state State
+	var i IO
 
 	foo := NewAtom("foo")
-	s := &Stream{state: &state, sourceSink: &okCloser, alias: foo}
-	state.streams.add(s)
+	s := &Stream{io: &i, sourceSink: &okCloser, alias: foo}
+	i.streams.add(s)
 
 	bar := NewAtom("bar")
-	state.streams.add(&Stream{state: &state, sourceSink: &okCloser, alias: bar})
+	i.streams.add(&Stream{io: &i, sourceSink: &okCloser, alias: bar})
 
 	tests := []struct {
 		title string

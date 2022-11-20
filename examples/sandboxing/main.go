@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ichiban/prolog/engine"
 
 	"github.com/ichiban/prolog"
 )
@@ -14,7 +15,7 @@ func main() {
 	// Instead of writing `:-(mortal(X), human(X)).`, you may want to define the infix operator first.
 
 	// To define operators, register op/3.
-	p.Register3("op", p.Op)
+	p.Register3("op", engine.Op)
 
 	// Then, define the infix operator with priority 1200 and specifier XFX.
 	if err := p.Exec(`:-(op(1200, xfx, :-)).`); err != nil {

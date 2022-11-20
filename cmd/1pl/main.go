@@ -56,9 +56,9 @@ Type Ctrl-C or 'halt.' to exit.
 		}
 		defer restore()
 
-		halt = func(n engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		halt = func(vm *engine.VM, n engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 			restore()
-			return engine.Halt(n, k, env)
+			return engine.Halt(vm, n, k, env)
 		}
 	}
 
@@ -112,7 +112,7 @@ Type Ctrl-C or 'halt.' to exit.
 func goal(i *prolog.Interpreter, pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) string {
 	goal, _ := pi.Apply(args...)
 	var buf bytes.Buffer
-	_ = engine.WriteTerm(&buf, goal, &engine.WriteOptions{Quoted: true}, env)
+	_ = i.Write(&buf, goal, &engine.WriteOptions{Quoted: true}, env)
 	return buf.String()
 }
 
