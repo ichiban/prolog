@@ -688,10 +688,10 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register0("true", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+			i.Register0("true", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 				return k(env)
 			})
-			i.Register0("fail", func(func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
+			i.Register0("fail", func(*engine.VM, func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
 			i.Register1("consult", i.Consult)
@@ -784,7 +784,7 @@ foo(a, 1, 2.0, [abc, def]).
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	i.Register0("do_not_call", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	i.Register0("do_not_call", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
 	})
@@ -1180,7 +1180,7 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		i.Register0("error", func(k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		i.Register0("error", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)

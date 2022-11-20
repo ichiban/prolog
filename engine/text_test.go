@@ -355,7 +355,7 @@ func TestVM_Consult(t *testing.T) {
 			vm := VM{
 				FS: testdata,
 			}
-			ok, err := vm.Consult(tt.files, Success, nil).Force(context.Background())
+			ok, err := vm.Consult(nil, tt.files, Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			if e, ok := tt.err.(Exception); ok {
 				_, ok := NewEnv().Unify(e.Term(), err.(Exception).Term(), false)

@@ -12,7 +12,7 @@ func TestVM_Phrase(t *testing.T) {
 		var called bool
 		vm := VM{
 			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("a"), Arity: 2}: predicate2(func(s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
+				{Name: NewAtom("a"), Arity: 2}: Predicate2(func(_ *VM, s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
 					called = true
 					return k(env)
 				}),
@@ -20,7 +20,7 @@ func TestVM_Phrase(t *testing.T) {
 		}
 
 		s0, s := NewVariable(), NewVariable()
-		ok, err := vm.Phrase(NewAtom("a"), s0, s, Success, nil).Force(context.Background())
+		ok, err := vm.Phrase(nil, NewAtom("a"), s0, s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -30,7 +30,7 @@ func TestVM_Phrase(t *testing.T) {
 	t.Run("failed", func(t *testing.T) {
 		s0, s := NewVariable(), NewVariable()
 		var vm VM
-		_, err := vm.Phrase(Integer(0), s0, s, Success, nil).Force(context.Background())
+		_, err := vm.Phrase(nil, Integer(0), s0, s, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 }

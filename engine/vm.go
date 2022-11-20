@@ -81,75 +81,75 @@ type VM struct {
 }
 
 // Register0 registers a predicate of arity 0.
-func (vm *VM) Register0(name string, p func(func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register0(name string, p Predicate0) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 0}] = predicate0(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 0}] = p
 }
 
 // Register1 registers a predicate of arity 1.
-func (vm *VM) Register1(name string, p func(Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register1(name string, p Predicate1) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 1}] = predicate1(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 1}] = p
 }
 
 // Register2 registers a predicate of arity 2.
-func (vm *VM) Register2(name string, p func(Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register2(name string, p Predicate2) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 2}] = predicate2(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 2}] = p
 }
 
 // Register3 registers a predicate of arity 3.
-func (vm *VM) Register3(name string, p func(Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register3(name string, p Predicate3) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 3}] = predicate3(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 3}] = p
 }
 
 // Register4 registers a predicate of arity 4.
-func (vm *VM) Register4(name string, p func(Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register4(name string, p Predicate4) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 4}] = predicate4(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 4}] = p
 }
 
 // Register5 registers a predicate of arity 5.
-func (vm *VM) Register5(name string, p func(Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register5(name string, p Predicate5) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 5}] = predicate5(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 5}] = p
 }
 
 // Register6 registers a predicate of arity 6.
-func (vm *VM) Register6(name string, p func(Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register6(name string, p Predicate6) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 6}] = predicate6(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 6}] = p
 }
 
 // Register7 registers a predicate of arity 7.
-func (vm *VM) Register7(name string, p func(Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register7(name string, p Predicate7) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 7}] = predicate7(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 7}] = p
 }
 
 // Register8 registers a predicate of arity 8.
-func (vm *VM) Register8(name string, p func(Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise) {
+func (vm *VM) Register8(name string, p Predicate8) {
 	if vm.procedures == nil {
 		vm.procedures = map[ProcedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 8}] = predicate8(p)
+	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 8}] = p
 }
 
 type unknownAction int
@@ -260,7 +260,7 @@ func (*VM) execVar(r *registers) *Promise {
 	return nil
 }
 
-func (*VM) execFunctor(r *registers) *Promise {
+func (vm *VM) execFunctor(r *registers) *Promise {
 	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
@@ -268,7 +268,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Functor(arg, pi.Name, pi.Arity, r.updateEnv, r.env).Force(context.Background())
+	ok, err := Functor(vm, arg, pi.Name, pi.Arity, r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -277,7 +277,7 @@ func (*VM) execFunctor(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	ok, err = Univ(arg, Cons(pi.Name, r.args), r.updateEnv, r.env).Force(context.Background())
+	ok, err = Univ(vm, arg, Cons(pi.Name, r.args), r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -374,7 +374,7 @@ func (vm *VM) execList(r *registers) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	_, _ = Length(arg, l, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Length(vm, arg, l, r.updateEnv, r.env).Force(context.Background())
 	r.pc = r.pc[1:]
 	r.args = arg
 	r.astack = Cons(arest, r.astack)
@@ -390,102 +390,111 @@ func (vm *VM) execPartial(r *registers) *Promise {
 		return Bool(false)
 	}
 	prefix, tail := NewVariable(), NewVariable()
-	_, _ = Length(prefix, l, r.updateEnv, r.env).Force(context.Background())
-	_, _ = Append(prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Length(vm, prefix, l, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Append(vm, prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
 	r.pc = r.pc[1:]
 	r.args = Cons(tail, prefix)
 	r.astack = Cons(arest, r.astack)
 	return nil
 }
 
-type predicate0 func(func(*Env) *Promise, *Env) *Promise
+// Predicate0 is a predicate of arity 0.
+type Predicate0 func(*VM, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate0) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate0) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 0 {
 		return Error(&wrongNumberOfArgumentsError{expected: 0, actual: args})
 	}
 
-	return p(k, env)
+	return p(vm, k, env)
 }
 
-type predicate1 func(Term, func(*Env) *Promise, *Env) *Promise
+// Predicate1 is a predicate of arity 1.
+type Predicate1 func(*VM, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate1) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate1) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 1 {
 		return Error(&wrongNumberOfArgumentsError{expected: 1, actual: args})
 	}
 
-	return p(args[0], k, env)
+	return p(vm, args[0], k, env)
 }
 
-type predicate2 func(Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate2 is a predicate of arity 2.
+type Predicate2 func(*VM, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate2) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate2) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 2 {
 		return Error(&wrongNumberOfArgumentsError{expected: 2, actual: args})
 	}
 
-	return p(args[0], args[1], k, env)
+	return p(vm, args[0], args[1], k, env)
 }
 
-type predicate3 func(Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate3 is a predicate of arity 3.
+type Predicate3 func(*VM, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate3) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate3) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 3 {
 		return Error(&wrongNumberOfArgumentsError{expected: 3, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], k, env)
+	return p(vm, args[0], args[1], args[2], k, env)
 }
 
-type predicate4 func(Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate4 is a predicate of arity 4.
+type Predicate4 func(*VM, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate4) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate4) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 4 {
 		return Error(&wrongNumberOfArgumentsError{expected: 4, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], args[3], k, env)
+	return p(vm, args[0], args[1], args[2], args[3], k, env)
 }
 
-type predicate5 func(Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate5 is a predicate of arity 5.
+type Predicate5 func(*VM, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate5) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate5) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 5 {
 		return Error(&wrongNumberOfArgumentsError{expected: 5, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], args[3], args[4], k, env)
+	return p(vm, args[0], args[1], args[2], args[3], args[4], k, env)
 }
 
-type predicate6 func(Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate6 is a predicate of arity 6.
+type Predicate6 func(*VM, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate6) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate6) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 6 {
 		return Error(&wrongNumberOfArgumentsError{expected: 6, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], args[3], args[4], args[5], k, env)
+	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], k, env)
 }
 
-type predicate7 func(Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate7 is a predicate of arity 7.
+type Predicate7 func(*VM, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate7) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate7) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 7 {
 		return Error(&wrongNumberOfArgumentsError{expected: 7, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], args[3], args[4], args[5], args[6], k, env)
+	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], k, env)
 }
 
-type predicate8 func(Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
+// Predicate8 is a predicate of arity 8.
+type Predicate8 func(*VM, Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p predicate8) Call(_ *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate8) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 8 {
 		return Error(&wrongNumberOfArgumentsError{expected: 8, actual: args})
 	}
 
-	return p(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
+	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
 }
 
 // ProcedureIndicator identifies procedure e.g. (=)/2.

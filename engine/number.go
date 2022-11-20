@@ -85,16 +85,16 @@ type EvaluableFunctors struct {
 }
 
 // Is evaluates expression and unifies the result with result.
-func (e EvaluableFunctors) Is(result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) Is(vm *VM, result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
 	v, err := e.eval(expression, env)
 	if err != nil {
 		return Error(err)
 	}
-	return Unify(result, v, k, env)
+	return Unify(vm, result, v, k, env)
 }
 
 // Equal succeeds iff e1 equals to e2.
-func (e EvaluableFunctors) Equal(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -129,7 +129,7 @@ func (e EvaluableFunctors) Equal(e1, e2 Term, k func(*Env) *Promise, env *Env) *
 }
 
 // NotEqual succeeds iff e1 doesn't equal to e2.
-func (e EvaluableFunctors) NotEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -164,7 +164,7 @@ func (e EvaluableFunctors) NotEqual(e1, e2 Term, k func(*Env) *Promise, env *Env
 }
 
 // LessThan succeeds iff e1 is less than e2.
-func (e EvaluableFunctors) LessThan(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -199,7 +199,7 @@ func (e EvaluableFunctors) LessThan(e1, e2 Term, k func(*Env) *Promise, env *Env
 }
 
 // GreaterThan succeeds iff e1 is greater than e2.
-func (e EvaluableFunctors) GreaterThan(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -234,7 +234,7 @@ func (e EvaluableFunctors) GreaterThan(e1, e2 Term, k func(*Env) *Promise, env *
 }
 
 // LessThanOrEqual succeeds iff e1 is less than or equal to e2.
-func (e EvaluableFunctors) LessThanOrEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -269,7 +269,7 @@ func (e EvaluableFunctors) LessThanOrEqual(e1, e2 Term, k func(*Env) *Promise, e
 }
 
 // GreaterThanOrEqual succeeds iff e1 is greater than or equal to e2.
-func (e EvaluableFunctors) GreaterThanOrEqual(e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func (e EvaluableFunctors) GreaterThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 	ev1, err := e.eval(e1, env)
 	if err != nil {
 		return Error(err)

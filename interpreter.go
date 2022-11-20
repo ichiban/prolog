@@ -160,7 +160,7 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		if !<-more {
 			return
 		}
-		if _, err := i.Call(t, func(env *engine.Env) *engine.Promise {
+		if _, err := i.Call(&i.VM, t, func(env *engine.Env) *engine.Promise {
 			next <- env
 			return engine.Bool(!<-more)
 		}, env).Force(ctx); err != nil {

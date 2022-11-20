@@ -43,67 +43,67 @@ func TestEvaluableFunctors_Is(t *testing.T) {
 
 	t.Run("constant", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), NewAtom("foo"), Success, nil).Force(context.Background())
+			ok, err := efs.Is(nil, Integer(1), NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("bar"), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("bar"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("unary", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0)), Success, nil).Force(context.Background())
+			ok, err := efs.Is(nil, Integer(1), NewAtom("foo").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("bar").Apply(Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("bar").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid argument", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("foo").Apply(NewNamedVariable("X")), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("foo").Apply(NewNamedVariable("X")), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("exceptional value", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("undefined").Apply(Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("undefined").Apply(Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("binary", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
-			ok, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
+			ok, err := efs.Is(nil, Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("undefined", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("bar").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("bar").Apply(Integer(0), Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 
 		t.Run("invalid argument", func(t *testing.T) {
-			_, err := efs.Is(Integer(1), NewAtom("foo").Apply(NewNamedVariable("X"), Integer(0)), Success, nil).Force(context.Background())
+			_, err := efs.Is(nil, Integer(1), NewAtom("foo").Apply(NewNamedVariable("X"), Integer(0)), Success, nil).Force(context.Background())
 			assert.Error(t, err)
-			_, err = efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), NewNamedVariable("X")), Success, nil).Force(context.Background())
+			_, err = efs.Is(nil, Integer(1), NewAtom("foo").Apply(Integer(0), NewNamedVariable("X")), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 
 	t.Run("tertiary", func(t *testing.T) {
-		_, err := efs.Is(Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0), Integer(0)), Success, nil).Force(context.Background())
+		_, err := efs.Is(nil, Integer(1), NewAtom("foo").Apply(Integer(0), Integer(0), Integer(0)), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("other", func(t *testing.T) {
-		_, err := efs.Is(Integer(1), &Stream{}, Success, nil).Force(context.Background())
+		_, err := efs.Is(nil, Integer(1), &Stream{}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 }
@@ -113,13 +113,13 @@ func TestEvaluableFunctors_Equal(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.Equal(Integer(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.Equal(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.Equal(Integer(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.Equal(nil, Integer(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -127,30 +127,30 @@ func TestEvaluableFunctors_Equal(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.Equal(Float(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.Equal(nil, Float(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.Equal(Float(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.Equal(nil, Float(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.Equal(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.Equal(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.Equal(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.Equal(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.Equal(Integer(1), Integer(2), Success, nil).Force(context.Background())
+		ok, err := efs.Equal(nil, Integer(1), Integer(2), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -161,13 +161,13 @@ func TestEvaluableFunctors_NotEqual(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.NotEqual(Integer(1), Integer(2), Success, nil).Force(context.Background())
+			ok, err := efs.NotEqual(nil, Integer(1), Integer(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.NotEqual(Integer(1), Float(2), Success, nil).Force(context.Background())
+			ok, err := efs.NotEqual(nil, Integer(1), Float(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -175,30 +175,30 @@ func TestEvaluableFunctors_NotEqual(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.NotEqual(Float(1), Integer(2), Success, nil).Force(context.Background())
+			ok, err := efs.NotEqual(nil, Float(1), Integer(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.NotEqual(Float(1), Float(2), Success, nil).Force(context.Background())
+			ok, err := efs.NotEqual(nil, Float(1), Float(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.NotEqual(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.NotEqual(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.NotEqual(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.NotEqual(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.NotEqual(Integer(1), Integer(1), Success, nil).Force(context.Background())
+		ok, err := efs.NotEqual(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -209,13 +209,13 @@ func TestEvaluableFunctors_LessThan(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.LessThan(Integer(1), Integer(2), Success, nil).Force(context.Background())
+			ok, err := efs.LessThan(nil, Integer(1), Integer(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.LessThan(Integer(1), Float(2), Success, nil).Force(context.Background())
+			ok, err := efs.LessThan(nil, Integer(1), Float(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -223,30 +223,30 @@ func TestEvaluableFunctors_LessThan(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.LessThan(Float(1), Integer(2), Success, nil).Force(context.Background())
+			ok, err := efs.LessThan(nil, Float(1), Integer(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.LessThan(Float(1), Float(2), Success, nil).Force(context.Background())
+			ok, err := efs.LessThan(nil, Float(1), Float(2), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.LessThan(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.LessThan(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.LessThan(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.LessThan(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.LessThan(Integer(1), Integer(1), Success, nil).Force(context.Background())
+		ok, err := efs.LessThan(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -257,13 +257,13 @@ func TestEvaluableFunctors_GreaterThan(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.GreaterThan(Integer(2), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThan(nil, Integer(2), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.GreaterThan(Integer(2), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThan(nil, Integer(2), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -271,30 +271,30 @@ func TestEvaluableFunctors_GreaterThan(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.GreaterThan(Float(2), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThan(nil, Float(2), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.GreaterThan(Float(2), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThan(nil, Float(2), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.GreaterThan(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.GreaterThan(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.GreaterThan(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.GreaterThan(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.GreaterThan(Integer(1), Integer(1), Success, nil).Force(context.Background())
+		ok, err := efs.GreaterThan(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -305,13 +305,13 @@ func TestEvaluableFunctors_LessThanOrEqual(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.LessThanOrEqual(Integer(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.LessThanOrEqual(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.LessThanOrEqual(Integer(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.LessThanOrEqual(nil, Integer(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -319,30 +319,30 @@ func TestEvaluableFunctors_LessThanOrEqual(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.LessThanOrEqual(Float(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.LessThanOrEqual(nil, Float(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.LessThanOrEqual(Float(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.LessThanOrEqual(nil, Float(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.LessThanOrEqual(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.LessThanOrEqual(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.LessThanOrEqual(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.LessThanOrEqual(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.LessThanOrEqual(Integer(2), Integer(1), Success, nil).Force(context.Background())
+		ok, err := efs.LessThanOrEqual(nil, Integer(2), Integer(1), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -353,13 +353,13 @@ func TestEvaluableFunctors_GreaterThanOrEqual(t *testing.T) {
 
 	t.Run("integer", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.GreaterThanOrEqual(Integer(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThanOrEqual(nil, Integer(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.GreaterThanOrEqual(Integer(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThanOrEqual(nil, Integer(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -367,30 +367,30 @@ func TestEvaluableFunctors_GreaterThanOrEqual(t *testing.T) {
 
 	t.Run("float", func(t *testing.T) {
 		t.Run("integer", func(t *testing.T) {
-			ok, err := efs.GreaterThanOrEqual(Float(1), Integer(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThanOrEqual(nil, Float(1), Integer(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("float", func(t *testing.T) {
-			ok, err := efs.GreaterThanOrEqual(Float(1), Float(1), Success, nil).Force(context.Background())
+			ok, err := efs.GreaterThanOrEqual(nil, Float(1), Float(1), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 	})
 
 	t.Run("e1 is a variable", func(t *testing.T) {
-		_, err := efs.GreaterThanOrEqual(Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
+		_, err := efs.GreaterThanOrEqual(nil, Integer(1), NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("e2 is a variable", func(t *testing.T) {
-		_, err := efs.GreaterThanOrEqual(NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
+		_, err := efs.GreaterThanOrEqual(nil, NewNamedVariable("X"), Integer(1), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("ng", func(t *testing.T) {
-		ok, err := efs.GreaterThanOrEqual(Integer(1), Integer(2), Success, nil).Force(context.Background())
+		ok, err := efs.GreaterThanOrEqual(nil, Integer(1), Integer(2), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
