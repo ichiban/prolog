@@ -241,6 +241,10 @@ foo(?).
 		{title: "error: syntax error", text: `
 foo().
 `, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+		{title: "error: expansion error", text: `
+:- ensure_loaded('testdata/break_term_expansion').
+foo(a).
+`, err: Exception{term: NewAtom("ball")}},
 		{title: "error: variable fact", text: `
 X.
 `, err: InstantiationError(nil)},
@@ -312,8 +316,10 @@ bar(b).
 				},
 			}
 			vm.FS = testdata
+			vm.Register1("throw", Throw)
 			assert.Equal(t, tt.err, vm.Compile(context.Background(), tt.text, tt.args...))
 			if tt.err == nil {
+				delete(vm.procedures, ProcedureIndicator{Name: NewAtom("throw"), Arity: 1})
 				assert.Equal(t, tt.result, vm.procedures)
 			}
 		})

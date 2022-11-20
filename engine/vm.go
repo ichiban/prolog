@@ -170,7 +170,7 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	Call(*VM, []Term, func(*Env) *Promise, *Env) *Promise
+	call(*VM, []Term, func(*Env) *Promise, *Env) *Promise
 }
 
 // Arrive is the entry point of the VM.
@@ -195,7 +195,7 @@ func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, 
 	// Bind the special variable to inform the predicate about the context.
 	env = env.Bind(varContext, pi.Term())
 
-	return p.Call(vm, args, k, env)
+	return p.call(vm, args, k, env)
 }
 
 type registers struct {
@@ -353,7 +353,7 @@ func (*VM) execExit(r *registers) *Promise {
 
 func (vm *VM) execCut(r *registers) *Promise {
 	r.pc = r.pc[1:]
-	return Cut(r.cutParent, func(context.Context) *Promise {
+	return cut(r.cutParent, func(context.Context) *Promise {
 		return vm.exec(registers{
 			pc:        r.pc,
 			xr:        r.xr,
@@ -471,7 +471,7 @@ func (vm *VM) Stream(streamOrAlias Term, env *Env) (*Stream, error) {
 // Predicate0 is a predicate of arity 0.
 type Predicate0 func(*VM, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate0) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate0) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 0 {
 		return Error(&wrongNumberOfArgumentsError{expected: 0, actual: args})
 	}
@@ -482,7 +482,7 @@ func (p Predicate0) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate1 is a predicate of arity 1.
 type Predicate1 func(*VM, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate1) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate1) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 1 {
 		return Error(&wrongNumberOfArgumentsError{expected: 1, actual: args})
 	}
@@ -493,7 +493,7 @@ func (p Predicate1) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate2 is a predicate of arity 2.
 type Predicate2 func(*VM, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate2) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate2) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 2 {
 		return Error(&wrongNumberOfArgumentsError{expected: 2, actual: args})
 	}
@@ -504,7 +504,7 @@ func (p Predicate2) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate3 is a predicate of arity 3.
 type Predicate3 func(*VM, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate3) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate3) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 3 {
 		return Error(&wrongNumberOfArgumentsError{expected: 3, actual: args})
 	}
@@ -515,7 +515,7 @@ func (p Predicate3) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate4 is a predicate of arity 4.
 type Predicate4 func(*VM, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate4) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate4) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 4 {
 		return Error(&wrongNumberOfArgumentsError{expected: 4, actual: args})
 	}
@@ -526,7 +526,7 @@ func (p Predicate4) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate5 is a predicate of arity 5.
 type Predicate5 func(*VM, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate5) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate5) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 5 {
 		return Error(&wrongNumberOfArgumentsError{expected: 5, actual: args})
 	}
@@ -537,7 +537,7 @@ func (p Predicate5) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate6 is a predicate of arity 6.
 type Predicate6 func(*VM, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate6) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate6) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 6 {
 		return Error(&wrongNumberOfArgumentsError{expected: 6, actual: args})
 	}
@@ -548,7 +548,7 @@ func (p Predicate6) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate7 is a predicate of arity 7.
 type Predicate7 func(*VM, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate7) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate7) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 7 {
 		return Error(&wrongNumberOfArgumentsError{expected: 7, actual: args})
 	}
@@ -559,7 +559,7 @@ func (p Predicate7) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 // Predicate8 is a predicate of arity 8.
 type Predicate8 func(*VM, Term, Term, Term, Term, Term, Term, Term, Term, func(*Env) *Promise, *Env) *Promise
 
-func (p Predicate8) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (p Predicate8) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if len(args) != 8 {
 		return Error(&wrongNumberOfArgumentsError{expected: 8, actual: args})
 	}

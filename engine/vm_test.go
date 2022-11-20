@@ -16,13 +16,13 @@ func TestVM_Register0(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 
@@ -38,13 +38,13 @@ func TestVM_Register1(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -58,13 +58,13 @@ func TestVM_Register2(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 2}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -78,13 +78,13 @@ func TestVM_Register3(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 3}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -98,13 +98,13 @@ func TestVM_Register4(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 4}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -118,13 +118,13 @@ func TestVM_Register5(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 5}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -138,13 +138,13 @@ func TestVM_Register6(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 6}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -158,13 +158,13 @@ func TestVM_Register7(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 7}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
@@ -178,13 +178,13 @@ func TestVM_Register8(t *testing.T) {
 	p := vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 8}]
 
 	t.Run("ok", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("wrong number of arguments", func(t *testing.T) {
-		ok, err := p.Call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h"), NewAtom("i")}, Success, nil).Force(context.Background())
+		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h"), NewAtom("i")}, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})

@@ -17,7 +17,7 @@ type userDefined struct {
 
 type clauses []clause
 
-func (cs clauses) Call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (cs clauses) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
 	if vm.OnCall == nil {
 		vm.OnCall = func(pi ProcedureIndicator, args []Term, env *Env) {}
 	}

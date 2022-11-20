@@ -51,7 +51,7 @@ func Call(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 		}
 
 		u := userDefined{clauses: cs}
-		return u.Call(vm, args, k, env)
+		return u.call(vm, args, k, env)
 	}
 }
 
@@ -135,7 +135,7 @@ func CallNth(vm *VM, goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
 
 		u := Unify(vm, n, nth, k, env)
 		if nth, ok := nth.(Integer); ok && nth <= n {
-			return Cut(p, func(context.Context) *Promise {
+			return cut(p, func(context.Context) *Promise {
 				return u
 			})
 		}

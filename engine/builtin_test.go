@@ -3035,107 +3035,73 @@ func TestCurrentOutput(t *testing.T) {
 }
 
 func TestSetInput(t *testing.T) {
-	t.Run("stream", func(t *testing.T) {
-		v := NewNamedVariable("Stream")
-		s := &Stream{sourceSink: os.Stdin}
-		env := NewEnv().
-			Bind(v, s)
-		var vm VM
-		ok, err := SetInput(&vm, v, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-		assert.Equal(t, s, vm.input)
-	})
+	foo, bar := NewAtom("foo"), NewAtom("bar")
+	input := Stream{mode: ioModeRead, alias: foo}
+	output := Stream{mode: ioModeAppend}
 
-	t.Run("alias", func(t *testing.T) {
-		v := NewNamedVariable("Stream")
-		s := &Stream{sourceSink: os.Stdin, alias: NewAtom("x")}
-		env := NewEnv().
-			Bind(v, s)
-		var vm VM
-		vm.streams.add(s)
-		ok, err := SetInput(&vm, v, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-		assert.Equal(t, s, vm.input)
-	})
+	var vm VM
+	vm.streams.add(&input)
 
-	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var vm VM
-		ok, err := SetInput(&vm, NewNamedVariable("Stream"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
-	})
+	tests := []struct {
+		title         string
+		streamOrAlias Term
+		ok            bool
+		err           error
+		input         *Stream
+	}{
+		{title: "stream", streamOrAlias: &input, ok: true, input: &input},
+		{title: "alias", streamOrAlias: foo, ok: true, input: &input},
 
-	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
-		var vm VM
-		ok, err := SetInput(&vm, Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
+		// 8.11.3.3 Errors
+		{title: "a", streamOrAlias: NewNamedVariable("Stream"), err: InstantiationError(nil)},
+		{title: "b", streamOrAlias: Integer(0), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
+		{title: "c", streamOrAlias: bar, err: ExistenceError(ObjectTypeStream, bar, nil)},
+		{title: "d", streamOrAlias: &output, err: PermissionError(OperationInput, PermissionTypeStream, &output, nil)},
+	}
 
-	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var vm VM
-		ok, err := SetInput(&vm, NewAtom("x"), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("x"), nil), err)
-		assert.False(t, ok)
-	})
+	for _, tt := range tests {
+		ok, err := SetInput(&vm, tt.streamOrAlias, Success, nil).Force(context.Background())
+		assert.Equal(t, tt.ok, ok)
+		assert.Equal(t, tt.err, err)
+		if err == nil {
+			assert.Equal(t, tt.input, vm.input)
+		}
+	}
 }
 
 func TestSetOutput(t *testing.T) {
-	t.Run("stream", func(t *testing.T) {
-		v := NewNamedVariable("Stream")
-		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
-		env := NewEnv().
-			Bind(v, s)
-		var vm VM
-		ok, err := SetOutput(&vm, v, Success, env).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-		assert.Equal(t, s, vm.output)
-	})
+	foo, bar := NewAtom("foo"), NewAtom("bar")
+	input := Stream{mode: ioModeRead}
+	output := Stream{mode: ioModeAppend, alias: foo}
 
-	t.Run("alias", func(t *testing.T) {
-		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend, alias: NewAtom("x")}
-		var vm VM
-		vm.streams.add(s)
-		ok, err := SetOutput(&vm, NewAtom("x"), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-		assert.Equal(t, s, vm.output)
-	})
+	var vm VM
+	vm.streams.add(&output)
 
-	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var vm VM
-		ok, err := SetOutput(&vm, NewNamedVariable("Stream"), Success, nil).Force(context.Background())
-		assert.Equal(t, InstantiationError(nil), err)
-		assert.False(t, ok)
-	})
+	tests := []struct {
+		title         string
+		streamOrAlias Term
+		ok            bool
+		err           error
+		output        *Stream
+	}{
+		{title: "stream", streamOrAlias: &output, ok: true, output: &output},
+		{title: "alias", streamOrAlias: foo, ok: true, output: &output},
 
-	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
-		var vm VM
-		ok, err := SetOutput(&vm, Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
+		// 8.11.4.3 Errors
+		{title: "a", streamOrAlias: NewNamedVariable("Stream"), err: InstantiationError(nil)},
+		{title: "b", streamOrAlias: Integer(0), err: DomainError(ValidDomainStreamOrAlias, Integer(0), nil)},
+		{title: "c", streamOrAlias: bar, err: ExistenceError(ObjectTypeStream, bar, nil)},
+		{title: "d", streamOrAlias: &input, err: PermissionError(OperationOutput, PermissionTypeStream, &input, nil)},
+	}
 
-	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var vm VM
-		ok, err := SetOutput(&vm, NewAtom("x"), Success, nil).Force(context.Background())
-		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("x"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := NewNamedVariable("Stream")
-		env := NewEnv().
-			Bind(s, &Stream{sourceSink: os.Stdin})
-
-		var vm VM
-		ok, err := SetOutput(&vm, s, Success, env).Force(context.Background())
-		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, env), err)
-		assert.False(t, ok)
-	})
+	for _, tt := range tests {
+		ok, err := SetOutput(&vm, tt.streamOrAlias, Success, nil).Force(context.Background())
+		assert.Equal(t, tt.ok, ok)
+		assert.Equal(t, tt.err, err)
+		if err == nil {
+			assert.Equal(t, tt.output, vm.output)
+		}
+	}
 }
 
 func TestOpen(t *testing.T) {
@@ -6606,20 +6572,35 @@ term_expansion(f(X), g(X)).
 
 		// DCG rules
 		{
-			title: "empty terminal-sequence",
-			in:    atomArrow.Apply(s, List()),
+			title: "terminal sequence: empty",
+			in:    atomArrow.Apply(s.Apply(a), List()),
 			out: atomIf.Apply(
-				s.Apply(Variable(offset+1), Variable(offset+3)),
+				s.Apply(a, Variable(offset+1), Variable(offset+3)),
 				atomEqual.Apply(Variable(offset+1), Variable(offset+3)),
 			),
 			ok: true,
 		},
 		{
-			title: "terminal sequence",
-			in:    atomArrow.Apply(s, List(a)),
+			title: "terminal sequence: ok",
+			in:    atomArrow.Apply(s.Apply(a), List(b)),
 			out: atomIf.Apply(
-				s.Apply(Variable(offset+1), Variable(offset+3)),
-				atomEqual.Apply(Variable(offset+1), ListRest(Variable(offset+3), a)),
+				s.Apply(a, Variable(offset+1), Variable(offset+3)),
+				atomEqual.Apply(Variable(offset+1), ListRest(Variable(offset+3), b)),
+			),
+			ok: true,
+		},
+		{
+			title: "terminal sequence: variable in head",
+			in:    atomArrow.Apply(NewNamedVariable("X"), List(b)),
+			out:   atomArrow.Apply(NewNamedVariable("X"), List(b)),
+			ok:    true,
+		},
+		{
+			title: "terminal sequence: variable in body",
+			in:    atomArrow.Apply(s.Apply(a), NewNamedVariable("X")),
+			out: atomIf.Apply(
+				s.Apply(a, Variable(offset+1), Variable(offset+3)),
+				atomPhrase.Apply(NewNamedVariable("X"), Variable(offset+1), ListRest(Variable(offset+3), b)),
 			),
 			ok: true,
 		},

@@ -44,8 +44,8 @@ func Error(err error) *Promise {
 
 var dummyCutParent Promise
 
-// Cut returns a promise that once the execution reaches it, it eliminates other possible choices.
-func Cut(parent *Promise, k func(context.Context) *Promise) *Promise {
+// cut returns a promise that once the execution reaches it, it eliminates other possible choices.
+func cut(parent *Promise, k func(context.Context) *Promise) *Promise {
 	if parent == nil {
 		parent = &dummyCutParent
 	}
