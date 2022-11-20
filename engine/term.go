@@ -103,7 +103,7 @@ var defaultWriteOptions = WriteOptions{
 	priority:      1200,
 }
 
-func WriteTerm(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
+func writeTerm(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
 		return writeVariable(w, t, opts, env)
@@ -122,7 +122,7 @@ func WriteTerm(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
 
 func writeVariable(w io.StringWriter, v Variable, opts *WriteOptions, env *Env) error {
 	if a, ok := opts.VariableNames[v]; ok {
-		return WriteTerm(w, a, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
+		return writeTerm(w, a, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
 	}
 	_, err := w.WriteString(v.String())
 	return err
@@ -287,11 +287,11 @@ func writeCompoundList(w io.StringWriter, c Compound, opts *WriteOptions, env *E
 	ew := errStringWriter{w: w}
 	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
 	_, _ = ew.WriteString("[")
-	_ = WriteTerm(&ew, c.Arg(0), opts, env)
+	_ = writeTerm(&ew, c.Arg(0), opts, env)
 	iter := ListIterator{List: c.Arg(1), Env: env}
 	for iter.Next() {
 		_, _ = ew.WriteString(",")
-		_ = WriteTerm(&ew, iter.Current(), opts, env)
+		_ = writeTerm(&ew, iter.Current(), opts, env)
 	}
 	if err := iter.Err(); err != nil {
 		_, _ = ew.WriteString("|")
@@ -299,7 +299,7 @@ func writeCompoundList(w io.StringWriter, c Compound, opts *WriteOptions, env *E
 		if l, ok := iter.Suffix().(Compound); ok && l.Functor() == atomDot && l.Arity() == 2 {
 			_, _ = ew.WriteString("...")
 		} else {
-			_ = WriteTerm(&ew, s, opts, env)
+			_ = writeTerm(&ew, s, opts, env)
 		}
 	}
 	_, _ = ew.WriteString("]")
@@ -309,7 +309,7 @@ func writeCompoundList(w io.StringWriter, c Compound, opts *WriteOptions, env *E
 func writeCompoundCurlyBracketed(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) error {
 	ew := errStringWriter{w: w}
 	_, _ = ew.WriteString("{")
-	_ = WriteTerm(&ew, c.Arg(0), opts.withLeft(operator{}), env)
+	_ = writeTerm(&ew, c.Arg(0), opts.withLeft(operator{}), env)
 	_, _ = ew.WriteString("}")
 	return ew.err
 }
@@ -354,7 +354,7 @@ func writeCompoundOpPrefix(w io.StringWriter, c Compound, opts *WriteOptions, en
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 	_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
-	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(r).withLeft(*op), env)
+	_ = writeTerm(&ew, c.Arg(0), opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = ew.WriteString(")")
 	}
@@ -374,7 +374,7 @@ func writeCompoundOpPostfix(w io.StringWriter, c Compound, opts *WriteOptions, e
 		_, _ = ew.WriteString("(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
+	_ = writeTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
 	_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
 	if openClose {
 		_, _ = ew.WriteString(")")
@@ -399,14 +399,14 @@ func writeCompoundOpInfix(w io.StringWriter, c Compound, opts *WriteOptions, env
 		_, _ = ew.WriteString("(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = WriteTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
+	_ = writeTerm(&ew, c.Arg(0), opts.withPriority(l).withRight(*op), env)
 	switch c.Functor() {
 	case atomComma, atomBar:
 		_, _ = ew.WriteString(c.Functor().String())
 	default:
 		_ = writeAtom(&ew, c.Functor(), opts.withLeft(operator{}).withRight(operator{}))
 	}
-	_ = WriteTerm(&ew, c.Arg(1), opts.withPriority(r).withLeft(*op), env)
+	_ = writeTerm(&ew, c.Arg(1), opts.withPriority(r).withLeft(*op), env)
 	if openClose {
 		_, _ = ew.WriteString(")")
 	}
@@ -423,7 +423,7 @@ func writeCompoundFunctionalNotation(w io.StringWriter, c Compound, opts *WriteO
 		if i != 0 {
 			_, _ = ew.WriteString(",")
 		}
-		_ = WriteTerm(&ew, c.Arg(i), opts, env)
+		_ = writeTerm(&ew, c.Arg(i), opts, env)
 	}
 	_, _ = ew.WriteString(")")
 	return ew.err

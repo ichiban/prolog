@@ -13,7 +13,7 @@ import (
 //go:embed testdata
 var testdata embed.FS
 
-func TestState_Compile(t *testing.T) {
+func TestVM_Compile(t *testing.T) {
 	tests := []struct {
 		title  string
 		text   string
@@ -244,7 +244,7 @@ foo().
 		{title: "error: expansion error", text: `
 :- ensure_loaded('testdata/break_term_expansion').
 foo(a).
-`, err: InstantiationError(nil)},
+`, err: Exception{term: NewAtom("ball")}},
 		{title: "error: variable fact", text: `
 X.
 `, err: InstantiationError(nil)},
@@ -299,12 +299,12 @@ bar(b).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			var state State
-			state.operators.define(1200, operatorSpecifierXFX, atomIf)
-			state.operators.define(1200, operatorSpecifierXFX, atomArrow)
-			state.operators.define(1200, operatorSpecifierFX, atomIf)
-			state.operators.define(400, operatorSpecifierYFX, atomSlash)
-			state.procedures = map[ProcedureIndicator]procedure{
+			var vm VM
+			vm.operators.define(1200, operatorSpecifierXFX, atomIf)
+			vm.operators.define(1200, operatorSpecifierXFX, atomArrow)
+			vm.operators.define(1200, operatorSpecifierFX, atomIf)
+			vm.operators.define(400, operatorSpecifierYFX, atomSlash)
+			vm.procedures = map[ProcedureIndicator]procedure{
 				{Name: NewAtom("foo"), Arity: 1}: &userDefined{
 					multifile: true,
 					clauses: clauses{
@@ -315,16 +315,18 @@ bar(b).
 					},
 				},
 			}
-			state.FS = testdata
-			assert.Equal(t, tt.err, state.Compile(context.Background(), tt.text, tt.args...))
+			vm.FS = testdata
+			vm.Register1("throw", Throw)
+			assert.Equal(t, tt.err, vm.Compile(context.Background(), tt.text, tt.args...))
 			if tt.err == nil {
-				assert.Equal(t, tt.result, state.procedures)
+				delete(vm.procedures, ProcedureIndicator{Name: NewAtom("throw"), Arity: 1})
+				assert.Equal(t, tt.result, vm.procedures)
 			}
 		})
 	}
 }
 
-func TestState_Consult(t *testing.T) {
+func TestVM_Consult(t *testing.T) {
 	tests := []struct {
 		title string
 		files Term
@@ -352,10 +354,10 @@ func TestState_Consult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{
+			vm := VM{
 				FS: testdata,
 			}
-			ok, err := state.Consult(tt.files, Success, nil).Force(context.Background())
+			ok, err := Consult(&vm, tt.files, Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			if e, ok := tt.err.(Exception); ok {
 				_, ok := NewEnv().Unify(e.Term(), err.(Exception).Term(), false)

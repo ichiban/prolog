@@ -24,7 +24,7 @@ func TestPromise_Force(t *testing.T) {
 				return Bool(false)
 			}, func(context.Context) *Promise {
 				res = append(res, 6)
-				return Cut(nil, func(context.Context) *Promise {
+				return cut(nil, func(context.Context) *Promise {
 					return Bool(true)
 				})
 			}, func(context.Context) *Promise {
@@ -62,7 +62,7 @@ func TestPromise_Force(t *testing.T) {
 
 	t.Run("repeat", func(t *testing.T) {
 		count := 0
-		k := Repeat(func(context.Context) *Promise {
+		k := repeat(func(context.Context) *Promise {
 			count++
 			return Bool(count >= 10)
 		})

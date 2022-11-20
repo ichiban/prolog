@@ -17,7 +17,7 @@ var (
 
 // Stream is a prolog stream.
 type Stream struct {
-	state *State
+	vm *VM
 
 	sourceSink   interface{} // Either io.Reader or io.Writer.
 	buf          *bufio.Reader
@@ -282,8 +282,8 @@ func (s *Stream) Close() error {
 		}
 	}
 
-	if s.state != nil {
-		s.state.streams.remove(s)
+	if s.vm != nil {
+		s.vm.streams.remove(s)
 	}
 
 	return nil
