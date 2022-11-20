@@ -17,7 +17,7 @@ var bootstrap string
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
-	engine.State
+	engine.VM
 	loaded map[string]struct{}
 }
 

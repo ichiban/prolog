@@ -16,34 +16,34 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestState_SetUserInput(t *testing.T) {
+func TestVM_SetUserInput(t *testing.T) {
 	t.Run("file", func(t *testing.T) {
-		var state State
-		state.SetUserInput(os.Stdin)
+		var vm VM
+		vm.SetUserInput(os.Stdin)
 
-		s, ok := state.streams.lookup(atomUserInput)
+		s, ok := vm.streams.lookup(atomUserInput)
 		assert.True(t, ok)
 		assert.Equal(t, os.Stdin, s.sourceSink)
 	})
 }
 
-func TestState_SetUserOutput(t *testing.T) {
+func TestVM_SetUserOutput(t *testing.T) {
 	t.Run("file", func(t *testing.T) {
-		var state State
-		state.SetUserOutput(os.Stdout)
+		var vm VM
+		vm.SetUserOutput(os.Stdout)
 
-		s, ok := state.streams.lookup(atomUserOutput)
+		s, ok := vm.streams.lookup(atomUserOutput)
 		assert.True(t, ok)
 		assert.Equal(t, os.Stdout, s.sourceSink)
 	})
 }
 
-func TestState_Call(t *testing.T) {
-	var state State
-	state.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
+func TestVM_Call(t *testing.T) {
+	var vm VM
+	vm.Register0("fail", func(f func(*Env) *Promise, env *Env) *Promise {
 		return Bool(false)
 	})
-	assert.NoError(t, state.Compile(context.Background(), `
+	assert.NoError(t, vm.Compile(context.Background(), `
 foo.
 foo(_, _).
 f(g([a, [b|X]])).
@@ -71,14 +71,14 @@ f(g([a, [b|X]])).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			ok, err := state.Call(tt.goal, Success, nil).Force(context.Background())
+			ok, err := vm.Call(tt.goal, Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call1(t *testing.T) {
+func TestVM_Call1(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -93,19 +93,19 @@ func TestState_Call1(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 2}: predicate2(func(_, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call1(tt.closure, tt.additional[0], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call1(tt.closure, tt.additional[0], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call2(t *testing.T) {
+func TestVM_Call2(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -120,19 +120,19 @@ func TestState_Call2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 3}: predicate3(func(_, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call2(tt.closure, tt.additional[0], tt.additional[1], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call2(tt.closure, tt.additional[0], tt.additional[1], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call3(t *testing.T) {
+func TestVM_Call3(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -147,19 +147,19 @@ func TestState_Call3(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 4}: predicate4(func(_, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call3(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call3(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call4(t *testing.T) {
+func TestVM_Call4(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -174,19 +174,19 @@ func TestState_Call4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 5}: predicate5(func(_, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call4(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call4(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call5(t *testing.T) {
+func TestVM_Call5(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -201,19 +201,19 @@ func TestState_Call5(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 6}: predicate6(func(_, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call5(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call5(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call6(t *testing.T) {
+func TestVM_Call6(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -228,19 +228,19 @@ func TestState_Call6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 7}: predicate7(func(_, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call6(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call6(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_Call7(t *testing.T) {
+func TestVM_Call7(t *testing.T) {
 	tests := []struct {
 		title      string
 		closure    Term
@@ -255,39 +255,37 @@ func TestState_Call7(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+			vm := VM{procedures: map[ProcedureIndicator]procedure{
 				{Name: NewAtom("p"), Arity: 8}: predicate8(func(_, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
-			}}}
-			ok, err := state.Call7(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], tt.additional[6], Success, nil).Force(context.Background())
+			}}
+			ok, err := vm.Call7(tt.closure, tt.additional[0], tt.additional[1], tt.additional[2], tt.additional[3], tt.additional[4], tt.additional[5], tt.additional[6], Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
 		})
 	}
 }
 
-func TestState_CallNth(t *testing.T) {
-	state := State{
-		VM: VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
-					return Delay(func(context.Context) *Promise {
-						return k(env)
-					}, func(context.Context) *Promise {
-						return k(env)
-					}, func(context.Context) *Promise {
-						return Error(errors.New("three"))
-					})
-				}),
-			},
+func TestVM_CallNth(t *testing.T) {
+	vm := VM{
+		procedures: map[ProcedureIndicator]procedure{
+			{Name: NewAtom("foo"), Arity: 0}: predicate0(func(k func(*Env) *Promise, env *Env) *Promise {
+				return Delay(func(context.Context) *Promise {
+					return k(env)
+				}, func(context.Context) *Promise {
+					return k(env)
+				}, func(context.Context) *Promise {
+					return Error(errors.New("three"))
+				})
+			}),
 		},
 	}
 
 	t.Run("ok", func(t *testing.T) {
 		t.Run("nth is a variable", func(t *testing.T) {
 			var ns []Integer
-			ok, err := state.CallNth(NewAtom("foo"), NewNamedVariable("Nth"), func(env *Env) *Promise {
+			ok, err := vm.CallNth(NewAtom("foo"), NewNamedVariable("Nth"), func(env *Env) *Promise {
 				n, ok := env.Resolve(NewNamedVariable("Nth")).(Integer)
 				assert.True(t, ok)
 				ns = append(ns, n)
@@ -307,35 +305,35 @@ func TestState_CallNth(t *testing.T) {
 		})
 
 		t.Run("nth is an integer", func(t *testing.T) {
-			ok, err := state.CallNth(NewAtom("foo"), Integer(2), Failure, nil).Force(context.Background())
+			ok, err := vm.CallNth(NewAtom("foo"), Integer(2), Failure, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("nth is 0", func(t *testing.T) {
-		ok, err := state.CallNth(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
+		ok, err := vm.CallNth(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("goal is a variable and nth is not zero", func(t *testing.T) {
-		_, err := state.CallNth(NewNamedVariable("Goal"), Integer(3), Success, nil).Force(context.Background())
+		_, err := vm.CallNth(NewNamedVariable("Goal"), Integer(3), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
-		_, err := state.CallNth(Integer(0), Integer(3), Success, nil).Force(context.Background())
+		_, err := vm.CallNth(Integer(0), Integer(3), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 	})
 
 	t.Run("nth is neither a variable nor an integer", func(t *testing.T) {
-		_, err := state.CallNth(NewAtom("foo"), NewAtom("bar"), Success, nil).Force(context.Background())
+		_, err := vm.CallNth(NewAtom("foo"), NewAtom("bar"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, NewAtom("bar"), nil), err)
 	})
 
 	t.Run("nth is an integer which is less than zero", func(t *testing.T) {
-		_, err := state.CallNth(NewAtom("foo"), Integer(-1), Success, nil).Force(context.Background())
+		_, err := vm.CallNth(NewAtom("foo"), Integer(-1), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil), err)
 	})
 
@@ -344,7 +342,7 @@ func TestState_CallNth(t *testing.T) {
 		defer func() {
 			maxInt = math.MaxInt64
 		}()
-		_, err := state.CallNth(NewAtom("foo"), NewVariable(), Success, nil).Force(context.Background())
+		_, err := vm.CallNth(NewAtom("foo"), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagMaxInteger, nil), err)
 	})
 }
@@ -864,14 +862,14 @@ func TestTermVariables(t *testing.T) {
 	}
 }
 
-func TestState_Op(t *testing.T) {
+func TestVM_Op(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
-			state := State{operators: operators{}}
-			state.operators.define(900, operatorSpecifierXFX, NewAtom(`+++`))
-			state.operators.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+			vm := VM{operators: operators{}}
+			vm.operators.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+			vm.operators.define(1100, operatorSpecifierXFX, NewAtom(`+`))
 
-			ok, err := state.Op(Integer(1000), atomXFX, NewAtom("++"), Success, nil).Force(context.Background())
+			ok, err := vm.Op(Integer(1000), atomXFX, NewAtom("++"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
@@ -897,11 +895,11 @@ func TestState_Op(t *testing.T) {
 						name:      atomPlus,
 					},
 				},
-			}, state.operators)
+			}, vm.operators)
 		})
 
 		t.Run("list", func(t *testing.T) {
-			state := State{
+			vm := VM{
 				operators: operators{
 					NewAtom(`+++`): {
 						operatorClassInfix: {
@@ -919,7 +917,7 @@ func TestState_Op(t *testing.T) {
 					},
 				},
 			}
-			ok, err := state.Op(Integer(1000), atomXFX, List(NewAtom("++"), NewAtom("++")), Success, nil).Force(context.Background())
+			ok, err := vm.Op(Integer(1000), atomXFX, List(NewAtom("++"), NewAtom("++")), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
@@ -945,12 +943,12 @@ func TestState_Op(t *testing.T) {
 						name:      atomPlus,
 					},
 				},
-			}, state.operators)
+			}, vm.operators)
 		})
 	})
 
 	t.Run("remove", func(t *testing.T) {
-		state := State{
+		vm := VM{
 			operators: operators{
 				NewAtom(`+++`): {
 					operatorClassInfix: {
@@ -975,7 +973,7 @@ func TestState_Op(t *testing.T) {
 				},
 			},
 		}
-		ok, err := state.Op(Integer(0), atomXFX, NewAtom("++"), Success, nil).Force(context.Background())
+		ok, err := vm.Op(Integer(0), atomXFX, NewAtom("++"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -994,117 +992,117 @@ func TestState_Op(t *testing.T) {
 					name:      atomPlus,
 				},
 			},
-		}, state.operators)
+		}, vm.operators)
 	})
 
 	t.Run("priority is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(NewNamedVariable("X"), atomXFX, atomPlus, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(NewNamedVariable("X"), atomXFX, atomPlus, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(Integer(1000), NewNamedVariable("X"), atomPlus, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(Integer(1000), NewNamedVariable("X"), atomPlus, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("priority is neither a variable nor an integer", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(NewAtom("foo"), atomXFX, atomPlus, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(NewAtom("foo"), atomXFX, atomPlus, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(Integer(1000), Integer(0), atomPlus, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(Integer(1000), Integer(0), atomPlus, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("operator is neither a partial list nor a list nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(Integer(1000), atomXFX, Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(Integer(1000), atomXFX, Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the operator list is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(Integer(1000), atomXFX, List(Integer(0)), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(Integer(1000), atomXFX, List(Integer(0)), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("priority is not between 0 and 1200 inclusive", func(t *testing.T) {
 		t.Run("priority is negative", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(-1), atomXFX, atomPlus, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(-1), atomXFX, atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorPriority, Integer(-1), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("priority is more than 1200", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(1201), atomXFX, atomPlus, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(1201), atomXFX, atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorPriority, Integer(1201), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("specifier is not a valid operator specifier", func(t *testing.T) {
-		var state State
-		ok, err := state.Op(Integer(1000), NewAtom("foo"), atomPlus, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Op(Integer(1000), NewAtom("foo"), atomPlus, Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainOperatorSpecifier, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("operator is ','", func(t *testing.T) {
-		state := State{operators: operators{}}
-		state.operators.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-		ok, err := state.Op(Integer(1000), atomXFY, atomComma, Success, nil).Force(context.Background())
+		vm := VM{operators: operators{}}
+		vm.operators.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		ok, err := vm.Op(Integer(1000), atomXFY, atomComma, Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, atomComma, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element of the operator list is ','", func(t *testing.T) {
-		state := State{operators: operators{}}
-		state.operators.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-		ok, err := state.Op(Integer(1000), atomXFY, List(atomComma), Success, nil).Force(context.Background())
+		vm := VM{operators: operators{}}
+		vm.operators.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		ok, err := vm.Op(Integer(1000), atomXFY, List(atomComma), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, atomComma, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("operator is an atom, priority is a priority, and specifier is a specifier such that operator would have an invalid set of priorities and specifiers", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(1000), atomXFY, atomEmptyList, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(1000), atomXFY, atomEmptyList, Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomEmptyList, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("empty curly brackets", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(1000), atomXFY, atomEmptyBlock, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(1000), atomXFY, atomEmptyBlock, Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomEmptyBlock, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("bar", func(t *testing.T) {
 			t.Run("create", func(t *testing.T) {
-				var state State
-				ok, err := state.Op(Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
+				var vm VM
+				ok, err := vm.Op(Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				state := State{operators: operators{}}
-				state.operators.define(1001, operatorSpecifierXFY, NewAtom(`|`))
-				ok, err := state.Op(Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
+				vm := VM{operators: operators{}}
+				vm.operators.define(1001, operatorSpecifierXFY, NewAtom(`|`))
+				ok, err := vm.Op(Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
 			})
@@ -1113,31 +1111,31 @@ func TestState_Op(t *testing.T) {
 
 	t.Run("operator is a list, priority is a priority, and specifier is a specifier such that an element op of the list operator would have an invalid set of priorities and specifiers", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(1000), atomXFY, List(atomEmptyList), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(1000), atomXFY, List(atomEmptyList), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomEmptyList, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("empty curly brackets", func(t *testing.T) {
-			var state State
-			ok, err := state.Op(Integer(1000), atomXFY, List(atomEmptyBlock), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Op(Integer(1000), atomXFY, List(atomEmptyBlock), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomEmptyBlock, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("bar", func(t *testing.T) {
 			t.Run("create", func(t *testing.T) {
-				var state State
-				ok, err := state.Op(Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
+				var vm VM
+				ok, err := vm.Op(Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				state := State{operators: operators{}}
-				state.operators.define(101, operatorSpecifierXFY, NewAtom(`|`))
-				ok, err := state.Op(Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
+				vm := VM{operators: operators{}}
+				vm.operators.define(101, operatorSpecifierXFY, NewAtom(`|`))
+				ok, err := vm.Op(Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
 				assert.Equal(t, PermissionError(OperationModify, PermissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
 			})
@@ -1146,38 +1144,38 @@ func TestState_Op(t *testing.T) {
 
 	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
 		t.Run("infix", func(t *testing.T) {
-			state := State{operators: operators{}}
-			state.operators.define(200, operatorSpecifierYF, NewAtom(`+`))
-			ok, err := state.Op(Integer(500), atomYFX, List(atomPlus), Success, nil).Force(context.Background())
+			vm := VM{operators: operators{}}
+			vm.operators.define(200, operatorSpecifierYF, NewAtom(`+`))
+			ok, err := vm.Op(Integer(500), atomYFX, List(atomPlus), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomPlus, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("postfix", func(t *testing.T) {
-			state := State{operators: operators{}}
-			state.operators.define(500, operatorSpecifierYFX, NewAtom(`+`))
-			ok, err := state.Op(Integer(200), atomYF, List(atomPlus), Success, nil).Force(context.Background())
+			vm := VM{operators: operators{}}
+			vm.operators.define(500, operatorSpecifierYFX, NewAtom(`+`))
+			ok, err := vm.Op(Integer(200), atomYF, List(atomPlus), Success, nil).Force(context.Background())
 			assert.Equal(t, PermissionError(OperationCreate, PermissionTypeOperator, atomPlus, nil), err)
 			assert.False(t, ok)
 		})
 	})
 }
 
-func TestState_CurrentOp(t *testing.T) {
-	state := State{operators: operators{}}
-	state.operators.define(900, operatorSpecifierXFX, NewAtom(`+++`))
-	state.operators.define(1000, operatorSpecifierXFX, NewAtom(`++`))
-	state.operators.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+func TestVM_CurrentOp(t *testing.T) {
+	vm := VM{operators: operators{}}
+	vm.operators.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+	vm.operators.define(1000, operatorSpecifierXFX, NewAtom(`++`))
+	vm.operators.define(1100, operatorSpecifierXFX, NewAtom(`+`))
 
 	t.Run("single solution", func(t *testing.T) {
-		ok, err := state.CurrentOp(Integer(1100), atomXFX, atomPlus, Success, nil).Force(context.Background())
+		ok, err := vm.CurrentOp(Integer(1100), atomXFX, atomPlus, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("multiple solutions", func(t *testing.T) {
 		priority, specifier, operator := NewNamedVariable("Priority"), NewNamedVariable("Specifier"), NewNamedVariable("Operator")
-		ok, err := state.CurrentOp(priority, specifier, operator, func(env *Env) *Promise {
+		ok, err := vm.CurrentOp(priority, specifier, operator, func(env *Env) *Promise {
 			switch env.Resolve(operator) {
 			case NewAtom("+++"):
 				assert.Equal(t, Integer(900), env.Resolve(priority))
@@ -1199,13 +1197,13 @@ func TestState_CurrentOp(t *testing.T) {
 
 	t.Run("priority is not an operator priority", func(t *testing.T) {
 		t.Run("priority is not an integer", func(t *testing.T) {
-			ok, err := state.CurrentOp(NewAtom("foo"), atomXFX, atomPlus, Success, nil).Force(context.Background())
+			ok, err := vm.CurrentOp(NewAtom("foo"), atomXFX, atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorPriority, NewAtom("foo"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("priority is negative", func(t *testing.T) {
-			ok, err := state.CurrentOp(Integer(-1), atomXFX, atomPlus, Success, nil).Force(context.Background())
+			ok, err := vm.CurrentOp(Integer(-1), atomXFX, atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorPriority, Integer(-1), nil), err)
 			assert.False(t, ok)
 		})
@@ -1213,26 +1211,26 @@ func TestState_CurrentOp(t *testing.T) {
 
 	t.Run("specifier is not an operator specifier", func(t *testing.T) {
 		t.Run("specifier is not an atom", func(t *testing.T) {
-			ok, err := state.CurrentOp(Integer(1100), Integer(0), atomPlus, Success, nil).Force(context.Background())
+			ok, err := vm.CurrentOp(Integer(1100), Integer(0), atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorSpecifier, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("specifier is a non-specifier atom", func(t *testing.T) {
-			ok, err := state.CurrentOp(Integer(1100), NewAtom("foo"), atomPlus, Success, nil).Force(context.Background())
+			ok, err := vm.CurrentOp(Integer(1100), NewAtom("foo"), atomPlus, Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainOperatorSpecifier, NewAtom("foo"), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("operator is not an atom", func(t *testing.T) {
-		ok, err := state.CurrentOp(Integer(1100), atomXFX, Integer(0), Success, nil).Force(context.Background())
+		ok, err := vm.CurrentOp(Integer(1100), atomXFX, Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_BagOf(t *testing.T) {
+func TestVM_BagOf(t *testing.T) {
 	s := NewNamedVariable("S")
 	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 	l := NewNamedVariable("L")
@@ -1400,31 +1398,29 @@ func TestState_BagOf(t *testing.T) {
 		},
 	}
 
-	state := State{
-		VM: VM{
-			unknown: unknownWarning,
-		},
+	vm := VM{
+		unknown: unknownWarning,
 	}
-	state.Register2("=", Unify)
-	state.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
-		return state.Call(g1, func(env *Env) *Promise {
-			return state.Call(g2, k, env)
+	vm.Register2("=", Unify)
+	vm.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return vm.Call(g1, func(env *Env) *Promise {
+			return vm.Call(g2, k, env)
 		}, env)
 	})
-	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
-			return state.Call(g1, k, env)
+			return vm.Call(g1, k, env)
 		}, func(context.Context) *Promise {
-			return state.Call(g2, k, env)
+			return vm.Call(g2, k, env)
 		})
 	})
-	state.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+	vm.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
-	state.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1432,7 +1428,7 @@ func TestState_BagOf(t *testing.T) {
 			return Unify(a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	state.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1451,10 +1447,10 @@ func TestState_BagOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+			vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
 				assert.True(t, tt.warning)
 			}
-			_, err := state.BagOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+			_, err := vm.BagOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
 					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
@@ -1468,7 +1464,7 @@ func TestState_BagOf(t *testing.T) {
 	}
 }
 
-func TestState_SetOf(t *testing.T) {
+func TestVM_SetOf(t *testing.T) {
 	s := NewNamedVariable("S")
 	x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 	l := NewNamedVariable("L")
@@ -1764,31 +1760,29 @@ func TestState_SetOf(t *testing.T) {
 		},
 	}
 
-	state := State{
-		VM: VM{
-			unknown: unknownWarning,
-		},
+	vm := VM{
+		unknown: unknownWarning,
 	}
-	state.Register2("=", Unify)
-	state.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
-		return state.Call(g1, func(env *Env) *Promise {
-			return state.Call(g2, k, env)
+	vm.Register2("=", Unify)
+	vm.Register2(",", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+		return vm.Call(g1, func(env *Env) *Promise {
+			return vm.Call(g2, k, env)
 		}, env)
 	})
-	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
-			return state.Call(g1, k, env)
+			return vm.Call(g1, k, env)
 		}, func(context.Context) *Promise {
-			return state.Call(g2, k, env)
+			return vm.Call(g2, k, env)
 		})
 	})
-	state.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+	vm.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
-	state.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("a", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1796,7 +1790,7 @@ func TestState_SetOf(t *testing.T) {
 			return Unify(a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	state.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("b", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1812,7 +1806,7 @@ func TestState_SetOf(t *testing.T) {
 			return Unify(b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	state.Register2("d", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("d", func(x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		d := NewAtom("$d")
 		return Delay(func(context.Context) *Promise {
 			return Unify(d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
@@ -1828,7 +1822,7 @@ func TestState_SetOf(t *testing.T) {
 			return Unify(d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	state.Register2("member", func(elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2("member", func(elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		var ks []func(context.Context) *Promise
 		iter := ListIterator{List: list, Env: env, AllowPartial: true}
 		for iter.Next() {
@@ -1842,15 +1836,15 @@ func TestState_SetOf(t *testing.T) {
 		}
 		return Delay(ks...)
 	})
-	state.Register3("setof", state.SetOf)
-	state.Register3("bagof", state.BagOf)
+	vm.Register3("setof", vm.SetOf)
+	vm.Register3("bagof", vm.BagOf)
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			state.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+			vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
 				assert.True(t, tt.warning)
 			}
-			_, err := state.SetOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+			_, err := vm.SetOf(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
 					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
@@ -1864,7 +1858,7 @@ func TestState_SetOf(t *testing.T) {
 	}
 }
 
-func TestState_FindAll(t *testing.T) {
+func TestVM_FindAll(t *testing.T) {
 	s := NewNamedVariable("S")
 	l := NewNamedVariable("L")
 	tests := []struct {
@@ -1895,22 +1889,22 @@ func TestState_FindAll(t *testing.T) {
 		{title: "c", template: NewNamedVariable("X"), goal: atomSemiColon.Apply(atomEqual.Apply(NewNamedVariable("X"), Integer(1)), atomEqual.Apply(NewNamedVariable("X"), Integer(2))), instances: NewAtom("foo"), err: TypeError(ValidTypeList, NewAtom("foo"), nil)},
 	}
 
-	var state State
-	state.Register2("=", Unify)
-	state.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	var vm VM
+	vm.Register2("=", Unify)
+	vm.Register2(";", func(g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
-			return state.Call(g1, k, env)
+			return vm.Call(g1, k, env)
 		}, func(context.Context) *Promise {
-			return state.Call(g2, k, env)
+			return vm.Call(g2, k, env)
 		})
 	})
-	state.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
+	vm.Register0("fail", func(func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			ok, err := state.FindAll(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
+			ok, err := vm.FindAll(tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env {
 					_, ok := env.Unify(v, k, false)
 					assert.True(t, ok)
@@ -2224,20 +2218,20 @@ func TestThrow(t *testing.T) {
 	})
 }
 
-func TestState_Catch(t *testing.T) {
-	var state State
-	state.Register2("=", Unify)
-	state.Register1("throw", Throw)
-	state.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
+func TestVM_Catch(t *testing.T) {
+	var vm VM
+	vm.Register2("=", Unify)
+	vm.Register1("throw", Throw)
+	vm.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	state.Register0("fail", func(_ func(*Env) *Promise, _ *Env) *Promise {
+	vm.Register0("fail", func(_ func(*Env) *Promise, _ *Env) *Promise {
 		return Bool(false)
 	})
 
 	t.Run("match", func(t *testing.T) {
 		v := NewVariable()
-		ok, err := state.Catch(&compound{
+		ok, err := vm.Catch(&compound{
 			functor: NewAtom("throw"),
 			args:    []Term{NewAtom("a")},
 		}, v, &compound{
@@ -2249,7 +2243,7 @@ func TestState_Catch(t *testing.T) {
 	})
 
 	t.Run("not match", func(t *testing.T) {
-		ok, err := state.Catch(&compound{
+		ok, err := vm.Catch(&compound{
 			functor: NewAtom("throw"),
 			args:    []Term{NewAtom("a")},
 		}, NewAtom("b"), atomFail, Success, nil).Force(context.Background())
@@ -2260,19 +2254,19 @@ func TestState_Catch(t *testing.T) {
 	})
 
 	t.Run("true", func(t *testing.T) {
-		ok, err := state.Catch(atomTrue, NewAtom("b"), atomFail, Success, nil).Force(context.Background())
+		ok, err := vm.Catch(atomTrue, NewAtom("b"), atomFail, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("false", func(t *testing.T) {
-		ok, err := state.Catch(atomFail, NewAtom("b"), atomFail, Success, nil).Force(context.Background())
+		ok, err := vm.Catch(atomFail, NewAtom("b"), atomFail, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("non-exception error", func(t *testing.T) {
-		ok, err := state.Catch(atomTrue, NewVariable(), atomTrue, func(env *Env) *Promise {
+		ok, err := vm.Catch(atomTrue, NewVariable(), atomTrue, func(env *Env) *Promise {
 			return Error(errors.New("failed"))
 		}, nil).Force(context.Background())
 		assert.Error(t, err)
@@ -2280,12 +2274,12 @@ func TestState_Catch(t *testing.T) {
 	})
 }
 
-func TestState_CurrentPredicate(t *testing.T) {
+func TestVM_CurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: NewAtom("foo"), Arity: 1}: &userDefined{},
-		}}}
-		ok, err := state.CurrentPredicate(&compound{
+		}}
+		ok, err := vm.CurrentPredicate(&compound{
 			functor: atomSlash,
 			args: []Term{
 				NewAtom("foo"),
@@ -2301,12 +2295,12 @@ func TestState_CurrentPredicate(t *testing.T) {
 
 		v := NewNamedVariable("V")
 
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: NewAtom("foo"), Arity: 1}: &userDefined{},
 			{Name: NewAtom("bar"), Arity: 1}: &userDefined{},
 			{Name: NewAtom("baz"), Arity: 1}: &userDefined{},
-		}}}
-		ok, err := state.CurrentPredicate(v, func(env *Env) *Promise {
+		}}
+		ok, err := vm.CurrentPredicate(v, func(env *Env) *Promise {
 			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
 			assert.Equal(t, atomSlash, c.functor)
@@ -2333,10 +2327,10 @@ func TestState_CurrentPredicate(t *testing.T) {
 	})
 
 	t.Run("builtin predicate", func(t *testing.T) {
-		state := State{VM: VM{procedures: map[ProcedureIndicator]procedure{
+		vm := VM{procedures: map[ProcedureIndicator]procedure{
 			{Name: atomEqual, Arity: 2}: predicate2(Unify),
-		}}}
-		ok, err := state.CurrentPredicate(&compound{
+		}}
+		ok, err := vm.CurrentPredicate(&compound{
 			functor: atomSlash,
 			args: []Term{
 				atomEqual,
@@ -2349,16 +2343,16 @@ func TestState_CurrentPredicate(t *testing.T) {
 
 	t.Run("pi is neither a variable nor a predicate indicator", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentPredicate(NewAtom("foo"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentPredicate(NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypePredicateIndicator, NewAtom("foo"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("compound", func(t *testing.T) {
 			t.Run("non slash", func(t *testing.T) {
-				var state State
-				ok, err := state.CurrentPredicate(&compound{
+				var vm VM
+				ok, err := vm.CurrentPredicate(&compound{
 					functor: NewAtom("f"),
 					args:    []Term{NewAtom("a")},
 				}, Success, nil).Force(context.Background())
@@ -2370,8 +2364,8 @@ func TestState_CurrentPredicate(t *testing.T) {
 			})
 
 			t.Run("slash but number", func(t *testing.T) {
-				var state State
-				ok, err := state.CurrentPredicate(&compound{
+				var vm VM
+				ok, err := vm.CurrentPredicate(&compound{
 					functor: atomSlash,
 					args:    []Term{Integer(0), Integer(0)},
 				}, Success, nil).Force(context.Background())
@@ -2383,8 +2377,8 @@ func TestState_CurrentPredicate(t *testing.T) {
 			})
 
 			t.Run("slash but path", func(t *testing.T) {
-				var state State
-				ok, err := state.CurrentPredicate(&compound{
+				var vm VM
+				ok, err := vm.CurrentPredicate(&compound{
 					functor: atomSlash,
 					args:    []Term{NewAtom("foo"), NewAtom("bar")},
 				}, Success, nil).Force(context.Background())
@@ -2398,18 +2392,18 @@ func TestState_CurrentPredicate(t *testing.T) {
 	})
 }
 
-func TestState_Assertz(t *testing.T) {
+func TestVM_Assertz(t *testing.T) {
 	t.Run("append", func(t *testing.T) {
-		var state State
+		var vm VM
 
-		ok, err := state.Assertz(&compound{
+		ok, err := vm.Assertz(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewAtom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Assertz(&compound{
+		ok, err = vm.Assertz(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewAtom("b")},
 		}, Success, nil).Force(context.Background())
@@ -2447,7 +2441,7 @@ func TestState_Assertz(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, state.procedures[ProcedureIndicator{
+		}}, vm.procedures[ProcedureIndicator{
 			Name:  NewAtom("foo"),
 			Arity: 1,
 		}])
@@ -2456,15 +2450,15 @@ func TestState_Assertz(t *testing.T) {
 	t.Run("clause is a variable", func(t *testing.T) {
 		clause := NewNamedVariable("Term")
 
-		var state State
-		ok, err := state.Assertz(clause, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Assertz(clause, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Assertz(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Assertz(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -2472,8 +2466,8 @@ func TestState_Assertz(t *testing.T) {
 	t.Run("head is a variable", func(t *testing.T) {
 		head := NewNamedVariable("Head")
 
-		var state State
-		ok, err := state.Assertz(&compound{
+		var vm VM
+		ok, err := vm.Assertz(&compound{
 			functor: atomIf,
 			args:    []Term{head, atomTrue},
 		}, Success, nil).Force(context.Background())
@@ -2482,8 +2476,8 @@ func TestState_Assertz(t *testing.T) {
 	})
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Assertz(&compound{
+		var vm VM
+		ok, err := vm.Assertz(&compound{
 			functor: atomIf,
 			args:    []Term{Integer(0), atomTrue},
 		}, Success, nil).Force(context.Background())
@@ -2492,8 +2486,8 @@ func TestState_Assertz(t *testing.T) {
 	})
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Assertz(&compound{
+		var vm VM
+		ok, err := vm.Assertz(&compound{
 			functor: atomIf,
 			args: []Term{
 				NewAtom("foo"),
@@ -2517,15 +2511,13 @@ func TestState_Assertz(t *testing.T) {
 	})
 
 	t.Run("static", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
-		ok, err := state.Assertz(NewAtom("foo"), Success, nil).Force(context.Background())
+		ok, err := vm.Assertz(NewAtom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
 			functor: atomSlash,
 			args: []Term{
@@ -2537,17 +2529,17 @@ func TestState_Assertz(t *testing.T) {
 	})
 }
 
-func TestState_Asserta(t *testing.T) {
+func TestVM_Asserta(t *testing.T) {
 	t.Run("fact", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewAtom("a")},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Asserta(&compound{
+		ok, err = vm.Asserta(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewAtom("b")},
 		}, Success, nil).Force(context.Background())
@@ -2579,12 +2571,12 @@ func TestState_Asserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args: []Term{
 				NewAtom("foo"),
@@ -2597,7 +2589,7 @@ func TestState_Asserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.Asserta(&compound{
+		ok, err = vm.Asserta(&compound{
 			functor: atomIf,
 			args: []Term{
 				NewAtom("foo"),
@@ -2670,21 +2662,21 @@ func TestState_Asserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}])
+		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}])
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
 		clause := NewNamedVariable("Term")
 
-		var state State
-		ok, err := state.Asserta(clause, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Asserta(clause, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("clause is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Asserta(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -2692,8 +2684,8 @@ func TestState_Asserta(t *testing.T) {
 	t.Run("head is a variable", func(t *testing.T) {
 		head := NewNamedVariable("Head")
 
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args:    []Term{head, atomTrue},
 		}, Success, nil).Force(context.Background())
@@ -2702,8 +2694,8 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args:    []Term{Integer(0), atomTrue},
 		}, Success, nil).Force(context.Background())
@@ -2712,8 +2704,8 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("body is not callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args:    []Term{NewAtom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
@@ -2722,8 +2714,8 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args: []Term{
 				NewAtom("foo"),
@@ -2745,15 +2737,13 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("static", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
-		ok, err := state.Asserta(NewAtom("foo"), Success, nil).Force(context.Background())
+		ok, err := vm.Asserta(NewAtom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
 			functor: atomSlash,
 			args: []Term{
@@ -2765,8 +2755,8 @@ func TestState_Asserta(t *testing.T) {
 	})
 
 	t.Run("cut", func(t *testing.T) {
-		var state State
-		ok, err := state.Asserta(&compound{
+		var vm VM
+		ok, err := vm.Asserta(&compound{
 			functor: atomIf,
 			args: []Term{
 				NewAtom("foo"),
@@ -2778,21 +2768,19 @@ func TestState_Asserta(t *testing.T) {
 	})
 }
 
-func TestState_Retract(t *testing.T) {
+func TestVM_Retract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+				}},
 			},
 		}
 
-		ok, err := state.Retract(&compound{
+		ok, err := vm.Retract(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewNamedVariable("X")},
 		}, Success, nil).Force(context.Background())
@@ -2802,23 +2790,21 @@ func TestState_Retract(t *testing.T) {
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+				}},
 			},
 		}
 
-		ok, err := state.Retract(&compound{
+		ok, err := vm.Retract(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewAtom("b")},
 		}, Success, nil).Force(context.Background())
@@ -2828,49 +2814,47 @@ func TestState_Retract(t *testing.T) {
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
 	})
 
 	t.Run("retract all", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+				}},
 			},
 		}
 
-		ok, err := state.Retract(&compound{
+		ok, err := vm.Retract(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewNamedVariable("X")},
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Empty(t, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
 	})
 
 	t.Run("variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Retract(NewNamedVariable("X"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Retract(NewNamedVariable("X"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("not callable", func(t *testing.T) {
-		var state State
-		ok, err := state.Retract(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Retract(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("no clause matches", func(t *testing.T) {
-		var state State
+		var vm VM
 
-		ok, err := state.Retract(&compound{
+		ok, err := vm.Retract(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewNamedVariable("X")},
 		}, Success, nil).Force(context.Background())
@@ -2879,15 +2863,13 @@ func TestState_Retract(t *testing.T) {
 	})
 
 	t.Run("static", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
-		ok, err := state.Retract(NewAtom("foo"), Success, nil).Force(context.Background())
+		ok, err := vm.Retract(NewAtom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeStaticProcedure, &compound{
 			functor: atomSlash,
 			args:    []Term{NewAtom("foo"), Integer(0)},
@@ -2896,17 +2878,15 @@ func TestState_Retract(t *testing.T) {
 	})
 
 	t.Run("exception in continuation", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-					}},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+				}},
 			},
 		}
 
-		ok, err := state.Retract(&compound{
+		ok, err := vm.Retract(&compound{
 			functor: NewAtom("foo"),
 			args:    []Term{NewNamedVariable("X")},
 		}, func(_ *Env) *Promise {
@@ -2916,46 +2896,44 @@ func TestState_Retract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
 	})
 }
 
-func TestState_Abolish(t *testing.T) {
+func TestVM_Abolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+				}},
 			},
 		}
 
-		ok, err := state.Abolish(&compound{
+		ok, err := vm.Abolish(&compound{
 			functor: atomSlash,
 			args:    []Term{NewAtom("foo"), Integer(1)},
 		}, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = state.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}]
+		_, ok = vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}]
 		assert.False(t, ok)
 	})
 
 	t.Run("pi is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Abolish(NewNamedVariable("PI"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Abolish(NewNamedVariable("PI"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("pi is a term Name/Arity and either Name or Arity is a variable", func(t *testing.T) {
 		t.Run("Name is a variable", func(t *testing.T) {
-			var state State
-			ok, err := state.Abolish(&compound{
+			var vm VM
+			ok, err := vm.Abolish(&compound{
 				functor: atomSlash,
 				args:    []Term{NewNamedVariable("Name"), Integer(2)},
 			}, Success, nil).Force(context.Background())
@@ -2964,8 +2942,8 @@ func TestState_Abolish(t *testing.T) {
 		})
 
 		t.Run("Arity is a variable", func(t *testing.T) {
-			var state State
-			ok, err := state.Abolish(&compound{
+			var vm VM
+			ok, err := vm.Abolish(&compound{
 				functor: atomSlash,
 				args:    []Term{NewAtom("foo"), NewNamedVariable("Arity")},
 			}, Success, nil).Force(context.Background())
@@ -2976,23 +2954,23 @@ func TestState_Abolish(t *testing.T) {
 
 	t.Run("pi is neither a variable nor a predicate indicator", func(t *testing.T) {
 		t.Run("compound", func(t *testing.T) {
-			var state State
-			ok, err := state.Abolish(atomPlus.Apply(NewAtom("foo"), Integer(1)), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Abolish(atomPlus.Apply(NewAtom("foo"), Integer(1)), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypePredicateIndicator, atomPlus.Apply(NewAtom("foo"), Integer(1)), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("not a comnpound", func(t *testing.T) {
-			var state State
-			ok, err := state.Abolish(Integer(0), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Abolish(Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypePredicateIndicator, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("pi is a term Name/Arity and Name is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.Abolish(&compound{
+		var vm VM
+		ok, err := vm.Abolish(&compound{
 			functor: atomSlash,
 			args:    []Term{Integer(0), Integer(2)},
 		}, Success, nil).Force(context.Background())
@@ -3001,8 +2979,8 @@ func TestState_Abolish(t *testing.T) {
 	})
 
 	t.Run("pi is a term Name/Arity and Arity is neither a variable nor an integer", func(t *testing.T) {
-		var state State
-		ok, err := state.Abolish(&compound{
+		var vm VM
+		ok, err := vm.Abolish(&compound{
 			functor: atomSlash,
 			args:    []Term{NewAtom("foo"), NewAtom("bar")},
 		}, Success, nil).Force(context.Background())
@@ -3011,8 +2989,8 @@ func TestState_Abolish(t *testing.T) {
 	})
 
 	t.Run("pi is a term Name/Arity and Arity is an integer less than zero", func(t *testing.T) {
-		var state State
-		ok, err := state.Abolish(&compound{
+		var vm VM
+		ok, err := vm.Abolish(&compound{
 			functor: atomSlash,
 			args:    []Term{NewAtom("foo"), Integer(-2)},
 		}, Success, nil).Force(context.Background())
@@ -3021,14 +2999,12 @@ func TestState_Abolish(t *testing.T) {
 	})
 
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
 			},
 		}
-		ok, err := state.Abolish(&compound{
+		ok, err := vm.Abolish(&compound{
 			functor: atomSlash,
 			args:    []Term{NewAtom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
@@ -3040,57 +3016,57 @@ func TestState_Abolish(t *testing.T) {
 	})
 }
 
-func TestState_CurrentInput(t *testing.T) {
+func TestVM_CurrentInput(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var s Stream
-		state := State{
+		vm := VM{
 			input: &s,
 		}
 
-		ok, err := state.CurrentInput(&s, Success, nil).Force(context.Background())
+		ok, err := vm.CurrentInput(&s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
-		var state State
-		ok, err := state.CurrentInput(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CurrentInput(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStream, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_CurrentOutput(t *testing.T) {
+func TestVM_CurrentOutput(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var s Stream
-		state := State{
+		vm := VM{
 			output: &s,
 		}
 
-		ok, err := state.CurrentOutput(&s, Success, nil).Force(context.Background())
+		ok, err := vm.CurrentOutput(&s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("stream is neither a variable nor a stream", func(t *testing.T) {
-		var state State
-		ok, err := state.CurrentOutput(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CurrentOutput(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStream, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_SetInput(t *testing.T) {
+func TestVM_SetInput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		v := NewNamedVariable("Stream")
 		s := &Stream{sourceSink: os.Stdin}
 		env := NewEnv().
 			Bind(v, s)
-		var state State
-		ok, err := state.SetInput(v, Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetInput(v, Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, state.input)
+		assert.Equal(t, s, vm.input)
 	})
 
 	t.Run("alias", func(t *testing.T) {
@@ -3098,76 +3074,76 @@ func TestState_SetInput(t *testing.T) {
 		s := &Stream{sourceSink: os.Stdin, alias: NewAtom("x")}
 		env := NewEnv().
 			Bind(v, s)
-		var state State
-		state.streams.add(s)
-		ok, err := state.SetInput(v, Success, env).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.SetInput(v, Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, state.input)
+		assert.Equal(t, s, vm.input)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetInput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetInput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.SetInput(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetInput(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.SetInput(NewAtom("x"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetInput(NewAtom("x"), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("x"), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_SetOutput(t *testing.T) {
+func TestVM_SetOutput(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		v := NewNamedVariable("Stream")
 		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
 		env := NewEnv().
 			Bind(v, s)
-		var state State
-		ok, err := state.SetOutput(v, Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetOutput(v, Success, env).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, state.output)
+		assert.Equal(t, s, vm.output)
 	})
 
 	t.Run("alias", func(t *testing.T) {
 		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend, alias: NewAtom("x")}
-		var state State
-		state.streams.add(s)
-		ok, err := state.SetOutput(NewAtom("x"), Success, nil).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.SetOutput(NewAtom("x"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, s, state.output)
+		assert.Equal(t, s, vm.output)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable, nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.SetOutput(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetOutput(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.SetOutput(NewAtom("x"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetOutput(NewAtom("x"), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("x"), nil), err)
 		assert.False(t, ok)
 	})
@@ -3177,15 +3153,15 @@ func TestState_SetOutput(t *testing.T) {
 		env := NewEnv().
 			Bind(s, &Stream{sourceSink: os.Stdin})
 
-		var state State
-		ok, err := state.SetOutput(s, Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetOutput(s, Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, env), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_Open(t *testing.T) {
-	var state State
+func TestVM_Open(t *testing.T) {
+	var vm VM
 
 	t.Run("read", func(t *testing.T) {
 		f, err := os.CreateTemp("", "open_test_read")
@@ -3201,7 +3177,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("alias", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(
 				atomAlias.Apply(atomInput),
 			), func(env *Env) *Promise {
 				ref, ok := env.Lookup(v)
@@ -3209,7 +3185,7 @@ func TestState_Open(t *testing.T) {
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
 
-				l, ok := state.streams.lookup(atomInput)
+				l, ok := vm.streams.lookup(atomInput)
 				assert.True(t, ok)
 				assert.Equal(t, l, s)
 
@@ -3225,7 +3201,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("type text", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomType,
 				args:    []Term{atomText},
 			}), func(env *Env) *Promise {
@@ -3242,7 +3218,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("type binary", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomType,
 				args:    []Term{atomBinary},
 			}), func(env *Env) *Promise {
@@ -3259,7 +3235,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("reposition true", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomReposition,
 				args:    []Term{atomTrue},
 			}), func(env *Env) *Promise {
@@ -3276,7 +3252,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("reposition true", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomReposition,
 				args:    []Term{atomFalse},
 			}), func(env *Env) *Promise {
@@ -3293,7 +3269,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action error", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomEOFAction,
 				args:    []Term{atomError},
 			}), func(env *Env) *Promise {
@@ -3310,7 +3286,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action eof_code", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomEOFAction,
 				args:    []Term{atomEOFCode},
 			}), func(env *Env) *Promise {
@@ -3327,7 +3303,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("eof_action reset", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomEOFAction,
 				args:    []Term{atomReset},
 			}), func(env *Env) *Promise {
@@ -3344,7 +3320,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("unknown option", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomUnknown,
 				args:    []Term{NewAtom("option")},
 			}), func(env *Env) *Promise {
@@ -3357,7 +3333,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("wrong arity", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomType,
 				args:    []Term{NewAtom("a"), NewAtom("b")},
 			}), func(env *Env) *Promise {
@@ -3370,7 +3346,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("variable arg", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomType,
 				args:    []Term{NewVariable()},
 			}), func(env *Env) *Promise {
@@ -3383,7 +3359,7 @@ func TestState_Open(t *testing.T) {
 
 		t.Run("non-atom arg", func(t *testing.T) {
 			v := NewNamedVariable("Stream")
-			ok, err := state.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
+			ok, err := vm.Open(NewAtom(f.Name()), atomRead, v, List(&compound{
 				functor: atomType,
 				args:    []Term{Integer(0)},
 			}), func(env *Env) *Promise {
@@ -3403,7 +3379,7 @@ func TestState_Open(t *testing.T) {
 
 		v := NewNamedVariable("Stream")
 
-		ok, err := state.Open(NewAtom(n), atomWrite, v, List(&compound{
+		ok, err := vm.Open(NewAtom(n), atomWrite, v, List(&compound{
 			functor: atomAlias,
 			args:    []Term{atomOutput},
 		}), func(env *Env) *Promise {
@@ -3412,7 +3388,7 @@ func TestState_Open(t *testing.T) {
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
 
-			l, ok := state.streams.lookup(atomOutput)
+			l, ok := vm.streams.lookup(atomOutput)
 			assert.True(t, ok)
 			assert.Equal(t, l, s)
 
@@ -3452,7 +3428,7 @@ func TestState_Open(t *testing.T) {
 
 		v := NewNamedVariable("Stream")
 
-		ok, err := state.Open(NewAtom(f.Name()), atomAppend, v, List(&compound{
+		ok, err := vm.Open(NewAtom(f.Name()), atomAppend, v, List(&compound{
 			functor: atomAlias,
 			args:    []Term{atomAppend},
 		}), func(env *Env) *Promise {
@@ -3461,7 +3437,7 @@ func TestState_Open(t *testing.T) {
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
 
-			l, ok := state.streams.lookup(atomAppend)
+			l, ok := vm.streams.lookup(atomAppend)
 			assert.True(t, ok)
 			assert.Equal(t, l, s)
 
@@ -3488,23 +3464,23 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("sourceSink is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewNamedVariable("Source_Sink"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewNamedVariable("Source_Sink"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewAtom("/dev/null"), NewNamedVariable("Mode"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom("/dev/null"), NewNamedVariable("Mode"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
-			var state State
-			ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), ListRest(NewNamedVariable("Rest"),
+			var vm VM
+			ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), ListRest(NewNamedVariable("Rest"),
 				&compound{functor: atomType, args: []Term{atomText}},
 				&compound{functor: atomAlias, args: []Term{NewAtom("foo")}},
 			), Success, nil).Force(context.Background())
@@ -3513,8 +3489,8 @@ func TestState_Open(t *testing.T) {
 		})
 
 		t.Run("variable element", func(t *testing.T) {
-			var state State
-			ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(
+			var vm VM
+			ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(
 				NewNamedVariable("Option"),
 				&compound{functor: atomType, args: []Term{atomText}},
 				&compound{functor: atomAlias, args: []Term{NewAtom("foo")}},
@@ -3525,42 +3501,42 @@ func TestState_Open(t *testing.T) {
 	})
 
 	t.Run("mode is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewAtom("/dev/null"), Integer(0), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom("/dev/null"), Integer(0), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), NewAtom("list"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), NewAtom("list"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, NewAtom("list"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("stream is not a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewAtom("stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewAtom("stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("sourceSink is neither a variable nor a source/sink", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(Integer(0), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(Integer(0), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainSourceSink, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is an atom but not an input/output mode", func(t *testing.T) {
-		var state State
-		ok, err := state.Open(NewAtom("/dev/null"), NewAtom("foo"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom("/dev/null"), NewAtom("foo"), NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainIOMode, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the options list is neither a variable nor a stream-option", func(t *testing.T) {
-		var state State
+		var vm VM
 		for _, o := range []Term{
 			NewAtom("foo"),
 			&compound{functor: NewAtom("foo"), args: []Term{NewAtom("bar")}},
@@ -3569,7 +3545,7 @@ func TestState_Open(t *testing.T) {
 			&compound{functor: atomReposition, args: []Term{Integer(0)}},
 			&compound{functor: atomEOFAction, args: []Term{Integer(0)}},
 		} {
-			ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
+			ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainStreamOption, o, nil), err)
 			assert.False(t, ok)
 		}
@@ -3577,7 +3553,7 @@ func TestState_Open(t *testing.T) {
 
 	// Derived from 5.5.12 Options in Cor.3
 	t.Run("a component of an element E of the options list is a variable", func(t *testing.T) {
-		var state State
+		var vm VM
 		for _, o := range []Term{
 			NewNamedVariable("X"),
 			&compound{functor: atomAlias, args: []Term{NewNamedVariable("X")}},
@@ -3585,7 +3561,7 @@ func TestState_Open(t *testing.T) {
 			&compound{functor: atomReposition, args: []Term{NewNamedVariable("X")}},
 			&compound{functor: atomEOFAction, args: []Term{NewNamedVariable("X")}},
 		} {
-			ok, err := state.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
+			ok, err := vm.Open(NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), List(o), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		}
@@ -3596,8 +3572,8 @@ func TestState_Open(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NoError(t, os.Remove(f.Name()))
 
-		var state State
-		ok, err := state.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeSourceSink, NewAtom(f.Name()), nil), err)
 		assert.False(t, ok)
 	})
@@ -3611,8 +3587,8 @@ func TestState_Open(t *testing.T) {
 
 		assert.NoError(t, f.Chmod(0200))
 
-		var state State
-		ok, err := state.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOpen, PermissionTypeSourceSink, NewAtom(f.Name()), nil), err)
 		assert.False(t, ok)
 	})
@@ -3624,9 +3600,9 @@ func TestState_Open(t *testing.T) {
 			assert.NoError(t, os.Remove(f.Name()))
 		}()
 
-		var state State
-		state.streams.add(&Stream{alias: NewAtom("foo")})
-		ok, err := state.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(&compound{
+		var vm VM
+		vm.streams.add(&Stream{alias: NewAtom("foo")})
+		ok, err := vm.Open(NewAtom(f.Name()), atomRead, NewNamedVariable("Stream"), List(&compound{
 			functor: atomAlias,
 			args:    []Term{NewAtom("foo")},
 		}), Success, nil).Force(context.Background())
@@ -3645,13 +3621,13 @@ func TestState_Open(t *testing.T) {
 			openFile = os.OpenFile
 		}()
 
-		var state State
-		_, err := state.Open(NewAtom("foo"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.Open(NewAtom("foo"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 	})
 }
 
-func TestState_Close(t *testing.T) {
+func TestVM_Close(t *testing.T) {
 	t.Run("without options", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
 			t.Run("stream", func(t *testing.T) {
@@ -3659,8 +3635,8 @@ func TestState_Close(t *testing.T) {
 				m.On("Close").Return(nil).Once()
 				defer m.AssertExpectations(t)
 
-				var state State
-				ok, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+				var vm VM
+				ok, err := vm.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
 				assert.NoError(t, err)
 				assert.True(t, ok)
 			})
@@ -3672,9 +3648,9 @@ func TestState_Close(t *testing.T) {
 
 				foo := NewAtom("foo")
 
-				var state State
-				state.streams.add(&Stream{sourceSink: &m, alias: foo})
-				ok, err := state.Close(foo, List(), Success, nil).Force(context.Background())
+				var vm VM
+				vm.streams.add(&Stream{sourceSink: &m, alias: foo})
+				ok, err := vm.Close(foo, List(), Success, nil).Force(context.Background())
 				assert.NoError(t, err)
 				assert.True(t, ok)
 			})
@@ -3685,8 +3661,8 @@ func TestState_Close(t *testing.T) {
 			m.On("Close").Return(errors.New("failed")).Once()
 			defer m.AssertExpectations(t)
 
-			var state State
-			_, err := state.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
+			var vm VM
+			_, err := vm.Close(&Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
 			assert.Equal(t, SystemError(errors.New("failed")), err)
 		})
 	})
@@ -3696,8 +3672,8 @@ func TestState_Close(t *testing.T) {
 		m.On("Close").Return(errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		var state State
-		_, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomFalse)), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomFalse)), Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 	})
 
@@ -3706,8 +3682,8 @@ func TestState_Close(t *testing.T) {
 		m.On("Close").Return(errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
-		var state State
-		ok, err := state.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomTrue)), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Close(&Stream{sourceSink: &m}, List(atomForce.Apply(atomTrue)), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3720,24 +3696,24 @@ func TestState_Close(t *testing.T) {
 		foo := NewAtom("foo")
 		s := &Stream{sourceSink: &m, alias: foo}
 
-		var state State
-		state.streams.add(s)
-		ok, err := state.Close(NewAtom("foo"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.Close(NewAtom("foo"), List(), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("streamOrAlias ia a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Close(NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
-			var state State
-			ok, err := state.Close(&Stream{}, ListRest(NewNamedVariable("Rest"),
+			var vm VM
+			ok, err := vm.Close(&Stream{}, ListRest(NewNamedVariable("Rest"),
 				&compound{functor: atomForce, args: []Term{atomTrue}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -3745,53 +3721,53 @@ func TestState_Close(t *testing.T) {
 		})
 
 		t.Run("variable element", func(t *testing.T) {
-			var state State
-			ok, err := state.Close(&Stream{}, List(NewNamedVariable("Option"), &compound{functor: atomForce, args: []Term{atomTrue}}), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Close(&Stream{}, List(NewNamedVariable("Option"), &compound{functor: atomForce, args: []Term{atomTrue}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(&Stream{}, NewAtom("foo"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Close(&Stream{}, NewAtom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(Integer(0), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Close(Integer(0), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a stream-option", func(t *testing.T) {
 		t.Run("not a compound", func(t *testing.T) {
-			var state State
-			ok, err := state.Close(&Stream{}, List(NewAtom("foo")), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.Close(&Stream{}, List(NewAtom("foo")), Success, nil).Force(context.Background())
 			assert.Equal(t, DomainError(ValidDomainStreamOption, NewAtom("foo"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("compound", func(t *testing.T) {
 			t.Run("force but arity is not 1", func(t *testing.T) {
-				var state State
-				ok, err := state.Close(&Stream{}, List(atomForce.Apply(NewAtom("a"), NewAtom("b"))), Success, nil).Force(context.Background())
+				var vm VM
+				ok, err := vm.Close(&Stream{}, List(atomForce.Apply(NewAtom("a"), NewAtom("b"))), Success, nil).Force(context.Background())
 				assert.Equal(t, DomainError(ValidDomainStreamOption, atomForce.Apply(NewAtom("a"), NewAtom("b")), nil), err)
 				assert.False(t, ok)
 			})
 
 			t.Run("force but the argument is a variable", func(t *testing.T) {
-				var state State
-				_, err := state.Close(&Stream{}, List(atomForce.Apply(NewNamedVariable("X"))), Success, nil).Force(context.Background())
+				var vm VM
+				_, err := vm.Close(&Stream{}, List(atomForce.Apply(NewNamedVariable("X"))), Success, nil).Force(context.Background())
 				_, ok := NewEnv().Unify(DomainError(ValidDomainStreamOption, atomForce.Apply(NewVariable()), nil).term, err.(Exception).term, false)
 				assert.True(t, ok)
 			})
 
 			t.Run("force but the argument is neither true nor false", func(t *testing.T) {
-				var state State
-				ok, err := state.Close(&Stream{}, List(atomForce.Apply(NewAtom("meh"))), Success, nil).Force(context.Background())
+				var vm VM
+				ok, err := vm.Close(&Stream{}, List(atomForce.Apply(NewAtom("meh"))), Success, nil).Force(context.Background())
 				assert.Equal(t, DomainError(ValidDomainStreamOption, atomForce.Apply(NewAtom("meh")), nil), err)
 				assert.False(t, ok)
 			})
@@ -3799,14 +3775,14 @@ func TestState_Close(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.Close(NewAtom("foo"), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Close(NewAtom("foo"), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_FlushOutput(t *testing.T) {
+func TestVM_FlushOutput(t *testing.T) {
 	f, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
 	defer func() {
@@ -3817,8 +3793,8 @@ func TestState_FlushOutput(t *testing.T) {
 	s := &Stream{sourceSink: f, mode: ioModeWrite, alias: foo}
 
 	t.Run("ok", func(t *testing.T) {
-		var state State
-		ok, err := state.FlushOutput(s, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.FlushOutput(s, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -3830,36 +3806,36 @@ func TestState_FlushOutput(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
-		var state State
-		_, err := state.FlushOutput(s, Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.FlushOutput(s, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("valid stream alias", func(t *testing.T) {
-		var state State
-		state.streams.add(s)
-		ok, err := state.FlushOutput(foo, Success, nil).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.FlushOutput(foo, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.FlushOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.FlushOutput(NewNamedVariable("Stream"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.FlushOutput(Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.FlushOutput(Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.FlushOutput(NewAtom("foo"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.FlushOutput(NewAtom("foo"), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -3867,14 +3843,14 @@ func TestState_FlushOutput(t *testing.T) {
 	t.Run("SorA is an input stream", func(t *testing.T) {
 		s := &Stream{sourceSink: os.Stdin}
 
-		var state State
-		ok, err := state.FlushOutput(s, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.FlushOutput(s, Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_WriteTerm(t *testing.T) {
+func TestVM_WriteTerm(t *testing.T) {
 	var buf bytes.Buffer
 	w := &Stream{sourceSink: &buf, mode: ioModeWrite}
 	r := &Stream{sourceSink: &buf, mode: ioModeRead}
@@ -3943,11 +3919,11 @@ func TestState_WriteTerm(t *testing.T) {
 		{title: `failure`, sOrA: mw, term: NewAtom("foo"), options: List(), err: err},
 	}
 
-	var state State
+	var vm VM
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			ok, err := state.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
+			ok, err := vm.WriteTerm(tt.sOrA, tt.term, tt.options, Success, tt.env).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			if tt.err == nil {
 				assert.NoError(t, err)
@@ -4051,7 +4027,7 @@ func TestCharCode(t *testing.T) {
 	})
 }
 
-func TestState_PutByte(t *testing.T) {
+func TestVM_PutByte(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var m mockWriter
 		m.On("Write", []byte{97}).Return(1, nil).Once()
@@ -4059,8 +4035,8 @@ func TestState_PutByte(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary}
 
-		var state State
-		ok, err := state.PutByte(s, Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(s, Integer(97), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4072,8 +4048,8 @@ func TestState_PutByte(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary}
 
-		var state State
-		_, err := state.PutByte(s, Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.PutByte(s, Integer(97), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -4085,16 +4061,16 @@ func TestState_PutByte(t *testing.T) {
 		foo := NewAtom("foo")
 		s := &Stream{sourceSink: &m, mode: ioModeWrite, streamType: streamTypeBinary, alias: foo}
 
-		var state State
-		state.streams.add(s)
-		ok, err := state.PutByte(NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.PutByte(NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.PutByte(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4103,8 +4079,8 @@ func TestState_PutByte(t *testing.T) {
 		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
 		s.streamType = streamTypeBinary
 
-		var state State
-		ok, err := state.PutByte(s, NewNamedVariable("Byte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(s, NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4114,23 +4090,23 @@ func TestState_PutByte(t *testing.T) {
 		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
-			var state State
-			ok, err := state.PutByte(s, NewAtom("byte"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PutByte(s, NewAtom("byte"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeByte, NewAtom("byte"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("integer", func(t *testing.T) {
-			var state State
-			ok, err := state.PutByte(s, Integer(256), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PutByte(s, Integer(256), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeByte, Integer(256), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.PutByte(Integer(0), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(Integer(0), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -4140,8 +4116,8 @@ func TestState_PutByte(t *testing.T) {
 		env := NewEnv().
 			Bind(s, &Stream{sourceSink: os.Stdin, mode: ioModeRead, streamType: streamTypeBinary})
 
-		var state State
-		ok, err := state.PutByte(s, Integer(97), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(s, Integer(97), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, env), err)
 		assert.False(t, ok)
 	})
@@ -4151,14 +4127,14 @@ func TestState_PutByte(t *testing.T) {
 		env := NewEnv().
 			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.PutByte(s, Integer(97), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutByte(s, Integer(97), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeTextStream, s, env), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_PutCode(t *testing.T) {
+func TestVM_PutCode(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var m mockWriter
 		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
@@ -4166,8 +4142,8 @@ func TestState_PutCode(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
-		var state State
-		ok, err := state.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -4179,8 +4155,8 @@ func TestState_PutCode(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeWrite}
 
-		var state State
-		_, err := state.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.PutCode(s, Integer('😀'), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -4192,44 +4168,44 @@ func TestState_PutCode(t *testing.T) {
 		foo := NewAtom("foo")
 		s := &Stream{sourceSink: &m, mode: ioModeWrite, alias: foo}
 
-		var state State
-		state.streams.add(s)
-		ok, err := state.PutCode(NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.PutCode(NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(NewNamedVariable("Stream"), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewNamedVariable("Code"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewNamedVariable("Code"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewAtom("code"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewAtom("code"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeInteger, NewAtom("code"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(Integer(0), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(Integer(0), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -4239,8 +4215,8 @@ func TestState_PutCode(t *testing.T) {
 		env := NewEnv().
 			Bind(s, &Stream{sourceSink: os.Stdin})
 
-		var state State
-		ok, err := state.PutCode(s, Integer(97), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(s, Integer(97), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeStream, s, env), err)
 		assert.False(t, ok)
 	})
@@ -4253,28 +4229,28 @@ func TestState_PutCode(t *testing.T) {
 		env := NewEnv().
 			Bind(s, stream)
 
-		var state State
-		ok, err := state.PutCode(s, Integer(97), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(s, Integer(97), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationOutput, PermissionTypeBinaryStream, s, env), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("code is an integer but not an character code", func(t *testing.T) {
-		var state State
-		ok, err := state.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, Integer(-1), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PutCode(&Stream{sourceSink: os.Stdout, mode: ioModeAppend}, Integer(-1), Success, nil).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacterCode, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("unknown stream alias", func(t *testing.T) {
-		var state State
-		_, err := state.PutCode(NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.PutCode(NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("not a stream", func(t *testing.T) {
-		var state State
-		_, err := state.PutCode(NewVariable(), Integer('😀'), Success, nil).Force(context.Background())
+		var vm VM
+		_, err := vm.PutCode(NewVariable(), Integer('😀'), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
@@ -4282,14 +4258,14 @@ func TestState_PutCode(t *testing.T) {
 		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
 
 		t.Run("not an integer", func(t *testing.T) {
-			var state State
-			_, err := state.PutCode(s, NewAtom("a"), Success, nil).Force(context.Background())
+			var vm VM
+			_, err := vm.PutCode(s, NewAtom("a"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 		})
 	})
 }
 
-func TestState_ReadTerm(t *testing.T) {
+func TestVM_ReadTerm(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		f, err := os.Open("testdata/foo.pl")
 		assert.NoError(t, err)
@@ -4301,8 +4277,8 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v := NewNamedVariable("Term")
 
-		var state State
-		ok, err := state.ReadTerm(s, v, List(), func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.ReadTerm(s, v, List(), func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("foo"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4322,9 +4298,9 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v := NewNamedVariable("Term")
 
-		var state State
-		state.streams.add(s)
-		ok, err := state.ReadTerm(NewAtom("foo"), v, List(), func(env *Env) *Promise {
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.ReadTerm(NewAtom("foo"), v, List(), func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("foo"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4343,8 +4319,8 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v, singletons := NewNamedVariable("Term"), NewNamedVariable("Singletons")
 
-		var state State
-		ok, err := state.ReadTerm(s, v, List(&compound{
+		var vm VM
+		ok, err := vm.ReadTerm(s, v, List(&compound{
 			functor: atomSingletons,
 			args:    []Term{singletons},
 		}), func(env *Env) *Promise {
@@ -4379,8 +4355,8 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v, variables := NewNamedVariable("Term"), NewNamedVariable("Variables")
 
-		var state State
-		ok, err := state.ReadTerm(s, v, List(&compound{
+		var vm VM
+		ok, err := vm.ReadTerm(s, v, List(&compound{
 			functor: atomVariables,
 			args:    []Term{variables},
 		}), func(env *Env) *Promise {
@@ -4415,8 +4391,8 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v, variableNames := NewNamedVariable("Term"), NewNamedVariable("VariableNames")
 
-		var state State
-		ok, err := state.ReadTerm(s, v, List(&compound{
+		var vm VM
+		ok, err := vm.ReadTerm(s, v, List(&compound{
 			functor: atomVariableNames,
 			args:    []Term{variableNames},
 		}), func(env *Env) *Promise {
@@ -4460,23 +4436,23 @@ func TestState_ReadTerm(t *testing.T) {
 
 		v := NewNamedVariable("Term")
 
-		var state State
+		var vm VM
 
-		ok, err := state.ReadTerm(s, v, List(), func(env *Env) *Promise {
+		ok, err := vm.ReadTerm(s, v, List(), func(env *Env) *Promise {
 			assert.Equal(t, &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.ReadTerm(s, v, List(), func(env *Env) *Promise {
+		ok, err = vm.ReadTerm(s, v, List(), func(env *Env) *Promise {
 			assert.Equal(t, &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.ReadTerm(s, v, List(), func(env *Env) *Promise {
+		ok, err = vm.ReadTerm(s, v, List(), func(env *Env) *Promise {
 			assert.Equal(t, &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4485,16 +4461,16 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.ReadTerm(NewNamedVariable("Stream"), NewVariable(), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(NewNamedVariable("Stream"), NewVariable(), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is a partial list or a list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
-			var state State
-			ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), ListRest(NewNamedVariable("Rest"),
+			var vm VM
+			ok, err := vm.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), ListRest(NewNamedVariable("Rest"),
 				&compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -4502,30 +4478,30 @@ func TestState_ReadTerm(t *testing.T) {
 		})
 
 		t.Run("variable element", func(t *testing.T) {
-			var state State
-			ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(NewNamedVariable("Option"), &compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}}), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(NewNamedVariable("Option"), &compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}}), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.ReadTerm(Integer(0), NewVariable(), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(Integer(0), NewVariable(), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("options is neither a partial list nor a list", func(t *testing.T) {
-		var state State
-		ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), NewAtom("options"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), NewAtom("options"), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeList, NewAtom("options"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
-		var state State
-		ok, err := state.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(&compound{
+		var vm VM
+		ok, err := vm.ReadTerm(&Stream{sourceSink: os.Stdin}, NewVariable(), List(&compound{
 			functor: atomUnknown,
 			args:    []Term{NewAtom("option")},
 		}), Success, nil).Force(context.Background())
@@ -4537,8 +4513,8 @@ func TestState_ReadTerm(t *testing.T) {
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.ReadTerm(NewAtom("foo"), NewVariable(), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(NewAtom("foo"), NewVariable(), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -4548,8 +4524,8 @@ func TestState_ReadTerm(t *testing.T) {
 		env := NewEnv().
 			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, s, env), err)
 		assert.False(t, ok)
 	})
@@ -4562,8 +4538,8 @@ func TestState_ReadTerm(t *testing.T) {
 		env := NewEnv().
 			Bind(s, stream)
 
-		var state State
-		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeBinaryStream, s, env), err)
 		assert.False(t, ok)
 	})
@@ -4581,8 +4557,8 @@ func TestState_ReadTerm(t *testing.T) {
 				endOfStream: endOfStreamPast,
 			})
 
-		var state State
-		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(s, NewVariable(), List(), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, s, env), err)
 		assert.False(t, ok)
 	})
@@ -4597,8 +4573,8 @@ func TestState_ReadTerm(t *testing.T) {
 
 			s := &Stream{sourceSink: f, mode: ioModeRead}
 
-			var state State
-			ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
 			assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "bar"}}, nil), err)
 			assert.False(t, ok)
 		})
@@ -4613,8 +4589,8 @@ func TestState_ReadTerm(t *testing.T) {
 			s := &Stream{sourceSink: f, mode: ioModeRead}
 
 			out := NewVariable()
-			var state State
-			ok, err := state.ReadTerm(s, out, List(), func(env *Env) *Promise {
+			var vm VM
+			ok, err := vm.ReadTerm(s, out, List(), func(env *Env) *Promise {
 				assert.Equal(t, atomEndOfFile, env.Resolve(out))
 				return Bool(true)
 			}, nil).Force(context.Background())
@@ -4633,14 +4609,14 @@ func TestState_ReadTerm(t *testing.T) {
 
 		s := &Stream{sourceSink: f, mode: ioModeRead}
 
-		var state State
-		ok, err := state.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.ReadTerm(s, NewVariable(), List(), Success, nil).Force(context.Background())
 		assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "="}}, nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_GetByte(t *testing.T) {
+func TestVM_GetByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		f, err := os.Open("testdata/a.txt")
 		assert.NoError(t, err)
@@ -4652,8 +4628,8 @@ func TestState_GetByte(t *testing.T) {
 
 		v := NewNamedVariable("Byte")
 
-		var state State
-		ok, err := state.GetByte(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.GetByte(s, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4673,9 +4649,9 @@ func TestState_GetByte(t *testing.T) {
 
 		v := NewNamedVariable("Byte")
 
-		var state State
-		state.streams.add(s)
-		ok, err := state.GetByte(foo, v, func(env *Env) *Promise {
+		var vm VM
+		vm.streams.add(s)
+		ok, err := vm.GetByte(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4694,8 +4670,8 @@ func TestState_GetByte(t *testing.T) {
 
 		v := NewNamedVariable("Byte")
 
-		var state State
-		ok, err := state.GetByte(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.GetByte(s, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(-1), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4710,16 +4686,16 @@ func TestState_GetByte(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeRead, streamType: streamTypeBinary}
 
-		var state State
+		var vm VM
 
 		v := NewNamedVariable("V")
-		_, err := state.GetByte(s, v, Success, nil).Force(context.Background())
+		_, err := vm.GetByte(s, v, Success, nil).Force(context.Background())
 		assert.Error(t, err)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.GetByte(NewNamedVariable("Stream"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(NewNamedVariable("Stream"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -4729,30 +4705,30 @@ func TestState_GetByte(t *testing.T) {
 		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
-			var state State
-			ok, err := state.GetByte(s, NewAtom("inByte"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.GetByte(s, NewAtom("inByte"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInByte, NewAtom("inByte"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("integer", func(t *testing.T) {
-			var state State
-			ok, err := state.GetByte(s, Integer(256), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.GetByte(s, Integer(256), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInByte, Integer(256), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream-term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.GetByte(Integer(0), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(Integer(0), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.GetByte(NewAtom("foo"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(NewAtom("foo"), NewNamedVariable("InByte"), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -4762,8 +4738,8 @@ func TestState_GetByte(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4773,8 +4749,8 @@ func TestState_GetByte(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
-		var state State
-		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4793,14 +4769,14 @@ func TestState_GetByte(t *testing.T) {
 				endOfStream: endOfStreamPast,
 			})
 
-		var state State
-		ok, err := state.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetByte(streamOrAlias, NewNamedVariable("InByte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_GetChar(t *testing.T) {
+func TestVM_GetChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
@@ -4812,8 +4788,8 @@ func TestState_GetChar(t *testing.T) {
 
 		v := NewNamedVariable("Char")
 
-		var state State
-		ok, err := state.GetChar(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.GetChar(s, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4831,9 +4807,9 @@ func TestState_GetChar(t *testing.T) {
 		v := NewNamedVariable("Char")
 
 		foo := NewAtom("foo")
-		var state State
-		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
-		ok, err := state.GetChar(foo, v, func(env *Env) *Promise {
+		var vm VM
+		vm.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
+		ok, err := vm.GetChar(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4852,8 +4828,8 @@ func TestState_GetChar(t *testing.T) {
 
 		v := NewNamedVariable("Char")
 
-		var state State
-		ok, err := state.GetChar(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.GetChar(s, v, func(env *Env) *Promise {
 			assert.Equal(t, atomEndOfFile, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -4868,38 +4844,38 @@ func TestState_GetChar(t *testing.T) {
 
 		v := NewNamedVariable("V")
 
-		var state State
-		ok, err := state.GetChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.GetChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.GetChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.GetChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			var state State
-			ok, err := state.GetChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.GetChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, NewAtom("ab"), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.GetChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -4909,8 +4885,8 @@ func TestState_GetChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4923,8 +4899,8 @@ func TestState_GetChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
-		var state State
-		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4942,8 +4918,8 @@ func TestState_GetChar(t *testing.T) {
 				endOfStream: endOfStreamPast,
 			})
 
-		var state State
-		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -4959,14 +4935,14 @@ func TestState_GetChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
-		var state State
-		ok, err := state.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.GetChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_PeekByte(t *testing.T) {
+func TestVM_PeekByte(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		f, err := os.Open("testdata/abc.txt")
 		assert.NoError(t, err)
@@ -4978,15 +4954,15 @@ func TestState_PeekByte(t *testing.T) {
 
 		v := NewNamedVariable("Byte")
 
-		var state State
-		ok, err := state.PeekByte(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.PeekByte(s, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.PeekByte(s, v, Success, nil).Force(context.Background()) // 'a' again
+		ok, err = vm.PeekByte(s, v, Success, nil).Force(context.Background()) // 'a' again
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -5001,9 +4977,9 @@ func TestState_PeekByte(t *testing.T) {
 		v := NewNamedVariable("Byte")
 
 		foo := NewAtom("foo")
-		var state State
-		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, alias: foo})
-		ok, err := state.PeekByte(NewAtom("foo"), v, func(env *Env) *Promise {
+		var vm VM
+		vm.streams.add(&Stream{sourceSink: f, mode: ioModeRead, streamType: streamTypeBinary, alias: foo})
+		ok, err := vm.PeekByte(NewAtom("foo"), v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(97), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5022,8 +4998,8 @@ func TestState_PeekByte(t *testing.T) {
 
 		v := NewNamedVariable("Byte")
 
-		var state State
-		ok, err := state.PeekByte(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.PeekByte(s, v, func(env *Env) *Promise {
 			assert.Equal(t, Integer(-1), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5041,15 +5017,15 @@ func TestState_PeekByte(t *testing.T) {
 
 		v := NewNamedVariable("V")
 
-		var state State
-		ok, err := state.PeekByte(s, v, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(s, v, Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.PeekByte(NewNamedVariable("Stream"), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(NewNamedVariable("Stream"), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -5059,23 +5035,23 @@ func TestState_PeekByte(t *testing.T) {
 		s.streamType = streamTypeBinary
 
 		t.Run("not even an integer", func(t *testing.T) {
-			var state State
-			ok, err := state.PeekByte(s, NewAtom("byte"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PeekByte(s, NewAtom("byte"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInByte, NewAtom("byte"), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("integer", func(t *testing.T) {
-			var state State
-			ok, err := state.PeekByte(s, Integer(256), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PeekByte(s, Integer(256), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInByte, Integer(256), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.PeekByte(Integer(0), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(Integer(0), NewNamedVariable("Byte"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -5085,8 +5061,8 @@ func TestState_PeekByte(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5096,8 +5072,8 @@ func TestState_PeekByte(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
-		var state State
-		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5116,14 +5092,14 @@ func TestState_PeekByte(t *testing.T) {
 				endOfStream: endOfStreamPast,
 			})
 
-		var state State
-		ok, err := state.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekByte(streamOrAlias, NewNamedVariable("Byte"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_PeekChar(t *testing.T) {
+func TestVM_PeekChar(t *testing.T) {
 	t.Run("stream", func(t *testing.T) {
 		f, err := os.Open("testdata/smile.txt")
 		assert.NoError(t, err)
@@ -5135,15 +5111,15 @@ func TestState_PeekChar(t *testing.T) {
 
 		v := NewNamedVariable("Char")
 
-		var state State
-		ok, err := state.PeekChar(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.PeekChar(s, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.PeekChar(s, v, func(env *Env) *Promise {
+		ok, err = vm.PeekChar(s, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v)) // '😀' again
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5161,9 +5137,9 @@ func TestState_PeekChar(t *testing.T) {
 		v := NewNamedVariable("Char")
 
 		foo := NewAtom("foo")
-		var state State
-		state.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
-		ok, err := state.PeekChar(foo, v, func(env *Env) *Promise {
+		var vm VM
+		vm.streams.add(&Stream{sourceSink: f, mode: ioModeRead, alias: foo})
+		ok, err := vm.PeekChar(foo, v, func(env *Env) *Promise {
 			assert.Equal(t, NewAtom("😀"), env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5182,8 +5158,8 @@ func TestState_PeekChar(t *testing.T) {
 
 		v := NewNamedVariable("Char")
 
-		var state State
-		ok, err := state.PeekChar(s, v, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.PeekChar(s, v, func(env *Env) *Promise {
 			assert.Equal(t, atomEndOfFile, env.Resolve(v))
 			return Bool(true)
 		}, nil).Force(context.Background())
@@ -5198,38 +5174,38 @@ func TestState_PeekChar(t *testing.T) {
 
 		v := NewNamedVariable("V")
 
-		var state State
-		ok, err := state.PeekChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(&Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
 		assert.Equal(t, SystemError(errors.New("failed")), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.PeekChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(NewNamedVariable("Stream"), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("char is neither a variable nor an in-character", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.PeekChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PeekChar(&Stream{sourceSink: os.Stdin}, Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, Integer(0), nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			var state State
-			ok, err := state.PeekChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.PeekChar(&Stream{sourceSink: os.Stdin}, NewAtom("ab"), Success, nil).Force(context.Background())
 			assert.Equal(t, TypeError(ValidTypeInCharacter, NewAtom("ab"), nil), err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.PeekChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(Integer(0), NewNamedVariable("Char"), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -5239,8 +5215,8 @@ func TestState_PeekChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
-		var state State
-		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5253,8 +5229,8 @@ func TestState_PeekChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, s)
 
-		var state State
-		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5271,8 +5247,8 @@ func TestState_PeekChar(t *testing.T) {
 				endOfStream: endOfStreamPast,
 			})
 
-		var state State
-		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env), err)
 		assert.False(t, ok)
 	})
@@ -5288,8 +5264,8 @@ func TestState_PeekChar(t *testing.T) {
 		env := NewEnv().
 			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
-		var state State
-		ok, err := state.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.PeekChar(streamOrAlias, NewNamedVariable("Char"), Success, env).Force(context.Background())
 		assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 		assert.False(t, ok)
 	})
@@ -5328,29 +5304,27 @@ func Test_Halt(t *testing.T) {
 	})
 }
 
-func TestState_Clause(t *testing.T) {
+func TestVM_Clause(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		x := NewNamedVariable("X")
 		what, body := NewNamedVariable("What"), NewNamedVariable("Body")
 
 		var c int
 
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("green"), Arity: 1}: &userDefined{public: true, clauses: []clause{
-						{raw: &compound{
-							functor: atomIf, args: []Term{
-								&compound{functor: NewAtom("green"), args: []Term{x}},
-								&compound{functor: NewAtom("moldy"), args: []Term{x}},
-							},
-						}},
-						{raw: &compound{functor: NewAtom("green"), args: []Term{NewAtom("kermit")}}},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("green"), Arity: 1}: &userDefined{public: true, clauses: []clause{
+					{raw: &compound{
+						functor: atomIf, args: []Term{
+							&compound{functor: NewAtom("green"), args: []Term{x}},
+							&compound{functor: NewAtom("moldy"), args: []Term{x}},
+						},
 					}},
-				},
+					{raw: &compound{functor: NewAtom("green"), args: []Term{NewAtom("kermit")}}},
+				}},
 			},
 		}
-		ok, err := state.Clause(&compound{
+		ok, err := vm.Clause(&compound{
 			functor: NewAtom("green"),
 			args:    []Term{what},
 		}, body, func(env *Env) *Promise {
@@ -5376,22 +5350,22 @@ func TestState_Clause(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		var state State
-		ok, err := state.Clause(NewAtom("foo"), atomTrue, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Clause(NewAtom("foo"), atomTrue, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("head is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.Clause(NewNamedVariable("Head"), atomTrue, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Clause(NewNamedVariable("Head"), atomTrue, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("head is neither a variable nor a predication", func(t *testing.T) {
-		var state State
-		ok, err := state.Clause(Integer(0), atomTrue, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Clause(Integer(0), atomTrue, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -5399,16 +5373,14 @@ func TestState_Clause(t *testing.T) {
 	t.Run("the predicate indicator Pred of Head is that of a private (ie. Not public) procedure", func(t *testing.T) {
 		what, body := NewNamedVariable("What"), NewNamedVariable("Body")
 
-		state := State{
-			VM: VM{
-				procedures: map[ProcedureIndicator]procedure{
-					{Name: NewAtom("green"), Arity: 1}: predicate1(func(t Term, f func(*Env) *Promise, env *Env) *Promise {
-						return Bool(true)
-					}),
-				},
+		vm := VM{
+			procedures: map[ProcedureIndicator]procedure{
+				{Name: NewAtom("green"), Arity: 1}: predicate1(func(t Term, f func(*Env) *Promise, env *Env) *Promise {
+					return Bool(true)
+				}),
 			},
 		}
-		ok, err := state.Clause(&compound{
+		ok, err := vm.Clause(&compound{
 			functor: NewAtom("green"),
 			args:    []Term{what},
 		}, body, Success, nil).Force(context.Background())
@@ -5420,8 +5392,8 @@ func TestState_Clause(t *testing.T) {
 	})
 
 	t.Run("body is neither a variable nor a callable term", func(t *testing.T) {
-		var state State
-		ok, err := state.Clause(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.Clause(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeCallable, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
@@ -6008,7 +5980,7 @@ func TestNumberCodes(t *testing.T) {
 	})
 }
 
-func TestState_StreamProperty(t *testing.T) {
+func TestVM_StreamProperty(t *testing.T) {
 	f, err := os.Open("testdata/empty.txt")
 	assert.NoError(t, err)
 	defer func() {
@@ -6021,9 +5993,9 @@ func TestState_StreamProperty(t *testing.T) {
 		{sourceSink: f, mode: ioModeAppend, alias: NewAtom("c"), reposition: true},
 	}
 
-	var state State
+	var vm VM
 	for _, s := range ss {
-		state.streams.add(s)
+		vm.streams.add(s)
 	}
 
 	tests := []struct {
@@ -6093,7 +6065,7 @@ func TestState_StreamProperty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			ok, err := state.StreamProperty(tt.stream, tt.property, func(env *Env) *Promise {
+			ok, err := vm.StreamProperty(tt.stream, tt.property, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
 					_, ok := env.Unify(k, v, false)
 					assert.True(t, ok)
@@ -6107,7 +6079,7 @@ func TestState_StreamProperty(t *testing.T) {
 	}
 }
 
-func TestState_SetStreamPosition(t *testing.T) {
+func TestVM_SetStreamPosition(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		f, err := os.Open("testdata/empty.txt")
 		assert.NoError(t, err)
@@ -6117,8 +6089,8 @@ func TestState_SetStreamPosition(t *testing.T) {
 
 		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: true}
 
-		var state State
-		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -6130,15 +6102,15 @@ func TestState_SetStreamPosition(t *testing.T) {
 
 		s := &Stream{sourceSink: &m, mode: ioModeRead, reposition: true}
 
-		var state State
-		ok, err := state.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(s, Integer(0), Success, nil).Force(context.Background())
 		assert.Error(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetStreamPosition(NewNamedVariable("Stream"), Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(NewNamedVariable("Stream"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
@@ -6152,22 +6124,22 @@ func TestState_SetStreamPosition(t *testing.T) {
 
 		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: true}
 
-		var state State
-		ok, err := state.SetStreamPosition(s, NewNamedVariable("Pos"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(s, NewNamedVariable("Pos"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var state State
-		ok, err := state.SetStreamPosition(Integer(2), Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(Integer(2), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainStreamOrAlias, Integer(2), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var state State
-		ok, err := state.SetStreamPosition(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, ExistenceError(ObjectTypeStream, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
@@ -6181,62 +6153,62 @@ func TestState_SetStreamPosition(t *testing.T) {
 		env := NewEnv().
 			Bind(s, stream)
 
-		var state State
-		ok, err := state.SetStreamPosition(s, Integer(0), Success, env).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetStreamPosition(s, Integer(0), Success, env).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationReposition, PermissionTypeStream, s, env), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_CharConversion(t *testing.T) {
+func TestVM_CharConversion(t *testing.T) {
 	t.Run("register", func(t *testing.T) {
-		var state State
-		ok, err := state.CharConversion(NewAtom("a"), NewAtom("b"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CharConversion(NewAtom("a"), NewAtom("b"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, 'b', state.charConversions['a'])
+		assert.Equal(t, 'b', vm.charConversions['a'])
 	})
 
 	t.Run("remove", func(t *testing.T) {
-		state := State{
+		vm := VM{
 			charConversions: map[rune]rune{
 				'a': 'b',
 			},
 		}
-		ok, err := state.CharConversion(NewAtom("a"), NewAtom("a"), Success, nil).Force(context.Background())
+		ok, err := vm.CharConversion(NewAtom("a"), NewAtom("a"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = state.charConversions['a']
+		_, ok = vm.charConversions['a']
 		assert.False(t, ok)
 	})
 
 	t.Run("inChar is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.CharConversion(NewNamedVariable("In"), NewAtom("a"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CharConversion(NewNamedVariable("In"), NewAtom("a"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("outChar is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.CharConversion(NewAtom("a"), NewNamedVariable("Out"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CharConversion(NewAtom("a"), NewNamedVariable("Out"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("inChar is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CharConversion(Integer(0), NewAtom("a"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CharConversion(Integer(0), NewAtom("a"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CharConversion(NewAtom("foo"), NewAtom("a"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CharConversion(NewAtom("foo"), NewAtom("a"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
@@ -6244,37 +6216,37 @@ func TestState_CharConversion(t *testing.T) {
 
 	t.Run("outChar is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CharConversion(NewAtom("a"), Integer(0), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CharConversion(NewAtom("a"), Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CharConversion(NewAtom("a"), NewAtom("foo"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CharConversion(NewAtom("a"), NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 	})
 }
 
-func TestState_CurrentCharConversion(t *testing.T) {
+func TestVM_CurrentCharConversion(t *testing.T) {
 	t.Run("specified", func(t *testing.T) {
 		t.Run("as is", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentCharConversion(NewAtom("a"), NewAtom("a"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentCharConversion(NewAtom("a"), NewAtom("a"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("converted", func(t *testing.T) {
-			state := State{
+			vm := VM{
 				charConversions: map[rune]rune{
 					'a': 'b',
 				},
 			}
-			ok, err := state.CurrentCharConversion(NewAtom("a"), NewAtom("b"), Success, nil).Force(context.Background())
+			ok, err := vm.CurrentCharConversion(NewAtom("a"), NewAtom("b"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -6284,8 +6256,8 @@ func TestState_CurrentCharConversion(t *testing.T) {
 		x, y := NewNamedVariable("X"), NewNamedVariable("Y")
 
 		var r rune
-		var state State
-		ok, err := state.CurrentCharConversion(x, y, func(env *Env) *Promise {
+		var vm VM
+		ok, err := vm.CurrentCharConversion(x, y, func(env *Env) *Promise {
 			ref, ok := env.Lookup(x)
 			assert.True(t, ok)
 			x, ok := ref.(Atom)
@@ -6310,15 +6282,15 @@ func TestState_CurrentCharConversion(t *testing.T) {
 
 	t.Run("inChar is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentCharConversion(Integer(0), NewAtom("b"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentCharConversion(Integer(0), NewAtom("b"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentCharConversion(NewAtom("foo"), NewAtom("b"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentCharConversion(NewAtom("foo"), NewAtom("b"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
@@ -6326,70 +6298,70 @@ func TestState_CurrentCharConversion(t *testing.T) {
 
 	t.Run("outChar is neither a variable nor a one character atom", func(t *testing.T) {
 		t.Run("not even an atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentCharConversion(NewAtom("a"), Integer(0), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentCharConversion(NewAtom("a"), Integer(0), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("multi-character atom", func(t *testing.T) {
-			var state State
-			ok, err := state.CurrentCharConversion(NewAtom("a"), NewAtom("bar"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.CurrentCharConversion(NewAtom("a"), NewAtom("bar"), Success, nil).Force(context.Background())
 			assert.Equal(t, RepresentationError(FlagCharacter, nil), err)
 			assert.False(t, ok)
 		})
 	})
 }
 
-func TestState_SetPrologFlag(t *testing.T) {
+func TestVM_SetPrologFlag(t *testing.T) {
 	t.Run("bounded", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomBounded, NewVariable(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomBounded, NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomBounded, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("max_integer", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomMaxInteger, NewVariable(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomMaxInteger, NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomMaxInteger, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("min_integer", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomMinInteger, NewVariable(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomMinInteger, NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomMinInteger, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("integer_rounding_function", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomIntegerRoundingFunction, NewVariable(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomIntegerRoundingFunction, NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomIntegerRoundingFunction, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("char_conversion", func(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomCharConversion, atomOn, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomCharConversion, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, state.charConvEnabled)
+			assert.True(t, vm.charConvEnabled)
 		})
 
 		t.Run("off", func(t *testing.T) {
-			state := State{charConvEnabled: true}
-			ok, err := state.SetPrologFlag(atomCharConversion, atomOff, Success, nil).Force(context.Background())
+			vm := VM{charConvEnabled: true}
+			ok, err := vm.SetPrologFlag(atomCharConversion, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, state.charConvEnabled)
+			assert.False(t, vm.charConvEnabled)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
-			state := State{charConvEnabled: true}
-			ok, err := state.SetPrologFlag(atomCharConversion, NewAtom("foo"), Success, nil).Force(context.Background())
+			vm := VM{charConvEnabled: true}
+			ok, err := vm.SetPrologFlag(atomCharConversion, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
 		})
@@ -6397,64 +6369,64 @@ func TestState_SetPrologFlag(t *testing.T) {
 
 	t.Run("debug", func(t *testing.T) {
 		t.Run("on", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomDebug, atomOn, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomDebug, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, state.debug)
+			assert.True(t, vm.debug)
 		})
 
 		t.Run("off", func(t *testing.T) {
-			state := State{debug: true}
-			ok, err := state.SetPrologFlag(atomDebug, atomOff, Success, nil).Force(context.Background())
+			vm := VM{debug: true}
+			ok, err := vm.SetPrologFlag(atomDebug, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, state.debug)
+			assert.False(t, vm.debug)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
-			state := State{debug: true}
-			ok, err := state.SetPrologFlag(atomDebug, NewAtom("foo"), Success, nil).Force(context.Background())
+			vm := VM{debug: true}
+			ok, err := vm.SetPrologFlag(atomDebug, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("max_arity", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomMaxArity, NewVariable(), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomMaxArity, NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomMaxArity, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
-			state := State{VM: VM{unknown: unknownFail}}
-			ok, err := state.SetPrologFlag(atomUnknown, atomError, Success, nil).Force(context.Background())
+			vm := VM{unknown: unknownFail}
+			ok, err := vm.SetPrologFlag(atomUnknown, atomError, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownError, state.unknown)
+			assert.Equal(t, unknownError, vm.unknown)
 		})
 
 		t.Run("warning", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomUnknown, atomWarning, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomUnknown, atomWarning, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownWarning, state.unknown)
+			assert.Equal(t, unknownWarning, vm.unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomUnknown, atomFail, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomUnknown, atomFail, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownFail, state.unknown)
+			assert.Equal(t, unknownFail, vm.unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomUnknown, NewAtom("foo"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomUnknown, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
 		})
@@ -6462,68 +6434,68 @@ func TestState_SetPrologFlag(t *testing.T) {
 
 	t.Run("double_quotes", func(t *testing.T) {
 		t.Run("codes", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomDoubleQuotes, atomCodes, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomDoubleQuotes, atomCodes, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesCodes, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesCodes, vm.doubleQuotes)
 		})
 
 		t.Run("chars", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomDoubleQuotes, atomChars, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomDoubleQuotes, atomChars, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesChars, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesChars, vm.doubleQuotes)
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomDoubleQuotes, atomAtom, Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomDoubleQuotes, atomAtom, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesAtom, state.doubleQuotes)
+			assert.Equal(t, doubleQuotesAtom, vm.doubleQuotes)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
-			var state State
-			ok, err := state.SetPrologFlag(atomDoubleQuotes, NewAtom("foo"), Success, nil).Force(context.Background())
+			var vm VM
+			ok, err := vm.SetPrologFlag(atomDoubleQuotes, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
 		})
 	})
 
 	t.Run("flag is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(NewNamedVariable("Flag"), atomFail, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(NewNamedVariable("Flag"), atomFail, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("value is a variable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomUnknown, NewNamedVariable("Value"), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomUnknown, NewNamedVariable("Value"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(Integer(0), atomFail, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(Integer(0), atomFail, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(NewAtom("foo"), atomFail, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(NewAtom("foo"), atomFail, Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainPrologFlag, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("value is inadmissible for flag", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomUnknown, Integer(0), Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomUnknown, Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainFlagValue, &compound{
 			functor: atomPlus,
 			args:    []Term{atomUnknown, Integer(0)},
@@ -6532,46 +6504,46 @@ func TestState_SetPrologFlag(t *testing.T) {
 	})
 
 	t.Run("value is admissible for flag but the flag is not modifiable", func(t *testing.T) {
-		var state State
-		ok, err := state.SetPrologFlag(atomBounded, atomTrue, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.SetPrologFlag(atomBounded, atomTrue, Success, nil).Force(context.Background())
 		assert.Equal(t, PermissionError(OperationModify, PermissionTypeFlag, atomBounded, nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_CurrentPrologFlag(t *testing.T) {
-	var state State
+func TestVM_CurrentPrologFlag(t *testing.T) {
+	var vm VM
 
 	t.Run("specified", func(t *testing.T) {
-		ok, err := state.CurrentPrologFlag(atomBounded, atomTrue, Success, nil).Force(context.Background())
+		ok, err := vm.CurrentPrologFlag(atomBounded, atomTrue, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomMaxInteger, Integer(math.MaxInt64), Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomMaxInteger, Integer(math.MaxInt64), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomMinInteger, Integer(math.MinInt64), Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomMinInteger, Integer(math.MinInt64), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomIntegerRoundingFunction, atomTowardZero, Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomIntegerRoundingFunction, atomTowardZero, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomCharConversion, atomOff, Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomCharConversion, atomOff, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomDebug, atomOff, Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomDebug, atomOff, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomMaxArity, atomUnbounded, Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomMaxArity, atomUnbounded, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = state.CurrentPrologFlag(atomUnknown, atomError, Success, nil).Force(context.Background())
+		ok, err = vm.CurrentPrologFlag(atomUnknown, atomError, Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -6579,7 +6551,7 @@ func TestState_CurrentPrologFlag(t *testing.T) {
 	t.Run("not specified", func(t *testing.T) {
 		flag, value := NewNamedVariable("Flag"), NewNamedVariable("Value")
 		var c int
-		ok, err := state.CurrentPrologFlag(flag, value, func(env *Env) *Promise {
+		ok, err := vm.CurrentPrologFlag(flag, value, func(env *Env) *Promise {
 			switch c {
 			case 0:
 				assert.Equal(t, atomBounded, env.Resolve(flag))
@@ -6604,10 +6576,10 @@ func TestState_CurrentPrologFlag(t *testing.T) {
 				assert.Equal(t, atomUnbounded, env.Resolve(value))
 			case 7:
 				assert.Equal(t, atomUnknown, env.Resolve(flag))
-				assert.Equal(t, NewAtom(state.unknown.String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.unknown.String()), env.Resolve(value))
 			case 8:
 				assert.Equal(t, atomDoubleQuotes, env.Resolve(flag))
-				assert.Equal(t, NewAtom(state.doubleQuotes.String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.doubleQuotes.String()), env.Resolve(value))
 			default:
 				assert.Fail(t, "unreachable")
 			}
@@ -6620,24 +6592,24 @@ func TestState_CurrentPrologFlag(t *testing.T) {
 	})
 
 	t.Run("flag is neither a variable nor an atom", func(t *testing.T) {
-		var state State
-		ok, err := state.CurrentPrologFlag(Integer(0), atomError, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CurrentPrologFlag(Integer(0), atomError, Success, nil).Force(context.Background())
 		assert.Equal(t, TypeError(ValidTypeAtom, Integer(0), nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("flag is an atom but an invalid flag for the processor", func(t *testing.T) {
-		var state State
-		ok, err := state.CurrentPrologFlag(NewAtom("foo"), atomError, Success, nil).Force(context.Background())
+		var vm VM
+		ok, err := vm.CurrentPrologFlag(NewAtom("foo"), atomError, Success, nil).Force(context.Background())
 		assert.Equal(t, DomainError(ValidDomainPrologFlag, NewAtom("foo"), nil), err)
 		assert.False(t, ok)
 	})
 }
 
-func TestState_ExpandTerm(t *testing.T) {
+func TestVM_ExpandTerm(t *testing.T) {
 	t.Run("term_expansion/2 is undefined", func(t *testing.T) {
-		var state State
-		ok, err := state.ExpandTerm(&compound{
+		var vm VM
+		ok, err := vm.ExpandTerm(&compound{
 			functor: NewAtom("f"),
 			args:    []Term{NewAtom("a")},
 		}, &compound{
@@ -6650,16 +6622,14 @@ func TestState_ExpandTerm(t *testing.T) {
 
 	t.Run("term_expansion/2 is defined", func(t *testing.T) {
 		t.Run("not applicable", func(t *testing.T) {
-			state := State{
-				VM: VM{
+			vm := VM{
 					procedures: map[ProcedureIndicator]procedure{
 						{Name: atomTermExpansion, Arity: 2}: predicate2(func(Term, Term, func(*Env) *Promise, *Env) *Promise {
 							return Bool(false)
 						}),
-					},
 				},
 			}
-			ok, err := state.ExpandTerm(&compound{
+			ok, err := vm.ExpandTerm(&compound{
 				functor: NewAtom("f"),
 				args:    []Term{NewAtom("a")},
 			}, &compound{
@@ -6671,16 +6641,14 @@ func TestState_ExpandTerm(t *testing.T) {
 		})
 
 		t.Run("throws an exception", func(t *testing.T) {
-			state := State{
-				VM: VM{
+			vm := VM{
 					procedures: map[ProcedureIndicator]procedure{
 						{Name: atomTermExpansion, Arity: 2}: predicate2(func(Term, Term, func(*Env) *Promise, *Env) *Promise {
 							return Error(errors.New("failed"))
 						}),
-					},
 				},
 			}
-			ok, err := state.ExpandTerm(&compound{
+			ok, err := vm.ExpandTerm(&compound{
 				functor: NewAtom("f"),
 				args:    []Term{NewAtom("a")},
 			}, &compound{
@@ -6692,8 +6660,7 @@ func TestState_ExpandTerm(t *testing.T) {
 		})
 
 		t.Run("applicable", func(t *testing.T) {
-			state := State{
-				VM: VM{
+			vm := VM{
 					procedures: map[ProcedureIndicator]procedure{
 						{Name: atomTermExpansion, Arity: 2}: predicate2(func(t1, t2 Term, k func(*Env) *Promise, env *Env) *Promise {
 							return Unify(t2, &compound{
@@ -6701,10 +6668,9 @@ func TestState_ExpandTerm(t *testing.T) {
 								args:    []Term{NewAtom("b")},
 							}, k, env)
 						}),
-					},
 				},
 			}
-			ok, err := state.ExpandTerm(&compound{
+			ok, err := vm.ExpandTerm(&compound{
 				functor: NewAtom("f"),
 				args:    []Term{NewAtom("a")},
 			}, &compound{
@@ -6745,13 +6711,13 @@ func TestEnviron(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestState_Expand(t *testing.T) {
-	var state State
+func TestVM_Expand(t *testing.T) {
+	var vm VM
 
 	t.Run("DCG", func(t *testing.T) {
 		t.Run("empty terminal-sequence", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), List()}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), List()}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6761,7 +6727,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("terminal sequence", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), List(NewAtom("a"))}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), List(NewAtom("a"))}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6772,7 +6738,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("concatenation", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, NewAtom("a"), NewAtom("b"))}}, nil)
+				term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, NewAtom("a"), NewAtom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: atomIf, args: []Term{
 					&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6784,12 +6750,12 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, Integer(0), NewAtom("b"))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, Integer(0), NewAtom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, NewAtom("a"), Integer(0))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomComma, NewAtom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -6798,7 +6764,7 @@ func TestState_Expand(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				t.Run("normal", func(t *testing.T) {
 					offset := varCounter
-					term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, NewAtom("a"), NewAtom("b"))}}, nil)
+					term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, NewAtom("a"), NewAtom("b"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: atomIf, args: []Term{
 						&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6811,7 +6777,7 @@ func TestState_Expand(t *testing.T) {
 
 				t.Run("if-then-else", func(t *testing.T) {
 					offset := varCounter
-					term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, &compound{functor: atomThen, args: []Term{NewAtom("a"), NewAtom("b")}}, NewAtom("c"))}}, nil)
+					term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, &compound{functor: atomThen, args: []Term{NewAtom("a"), NewAtom("b")}}, NewAtom("c"))}}, nil)
 					assert.NoError(t, err)
 					assert.Equal(t, &compound{functor: atomIf, args: []Term{
 						&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6827,12 +6793,12 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, Integer(0), NewAtom("b"))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, Integer(0), NewAtom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, NewAtom("a"), Integer(0))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomSemiColon, NewAtom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -6840,7 +6806,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("second form of alternative", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, NewAtom("a"), NewAtom("b"))}}, nil)
+				term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, NewAtom("a"), NewAtom("b"))}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: atomIf, args: []Term{
 					&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6852,19 +6818,19 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, Integer(0), NewAtom("b"))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, Integer(0), NewAtom("b"))}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, NewAtom("a"), Integer(0))}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), Seq(atomBar, NewAtom("a"), Integer(0))}}, nil)
 				assert.Error(t, err)
 			})
 		})
 
 		t.Run("grammar-body-goal", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomEmptyBlock, args: []Term{NewAtom("a")}}}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomEmptyBlock, args: []Term{NewAtom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6877,7 +6843,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("call", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomCall, args: []Term{NewAtom("a")}}}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomCall, args: []Term{NewAtom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6887,7 +6853,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("phrase", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomPhrase, args: []Term{NewAtom("a")}}}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomPhrase, args: []Term{NewAtom("a")}}}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6897,7 +6863,7 @@ func TestState_Expand(t *testing.T) {
 
 		t.Run("grammar-body-cut", func(t *testing.T) {
 			offset := varCounter
-			term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), atomCut}}, nil)
+			term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), atomCut}}, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, &compound{functor: atomIf, args: []Term{
 				&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6911,7 +6877,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("grammar-body-not", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{NewAtom("a")}}}}, nil)
+				term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{NewAtom("a")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: atomIf, args: []Term{
 					&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6923,7 +6889,7 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("goal is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{Integer(0)}}}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomNegation, args: []Term{Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -6931,7 +6897,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("if-then", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{NewAtom("a"), NewAtom("b")}}}}, nil)
+				term, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{NewAtom("a"), NewAtom("b")}}}}, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{functor: atomIf, args: []Term{
 					&compound{functor: NewAtom("s"), args: []Term{Variable(offset + 1), Variable(offset + 3)}},
@@ -6946,12 +6912,12 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("lhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{Integer(0), NewAtom("b")}}}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{Integer(0), NewAtom("b")}}}}, nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("rhs is not callable", func(t *testing.T) {
-				_, err := state.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{NewAtom("a"), Integer(0)}}}}, nil)
+				_, err := vm.expand(&compound{functor: atomArrow, args: []Term{NewAtom("s"), &compound{functor: atomThen, args: []Term{NewAtom("a"), Integer(0)}}}}, nil)
 				assert.Error(t, err)
 			})
 		})
@@ -6959,7 +6925,7 @@ func TestState_Expand(t *testing.T) {
 		t.Run("with semicontexts", func(t *testing.T) {
 			t.Run("ok", func(t *testing.T) {
 				offset := varCounter
-				term, err := state.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), List(NewAtom("word"))), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
+				term, err := vm.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), List(NewAtom("word"))), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
 				assert.NoError(t, err)
 				assert.Equal(t, &compound{
 					functor: atomIf,
@@ -6983,17 +6949,17 @@ func TestState_Expand(t *testing.T) {
 			})
 
 			t.Run("head is not callable", func(t *testing.T) {
-				_, err := state.expand(atomArrow.Apply(atomComma.Apply(Integer(0), List(NewAtom("word"))), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
+				_, err := vm.expand(atomArrow.Apply(atomComma.Apply(Integer(0), List(NewAtom("word"))), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("semicontext is not callable", func(t *testing.T) {
-				_, err := state.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), Integer(0)), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
+				_, err := vm.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), Integer(0)), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 
 			t.Run("body is not callable", func(t *testing.T) {
-				_, err := state.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), List(NewAtom("word"))), atomComma.Apply(Integer(0), NewAtom("phrase3"))), nil)
+				_, err := vm.expand(atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), List(NewAtom("word"))), atomComma.Apply(Integer(0), NewAtom("phrase3"))), nil)
 				assert.Error(t, err)
 			})
 		})
@@ -7360,13 +7326,13 @@ func TestSkipMaxList(t *testing.T) {
 	})
 }
 
-func TestState_Repeat(t *testing.T) {
+func TestVM_Repeat(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	c := 0
 
-	var s State
+	var s VM
 	_, err := s.Repeat(func(*Env) *Promise {
 		c++
 		cancel()
@@ -7377,10 +7343,10 @@ func TestState_Repeat(t *testing.T) {
 	assert.Equal(t, 1, c)
 }
 
-func TestState_Negation(t *testing.T) {
+func TestVM_Negation(t *testing.T) {
 	e := errors.New("failed")
 
-	var s State
+	var s VM
 	s.Register0("true", func(k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})

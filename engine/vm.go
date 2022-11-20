@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"strings"
 )
 
@@ -61,6 +62,22 @@ type VM struct {
 
 	procedures map[ProcedureIndicator]procedure
 	unknown    unknownAction
+
+	FS     fs.FS
+	loaded map[string]struct{}
+
+	// Internal/external expression
+	operators       operators
+	charConversions map[rune]rune
+	charConvEnabled bool
+	doubleQuotes    doubleQuotes
+
+	// I/O
+	streams       streams
+	input, output *Stream
+
+	// Misc
+	debug bool
 }
 
 // Register0 registers a predicate of arity 0.
