@@ -183,7 +183,7 @@ func Pair(k, v Term) Term {
 }
 
 func tuple(args ...Term) Term {
-	return atomEmpty.Apply(args...)
+	return Atom(0).Apply(args...)
 }
 
 type charList string
@@ -197,11 +197,11 @@ func (c charList) Arity() int {
 }
 
 func (c charList) Arg(n int) Term {
-	_, i := utf8.DecodeRuneInString(string(c))
+	r, i := utf8.DecodeRuneInString(string(c))
 	var t Term
 	switch n {
 	case 0:
-		t = NewAtom(string(c[:i]))
+		t = Atom(r)
 	case 1:
 		if i == len(c) {
 			t = atomEmptyList
@@ -231,13 +231,12 @@ func (c codeList) Arity() int {
 }
 
 func (c codeList) Arg(n int) Term {
+	r, i := utf8.DecodeRuneInString(string(c))
 	var t Term
 	switch n {
 	case 0:
-		r, _ := utf8.DecodeRuneInString(string(c))
 		t = Integer(r)
 	case 1:
-		_, i := utf8.DecodeRuneInString(string(c))
 		if i == len(c) {
 			t = atomEmptyList
 		} else {

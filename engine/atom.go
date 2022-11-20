@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 var (
@@ -25,7 +26,7 @@ var (
 
 // Well-known atoms.
 var (
-	atomEmpty             = NewAtom("") // = Atom(0)
+	atomEmpty             = NewAtom("")
 	atomSlash             = NewAtom("/")
 	atomSlashSlash        = NewAtom("//")
 	atomIf                = NewAtom(":-")
@@ -207,6 +208,11 @@ type Atom uint64
 
 // NewAtom interns the given string and returns an Atom.
 func NewAtom(name string) Atom {
+	// A one-char atom is just a rune.
+	if r, n := utf8.DecodeLastRuneInString(name); r != utf8.RuneError && n == len(name) {
+		return Atom(r)
+	}
+
 	atomTable.Lock()
 	defer atomTable.Unlock()
 
@@ -215,16 +221,19 @@ func NewAtom(name string) Atom {
 		return a
 	}
 
-	a = Atom(len(atomTable.names))
+	a = Atom(len(atomTable.names) + (utf8.MaxRune + 1))
 	atomTable.atoms[name] = a
 	atomTable.names = append(atomTable.names, name)
 	return a
 }
 
 func (a Atom) String() string {
+	if a <= utf8.MaxRune {
+		return string(rune(a))
+	}
 	atomTable.RLock()
 	defer atomTable.RUnlock()
-	return atomTable.names[a]
+	return atomTable.names[a-(utf8.MaxRune+1)]
 }
 
 func (a Atom) GoString() string {
