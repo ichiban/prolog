@@ -344,7 +344,7 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: InstantiationError(nil)},
 		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: TypeError(ValidTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
 		{title: `:- consult(1).`, files: Integer(1), err: TypeError(ValidTypeAtom, Integer(1), nil)},
-		{title: `:- consult(['testdata/empty.txt'|_]).`, files: ListRest(NewVariable(), NewAtom("testdata/empty.txt")), err: TypeError(ValidTypeAtom, ListRest(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: TypeError(ValidTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
 		{title: `:- consult([X]).`, files: List(NewNamedVariable("X")), err: InstantiationError(nil)},
 		{title: `:- consult([1]).`, files: List(Integer(1)), err: TypeError(ValidTypeAtom, Integer(1), nil)},
 

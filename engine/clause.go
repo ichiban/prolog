@@ -48,7 +48,7 @@ func compile(t Term, env *Env) (clauses, error) {
 	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
-		iter := AltIterator{Alt: body, Env: env}
+		iter := altIterator{Alt: body, Env: env}
 		for iter.Next() {
 			c, err := compileClause(head, iter.Current(), env)
 			if err != nil {
@@ -95,7 +95,7 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 
 func (c *clause) compileBody(body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-	iter := SeqIterator{Seq: body, Env: env}
+	iter := seqIterator{Seq: body, Env: env}
 	for iter.Next() {
 		if err := c.compilePred(iter.Current(), env); err != nil {
 			return err

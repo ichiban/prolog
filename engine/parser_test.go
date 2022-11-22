@@ -99,7 +99,7 @@ func TestParser_Term(t *testing.T) {
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{kind: tokenLetterDigit, val: "b"}}},
 		{input: `[a|X].`, term: Cons(NewAtom("a"), NewNamedVariable("X"))},
-		{input: `[a, b|X].`, term: ListRest(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))},
+		{input: `[a, b|X].`, term: PartialList(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{kind: tokenLetterDigit, val: "d"}}},
 		{input: `[a `, err: io.EOF},
@@ -174,7 +174,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
@@ -187,7 +187,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?].`)),
 			},
 		}
-		assert.Error(t, p.SetPlaceholder(NewAtom("?"), []struct{}{{}}))
+		assert.Error(t, p.Replace(NewAtom("?"), []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
 		assert.Error(t, err)
@@ -208,7 +208,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
+		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
 
 		_, err := p.Term()
 		assert.Error(t, err)

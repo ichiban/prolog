@@ -44,7 +44,7 @@ f(g([a, [b|X]])).
 		{title: `not callable: conjunction`, goal: atomComma.Apply(atomTrue, Integer(0)), ok: false, err: TypeError(ValidTypeCallable, atomComma.Apply(atomTrue, Integer(0)), nil)},
 		{title: `not callable: disjunction`, goal: atomSemiColon.Apply(Integer(1), atomTrue), ok: false, err: TypeError(ValidTypeCallable, atomSemiColon.Apply(Integer(1), atomTrue), nil)},
 
-		{title: `cover all`, goal: atomComma.Apply(atomCut, NewAtom("f").Apply(NewAtom("g").Apply(List(NewAtom("a"), ListRest(NewNamedVariable("X"), NewAtom("b")))))), ok: true},
+		{title: `cover all`, goal: atomComma.Apply(atomCut, NewAtom("f").Apply(NewAtom("g").Apply(List(NewAtom("a"), PartialList(NewNamedVariable("X"), NewAtom("b")))))), ok: true},
 	}
 
 	for _, tt := range tests {
@@ -724,8 +724,8 @@ func TestUniv(t *testing.T) {
 		{title: "5", term: Integer(1), list: List(Integer(1)), ok: true},
 		{title: "6", term: NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")), list: List(NewAtom("foo"), NewAtom("b"), NewAtom("a")), ok: false},
 		{title: "7", term: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
-		{title: "8", term: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), NewAtom("foo"), NewAtom("a")), err: InstantiationError(nil)},
-		{title: "9", term: NewNamedVariable("X"), list: ListRest(NewAtom("bar"), NewAtom("foo")), err: TypeError(ValidTypeList, ListRest(NewAtom("bar"), NewAtom("foo")), nil)},
+		{title: "8", term: NewNamedVariable("X"), list: PartialList(NewNamedVariable("Y"), NewAtom("foo"), NewAtom("a")), err: InstantiationError(nil)},
+		{title: "9", term: NewNamedVariable("X"), list: PartialList(NewAtom("bar"), NewAtom("foo")), err: TypeError(ValidTypeList, PartialList(NewAtom("bar"), NewAtom("foo")), nil)},
 		{title: "10", term: NewNamedVariable("X"), list: List(NewNamedVariable("Foo"), NewAtom("bar")), err: InstantiationError(nil)},
 		{title: "11", term: NewNamedVariable("X"), list: List(Integer(3), Integer(1)), err: TypeError(ValidTypeAtom, Integer(3), nil)},
 		{title: "12", term: NewNamedVariable("X"), list: List(Float(1.1), NewAtom("foo")), err: TypeError(ValidTypeAtom, Float(1.1), nil)},
@@ -736,8 +736,8 @@ func TestUniv(t *testing.T) {
 		}},
 
 		// 8.5.3.3 Errors
-		{title: "b: term is a compound", term: NewAtom("f").Apply(NewAtom("a")), list: ListRest(NewAtom("a"), NewAtom("f")), err: TypeError(ValidTypeList, ListRest(NewAtom("a"), NewAtom("f")), nil)},
-		{title: "b: term is an atomic", term: Integer(1), list: ListRest(NewAtom("a"), NewAtom("f")), err: TypeError(ValidTypeList, ListRest(NewAtom("a"), NewAtom("f")), nil)},
+		{title: "b: term is a compound", term: NewAtom("f").Apply(NewAtom("a")), list: PartialList(NewAtom("a"), NewAtom("f")), err: TypeError(ValidTypeList, PartialList(NewAtom("a"), NewAtom("f")), nil)},
+		{title: "b: term is an atomic", term: Integer(1), list: PartialList(NewAtom("a"), NewAtom("f")), err: TypeError(ValidTypeList, PartialList(NewAtom("a"), NewAtom("f")), nil)},
 		{title: "c", term: NewNamedVariable("X"), list: List(NewNamedVariable("Y")), err: InstantiationError(nil)},
 		{title: "e", term: NewNamedVariable("X"), list: List(NewAtom("f").Apply(NewAtom("a"))), err: TypeError(ValidTypeAtomic, NewAtom("f").Apply(NewAtom("a")), nil)},
 		{title: "f", term: NewNamedVariable("X"), list: List(), err: DomainError(ValidDomainNonEmptyList, List(), nil)},
@@ -748,7 +748,7 @@ func TestUniv(t *testing.T) {
 		{title: "term is an atomic, the length of list is not 1", term: Integer(1), list: List(), ok: false},
 
 		// https://github.com/ichiban/prolog/issues/244
-		{title: "term is atomic", term: NewAtom("c"), list: ListRest(NewNamedVariable("As"), NewNamedVariable("A")), ok: true, env: map[Variable]Term{
+		{title: "term is atomic", term: NewAtom("c"), list: PartialList(NewNamedVariable("As"), NewNamedVariable("A")), ok: true, env: map[Variable]Term{
 			a:  NewAtom("c"),
 			as: List(),
 		}},
@@ -811,13 +811,13 @@ func TestTermVariables(t *testing.T) {
 		), vars: NewNamedVariable("Vars"), ok: true, env: map[Variable]Term{
 			vars: List(NewNamedVariable("A"), NewNamedVariable("B"), NewNamedVariable("C"), NewNamedVariable("D")),
 		}},
-		{title: "3", term: NewAtom("t"), vars: ListRest(NewAtom("a"), NewAtom("x"), NewAtom("y")), err: TypeError(ValidTypeList, ListRest(NewAtom("a"), NewAtom("x"), NewAtom("y")), nil)},
+		{title: "3", term: NewAtom("t"), vars: PartialList(NewAtom("a"), NewAtom("x"), NewAtom("y")), err: TypeError(ValidTypeList, PartialList(NewAtom("a"), NewAtom("x"), NewAtom("y")), nil)},
 		{title: "4, 5", term: NewNamedVariable("S"), vars: NewNamedVariable("Vars"), ok: true, env: map[Variable]Term{
 			vars: List(NewNamedVariable("B"), NewNamedVariable("A")),
 			vs:   atomPlus.Apply(NewNamedVariable("B"), NewNamedVariable("T")),
 			vt:   NewAtom("*").Apply(NewNamedVariable("A"), NewNamedVariable("B")),
 		}},
-		{title: "6", term: atomPlus.Apply(atomPlus.Apply(NewNamedVariable("A"), NewNamedVariable("B")), NewNamedVariable("B")), vars: ListRest(NewNamedVariable("Vars"), NewNamedVariable("B")), ok: true, env: map[Variable]Term{
+		{title: "6", term: atomPlus.Apply(atomPlus.Apply(NewNamedVariable("A"), NewNamedVariable("B")), NewNamedVariable("B")), vars: PartialList(NewNamedVariable("Vars"), NewNamedVariable("B")), ok: true, env: map[Variable]Term{
 			b:    NewNamedVariable("A"),
 			vars: List(NewNamedVariable("B")),
 		}},
@@ -1371,8 +1371,8 @@ func TestBagOf(t *testing.T) {
 			title:     "c",
 			template:  NewAtom("t"),
 			goal:      atomTrue,
-			instances: ListRest(Integer(1), NewAtom("t")),
-			err:       TypeError(ValidTypeList, ListRest(Integer(1), NewAtom("t")), nil),
+			instances: PartialList(Integer(1), NewAtom("t")),
+			err:       TypeError(ValidTypeList, PartialList(Integer(1), NewAtom("t")), nil),
 		},
 	}
 
@@ -1733,8 +1733,8 @@ func TestSetOf(t *testing.T) {
 			title:     "c",
 			template:  NewAtom("t"),
 			goal:      atomTrue,
-			instances: ListRest(Integer(1), NewAtom("t")),
-			err:       TypeError(ValidTypeList, ListRest(Integer(1), NewAtom("t")), nil),
+			instances: PartialList(Integer(1), NewAtom("t")),
+			err:       TypeError(ValidTypeList, PartialList(Integer(1), NewAtom("t")), nil),
 		},
 	}
 
@@ -2072,7 +2072,7 @@ func TestSort(t *testing.T) {
 	})
 
 	t.Run("list is a partial list", func(t *testing.T) {
-		_, err := Sort(nil, ListRest(NewNamedVariable("X"), NewAtom("a"), NewAtom("b")), NewNamedVariable("Sorted"), Success, nil).Force(context.Background())
+		_, err := Sort(nil, PartialList(NewNamedVariable("X"), NewAtom("a"), NewAtom("b")), NewNamedVariable("Sorted"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -2099,16 +2099,16 @@ func TestKeySort(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
 			sorted := NewNamedVariable("Sorted")
 			ok, err := KeySort(nil, List(
-				Pair(NewAtom("c"), NewAtom("4")),
-				Pair(NewAtom("b"), NewAtom("3")),
-				Pair(NewAtom("a"), NewAtom("1")),
-				Pair(NewAtom("a"), NewAtom("2")),
+				pair(NewAtom("c"), NewAtom("4")),
+				pair(NewAtom("b"), NewAtom("3")),
+				pair(NewAtom("a"), NewAtom("1")),
+				pair(NewAtom("a"), NewAtom("2")),
 			), sorted, func(env *Env) *Promise {
 				assert.Equal(t, List(
-					Pair(NewAtom("a"), NewAtom("1")),
-					Pair(NewAtom("a"), NewAtom("2")),
-					Pair(NewAtom("b"), NewAtom("3")),
-					Pair(NewAtom("c"), NewAtom("4")),
+					pair(NewAtom("a"), NewAtom("1")),
+					pair(NewAtom("a"), NewAtom("2")),
+					pair(NewAtom("b"), NewAtom("3")),
+					pair(NewAtom("c"), NewAtom("4")),
 				), env.Resolve(sorted))
 				return Bool(true)
 			}, nil).Force(context.Background())
@@ -2119,17 +2119,17 @@ func TestKeySort(t *testing.T) {
 		t.Run("list", func(t *testing.T) {
 			second := NewNamedVariable("Second")
 			ok, err := KeySort(nil, List(
-				Pair(NewAtom("c"), NewAtom("4")),
-				Pair(NewAtom("b"), NewAtom("3")),
-				Pair(NewAtom("a"), NewAtom("1")),
-				Pair(NewAtom("a"), NewAtom("2")),
+				pair(NewAtom("c"), NewAtom("4")),
+				pair(NewAtom("b"), NewAtom("3")),
+				pair(NewAtom("a"), NewAtom("1")),
+				pair(NewAtom("a"), NewAtom("2")),
 			), List(
-				Pair(NewAtom("a"), NewAtom("1")),
+				pair(NewAtom("a"), NewAtom("1")),
 				second,
-				Pair(NewAtom("b"), NewAtom("3")),
-				Pair(NewAtom("c"), NewAtom("4")),
+				pair(NewAtom("b"), NewAtom("3")),
+				pair(NewAtom("c"), NewAtom("4")),
 			), func(env *Env) *Promise {
-				assert.Equal(t, Pair(NewAtom("a"), NewAtom("2")), env.Resolve(second))
+				assert.Equal(t, pair(NewAtom("a"), NewAtom("2")), env.Resolve(second))
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -2138,7 +2138,7 @@ func TestKeySort(t *testing.T) {
 	})
 
 	t.Run("pairs is a partial list", func(t *testing.T) {
-		_, err := KeySort(nil, ListRest(NewNamedVariable("Rest"), Pair(NewAtom("a"), Integer(1))), NewVariable(), Success, nil).Force(context.Background())
+		_, err := KeySort(nil, PartialList(NewNamedVariable("Rest"), pair(NewAtom("a"), Integer(1))), NewVariable(), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 	})
 
@@ -3424,7 +3424,7 @@ func TestOpen(t *testing.T) {
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var vm VM
-			ok, err := Open(&vm, NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), ListRest(NewNamedVariable("Rest"),
+			ok, err := Open(&vm, NewAtom("/dev/null"), atomRead, NewNamedVariable("Stream"), PartialList(NewNamedVariable("Rest"),
 				&compound{functor: atomType, args: []Term{atomText}},
 				&compound{functor: atomAlias, args: []Term{NewAtom("foo")}},
 			), Success, nil).Force(context.Background())
@@ -3657,7 +3657,7 @@ func TestClose(t *testing.T) {
 	t.Run("options is a partial list or a list with an element E which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var vm VM
-			ok, err := Close(&vm, &Stream{}, ListRest(NewNamedVariable("Rest"),
+			ok, err := Close(&vm, &Stream{}, PartialList(NewNamedVariable("Rest"),
 				&compound{functor: atomForce, args: []Term{atomTrue}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -3830,7 +3830,7 @@ func TestWriteTerm(t *testing.T) {
 
 		// 8.14.2.3 Errors
 		{title: `a`, sOrA: NewNamedVariable("S"), term: NewAtom("foo"), options: List(), err: InstantiationError(nil)},
-		{title: `b: partial list`, sOrA: w, term: NewAtom("foo"), options: ListRest(NewNamedVariable("X"), atomQuoted.Apply(atomTrue)), err: InstantiationError(nil)},
+		{title: `b: partial list`, sOrA: w, term: NewAtom("foo"), options: PartialList(NewNamedVariable("X"), atomQuoted.Apply(atomTrue)), err: InstantiationError(nil)},
 		{title: `b: variable element`, sOrA: w, term: NewAtom("foo"), options: List(NewNamedVariable("X")), err: InstantiationError(nil)},
 		{title: `b: variable component`, sOrA: w, term: NewAtom("foo"), options: List(atomQuoted.Apply(NewNamedVariable("X"))), err: InstantiationError(nil)},
 		{title: `b: variable_names, partial list`, sOrA: w, term: NewAtom("foo"), options: List(atomVariableNames.Apply(NewNamedVariable("L"))), err: InstantiationError(nil)},
@@ -4414,7 +4414,7 @@ func TestReadTerm(t *testing.T) {
 	t.Run("options is a partial list or a list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
 			var vm VM
-			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), ListRest(NewNamedVariable("Rest"),
+			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), PartialList(NewNamedVariable("Rest"),
 				&compound{functor: atomVariables, args: []Term{NewNamedVariable("VL")}},
 			), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
@@ -5596,14 +5596,14 @@ func TestAtomChars(t *testing.T) {
 		{title: "atom_chars(Str, ['s', 'o', 'p']).", atom: NewNamedVariable("Str"), list: List(NewAtom("s"), NewAtom("o"), NewAtom("p")), ok: true, env: map[Variable]Term{
 			str: NewAtom("sop"),
 		}},
-		{title: "atom_chars('North', ['N' | X]).", atom: NewAtom("North"), list: ListRest(NewNamedVariable("X"), NewAtom("N")), ok: true, env: map[Variable]Term{
+		{title: "atom_chars('North', ['N' | X]).", atom: NewAtom("North"), list: PartialList(NewNamedVariable("X"), NewAtom("N")), ok: true, env: map[Variable]Term{
 			x: List(NewAtom("o"), NewAtom("r"), NewAtom("t"), NewAtom("h")),
 		}},
 		{title: "atom_chars('soap', ['s', 'o', 'p']).", atom: NewAtom("soap"), list: List(NewAtom("s"), NewAtom("o"), NewAtom("p")), ok: false},
 		{title: "atom_chars(X, Y).", atom: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
 
 		// 8.16.4.3 Errors
-		{title: "a", atom: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), NewAtom("a")), err: InstantiationError(nil)},
+		{title: "a", atom: NewNamedVariable("X"), list: PartialList(NewNamedVariable("Y"), NewAtom("a")), err: InstantiationError(nil)},
 		{title: "b", atom: Integer(0), list: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), err: TypeError(ValidTypeAtom, Integer(0), nil)},
 		{title: "c: atom is a variable", atom: NewNamedVariable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: NewAtom("a"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
@@ -5660,14 +5660,14 @@ func TestAtomCodes(t *testing.T) {
 		{title: "atom_codes(Str, [0's, 0'o, 0'p]).", atom: NewNamedVariable("Str"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: true, env: map[Variable]Term{
 			str: NewAtom("sop"),
 		}},
-		{title: "atom_codes('North', [0'N | X]).", atom: NewAtom("North"), list: ListRest(NewNamedVariable("X"), Integer('N')), ok: true, env: map[Variable]Term{
+		{title: "atom_codes('North', [0'N | X]).", atom: NewAtom("North"), list: PartialList(NewNamedVariable("X"), Integer('N')), ok: true, env: map[Variable]Term{
 			x: List(Integer('o'), Integer('r'), Integer('t'), Integer('h')),
 		}},
 		{title: "atom_codes('soap', [0's, 0'o, 0'p]).", atom: NewAtom("soap"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: false},
 		{title: "atom_codes(X, Y).", atom: NewNamedVariable("X"), list: NewNamedVariable("Y"), err: InstantiationError(nil)},
 
 		// 8.16.5.3 Errors
-		{title: "a", atom: NewNamedVariable("X"), list: ListRest(NewNamedVariable("Y"), Integer(0)), err: InstantiationError(nil)},
+		{title: "a", atom: NewNamedVariable("X"), list: PartialList(NewNamedVariable("Y"), Integer(0)), err: InstantiationError(nil)},
 		{title: "b", atom: Integer(0), list: NewNamedVariable("L"), err: TypeError(ValidTypeAtom, Integer(0), nil)},
 		{title: "c: atom is a variable", atom: NewNamedVariable("X"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: NewAtom("abc"), list: Integer(0), err: TypeError(ValidTypeList, Integer(0), nil)},
@@ -5748,7 +5748,7 @@ func TestNumberChars(t *testing.T) {
 	})
 
 	t.Run("num is a variable and chars is a partial list", func(t *testing.T) {
-		chars := ListRest(NewNamedVariable("Rest"),
+		chars := PartialList(NewNamedVariable("Rest"),
 			NewAtom("2"), NewAtom("3"), atomDot, NewAtom("4"),
 		)
 
@@ -5779,8 +5779,8 @@ func TestNumberChars(t *testing.T) {
 		})
 
 		t.Run("list-ish", func(t *testing.T) {
-			_, err := NumberChars(nil, Integer(0), ListRest(NewAtom("b"), NewNamedVariable("A")), Success, nil).Force(context.Background())
-			_, ok := NewEnv().Unify(err.(Exception).Term(), TypeError(ValidTypeList, ListRest(NewAtom("b"), NewVariable()), nil).Term(), false)
+			_, err := NumberChars(nil, Integer(0), PartialList(NewAtom("b"), NewNamedVariable("A")), Success, nil).Force(context.Background())
+			_, ok := NewEnv().Unify(err.(Exception).Term(), TypeError(ValidTypeList, PartialList(NewAtom("b"), NewVariable()), nil).Term(), false)
 			assert.True(t, ok)
 		})
 	})
@@ -5881,7 +5881,7 @@ func TestNumberCodes(t *testing.T) {
 
 	t.Run("num is a variable and codes is a partial list or list with an element which is a variable", func(t *testing.T) {
 		t.Run("partial list", func(t *testing.T) {
-			codes := ListRest(NewNamedVariable("Rest"),
+			codes := PartialList(NewNamedVariable("Rest"),
 				Integer(50), Integer(51), Integer(46), Integer(52),
 			)
 
@@ -6585,7 +6585,7 @@ term_expansion(f(X), g(X)).
 			in:    atomArrow.Apply(s.Apply(a), List(b)),
 			out: atomIf.Apply(
 				s.Apply(a, Variable(offset+1), Variable(offset+3)),
-				atomEqual.Apply(Variable(offset+1), ListRest(Variable(offset+3), b)),
+				atomEqual.Apply(Variable(offset+1), PartialList(Variable(offset+3), b)),
 			),
 			ok: true,
 		},
@@ -6600,16 +6600,16 @@ term_expansion(f(X), g(X)).
 			in:    atomArrow.Apply(s.Apply(a), NewNamedVariable("X")),
 			out: atomIf.Apply(
 				s.Apply(a, Variable(offset+1), Variable(offset+3)),
-				atomPhrase.Apply(NewNamedVariable("X"), Variable(offset+1), ListRest(Variable(offset+3), b)),
+				atomPhrase.Apply(NewNamedVariable("X"), Variable(offset+1), PartialList(Variable(offset+3), b)),
 			),
 			ok: true,
 		},
 		{
 			title: "concatenation: ok",
-			in:    atomArrow.Apply(s, Seq(atomComma, a, b)),
+			in:    atomArrow.Apply(s, seq(atomComma, a, b)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomComma,
+				seq(atomComma,
 					a.Apply(Variable(offset+1), Variable(offset+4)),
 					b.Apply(Variable(offset+4), Variable(offset+3)),
 				),
@@ -6618,22 +6618,22 @@ term_expansion(f(X), g(X)).
 		},
 		{
 			title: "concatenation: lhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomComma, Integer(0), b)),
-			out:   atomArrow.Apply(s, Seq(atomComma, Integer(0), b)),
+			in:    atomArrow.Apply(s, seq(atomComma, Integer(0), b)),
+			out:   atomArrow.Apply(s, seq(atomComma, Integer(0), b)),
 			ok:    true,
 		},
 		{
 			title: "concatenation: rhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomComma, a, Integer(0))),
-			out:   atomArrow.Apply(s, Seq(atomComma, a, Integer(0))),
+			in:    atomArrow.Apply(s, seq(atomComma, a, Integer(0))),
+			out:   atomArrow.Apply(s, seq(atomComma, a, Integer(0))),
 			ok:    true,
 		},
 		{
 			title: "alternative: ok",
-			in:    atomArrow.Apply(s, Seq(atomSemiColon, a, b)),
+			in:    atomArrow.Apply(s, seq(atomSemiColon, a, b)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomSemiColon,
+				seq(atomSemiColon,
 					a.Apply(Variable(offset+1), Variable(offset+3)),
 					b.Apply(Variable(offset+1), Variable(offset+3)),
 				),
@@ -6642,10 +6642,10 @@ term_expansion(f(X), g(X)).
 		},
 		{
 			title: "alternative: if-then-else",
-			in:    atomArrow.Apply(s, Seq(atomSemiColon, atomThen.Apply(a, b), c)),
+			in:    atomArrow.Apply(s, seq(atomSemiColon, atomThen.Apply(a, b), c)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomSemiColon,
+				seq(atomSemiColon,
 					atomThen.Apply(
 						a.Apply(Variable(offset+1), Variable(offset+4)),
 						b.Apply(Variable(offset+4), Variable(offset+3)),
@@ -6657,22 +6657,22 @@ term_expansion(f(X), g(X)).
 		},
 		{
 			title: "alternative: lhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomSemiColon, Integer(0), b)),
-			out:   atomArrow.Apply(s, Seq(atomSemiColon, Integer(0), b)),
+			in:    atomArrow.Apply(s, seq(atomSemiColon, Integer(0), b)),
+			out:   atomArrow.Apply(s, seq(atomSemiColon, Integer(0), b)),
 			ok:    true,
 		},
 		{
 			title: "alternative: rhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomSemiColon, a, Integer(0))),
-			out:   atomArrow.Apply(s, Seq(atomSemiColon, a, Integer(0))),
+			in:    atomArrow.Apply(s, seq(atomSemiColon, a, Integer(0))),
+			out:   atomArrow.Apply(s, seq(atomSemiColon, a, Integer(0))),
 			ok:    true,
 		},
 		{
 			title: "second form of alternative: ok",
-			in:    atomArrow.Apply(s, Seq(atomBar, a, b)),
+			in:    atomArrow.Apply(s, seq(atomBar, a, b)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomSemiColon,
+				seq(atomSemiColon,
 					a.Apply(Variable(offset+1), Variable(offset+3)),
 					b.Apply(Variable(offset+1), Variable(offset+3)),
 				),
@@ -6681,14 +6681,14 @@ term_expansion(f(X), g(X)).
 		},
 		{
 			title: "second form of alternative: lhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomBar, Integer(0), b)),
-			out:   atomArrow.Apply(s, Seq(atomBar, Integer(0), b)),
+			in:    atomArrow.Apply(s, seq(atomBar, Integer(0), b)),
+			out:   atomArrow.Apply(s, seq(atomBar, Integer(0), b)),
 			ok:    true,
 		},
 		{
 			title: "second form of alternative: rhs is not callable",
-			in:    atomArrow.Apply(s, Seq(atomBar, a, Integer(0))),
-			out:   atomArrow.Apply(s, Seq(atomBar, a, Integer(0))),
+			in:    atomArrow.Apply(s, seq(atomBar, a, Integer(0))),
+			out:   atomArrow.Apply(s, seq(atomBar, a, Integer(0))),
 			ok:    true,
 		},
 		{
@@ -6696,7 +6696,7 @@ term_expansion(f(X), g(X)).
 			in:    atomArrow.Apply(s, atomEmptyBlock.Apply(a)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomComma,
+				seq(atomComma,
 					a,
 					atomEqual.Apply(Variable(offset+1), Variable(offset+3)),
 				),
@@ -6726,7 +6726,7 @@ term_expansion(f(X), g(X)).
 			in:    atomArrow.Apply(s, atomCut),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomComma,
+				seq(atomComma,
 					atomCut,
 					atomEqual.Apply(Variable(offset+1), Variable(offset+3)),
 				),
@@ -6738,7 +6738,7 @@ term_expansion(f(X), g(X)).
 			in:    atomArrow.Apply(s, atomNegation.Apply(a)),
 			out: atomIf.Apply(
 				s.Apply(Variable(offset+1), Variable(offset+3)),
-				Seq(atomComma,
+				seq(atomComma,
 					atomNegation.Apply(a.Apply(Variable(offset+1), Variable(offset+4))),
 					atomEqual.Apply(Variable(offset+1), Variable(offset+3)),
 				),
@@ -6785,7 +6785,7 @@ term_expansion(f(X), g(X)).
 						NewAtom("phrase2").Apply(Variable(offset+1), Variable(offset+4)),
 						NewAtom("phrase3").Apply(Variable(offset+4), Variable(offset+2)),
 					),
-					atomEqual.Apply(Variable(offset+3), ListRest(Variable(offset+2), NewAtom("word"))),
+					atomEqual.Apply(Variable(offset+3), PartialList(Variable(offset+2), NewAtom("word"))),
 				),
 			),
 			ok: true,
@@ -6872,7 +6872,7 @@ func TestNth0(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth0(nil, NewNamedVariable("N"), ListRest(NewNamedVariable("X"), NewAtom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
+			_, err := Nth0(nil, NewNamedVariable("N"), PartialList(NewNamedVariable("X"), NewAtom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -6899,7 +6899,7 @@ func TestNth0(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth0(nil, Integer(1), ListRest(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
+			_, err := Nth0(nil, Integer(1), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -6934,7 +6934,7 @@ func TestNth1(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth1(nil, NewNamedVariable("N"), ListRest(NewNamedVariable("X"), NewAtom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
+			_, err := Nth1(nil, NewNamedVariable("N"), PartialList(NewNamedVariable("X"), NewAtom("a")), NewNamedVariable("Elem"), Failure, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -6961,7 +6961,7 @@ func TestNth1(t *testing.T) {
 		})
 
 		t.Run("list is an improper list", func(t *testing.T) {
-			_, err := Nth1(nil, Integer(2), ListRest(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
+			_, err := Nth1(nil, Integer(2), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
 			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
@@ -7085,7 +7085,7 @@ func TestLength(t *testing.T) {
 				l := NewNamedVariable("L")
 				n := NewNamedVariable("N")
 				var count int
-				ok, err := Length(nil, ListRest(l, NewAtom("a"), NewAtom("b")), n, func(env *Env) *Promise {
+				ok, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), n, func(env *Env) *Promise {
 					var ret []Variable
 					iter := ListIterator{List: l, Env: env}
 					for iter.Next() {
@@ -7116,14 +7116,14 @@ func TestLength(t *testing.T) {
 
 			t.Run("length and the suffix of list are the same", func(t *testing.T) {
 				l := NewNamedVariable("L")
-				_, err := Length(nil, ListRest(l, NewAtom("a"), NewAtom("b")), l, Success, nil).Force(context.Background())
+				_, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), l, Success, nil).Force(context.Background())
 				assert.Equal(t, ResourceError(ResourceFiniteMemory, nil), err)
 			})
 		})
 
 		t.Run("length is an integer", func(t *testing.T) {
 			l := NewNamedVariable("L")
-			ok, err := Length(nil, ListRest(l, NewAtom("a"), NewAtom("b")), Integer(3), func(env *Env) *Promise {
+			ok, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), Integer(3), func(env *Env) *Promise {
 				iter := ListIterator{List: l, Env: env}
 				assert.True(t, iter.Next())
 				assert.False(t, iter.Next())
@@ -7264,10 +7264,10 @@ func TestAppend(t *testing.T) {
 			{xs: List(NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"))},
 		}},
 		{title: `append([a], nonlist, Xs).`, xs: List(NewAtom("a")), ys: NewAtom("nonlist"), zs: NewNamedVariable("Xs"), ok: true, env: []map[Variable]Term{
-			{xs: ListRest(NewAtom("nonlist"), NewAtom("a"))},
+			{xs: PartialList(NewAtom("nonlist"), NewAtom("a"))},
 		}},
 		{title: `append([a], Ys, Zs).`, xs: List(NewAtom("a")), ys: NewNamedVariable("Ys"), zs: NewNamedVariable("Zs"), ok: true, env: []map[Variable]Term{
-			{zs: ListRest(NewNamedVariable("Ys"), NewAtom("a"))},
+			{zs: PartialList(NewNamedVariable("Ys"), NewAtom("a"))},
 		}},
 		{title: `append(Xs, Ys, [a,b,c]).`, xs: NewNamedVariable("Xs"), ys: NewNamedVariable("Ys"), zs: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), ok: true, env: []map[Variable]Term{
 			{xs: List(), ys: List(NewAtom("a"), NewAtom("b"), NewAtom("c"))},

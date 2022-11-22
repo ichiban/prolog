@@ -321,7 +321,7 @@ func (vm *VM) execCall(r *registers) *Promise {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
-	args, _ := Slice(r.astack, r.env)
+	args, _ := slice(r.astack, r.env)
 	return vm.Arrive(pi.name, args, func(env *Env) *Promise {
 		v := NewVariable()
 		return vm.exec(registers{
@@ -419,7 +419,7 @@ func (vm *VM) Parse(r io.RuneReader, vars *[]ParsedVariable, args ...interface{}
 		doubleQuotes: vm.doubleQuotes,
 		vars:         vars,
 	}
-	if err := p.SetPlaceholder(NewAtom("?"), args...); err != nil {
+	if err := p.Replace(NewAtom("?"), args...); err != nil {
 		return nil, err
 	}
 	return &p, nil

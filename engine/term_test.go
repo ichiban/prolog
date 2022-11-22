@@ -112,7 +112,7 @@ func Test_variant(t *testing.T) {
 
 func Test_writeTerm(t *testing.T) {
 	v := NewNamedVariable("L")
-	l := ListRest(v, NewAtom("a"), NewAtom("b"))
+	l := PartialList(v, NewAtom("a"), NewAtom("b"))
 	w := NewNamedVariable("R")
 	r := &compound{functor: NewAtom("f"), args: []Term{w}}
 	env := NewEnv().Bind(v, l).Bind(w, r)
@@ -173,7 +173,7 @@ func Test_writeTerm(t *testing.T) {
 		{title: "ambiguous e", term: Float(33.0), opts: WriteOptions{right: operator{name: NewAtom(`e`)}}, output: `33.0 `}, // So that it won't be 33.0e.
 
 		{title: "list", term: List(NewAtom(`a`), NewAtom(`b`), NewAtom(`c`)), output: `[a,b,c]`},
-		{title: "list-ish", term: ListRest(NewAtom(`rest`), NewAtom(`a`), NewAtom(`b`)), output: `[a,b|rest]`},
+		{title: "list-ish", term: PartialList(NewAtom(`rest`), NewAtom(`a`), NewAtom(`b`)), output: `[a,b|rest]`},
 		{title: "circular list", term: l, output: `[a,b,a|...]`},
 		{title: "curly brackets", term: &compound{functor: NewAtom(`{}`), args: []Term{NewAtom(`foo`)}}, output: `{foo}`},
 		{title: "fx", term: &compound{functor: NewAtom(`:-`), args: []Term{&compound{functor: NewAtom(`:-`), args: []Term{NewAtom(`foo`)}}}}, opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},

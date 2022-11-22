@@ -320,7 +320,7 @@ func Arg(vm *VM, nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 func Univ(vm *VM, t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
-		elems, err := Slice(list, env)
+		elems, err := slice(list, env)
 		if err != nil {
 			return Error(err)
 		}
@@ -387,6 +387,8 @@ func renamedCopy(t Term, copied map[TermID]Term, env *Env) Term {
 		v := NewVariable()
 		copied[t] = v
 		return v
+	case list, charList, codeList:
+		return t
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
@@ -700,7 +702,7 @@ func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances
 	}
 
 	return FindAll(vm, atomPlus.Apply(witness, template), g, s, func(env *Env) *Promise {
-		s, _ := Slice(s, env)
+		s, _ := slice(s, env)
 		ks := make([]func(context.Context) *Promise, 0, len(s))
 		for len(s) > 0 {
 			var wt Compound

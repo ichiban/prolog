@@ -77,7 +77,7 @@ func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
-	return atomEqual.Apply(list, ListRest(rest, elems...)), nil
+	return atomEqual.Apply(list, PartialList(rest, elems...)), nil
 }
 
 var dcgConstr map[procedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error)

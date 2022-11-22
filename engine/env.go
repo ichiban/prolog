@@ -205,6 +205,18 @@ func simplify(t Term, simplified map[TermID]Compound, env *Env) Term {
 		simplified = map[TermID]Compound{}
 	}
 	switch t := env.Resolve(t).(type) {
+	case charList, codeList:
+		return t
+	case list:
+		if c, ok := simplified[ID(t)]; ok {
+			return c
+		}
+		l := make(list, len(t))
+		simplified[ID(t)] = l
+		for i, e := range t {
+			l[i] = simplify(e, simplified, env)
+		}
+		return l
 	case Compound:
 		if c, ok := simplified[ID(t)]; ok {
 			return c
@@ -330,10 +342,6 @@ const (
 	OrderLess
 	OrderGreater
 )
-
-func (o Order) GoString() string {
-	return o.Term().(Atom).String()
-}
 
 // Term returns the Atom representation of Order.
 func (o Order) Term() Term {

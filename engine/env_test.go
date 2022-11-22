@@ -56,7 +56,7 @@ func TestEnv_Lookup(t *testing.T) {
 func TestEnv_Simplify(t *testing.T) {
 	// L = [a, b|L] ==> [a, b, a, b, ...]
 	l := NewNamedVariable("L")
-	env := NewEnv().Bind(l, ListRest(l, NewAtom("a"), NewAtom("b")))
+	env := NewEnv().Bind(l, PartialList(l, NewAtom("a"), NewAtom("b")))
 	c := env.Simplify(l)
 	iter := ListIterator{List: c, Env: env}
 	assert.True(t, iter.Next())

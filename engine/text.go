@@ -225,7 +225,7 @@ type text struct {
 }
 
 func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
-	iter := AnyIterator{Any: pi}
+	iter := anyIterator{Any: pi}
 	for iter.Next() {
 		switch pi := iter.Current().(type) {
 		case Variable:

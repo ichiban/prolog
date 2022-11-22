@@ -81,8 +81,8 @@ func (i *ListIterator) Suffix() Term {
 	return i.hare
 }
 
-// SeqIterator is an iterator for a sequence.
-type SeqIterator struct {
+// seqIterator is an iterator for a sequence.
+type seqIterator struct {
 	Seq Term
 	Env *Env
 
@@ -90,7 +90,7 @@ type SeqIterator struct {
 }
 
 // Next proceeds to the next element of the sequence and returns true if there's such an element.
-func (i *SeqIterator) Next() bool {
+func (i *seqIterator) Next() bool {
 	switch s := i.Env.Resolve(i.Seq).(type) {
 	case nil:
 		return false
@@ -111,12 +111,12 @@ func (i *SeqIterator) Next() bool {
 }
 
 // Current returns the current element.
-func (i *SeqIterator) Current() Term {
+func (i *seqIterator) Current() Term {
 	return i.current
 }
 
-// AltIterator is an iterator for alternatives.
-type AltIterator struct {
+// altIterator is an iterator for alternatives.
+type altIterator struct {
 	Alt Term
 	Env *Env
 
@@ -124,7 +124,7 @@ type AltIterator struct {
 }
 
 // Next proceeds to the next element of the alternatives and returns true if there's such an element.
-func (i *AltIterator) Next() bool {
+func (i *altIterator) Next() bool {
 	switch a := i.Env.Resolve(i.Alt).(type) {
 	case nil:
 		return false
@@ -153,12 +153,12 @@ func (i *AltIterator) Next() bool {
 }
 
 // Current returns the current element.
-func (i *AltIterator) Current() Term {
+func (i *altIterator) Current() Term {
 	return i.current
 }
 
-// AnyIterator is an iterator for a list or a sequence.
-type AnyIterator struct {
+// anyIterator is an iterator for a list or a sequence.
+type anyIterator struct {
 	Any Term
 	Env *Env
 
@@ -169,12 +169,12 @@ type AnyIterator struct {
 }
 
 // Next proceeds to the next element and returns true if there's such an element.
-func (i *AnyIterator) Next() bool {
+func (i *anyIterator) Next() bool {
 	if i.backend == nil {
 		if a, ok := i.Env.Resolve(i.Any).(Compound); ok && a.Functor() == atomDot && a.Arity() == 2 {
 			i.backend = &ListIterator{List: i.Any, Env: i.Env}
 		} else {
-			i.backend = &SeqIterator{Seq: i.Any, Env: i.Env}
+			i.backend = &seqIterator{Seq: i.Any, Env: i.Env}
 		}
 	}
 
@@ -182,12 +182,12 @@ func (i *AnyIterator) Next() bool {
 }
 
 // Current returns the current element.
-func (i *AnyIterator) Current() Term {
+func (i *anyIterator) Current() Term {
 	return i.backend.Current()
 }
 
 // Err returns an error.
-func (i *AnyIterator) Err() error {
+func (i *anyIterator) Err() error {
 	b, ok := i.backend.(interface{ Err() error })
 	if !ok {
 		return nil
