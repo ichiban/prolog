@@ -4519,7 +4519,7 @@ func TestReadTerm(t *testing.T) {
 
 			var vm VM
 			ok, err := ReadTerm(&vm, s, NewVariable(), List(), Success, nil).Force(context.Background())
-			assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{Kind: TokenLetterDigit, Val: "bar"}}, nil), err)
+			assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{kind: tokenLetterDigit, val: "bar"}}, nil), err)
 			assert.False(t, ok)
 		})
 
@@ -4555,7 +4555,7 @@ func TestReadTerm(t *testing.T) {
 
 		var vm VM
 		ok, err := ReadTerm(&vm, s, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{Kind: TokenGraphic, Val: "="}}, nil), err)
+		assert.Equal(t, SyntaxError(unexpectedTokenError{actual: Token{kind: tokenGraphic, val: "="}}, nil), err)
 		assert.False(t, ok)
 	})
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"unicode"
@@ -9,7 +10,7 @@ import (
 	"unsafe"
 )
 
-// Lexer turns bytes into tokens.
+// Lexer turns runes into tokens.
 type Lexer struct {
 	input           runeRingBuffer
 	charConversions map[rune]rune
@@ -59,119 +60,121 @@ func (l *Lexer) chunk() string {
 
 // Token is a smallest meaningful unit of prolog program.
 type Token struct {
-	Kind TokenKind
-	Val  string
+	kind tokenKind
+	val  string
 }
 
-// TokenKind is a type of Token.
-type TokenKind byte
+func (t Token) String() string {
+	return fmt.Sprintf("%s(%s)", t.kind.String(), t.val)
+}
+
+// tokenKind is a type of Token.
+type tokenKind byte
 
 const (
-	// TokenInvalid represents an invalid token.
-	TokenInvalid TokenKind = iota
+	// tokenInvalid represents an invalid token.
+	tokenInvalid tokenKind = iota
 
-	// TokenLetterDigit represents a letter digit token.
-	TokenLetterDigit
+	// tokenLetterDigit represents a letter digit token.
+	tokenLetterDigit
 
-	// TokenGraphic represents a graphical token.
-	TokenGraphic
+	// tokenGraphic represents a graphical token.
+	tokenGraphic
 
-	// TokenQuoted represents a quoted token.
-	TokenQuoted
+	// tokenQuoted represents a quoted token.
+	tokenQuoted
 
-	// TokenSemicolon represents a semicolon token.
-	TokenSemicolon
+	// tokenSemicolon represents a semicolon token.
+	tokenSemicolon
 
-	// TokenCut represents a cut token.
-	TokenCut
+	// tokenCut represents a cut token.
+	tokenCut
 
-	// TokenVariable represents a variable token.
-	TokenVariable
+	// tokenVariable represents a variable token.
+	tokenVariable
 
-	// TokenInteger represents an integer token.
-	TokenInteger
+	// tokenInteger represents an integer token.
+	tokenInteger
 
-	// TokenFloatNumber represents a floating-point token.
-	TokenFloatNumber
+	// tokenFloatNumber represents a floating-point token.
+	tokenFloatNumber
 
-	// TokenDoubleQuotedList represents a double-quoted string.
-	TokenDoubleQuotedList
+	// tokenDoubleQuotedList represents a double-quoted string.
+	tokenDoubleQuotedList
 
-	// TokenOpen represents an open parenthesis.
-	TokenOpen
+	// tokenOpen represents an open parenthesis.
+	tokenOpen
 
-	// TokenOpenCT represents an open CT parenthesis.
-	TokenOpenCT
+	// tokenOpenCT represents an open CT parenthesis.
+	tokenOpenCT
 
-	// TokenClose represents a close parenthesis.
-	TokenClose
+	// tokenClose represents a close parenthesis.
+	tokenClose
 
-	// TokenOpenList represents an open bracket.
-	TokenOpenList
+	// tokenOpenList represents an open bracket.
+	tokenOpenList
 
-	// TokenCloseList represents a close bracket.
-	TokenCloseList
+	// tokenCloseList represents a close bracket.
+	tokenCloseList
 
-	// TokenOpenCurly represents an open brace.
-	TokenOpenCurly
+	// tokenOpenCurly represents an open brace.
+	tokenOpenCurly
 
-	// TokenCloseCurly represents a close brace.
-	TokenCloseCurly
+	// tokenCloseCurly represents a close brace.
+	tokenCloseCurly
 
-	// TokenBar represents a bar.
-	TokenBar
+	// tokenBar represents a bar.
+	tokenBar
 
-	// TokenComma represents a comma.
-	TokenComma
+	// tokenComma represents a comma.
+	tokenComma
 
-	// TokenEnd represents a period.
-	TokenEnd
-
-	tokenKindLen
+	// tokenEnd represents a period.
+	tokenEnd
 )
 
-// GoString returns a string representation of TokenKind.
-func (k TokenKind) GoString() string {
+// GoString returns a string representation of tokenKind.
+func (k tokenKind) GoString() string {
 	return k.String()
 }
 
-func (k TokenKind) String() string {
+func (k tokenKind) String() string {
 	return [...]string{
-		TokenInvalid:          "invalid",
-		TokenLetterDigit:      "letter digit",
-		TokenGraphic:          "graphic",
-		TokenQuoted:           "quoted",
-		TokenSemicolon:        "semicolon",
-		TokenCut:              "cut",
-		TokenVariable:         "variable",
-		TokenInteger:          "integer",
-		TokenFloatNumber:      "float number",
-		TokenDoubleQuotedList: "double quoted list",
-		TokenOpen:             "open",
-		TokenOpenCT:           "open ct",
-		TokenClose:            "close",
-		TokenOpenList:         "open list",
-		TokenCloseList:        "close list",
-		TokenOpenCurly:        "open curly",
-		TokenCloseCurly:       "close curly",
-		TokenBar:              "bar",
-		TokenComma:            "comma",
-		TokenEnd:              "end",
+		tokenInvalid:          "invalid",
+		tokenLetterDigit:      "letter digit",
+		tokenGraphic:          "graphic",
+		tokenQuoted:           "quoted",
+		tokenSemicolon:        "semicolon",
+		tokenCut:              "cut",
+		tokenVariable:         "variable",
+		tokenInteger:          "integer",
+		tokenFloatNumber:      "float number",
+		tokenDoubleQuotedList: "double quoted list",
+		tokenOpen:             "open",
+		tokenOpenCT:           "open ct",
+		tokenClose:            "close",
+		tokenOpenList:         "open list",
+		tokenCloseList:        "close list",
+		tokenOpenCurly:        "open curly",
+		tokenCloseCurly:       "close curly",
+		tokenBar:              "bar",
+		tokenComma:            "comma",
+		tokenEnd:              "end",
 	}[k]
 }
 
 // Tokens
 
-var soloTokenKinds = [...]TokenKind{
-	';': TokenSemicolon,
-	'!': TokenCut,
-	')': TokenClose,
-	'[': TokenOpenList,
-	']': TokenCloseList,
-	'{': TokenOpenCurly,
-	'}': TokenCloseCurly,
-	'|': TokenBar,
-	',': TokenComma,
+var soloTokenKinds = [...]tokenKind{
+	';': tokenSemicolon,
+	'!': tokenCut,
+	')': tokenClose,
+	'[': tokenOpenList,
+	']': tokenCloseList,
+	'{': tokenOpenCurly,
+	'}': tokenCloseCurly,
+	'|': tokenBar,
+	',': tokenComma,
 }
 
 func (l *Lexer) token(afterLayout bool) (Token, error) {
@@ -184,7 +187,7 @@ func (l *Lexer) token(afterLayout bool) (Token, error) {
 	case r == '.':
 		l.accept(r)
 		if l.wasEndChar() {
-			return Token{Kind: TokenEnd, Val: l.chunk()}, nil
+			return Token{kind: tokenEnd, val: l.chunk()}, nil
 		}
 		return l.graphicToken()
 	case isGraphicChar(r), r == '\\':
@@ -204,16 +207,16 @@ func (l *Lexer) token(afterLayout bool) (Token, error) {
 	case r == '(':
 		l.accept(r)
 		if afterLayout {
-			return Token{Kind: TokenOpen, Val: l.chunk()}, nil
+			return Token{kind: tokenOpen, val: l.chunk()}, nil
 		}
-		return Token{Kind: TokenOpenCT, Val: l.chunk()}, nil
+		return Token{kind: tokenOpenCT, val: l.chunk()}, nil
 	default:
-		k := TokenInvalid
+		k := tokenInvalid
 		if int(r) < len(soloTokenKinds) {
 			k = soloTokenKinds[r]
 		}
 		l.accept(r)
-		return Token{Kind: k, Val: l.chunk()}, nil
+		return Token{kind: k, val: l.chunk()}, nil
 	}
 }
 
@@ -304,14 +307,14 @@ func (l *Lexer) letterDigitToken() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenLetterDigit, Val: l.chunk()}, nil
+			return Token{kind: tokenLetterDigit, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isAlphanumericChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenLetterDigit, Val: l.chunk()}, nil
+			return Token{kind: tokenLetterDigit, val: l.chunk()}, nil
 		}
 	}
 }
@@ -320,14 +323,14 @@ func (l *Lexer) graphicToken() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenGraphic, Val: l.chunk()}, nil
+			return Token{kind: tokenGraphic, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isGraphicChar(r), r == '\\':
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenGraphic, Val: l.chunk()}, nil
+			return Token{kind: tokenGraphic, val: l.chunk()}, nil
 		}
 	}
 }
@@ -358,10 +361,10 @@ func (l *Lexer) quotedToken() (Token, error) {
 
 			// Checks if it contains invalid octal or hexadecimal escape sequences.
 			if strings.ContainsRune(unquote(s), utf8.RuneError) {
-				return Token{Kind: TokenInvalid, Val: s}, nil
+				return Token{kind: tokenInvalid, val: s}, nil
 			}
 
-			return Token{Kind: TokenQuoted, Val: s}, nil
+			return Token{kind: tokenQuoted, val: s}, nil
 		case r == '\\':
 			l.accept(r)
 			switch r, err := l.rawNext(); {
@@ -379,7 +382,7 @@ func (l *Lexer) quotedToken() (Token, error) {
 			return l.escapeSequence(l.quotedToken)
 		default:
 			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+			return Token{kind: tokenInvalid, val: l.chunk()}, nil
 		}
 	}
 }
@@ -399,7 +402,7 @@ func (l *Lexer) escapeSequence(cont func() (Token, error)) (Token, error) {
 		return l.hexadecimalEscapeSequence(cont)
 	default:
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+		return Token{kind: tokenInvalid, val: l.chunk()}, nil
 	}
 }
 
@@ -416,7 +419,7 @@ func (l *Lexer) octalEscapeSequence(cont func() (Token, error)) (Token, error) {
 			continue
 		default:
 			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+			return Token{kind: tokenInvalid, val: l.chunk()}, nil
 		}
 	}
 }
@@ -429,7 +432,7 @@ func (l *Lexer) hexadecimalEscapeSequence(cont func() (Token, error)) (Token, er
 		l.accept(r)
 	default:
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+		return Token{kind: tokenInvalid, val: l.chunk()}, nil
 	}
 
 	for {
@@ -444,7 +447,7 @@ func (l *Lexer) hexadecimalEscapeSequence(cont func() (Token, error)) (Token, er
 			continue
 		default:
 			l.accept(r)
-			return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+			return Token{kind: tokenInvalid, val: l.chunk()}, nil
 		}
 	}
 }
@@ -455,14 +458,14 @@ func (l *Lexer) variableToken() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenVariable, Val: l.chunk()}, nil
+			return Token{kind: tokenVariable, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isAlphanumericChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenVariable, Val: l.chunk()}, nil
+			return Token{kind: tokenVariable, val: l.chunk()}, nil
 		}
 	}
 }
@@ -507,7 +510,7 @@ func (l *Lexer) integerTokenCharacterCode(r rune) (Token, error) {
 		case err == io.EOF:
 			l.backup()
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil // 0
+			return Token{kind: tokenInteger, val: l.chunk()}, nil // 0
 		case err != nil:
 			return Token{}, err
 		case r == '\'': // 0'''
@@ -517,7 +520,7 @@ func (l *Lexer) integerTokenCharacterCode(r rune) (Token, error) {
 			l.backup()
 			l.backup()
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil // 0
+			return Token{kind: tokenInteger, val: l.chunk()}, nil // 0
 		}
 	case r == '\\':
 		switch r, err := l.next(); {
@@ -529,7 +532,7 @@ func (l *Lexer) integerTokenCharacterCode(r rune) (Token, error) {
 			l.backup()
 			l.backup()
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil // 0
+			return Token{kind: tokenInteger, val: l.chunk()}, nil // 0
 		default:
 			l.backup()
 			l.backup()
@@ -545,7 +548,7 @@ func (l *Lexer) integerTokenBinary(r rune) (Token, error) {
 	switch r, err := l.next(); {
 	case err == io.EOF:
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
 		return Token{}, err
 	case isBinaryDigitChar(r):
@@ -553,7 +556,7 @@ func (l *Lexer) integerTokenBinary(r rune) (Token, error) {
 	default:
 		l.backup()
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	}
 	l.accept(r)
 	return l.binaryConstant()
@@ -563,7 +566,7 @@ func (l *Lexer) integerTokenOctal(r rune) (Token, error) {
 	switch r, err := l.next(); {
 	case err == io.EOF:
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
 		return Token{}, err
 	case isOctalDigitChar(r):
@@ -571,7 +574,7 @@ func (l *Lexer) integerTokenOctal(r rune) (Token, error) {
 	default:
 		l.backup()
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	}
 	l.accept(r)
 	return l.octalConstant()
@@ -581,7 +584,7 @@ func (l *Lexer) integerTokenHexadecimal(r rune) (Token, error) {
 	switch r, err := l.next(); {
 	case err == io.EOF:
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
 		return Token{}, err
 	case isHexadecimalDigitChar(r):
@@ -589,7 +592,7 @@ func (l *Lexer) integerTokenHexadecimal(r rune) (Token, error) {
 	default:
 		l.backup()
 		l.backup()
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	}
 	l.accept(r)
 	return l.hexadecimalConstant()
@@ -599,7 +602,7 @@ func (l *Lexer) integerConstant() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isDecimalDigitChar(r):
@@ -608,7 +611,7 @@ func (l *Lexer) integerConstant() (Token, error) {
 			switch r, err := l.next(); {
 			case err == io.EOF:
 				l.backup()
-				return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+				return Token{kind: tokenInteger, val: l.chunk()}, nil
 			case err != nil:
 				return Token{}, err
 			case isDecimalDigitChar(r):
@@ -618,11 +621,11 @@ func (l *Lexer) integerConstant() (Token, error) {
 			default:
 				l.backup()
 				l.backup()
-				return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+				return Token{kind: tokenInteger, val: l.chunk()}, nil
 			}
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		}
 	}
 }
@@ -635,18 +638,18 @@ func (l *Lexer) characterCodeConstant() (Token, error) {
 		l.accept(r)
 		r, _ := l.next() // r == '\''
 		l.accept(r)
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	case r == '\\':
 		l.accept(r)
 		return l.escapeSequence(func() (Token, error) {
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		})
 	case isGraphicChar(r), isAlphanumericChar(r), isSoloChar(r), r == ' ':
 		l.accept(r)
-		return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+		return Token{kind: tokenInteger, val: l.chunk()}, nil
 	default:
 		l.accept(r)
-		return Token{Kind: TokenInvalid, Val: l.chunk()}, nil
+		return Token{kind: tokenInvalid, val: l.chunk()}, nil
 	}
 }
 
@@ -654,14 +657,14 @@ func (l *Lexer) binaryConstant() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isBinaryDigitChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		}
 	}
 }
@@ -670,14 +673,14 @@ func (l *Lexer) octalConstant() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isOctalDigitChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		}
 	}
 }
@@ -686,14 +689,14 @@ func (l *Lexer) hexadecimalConstant() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isHexadecimalDigitChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenInteger, Val: l.chunk()}, nil
+			return Token{kind: tokenInteger, val: l.chunk()}, nil
 		}
 	}
 }
@@ -704,7 +707,7 @@ func (l *Lexer) fraction() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+			return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isDecimalDigitChar(r):
@@ -714,7 +717,7 @@ func (l *Lexer) fraction() (Token, error) {
 			switch r, err := l.next(); {
 			case err == io.EOF:
 				l.backup() // for 'e' or 'E'
-				return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+				return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 			case err != nil:
 				return Token{}, err
 			case isSignChar(r):
@@ -729,7 +732,7 @@ func (l *Lexer) fraction() (Token, error) {
 					l.backup()
 				}
 				l.backup() // for 'e' or 'E'
-				return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+				return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 			case err != nil:
 				return Token{}, err
 			case isDecimalDigitChar(r):
@@ -741,7 +744,7 @@ func (l *Lexer) fraction() (Token, error) {
 					l.backup()
 				}
 				l.backup() // for 'e' or 'E'
-				return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+				return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 			}
 
 			l.accept(r) // 'e' or 'E'
@@ -751,7 +754,7 @@ func (l *Lexer) fraction() (Token, error) {
 			return l.exponent()
 		default:
 			l.backup()
-			return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+			return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		}
 	}
 }
@@ -760,14 +763,14 @@ func (l *Lexer) exponent() (Token, error) {
 	for {
 		switch r, err := l.next(); {
 		case err == io.EOF:
-			return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+			return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		case err != nil:
 			return Token{}, err
 		case isDecimalDigitChar(r):
 			l.accept(r)
 		default:
 			l.backup()
-			return Token{Kind: TokenFloatNumber, Val: l.chunk()}, nil
+			return Token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		}
 	}
 }
@@ -783,14 +786,14 @@ func (l *Lexer) doubleQuotedListToken() (Token, error) {
 			l.accept(r)
 			switch r, err := l.next(); {
 			case err == io.EOF:
-				return Token{Kind: TokenDoubleQuotedList, Val: l.chunk()}, nil
+				return Token{kind: tokenDoubleQuotedList, val: l.chunk()}, nil
 			case err != nil:
 				return Token{}, err
 			case r == '"':
 				l.accept(r)
 			default:
 				l.backup()
-				return Token{Kind: TokenDoubleQuotedList, Val: l.chunk()}, nil
+				return Token{kind: tokenDoubleQuotedList, val: l.chunk()}, nil
 			}
 		case r == '\\':
 			l.accept(r)

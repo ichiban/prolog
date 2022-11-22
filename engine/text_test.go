@@ -240,7 +240,7 @@ foo(?).
 `, args: []interface{}{nil}, err: errors.New("can't convert to term: <invalid reflect.Value>")},
 		{title: "error: syntax error", text: `
 foo().
-`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{title: "error: expansion error", text: `
 :- ensure_loaded('testdata/break_term_expansion').
 foo(a).

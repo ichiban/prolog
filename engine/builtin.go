@@ -957,7 +957,7 @@ func CurrentPredicate(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise
 
 // Retract removes the first clause that matches with t.
 func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
-	t = Rulify(t, env)
+	t = rulify(t, env)
 
 	h := t.(Compound).Arg(0)
 	pi, _, err := piArg(h, env)
@@ -979,7 +979,7 @@ func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 	ks := make([]func(context.Context) *Promise, len(u.clauses))
 	for i, c := range u.clauses {
 		i := i
-		raw := Rulify(c.raw, env)
+		raw := rulify(c.raw, env)
 		ks[i] = func(_ context.Context) *Promise {
 			return Unify(vm, t, raw, func(env *Env) *Promise {
 				j := i - deleted
@@ -1867,12 +1867,20 @@ func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
 
 	ks := make([]func(context.Context) *Promise, len(u.clauses))
 	for i, c := range u.clauses {
-		r := Rulify(renamedCopy(c.raw, nil, env), env)
+		r := rulify(renamedCopy(c.raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
 			return Unify(vm, atomIf.Apply(head, body), r, k, env)
 		}
 	}
 	return Delay(ks...)
+}
+
+func rulify(t Term, env *Env) Term {
+	t = env.Resolve(t)
+	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
+		return t
+	}
+	return atomIf.Apply(t, atomTrue)
 }
 
 // AtomLength counts the runes in atom and unifies the result with length.

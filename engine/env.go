@@ -258,7 +258,7 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 		switch {
 		case x == y:
 			return e, true
-		case occursCheck && Contains(y, x, e):
+		case occursCheck && contains(y, x, e):
 			return e, false
 		default:
 			return e.Bind(x, y), true
@@ -292,6 +292,32 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 		default:
 			return e, x == y
 		}
+	}
+}
+
+func contains(t, s Term, env *Env) bool {
+	switch t := t.(type) {
+	case Variable:
+		if t == s {
+			return true
+		}
+		ref, ok := env.Lookup(t)
+		if !ok {
+			return false
+		}
+		return contains(ref, s, env)
+	case Compound:
+		if s, ok := s.(Atom); ok && t.Functor() == s {
+			return true
+		}
+		for i := 0; i < t.Arity(); i++ {
+			if contains(t.Arg(i), s, env) {
+				return true
+			}
+		}
+		return false
+	default:
+		return t == s
 	}
 }
 

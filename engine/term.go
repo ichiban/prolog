@@ -11,42 +11,6 @@ import (
 type Term interface {
 }
 
-// Contains checks if t contains s.
-func Contains(t, s Term, env *Env) bool {
-	switch t := t.(type) {
-	case Variable:
-		if t == s {
-			return true
-		}
-		ref, ok := env.Lookup(t)
-		if !ok {
-			return false
-		}
-		return Contains(ref, s, env)
-	case Compound:
-		if s, ok := s.(Atom); ok && t.Functor() == s {
-			return true
-		}
-		for i := 0; i < t.Arity(); i++ {
-			if Contains(t.Arg(i), s, env) {
-				return true
-			}
-		}
-		return false
-	default:
-		return t == s
-	}
-}
-
-// Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Term, env *Env) Term {
-	t = env.Resolve(t)
-	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
-		return t
-	}
-	return atomIf.Apply(t, atomTrue)
-}
-
 // WriteOptions specify how the Term writes itself.
 type WriteOptions struct {
 	IgnoreOps     bool

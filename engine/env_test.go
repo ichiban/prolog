@@ -192,3 +192,15 @@ func TestEnv_Compare(t *testing.T) {
 		})
 	}
 }
+
+func TestContains(t *testing.T) {
+	var env *Env
+	assert.True(t, contains(NewAtom("a"), NewAtom("a"), env))
+	assert.False(t, contains(NewVariable(), NewAtom("a"), env))
+	v := NewNamedVariable("V")
+	env = env.Bind(v, NewAtom("a"))
+	assert.True(t, contains(v, NewAtom("a"), env))
+	assert.True(t, contains(&compound{functor: NewAtom("a")}, NewAtom("a"), env))
+	assert.True(t, contains(&compound{functor: NewAtom("f"), args: []Term{NewAtom("a")}}, NewAtom("a"), env))
+	assert.False(t, contains(&compound{functor: NewAtom("f")}, NewAtom("a"), env))
+}

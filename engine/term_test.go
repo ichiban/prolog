@@ -8,39 +8,6 @@ import (
 	"testing"
 )
 
-func TestContains(t *testing.T) {
-	var env *Env
-	assert.True(t, Contains(NewAtom("a"), NewAtom("a"), env))
-	assert.False(t, Contains(NewVariable(), NewAtom("a"), env))
-	v := NewNamedVariable("V")
-	env = env.Bind(v, NewAtom("a"))
-	assert.True(t, Contains(v, NewAtom("a"), env))
-	assert.True(t, Contains(&compound{functor: NewAtom("a")}, NewAtom("a"), env))
-	assert.True(t, Contains(&compound{functor: NewAtom("f"), args: []Term{NewAtom("a")}}, NewAtom("a"), env))
-	assert.False(t, Contains(&compound{functor: NewAtom("f")}, NewAtom("a"), env))
-}
-
-func TestRulify(t *testing.T) {
-	assert.Equal(t, &compound{
-		functor: atomIf,
-		args:    []Term{NewAtom("a"), atomTrue},
-	}, Rulify(NewAtom("a"), nil))
-	v := NewNamedVariable("V")
-	env := NewEnv().
-		Bind(v, NewAtom("a"))
-	assert.Equal(t, &compound{
-		functor: atomIf,
-		args:    []Term{NewAtom("a"), atomTrue},
-	}, Rulify(v, env))
-	assert.Equal(t, &compound{
-		functor: atomIf,
-		args:    []Term{NewAtom("a"), NewAtom("b")},
-	}, Rulify(&compound{
-		functor: atomIf,
-		args:    []Term{NewAtom("a"), NewAtom("b")},
-	}, nil))
-}
-
 func TestErrStringWriter_WriteString(t *testing.T) {
 	var failed = errors.New("failed")
 
