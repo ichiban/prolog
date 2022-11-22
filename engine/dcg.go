@@ -56,16 +56,16 @@ func expandDCG(term Term, env *Env) (Term, error) {
 }
 
 func dcgNonTerminal(nonTerminal, list, rest Term, env *Env) (Term, error) {
-	pi, arg, err := PI(nonTerminal, env)
+	pi, arg, err := piArg(nonTerminal, env)
 	if err != nil {
 		return nil, err
 	}
-	args := make([]Term, pi.Arity, pi.Arity+2)
-	for i := 0; i < int(pi.Arity); i++ {
+	args := make([]Term, pi.arity, pi.arity+2)
+	for i := 0; i < int(pi.arity); i++ {
 		args[i] = arg(i)
 	}
 	args = append(args, list, rest)
-	return pi.Name.Apply(args...), nil
+	return pi.name.Apply(args...), nil
 }
 
 func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
@@ -80,17 +80,17 @@ func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
 	return atomEqual.Apply(list, ListRest(rest, elems...)), nil
 }
 
-var dcgConstr map[ProcedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error)
+var dcgConstr map[procedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error)
 
 func init() {
-	dcgConstr = map[ProcedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error){
-		{Name: atomEmptyList, Arity: 0}: func(_ []Term, list, rest Term, _ *Env) (Term, error) {
+	dcgConstr = map[procedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error){
+		{name: atomEmptyList, arity: 0}: func(_ []Term, list, rest Term, _ *Env) (Term, error) {
 			return atomEqual.Apply(list, rest), nil
 		},
-		{Name: atomDot, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomDot, arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			return dcgTerminals(atomDot.Apply(args...), list, rest, env)
 		},
-		{Name: atomComma, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomComma, arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()
 			first, err := dcgBody(args[0], list, v, env)
 			if err != nil {
@@ -102,7 +102,7 @@ func init() {
 			}
 			return atomComma.Apply(first, second), nil
 		},
-		{Name: atomSemiColon, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomSemiColon, arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			body := dcgBody
 			if t, ok := env.Resolve(args[0]).(Compound); ok && t.Functor() == atomThen && t.Arity() == 2 {
 				body = dcgCBody
@@ -117,7 +117,7 @@ func init() {
 			}
 			return atomSemiColon.Apply(either, or), nil
 		},
-		{Name: atomBar, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomBar, arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			either, err := dcgBody(args[0], list, rest, env)
 			if err != nil {
 				return nil, err
@@ -128,19 +128,19 @@ func init() {
 			}
 			return atomSemiColon.Apply(either, or), nil
 		},
-		{Name: atomEmptyBlock, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomEmptyBlock, arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			return atomComma.Apply(args[0], atomEqual.Apply(list, rest)), nil
 		},
-		{Name: atomCall, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomCall, arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			return atomCall.Apply(args[0], list, rest), nil
 		},
-		{Name: atomPhrase, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomPhrase, arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			return atomPhrase.Apply(args[0], list, rest), nil
 		},
-		{Name: atomCut, Arity: 0}: func(_ []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomCut, arity: 0}: func(_ []Term, list, rest Term, env *Env) (Term, error) {
 			return atomComma.Apply(atomCut, atomEqual.Apply(list, rest)), nil
 		},
-		{Name: atomNegation, Arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomNegation, arity: 1}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()
 			g, err := dcgBody(args[0], list, v, env)
 			if err != nil {
@@ -148,7 +148,7 @@ func init() {
 			}
 			return atomComma.Apply(atomNegation.Apply(g), atomEqual.Apply(list, rest)), nil
 		},
-		{Name: atomThen, Arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
+		{name: atomThen, arity: 2}: func(args []Term, list, rest Term, env *Env) (Term, error) {
 			v := NewVariable()
 			cond, err := dcgBody(args[0], list, v, env)
 			if err != nil {
@@ -177,13 +177,13 @@ func dcgBody(term, list, rest Term, env *Env) (Term, error) {
 }
 
 func dcgCBody(term, list, rest Term, env *Env) (Term, error) {
-	pi, arg, err := PI(term, env)
+	pi, arg, err := piArg(term, env)
 	if err != nil {
 		return nil, err
 	}
 	if c, ok := dcgConstr[pi]; ok {
-		args := make([]Term, pi.Arity)
-		for i := 0; i < int(pi.Arity); i++ {
+		args := make([]Term, pi.arity)
+		for i := 0; i < int(pi.arity); i++ {
 			args[i] = arg(i)
 		}
 		return c(args, list, rest, env)

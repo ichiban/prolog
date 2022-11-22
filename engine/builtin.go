@@ -91,16 +91,16 @@ func Call7(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k fun
 }
 
 func callN(vm *VM, closure Term, additional []Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, arg, err := PI(closure, env)
+	pi, arg, err := piArg(closure, env)
 	if err != nil {
 		return Error(err)
 	}
-	args := make([]Term, pi.Arity, int(pi.Arity)+len(additional))
-	for i := 0; i < int(pi.Arity); i++ {
+	args := make([]Term, pi.arity, int(pi.arity)+len(additional))
+	for i := 0; i < int(pi.arity); i++ {
 		args[i] = arg(i)
 	}
 	args = append(args, additional...)
-	return Call(vm, pi.Name.Apply(args...), k, env)
+	return Call(vm, pi.name.Apply(args...), k, env)
 }
 
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
@@ -630,20 +630,20 @@ func Asserta(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *Env) error {
-	pi, arg, err := PI(t, env)
+	pi, arg, err := piArg(t, env)
 	if err != nil {
 		return err
 	}
 
-	if pi == (ProcedureIndicator{Name: atomIf, Arity: 2}) {
-		pi, _, err = PI(arg(0), env)
+	if pi == (procedureIndicator{name: atomIf, arity: 2}) {
+		pi, _, err = piArg(arg(0), env)
 		if err != nil {
 			return err
 		}
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
 	p, ok := vm.procedures[pi]
 	if !ok {
@@ -960,7 +960,7 @@ func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 	t = Rulify(t, env)
 
 	h := t.(Compound).Arg(0)
-	pi, _, err := PI(h, env)
+	pi, _, err := piArg(h, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1015,7 +1015,7 @@ func Abolish(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise {
 				if arity < 0 {
 					return Error(DomainError(ValidDomainNotLessThanZero, arity, env))
 				}
-				key := ProcedureIndicator{Name: name, Arity: arity}
+				key := procedureIndicator{name: name, arity: arity}
 				if u, ok := vm.procedures[key].(*userDefined); !ok || !u.dynamic {
 					return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, key.Term(), env))
 				}
@@ -1054,7 +1054,7 @@ func CurrentOutput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promis
 
 // SetInput sets streamOrAlias as the current input stream.
 func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1069,7 +1069,7 @@ func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Prom
 
 // SetOutput sets streamOrAlias as the current output stream.
 func SetOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1080,6 +1080,23 @@ func SetOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Pro
 
 	vm.output = s
 	return k(env)
+}
+
+func stream(vm *VM, streamOrAlias Term, env *Env) (*Stream, error) {
+	switch s := env.Resolve(streamOrAlias).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		v, ok := vm.streams.lookup(s)
+		if !ok {
+			return nil, ExistenceError(ObjectTypeStream, streamOrAlias, env)
+		}
+		return v, nil
+	case *Stream:
+		return s, nil
+	default:
+		return nil, DomainError(ValidDomainStreamOrAlias, streamOrAlias, env)
+	}
 }
 
 var openFile = os.OpenFile
@@ -1245,7 +1262,7 @@ func handleStreamOptionEOFAction(_ *VM, s *Stream, o Compound, env *Env) error {
 
 // Close closes a stream specified by streamOrAlias.
 func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1294,7 +1311,7 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 
 // FlushOutput sends any buffered output to the stream.
 func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1311,7 +1328,7 @@ func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *P
 
 // WriteTerm outputs term to stream with options.
 func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1323,7 +1340,10 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 		}
 	}
 
-	var opts WriteOptions
+	opts := WriteOptions{
+		ops:      vm.operators,
+		priority: 1200,
+	}
 	iter := ListIterator{List: options, Env: env}
 	for iter.Next() {
 		if err := writeTermOption(&opts, iter.Current(), env); err != nil {
@@ -1334,7 +1354,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 		return Error(err)
 	}
 
-	switch err := vm.Write(s, env.Resolve(t), &opts, env); err {
+	switch err := writeTerm(s, env.Resolve(t), &opts, env); err {
 	case nil:
 		return k(env)
 	case errWrongIOMode:
@@ -1344,7 +1364,6 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 	default:
 		return Error(SystemError(err))
 	}
-
 }
 
 func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
@@ -1497,7 +1516,7 @@ func CharCode(vm *VM, char, code Term, k func(*Env) *Promise, env *Env) *Promise
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
 func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1527,7 +1546,7 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *
 
 // PutCode outputs code to the stream represented by streamOrAlias.
 func PutCode(vm *VM, streamOrAlias, code Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1565,7 +1584,7 @@ type readTermOptions struct {
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
 func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1586,7 +1605,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 	}
 
 	var vars []ParsedVariable
-	p := vm.Parser(s, &vars)
+	p, _ := vm.Parse(s, &vars)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -1657,7 +1676,7 @@ func readTermOption(opts *readTermOptions, option Term, env *Env) error {
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1691,7 +1710,7 @@ func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
 func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1729,7 +1748,7 @@ func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) 
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1767,7 +1786,7 @@ func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
 func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1824,7 +1843,7 @@ func Halt(_ *VM, n Term, k func(*Env) *Promise, env *Env) *Promise {
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
 func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, _, err := PI(head, env)
+	pi, _, err := piArg(head, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -2124,7 +2143,11 @@ func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Prom
 		return Error(err)
 	}
 
-	p := newParser(strings.NewReader(sb.String()))
+	p := Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(strings.NewReader(sb.String())),
+		},
+	}
 	t, err := p.Number()
 	if err != nil {
 		return Error(SyntaxError(err, env))
@@ -2206,7 +2229,11 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 			return Error(err)
 		}
 
-		p := newParser(strings.NewReader(sb.String()))
+		p := Parser{
+			lexer: Lexer{
+				input: newRuneRingBuffer(strings.NewReader(sb.String())),
+			},
+		}
 		t, err := p.Number()
 		if err != nil {
 			return Error(SyntaxError(err, env))
@@ -2310,7 +2337,7 @@ func isInteger(t Term, env *Env) bool {
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
 func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -2565,7 +2592,7 @@ func ExpandTerm(vm *VM, term1, term2 Term, k func(*Env) *Promise, env *Env) *Pro
 }
 
 func expand(vm *VM, term Term, env *Env) (Term, error) {
-	if _, ok := vm.procedures[ProcedureIndicator{Name: atomTermExpansion, Arity: 2}]; ok {
+	if _, ok := vm.procedures[procedureIndicator{name: atomTermExpansion, arity: 2}]; ok {
 		var ret Term
 		v := NewVariable()
 		ok, err := Call(vm, atomTermExpansion.Apply(term, v), func(env *Env) *Promise {

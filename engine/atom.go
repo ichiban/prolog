@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -253,7 +251,11 @@ func (a Atom) Apply(args ...Term) Term {
 }
 
 func needQuoted(a Atom) bool {
-	p := newParser(bufio.NewReader(bytes.NewBufferString(a.String())))
+	p := Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(strings.NewReader(a.String())),
+		},
+	}
 	parsed, err := p.atom()
 	return err != nil || parsed != a
 }

@@ -12,7 +12,7 @@ func main() {
 	p := prolog.New(nil, nil)
 
 	// Define a custom predicate of arity 2.
-	p.Register2("get_status", func(_ *engine.VM, url, status engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	p.Register2(engine.NewAtom("get_status"), func(_ *engine.VM, url, status engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		// Check if the input arguments are of the types you expected.
 		u, ok := env.Resolve(url).(engine.Atom)
 		if !ok {

@@ -18,7 +18,7 @@ import (
 
 func TestCall(t *testing.T) {
 	var vm VM
-	vm.Register0("fail", func(_ *VM, f func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomFail, func(_ *VM, f func(*Env) *Promise, env *Env) *Promise {
 		return Bool(false)
 	})
 	assert.NoError(t, vm.Compile(context.Background(), `
@@ -71,8 +71,8 @@ func TestCall1(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 2}: Predicate2(func(_ *VM, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 2}: Predicate2(func(_ *VM, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -98,8 +98,8 @@ func TestCall2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -125,8 +125,8 @@ func TestCall3(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -152,8 +152,8 @@ func TestCall4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -179,8 +179,8 @@ func TestCall5(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -206,8 +206,8 @@ func TestCall6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -233,8 +233,8 @@ func TestCall7(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm := VM{procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("p"), Arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+			vm := VM{procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("p"), arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -247,8 +247,8 @@ func TestCall7(t *testing.T) {
 
 func TestCallNth(t *testing.T) {
 	vm := VM{
-		procedures: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 0}: Predicate0(func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+		procedures: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 0}: Predicate0(func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 				return Delay(func(context.Context) *Promise {
 					return k(env)
 				}, func(context.Context) *Promise {
@@ -1379,26 +1379,26 @@ func TestBagOf(t *testing.T) {
 	vm := VM{
 		unknown: unknownWarning,
 	}
-	vm.Register2("=", Unify)
-	vm.Register2(",", func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomEqual, Unify)
+	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	vm.Register2(";", func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0("true", func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0("fail", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register2("a", func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1406,7 +1406,7 @@ func TestBagOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	vm.Register2("b", func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1425,7 +1425,7 @@ func TestBagOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+			vm.Unknown = func(Atom, []Term, *Env) {
 				assert.True(t, tt.warning)
 			}
 			_, err := BagOf(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
@@ -1741,26 +1741,26 @@ func TestSetOf(t *testing.T) {
 	vm := VM{
 		unknown: unknownWarning,
 	}
-	vm.Register2("=", Unify)
-	vm.Register2(",", func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomEqual, Unify)
+	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	vm.Register2(";", func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0("true", func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0("fail", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register2("a", func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1768,7 +1768,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	vm.Register2("b", func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1784,7 +1784,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	vm.Register2("d", func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("d"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 		d := NewAtom("$d")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
@@ -1800,7 +1800,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	vm.Register2("member", func(vm *VM, elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("member"), func(vm *VM, elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
 		var ks []func(context.Context) *Promise
 		iter := ListIterator{List: list, Env: env, AllowPartial: true}
 		for iter.Next() {
@@ -1814,12 +1814,12 @@ func TestSetOf(t *testing.T) {
 		}
 		return Delay(ks...)
 	})
-	vm.Register3("setof", SetOf)
-	vm.Register3("bagof", BagOf)
+	vm.Register3(NewAtom("setof"), SetOf)
+	vm.Register3(NewAtom("bagof"), BagOf)
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {
+			vm.Unknown = func(Atom, []Term, *Env) {
 				assert.True(t, tt.warning)
 			}
 			_, err := SetOf(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
@@ -1868,15 +1868,15 @@ func TestFindAll(t *testing.T) {
 	}
 
 	var vm VM
-	vm.Register2("=", Unify)
-	vm.Register2(";", func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomEqual, Unify)
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0("fail", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
 
@@ -2198,12 +2198,12 @@ func TestThrow(t *testing.T) {
 
 func TestCatch(t *testing.T) {
 	var vm VM
-	vm.Register2("=", Unify)
-	vm.Register1("throw", Throw)
-	vm.Register0("true", func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomEqual, Unify)
+	vm.Register1(NewAtom("throw"), Throw)
+	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0("fail", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
 
@@ -2254,8 +2254,8 @@ func TestCatch(t *testing.T) {
 
 func TestCurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
-		vm := VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{},
+		vm := VM{procedures: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{},
 		}}
 		ok, err := CurrentPredicate(&vm, &compound{
 			functor: atomSlash,
@@ -2273,18 +2273,18 @@ func TestCurrentPredicate(t *testing.T) {
 
 		v := NewNamedVariable("V")
 
-		vm := VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{},
-			{Name: NewAtom("bar"), Arity: 1}: &userDefined{},
-			{Name: NewAtom("baz"), Arity: 1}: &userDefined{},
+		vm := VM{procedures: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{},
+			{name: NewAtom("bar"), arity: 1}: &userDefined{},
+			{name: NewAtom("baz"), arity: 1}: &userDefined{},
 		}}
 		ok, err := CurrentPredicate(&vm, v, func(env *Env) *Promise {
 			c, ok := env.Resolve(v).(*compound)
 			assert.True(t, ok)
-			assert.Equal(t, atomSlash, c.functor)
-			assert.Len(t, c.args, 2)
-			assert.Equal(t, Integer(1), c.args[1])
-			switch c.args[0] {
+			assert.Equal(t, atomSlash, c.Functor())
+			assert.Equal(t, 2, c.Arity())
+			assert.Equal(t, Integer(1), c.Arg(1))
+			switch c.Arg(0) {
 			case NewAtom("foo"):
 				foo = true
 			case NewAtom("bar"):
@@ -2305,8 +2305,8 @@ func TestCurrentPredicate(t *testing.T) {
 	})
 
 	t.Run("builtin predicate", func(t *testing.T) {
-		vm := VM{procedures: map[ProcedureIndicator]procedure{
-			{Name: atomEqual, Arity: 2}: Predicate2(Unify),
+		vm := VM{procedures: map[procedureIndicator]procedure{
+			{name: atomEqual, arity: 2}: Predicate2(Unify),
 		}}
 		ok, err := CurrentPredicate(&vm, &compound{
 			functor: atomSlash,
@@ -2390,9 +2390,9 @@ func TestAssertz(t *testing.T) {
 
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
-				pi: ProcedureIndicator{
-					Name:  NewAtom("foo"),
-					Arity: 1,
+				pi: procedureIndicator{
+					name:  NewAtom("foo"),
+					arity: 1,
 				},
 				raw: &compound{
 					functor: NewAtom("foo"),
@@ -2405,9 +2405,9 @@ func TestAssertz(t *testing.T) {
 				},
 			},
 			{
-				pi: ProcedureIndicator{
-					Name:  NewAtom("foo"),
-					Arity: 1,
+				pi: procedureIndicator{
+					name:  NewAtom("foo"),
+					arity: 1,
 				},
 				raw: &compound{
 					functor: NewAtom("foo"),
@@ -2419,9 +2419,9 @@ func TestAssertz(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, vm.procedures[ProcedureIndicator{
-			Name:  NewAtom("foo"),
-			Arity: 1,
+		}}, vm.procedures[procedureIndicator{
+			name:  NewAtom("foo"),
+			arity: 1,
 		}])
 	})
 
@@ -2490,8 +2490,8 @@ func TestAssertz(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
@@ -2526,7 +2526,7 @@ func TestAsserta(t *testing.T) {
 
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
-				pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1},
+				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("b")},
@@ -2538,7 +2538,7 @@ func TestAsserta(t *testing.T) {
 				},
 			},
 			{
-				pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1},
+				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("a")},
@@ -2549,7 +2549,7 @@ func TestAsserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
@@ -2588,7 +2588,7 @@ func TestAsserta(t *testing.T) {
 
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{
-				pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 0},
+				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{
 					functor: atomIf,
 					args: []Term{
@@ -2607,7 +2607,7 @@ func TestAsserta(t *testing.T) {
 				},
 				xrTable: []Term{
 					NewAtom("a"),
-					ProcedureIndicator{Name: NewAtom("p"), Arity: 1},
+					procedureIndicator{name: NewAtom("p"), arity: 1},
 				},
 				bytecode: bytecode{
 					{opcode: opEnter},
@@ -2618,7 +2618,7 @@ func TestAsserta(t *testing.T) {
 				},
 			},
 			{
-				pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 0},
+				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{
 					functor: atomIf,
 					args: []Term{
@@ -2631,7 +2631,7 @@ func TestAsserta(t *testing.T) {
 				},
 				xrTable: []Term{
 					NewAtom("b"),
-					ProcedureIndicator{Name: NewAtom("p"), Arity: 1},
+					procedureIndicator{name: NewAtom("p"), arity: 1},
 				},
 				bytecode: bytecode{
 					{opcode: opEnter},
@@ -2640,7 +2640,7 @@ func TestAsserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}])
+		}}, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 0}])
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
@@ -2716,8 +2716,8 @@ func TestAsserta(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
@@ -2749,8 +2749,8 @@ func TestAsserta(t *testing.T) {
 func TestRetract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -2768,13 +2768,13 @@ func TestRetract(t *testing.T) {
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -2792,13 +2792,13 @@ func TestRetract(t *testing.T) {
 		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}])
+		}}, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("retract all", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -2812,7 +2812,7 @@ func TestRetract(t *testing.T) {
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].(*userDefined).clauses)
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -2842,8 +2842,8 @@ func TestRetract(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 
@@ -2857,8 +2857,8 @@ func TestRetract(t *testing.T) {
 
 	t.Run("exception in continuation", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 				}},
 			},
@@ -2874,15 +2874,15 @@ func TestRetract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].(*userDefined).clauses)
 	})
 }
 
 func TestAbolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 					{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -2897,7 +2897,7 @@ func TestAbolish(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.procedures[ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}]
+		_, ok = vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}]
 		assert.False(t, ok)
 	})
 
@@ -2978,8 +2978,8 @@ func TestAbolish(t *testing.T) {
 
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 0}: &userDefined{dynamic: false},
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
 			},
 		}
 		ok, err := Abolish(&vm, &compound{
@@ -5256,8 +5256,8 @@ func TestClause(t *testing.T) {
 		var c int
 
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("green"), Arity: 1}: &userDefined{public: true, clauses: []clause{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("green"), arity: 1}: &userDefined{public: true, clauses: []clause{
 					{raw: &compound{
 						functor: atomIf, args: []Term{
 							&compound{functor: NewAtom("green"), args: []Term{x}},
@@ -5318,8 +5318,8 @@ func TestClause(t *testing.T) {
 		what, body := NewNamedVariable("What"), NewNamedVariable("Body")
 
 		vm := VM{
-			procedures: map[ProcedureIndicator]procedure{
-				{Name: NewAtom("green"), Arity: 1}: Predicate1(func(_ *VM, t Term, f func(*Env) *Promise, env *Env) *Promise {
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("green"), arity: 1}: Predicate1(func(_ *VM, t Term, f func(*Env) *Promise, env *Env) *Promise {
 					return Bool(true)
 				}),
 			},
@@ -7228,13 +7228,13 @@ func TestNegation(t *testing.T) {
 	e := errors.New("failed")
 
 	var vm VM
-	vm.Register0("true", func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0("false", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFalse, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register0("error", func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomError, func(*VM, func(*Env) *Promise, *Env) *Promise {
 		return Error(e)
 	})
 

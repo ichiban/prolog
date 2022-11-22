@@ -27,7 +27,7 @@ move(N, X, Y, Z) :-
 		panic(err)
 	}
 
-	i.Register2("actuate", func(_ *engine.VM, x engine.Term, y engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	i.Register2(engine.NewAtom("actuate"), func(_ *engine.VM, x engine.Term, y engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		fmt.Printf("move a disk from %s to %s.\n", env.Resolve(x), env.Resolve(y))
 		return k(env)
 	})

@@ -21,12 +21,13 @@ var (
 // Parser turns bytes into Term.
 type Parser struct {
 	lexer        Lexer
-	buf          tokenRingBuffer
 	operators    operators
-	placeholder  Atom
-	args         []Term
 	doubleQuotes doubleQuotes
 	vars         *[]ParsedVariable
+	placeholder  Atom
+	args         []Term
+
+	buf tokenRingBuffer
 }
 
 // ParsedVariable is a set of information regarding a variable in a parsed term.
@@ -36,48 +37,9 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input io.RuneReader, opts ...parserOption) *Parser {
-	p := Parser{
-		lexer: Lexer{
-			input: newRuneRingBuffer(input),
-		},
-		operators: operators{},
-	}
-	for _, o := range opts {
-		o(&p)
-	}
-	return &p
-}
-
-type parserOption func(p *Parser)
-
-func withCharConversions(charConversions map[rune]rune) parserOption {
-	return func(p *Parser) {
-		p.lexer.charConversions = charConversions
-	}
-}
-
-func withOperators(operators operators) parserOption {
-	return func(p *Parser) {
-		p.operators = operators
-	}
-}
-
-func withDoubleQuotes(quotes doubleQuotes) parserOption {
-	return func(p *Parser) {
-		p.doubleQuotes = quotes
-	}
-}
-
-func withParsedVars(vars *[]ParsedVariable) parserOption {
-	return func(p *Parser) {
-		p.vars = vars
-	}
-}
-
-// Replace registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
+// SetPlaceholder registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
-func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
+func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
 	p.placeholder = placeholder
 	p.args = make([]Term, len(args))
 	for i, a := range args {

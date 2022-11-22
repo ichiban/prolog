@@ -61,7 +61,7 @@ func TestDomainError(t *testing.T) {
 }
 
 func TestExistenceError(t *testing.T) {
-	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
+	pi := procedureIndicator{name: NewAtom("foo"), arity: 0}
 	assert.Equal(t, Exception{
 		term: &compound{
 			functor: atomError,
@@ -80,7 +80,7 @@ func TestExistenceError(t *testing.T) {
 }
 
 func TestPermissionError(t *testing.T) {
-	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
+	pi := procedureIndicator{name: NewAtom("foo"), arity: 0}
 	assert.Equal(t, Exception{
 		term: &compound{
 			functor: atomError,

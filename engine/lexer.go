@@ -12,9 +12,10 @@ import (
 // Lexer turns bytes into tokens.
 type Lexer struct {
 	input           runeRingBuffer
-	buf             bytes.Buffer
-	offset          int
 	charConversions map[rune]rune
+
+	buf    bytes.Buffer
+	offset int
 }
 
 // Token returns the next token.
