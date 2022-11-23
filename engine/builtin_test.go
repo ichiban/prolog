@@ -3886,7 +3886,7 @@ func TestWriteTerm(t *testing.T) {
 
 type mockTerm struct {
 	mock.Mock
-	WriteOptions
+	writeOptions
 }
 
 func (m *mockTerm) String() string {

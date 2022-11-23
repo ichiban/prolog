@@ -427,8 +427,8 @@ func (vm *VM) Parse(r io.RuneReader, vars *[]ParsedVariable, args ...interface{}
 
 // Write outputs term to the io.StringWriter.
 func (vm *VM) Write(w io.StringWriter, t Term, env *Env) error {
-	return writeTerm(w, t, &WriteOptions{
-		Quoted:   true,
+	return writeTerm(w, t, &writeOptions{
+		quoted:   true,
 		ops:      vm.operators,
 		priority: 1200,
 	}, env)
@@ -541,8 +541,8 @@ type procedureIndicator struct {
 
 func (p procedureIndicator) String() string {
 	var sb strings.Builder
-	_ = writeAtom(&sb, p.name, &WriteOptions{
-		Quoted: true,
+	_ = writeAtom(&sb, p.name, &writeOptions{
+		quoted: true,
 	})
 	_, _ = fmt.Fprintf(&sb, "/%d", p.arity)
 	return sb.String()

@@ -1342,7 +1342,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 		}
 	}
 
-	opts := WriteOptions{
+	opts := writeOptions{
 		ops:      vm.operators,
 		priority: 1200,
 	}
@@ -1368,7 +1368,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 	}
 }
 
-func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
+func writeTermOption(opts *writeOptions, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
 		return InstantiationError(env)
@@ -1382,7 +1382,7 @@ func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 			if err != nil {
 				return err
 			}
-			opts.VariableNames = vns
+			opts.variableNames = vns
 			return nil
 		}
 
@@ -1405,13 +1405,13 @@ func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 
 		switch o.Functor() {
 		case atomQuoted:
-			opts.Quoted = b
+			opts.quoted = b
 			return nil
 		case atomIgnoreOps:
-			opts.IgnoreOps = b
+			opts.ignoreOps = b
 			return nil
 		case atomNumberVars:
-			opts.NumberVars = b
+			opts.numberVars = b
 			return nil
 		default:
 			return DomainError(ValidDomainWriteOption, o, env)
