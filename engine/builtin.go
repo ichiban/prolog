@@ -2666,7 +2666,7 @@ func nth(vm *VM, base Integer, n, list, elem Term, k func(*Env) *Promise, env *E
 		if n < base {
 			return Bool(false)
 		}
-		iter := ListIterator{List: list, Env: env}
+		iter := ListIterator{List: list, Env: env, AllowCycle: true}
 		for i := base; iter.Next(); i++ {
 			if i == n {
 				return Unify(vm, elem, iter.Current(), k, env)

@@ -5,6 +5,7 @@ type ListIterator struct {
 	List         Term
 	Env          *Env
 	AllowPartial bool
+	AllowCycle   bool
 
 	current Term
 	err     error
@@ -26,7 +27,7 @@ func (i *ListIterator) Next() bool {
 		i.lam = 1
 	}
 
-	if ID(i.tortoise) == ID(i.hare) { // Detected a cycle.
+	if ID(i.tortoise) == ID(i.hare) && !i.AllowCycle { // Detected a cycle.
 		i.err = TypeError(ValidTypeList, i.List, i.Env)
 		return false
 	}
