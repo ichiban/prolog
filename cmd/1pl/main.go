@@ -138,8 +138,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 			for i, v := range vars {
 				var sb strings.Builder
 				_, _ = fmt.Fprintf(&sb, "%s = ", v)
-				s := engine.NewOutputTextStream(&sb)
-				if _, err = engine.WriteTerm(&p.VM, s, m[v], engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, nil).Force(ctx); err != nil {
+				if err := p.Write(&sb, m[v], nil); err != nil {
 					return err
 				}
 				ls[i] = sb.String()

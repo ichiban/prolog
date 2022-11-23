@@ -425,6 +425,15 @@ func (vm *VM) Parse(r io.RuneReader, vars *[]ParsedVariable, args ...interface{}
 	return &p, nil
 }
 
+// Write outputs term to the io.StringWriter.
+func (vm *VM) Write(w io.StringWriter, t Term, env *Env) error {
+	return writeTerm(w, t, &WriteOptions{
+		Quoted:   true,
+		ops:      vm.operators,
+		priority: 1200,
+	}, env)
+}
+
 // Predicate0 is a predicate of arity 0.
 type Predicate0 func(*VM, func(*Env) *Promise, *Env) *Promise
 
