@@ -387,8 +387,14 @@ func renamedCopy(t Term, copied map[TermID]Term, env *Env) Term {
 		v := NewVariable()
 		copied[t] = v
 		return v
-	case list, charList, codeList:
+	case charList, codeList:
 		return t
+	case list:
+		l := make(list, len(t))
+		for i := range t {
+			l[i] = renamedCopy(t[i], copied, env)
+		}
+		return l
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
