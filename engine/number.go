@@ -10,60 +10,53 @@ var (
 	minInt = Integer(math.MinInt64)
 )
 
-// DefaultEvaluableFunctors is a EvaluableFunctors with builtin functions.
-var DefaultEvaluableFunctors = EvaluableFunctors{
-	Constant: map[Atom]Number{
-		atomPi: Float(math.Pi),
-	},
-	Unary: map[Atom]func(Number) (Number, error){
-		atomMinus:               Neg,
-		atomAbs:                 Abs,
-		atomSign:                Sign,
-		atomFloatIntegerPart:    FloatIntegerPart,
-		atomFloatFractionalPart: FloatFractionalPart,
-		atomFloat:               AsFloat,
-		atomFloor:               Floor,
-		atomTruncate:            Truncate,
-		atomRound:               Round,
-		atomCeiling:             Ceiling,
+var constants = map[Atom]Number{
+	atomPi: Float(math.Pi),
+}
 
-		atomSin:  Sin,
-		atomCos:  Cos,
-		atomAtan: Atan,
-		atomExp:  Exp,
-		atomLog:  Log,
-		atomSqrt: Sqrt,
+var unaryFunctors = map[Atom]func(Number) (Number, error){
+	atomMinus:               neg,
+	atomAbs:                 abs,
+	atomSign:                sign,
+	atomFloatIntegerPart:    floatIntegerPart,
+	atomFloatFractionalPart: floatFractionalPart,
+	atomFloat:               asFloat,
+	atomFloor:               floor,
+	atomTruncate:            truncate,
+	atomRound:               round,
+	atomCeiling:             ceiling,
+	atomSin:                 sin,
+	atomCos:                 cos,
+	atomAtan:                atan,
+	atomExp:                 exp,
+	atomLog:                 log,
+	atomSqrt:                sqrt,
+	atomBackSlash:           bitwiseComplement,
+	atomPlus:                pos,
+	atomAsin:                asin,
+	atomAcos:                acos,
+	atomTan:                 tan,
+}
 
-		atomBackSlash: BitwiseComplement,
-
-		atomPlus: Pos,
-		atomAsin: Asin,
-		atomAcos: Acos,
-		atomTan:  Tan,
-	},
-	Binary: map[Atom]func(Number, Number) (Number, error){
-		atomPlus:       Add,
-		atomMinus:      Sub,
-		atomAsterisk:   Mul,
-		atomSlashSlash: IntDiv,
-		atomSlash:      Div,
-		atomRem:        Rem,
-		atomMod:        Mod,
-
-		atomAsteriskAsterisk: Power,
-
-		atomBitwiseRightShift: BitwiseRightShift,
-		atomBitwiseLeftShift:  BitwiseLeftShift,
-		atomBitwiseAnd:        BitwiseAnd,
-		atomBitwiseOr:         BitwiseOr,
-
-		atomDiv:   IntFloorDiv,
-		atomMax:   Max,
-		atomMin:   Min,
-		atomCaret: IntegerPower,
-		atomAtan2: Atan2,
-		atomXor:   Xor,
-	},
+var binaryFunctors = map[Atom]func(Number, Number) (Number, error){
+	atomPlus:              add,
+	atomMinus:             sub,
+	atomAsterisk:          mul,
+	atomSlashSlash:        intDiv,
+	atomSlash:             div,
+	atomRem:               rem,
+	atomMod:               mod,
+	atomAsteriskAsterisk:  power,
+	atomBitwiseRightShift: bitwiseRightShift,
+	atomBitwiseLeftShift:  bitwiseLeftShift,
+	atomBitwiseAnd:        bitwiseAnd,
+	atomBitwiseOr:         bitwiseOr,
+	atomDiv:               intFloorDiv,
+	atomMax:               max,
+	atomMin:               min,
+	atomCaret:             integerPower,
+	atomAtan2:             atan2,
+	atomXor:               xor,
 }
 
 // Number is a prolog number, either Integer or Float.
@@ -72,21 +65,62 @@ type Number interface {
 	number()
 }
 
-// EvaluableFunctors is a set of unary/binary functions.
-type EvaluableFunctors struct {
-	// Constant is a set of constants.
-	Constant map[Atom]Number
+func eval(expression Term, env *Env) (_ Number, err error) {
+	defer func() {
+		var ev ExceptionalValue
+		if errors.As(err, &ev) {
+			err = EvaluationError(ev, env)
+		}
+	}()
 
-	// Unary is a set of functions of arity 1.
-	Unary map[Atom]func(x Number) (Number, error)
-
-	// Binary is a set of functions of arity 2.
-	Binary map[Atom]func(x, y Number) (Number, error)
+	switch t := env.Resolve(expression).(type) {
+	case Variable:
+		return nil, InstantiationError(env)
+	case Atom:
+		c, ok := constants[t]
+		if !ok {
+			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
+		}
+		return c, nil
+	case Number:
+		return t, nil
+	case Compound:
+		switch arity := t.Arity(); arity {
+		case 1:
+			f, ok := unaryFunctors[t.Functor()]
+			if !ok {
+				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)), env)
+			}
+			x, err := eval(t.Arg(0), env)
+			if err != nil {
+				return nil, err
+			}
+			return f(x)
+		case 2:
+			f, ok := binaryFunctors[t.Functor()]
+			if !ok {
+				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)), env)
+			}
+			x, err := eval(t.Arg(0), env)
+			if err != nil {
+				return nil, err
+			}
+			y, err := eval(t.Arg(1), env)
+			if err != nil {
+				return nil, err
+			}
+			return f(x, y)
+		default:
+			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)), env)
+		}
+	default:
+		return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
+	}
 }
 
 // Is evaluates expression and unifies the result with result.
-func (e EvaluableFunctors) Is(vm *VM, result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
-	v, err := e.eval(expression, env)
+func Is(vm *VM, result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
+	v, err := eval(expression, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -94,13 +128,13 @@ func (e EvaluableFunctors) Is(vm *VM, result, expression Term, k func(*Env) *Pro
 }
 
 // Equal succeeds iff e1 equals to e2.
-func (e EvaluableFunctors) Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -129,13 +163,13 @@ func (e EvaluableFunctors) Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env 
 }
 
 // NotEqual succeeds iff e1 doesn't equal to e2.
-func (e EvaluableFunctors) NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -164,13 +198,13 @@ func (e EvaluableFunctors) NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, e
 }
 
 // LessThan succeeds iff e1 is less than e2.
-func (e EvaluableFunctors) LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -199,13 +233,13 @@ func (e EvaluableFunctors) LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, e
 }
 
 // GreaterThan succeeds iff e1 is greater than e2.
-func (e EvaluableFunctors) GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -234,13 +268,13 @@ func (e EvaluableFunctors) GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise
 }
 
 // LessThanOrEqual succeeds iff e1 is less than or equal to e2.
-func (e EvaluableFunctors) LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -269,13 +303,13 @@ func (e EvaluableFunctors) LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Pro
 }
 
 // GreaterThanOrEqual succeeds iff e1 is greater than or equal to e2.
-func (e EvaluableFunctors) GreaterThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
-	ev1, err := e.eval(e1, env)
+func GreaterThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := e.eval(e2, env)
+	ev2, err := eval(e2, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -303,61 +337,8 @@ func (e EvaluableFunctors) GreaterThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *
 	return k(env)
 }
 
-func (e EvaluableFunctors) eval(expression Term, env *Env) (_ Number, err error) {
-	defer func() {
-		var ev ExceptionalValue
-		if errors.As(err, &ev) {
-			err = EvaluationError(ev, env)
-		}
-	}()
-
-	switch t := env.Resolve(expression).(type) {
-	case Variable:
-		return nil, InstantiationError(env)
-	case Atom:
-		c, ok := e.Constant[t]
-		if !ok {
-			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
-		}
-		return c, nil
-	case Number:
-		return t, nil
-	case Compound:
-		switch arity := t.Arity(); arity {
-		case 1:
-			f, ok := e.Unary[t.Functor()]
-			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)), env)
-			}
-			x, err := e.eval(t.Arg(0), env)
-			if err != nil {
-				return nil, err
-			}
-			return f(x)
-		case 2:
-			f, ok := e.Binary[t.Functor()]
-			if !ok {
-				return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)), env)
-			}
-			x, err := e.eval(t.Arg(0), env)
-			if err != nil {
-				return nil, err
-			}
-			y, err := e.eval(t.Arg(1), env)
-			if err != nil {
-				return nil, err
-			}
-			return f(x, y)
-		default:
-			return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)), env)
-		}
-	default:
-		return nil, TypeError(ValidTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
-	}
-}
-
-// Add returns sum of 2 numbers.
-func Add(x, y Number) (Number, error) {
+// add returns sum of 2 numbers.
+func add(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -377,8 +358,8 @@ func Add(x, y Number) (Number, error) {
 	return nil, ExceptionalValueUndefined
 }
 
-// Sub returns subtraction of 2 numbers.
-func Sub(x, y Number) (Number, error) {
+// sub returns subtraction of 2 numbers.
+func sub(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -398,8 +379,8 @@ func Sub(x, y Number) (Number, error) {
 	return nil, ExceptionalValueUndefined
 }
 
-// Mul returns multiplication of 2 numbers.
-func Mul(x, y Number) (Number, error) {
+// mul returns multiplication of 2 numbers.
+func mul(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -419,8 +400,8 @@ func Mul(x, y Number) (Number, error) {
 	return nil, ExceptionalValueUndefined
 }
 
-// IntDiv returns integer division of 2 numbers.
-func IntDiv(x, y Number) (Number, error) {
+// intDiv returns integer division of 2 numbers.
+func intDiv(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -434,8 +415,8 @@ func IntDiv(x, y Number) (Number, error) {
 	}
 }
 
-// Div returns division of 2 numbers
-func Div(x, y Number) (Number, error) {
+// div returns division of 2 numbers
+func div(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -455,8 +436,8 @@ func Div(x, y Number) (Number, error) {
 	return nil, ExceptionalValueUndefined
 }
 
-// Rem returns remainder of 2 numbers.
-func Rem(x, y Number) (Number, error) {
+// rem returns remainder of 2 numbers.
+func rem(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -470,8 +451,8 @@ func Rem(x, y Number) (Number, error) {
 	}
 }
 
-// Mod returns modulo of 2 numbers.
-func Mod(x, y Number) (Number, error) {
+// mod returns modulo of 2 numbers.
+func mod(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -485,8 +466,8 @@ func Mod(x, y Number) (Number, error) {
 	}
 }
 
-// Neg returns the negation of a number.
-func Neg(x Number) (Number, error) {
+// neg returns the negation of a number.
+func neg(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return negI(x)
@@ -497,8 +478,8 @@ func Neg(x Number) (Number, error) {
 	}
 }
 
-// Abs returns the absolute value of x.
-func Abs(x Number) (Number, error) {
+// abs returns the absolute value of x.
+func abs(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return absI(x)
@@ -509,8 +490,8 @@ func Abs(x Number) (Number, error) {
 	}
 }
 
-// Sign returns +1, 0, or -1 depending on the sign of x.
-func Sign(x Number) (Number, error) {
+// sign returns +1, 0, or -1 depending on the sign of x.
+func sign(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return signI(x), nil
@@ -521,8 +502,8 @@ func Sign(x Number) (Number, error) {
 	}
 }
 
-// FloatIntegerPart returns the integer part of x.
-func FloatIntegerPart(x Number) (Number, error) {
+// floatIntegerPart returns the integer part of x.
+func floatIntegerPart(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return intPartF(x), nil
@@ -531,8 +512,8 @@ func FloatIntegerPart(x Number) (Number, error) {
 	}
 }
 
-// FloatFractionalPart returns the fractional part of x.
-func FloatFractionalPart(x Number) (Number, error) {
+// floatFractionalPart returns the fractional part of x.
+func floatFractionalPart(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return fractPartF(x), nil
@@ -541,8 +522,8 @@ func FloatFractionalPart(x Number) (Number, error) {
 	}
 }
 
-// AsFloat returns x as engine.Float.
-func AsFloat(x Number) (Number, error) {
+// asFloat returns x as engine.Float.
+func asFloat(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return floatItoF(x), nil
@@ -553,8 +534,8 @@ func AsFloat(x Number) (Number, error) {
 	}
 }
 
-// Floor returns the greatest integer value less than or equal to x.
-func Floor(x Number) (Number, error) {
+// floor returns the greatest integer value less than or equal to x.
+func floor(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return floorFtoI(x)
@@ -563,8 +544,8 @@ func Floor(x Number) (Number, error) {
 	}
 }
 
-// Truncate returns the integer value of x.
-func Truncate(x Number) (Number, error) {
+// truncate returns the integer value of x.
+func truncate(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return truncateFtoI(x)
@@ -573,8 +554,8 @@ func Truncate(x Number) (Number, error) {
 	}
 }
 
-// Round returns the nearest integer of x.
-func Round(x Number) (Number, error) {
+// round returns the nearest integer of x.
+func round(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return roundFtoI(x)
@@ -583,8 +564,8 @@ func Round(x Number) (Number, error) {
 	}
 }
 
-// Ceiling returns the least integer value greater than or equal to x.
-func Ceiling(x Number) (Number, error) {
+// ceiling returns the least integer value greater than or equal to x.
+func ceiling(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
 		return ceilingFtoI(x)
@@ -593,8 +574,8 @@ func Ceiling(x Number) (Number, error) {
 	}
 }
 
-// Power returns the base-x exponential of y.
-func Power(x, y Number) (Number, error) {
+// power returns the base-x exponential of y.
+func power(x, y Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -634,8 +615,8 @@ func Power(x, y Number) (Number, error) {
 	}
 }
 
-// Sin returns the sine of x.
-func Sin(x Number) (Number, error) {
+// sin returns the sine of x.
+func sin(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return Float(math.Sin(float64(x))), nil
@@ -646,8 +627,8 @@ func Sin(x Number) (Number, error) {
 	}
 }
 
-// Cos returns the cosine of x.
-func Cos(x Number) (Number, error) {
+// cos returns the cosine of x.
+func cos(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return Float(math.Cos(float64(x))), nil
@@ -658,8 +639,8 @@ func Cos(x Number) (Number, error) {
 	}
 }
 
-// Atan returns the arctangent of x.
-func Atan(x Number) (Number, error) {
+// atan returns the arctangent of x.
+func atan(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return Float(math.Atan(float64(x))), nil
@@ -670,8 +651,8 @@ func Atan(x Number) (Number, error) {
 	}
 }
 
-// Exp returns the base-e exponential of x.
-func Exp(x Number) (Number, error) {
+// exp returns the base-e exponential of x.
+func exp(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -700,8 +681,8 @@ func Exp(x Number) (Number, error) {
 	return r, nil
 }
 
-// Log returns the natural logarithm of x.
-func Log(x Number) (Number, error) {
+// log returns the natural logarithm of x.
+func log(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -719,8 +700,8 @@ func Log(x Number) (Number, error) {
 	return Float(math.Log(vx)), nil
 }
 
-// Sqrt returns the square root of x.
-func Sqrt(x Number) (Number, error) {
+// sqrt returns the square root of x.
+func sqrt(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -738,8 +719,8 @@ func Sqrt(x Number) (Number, error) {
 	return Float(math.Sqrt(vx)), nil
 }
 
-// BitwiseRightShift returns n bit-shifted by s to the right.
-func BitwiseRightShift(n, s Number) (Number, error) {
+// bitwiseRightShift returns n bit-shifted by s to the right.
+func bitwiseRightShift(n, s Number) (Number, error) {
 	switch n := n.(type) {
 	case Integer:
 		switch s := s.(type) {
@@ -753,8 +734,8 @@ func BitwiseRightShift(n, s Number) (Number, error) {
 	}
 }
 
-// BitwiseLeftShift returns n bit-shifted by s to the left.
-func BitwiseLeftShift(n, s Number) (Number, error) {
+// bitwiseLeftShift returns n bit-shifted by s to the left.
+func bitwiseLeftShift(n, s Number) (Number, error) {
 	switch n := n.(type) {
 	case Integer:
 		switch s := s.(type) {
@@ -768,8 +749,8 @@ func BitwiseLeftShift(n, s Number) (Number, error) {
 	}
 }
 
-// BitwiseAnd returns the logical AND on each bit.
-func BitwiseAnd(b1, b2 Number) (Number, error) {
+// bitwiseAnd returns the logical AND on each bit.
+func bitwiseAnd(b1, b2 Number) (Number, error) {
 	switch b1 := b1.(type) {
 	case Integer:
 		switch b2 := b2.(type) {
@@ -783,8 +764,8 @@ func BitwiseAnd(b1, b2 Number) (Number, error) {
 	}
 }
 
-// BitwiseOr returns the logical OR on each bit.
-func BitwiseOr(b1, b2 Number) (Number, error) {
+// bitwiseOr returns the logical OR on each bit.
+func bitwiseOr(b1, b2 Number) (Number, error) {
 	switch b1 := b1.(type) {
 	case Integer:
 		switch b2 := b2.(type) {
@@ -798,8 +779,8 @@ func BitwiseOr(b1, b2 Number) (Number, error) {
 	}
 }
 
-// BitwiseComplement returns the logical negation on each bit.
-func BitwiseComplement(b1 Number) (Number, error) {
+// bitwiseComplement returns the logical negation on each bit.
+func bitwiseComplement(b1 Number) (Number, error) {
 	switch b1 := b1.(type) {
 	case Integer:
 		return ^b1, nil
@@ -808,8 +789,8 @@ func BitwiseComplement(b1 Number) (Number, error) {
 	}
 }
 
-// Pos returns x as is.
-func Pos(x Number) (Number, error) {
+// pos returns x as is.
+func pos(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		return posI(x)
@@ -820,8 +801,8 @@ func Pos(x Number) (Number, error) {
 	}
 }
 
-// IntFloorDiv returns the integer floor division.
-func IntFloorDiv(x, y Number) (Number, error) {
+// intFloorDiv returns the integer floor division.
+func intFloorDiv(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -835,8 +816,8 @@ func IntFloorDiv(x, y Number) (Number, error) {
 	}
 }
 
-// Max returns the maximum of x or y.
-func Max(x, y Number) (Number, error) {
+// max returns the maximum of x or y.
+func max(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -873,8 +854,8 @@ func Max(x, y Number) (Number, error) {
 	}
 }
 
-// Min returns the minimum of x or y.
-func Min(x, y Number) (Number, error) {
+// min returns the minimum of x or y.
+func min(x, y Number) (Number, error) {
 	switch x := x.(type) {
 	case Integer:
 		switch y := y.(type) {
@@ -911,16 +892,16 @@ func Min(x, y Number) (Number, error) {
 	}
 }
 
-// IntegerPower returns x raised to the power of y.
-func IntegerPower(x, y Number) (Number, error) {
+// integerPower returns x raised to the power of y.
+func integerPower(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {
-		return Power(x, y)
+		return power(x, y)
 	}
 
 	vy, ok := y.(Integer)
 	if !ok {
-		return Power(x, y)
+		return power(x, y)
 	}
 
 	if vy < 0 {
@@ -969,8 +950,8 @@ func intPow(a, b Integer) (Integer, error) {
 	return r, nil
 }
 
-// Asin returns the arc sine of x.
-func Asin(x Number) (Number, error) {
+// asin returns the arc sine of x.
+func asin(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -988,8 +969,8 @@ func Asin(x Number) (Number, error) {
 	return Float(math.Asin(vx)), nil
 }
 
-// Acos returns the arc cosine of x.
-func Acos(x Number) (Number, error) {
+// acos returns the arc cosine of x.
+func acos(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -1007,8 +988,8 @@ func Acos(x Number) (Number, error) {
 	return Float(math.Acos(vx)), nil
 }
 
-// Atan2 returns the arc tangent of y/x.
-func Atan2(y, x Number) (Number, error) {
+// atan2 returns the arc tangent of y/x.
+func atan2(y, x Number) (Number, error) {
 	var vy float64
 	switch y := y.(type) {
 	case Integer:
@@ -1036,8 +1017,8 @@ func Atan2(y, x Number) (Number, error) {
 	return Float(math.Atan2(vy, vx)), nil
 }
 
-// Tan returns the tangent of x.
-func Tan(x Number) (Number, error) {
+// tan returns the tangent of x.
+func tan(x Number) (Number, error) {
 	var vx float64
 	switch x := x.(type) {
 	case Integer:
@@ -1051,8 +1032,8 @@ func Tan(x Number) (Number, error) {
 	return Float(math.Tan(vx)), nil
 }
 
-// Xor returns the bitwise exclusive or of x and y.
-func Xor(x, y Number) (Number, error) {
+// xor returns the bitwise exclusive or of x and y.
+func xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {
 		return nil, TypeError(ValidTypeInteger, x, nil)

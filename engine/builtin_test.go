@@ -6069,7 +6069,7 @@ func TestSetStreamPosition(t *testing.T) {
 		s := &Stream{sourceSink: f, mode: ioModeRead, reposition: true}
 
 		var vm VM
-		ok, err := SetStreamPosition(&vm, s, NewNamedVariable("Pos"), Success, nil).Force(context.Background())
+		ok, err := SetStreamPosition(&vm, s, NewNamedVariable("pos"), Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
