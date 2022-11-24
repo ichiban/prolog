@@ -137,9 +137,9 @@ func TestIs(t *testing.T) {
 		{title: "+ 1.0", result: Float(1), expression: atomPlus.Apply(Float(1)), ok: true},
 		{title: "+ mock", expression: atomPlus.Apply(&mockNumber{}), err: EvaluationError(ExceptionalValueUndefined, nil)},
 
-		{title: "invalid unary argument", expression: foo.Apply("invalid"), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
-		{title: "invalid binary argument: x", expression: foo.Apply("invalid", Integer(0)), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
-		{title: "invalid binary argument: y", expression: foo.Apply(Integer(0), "invalid"), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
+		{title: "invalid unary argument", expression: atomMinus.Apply("invalid"), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
+		{title: "invalid binary argument: x", expression: atomMinus.Apply("invalid", Integer(0)), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
+		{title: "invalid binary argument: y", expression: atomMinus.Apply(Integer(0), "invalid"), err: TypeError(ValidTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
 		{title: "unknown constant", expression: foo, err: TypeError(ValidTypeEvaluable, atomSlash.Apply(foo, Integer(0)), nil)},
 		{title: "unknown unary", expression: foo.Apply(Integer(1)), err: TypeError(ValidTypeEvaluable, atomSlash.Apply(foo, Integer(1)), nil)},
 		{title: "unknown binary", expression: foo.Apply(Integer(1), Integer(2)), err: TypeError(ValidTypeEvaluable, atomSlash.Apply(foo, Integer(2)), nil)},
