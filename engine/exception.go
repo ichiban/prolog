@@ -9,12 +9,12 @@ type Exception struct {
 	term Term
 }
 
-// NewException creates an exception from a copy of the given term.
+// NewException creates an Exception from a copy of the given Term.
 func NewException(term Term, env *Env) Exception {
 	return Exception{term: renamedCopy(term, nil, env)}
 }
 
-// Term returns the underlying term of the exception.
+// Term returns the underlying Term of the Exception.
 func (e Exception) Term() Term {
 	return e.term
 }
@@ -273,11 +273,6 @@ func ResourceError(resource Resource, env *Env) Exception {
 // SyntaxError creates a new syntax error exception.
 func SyntaxError(err error, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("syntax_error").Apply(NewAtom(err.Error())), varContext), env)
-}
-
-// SystemError creates a new system error exception.
-func SystemError(err error) Exception {
-	return NewException(atomError.Apply(NewAtom("system_error"), NewAtom(err.Error())), nil)
 }
 
 // ExceptionalValue is an evaluable functor's result which is not a number.

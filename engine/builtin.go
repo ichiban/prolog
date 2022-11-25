@@ -919,9 +919,9 @@ func Throw(_ *VM, ball Term, _ func(*Env) *Promise, env *Env) *Promise {
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func Catch(vm *VM, goal, catcher, recover Term, k func(*Env) *Promise, env *Env) *Promise {
 	return catch(func(err error) *Promise {
-		var e Exception
-		if !errors.As(err, &e) {
-			return nil
+		e, ok := env.Resolve(err).(Exception)
+		if !ok {
+			e = Exception{term: atomError.Apply(NewAtom("system_error"), NewAtom(err.Error()))}
 		}
 
 		env, ok := env.Unify(catcher, e.term, false)
@@ -1161,7 +1161,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise,
 	case os.IsPermission(err):
 		return Error(PermissionError(OperationOpen, PermissionTypeSourceSink, sourceSink, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 
 	iter := ListIterator{List: options, Env: env}
@@ -1317,7 +1317,7 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 	}
 
 	if err := s.Close(); err != nil && !force {
-		return Error(SystemError(err))
+		return Error(err)
 	}
 
 	return k(env)
@@ -1336,7 +1336,7 @@ func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *P
 	case errWrongIOMode:
 		return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1376,7 +1376,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 	case errWrongStreamType:
 		return Error(PermissionError(OperationOutput, PermissionTypeBinaryStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1551,7 +1551,7 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *
 		case errWrongStreamType:
 			return Error(PermissionError(OperationOutput, PermissionTypeTextStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
 		return Error(TypeError(ValidTypeByte, byt, env))
@@ -1583,7 +1583,7 @@ func PutCode(vm *VM, streamOrAlias, code Term, k func(*Env) *Promise, env *Env) 
 		case errWrongStreamType:
 			return Error(PermissionError(OperationOutput, PermissionTypeBinaryStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
 		return Error(TypeError(ValidTypeInteger, code, env))
@@ -1718,7 +1718,7 @@ func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env
 	case errPastEndOfStream:
 		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1756,7 +1756,7 @@ func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) 
 	case errPastEndOfStream:
 		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1794,7 +1794,7 @@ func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 	case errPastEndOfStream:
 		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1836,7 +1836,7 @@ func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 	case errPastEndOfStream:
 		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -2374,7 +2374,7 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promi
 		case errReposition:
 			return Error(PermissionError(OperationReposition, PermissionTypeStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
 		return Error(TypeError(ValidTypeInteger, position, env))

@@ -3567,7 +3567,7 @@ func TestOpen(t *testing.T) {
 
 		var vm VM
 		_, err := Open(&vm, NewAtom("foo"), atomRead, NewNamedVariable("Stream"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, errors.New("failed"), err)
 	})
 }
 
@@ -3607,7 +3607,7 @@ func TestClose(t *testing.T) {
 
 			var vm VM
 			_, err := Close(&vm, &Stream{sourceSink: &m}, List(), Success, nil).Force(context.Background())
-			assert.Equal(t, SystemError(errors.New("failed")), err)
+			assert.Equal(t, errors.New("failed"), err)
 		})
 	})
 
@@ -3618,7 +3618,7 @@ func TestClose(t *testing.T) {
 
 		var vm VM
 		_, err := Close(&vm, &Stream{sourceSink: &m}, List(atomForce.Apply(atomFalse)), Success, nil).Force(context.Background())
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, errors.New("failed"), err)
 	})
 
 	t.Run("force true", func(t *testing.T) {
@@ -4790,7 +4790,7 @@ func TestGetChar(t *testing.T) {
 
 		var vm VM
 		ok, err := GetChar(&vm, &Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, errors.New("failed"), err)
 		assert.False(t, ok)
 	})
 
@@ -4963,7 +4963,7 @@ func TestPeekByte(t *testing.T) {
 
 		var vm VM
 		ok, err := PeekByte(&vm, s, v, Success, nil).Force(context.Background())
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, errors.New("failed"), err)
 		assert.False(t, ok)
 	})
 
@@ -5120,7 +5120,7 @@ func TestPeekChar(t *testing.T) {
 
 		var vm VM
 		ok, err := PeekChar(&vm, &Stream{sourceSink: &m, mode: ioModeRead}, v, Success, nil).Force(context.Background())
-		assert.Equal(t, SystemError(errors.New("failed")), err)
+		assert.Equal(t, errors.New("failed"), err)
 		assert.False(t, ok)
 	})
 
