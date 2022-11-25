@@ -31,17 +31,15 @@ const (
 	opPartial
 )
 
-var (
-	// Success is a continuation that leads to true.
-	Success = func(*Env) *Promise {
-		return Bool(true)
-	}
+// Success is a continuation that leads to true.
+func Success(*Env) *Promise {
+	return Bool(true)
+}
 
-	// Failure is a continuation that leads to false.
-	Failure = func(*Env) *Promise {
-		return Bool(false)
-	}
-)
+// Failure is a continuation that leads to false.
+func Failure(*Env) *Promise {
+	return Bool(false)
+}
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {

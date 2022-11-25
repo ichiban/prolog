@@ -161,9 +161,9 @@ func (c *clause) compileArg(a Term, env *Env) {
 }
 
 func (c *clause) xrOffset(o Term) byte {
-	id := ID(o)
+	oid := id(o)
 	for i, r := range c.xrTable {
-		if ID(r) == id {
+		if id(r) == oid {
 			return byte(i)
 		}
 	}
