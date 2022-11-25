@@ -169,7 +169,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k func(*Env) *Promise, env *Env
 		return Bool(false)
 	}
 
-	if d := env.Compare(theta.Simplify(general), specific); d != OrderEqual {
+	if d := env.Compare(theta.Simplify(general), specific); d != 0 {
 		return Bool(false)
 	}
 
@@ -776,8 +776,14 @@ func Compare(vm *VM, order, term1, term2 Term, k func(*Env) *Promise, env *Env) 
 		return Error(TypeError(ValidTypeAtom, order, env))
 	}
 
-	o := env.Compare(term1, term2)
-	return Unify(vm, o.Term(), order, k, env)
+	switch o := env.Compare(term1, term2); o {
+	case 1:
+		return Unify(vm, atomGreaterThan, order, k, env)
+	case -1:
+		return Unify(vm, atomLessThan, order, k, env)
+	default:
+		return Unify(vm, atomEqual, order, k, env)
+	}
 }
 
 // Between succeeds when lower, upper, and value are all integers, and lower <= value <= upper.
@@ -894,7 +900,7 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 	}
 
 	sort.SliceStable(elems, func(i, j int) bool {
-		return env.Compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == OrderLess
+		return env.Compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == -1
 	})
 
 	return Unify(vm, sorted, List(elems...), k, env)

@@ -333,27 +333,8 @@ func contains(t, s Term, env *Env) bool {
 	}
 }
 
-// Order indicates ordering of two terms.
-type Order int8
-
-// Order is either =, <, or >.
-const (
-	OrderEqual Order = iota
-	OrderLess
-	OrderGreater
-)
-
-// Term returns the Atom representation of Order.
-func (o Order) Term() Term {
-	return [...]Term{
-		OrderEqual:   atomEqual,
-		OrderLess:    atomLessThan,
-		OrderGreater: atomGreaterThan,
-	}[o]
-}
-
-// Compare compares two terms.
-func (e *Env) Compare(x, y Term) Order {
+// Compare compares two terms and returns -1, 0, or +1.
+func (e *Env) Compare(x, y Term) int {
 	x, y = e.Resolve(x), e.Resolve(y)
 	switch x := x.(type) {
 	case Variable:
@@ -371,115 +352,108 @@ func (e *Env) Compare(x, y Term) Order {
 	}
 }
 
-func (e *Env) compareVariable(x Variable, y Term) Order {
+func (e *Env) compareVariable(x Variable, y Term) int {
 	switch y := y.(type) {
 	case Variable:
-		switch d := strings.Compare(x.String(), y.String()); {
-		case d > 0:
-			return OrderGreater
-		case d < 0:
-			return OrderLess
-		default:
-			return OrderEqual
-		}
+		return strings.Compare(x.String(), y.String())
 	default:
-		return OrderLess
+		return -1
 	}
 }
 
-func (e *Env) compareFloat(x Float, y Term) Order {
+func (e *Env) compareFloat(x Float, y Term) int {
 	switch y := y.(type) {
 	case Variable:
-		return OrderGreater
+		return 1
 	case Float:
 		switch {
 		case x > y:
-			return OrderGreater
+			return 1
 		case x < y:
-			return OrderLess
+			return -1
 		default:
-			return OrderEqual
+			return 0
 		}
 	default:
-		return OrderLess
+		return -1
 	}
 }
 
-func (e *Env) compareInteger(x Integer, y Term) Order {
+func (e *Env) compareInteger(x Integer, y Term) int {
 	switch y := y.(type) {
 	case Variable, Float:
-		return OrderGreater
+		return 1
 	case Integer:
 		switch {
 		case x > y:
-			return OrderGreater
+			return 1
 		case x < y:
-			return OrderLess
+			return -1
 		default:
-			return OrderEqual
+			return 0
 		}
 	default:
-		return OrderLess
+		return -1
 	}
 }
 
-func (e *Env) compareNewAtom(x Atom, y Term) Order {
+func (e *Env) compareNewAtom(x Atom, y Term) int {
 	switch y := y.(type) {
 	case Variable, Float, Integer:
-		return OrderGreater
+		return 1
 	case Atom:
 		switch d := strings.Compare(x.String(), y.String()); {
 		case d > 0:
-			return OrderGreater
+			return 1
 		case d < 0:
-			return OrderLess
+			return -1
 		default:
-			return OrderEqual
+			return 0
 		}
 	default:
-		return OrderLess
+		return -1
 	}
 }
 
-func (e *Env) compareCompound(x Compound, y Term) Order {
+func (e *Env) compareCompound(x Compound, y Term) int {
 	switch y := y.(type) {
 	case Variable, Float, Integer, Atom:
-		return OrderGreater
+		return 1
 	case Compound:
 		switch x, y := x.Arity(), y.Arity(); {
 		case x > y:
-			return OrderGreater
+			return 1
 		case x < y:
-			return OrderLess
+			return -1
 		}
 
-		if o := e.Compare(x.Functor(), y.Functor()); o != OrderEqual {
+		if o := e.Compare(x.Functor(), y.Functor()); o != 0 {
 			return o
 		}
 
 		for i := 0; i < x.Arity(); i++ {
-			if o := e.Compare(x.Arg(i), y.Arg(i)); o != OrderEqual {
+			if o := e.Compare(x.Arg(i), y.Arg(i)); o != 0 {
 				return o
 			}
 		}
-		return OrderEqual
+		return 0
 	default:
-		return OrderLess
+		return -1
 	}
 }
 
-func (e *Env) compareAny(x Term, y Term) Order {
+func (e *Env) compareAny(x Term, y Term) int {
 	switch y := y.(type) {
 	case Variable, Float, Integer, Atom, *compound:
-		return OrderGreater
+		return 1
 	default:
 		return deepCompare(reflect.ValueOf(x), reflect.ValueOf(y))
 	}
 }
 
-var deepCompareFn []func(x, y reflect.Value) Order
+var deepCompareFn []func(x, y reflect.Value) int
 
-func deepCompare(x, y reflect.Value) Order {
+func deepCompare(x, y reflect.Value) int {
 	var tx, ty string
 	if x != (reflect.Value{}) {
 		tx = x.Type().String()
@@ -490,13 +464,13 @@ func deepCompare(x, y reflect.Value) Order {
 
 	switch {
 	case tx > ty:
-		return OrderGreater
+		return 1
 	case tx < ty:
-		return OrderLess
+		return -1
 	}
 
 	if deepCompareFn == nil {
-		deepCompareFn = []func(x, y reflect.Value) Order{
+		deepCompareFn = []func(x, y reflect.Value) int{
 			reflect.Bool:          deepCompareBool,
 			reflect.Int:           deepCompareInt,
 			reflect.Int8:          deepCompareInt,
@@ -531,72 +505,72 @@ func deepCompare(x, y reflect.Value) Order {
 			return f(x, y)
 		}
 	}
-	return OrderEqual
+	return 0
 }
 
-func deepCompareBool(x, y reflect.Value) Order {
+func deepCompareBool(x, y reflect.Value) int {
 	switch x, y := x.Bool(), y.Bool(); {
 	case x && !y:
-		return OrderGreater
+		return 1
 	case !x && y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareInt(x, y reflect.Value) Order {
+func deepCompareInt(x, y reflect.Value) int {
 	switch x, y := x.Int(), y.Int(); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareUint(x, y reflect.Value) Order {
+func deepCompareUint(x, y reflect.Value) int {
 	switch x, y := x.Uint(), y.Uint(); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareFloat(x, y reflect.Value) Order {
+func deepCompareFloat(x, y reflect.Value) int {
 	switch x, y := x.Float(), y.Float(); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareComplex(vx, vy reflect.Value) Order {
+func deepCompareComplex(vx, vy reflect.Value) int {
 	x, y := vx.Complex(), vy.Complex()
 	switch x, y := real(x), real(y); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	}
 	switch x, y := imag(x), imag(y); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareSlice(x, y reflect.Value) Order {
+func deepCompareSlice(x, y reflect.Value) int {
 	lx, ly := x.Len(), y.Len()
 	l := lx
 	if l > ly {
@@ -609,30 +583,30 @@ func deepCompareSlice(x, y reflect.Value) Order {
 	}
 	switch {
 	case lx > ly:
-		return OrderGreater
+		return 1
 	case lx < ly:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepComparePointer(x, y reflect.Value) Order {
+func deepComparePointer(x, y reflect.Value) int {
 	switch x, y := x.Pointer(), y.Pointer(); {
 	case x > y:
-		return OrderGreater
+		return 1
 	case x < y:
-		return OrderLess
+		return -1
 	default:
-		return OrderEqual
+		return 0
 	}
 }
 
-func deepCompareInterface(x, y reflect.Value) Order {
+func deepCompareInterface(x, y reflect.Value) int {
 	return deepCompare(x.Elem(), y.Elem())
 }
 
-func deepCompareMap(x, y reflect.Value) Order {
+func deepCompareMap(x, y reflect.Value) int {
 	iter := x.MapRange()
 	for iter.Next() {
 		if d := deepCompare(iter.Value(), y.MapIndex(iter.Key())); d != 0 {
@@ -640,27 +614,20 @@ func deepCompareMap(x, y reflect.Value) Order {
 		}
 	}
 	if x.Len() < y.Len() {
-		return OrderLess
+		return -1
 	}
-	return OrderEqual
+	return 0
 }
 
-func deepCompareString(x, y reflect.Value) Order {
-	switch x, y := x.String(), y.String(); {
-	case x > y:
-		return OrderGreater
-	case x < y:
-		return OrderLess
-	default:
-		return OrderEqual
-	}
+func deepCompareString(x, y reflect.Value) int {
+	return strings.Compare(x.String(), y.String())
 }
 
-func deepCompareStruct(x, y reflect.Value) Order {
+func deepCompareStruct(x, y reflect.Value) int {
 	for i := 0; i < x.NumField(); i++ {
 		if d := deepCompare(x.Field(i), y.Field(i)); d != 0 {
 			return d
 		}
 	}
-	return OrderEqual
+	return 0
 }
