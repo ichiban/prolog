@@ -201,7 +201,7 @@ func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
 func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 	switch f := env.Resolve(file).(type) {
 	case Variable:
-		return "", nil, InstantiationError(env)
+		return "", nil, instantiationError(env)
 	case Atom:
 		s := f.String()
 		for _, f := range []string{s, s + ".pl"} {
@@ -212,9 +212,9 @@ func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 
 			return f, b, nil
 		}
-		return "", nil, ExistenceError(ObjectTypeSourceSink, file, env)
+		return "", nil, existenceError(objectTypeSourceSink, file, env)
 	default:
-		return "", nil, TypeError(ValidTypeAtom, file, env)
+		return "", nil, typeError(validTypeAtom, file, env)
 	}
 }
 
@@ -229,18 +229,18 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 	for iter.Next() {
 		switch pi := iter.Current().(type) {
 		case Variable:
-			return InstantiationError(nil)
+			return instantiationError(nil)
 		case Compound:
 			if pi.Functor() != atomSlash || pi.Arity() != 2 {
-				return TypeError(ValidTypePredicateIndicator, pi, nil)
+				return typeError(validTypePredicateIndicator, pi, nil)
 			}
 			switch n := pi.Arg(0).(type) {
 			case Variable:
-				return InstantiationError(nil)
+				return instantiationError(nil)
 			case Atom:
 				switch a := pi.Arg(1).(type) {
 				case Variable:
-					return InstantiationError(nil)
+					return instantiationError(nil)
 				case Integer:
 					pi := procedureIndicator{name: n, arity: a}
 					u, ok := t.clauses[pi]
@@ -250,13 +250,13 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 					}
 					f(u)
 				default:
-					return TypeError(ValidTypePredicateIndicator, pi, nil)
+					return typeError(validTypePredicateIndicator, pi, nil)
 				}
 			default:
-				return TypeError(ValidTypePredicateIndicator, pi, nil)
+				return typeError(validTypePredicateIndicator, pi, nil)
 			}
 		default:
-			return TypeError(ValidTypePredicateIndicator, pi, nil)
+			return typeError(validTypePredicateIndicator, pi, nil)
 		}
 	}
 	return iter.Err()

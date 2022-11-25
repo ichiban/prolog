@@ -25,284 +25,293 @@ func (e Exception) Error() string {
 	return buf.String()
 }
 
-// InstantiationError returns an instantiation error exception.
-func InstantiationError(env *Env) Exception {
+// instantiationError returns an instantiation error exception.
+func instantiationError(env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("instantiation_error"), varContext), env)
 }
 
-// ValidType is the correct type for an argument or one of its components.
-type ValidType uint8
+// validType is the correct type for an argument or one of its components.
+type validType uint8
 
-// ValidType is one of these values.
 const (
-	ValidTypeAtom ValidType = iota
-	ValidTypeAtomic
-	ValidTypeByte
-	ValidTypeCallable
-	ValidTypeCharacter
-	ValidTypeCompound
-	ValidTypeEvaluable
-	ValidTypeInByte
-	ValidTypeInCharacter
-	ValidTypeInteger
-	ValidTypeList
-	ValidTypeNumber
-	ValidTypePredicateIndicator
-	ValidTypePair
-	ValidTypeFloat
+	validTypeAtom validType = iota
+	validTypeAtomic
+	validTypeByte
+	validTypeCallable
+	validTypeCharacter
+	validTypeCompound
+	validTypeEvaluable
+	validTypeInByte
+	validTypeInCharacter
+	validTypeInteger
+	validTypeList
+	validTypeNumber
+	validTypePredicateIndicator
+	validTypePair
+	validTypeFloat
 )
 
-// Term returns an Atom for the ValidType.
-func (t ValidType) Term() Term {
-	return [...]Atom{
-		ValidTypeAtom:               atomAtom,
-		ValidTypeAtomic:             atomAtomic,
-		ValidTypeByte:               atomByte,
-		ValidTypeCallable:           atomCallable,
-		ValidTypeCharacter:          atomCharacter,
-		ValidTypeCompound:           atomCompound,
-		ValidTypeEvaluable:          atomEvaluable,
-		ValidTypeInByte:             atomInByte,
-		ValidTypeInCharacter:        atomInCharacter,
-		ValidTypeInteger:            atomInteger,
-		ValidTypeList:               atomList,
-		ValidTypeNumber:             atomNumber,
-		ValidTypePredicateIndicator: atomPredicateIndicator,
-		ValidTypePair:               atomPair,
-		ValidTypeFloat:              atomFloat,
-	}[t]
+var validTypeAtoms = [...]Atom{
+	validTypeAtom:               atomAtom,
+	validTypeAtomic:             atomAtomic,
+	validTypeByte:               atomByte,
+	validTypeCallable:           atomCallable,
+	validTypeCharacter:          atomCharacter,
+	validTypeCompound:           atomCompound,
+	validTypeEvaluable:          atomEvaluable,
+	validTypeInByte:             atomInByte,
+	validTypeInCharacter:        atomInCharacter,
+	validTypeInteger:            atomInteger,
+	validTypeList:               atomList,
+	validTypeNumber:             atomNumber,
+	validTypePredicateIndicator: atomPredicateIndicator,
+	validTypePair:               atomPair,
+	validTypeFloat:              atomFloat,
 }
 
-// TypeError creates a new type error exception.
-func TypeError(validType ValidType, culprit Term, env *Env) Exception {
+// Term returns an Atom for the validType.
+func (t validType) Term() Term {
+	return validTypeAtoms[t]
+}
+
+// typeError creates a new type error exception.
+func typeError(validType validType, culprit Term, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("type_error").Apply(validType.Term(), culprit), varContext), env)
 }
 
-// ValidDomain is the domain which the procedure defines.
-type ValidDomain uint8
+// validDomain is the domain which the procedure defines.
+type validDomain uint8
 
-// ValidDomain is one of these values.
 const (
-	ValidDomainCharacterCodeList ValidDomain = iota
-	ValidDomainCloseOption
-	ValidDomainFlagValue
-	ValidDomainIOMode
-	ValidDomainNonEmptyList
-	ValidDomainNotLessThanZero
-	ValidDomainOperatorPriority
-	ValidDomainOperatorSpecifier
-	ValidDomainPrologFlag
-	ValidDomainReadOption
-	ValidDomainSourceSink
-	ValidDomainStream
-	ValidDomainStreamOption
-	ValidDomainStreamOrAlias
-	ValidDomainStreamPosition
-	ValidDomainStreamProperty
-	ValidDomainWriteOption
+	validDomainCharacterCodeList validDomain = iota
+	validDomainCloseOption
+	validDomainFlagValue
+	validDomainIOMode
+	validDomainNonEmptyList
+	validDomainNotLessThanZero
+	validDomainOperatorPriority
+	validDomainOperatorSpecifier
+	validDomainPrologFlag
+	validDomainReadOption
+	validDomainSourceSink
+	validDomainStream
+	validDomainStreamOption
+	validDomainStreamOrAlias
+	validDomainStreamPosition
+	validDomainStreamProperty
+	validDomainWriteOption
 
-	ValidDomainOrder
+	validDomainOrder
 )
 
-// Term returns an Atom for the ValidDomain.
-func (vd ValidDomain) Term() Term {
-	return [...]Atom{
-		ValidDomainCharacterCodeList: atomCharacterCodeList,
-		ValidDomainCloseOption:       atomCloseOption,
-		ValidDomainFlagValue:         atomFlagValue,
-		ValidDomainIOMode:            atomIOMode,
-		ValidDomainNonEmptyList:      atomNonEmptyList,
-		ValidDomainNotLessThanZero:   atomNotLessThanZero,
-		ValidDomainOperatorPriority:  atomOperatorPriority,
-		ValidDomainOperatorSpecifier: atomOperatorSpecifier,
-		ValidDomainPrologFlag:        atomPrologFlag,
-		ValidDomainReadOption:        atomReadOption,
-		ValidDomainSourceSink:        atomSourceSink,
-		ValidDomainStream:            atomStream,
-		ValidDomainStreamOption:      atomStreamOption,
-		ValidDomainStreamOrAlias:     atomStreamOrAlias,
-		ValidDomainStreamPosition:    atomStreamPosition,
-		ValidDomainStreamProperty:    atomStreamProperty,
-		ValidDomainWriteOption:       atomWriteOption,
-		ValidDomainOrder:             atomOrder,
-	}[vd]
+var validDomainAtoms = [...]Atom{
+	validDomainCharacterCodeList: atomCharacterCodeList,
+	validDomainCloseOption:       atomCloseOption,
+	validDomainFlagValue:         atomFlagValue,
+	validDomainIOMode:            atomIOMode,
+	validDomainNonEmptyList:      atomNonEmptyList,
+	validDomainNotLessThanZero:   atomNotLessThanZero,
+	validDomainOperatorPriority:  atomOperatorPriority,
+	validDomainOperatorSpecifier: atomOperatorSpecifier,
+	validDomainPrologFlag:        atomPrologFlag,
+	validDomainReadOption:        atomReadOption,
+	validDomainSourceSink:        atomSourceSink,
+	validDomainStream:            atomStream,
+	validDomainStreamOption:      atomStreamOption,
+	validDomainStreamOrAlias:     atomStreamOrAlias,
+	validDomainStreamPosition:    atomStreamPosition,
+	validDomainStreamProperty:    atomStreamProperty,
+	validDomainWriteOption:       atomWriteOption,
+	validDomainOrder:             atomOrder,
 }
 
-// DomainError creates a new domain error exception.
-func DomainError(validDomain ValidDomain, culprit Term, env *Env) Exception {
+// Term returns an Atom for the validDomain.
+func (vd validDomain) Term() Term {
+	return validDomainAtoms[vd]
+}
+
+// domainError creates a new domain error exception.
+func domainError(validDomain validDomain, culprit Term, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("domain_error").Apply(validDomain.Term(), culprit), varContext), env)
 }
 
-// ObjectType is the object on which an operation is to be performed.
-type ObjectType uint8
+// objectType is the object on which an operation is to be performed.
+type objectType uint8
 
-// ObjectType is one of these values.
 const (
-	ObjectTypeProcedure ObjectType = iota
-	ObjectTypeSourceSink
-	ObjectTypeStream
+	objectTypeProcedure objectType = iota
+	objectTypeSourceSink
+	objectTypeStream
 )
 
-// Term returns an Atom for the ObjectType.
-func (ot ObjectType) Term() Term {
-	return [...]Atom{
-		ObjectTypeProcedure:  atomProcedure,
-		ObjectTypeSourceSink: atomSourceSink,
-		ObjectTypeStream:     atomStream,
-	}[ot]
+var objectTypeAtoms = [...]Atom{
+	objectTypeProcedure:  atomProcedure,
+	objectTypeSourceSink: atomSourceSink,
+	objectTypeStream:     atomStream,
 }
 
-// ExistenceError creates a new existence error exception.
-func ExistenceError(objectType ObjectType, culprit Term, env *Env) Exception {
+// Term returns an Atom for the objectType.
+func (ot objectType) Term() Term {
+	return objectTypeAtoms[ot]
+}
+
+// existenceError creates a new existence error exception.
+func existenceError(objectType objectType, culprit Term, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("existence_error").Apply(objectType.Term(), culprit), varContext), env)
 }
 
-// Operation is the operation to be performed.
-type Operation uint8
+// operation is the operation to be performed.
+type operation uint8
 
-// Operation is one of these values.
 const (
-	OperationAccess Operation = iota
-	OperationCreate
-	OperationInput
-	OperationModify
-	OperationOpen
-	OperationOutput
-	OperationReposition
+	operationAccess operation = iota
+	operationCreate
+	operationInput
+	operationModify
+	operationOpen
+	operationOutput
+	operationReposition
 )
 
-// Term returns an Atom for the Operation.
-func (o Operation) Term() Term {
-	return [...]Atom{
-		OperationAccess:     atomAccess,
-		OperationCreate:     atomCreate,
-		OperationInput:      atomInput,
-		OperationModify:     atomModify,
-		OperationOpen:       atomOpen,
-		OperationOutput:     atomOutput,
-		OperationReposition: atomReposition,
-	}[o]
+var operationAtoms = [...]Atom{
+	operationAccess:     atomAccess,
+	operationCreate:     atomCreate,
+	operationInput:      atomInput,
+	operationModify:     atomModify,
+	operationOpen:       atomOpen,
+	operationOutput:     atomOutput,
+	operationReposition: atomReposition,
 }
 
-// PermissionType is the type to which the operation is not permitted to perform.
-type PermissionType uint8
+// Term returns an Atom for the operation.
+func (o operation) Term() Term {
+	return operationAtoms[o]
+}
 
-// PermissionType is one of these values.
+// permissionType is the type to which the operation is not permitted to perform.
+type permissionType uint8
+
 const (
-	PermissionTypeBinaryStream PermissionType = iota
-	PermissionTypeFlag
-	PermissionTypeOperator
-	PermissionTypePastEndOfStream
-	PermissionTypePrivateProcedure
-	PermissionTypeStaticProcedure
-	PermissionTypeSourceSink
-	PermissionTypeStream
-	PermissionTypeTextStream
+	permissionTypeBinaryStream permissionType = iota
+	permissionTypeFlag
+	permissionTypeOperator
+	permissionTypePastEndOfStream
+	permissionTypePrivateProcedure
+	permissionTypeStaticProcedure
+	permissionTypeSourceSink
+	permissionTypeStream
+	permissionTypeTextStream
 )
 
-// Term returns an Atom for the PermissionType.
-func (pt PermissionType) Term() Term {
-	return [...]Atom{
-		PermissionTypeBinaryStream:     atomBinaryStream,
-		PermissionTypeFlag:             atomFlag,
-		PermissionTypeOperator:         atomOperator,
-		PermissionTypePastEndOfStream:  atomPastEndOfStream,
-		PermissionTypePrivateProcedure: atomPrivateProcedure,
-		PermissionTypeStaticProcedure:  atomStaticProcedure,
-		PermissionTypeSourceSink:       atomSourceSink,
-		PermissionTypeStream:           atomStream,
-		PermissionTypeTextStream:       atomTextStream,
-	}[pt]
+var permissionTypeAtoms = [...]Atom{
+	permissionTypeBinaryStream:     atomBinaryStream,
+	permissionTypeFlag:             atomFlag,
+	permissionTypeOperator:         atomOperator,
+	permissionTypePastEndOfStream:  atomPastEndOfStream,
+	permissionTypePrivateProcedure: atomPrivateProcedure,
+	permissionTypeStaticProcedure:  atomStaticProcedure,
+	permissionTypeSourceSink:       atomSourceSink,
+	permissionTypeStream:           atomStream,
+	permissionTypeTextStream:       atomTextStream,
 }
 
-// PermissionError creates a new permission error exception.
-func PermissionError(operation Operation, permissionType PermissionType, culprit Term, env *Env) Exception {
+// Term returns an Atom for the permissionType.
+func (pt permissionType) Term() Term {
+	return permissionTypeAtoms[pt]
+}
+
+// permissionError creates a new permission error exception.
+func permissionError(operation operation, permissionType permissionType, culprit Term, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("permission_error").Apply(operation.Term(), permissionType.Term(), culprit), varContext), env)
 }
 
-// Flag is an implementation defined limit.
-type Flag uint8
+// flag is an implementation defined limit.
+type flag uint8
 
-// Flag is one of these values.
 const (
-	FlagCharacter Flag = iota
-	FlagCharacterCode
-	FlagInCharacterCode
-	FlagMaxArity
-	FlagMaxInteger
-	FlagMinInteger
+	flagCharacter flag = iota
+	flagCharacterCode
+	flagInCharacterCode
+	flagMaxArity
+	flagMaxInteger
+	flagMinInteger
 )
 
-// Term returns an Atom for the Flag.
-func (f Flag) Term() Term {
-	return [...]Atom{
-		FlagCharacter:       atomCharacter,
-		FlagCharacterCode:   atomCharacterCode,
-		FlagInCharacterCode: atomInCharacterCode,
-		FlagMaxArity:        atomMaxArity,
-		FlagMaxInteger:      atomMaxInteger,
-		FlagMinInteger:      atomMinInteger,
-	}[f]
+var flagAtoms = [...]Atom{
+	flagCharacter:       atomCharacter,
+	flagCharacterCode:   atomCharacterCode,
+	flagInCharacterCode: atomInCharacterCode,
+	flagMaxArity:        atomMaxArity,
+	flagMaxInteger:      atomMaxInteger,
+	flagMinInteger:      atomMinInteger,
 }
 
-// RepresentationError creates a new representation error exception.
-func RepresentationError(limit Flag, env *Env) Exception {
+// Term returns an Atom for the flag.
+func (f flag) Term() Term {
+	return flagAtoms[f]
+}
+
+// representationError creates a new representation error exception.
+func representationError(limit flag, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("representation_error").Apply(limit.Term()), varContext), env)
 }
 
-// Resource is a resource required to complete execution.
-type Resource uint8
+// resource is a resource required to complete execution.
+type resource uint8
 
-// Resource is one of these values.
+// resource is one of these values.
 const (
-	ResourceFiniteMemory Resource = iota
+	resourceFiniteMemory resource = iota
 )
 
-// Term returns an Atom for the Resource.
-func (r Resource) Term() Term {
-	return [...]Atom{
-		ResourceFiniteMemory: atomFiniteMemory,
-	}[r]
+var resourceAtoms = [...]Atom{
+	resourceFiniteMemory: atomFiniteMemory,
 }
 
-// ResourceError creates a new resource error exception.
-func ResourceError(resource Resource, env *Env) Exception {
+// Term returns an Atom for the resource.
+func (r resource) Term() Term {
+	return resourceAtoms[r]
+}
+
+// resourceError creates a new resource error exception.
+func resourceError(resource resource, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("resource_error").Apply(resource.Term()), varContext), env)
 }
 
-// SyntaxError creates a new syntax error exception.
-func SyntaxError(err error, env *Env) Exception {
+// syntaxError creates a new syntax error exception.
+func syntaxError(err error, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("syntax_error").Apply(NewAtom(err.Error())), varContext), env)
 }
 
-// ExceptionalValue is an evaluable functor's result which is not a number.
-type ExceptionalValue uint8
+// exceptionalValue is an evaluable functor's result which is not a number.
+type exceptionalValue uint8
 
-// ExceptionalValue is one of these values.
 const (
-	ExceptionalValueFloatOverflow ExceptionalValue = iota
-	ExceptionalValueIntOverflow
-	ExceptionalValueUnderflow
-	ExceptionalValueZeroDivisor
-	ExceptionalValueUndefined
+	exceptionalValueFloatOverflow exceptionalValue = iota
+	exceptionalValueIntOverflow
+	exceptionalValueUnderflow
+	exceptionalValueZeroDivisor
+	exceptionalValueUndefined
 )
 
-func (ev ExceptionalValue) Error() string {
+func (ev exceptionalValue) Error() string {
 	return ev.Term().(Atom).String()
 }
 
-// Term returns an Atom for the ExceptionalValue.
-func (ev ExceptionalValue) Term() Term {
-	return [...]Atom{
-		ExceptionalValueFloatOverflow: atomFloatOverflow,
-		ExceptionalValueIntOverflow:   atomIntOverflow,
-		ExceptionalValueUnderflow:     atomUnderflow,
-		ExceptionalValueZeroDivisor:   atomZeroDivisor,
-		ExceptionalValueUndefined:     atomUndefined,
-	}[ev]
+var exceptionalValueAtoms = [...]Atom{
+	exceptionalValueFloatOverflow: atomFloatOverflow,
+	exceptionalValueIntOverflow:   atomIntOverflow,
+	exceptionalValueUnderflow:     atomUnderflow,
+	exceptionalValueZeroDivisor:   atomZeroDivisor,
+	exceptionalValueUndefined:     atomUndefined,
 }
 
-// EvaluationError creates a new evaluation error exception.
-func EvaluationError(ev ExceptionalValue, env *Env) Exception {
+// Term returns an Atom for the exceptionalValue.
+func (ev exceptionalValue) Term() Term {
+	return exceptionalValueAtoms[ev]
+}
+
+// evaluationError creates a new evaluation error exception.
+func evaluationError(ev exceptionalValue, env *Env) Exception {
 	return NewException(atomError.Apply(NewAtom("evaluation_error").Apply(ev.Term()), varContext), env)
 }

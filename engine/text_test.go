@@ -247,34 +247,34 @@ foo(a).
 `, err: Exception{term: NewAtom("ball")}},
 		{title: "error: variable fact", text: `
 X.
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: variable rule", text: `
 X :- X.
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: non-callable rule body", text: `
 foo :- 1.
-`, err: TypeError(ValidTypeCallable, Integer(1), nil)},
+`, err: typeError(validTypeCallable, Integer(1), nil)},
 		{title: "error: non-PI argument", text: `
 :- dynamic(foo).
-`, err: TypeError(ValidTypePredicateIndicator, NewAtom("foo"), nil)},
+`, err: typeError(validTypePredicateIndicator, NewAtom("foo"), nil)},
 		{title: "error: included variable", text: `
 :- include(X).
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: included file not found", text: `
 :- include('testdata/not_found').
-`, err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found"), nil)},
+`, err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found"), nil)},
 		{title: "error: included non-atom", text: `
 :- include(1).
-`, err: TypeError(ValidTypeAtom, Integer(1), nil)},
+`, err: typeError(validTypeAtom, Integer(1), nil)},
 		{title: "error: initialization exception", text: `
 :- initialization(bar).
-`, err: ExistenceError(ObjectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
 		{title: "error: initialization failure", text: `
 :- initialization(foo(d)).
 `, err: errors.New("failed initialization goal: foo(d)")},
 		{title: "error: predicate-backed directive exception", text: `
 :- bar.
-`, err: ExistenceError(ObjectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
 		{title: "error: predicate-backed directive failure", text: `
 :- foo(d).
 `, err: errors.New("failed directive: foo(d)")},
@@ -341,15 +341,15 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
 		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 
-		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: InstantiationError(nil)},
-		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: TypeError(ValidTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
-		{title: `:- consult(1).`, files: Integer(1), err: TypeError(ValidTypeAtom, Integer(1), nil)},
-		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: TypeError(ValidTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
-		{title: `:- consult([X]).`, files: List(NewNamedVariable("X")), err: InstantiationError(nil)},
-		{title: `:- consult([1]).`, files: List(Integer(1)), err: TypeError(ValidTypeAtom, Integer(1), nil)},
+		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: instantiationError(nil)},
+		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: typeError(validTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
+		{title: `:- consult(1).`, files: Integer(1), err: typeError(validTypeAtom, Integer(1), nil)},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: typeError(validTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
+		{title: `:- consult([X]).`, files: List(NewNamedVariable("X")), err: instantiationError(nil)},
+		{title: `:- consult([1]).`, files: List(Integer(1)), err: typeError(validTypeAtom, Integer(1), nil)},
 
-		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
-		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
+		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
+		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
 	}
 
 	for _, tt := range tests {

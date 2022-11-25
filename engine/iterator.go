@@ -28,7 +28,7 @@ func (i *ListIterator) Next() bool {
 	}
 
 	if ID(i.tortoise) == ID(i.hare) && !i.AllowCycle { // Detected a cycle.
-		i.err = TypeError(ValidTypeList, i.List, i.Env)
+		i.err = typeError(validTypeList, i.List, i.Env)
 		return false
 	}
 
@@ -41,17 +41,17 @@ func (i *ListIterator) Next() bool {
 	switch l := i.hare.(type) {
 	case Variable:
 		if !i.AllowPartial {
-			i.err = InstantiationError(i.Env)
+			i.err = instantiationError(i.Env)
 		}
 		return false
 	case Atom:
 		if l != atomEmptyList {
-			i.err = TypeError(ValidTypeList, i.List, i.Env)
+			i.err = typeError(validTypeList, i.List, i.Env)
 		}
 		return false
 	case Compound:
 		if l.Functor() != atomDot || l.Arity() != 2 {
-			i.err = TypeError(ValidTypeList, i.List, i.Env)
+			i.err = typeError(validTypeList, i.List, i.Env)
 			return false
 		}
 
@@ -59,7 +59,7 @@ func (i *ListIterator) Next() bool {
 		i.lam++
 		return true
 	default:
-		i.err = TypeError(ValidTypeList, i.List, i.Env)
+		i.err = typeError(validTypeList, i.List, i.Env)
 		return false
 	}
 }

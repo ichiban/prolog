@@ -70,8 +70,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `-1.`, term: Integer(-1)},
 		{input: `- 1.`, term: Integer(-1)},
 		{input: `'-'1.`, term: Integer(-1)},
-		{input: `9223372036854775808.`, err: RepresentationError(FlagMaxInteger, nil)},
-		{input: `-9223372036854775809.`, err: RepresentationError(FlagMinInteger, nil)},
+		{input: `9223372036854775808.`, err: representationError(flagMaxInteger, nil)},
+		{input: `-9223372036854775809.`, err: representationError(flagMinInteger, nil)},
 		{input: `-`, err: io.EOF},
 		{input: `- -`, err: io.EOF},
 
@@ -226,8 +226,8 @@ func TestParser_Number(t *testing.T) {
 		{input: `- 33`, number: Integer(-33)},
 		{input: `'-'33`, number: Integer(-33)},
 		{input: ` 33`, number: Integer(33)},
-		{input: `9223372036854775808.`, err: RepresentationError(FlagMaxInteger, nil)},
-		{input: `-9223372036854775809.`, err: RepresentationError(FlagMinInteger, nil)},
+		{input: `9223372036854775808.`, err: representationError(flagMaxInteger, nil)},
+		{input: `-9223372036854775809.`, err: representationError(flagMinInteger, nil)},
 
 		{input: `0'!`, number: Integer(33)},
 		{input: `-0'!`, number: Integer(-33)},

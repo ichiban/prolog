@@ -178,7 +178,7 @@ func (vm *VM) Arrive(name Atom, args []Term, k func(*Env) *Promise, env *Env) *P
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(ExistenceError(ObjectTypeProcedure, pi.Term(), env))
+			return Error(existenceError(objectTypeProcedure, pi.Term(), env))
 		}
 	}
 
@@ -564,13 +564,13 @@ func (p procedureIndicator) Apply(args ...Term) (Term, error) {
 func piArg(t Term, env *Env) (procedureIndicator, func(int) Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return procedureIndicator{}, nil, InstantiationError(env)
+		return procedureIndicator{}, nil, instantiationError(env)
 	case Atom:
 		return procedureIndicator{name: f, arity: 0}, nil, nil
 	case Compound:
 		return procedureIndicator{name: f.Functor(), arity: Integer(f.Arity())}, f.Arg, nil
 	default:
-		return procedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
+		return procedureIndicator{}, nil, typeError(validTypeCallable, f, env)
 	}
 }
 

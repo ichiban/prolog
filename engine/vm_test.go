@@ -210,7 +210,7 @@ func TestVM_Arrive(t *testing.T) {
 				unknown: unknownError,
 			}
 			ok, err := vm.Arrive(NewAtom("foo"), []Term{NewAtom("a")}, Success, nil).Force(context.Background())
-			assert.Equal(t, ExistenceError(ObjectTypeProcedure, &compound{
+			assert.Equal(t, existenceError(objectTypeProcedure, &compound{
 				functor: atomSlash,
 				args:    []Term{NewAtom("foo"), Integer(1)},
 			}, nil), err)

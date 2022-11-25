@@ -27,7 +27,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, InstantiationError(nil), iter.Err())
+			assert.Equal(t, instantiationError(nil), iter.Err())
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeError(ValidTypeList, PartialList(NewAtom("foo"), NewAtom("a"), NewAtom("b")), nil), iter.Err())
+			assert.Equal(t, typeError(validTypeList, PartialList(NewAtom("foo"), NewAtom("a"), NewAtom("b")), nil), iter.Err())
 		})
 
 		t.Run("compound", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeError(ValidTypeList, PartialList(NewAtom("f").Apply(Integer(0)), NewAtom("a"), NewAtom("b")), nil), iter.Err())
+			assert.Equal(t, typeError(validTypeList, PartialList(NewAtom("f").Apply(Integer(0)), NewAtom("a"), NewAtom("b")), nil), iter.Err())
 		})
 
 		t.Run("other", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeError(ValidTypeList, PartialList(&mockTerm{}, NewAtom("a"), NewAtom("b")), nil), iter.Err())
+			assert.Equal(t, typeError(validTypeList, PartialList(&mockTerm{}, NewAtom("a"), NewAtom("b")), nil), iter.Err())
 		})
 
 		t.Run("circular list", func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestListIterator_Next(t *testing.T) {
 				for iter.Next() {
 					assert.Equal(t, NewAtom("a"), iter.Current())
 				}
-				assert.Equal(t, TypeError(ValidTypeList, l, env), iter.Err())
+				assert.Equal(t, typeError(validTypeList, l, env), iter.Err())
 			}
 		})
 	})
@@ -165,7 +165,7 @@ func TestAnyIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, InstantiationError(nil), iter.Err())
+			assert.Equal(t, instantiationError(nil), iter.Err())
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestAnyIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, TypeError(ValidTypeList, PartialList(NewAtom("foo"), NewAtom("a"), NewAtom("b")), nil), iter.Err())
+			assert.Equal(t, typeError(validTypeList, PartialList(NewAtom("foo"), NewAtom("a"), NewAtom("b")), nil), iter.Err())
 		})
 	})
 

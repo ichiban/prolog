@@ -776,9 +776,9 @@ func integer(sign int64, s string) (Integer, error) {
 
 	switch i, a := f.Int64(); a {
 	case big.Above:
-		return 0, RepresentationError(FlagMinInteger, nil)
+		return 0, representationError(flagMinInteger, nil)
 	case big.Below:
-		return 0, RepresentationError(FlagMaxInteger, nil)
+		return 0, representationError(flagMaxInteger, nil)
 	default:
 		return Integer(i), nil
 	}
