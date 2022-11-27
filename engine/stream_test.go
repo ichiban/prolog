@@ -7,8 +7,45 @@ import (
 	"github.com/stretchr/testify/mock"
 	"io"
 	"io/fs"
+	"os"
 	"testing"
 )
+
+func TestNewInputTextStream(t *testing.T) {
+	assert.Equal(t, &Stream{
+		sourceSink: os.Stdin,
+		mode:       ioModeRead,
+		eofAction:  eofActionReset,
+		streamType: streamTypeText,
+	}, NewInputTextStream(os.Stdin))
+}
+
+func TestNewInputBinaryStream(t *testing.T) {
+	assert.Equal(t, &Stream{
+		sourceSink: os.Stdin,
+		mode:       ioModeRead,
+		eofAction:  eofActionReset,
+		streamType: streamTypeBinary,
+	}, NewInputBinaryStream(os.Stdin))
+}
+
+func TestNewOutputTextStream(t *testing.T) {
+	assert.Equal(t, &Stream{
+		sourceSink: os.Stdout,
+		mode:       ioModeAppend,
+		eofAction:  eofActionReset,
+		streamType: streamTypeText,
+	}, NewOutputTextStream(os.Stdout))
+}
+
+func TestNewOutputBinaryStream(t *testing.T) {
+	assert.Equal(t, &Stream{
+		sourceSink: os.Stdout,
+		mode:       ioModeAppend,
+		eofAction:  eofActionReset,
+		streamType: streamTypeBinary,
+	}, NewOutputBinaryStream(os.Stdout))
+}
 
 type mockNamer struct {
 	mock.Mock
