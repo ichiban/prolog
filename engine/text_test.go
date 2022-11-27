@@ -76,7 +76,7 @@ baz(X) :- bar(X).
 			},
 			{name: NewAtom("bar"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: atomIf.Apply(NewAtom("bar").Apply(NewNamedVariable("X")), NewAtom("foo").Apply(NewNamedVariable("X"))), xrTable: []Term{procedureIndicator{name: NewAtom("foo"), arity: 1}}, vars: []Variable{NewNamedVariable("X")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: atomIf.Apply(NewAtom("bar").Apply(lastVariable()+1), NewAtom("foo").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("foo"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
 						{opcode: opVar, operand: 0},
 						{opcode: opEnter},
 						{opcode: opVar, operand: 0},
@@ -87,7 +87,7 @@ baz(X) :- bar(X).
 			},
 			{name: NewAtom("baz"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("baz"), arity: 1}, raw: atomIf.Apply(NewAtom("baz").Apply(NewNamedVariable("X")), NewAtom("bar").Apply(NewNamedVariable("X"))), xrTable: []Term{procedureIndicator{name: NewAtom("bar"), arity: 1}}, vars: []Variable{NewNamedVariable("X")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("baz"), arity: 1}, raw: atomIf.Apply(NewAtom("baz").Apply(lastVariable()+1), NewAtom("bar").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("bar"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
 						{opcode: opVar, operand: 0},
 						{opcode: opEnter},
 						{opcode: opVar, operand: 0},
@@ -327,6 +327,8 @@ bar(b).
 }
 
 func TestVM_Consult(t *testing.T) {
+	x := NewVariable()
+
 	tests := []struct {
 		title string
 		files Term
@@ -341,11 +343,11 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
 		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 
-		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: instantiationError(nil)},
+		{title: `:- consult(X).`, files: x, err: instantiationError(nil)},
 		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: typeError(validTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
 		{title: `:- consult(1).`, files: Integer(1), err: typeError(validTypeAtom, Integer(1), nil)},
 		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: typeError(validTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
-		{title: `:- consult([X]).`, files: List(NewNamedVariable("X")), err: instantiationError(nil)},
+		{title: `:- consult([X]).`, files: List(x), err: instantiationError(nil)},
 		{title: `:- consult([1]).`, files: List(Integer(1)), err: typeError(validTypeAtom, Integer(1), nil)},
 
 		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},

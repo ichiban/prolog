@@ -16,19 +16,12 @@ func TestParser_Term(t *testing.T) {
 	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
 	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
 
-	pvs := []ParsedVariable{
-		{
-			Name:     NewAtom("X"),
-			Variable: NewNamedVariable("Z"),
-		},
-	}
-
 	tests := []struct {
 		input        string
 		doubleQuotes doubleQuotes
-		vars         *[]ParsedVariable
 		term         Term
-		varOffset    int64
+		termLazy     func() Term
+		vars         func() []ParsedVariable
 		err          error
 	}{
 		{input: ``, err: io.EOF},
@@ -80,10 +73,16 @@ func TestParser_Term(t *testing.T) {
 		{input: `- 1.0.`, term: Float(-1)},
 		{input: `'-'1.0.`, term: Float(-1)},
 
-		{input: `X.`, term: NewNamedVariable("X")},
-		{input: `_.`, varOffset: 1},
-		{input: `X.`, vars: &pvs, term: NewNamedVariable("Z")},
-		{input: `Y.`, vars: &pvs, varOffset: 1},
+		{input: `_.`, termLazy: func() Term {
+			return lastVariable()
+		}},
+		{input: `X.`, termLazy: func() Term {
+			return lastVariable()
+		}, vars: func() []ParsedVariable {
+			return []ParsedVariable{
+				{Name: NewAtom("X"), Variable: lastVariable(), Count: 1},
+			}
+		}},
 
 		{input: `foo(a, b).`, term: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a"), NewAtom("b")}}},
 		{input: `foo(-(a)).`, term: &compound{functor: NewAtom("foo"), args: []Term{&compound{functor: atomMinus, args: []Term{NewAtom("a")}}}}},
@@ -98,8 +97,20 @@ func TestParser_Term(t *testing.T) {
 		{input: `[(), b].`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{input: `[a, ()].`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{input: `[a b].`, err: unexpectedTokenError{actual: Token{kind: tokenLetterDigit, val: "b"}}},
-		{input: `[a|X].`, term: Cons(NewAtom("a"), NewNamedVariable("X"))},
-		{input: `[a, b|X].`, term: PartialList(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))},
+		{input: `[a|X].`, termLazy: func() Term {
+			return Cons(NewAtom("a"), lastVariable())
+		}, vars: func() []ParsedVariable {
+			return []ParsedVariable{
+				{Name: NewAtom("X"), Variable: lastVariable(), Count: 1},
+			}
+		}},
+		{input: `[a, b|X].`, termLazy: func() Term {
+			return PartialList(lastVariable(), NewAtom("a"), NewAtom("b"))
+		}, vars: func() []ParsedVariable {
+			return []ParsedVariable{
+				{Name: NewAtom("X"), Variable: lastVariable(), Count: 1},
+			}
+		}},
 		{input: `[a, b|()].`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{input: `[a, b|c d].`, err: unexpectedTokenError{actual: Token{kind: tokenLetterDigit, val: "d"}}},
 		{input: `[a `, err: io.EOF},
@@ -147,21 +158,24 @@ func TestParser_Term(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			offset := varCounter
 			p := Parser{
 				lexer: Lexer{
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
 				operators:    ops,
 				doubleQuotes: tc.doubleQuotes,
-				vars:         tc.vars,
 			}
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
-			if tc.varOffset != 0 {
-				assert.Equal(t, Variable(offset+tc.varOffset), term)
-			} else {
+			if tc.termLazy == nil {
 				assert.Equal(t, tc.term, term)
+			} else {
+				assert.Equal(t, tc.termLazy(), term)
+			}
+			if tc.vars == nil {
+				assert.Empty(t, p.Vars)
+			} else {
+				assert.Equal(t, tc.vars(), p.Vars)
 			}
 		})
 	}
@@ -174,7 +188,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		list, err := p.Term()
 		assert.NoError(t, err)
@@ -187,7 +201,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?].`)),
 			},
 		}
-		assert.Error(t, p.Replace(NewAtom("?"), []struct{}{{}}))
+		assert.Error(t, p.SetPlaceholder(NewAtom("?"), []struct{}{{}}))
 	})
 
 	t.Run("too few arguments", func(t *testing.T) {
@@ -196,7 +210,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
+		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
 
 		_, err := p.Term()
 		assert.Error(t, err)
@@ -208,7 +222,7 @@ func TestParser_Replace(t *testing.T) {
 				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
 			},
 		}
-		assert.NoError(t, p.Replace(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
+		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
 
 		_, err := p.Term()
 		assert.Error(t, err)
@@ -261,7 +275,7 @@ func TestParser_Number(t *testing.T) {
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
 			}
-			n, err := p.Number()
+			n, err := p.number()
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.number, n)
 		})

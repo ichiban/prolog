@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 
@@ -9,12 +8,14 @@ import (
 )
 
 func TestEnv_Bind(t *testing.T) {
+	a := NewVariable()
+
 	var env *Env
 	assert.Equal(t, &Env{
 		color: black,
 		left: &Env{
 			binding: binding{
-				key:   newEnvKey(NewNamedVariable("A")),
+				key:   newEnvKey(a),
 				value: NewAtom("a"),
 			},
 		},
@@ -22,13 +23,13 @@ func TestEnv_Bind(t *testing.T) {
 			key:   newEnvKey(varContext),
 			value: NewAtom("root"),
 		},
-	}, env.Bind(NewNamedVariable("A"), NewAtom("a")))
+	}, env.Bind(a, NewAtom("a")))
 }
 
 func TestEnv_Lookup(t *testing.T) {
 	vars := make([]Variable, 1000)
 	for i := range vars {
-		vars[i] = NewNamedVariable(fmt.Sprintf("V%d", i))
+		vars[i] = NewVariable()
 	}
 
 	rand.Shuffle(len(vars), func(i, j int) {
@@ -55,7 +56,7 @@ func TestEnv_Lookup(t *testing.T) {
 
 func TestEnv_Simplify(t *testing.T) {
 	// L = [a, b|L] ==> [a, b, a, b, ...]
-	l := NewNamedVariable("L")
+	l := NewVariable()
 	env := NewEnv().Bind(l, PartialList(l, NewAtom("a"), NewAtom("b")))
 	c := env.Simplify(l)
 	iter := ListIterator{List: c, Env: env}
@@ -71,6 +72,7 @@ func TestEnv_Simplify(t *testing.T) {
 }
 
 func TestEnv_Compare(t *testing.T) {
+	w, x, y := NewVariable(), NewVariable(), NewVariable()
 	type A struct{}
 	type B struct{ b interface{} }
 	type C struct{}
@@ -82,16 +84,16 @@ func TestEnv_Compare(t *testing.T) {
 		x, y  Term
 		o     int
 	}{
-		{title: `X > W`, x: NewNamedVariable("X"), y: NewNamedVariable("W"), o: 1},
-		{title: `X = X`, x: NewNamedVariable("X"), y: NewNamedVariable("X"), o: 0},
-		{title: `X < Y`, x: NewNamedVariable("X"), y: NewNamedVariable("Y"), o: -1},
-		{title: `X < 0.0`, x: NewNamedVariable("X"), y: Float(0), o: -1},
-		{title: `X < 0`, x: NewNamedVariable("X"), y: Integer(0), o: -1},
-		{title: `X < a`, x: NewNamedVariable("X"), y: NewAtom("a"), o: -1},
-		{title: `X < f(a)`, x: NewNamedVariable("X"), y: NewAtom("f").Apply(NewAtom("a")), o: -1},
-		{title: `X < any`, x: NewNamedVariable("X"), y: A{}, o: -1},
+		{title: `X > W`, x: x, y: w, o: 1},
+		{title: `X = X`, x: x, y: x, o: 0},
+		{title: `X < Y`, x: x, y: y, o: -1},
+		{title: `X < 0.0`, x: x, y: Float(0), o: -1},
+		{title: `X < 0`, x: x, y: Integer(0), o: -1},
+		{title: `X < a`, x: x, y: NewAtom("a"), o: -1},
+		{title: `X < f(a)`, x: x, y: NewAtom("f").Apply(NewAtom("a")), o: -1},
+		{title: `X < any`, x: x, y: A{}, o: -1},
 
-		{title: `1.0 > X`, x: Float(1), y: NewNamedVariable("X"), o: 1},
+		{title: `1.0 > X`, x: Float(1), y: x, o: 1},
 		{title: `1.0 > 0.0`, x: Float(1), y: Float(0), o: 1},
 		{title: `1.0 = 1.0`, x: Float(1), y: Float(1), o: 0},
 		{title: `1.0 < 2.0`, x: Float(1), y: Float(2), o: -1},
@@ -100,7 +102,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `1.0 < f(a)`, x: Float(1), y: NewAtom("f").Apply(NewAtom("a")), o: -1},
 		{title: `1.0 < any`, x: Float(1), y: A{}, o: -1},
 
-		{title: `1 > X`, x: Integer(1), y: NewNamedVariable("X"), o: 1},
+		{title: `1 > X`, x: Integer(1), y: x, o: 1},
 		{title: `1 > 1.0`, x: Integer(1), y: Float(1), o: 1},
 		{title: `1 > 0`, x: Integer(1), y: Integer(0), o: 1},
 		{title: `1 = 1`, x: Integer(1), y: Integer(1), o: 0},
@@ -109,7 +111,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `1 < f(a)`, x: Integer(1), y: NewAtom("f").Apply(NewAtom("a")), o: -1},
 		{title: `1 < any`, x: Integer(1), y: A{}, o: -1},
 
-		{title: `a > X`, x: NewAtom("a"), y: NewNamedVariable("X"), o: 1},
+		{title: `a > X`, x: NewAtom("a"), y: x, o: 1},
 		{title: `a > 1.0`, x: NewAtom("a"), y: Float(1), o: 1},
 		{title: `a > 1`, x: NewAtom("a"), y: Integer(1), o: 1},
 		{title: `a > 'Z'`, x: NewAtom("a"), y: NewAtom("Z"), o: 1},
@@ -118,7 +120,7 @@ func TestEnv_Compare(t *testing.T) {
 		{title: `a < f(a)`, x: NewAtom("a"), y: NewAtom("f").Apply(NewAtom("a")), o: -1},
 		{title: `a < any`, x: NewAtom("a"), y: A{}, o: -1},
 
-		{title: `f(a) > X`, x: NewAtom("f").Apply(NewAtom("a")), y: NewNamedVariable("X"), o: 1},
+		{title: `f(a) > X`, x: NewAtom("f").Apply(NewAtom("a")), y: x, o: 1},
 		{title: `f(a) > 1.0`, x: NewAtom("f").Apply(NewAtom("a")), y: Float(1), o: 1},
 		{title: `f(a) > 1`, x: NewAtom("f").Apply(NewAtom("a")), y: Integer(1), o: 1},
 		{title: `f(a) > a`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("a"), o: 1}, {title: `f(a) > f('Z')`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("Z")), o: 1},
@@ -132,7 +134,7 @@ func TestEnv_Compare(t *testing.T) {
 
 		{title: `nil = nil`, x: nil, y: nil, o: 0},
 
-		{title: `A{} > X`, x: A{}, y: NewNamedVariable("X"), o: 1},
+		{title: `A{} > X`, x: A{}, y: x, o: 1},
 		{title: `A{} > 1.0`, x: A{}, y: Float(1), o: 1},
 		{title: `A{} > 1`, x: A{}, y: Integer(1), o: 1},
 		{title: `A{} > a`, x: A{}, y: NewAtom("a"), o: 1},
@@ -197,7 +199,7 @@ func TestContains(t *testing.T) {
 	var env *Env
 	assert.True(t, contains(NewAtom("a"), NewAtom("a"), env))
 	assert.False(t, contains(NewVariable(), NewAtom("a"), env))
-	v := NewNamedVariable("V")
+	v := NewVariable()
 	env = env.Bind(v, NewAtom("a"))
 	assert.True(t, contains(v, NewAtom("a"), env))
 	assert.True(t, contains(&compound{functor: NewAtom("a")}, NewAtom("a"), env))

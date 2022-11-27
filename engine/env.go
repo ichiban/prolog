@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-var varContext = NewNamedVariable("$context")
+var varContext = NewVariable()
 
 var rootContext = NewAtom("root")
 

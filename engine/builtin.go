@@ -1347,13 +1347,6 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 		return Error(err)
 	}
 
-	// The character sequence for a variable begins with `_` (7.10.5.a).
-	for v := range newVariableSet(t, env) {
-		if !v.Anonymous() {
-			env = env.Bind(v, NewVariable())
-		}
-	}
-
 	opts := writeOptions{
 		ops:      vm.operators,
 		priority: 1200,
@@ -1618,8 +1611,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 		return Error(err)
 	}
 
-	var vars []ParsedVariable
-	p, _ := vm.Parse(s, &vars)
+	p := NewParser(vm, s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -1641,7 +1633,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 	}
 
 	var singletons, variables, variableNames []Term
-	for _, v := range vars {
+	for _, v := range p.Vars {
 		if v.Count == 1 {
 			singletons = append(singletons, v.Variable)
 		}
@@ -2170,7 +2162,7 @@ func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Prom
 			input: newRuneRingBuffer(strings.NewReader(sb.String())),
 		},
 	}
-	t, err := p.Number()
+	t, err := p.number()
 	if err != nil {
 		return Error(syntaxError(err, env))
 	}
@@ -2256,7 +2248,7 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 				input: newRuneRingBuffer(strings.NewReader(sb.String())),
 			},
 		}
-		t, err := p.Number()
+		t, err := p.number()
 		if err != nil {
 			return Error(syntaxError(err, env))
 		}

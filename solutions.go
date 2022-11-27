@@ -12,7 +12,7 @@ import (
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
 	env    *engine.Env
-	vars   []engine.Variable
+	vars   []engine.ParsedVariable
 	more   chan<- bool
 	next   <-chan *engine.Env
 	err    error
@@ -65,13 +65,13 @@ func (s *Solutions) Scan(dest interface{}) error {
 			}
 
 			for _, v := range s.vars {
-				n := v.String()
+				n := v.Name.String()
 				f, ok := fields[n]
 				if !ok {
 					continue
 				}
 
-				val, err := convert(v, f.Type(), s.env)
+				val, err := convert(v.Variable, f.Type(), s.env)
 				if err != nil {
 					return err
 				}
@@ -86,11 +86,11 @@ func (s *Solutions) Scan(dest interface{}) error {
 		}
 
 		for _, v := range s.vars {
-			val, err := convert(s.env.Simplify(v), t.Elem(), s.env)
+			val, err := convert(s.env.Simplify(v.Variable), t.Elem(), s.env)
 			if err != nil {
 				return err
 			}
-			o.SetMapIndex(reflect.ValueOf(v.String()), val)
+			o.SetMapIndex(reflect.ValueOf(v.Name.String()), val)
 		}
 		return nil
 	default:
@@ -163,10 +163,7 @@ func (s *Solutions) Err() error {
 func (s *Solutions) Vars() []string {
 	ns := make([]string, 0, len(s.vars))
 	for _, v := range s.vars {
-		if v.Anonymous() {
-			continue
-		}
-		ns = append(ns, v.String())
+		ns = append(ns, v.Name.String())
 	}
 	return ns
 }

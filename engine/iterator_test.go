@@ -21,7 +21,7 @@ func TestListIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			iter := ListIterator{List: PartialList(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))}
+			iter := ListIterator{List: PartialList(NewVariable(), NewAtom("a"), NewAtom("b"))}
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("a"), iter.Current())
 			assert.True(t, iter.Next())
@@ -61,7 +61,7 @@ func TestListIterator_Next(t *testing.T) {
 		})
 
 		t.Run("circular list", func(t *testing.T) {
-			l := NewNamedVariable("L")
+			l := NewVariable()
 			const max = 500
 			elems := make([]Term, 0, max)
 			for i := 0; i < max; i++ {
@@ -159,7 +159,7 @@ func TestAnyIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			iter := anyIterator{Any: PartialList(NewNamedVariable("X"), NewAtom("a"), NewAtom("b"))}
+			iter := anyIterator{Any: PartialList(NewVariable(), NewAtom("a"), NewAtom("b"))}
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("a"), iter.Current())
 			assert.True(t, iter.Next())

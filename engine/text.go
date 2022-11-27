@@ -83,12 +83,13 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 	}
 
 	s = ignoreShebangLine(s)
-	p, err := vm.Parse(strings.NewReader(s), nil, args...)
-	if err != nil {
+	p := NewParser(vm, strings.NewReader(s))
+	if err := p.SetPlaceholder(NewAtom("?"), args...); err != nil {
 		return err
 	}
 
 	for p.More() {
+		p.Vars = p.Vars[:]
 		t, err := p.Term()
 		if err != nil {
 			return err

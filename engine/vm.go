@@ -403,26 +403,6 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	vm.output = s
 }
 
-// Parse creates a new parser from the current VM and io.RuneReader.
-// If non-nil, vars will hold the information on variables it parses.
-func (vm *VM) Parse(r io.RuneReader, vars *[]ParsedVariable, args ...interface{}) (*Parser, error) {
-	if vm.operators == nil {
-		vm.operators = operators{}
-	}
-	p := Parser{
-		lexer: Lexer{
-			input: newRuneRingBuffer(r),
-		},
-		operators:    vm.operators,
-		doubleQuotes: vm.doubleQuotes,
-		vars:         vars,
-	}
-	if err := p.Replace(NewAtom("?"), args...); err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
 // Write outputs term to the io.StringWriter.
 func (vm *VM) Write(w io.StringWriter, t Term, env *Env) error {
 	return writeTerm(w, t, &writeOptions{

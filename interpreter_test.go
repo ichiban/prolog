@@ -720,32 +720,42 @@ func TestInterpreter_Query(t *testing.T) {
 		query             string
 		args              []interface{}
 		queryErr, scanErr bool
-		scan, result      interface{}
+		scan              interface{}
+		result            func() interface{}
 	}{
-		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.NewAtom("nil"),
-			"Y": engine.NewNamedVariable("Z"),
-			"Z": engine.NewNamedVariable("Z"),
+		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: func() interface{} {
+			last := engine.NewVariable()
+			return map[string]engine.Term{
+				"X": engine.NewAtom("nil"),
+				"Y": last - 16,
+				"Z": last - 16,
+			}
 		}},
-		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.NewAtom("cons").Apply(
-				engine.NewAtom("a"),
-				engine.NewAtom("cons").Apply(
-					engine.NewAtom("b"),
+		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: func() interface{} {
+			return map[string]engine.Term{
+				"X": engine.NewAtom("cons").Apply(
+					engine.NewAtom("a"),
 					engine.NewAtom("cons").Apply(
-						engine.NewAtom("c"),
-						engine.NewAtom("nil"),
+						engine.NewAtom("b"),
+						engine.NewAtom("cons").Apply(
+							engine.NewAtom("c"),
+							engine.NewAtom("nil"),
+						),
 					),
 				),
-			),
+			}
 		}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true},
-		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
-			A:    "a",
-			B:    1,
-			C:    2.0,
-			List: []string{"abc", "def"},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: func() interface{} {
+			return map[string]interface{}{}
+		}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true, result: func() interface{} { return nil }},
+		{query: `foo(A, B, C, D).`, scan: &result{}, result: func() interface{} {
+			return &result{
+				A:    "a",
+				B:    1,
+				C:    2.0,
+				List: []string{"abc", "def"},
+			}
 		}},
 	}
 
@@ -777,7 +787,7 @@ foo(a, 1, 2.0, [abc, def]).
 			} else {
 				assert.NoError(t, sols.Scan(tt.scan))
 			}
-			assert.Equal(t, tt.result, tt.scan)
+			assert.Equal(t, tt.result(), tt.scan)
 		})
 	}
 }

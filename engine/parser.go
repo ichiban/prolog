@@ -23,9 +23,11 @@ type Parser struct {
 	lexer        Lexer
 	operators    operators
 	doubleQuotes doubleQuotes
-	vars         *[]ParsedVariable
-	placeholder  Atom
-	args         []Term
+
+	Vars []ParsedVariable
+
+	placeholder Atom
+	args        []Term
 
 	buf tokenRingBuffer
 }
@@ -37,9 +39,23 @@ type ParsedVariable struct {
 	Count    int
 }
 
-// Replace registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
+// NewParser creates a new parser from the current VM and io.RuneReader.
+func NewParser(vm *VM, r io.RuneReader) *Parser {
+	if vm.operators == nil {
+		vm.operators = operators{}
+	}
+	return &Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(r),
+		},
+		operators:    vm.operators,
+		doubleQuotes: vm.doubleQuotes,
+	}
+}
+
+// SetPlaceholder registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
-func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
+func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
 	p.placeholder = placeholder
 	p.args = make([]Term, len(args))
 	for i, a := range args {
@@ -123,7 +139,7 @@ func (p *Parser) Term() (Term, error) {
 }
 
 // Number parses a number term.
-func (p *Parser) Number() (Number, error) {
+func (p *Parser) number() (Number, error) {
 	var (
 		n   Number
 		err error
@@ -557,19 +573,16 @@ func (p *Parser) variable(s string) (Term, error) {
 	if s == "_" {
 		return NewVariable(), nil
 	}
-	if p.vars == nil {
-		return NewNamedVariable(s), nil
-	}
 	n := NewAtom(s)
-	for i, v := range *p.vars {
-		if v.Name == n {
-			(*p.vars)[i].Count++
-			return v.Variable, nil
+	for i, pv := range p.Vars {
+		if pv.Name == n {
+			p.Vars[i].Count++
+			return pv.Variable, nil
 		}
 	}
-	w := NewVariable()
-	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
-	return w, nil
+	v := NewVariable()
+	p.Vars = append(p.Vars, ParsedVariable{Name: n, Variable: v, Count: 1})
+	return v, nil
 }
 
 func (p *Parser) openClose() (Term, error) {

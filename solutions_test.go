@@ -19,7 +19,8 @@ func TestSolutions_Close(t *testing.T) {
 
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		env := engine.NewEnv().Bind(engine.NewNamedVariable("Foo"), engine.NewAtom("bar"))
+		v := engine.NewVariable()
+		env := engine.NewEnv().Bind(v, engine.NewAtom("foo"))
 		more := make(chan bool, 1)
 		defer close(more)
 		next := make(chan *engine.Env, 1)
@@ -27,7 +28,7 @@ func TestSolutions_Next(t *testing.T) {
 		next <- env
 		sols := Solutions{more: more, next: next}
 		assert.True(t, sols.Next())
-		assert.Equal(t, engine.NewAtom("bar"), sols.env.Resolve(engine.NewNamedVariable("Foo")))
+		assert.Equal(t, engine.NewAtom("foo"), sols.env.Resolve(v))
 	})
 
 	t.Run("closed", func(t *testing.T) {
@@ -37,35 +38,55 @@ func TestSolutions_Next(t *testing.T) {
 }
 
 func TestSolutions_Scan(t *testing.T) {
+	var (
+		varFloat32 = engine.NewVariable()
+		varFloat64 = engine.NewVariable()
+		varInt     = engine.NewVariable()
+		varInt8    = engine.NewVariable()
+		varInt16   = engine.NewVariable()
+		varInt32   = engine.NewVariable()
+		varInt64   = engine.NewVariable()
+		varString  = engine.NewVariable()
+		varSlice   = engine.NewVariable()
+		varFoo     = engine.NewVariable()
+		varBar     = engine.NewVariable()
+		varBaz     = engine.NewVariable()
+	)
+
 	env := engine.NewEnv()
-	for k, v := range map[string]engine.Term{
-		"Float32": engine.Float(32),
-		"Float64": engine.Float(64),
-		"Int":     engine.Integer(1),
-		"Int8":    engine.Integer(8),
-		"Int16":   engine.Integer(16),
-		"Int32":   engine.Integer(32),
-		"Int64":   engine.Integer(64),
-		"String":  engine.NewAtom("string"),
-		"Slice":   engine.List(engine.NewAtom("a"), engine.NewAtom("b"), engine.NewAtom("c")),
-		"Foo":     engine.NewAtom("foo"),
-		"Bar":     engine.NewAtom("bar"),
-		"Baz":     engine.NewAtom("baz"),
+	for k, v := range map[engine.Variable]engine.Term{
+		varFloat32: engine.Float(32),
+		varFloat64: engine.Float(64),
+		varInt:     engine.Integer(1),
+		varInt8:    engine.Integer(8),
+		varInt16:   engine.Integer(16),
+		varInt32:   engine.Integer(32),
+		varInt64:   engine.Integer(64),
+		varString:  engine.NewAtom("string"),
+		varSlice:   engine.List(engine.NewAtom("a"), engine.NewAtom("b"), engine.NewAtom("c")),
+		varFoo:     engine.NewAtom("foo"),
+		varBar:     engine.NewAtom("bar"),
+		varBaz:     engine.NewAtom("baz"),
 	} {
-		env = env.Bind(engine.NewNamedVariable(k), v)
+		env = env.Bind(k, v)
 	}
 
 	sols := Solutions{
 		env: env,
-	}
-	for _, n := range []string{
-		"Float32", "Float64",
-		"Int", "Int8", "Int16", "Int32", "Int64",
-		"String",
-		"Slice",
-		"Foo", "Bar", "Baz",
-	} {
-		sols.vars = append(sols.vars, engine.NewNamedVariable(n))
+		vars: []engine.ParsedVariable{
+			{Name: engine.NewAtom("Float32"), Variable: varFloat32},
+			{Name: engine.NewAtom("Float64"), Variable: varFloat64},
+			{Name: engine.NewAtom("Int"), Variable: varInt},
+			{Name: engine.NewAtom("Int8"), Variable: varInt8},
+			{Name: engine.NewAtom("Int16"), Variable: varInt16},
+			{Name: engine.NewAtom("Int32"), Variable: varInt32},
+			{Name: engine.NewAtom("Int64"), Variable: varInt64},
+			{Name: engine.NewAtom("String"), Variable: varString},
+			{Name: engine.NewAtom("Slice"), Variable: varSlice},
+			{Name: engine.NewAtom("Foo"), Variable: varFoo},
+			{Name: engine.NewAtom("Bar"), Variable: varBar},
+			{Name: engine.NewAtom("Baz"), Variable: varBaz},
+		},
 	}
 
 	t.Run("struct", func(t *testing.T) {
@@ -171,11 +192,10 @@ func TestSolutions_Err(t *testing.T) {
 
 func TestSolutions_Vars(t *testing.T) {
 	sols := Solutions{
-		vars: []engine.Variable{
-			engine.NewNamedVariable("A"),
-			engine.NewNamedVariable("B"),
-			engine.NewVariable(),
-			engine.NewNamedVariable("C"),
+		vars: []engine.ParsedVariable{
+			{Name: engine.NewAtom("A")},
+			{Name: engine.NewAtom("B")},
+			{Name: engine.NewAtom("C")},
 		},
 	}
 

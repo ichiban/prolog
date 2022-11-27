@@ -135,8 +135,8 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 // QueryContext executes a prolog query and returns *Solutions with context.
 func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...interface{}) (*Solutions, error) {
-	p, err := i.Parse(strings.NewReader(query), nil, args...)
-	if err != nil {
+	p := engine.NewParser(&i.VM, strings.NewReader(query))
+	if err := p.SetPlaceholder(engine.NewAtom("?"), args...); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +150,7 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 	more := make(chan bool, 1)
 	next := make(chan *engine.Env)
 	sols := Solutions{
-		vars: env.FreeVariables(t),
+		vars: p.Vars,
 		more: more,
 		next: next,
 	}
