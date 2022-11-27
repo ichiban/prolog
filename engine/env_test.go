@@ -57,7 +57,8 @@ func TestEnv_Lookup(t *testing.T) {
 func TestEnv_Simplify(t *testing.T) {
 	// L = [a, b|L] ==> [a, b, a, b, ...]
 	l := NewVariable()
-	env := NewEnv().bind(l, PartialList(l, NewAtom("a"), NewAtom("b")))
+	p := PartialList(l, NewAtom("a"), NewAtom("b"))
+	env := NewEnv().bind(l, p)
 	c := env.Simplify(l)
 	iter := ListIterator{List: c, Env: env}
 	assert.True(t, iter.Next())
@@ -65,10 +66,10 @@ func TestEnv_Simplify(t *testing.T) {
 	assert.True(t, iter.Next())
 	assert.Equal(t, NewAtom("b"), iter.Current())
 	assert.False(t, iter.Next())
-	suffix, ok := iter.Suffix().(*compound)
+	suffix, ok := iter.Suffix().(Compound)
 	assert.True(t, ok)
-	assert.Equal(t, atomDot, suffix.functor)
-	assert.Len(t, suffix.args, 2)
+	assert.Equal(t, atomDot, suffix.Functor())
+	assert.Equal(t, 2, suffix.Arity())
 }
 
 func TestEnv_Compare(t *testing.T) {

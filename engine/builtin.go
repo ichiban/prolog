@@ -385,12 +385,13 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 	switch t := t.(type) {
 	case Variable:
 		v := NewVariable()
-		copied[t] = v
+		copied[id(t)] = v
 		return v
 	case charList, codeList:
 		return t
 	case list:
 		l := make(list, len(t))
+		copied[id(t)] = l
 		for i := range t {
 			l[i] = renamedCopy(t[i], copied, env)
 		}

@@ -204,13 +204,14 @@ func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
 	if simplified == nil {
 		simplified = map[termID]Compound{}
 	}
-	switch t := env.Resolve(t).(type) {
+	t = env.Resolve(t)
+	if c, ok := simplified[id(t)]; ok {
+		return c
+	}
+	switch t := t.(type) {
 	case charList, codeList:
 		return t
 	case list:
-		if c, ok := simplified[id(t)]; ok {
-			return c
-		}
 		l := make(list, len(t))
 		simplified[id(t)] = l
 		for i, e := range t {
@@ -218,9 +219,6 @@ func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
 		}
 		return l
 	case Compound:
-		if c, ok := simplified[id(t)]; ok {
-			return c
-		}
 		c := compound{
 			functor: t.Functor(),
 			args:    make([]Term, t.Arity()),

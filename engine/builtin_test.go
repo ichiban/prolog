@@ -776,16 +776,48 @@ func TestUniv(t *testing.T) {
 }
 
 func TestCopyTerm(t *testing.T) {
-	in := NewVariable()
-	out := NewVariable()
-	env := NewEnv().
-		bind(in, NewAtom("a"))
-	ok, err := CopyTerm(nil, in, out, func(env *Env) *Promise {
-		assert.Equal(t, NewAtom("a"), env.Resolve(out))
-		return Bool(true)
-	}, env).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
+	x, y := NewVariable(), NewVariable()
+	a, b := NewVariable(), NewVariable()
+
+	tests := []struct {
+		title   string
+		in, out Term
+		ok      bool
+		err     error
+		env     map[Variable]Term
+	}{
+		// 8.5.4.4 Examples
+		{title: "copy_term(X, Y).", in: x, out: y, ok: true},
+		{title: "copy_term(X, 3).", in: x, out: Integer(3), ok: true},
+		{title: "copy_term(_, a).", in: NewVariable(), out: NewAtom("a"), ok: true},
+		{title: "copy_term(_, _).", in: NewVariable(), out: NewVariable(), ok: true},
+		{title: "copy_term(X+X+Y, A+B+B).", in: atomPlus.Apply(atomPlus.Apply(x, x), y), out: atomPlus.Apply(atomPlus.Apply(a, b), b), ok: true, env: map[Variable]Term{
+			a: b,
+		}},
+		{title: "copy_term(a, b).", in: NewAtom("a"), out: NewAtom("b"), ok: false},
+		// copy_term(a+X, X+b), copy_term(a+X, X+b).
+		{title: "copy_term(demoen(X, X), demoen(Y, f(Y))).", in: NewAtom("demoen").Apply(x, x), out: NewAtom("demoen").Apply(y, NewAtom("f").Apply(y)), ok: true, env: map[Variable]Term{
+			y: NewAtom("f").Apply(y),
+		}},
+
+		{title: "charList", in: CharList("foo"), out: CharList("foo"), ok: true},
+		{title: "codeList", in: CodeList("foo"), out: CodeList("foo"), ok: true},
+		{title: "list", in: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), out: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), ok: true},
+		{title: "partial", in: PartialList(x, NewAtom("a"), NewAtom("b")), out: PartialList(x, NewAtom("a"), NewAtom("b")), ok: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := CopyTerm(nil, tt.in, tt.out, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					assert.Equal(t, v, env.Resolve(k))
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestTermVariables(t *testing.T) {
