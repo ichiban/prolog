@@ -40,7 +40,7 @@ func Call(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 	case Variable:
 		return Error(instantiationError(env))
 	default:
-		fvs := env.FreeVariables(g)
+		fvs := env.freeVariables(g)
 		args := make([]Term, len(fvs))
 		for i, fv := range fvs {
 			args[i] = fv
@@ -169,7 +169,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k func(*Env) *Promise, env *Env
 		return Bool(false)
 	}
 
-	if d := env.Compare(theta.Simplify(general), specific); d != 0 {
+	if d := env.compare(theta.Simplify(general), specific); d != 0 {
 		return Bool(false)
 	}
 
@@ -334,14 +334,14 @@ func Univ(vm *VM, t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 			case Compound:
 				return Error(typeError(validTypeAtomic, e, env))
 			default:
-				return k(env.Bind(t, e))
+				return k(env.bind(t, e))
 			}
 		default:
 			switch e := env.Resolve(elems[0]).(type) {
 			case Variable:
 				return Error(instantiationError(env))
 			case Atom:
-				return k(env.Bind(t, e.Apply(elems[1:]...)))
+				return k(env.bind(t, e.Apply(elems[1:]...)))
 			default:
 				return Error(typeError(validTypeAtom, e, env))
 			}
@@ -683,7 +683,7 @@ func BagOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *E
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func SetOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
 	return collectionOf(vm, func(tList []Term, env *Env) Term {
-		return env.Set(tList...)
+		return env.set(tList...)
 	}, template, goal, instances, k, env)
 }
 
@@ -776,7 +776,7 @@ func Compare(vm *VM, order, term1, term2 Term, k func(*Env) *Promise, env *Env) 
 		return Error(typeError(validTypeAtom, order, env))
 	}
 
-	switch o := env.Compare(term1, term2); o {
+	switch o := env.compare(term1, term2); o {
 	case 1:
 		return Unify(vm, atomGreaterThan, order, k, env)
 	case -1:
@@ -853,7 +853,7 @@ func Sort(vm *VM, list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	return Unify(vm, sorted, env.Set(elems...), k, env)
+	return Unify(vm, sorted, env.set(elems...), k, env)
 }
 
 // KeySort succeeds if sorted is a sorted list of pairs based on their keys.
@@ -900,7 +900,7 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 	}
 
 	sort.SliceStable(elems, func(i, j int) bool {
-		return env.Compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == -1
+		return env.compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == -1
 	})
 
 	return Unify(vm, sorted, List(elems...), k, env)

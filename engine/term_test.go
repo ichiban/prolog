@@ -122,7 +122,7 @@ func Test_writeTerm(t *testing.T) {
 	v, w := NewVariable(), NewVariable()
 	l := PartialList(v, NewAtom("a"), NewAtom("b"))
 	r := f.Apply(w)
-	env := NewEnv().Bind(v, l).Bind(w, r)
+	env := NewEnv().bind(v, l).bind(w, r)
 
 	x := NewVariable()
 

@@ -23,7 +23,7 @@ func TestEnv_Bind(t *testing.T) {
 			key:   newEnvKey(varContext),
 			value: NewAtom("root"),
 		},
-	}, env.Bind(a, NewAtom("a")))
+	}, env.bind(a, NewAtom("a")))
 }
 
 func TestEnv_Lookup(t *testing.T) {
@@ -38,7 +38,7 @@ func TestEnv_Lookup(t *testing.T) {
 
 	var env *Env
 	for _, v := range vars {
-		env = env.Bind(v, v)
+		env = env.bind(v, v)
 	}
 
 	rand.Shuffle(len(vars), func(i, j int) {
@@ -47,7 +47,7 @@ func TestEnv_Lookup(t *testing.T) {
 
 	for _, v := range vars {
 		t.Run(v.String(), func(t *testing.T) {
-			w, ok := env.Lookup(v)
+			w, ok := env.lookup(v)
 			assert.True(t, ok)
 			assert.Equal(t, v, w)
 		})
@@ -57,7 +57,7 @@ func TestEnv_Lookup(t *testing.T) {
 func TestEnv_Simplify(t *testing.T) {
 	// L = [a, b|L] ==> [a, b, a, b, ...]
 	l := NewVariable()
-	env := NewEnv().Bind(l, PartialList(l, NewAtom("a"), NewAtom("b")))
+	env := NewEnv().bind(l, PartialList(l, NewAtom("a"), NewAtom("b")))
 	c := env.Simplify(l)
 	iter := ListIterator{List: c, Env: env}
 	assert.True(t, iter.Next())
@@ -190,7 +190,7 @@ func TestEnv_Compare(t *testing.T) {
 	env := NewEnv()
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			assert.Equal(t, tt.o, env.Compare(tt.x, tt.y))
+			assert.Equal(t, tt.o, env.compare(tt.x, tt.y))
 		})
 	}
 }
@@ -200,7 +200,7 @@ func TestContains(t *testing.T) {
 	assert.True(t, contains(NewAtom("a"), NewAtom("a"), env))
 	assert.False(t, contains(NewVariable(), NewAtom("a"), env))
 	v := NewVariable()
-	env = env.Bind(v, NewAtom("a"))
+	env = env.bind(v, NewAtom("a"))
 	assert.True(t, contains(v, NewAtom("a"), env))
 	assert.True(t, contains(&compound{functor: NewAtom("a")}, NewAtom("a"), env))
 	assert.True(t, contains(&compound{functor: NewAtom("f"), args: []Term{NewAtom("a")}}, NewAtom("a"), env))

@@ -54,8 +54,8 @@ func NewEnv() *Env {
 	return nil
 }
 
-// Lookup returns a term that the given variable is bound to.
-func (e *Env) Lookup(v Variable) (Term, bool) {
+// lookup returns a term that the given variable is bound to.
+func (e *Env) lookup(v Variable) (Term, bool) {
 	k := newEnvKey(v)
 
 	node := e
@@ -77,8 +77,8 @@ func (e *Env) Lookup(v Variable) (Term, bool) {
 	}
 }
 
-// Bind adds a new entry to the environment.
-func (e *Env) Bind(v Variable, t Term) *Env {
+// bind adds a new entry to the environment.
+func (e *Env) bind(v Variable, t Term) *Env {
 	k := newEnvKey(v)
 
 	node := e
@@ -182,7 +182,7 @@ func (e *Env) Resolve(t Term) Term {
 					return v
 				}
 			}
-			ref, ok := e.Lookup(v)
+			ref, ok := e.lookup(v)
 			if !ok {
 				return v
 			}
@@ -237,13 +237,9 @@ func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
 
 type variables []Variable
 
-// FreeVariables extracts variables in the given terms.
-func (e *Env) FreeVariables(ts ...Term) []Variable {
-	var fvs variables
-	for _, t := range ts {
-		fvs = e.appendFreeVariables(fvs, t)
-	}
-	return fvs
+// freeVariables extracts variables in the given Term.
+func (e *Env) freeVariables(t Term) []Variable {
+	return e.appendFreeVariables(nil, t)
 }
 
 func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
@@ -273,7 +269,7 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 		case occursCheck && contains(y, x, e):
 			return e, false
 		default:
-			return e.Bind(x, y), true
+			return e.bind(x, y), true
 		}
 	case Compound:
 		switch y := y.(type) {
@@ -313,7 +309,7 @@ func contains(t, s Term, env *Env) bool {
 		if t == s {
 			return true
 		}
-		ref, ok := env.Lookup(t)
+		ref, ok := env.lookup(t)
 		if !ok {
 			return false
 		}
@@ -334,7 +330,7 @@ func contains(t, s Term, env *Env) bool {
 }
 
 // Compare compares two terms and returns -1, 0, or +1.
-func (e *Env) Compare(x, y Term) int {
+func (e *Env) compare(x, y Term) int {
 	x, y = e.Resolve(x), e.Resolve(y)
 	switch x := x.(type) {
 	case Variable:
@@ -427,12 +423,12 @@ func (e *Env) compareCompound(x Compound, y Term) int {
 			return -1
 		}
 
-		if o := e.Compare(x.Functor(), y.Functor()); o != 0 {
+		if o := e.compare(x.Functor(), y.Functor()); o != 0 {
 			return o
 		}
 
 		for i := 0; i < x.Arity(); i++ {
-			if o := e.Compare(x.Arg(i), y.Arg(i)); o != 0 {
+			if o := e.compare(x.Arg(i), y.Arg(i)); o != 0 {
 				return o
 			}
 		}

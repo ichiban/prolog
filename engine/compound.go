@@ -142,14 +142,14 @@ func PartialList(tail Term, ts ...Term) Term {
 	}
 }
 
-// Set returns a list of ts which elements are unique.
-func (e *Env) Set(ts ...Term) Term {
+// set returns a list of ts which elements are unique.
+func (e *Env) set(ts ...Term) Term {
 	sort.Slice(ts, func(i, j int) bool {
-		return e.Compare(ts[i], ts[j]) == -1
+		return e.compare(ts[i], ts[j]) == -1
 	})
 	us := make([]Term, 0, len(ts))
 	for _, t := range ts {
-		if len(us) > 0 && e.Compare(us[len(us)-1], t) == 0 {
+		if len(us) > 0 && e.compare(us[len(us)-1], t) == 0 {
 			continue
 		}
 		us = append(us, t)

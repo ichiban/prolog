@@ -346,7 +346,7 @@ func TestUnify(t *testing.T) {
 			x: y,
 		}},
 		{title: `'='(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
-		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().Bind(x, y), x: x, y: NewAtom("abc"), ok: true, env: map[Variable]Term{
+		{title: `'='(X, Y), '='(X, abc).`, premise: NewEnv().bind(x, y), x: x, y: NewAtom("abc"), ok: true, env: map[Variable]Term{
 			x: NewAtom("abc"),
 			y: NewAtom("abc"),
 		}},
@@ -400,7 +400,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 			x: y,
 		}},
 		{title: `unify_with_occurs_check(_, _).`, x: NewVariable(), y: NewVariable(), ok: true},
-		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().Bind(x, y), x: x, y: NewAtom("abc"), ok: true, env: map[Variable]Term{
+		{title: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, premise: NewEnv().bind(x, y), x: x, y: NewAtom("abc"), ok: true, env: map[Variable]Term{
 			x: NewAtom("abc"),
 			y: NewAtom("abc"),
 		}},
@@ -779,7 +779,7 @@ func TestCopyTerm(t *testing.T) {
 	in := NewVariable()
 	out := NewVariable()
 	env := NewEnv().
-		Bind(in, NewAtom("a"))
+		bind(in, NewAtom("a"))
 	ok, err := CopyTerm(nil, in, out, func(env *Env) *Promise {
 		assert.Equal(t, NewAtom("a"), env.Resolve(out))
 		return Bool(true)
@@ -829,8 +829,8 @@ func TestTermVariables(t *testing.T) {
 	}
 
 	env := NewEnv().
-		Bind(vs, atomPlus.Apply(b, vt)).
-		Bind(vt, NewAtom("*").Apply(a, b))
+		bind(vs, atomPlus.Apply(b, vt)).
+		bind(vt, NewAtom("*").Apply(a, b))
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := TermVariables(nil, tt.term, tt.vars, func(env *Env) *Promise {
@@ -3126,7 +3126,7 @@ func TestOpen(t *testing.T) {
 			ok, err := Open(&vm, NewAtom(f.Name()), atomRead, v, List(
 				atomAlias.Apply(atomInput),
 			), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3151,7 +3151,7 @@ func TestOpen(t *testing.T) {
 				functor: atomType,
 				args:    []Term{atomText},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3168,7 +3168,7 @@ func TestOpen(t *testing.T) {
 				functor: atomType,
 				args:    []Term{atomBinary},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3185,7 +3185,7 @@ func TestOpen(t *testing.T) {
 				functor: atomReposition,
 				args:    []Term{atomTrue},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3202,7 +3202,7 @@ func TestOpen(t *testing.T) {
 				functor: atomReposition,
 				args:    []Term{atomFalse},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3219,7 +3219,7 @@ func TestOpen(t *testing.T) {
 				functor: atomEOFAction,
 				args:    []Term{atomError},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3236,7 +3236,7 @@ func TestOpen(t *testing.T) {
 				functor: atomEOFAction,
 				args:    []Term{atomEOFCode},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3253,7 +3253,7 @@ func TestOpen(t *testing.T) {
 				functor: atomEOFAction,
 				args:    []Term{atomReset},
 			}), func(env *Env) *Promise {
-				ref, ok := env.Lookup(v)
+				ref, ok := env.lookup(v)
 				assert.True(t, ok)
 				s, ok := ref.(*Stream)
 				assert.True(t, ok)
@@ -3329,7 +3329,7 @@ func TestOpen(t *testing.T) {
 			functor: atomAlias,
 			args:    []Term{atomOutput},
 		}), func(env *Env) *Promise {
-			ref, ok := env.Lookup(v)
+			ref, ok := env.lookup(v)
 			assert.True(t, ok)
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
@@ -3378,7 +3378,7 @@ func TestOpen(t *testing.T) {
 			functor: atomAlias,
 			args:    []Term{atomAppend},
 		}), func(env *Env) *Promise {
-			ref, ok := env.Lookup(v)
+			ref, ok := env.lookup(v)
 			assert.True(t, ok)
 			s, ok := ref.(*Stream)
 			assert.True(t, ok)
@@ -3835,7 +3835,7 @@ func TestWriteTerm(t *testing.T) {
 		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, sOrA: w, term: atomVar.Apply(Integer(51)), options: List(atomNumberVars.Apply(atomTrue)), ok: true, output: `Z1`},
 		{title: `write_term(1, [quoted(non_boolean)]).`, sOrA: w, term: Integer(1), options: List(atomQuoted.Apply(NewAtom("non_boolean"))), err: domainError(validDomainWriteOption, atomQuoted.Apply(NewAtom("non_boolean")), nil)},
 		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(atomQuoted.Apply(B)), err: instantiationError(nil)},
-		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().Bind(B, atomTrue), term: Integer(1), options: List(atomQuoted.Apply(B)), ok: true, output: `1`},
+		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().bind(B, atomTrue), term: Integer(1), options: List(atomQuoted.Apply(B)), ok: true, output: `1`},
 
 		// 8.14.2.3 Errors
 		{title: `a`, sOrA: s, term: NewAtom("foo"), options: List(), err: instantiationError(nil)},
@@ -4067,7 +4067,7 @@ func TestPutByte(t *testing.T) {
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, &Stream{sourceSink: os.Stdin, mode: ioModeRead, streamType: streamTypeBinary})
+			bind(s, &Stream{sourceSink: os.Stdin, mode: ioModeRead, streamType: streamTypeBinary})
 
 		var vm VM
 		ok, err := PutByte(&vm, s, Integer(97), Success, env).Force(context.Background())
@@ -4078,7 +4078,7 @@ func TestPutByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := PutByte(&vm, s, Integer(97), Success, env).Force(context.Background())
@@ -4166,7 +4166,7 @@ func TestPutCode(t *testing.T) {
 	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, &Stream{sourceSink: os.Stdin})
+			bind(s, &Stream{sourceSink: os.Stdin})
 
 		var vm VM
 		ok, err := PutCode(&vm, s, Integer(97), Success, env).Force(context.Background())
@@ -4180,7 +4180,7 @@ func TestPutCode(t *testing.T) {
 
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, stream)
+			bind(s, stream)
 
 		var vm VM
 		ok, err := PutCode(&vm, s, Integer(97), Success, env).Force(context.Background())
@@ -4475,7 +4475,7 @@ func TestReadTerm(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(s, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := ReadTerm(&vm, s, NewVariable(), List(), Success, env).Force(context.Background())
@@ -4489,7 +4489,7 @@ func TestReadTerm(t *testing.T) {
 
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, stream)
+			bind(s, stream)
 
 		var vm VM
 		ok, err := ReadTerm(&vm, s, NewVariable(), List(), Success, env).Force(context.Background())
@@ -4503,7 +4503,7 @@ func TestReadTerm(t *testing.T) {
 
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, &Stream{
+			bind(s, &Stream{
 				sourceSink:  &m,
 				mode:        ioModeRead,
 				eofAction:   eofActionError,
@@ -4689,7 +4689,7 @@ func TestGetByte(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := GetByte(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -4700,7 +4700,7 @@ func TestGetByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
 		var vm VM
 		ok, err := GetByte(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -4714,7 +4714,7 @@ func TestGetByte(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{
+			bind(streamOrAlias, &Stream{
 				sourceSink:  &m,
 				mode:        ioModeRead,
 				streamType:  streamTypeBinary,
@@ -4836,7 +4836,7 @@ func TestGetChar(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := GetChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -4850,7 +4850,7 @@ func TestGetChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			bind(streamOrAlias, s)
 
 		var vm VM
 		ok, err := GetChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -4864,7 +4864,7 @@ func TestGetChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{
+			bind(streamOrAlias, &Stream{
 				sourceSink:  &m,
 				mode:        ioModeRead,
 				eofAction:   eofActionError,
@@ -4886,7 +4886,7 @@ func TestGetChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
+			bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
 		var vm VM
 		ok, err := GetChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -5012,7 +5012,7 @@ func TestPeekByte(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := PeekByte(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -5023,7 +5023,7 @@ func TestPeekByte(t *testing.T) {
 	t.Run("streamOrAlias is associated with a text stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdin})
 
 		var vm VM
 		ok, err := PeekByte(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -5037,7 +5037,7 @@ func TestPeekByte(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{
+			bind(streamOrAlias, &Stream{
 				sourceSink:  &m,
 				mode:        ioModeRead,
 				streamType:  streamTypeBinary,
@@ -5166,7 +5166,7 @@ func TestPeekChar(t *testing.T) {
 	t.Run("streamOrAlias is an output stream", func(t *testing.T) {
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
+			bind(streamOrAlias, &Stream{sourceSink: os.Stdout, mode: ioModeAppend})
 
 		var vm VM
 		ok, err := PeekChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -5180,7 +5180,7 @@ func TestPeekChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, s)
+			bind(streamOrAlias, s)
 
 		var vm VM
 		ok, err := PeekChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -5194,7 +5194,7 @@ func TestPeekChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{
+			bind(streamOrAlias, &Stream{
 				sourceSink:  &m,
 				eofAction:   eofActionError,
 				endOfStream: endOfStreamPast,
@@ -5215,7 +5215,7 @@ func TestPeekChar(t *testing.T) {
 
 		streamOrAlias := NewVariable()
 		env := NewEnv().
-			Bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
+			bind(streamOrAlias, &Stream{sourceSink: f, mode: ioModeRead})
 
 		var vm VM
 		ok, err := PeekChar(&vm, streamOrAlias, NewVariable(), Success, env).Force(context.Background())
@@ -6106,7 +6106,7 @@ func TestSetStreamPosition(t *testing.T) {
 
 		s := NewVariable()
 		env := NewEnv().
-			Bind(s, stream)
+			bind(s, stream)
 
 		var vm VM
 		ok, err := SetStreamPosition(&vm, s, Integer(0), Success, env).Force(context.Background())
@@ -6213,13 +6213,13 @@ func TestCurrentCharConversion(t *testing.T) {
 		var r rune
 		var vm VM
 		ok, err := CurrentCharConversion(&vm, x, y, func(env *Env) *Promise {
-			ref, ok := env.Lookup(x)
+			ref, ok := env.lookup(x)
 			assert.True(t, ok)
 			x, ok := ref.(Atom)
 			assert.True(t, ok)
 			assert.Len(t, []rune(x.String()), 1)
 
-			ref, ok = env.Lookup(y)
+			ref, ok = env.lookup(y)
 			assert.True(t, ok)
 			y, ok := ref.(Atom)
 			assert.True(t, ok)

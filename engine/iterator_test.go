@@ -66,7 +66,7 @@ func TestListIterator_Next(t *testing.T) {
 			elems := make([]Term, 0, max)
 			for i := 0; i < max; i++ {
 				elems = append(elems, NewAtom("a"))
-				env := NewEnv().Bind(l, PartialList(l, elems...))
+				env := NewEnv().bind(l, PartialList(l, elems...))
 				iter := ListIterator{List: l, Env: env}
 				for iter.Next() {
 					assert.Equal(t, NewAtom("a"), iter.Current())

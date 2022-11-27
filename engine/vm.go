@@ -179,8 +179,8 @@ func (vm *VM) Arrive(name Atom, args []Term, k func(*Env) *Promise, env *Env) *P
 		}
 	}
 
-	// Bind the special variable to inform the predicate about the context.
-	env = env.Bind(varContext, pi.Term())
+	// bind the special variable to inform the predicate about the context.
+	env = env.bind(varContext, pi.Term())
 
 	return p.call(vm, args, k, env)
 }

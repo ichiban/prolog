@@ -20,7 +20,7 @@ func TestSolutions_Close(t *testing.T) {
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		v := engine.NewVariable()
-		env := engine.NewEnv().Bind(v, engine.NewAtom("foo"))
+		env, _ := engine.NewEnv().Unify(v, engine.NewAtom("foo"), false)
 		more := make(chan bool, 1)
 		defer close(more)
 		next := make(chan *engine.Env, 1)
@@ -68,7 +68,7 @@ func TestSolutions_Scan(t *testing.T) {
 		varBar:     engine.NewAtom("bar"),
 		varBaz:     engine.NewAtom("baz"),
 	} {
-		env = env.Bind(k, v)
+		env, _ = env.Unify(k, v, false)
 	}
 
 	sols := Solutions{

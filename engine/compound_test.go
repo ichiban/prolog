@@ -63,10 +63,10 @@ func TestPartialList(t *testing.T) {
 
 func TestEnv_Set(t *testing.T) {
 	env := NewEnv()
-	assert.Equal(t, List(), env.Set())
-	assert.Equal(t, List(NewAtom("a")), env.Set(NewAtom("a")))
-	assert.Equal(t, List(NewAtom("a")), env.Set(NewAtom("a"), NewAtom("a"), NewAtom("a")))
-	assert.Equal(t, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), env.Set(NewAtom("c"), NewAtom("b"), NewAtom("a")))
+	assert.Equal(t, List(), env.set())
+	assert.Equal(t, List(NewAtom("a")), env.set(NewAtom("a")))
+	assert.Equal(t, List(NewAtom("a")), env.set(NewAtom("a"), NewAtom("a"), NewAtom("a")))
+	assert.Equal(t, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), env.set(NewAtom("c"), NewAtom("b"), NewAtom("a")))
 }
 
 func TestSeq(t *testing.T) {
