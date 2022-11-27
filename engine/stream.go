@@ -32,6 +32,50 @@ type Stream struct {
 	streamType  streamType
 }
 
+// NewInputTextStream creates a new input text stream backed by the given io.Reader.
+func NewInputTextStream(r io.Reader) *Stream {
+	return &Stream{
+		sourceSink: r,
+		mode:       ioModeRead,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeText,
+	}
+}
+
+// NewInputBinaryStream creates a new input binary stream backed by the given io.Reader.
+func NewInputBinaryStream(r io.Reader) *Stream {
+	return &Stream{
+		sourceSink: r,
+		mode:       ioModeRead,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeBinary,
+	}
+}
+
+// NewOutputTextStream creates a new output text stream backed by the given io.Writer.
+func NewOutputTextStream(w io.Writer) *Stream {
+	return &Stream{
+		sourceSink: w,
+		mode:       ioModeAppend,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeText,
+	}
+}
+
+// NewOutputBinaryStream creates a new output binary stream backed by the given io.Writer.
+func NewOutputBinaryStream(w io.Writer) *Stream {
+	return &Stream{
+		sourceSink: w,
+		mode:       ioModeAppend,
+		eofAction:  eofActionReset,
+		reposition: false,
+		streamType: streamTypeBinary,
+	}
+}
+
 // Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".
 func (s *Stream) Name() string {
 	type namer interface {

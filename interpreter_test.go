@@ -265,12 +265,12 @@ func TestNew_variableNames(t *testing.T) {
 			defer cancel()
 
 			if tt.input == "" {
-				p.SetUserInput(readFn(func(p []byte) (n int, err error) {
+				p.SetUserInput(engine.NewInputTextStream(readFn(func(p []byte) (n int, err error) {
 					<-ctx.Done()
 					return 0, io.EOF
-				}))
+				})))
 			} else {
-				p.SetUserInput(bytes.NewBufferString(tt.input))
+				p.SetUserInput(engine.NewInputTextStream(bytes.NewBufferString(tt.input)))
 			}
 			out.Reset()
 			assert.Equal(t, tt.err, p.QuerySolutionContext(ctx, tt.query).Err())
@@ -688,14 +688,14 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register0("true", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+			i.Register0(engine.NewAtom("true"), func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 				return k(env)
 			})
-			i.Register0("fail", func(*engine.VM, func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
+			i.Register0(engine.NewAtom("fail"), func(*engine.VM, func(*engine.Env) *engine.Promise, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1("consult", engine.Consult)
-			i.Register3("op", engine.Op)
+			i.Register1(engine.NewAtom("consult"), engine.Consult)
+			i.Register3(engine.NewAtom("op"), engine.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
 			assert.NoError(t, i.Exec(tt.premise))
@@ -720,39 +720,49 @@ func TestInterpreter_Query(t *testing.T) {
 		query             string
 		args              []interface{}
 		queryErr, scanErr bool
-		scan, result      interface{}
+		scan              interface{}
+		result            func() interface{}
 	}{
-		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.NewAtom("nil"),
-			"Y": engine.NewNamedVariable("Z"),
-			"Z": engine.NewNamedVariable("Z"),
+		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: func() interface{} {
+			last := engine.NewVariable()
+			return map[string]engine.Term{
+				"X": engine.NewAtom("nil"),
+				"Y": last - 16,
+				"Z": last - 16,
+			}
 		}},
-		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: map[string]engine.Term{
-			"X": engine.NewAtom("cons").Apply(
-				engine.NewAtom("a"),
-				engine.NewAtom("cons").Apply(
-					engine.NewAtom("b"),
+		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: func() interface{} {
+			return map[string]engine.Term{
+				"X": engine.NewAtom("cons").Apply(
+					engine.NewAtom("a"),
 					engine.NewAtom("cons").Apply(
-						engine.NewAtom("c"),
-						engine.NewAtom("nil"),
+						engine.NewAtom("b"),
+						engine.NewAtom("cons").Apply(
+							engine.NewAtom("c"),
+							engine.NewAtom("nil"),
+						),
 					),
 				),
-			),
+			}
 		}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true},
-		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
-			A:    "a",
-			B:    1,
-			C:    2.0,
-			List: []string{"abc", "def"},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: func() interface{} {
+			return map[string]interface{}{}
+		}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true, result: func() interface{} { return nil }},
+		{query: `foo(A, B, C, D).`, scan: &result{}, result: func() interface{} {
+			return &result{
+				A:    "a",
+				B:    1,
+				C:    2.0,
+				List: []string{"abc", "def"},
+			}
 		}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register3("op", engine.Op)
+			i.Register3(engine.NewAtom("op"), engine.Op)
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
 
@@ -777,14 +787,14 @@ foo(a, 1, 2.0, [abc, def]).
 			} else {
 				assert.NoError(t, sols.Scan(tt.scan))
 			}
-			assert.Equal(t, tt.result, tt.scan)
+			assert.Equal(t, tt.result(), tt.scan)
 		})
 	}
 }
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	i.Register0("do_not_call", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
 	})
@@ -1180,7 +1190,7 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		i.Register0("error", func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		i.Register0(engine.NewAtom("error"), func(_ *engine.VM, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)

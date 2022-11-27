@@ -19,25 +19,25 @@ func TestVM_Compile(t *testing.T) {
 		text   string
 		args   []interface{}
 		err    error
-		result map[ProcedureIndicator]procedure
+		result map[procedureIndicator]procedure
 	}{
 		{title: "shebang", text: `#!/foo/bar
 foo(a).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
 				},
 			},
 		}},
-		{title: "shebang: no following lines", text: `#!/foo/bar`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+		{title: "shebang: no following lines", text: `#!/foo/bar`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -47,14 +47,14 @@ foo(a).
 		{title: "facts", text: `
 foo(a).
 foo(b).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -64,19 +64,19 @@ foo(b).
 		{title: "rules", text: `
 bar(X) :- foo(X).
 baz(X) :- bar(X).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
 				},
 			},
-			{Name: NewAtom("bar"), Arity: 1}: &userDefined{
+			{name: NewAtom("bar"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("bar"), Arity: 1}, raw: atomIf.Apply(NewAtom("bar").Apply(NewNamedVariable("X")), NewAtom("foo").Apply(NewNamedVariable("X"))), xrTable: []Term{ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}}, vars: []Variable{NewNamedVariable("X")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: atomIf.Apply(NewAtom("bar").Apply(lastVariable()+1), NewAtom("foo").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("foo"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
 						{opcode: opVar, operand: 0},
 						{opcode: opEnter},
 						{opcode: opVar, operand: 0},
@@ -85,9 +85,9 @@ baz(X) :- bar(X).
 					}},
 				},
 			},
-			{Name: NewAtom("baz"), Arity: 1}: &userDefined{
+			{name: NewAtom("baz"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("baz"), Arity: 1}, raw: atomIf.Apply(NewAtom("baz").Apply(NewNamedVariable("X")), NewAtom("bar").Apply(NewNamedVariable("X"))), xrTable: []Term{ProcedureIndicator{Name: NewAtom("bar"), Arity: 1}}, vars: []Variable{NewNamedVariable("X")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("baz"), arity: 1}, raw: atomIf.Apply(NewAtom("baz").Apply(lastVariable()+1), NewAtom("bar").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("bar"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
 						{opcode: opVar, operand: 0},
 						{opcode: opEnter},
 						{opcode: opVar, operand: 0},
@@ -101,16 +101,16 @@ baz(X) :- bar(X).
 :- dynamic(foo/1).
 foo(a).
 foo(b).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				public:  true,
 				dynamic: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -121,19 +121,19 @@ foo(b).
 :- multifile(foo/1).
 foo(a).
 foo(b).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -145,23 +145,23 @@ foo(b).
 foo(a).
 bar(a).
 foo(b).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				discontiguous: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
 				},
 			},
-			{Name: NewAtom("bar"), Arity: 1}: &userDefined{
+			{name: NewAtom("bar"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("bar"), Arity: 1}, raw: &compound{functor: NewAtom("bar"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: &compound{functor: NewAtom("bar"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -170,18 +170,18 @@ foo(b).
 		}},
 		{title: "include", text: `
 :- include('testdata/foo').
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 0}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 0}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
 						{opcode: opExit},
 					}},
 				},
 			},
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -190,18 +190,18 @@ foo(b).
 		}},
 		{title: "ensure_loaded", text: `
 :- ensure_loaded('testdata/foo').
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 0}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 0}: &userDefined{
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
 						{opcode: opExit},
 					}},
 				},
 			},
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -210,11 +210,11 @@ foo(b).
 		}},
 		{title: "initialization", text: `
 :- initialization(foo(c)).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -223,11 +223,11 @@ foo(b).
 		}},
 		{title: "predicate-backed directive", text: `
 :- foo(c).
-`, result: map[ProcedureIndicator]procedure{
-			{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedure{
+			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 						{opcode: opConst, operand: 0},
 						{opcode: opExit},
 					}},
@@ -240,41 +240,45 @@ foo(?).
 `, args: []interface{}{nil}, err: errors.New("can't convert to term: <invalid reflect.Value>")},
 		{title: "error: syntax error", text: `
 foo().
-`, err: unexpectedTokenError{actual: Token{Kind: TokenClose, Val: ")"}}},
+`, err: unexpectedTokenError{actual: Token{kind: tokenClose, val: ")"}}},
 		{title: "error: expansion error", text: `
 :- ensure_loaded('testdata/break_term_expansion').
 foo(a).
 `, err: Exception{term: NewAtom("ball")}},
 		{title: "error: variable fact", text: `
 X.
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: variable rule", text: `
 X :- X.
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: non-callable rule body", text: `
 foo :- 1.
-`, err: TypeError(ValidTypeCallable, Integer(1), nil)},
-		{title: "error: non-PI argument", text: `
-:- dynamic(foo).
-`, err: TypeError(ValidTypePredicateIndicator, NewAtom("foo"), nil)},
+`, err: typeError(validTypeCallable, Integer(1), nil)},
+		{title: "error: non-PI argument, variable", text: `:- dynamic(PI).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, not compound", text: `:- dynamic(foo).`, err: typeError(validTypePredicateIndicator, NewAtom("foo"), nil)},
+		{title: "error: non-PI argument, compound", text: `:- dynamic(foo(a, b)).`, err: typeError(validTypePredicateIndicator, NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")), nil)},
+		{title: "error: non-PI argument, name is variable", text: `:- dynamic(Name/2).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, arity is variable", text: `:- dynamic(foo/Arity).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, arity is not integer", text: `:- dynamic(foo/bar).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(NewAtom("foo"), NewAtom("bar")), nil)},
+		{title: "error: non-PI argument, name is not atom", text: `:- dynamic(0/2).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(Integer(0), Integer(2)), nil)},
 		{title: "error: included variable", text: `
 :- include(X).
-`, err: InstantiationError(nil)},
+`, err: instantiationError(nil)},
 		{title: "error: included file not found", text: `
 :- include('testdata/not_found').
-`, err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found"), nil)},
+`, err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found"), nil)},
 		{title: "error: included non-atom", text: `
 :- include(1).
-`, err: TypeError(ValidTypeAtom, Integer(1), nil)},
+`, err: typeError(validTypeAtom, Integer(1), nil)},
 		{title: "error: initialization exception", text: `
 :- initialization(bar).
-`, err: ExistenceError(ObjectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
 		{title: "error: initialization failure", text: `
 :- initialization(foo(d)).
 `, err: errors.New("failed initialization goal: foo(d)")},
 		{title: "error: predicate-backed directive exception", text: `
 :- bar.
-`, err: ExistenceError(ObjectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
 		{title: "error: predicate-backed directive failure", text: `
 :- foo(d).
 `, err: errors.New("failed directive: foo(d)")},
@@ -282,19 +286,19 @@ foo :- 1.
 foo(a).
 bar(a).
 foo(b).
-`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}}},
+`, err: &discontiguousError{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}}},
 		{title: "error: discontiguous, before directive", text: `
 foo(a).
 bar(a).
 foo(b).
 :- foo(c).
-`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}}},
+`, err: &discontiguousError{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}}},
 		{title: "error: discontiguous, before other facts", text: `
 foo(a).
 bar(a).
 foo(b).
 bar(b).
-`, err: &DiscontiguousError{PI: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}}},
+`, err: &discontiguousError{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}}},
 	}
 
 	for _, tt := range tests {
@@ -304,11 +308,11 @@ bar(b).
 			vm.operators.define(1200, operatorSpecifierXFX, atomArrow)
 			vm.operators.define(1200, operatorSpecifierFX, atomIf)
 			vm.operators.define(400, operatorSpecifierYFX, atomSlash)
-			vm.procedures = map[ProcedureIndicator]procedure{
-				{Name: NewAtom("foo"), Arity: 1}: &userDefined{
+			vm.procedures = map[procedureIndicator]procedure{
+				{name: NewAtom("foo"), arity: 1}: &userDefined{
 					multifile: true,
 					clauses: clauses{
-						{pi: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
+						{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
 							{opcode: opConst, operand: 0},
 							{opcode: opExit},
 						}},
@@ -316,10 +320,10 @@ bar(b).
 				},
 			}
 			vm.FS = testdata
-			vm.Register1("throw", Throw)
+			vm.Register1(NewAtom("throw"), Throw)
 			assert.Equal(t, tt.err, vm.Compile(context.Background(), tt.text, tt.args...))
 			if tt.err == nil {
-				delete(vm.procedures, ProcedureIndicator{Name: NewAtom("throw"), Arity: 1})
+				delete(vm.procedures, procedureIndicator{name: NewAtom("throw"), arity: 1})
 				assert.Equal(t, tt.result, vm.procedures)
 			}
 		})
@@ -327,6 +331,8 @@ bar(b).
 }
 
 func TestVM_Consult(t *testing.T) {
+	x := NewVariable()
+
 	tests := []struct {
 		title string
 		files Term
@@ -341,15 +347,15 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
 		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 
-		{title: `:- consult(X).`, files: NewNamedVariable("X"), err: InstantiationError(nil)},
-		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: TypeError(ValidTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
-		{title: `:- consult(1).`, files: Integer(1), err: TypeError(ValidTypeAtom, Integer(1), nil)},
-		{title: `:- consult(['testdata/empty.txt'|_]).`, files: ListRest(NewVariable(), NewAtom("testdata/empty.txt")), err: TypeError(ValidTypeAtom, ListRest(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
-		{title: `:- consult([X]).`, files: List(NewNamedVariable("X")), err: InstantiationError(nil)},
-		{title: `:- consult([1]).`, files: List(Integer(1)), err: TypeError(ValidTypeAtom, Integer(1), nil)},
+		{title: `:- consult(X).`, files: x, err: instantiationError(nil)},
+		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: typeError(validTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
+		{title: `:- consult(1).`, files: Integer(1), err: typeError(validTypeAtom, Integer(1), nil)},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: typeError(validTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
+		{title: `:- consult([X]).`, files: List(x), err: instantiationError(nil)},
+		{title: `:- consult([1]).`, files: List(Integer(1)), err: typeError(validTypeAtom, Integer(1), nil)},
 
-		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
-		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: ExistenceError(ObjectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
+		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
+		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
 	}
 
 	for _, tt := range tests {
@@ -370,6 +376,6 @@ func TestVM_Consult(t *testing.T) {
 }
 
 func TestDiscontiguousError_Error(t *testing.T) {
-	e := DiscontiguousError{PI: ProcedureIndicator{Name: NewAtom("foo"), Arity: 1}}
+	e := discontiguousError{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}}
 	assert.Equal(t, "foo/1 is discontiguous", e.Error())
 }

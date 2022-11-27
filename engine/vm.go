@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"strings"
 )
@@ -31,39 +30,26 @@ const (
 	opPartial
 )
 
-var (
-	// Success is a continuation that leads to true.
-	Success = func(*Env) *Promise {
-		return Bool(true)
-	}
+// Success is a continuation that leads to true.
+func Success(*Env) *Promise {
+	return Bool(true)
+}
 
-	// Failure is a continuation that leads to false.
-	Failure = func(*Env) *Promise {
-		return Bool(false)
-	}
-)
+// Failure is a continuation that leads to false.
+func Failure(*Env) *Promise {
+	return Bool(false)
+}
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
+	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
+	Unknown func(name Atom, args []Term, env *Env)
 
-	// OnCall is a callback that is triggered when the VM reaches to the predicate.
-	OnCall func(pi ProcedureIndicator, args []Term, env *Env)
-
-	// OnExit is a callback that is triggered when the predicate succeeds and the VM continues.
-	OnExit func(pi ProcedureIndicator, args []Term, env *Env)
-
-	// OnFail is a callback that is triggered when the predicate fails and the VM backtracks.
-	OnFail func(pi ProcedureIndicator, args []Term, env *Env)
-
-	// OnRedo is a callback that is triggered when the VM retries the predicate as a result of backtrack.
-	OnRedo func(pi ProcedureIndicator, args []Term, env *Env)
-
-	// OnUnknown is a callback that is triggered when the VM reaches to an unknown predicate and also current_prolog_flag(unknown, warning).
-	OnUnknown func(pi ProcedureIndicator, args []Term, env *Env)
-
-	procedures map[ProcedureIndicator]procedure
+	procedures map[procedureIndicator]procedure
 	unknown    unknownAction
 
+	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
+	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
 	loaded map[string]struct{}
 
@@ -82,75 +68,75 @@ type VM struct {
 }
 
 // Register0 registers a predicate of arity 0.
-func (vm *VM) Register0(name string, p Predicate0) {
+func (vm *VM) Register0(name Atom, p Predicate0) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 0}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 0}] = p
 }
 
 // Register1 registers a predicate of arity 1.
-func (vm *VM) Register1(name string, p Predicate1) {
+func (vm *VM) Register1(name Atom, p Predicate1) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 1}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 1}] = p
 }
 
 // Register2 registers a predicate of arity 2.
-func (vm *VM) Register2(name string, p Predicate2) {
+func (vm *VM) Register2(name Atom, p Predicate2) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 2}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 2}] = p
 }
 
 // Register3 registers a predicate of arity 3.
-func (vm *VM) Register3(name string, p Predicate3) {
+func (vm *VM) Register3(name Atom, p Predicate3) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 3}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 3}] = p
 }
 
 // Register4 registers a predicate of arity 4.
-func (vm *VM) Register4(name string, p Predicate4) {
+func (vm *VM) Register4(name Atom, p Predicate4) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 4}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 4}] = p
 }
 
 // Register5 registers a predicate of arity 5.
-func (vm *VM) Register5(name string, p Predicate5) {
+func (vm *VM) Register5(name Atom, p Predicate5) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 5}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 5}] = p
 }
 
 // Register6 registers a predicate of arity 6.
-func (vm *VM) Register6(name string, p Predicate6) {
+func (vm *VM) Register6(name Atom, p Predicate6) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 6}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 6}] = p
 }
 
 // Register7 registers a predicate of arity 7.
-func (vm *VM) Register7(name string, p Predicate7) {
+func (vm *VM) Register7(name Atom, p Predicate7) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 7}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 7}] = p
 }
 
 // Register8 registers a predicate of arity 8.
-func (vm *VM) Register8(name string, p Predicate8) {
+func (vm *VM) Register8(name Atom, p Predicate8) {
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
-	vm.procedures[ProcedureIndicator{Name: NewAtom(name), Arity: 8}] = p
+	vm.procedures[procedureIndicator{name: name, arity: 8}] = p
 }
 
 type unknownAction int
@@ -174,26 +160,27 @@ type procedure interface {
 }
 
 // Arrive is the entry point of the VM.
-func (vm *VM) Arrive(pi ProcedureIndicator, args []Term, k func(*Env) *Promise, env *Env) *Promise {
-	if vm.OnUnknown == nil {
-		vm.OnUnknown = func(ProcedureIndicator, []Term, *Env) {}
+func (vm *VM) Arrive(name Atom, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+	if vm.Unknown == nil {
+		vm.Unknown = func(Atom, []Term, *Env) {}
 	}
 
+	pi := procedureIndicator{name: name, arity: Integer(len(args))}
 	p, ok := vm.procedures[pi]
 	if !ok {
 		switch vm.unknown {
 		case unknownWarning:
-			vm.OnUnknown(pi, args, env)
+			vm.Unknown(name, args, env)
 			fallthrough
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(ExistenceError(ObjectTypeProcedure, pi.Term(), env))
+			return Error(existenceError(objectTypeProcedure, pi.Term(), env))
 		}
 	}
 
-	// Bind the special variable to inform the predicate about the context.
-	env = env.Bind(varContext, pi.Term())
+	// bind the special variable to inform the predicate about the context.
+	env = env.bind(varContext, pi.Term())
 
 	return p.call(vm, args, k, env)
 }
@@ -262,14 +249,14 @@ func (*VM) execVar(r *registers) *Promise {
 }
 
 func (vm *VM) execFunctor(r *registers) *Promise {
-	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
+	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
 	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Functor(vm, arg, pi.Name, pi.Arity, r.updateEnv, r.env).Force(context.Background())
+	ok, err := Functor(vm, arg, pi.name, pi.arity, r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -278,7 +265,7 @@ func (vm *VM) execFunctor(r *registers) *Promise {
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	ok, err = Univ(vm, arg, Cons(pi.Name, r.args), r.updateEnv, r.env).Force(context.Background())
+	ok, err = Univ(vm, arg, Cons(pi.name, r.args), r.updateEnv, r.env).Force(context.Background())
 	if err != nil {
 		return Error(err)
 	}
@@ -324,15 +311,15 @@ func (*VM) execEnter(r *registers) *Promise {
 }
 
 func (vm *VM) execCall(r *registers) *Promise {
-	pi := r.xr[r.pc[0].operand].(ProcedureIndicator)
+	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	var ok bool
 	r.env, ok = r.env.Unify(r.args, List(), false)
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
-	args, _ := Slice(r.astack, r.env)
-	return vm.Arrive(pi, args, func(env *Env) *Promise {
+	args, _ := slice(r.astack, r.env)
+	return vm.Arrive(pi.name, args, func(env *Env) *Promise {
 		v := NewVariable()
 		return vm.exec(registers{
 			pc:        r.pc,
@@ -399,73 +386,20 @@ func (vm *VM) execPartial(r *registers) *Promise {
 	return nil
 }
 
-// SetUserInput sets the given reader as a stream with an alias of user_input.
-func (vm *VM) SetUserInput(r io.Reader) {
-	s := Stream{
-		vm:         vm,
-		sourceSink: r,
-		mode:       ioModeRead,
-		alias:      atomUserInput,
-		eofAction:  eofActionReset,
-		reposition: false,
-		streamType: streamTypeText,
-	}
-	vm.streams.add(&s)
-	vm.input = &s
+// SetUserInput sets the given stream as user_input.
+func (vm *VM) SetUserInput(s *Stream) {
+	s.vm = vm
+	s.alias = atomUserInput
+	vm.streams.add(s)
+	vm.input = s
 }
 
-// SetUserOutput sets the given writer as a stream with an alias of user_output.
-func (vm *VM) SetUserOutput(w io.Writer) {
-	s := Stream{
-		vm:         vm,
-		sourceSink: w,
-		mode:       ioModeAppend,
-		alias:      atomUserOutput,
-		eofAction:  eofActionReset,
-		reposition: false,
-		streamType: streamTypeText,
-	}
-	vm.streams.add(&s)
-	vm.output = &s
-}
-
-// Parser creates a new parser from the current VM and io.Reader.
-// If non-nil, vars will hold the information on variables it parses.
-func (vm *VM) Parser(r io.RuneReader, vars *[]ParsedVariable) *Parser {
-	if vm.operators == nil {
-		vm.operators = operators{}
-	}
-	return newParser(r,
-		withCharConversions(vm.charConversions),
-		withOperators(vm.operators),
-		withDoubleQuotes(vm.doubleQuotes),
-		withParsedVars(vars),
-	)
-}
-
-// Write outputs term to the writer.
-func (vm *VM) Write(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
-	opts.ops = vm.operators
-	opts.priority = 1200
-	return writeTerm(w, t, opts, env)
-}
-
-// Stream returns a stream represented by streamOrAlias.
-func (vm *VM) Stream(streamOrAlias Term, env *Env) (*Stream, error) {
-	switch s := env.Resolve(streamOrAlias).(type) {
-	case Variable:
-		return nil, InstantiationError(env)
-	case Atom:
-		v, ok := vm.streams.lookup(s)
-		if !ok {
-			return nil, ExistenceError(ObjectTypeStream, streamOrAlias, env)
-		}
-		return v, nil
-	case *Stream:
-		return s, nil
-	default:
-		return nil, DomainError(ValidDomainStreamOrAlias, streamOrAlias, env)
-	}
+// SetUserOutput sets the given stream as user_output.
+func (vm *VM) SetUserOutput(s *Stream) {
+	s.vm = vm
+	s.alias = atomUserOutput
+	vm.streams.add(s)
+	vm.output = s
 }
 
 // Predicate0 is a predicate of arity 0.
@@ -567,74 +501,44 @@ func (p Predicate8) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *
 	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
 }
 
-// ProcedureIndicator identifies procedure e.g. (=)/2.
-type ProcedureIndicator struct {
-	Name  Atom
-	Arity Integer
+// procedureIndicator identifies a procedure e.g. (=)/2.
+type procedureIndicator struct {
+	name  Atom
+	arity Integer
 }
 
-// NewProcedureIndicator creates a new ProcedureIndicator from a term that matches Name/Arity.
-func NewProcedureIndicator(pi Term, env *Env) (ProcedureIndicator, error) {
-	switch p := env.Resolve(pi).(type) {
-	case Variable:
-		return ProcedureIndicator{}, InstantiationError(env)
-	case Compound:
-		if p.Functor() != atomSlash || p.Arity() != 2 {
-			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
-		}
-		switch f := env.Resolve(p.Arg(0)).(type) {
-		case Variable:
-			return ProcedureIndicator{}, InstantiationError(env)
-		case Atom:
-			switch a := env.Resolve(p.Arg(1)).(type) {
-			case Variable:
-				return ProcedureIndicator{}, InstantiationError(env)
-			case Integer:
-				pi := ProcedureIndicator{Name: f, Arity: a}
-				return pi, nil
-			default:
-				return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
-			}
-		default:
-			return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
-		}
-	default:
-		return ProcedureIndicator{}, TypeError(ValidTypePredicateIndicator, pi, env)
-	}
-}
-
-func (p ProcedureIndicator) String() string {
+func (p procedureIndicator) String() string {
 	var sb strings.Builder
-	_ = writeAtom(&sb, p.Name, &WriteOptions{
-		Quoted: true,
+	_ = writeAtom(&sb, p.name, &writeOptions{
+		quoted: true,
 	})
-	_, _ = fmt.Fprintf(&sb, "/%d", p.Arity)
+	_, _ = fmt.Fprintf(&sb, "/%d", p.arity)
 	return sb.String()
 }
 
 // Term returns p as term.
-func (p ProcedureIndicator) Term() Term {
-	return atomSlash.Apply(p.Name, p.Arity)
+func (p procedureIndicator) Term() Term {
+	return atomSlash.Apply(p.name, p.arity)
 }
 
 // Apply applies p to args.
-func (p ProcedureIndicator) Apply(args ...Term) (Term, error) {
-	if p.Arity != Integer(len(args)) {
-		return nil, &wrongNumberOfArgumentsError{expected: int(p.Arity), actual: args}
+func (p procedureIndicator) Apply(args ...Term) (Term, error) {
+	if p.arity != Integer(len(args)) {
+		return nil, &wrongNumberOfArgumentsError{expected: int(p.arity), actual: args}
 	}
-	return p.Name.Apply(args...), nil
+	return p.name.Apply(args...), nil
 }
 
-func PI(t Term, env *Env) (ProcedureIndicator, func(int) Term, error) {
+func piArg(t Term, env *Env) (procedureIndicator, func(int) Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return ProcedureIndicator{}, nil, InstantiationError(env)
+		return procedureIndicator{}, nil, instantiationError(env)
 	case Atom:
-		return ProcedureIndicator{Name: f, Arity: 0}, nil, nil
+		return procedureIndicator{name: f, arity: 0}, nil, nil
 	case Compound:
-		return ProcedureIndicator{Name: f.Functor(), Arity: Integer(f.Arity())}, f.Arg, nil
+		return procedureIndicator{name: f.Functor(), arity: Integer(f.Arity())}, f.Arg, nil
 	default:
-		return ProcedureIndicator{}, nil, TypeError(ValidTypeCallable, f, env)
+		return procedureIndicator{}, nil, typeError(validTypeCallable, f, env)
 	}
 }
 

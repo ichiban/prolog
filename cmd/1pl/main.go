@@ -68,23 +68,9 @@ Type Ctrl-C or 'halt.' to exit.
 	log.SetOutput(t)
 
 	i := New(&userInput{t: t}, t)
-	i.Register1("halt", halt)
-	if verbose {
-		i.OnCall = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			log.Printf("CALL %s", goal(i, pi, args, env))
-		}
-		i.OnExit = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			log.Printf("EXIT %s", goal(i, pi, args, env))
-		}
-		i.OnFail = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			log.Printf("FAIL %s", goal(i, pi, args, env))
-		}
-		i.OnRedo = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-			log.Printf("REDO %s", goal(i, pi, args, env))
-		}
-	}
-	i.OnUnknown = func(pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) {
-		log.Printf("UNKNOWN %s", goal(i, pi, args, env))
+	i.Register1(engine.NewAtom("halt"), halt)
+	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
+		log.Printf("UNKNOWN %s", name.Apply(args...))
 	}
 
 	// Consult arguments.
@@ -107,13 +93,6 @@ Type Ctrl-C or 'halt.' to exit.
 			log.Panic(err)
 		}
 	}
-}
-
-func goal(i *prolog.Interpreter, pi engine.ProcedureIndicator, args []engine.Term, env *engine.Env) string {
-	goal, _ := pi.Apply(args...)
-	var buf bytes.Buffer
-	_ = i.Write(&buf, goal, &engine.WriteOptions{Quoted: true}, env)
-	return buf.String()
 }
 
 func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter, t *terminal.Terminal, keys *bufio.Reader) (err error) {
@@ -159,7 +138,9 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 			for i, v := range vars {
 				var sb strings.Builder
 				_, _ = fmt.Fprintf(&sb, "%s = ", v)
-				if err := p.Write(&sb, m[v], &engine.WriteOptions{Quoted: true}, nil); err != nil {
+				s := engine.NewOutputTextStream(&sb)
+				opts := engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true")))
+				if _, err := engine.WriteTerm(&p.VM, s, m[v], opts, engine.Success, nil).Force(ctx); err != nil {
 					return err
 				}
 				ls[i] = sb.String()

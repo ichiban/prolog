@@ -11,63 +11,27 @@ import (
 type Term interface {
 }
 
-// Contains checks if t contains s.
-func Contains(t, s Term, env *Env) bool {
-	switch t := t.(type) {
-	case Variable:
-		if t == s {
-			return true
-		}
-		ref, ok := env.Lookup(t)
-		if !ok {
-			return false
-		}
-		return Contains(ref, s, env)
-	case Compound:
-		if s, ok := s.(Atom); ok && t.Functor() == s {
-			return true
-		}
-		for i := 0; i < t.Arity(); i++ {
-			if Contains(t.Arg(i), s, env) {
-				return true
-			}
-		}
-		return false
-	default:
-		return t == s
-	}
-}
-
-// Rulify returns t if t is in a form of P:-Q, t:-true otherwise.
-func Rulify(t Term, env *Env) Term {
-	t = env.Resolve(t)
-	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
-		return t
-	}
-	return atomIf.Apply(t, atomTrue)
-}
-
-// WriteOptions specify how the Term writes itself.
-type WriteOptions struct {
-	IgnoreOps     bool
-	Quoted        bool
-	VariableNames map[Variable]Atom
-	NumberVars    bool
+// writeOptions specify how the Term writes itself.
+type writeOptions struct {
+	ignoreOps     bool
+	quoted        bool
+	variableNames map[Variable]Atom
+	numberVars    bool
 
 	ops         operators
 	priority    Integer
-	visited     map[TermID]struct{}
+	visited     map[termID]struct{}
 	prefixMinus bool
 	left, right operator
 }
 
-func (o WriteOptions) withQuoted(quoted bool) *WriteOptions {
-	o.Quoted = quoted
+func (o writeOptions) withQuoted(quoted bool) *writeOptions {
+	o.quoted = quoted
 	return &o
 }
 
-func (o WriteOptions) withFreshVisited() *WriteOptions {
-	visited := make(map[TermID]struct{}, len(o.visited))
+func (o writeOptions) withFreshVisited() *writeOptions {
+	visited := make(map[termID]struct{}, len(o.visited))
 	for k, v := range o.visited {
 		visited[k] = v
 	}
@@ -75,22 +39,22 @@ func (o WriteOptions) withFreshVisited() *WriteOptions {
 	return &o
 }
 
-func (o WriteOptions) withPriority(priority Integer) *WriteOptions {
+func (o writeOptions) withPriority(priority Integer) *writeOptions {
 	o.priority = priority
 	return &o
 }
 
-func (o WriteOptions) withLeft(op operator) *WriteOptions {
+func (o writeOptions) withLeft(op operator) *writeOptions {
 	o.left = op
 	return &o
 }
 
-func (o WriteOptions) withRight(op operator) *WriteOptions {
+func (o writeOptions) withRight(op operator) *writeOptions {
 	o.right = op
 	return &o
 }
 
-var defaultWriteOptions = WriteOptions{
+var defaultWriteOptions = writeOptions{
 	ops: operators{
 		atomPlus: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: atomPlus}, // for flag+value
@@ -99,11 +63,11 @@ var defaultWriteOptions = WriteOptions{
 			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: atomSlash}, // for principal functors
 		},
 	},
-	VariableNames: map[Variable]Atom{},
+	variableNames: map[Variable]Atom{},
 	priority:      1200,
 }
 
-func writeTerm(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
+func writeTerm(w io.StringWriter, t Term, opts *writeOptions, env *Env) error {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
 		return writeVariable(w, t, opts, env)
@@ -120,15 +84,15 @@ func writeTerm(w io.StringWriter, t Term, opts *WriteOptions, env *Env) error {
 	}
 }
 
-func writeVariable(w io.StringWriter, v Variable, opts *WriteOptions, env *Env) error {
-	if a, ok := opts.VariableNames[v]; ok {
+func writeVariable(w io.StringWriter, v Variable, opts *writeOptions, env *Env) error {
+	if a, ok := opts.variableNames[v]; ok {
 		return writeTerm(w, a, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
 	}
 	_, err := w.WriteString(v.String())
 	return err
 }
 
-func writeAtom(w io.StringWriter, a Atom, opts *WriteOptions) error {
+func writeAtom(w io.StringWriter, a Atom, opts *writeOptions) error {
 	ew := errStringWriter{w: w}
 	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
 
@@ -140,7 +104,7 @@ func writeAtom(w io.StringWriter, a Atom, opts *WriteOptions) error {
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 
-	if opts.Quoted && needQuoted(a) {
+	if opts.quoted && needQuoted(a) {
 		if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
 			_, _ = ew.WriteString(" ")
 		}
@@ -165,7 +129,7 @@ func writeAtom(w io.StringWriter, a Atom, opts *WriteOptions) error {
 	return ew.err
 }
 
-func writeInteger(w io.StringWriter, i Integer, opts *WriteOptions) error {
+func writeInteger(w io.StringWriter, i Integer, opts *writeOptions) error {
 	ew := errStringWriter{w: w}
 	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && i > 0
 
@@ -193,7 +157,7 @@ func writeInteger(w io.StringWriter, i Integer, opts *WriteOptions) error {
 	return ew.err
 }
 
-func writeFloat(w io.StringWriter, f Float, opts *WriteOptions) error {
+func writeFloat(w io.StringWriter, f Float, opts *writeOptions) error {
 	ew := errStringWriter{w: w}
 	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && f > 0
 
@@ -226,17 +190,17 @@ func writeFloat(w io.StringWriter, f Float, opts *WriteOptions) error {
 	return ew.err
 }
 
-func writeCompound(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) error {
+func writeCompound(w io.StringWriter, c Compound, opts *writeOptions, env *Env) error {
 	ok, err := writeCompoundVisit(w, c, opts)
 	if err != nil || ok {
 		return err
 	}
 
-	if n, ok := env.Resolve(c.Arg(0)).(Integer); ok && opts.NumberVars && c.Functor() == atomVar && c.Arity() == 1 && n >= 0 {
+	if n, ok := env.Resolve(c.Arg(0)).(Integer); ok && opts.numberVars && c.Functor() == atomVar && c.Arity() == 1 && n >= 0 {
 		return writeCompoundNumberVars(w, n)
 	}
 
-	if !opts.IgnoreOps {
+	if !opts.ignoreOps {
 		if c.Functor() == atomDot && c.Arity() == 2 {
 			return writeCompoundList(w, c, opts, env)
 		}
@@ -246,7 +210,7 @@ func writeCompound(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) 
 		}
 	}
 
-	if opts.IgnoreOps {
+	if opts.ignoreOps {
 		return writeCompoundFunctionalNotation(w, c, opts, env)
 	}
 
@@ -259,16 +223,16 @@ func writeCompound(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) 
 	return writeCompoundFunctionalNotation(w, c, opts, env)
 }
 
-func writeCompoundVisit(w io.StringWriter, c Compound, opts *WriteOptions) (bool, error) {
+func writeCompoundVisit(w io.StringWriter, c Compound, opts *writeOptions) (bool, error) {
 	if opts.visited == nil {
-		opts.visited = map[TermID]struct{}{}
+		opts.visited = map[termID]struct{}{}
 	}
 
-	if _, ok := opts.visited[ID(c)]; ok {
+	if _, ok := opts.visited[id(c)]; ok {
 		_, err := w.WriteString("...")
 		return true, err
 	}
-	opts.visited[ID(c)] = struct{}{}
+	opts.visited[id(c)] = struct{}{}
 	return false, nil
 }
 
@@ -283,7 +247,7 @@ func writeCompoundNumberVars(w io.StringWriter, n Integer) error {
 	return ew.err
 }
 
-func writeCompoundList(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundList(w io.StringWriter, c Compound, opts *writeOptions, env *Env) error {
 	ew := errStringWriter{w: w}
 	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
 	_, _ = ew.WriteString("[")
@@ -306,7 +270,7 @@ func writeCompoundList(w io.StringWriter, c Compound, opts *WriteOptions, env *E
 	return ew.err
 }
 
-func writeCompoundCurlyBracketed(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundCurlyBracketed(w io.StringWriter, c Compound, opts *writeOptions, env *Env) error {
 	ew := errStringWriter{w: w}
 	_, _ = ew.WriteString("{")
 	_ = writeTerm(&ew, c.Arg(0), opts.withLeft(operator{}), env)
@@ -314,7 +278,7 @@ func writeCompoundCurlyBracketed(w io.StringWriter, c Compound, opts *WriteOptio
 	return ew.err
 }
 
-var writeCompoundOps = [...]func(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error{
+var writeCompoundOps = [...]func(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error{
 	operatorSpecifierFX:  nil,
 	operatorSpecifierFY:  nil,
 	operatorSpecifierXF:  nil,
@@ -325,7 +289,7 @@ var writeCompoundOps = [...]func(w io.StringWriter, c Compound, opts *WriteOptio
 }
 
 func init() {
-	writeCompoundOps = [len(writeCompoundOps)]func(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error{
+	writeCompoundOps = [len(writeCompoundOps)]func(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error{
 		operatorSpecifierFX:  writeCompoundOpPrefix,
 		operatorSpecifierFY:  writeCompoundOpPrefix,
 		operatorSpecifierXF:  writeCompoundOpPostfix,
@@ -336,11 +300,11 @@ func init() {
 	}
 }
 
-func writeCompoundOp(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOp(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error {
 	return writeCompoundOps[op.specifier](w, c, opts, env, op)
 }
 
-func writeCompoundOpPrefix(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpPrefix(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error {
 	ew := errStringWriter{w: w}
 	opts = opts.withFreshVisited()
 	_, r := op.bindingPriorities()
@@ -361,7 +325,7 @@ func writeCompoundOpPrefix(w io.StringWriter, c Compound, opts *WriteOptions, en
 	return ew.err
 }
 
-func writeCompoundOpPostfix(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpPostfix(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error {
 	ew := errStringWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
@@ -384,7 +348,7 @@ func writeCompoundOpPostfix(w io.StringWriter, c Compound, opts *WriteOptions, e
 	return ew.err
 }
 
-func writeCompoundOpInfix(w io.StringWriter, c Compound, opts *WriteOptions, env *Env, op *operator) error {
+func writeCompoundOpInfix(w io.StringWriter, c Compound, opts *writeOptions, env *Env, op *operator) error {
 	ew := errStringWriter{w: w}
 	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
@@ -413,7 +377,7 @@ func writeCompoundOpInfix(w io.StringWriter, c Compound, opts *WriteOptions, env
 	return ew.err
 }
 
-func writeCompoundFunctionalNotation(w io.StringWriter, c Compound, opts *WriteOptions, env *Env) error {
+func writeCompoundFunctionalNotation(w io.StringWriter, c Compound, opts *writeOptions, env *Env) error {
 	ew := errStringWriter{w: w}
 	opts = opts.withRight(operator{})
 	_ = writeAtom(&ew, c.Functor(), opts)
@@ -504,19 +468,19 @@ func variant(t1, t2 Term, env *Env) bool {
 	return true
 }
 
-// TermIDer lets a Term which is not comparable per se return its TermID for comparison.
-type TermIDer interface {
-	TermID() TermID
+// termIDer lets a Term which is not comparable per se return its termID for comparison.
+type termIDer interface {
+	termID() termID
 }
 
-// TermID is an identifier for a Term.
-type TermID interface{}
+// termID is an identifier for a Term.
+type termID interface{}
 
-// ID returns a TermID for the Term.
-func ID(t Term) TermID {
+// id returns a termID for the Term.
+func id(t Term) termID {
 	switch t := t.(type) {
-	case TermIDer:
-		return t.TermID()
+	case termIDer:
+		return t.termID()
 	default:
 		return t // Assuming it's comparable.
 	}

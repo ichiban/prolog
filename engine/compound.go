@@ -42,7 +42,7 @@ func Cons(car, cdr Term) Term {
 
 type list []Term
 
-func (l list) TermID() TermID { // Slices are not comparable.
+func (l list) termID() termID { // Slices are not comparable.
 	type listID struct {
 		len  int
 		head *Term
@@ -105,13 +105,13 @@ type partial struct {
 	tail Term
 }
 
-func (p partial) TermID() TermID { // The underlying compound might not be comparable.
+func (p partial) termID() termID { // The underlying compound might not be comparable.
 	type partialID struct {
-		prefixID, tailID TermID
+		prefixID, tailID termID
 	}
 	return partialID{
-		prefixID: ID(p.Compound),
-		tailID:   ID(p.tail),
+		prefixID: id(p.Compound),
+		tailID:   id(p.tail),
 	}
 }
 
@@ -131,25 +131,25 @@ func (p partial) GoString() string {
 	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, p.tail)
 }
 
-// ListRest returns a list of ts followed by rest.
-func ListRest(rest Term, ts ...Term) Term {
+// PartialList returns a list of ts followed by tail.
+func PartialList(tail Term, ts ...Term) Term {
 	if len(ts) == 0 {
-		return rest
+		return tail
 	}
 	return partial{
 		Compound: list(ts),
-		tail:     rest,
+		tail:     tail,
 	}
 }
 
-// Set returns a list of ts which elements are unique.
-func (e *Env) Set(ts ...Term) Term {
+// set returns a list of ts which elements are unique.
+func (e *Env) set(ts ...Term) Term {
 	sort.Slice(ts, func(i, j int) bool {
-		return e.Compare(ts[i], ts[j]) == OrderLess
+		return e.compare(ts[i], ts[j]) == -1
 	})
 	us := make([]Term, 0, len(ts))
 	for _, t := range ts {
-		if len(us) > 0 && e.Compare(us[len(us)-1], t) == OrderEqual {
+		if len(us) > 0 && e.compare(us[len(us)-1], t) == 0 {
 			continue
 		}
 		us = append(us, t)
@@ -157,9 +157,9 @@ func (e *Env) Set(ts ...Term) Term {
 	return List(us...)
 }
 
-// Slice returns a Term slice containing the elements of list.
+// slice returns a Term slice containing the elements of list.
 // It errors if the given Term is not a list.
-func Slice(list Term, env *Env) ([]Term, error) {
+func slice(list Term, env *Env) ([]Term, error) {
 	var ret []Term
 	iter := ListIterator{List: list, Env: env}
 	for iter.Next() {
@@ -168,8 +168,8 @@ func Slice(list Term, env *Env) ([]Term, error) {
 	return ret, iter.Err()
 }
 
-// Seq returns a sequence of ts separated by sep.
-func Seq(sep Atom, ts ...Term) Term {
+// seq returns a sequence of ts separated by sep.
+func seq(sep Atom, ts ...Term) Term {
 	s, ts := ts[len(ts)-1], ts[:len(ts)-1]
 	for i := len(ts) - 1; i >= 0; i-- {
 		s = sep.Apply(ts[i], s)
@@ -177,8 +177,7 @@ func Seq(sep Atom, ts ...Term) Term {
 	return s
 }
 
-// Pair returns a pair of k and v.
-func Pair(k, v Term) Term {
+func pair(k, v Term) Term {
 	return atomMinus.Apply(k, v)
 }
 

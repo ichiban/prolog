@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-// DiscontiguousError is an error that the user-defined predicate is defined by clauses which are not consecutive read-terms.
-type DiscontiguousError struct {
-	PI ProcedureIndicator
+// discontiguousError is an error that the user-defined predicate is defined by clauses which are not consecutive read-terms.
+type discontiguousError struct {
+	pi procedureIndicator
 }
 
-func (e *DiscontiguousError) Error() string {
-	return fmt.Sprintf("%s is discontiguous", e.PI)
+func (e *discontiguousError) Error() string {
+	return fmt.Sprintf("%s is discontiguous", e.pi)
 }
 
 // Compile compiles the Prolog text and updates the DB accordingly.
@@ -28,7 +28,7 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
 	for pi, u := range t.clauses {
 		if existing, ok := vm.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
@@ -46,7 +46,8 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 		}
 		if !ok {
 			var sb strings.Builder
-			_ = vm.Write(&sb, g, &WriteOptions{Quoted: true}, nil)
+			s := NewOutputTextStream(&sb)
+			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
 			return fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
@@ -78,16 +79,17 @@ func Consult(vm *VM, files Term, k func(*Env) *Promise, env *Env) *Promise {
 
 func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
 	if text.clauses == nil {
-		text.clauses = map[ProcedureIndicator]*userDefined{}
+		text.clauses = map[procedureIndicator]*userDefined{}
 	}
 
 	s = ignoreShebangLine(s)
-	p := vm.Parser(strings.NewReader(s), nil)
-	if err := p.Replace(NewAtom("?"), args...); err != nil {
+	p := NewParser(vm, strings.NewReader(s))
+	if err := p.SetPlaceholder(NewAtom("?"), args...); err != nil {
 		return err
 	}
 
 	for p.More() {
+		p.Vars = p.Vars[:]
 		t, err := p.Term()
 		if err != nil {
 			return err
@@ -98,18 +100,18 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 			return err
 		}
 
-		pi, arg, err := PI(et, nil)
+		pi, arg, err := piArg(et, nil)
 		if err != nil {
 			return err
 		}
 		switch pi {
-		case ProcedureIndicator{Name: atomIf, Arity: 1}: // Directive
+		case procedureIndicator{name: atomIf, arity: 1}: // Directive
 			if err := vm.directive(ctx, text, arg(0)); err != nil {
 				return err
 			}
 			continue
-		case ProcedureIndicator{Name: atomIf, Arity: 2}: // Rule
-			pi, arg, err = PI(arg(0), nil)
+		case procedureIndicator{name: atomIf, arity: 2}: // Rule
+			pi, arg, err = piArg(arg(0), nil)
 			if err != nil {
 				return err
 			}
@@ -137,31 +139,31 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		return err
 	}
 
-	switch pi, arg, _ := PI(d, nil); pi {
-	case ProcedureIndicator{Name: atomDynamic, Arity: 1}:
+	switch pi, arg, _ := piArg(d, nil); pi {
+	case procedureIndicator{name: atomDynamic, arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.dynamic = true
 			u.public = true
 		})
-	case ProcedureIndicator{Name: atomMultifile, Arity: 1}:
+	case procedureIndicator{name: atomMultifile, arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.multifile = true
 		})
-	case ProcedureIndicator{Name: atomDiscontiguous, Arity: 1}:
+	case procedureIndicator{name: atomDiscontiguous, arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.discontiguous = true
 		})
-	case ProcedureIndicator{Name: atomInitialization, Arity: 1}:
+	case procedureIndicator{name: atomInitialization, arity: 1}:
 		text.goals = append(text.goals, arg(0))
 		return nil
-	case ProcedureIndicator{Name: atomInclude, Arity: 1}:
+	case procedureIndicator{name: atomInclude, arity: 1}:
 		_, b, err := vm.open(arg(0), nil)
 		if err != nil {
 			return err
 		}
 
 		return vm.compile(ctx, text, string(b))
-	case ProcedureIndicator{Name: atomEnsureLoaded, Arity: 1}:
+	case procedureIndicator{name: atomEnsureLoaded, arity: 1}:
 		return vm.ensureLoaded(ctx, arg(0), nil)
 	default:
 		ok, err := Call(vm, d, Success, nil).Force(ctx)
@@ -170,7 +172,8 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		}
 		if !ok {
 			var sb strings.Builder
-			_ = vm.Write(&sb, d, &WriteOptions{Quoted: true}, nil)
+			s := NewOutputTextStream(&sb)
+			_, _ = WriteTerm(vm, s, d, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
 			return fmt.Errorf("failed directive: %s", sb.String())
 		}
 		return nil
@@ -199,7 +202,7 @@ func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
 func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 	switch f := env.Resolve(file).(type) {
 	case Variable:
-		return "", nil, InstantiationError(env)
+		return "", nil, instantiationError(env)
 	case Atom:
 		s := f.String()
 		for _, f := range []string{s, s + ".pl"} {
@@ -210,32 +213,52 @@ func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 
 			return f, b, nil
 		}
-		return "", nil, ExistenceError(ObjectTypeSourceSink, file, env)
+		return "", nil, existenceError(objectTypeSourceSink, file, env)
 	default:
-		return "", nil, TypeError(ValidTypeAtom, file, env)
+		return "", nil, typeError(validTypeAtom, file, env)
 	}
 }
 
 type text struct {
 	buf     clauses
-	clauses map[ProcedureIndicator]*userDefined
+	clauses map[procedureIndicator]*userDefined
 	goals   []Term
 }
 
 func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
-	iter := AnyIterator{Any: pi}
+	iter := anyIterator{Any: pi}
 	for iter.Next() {
-		elem := iter.Current()
-		key, err := NewProcedureIndicator(elem, nil)
-		if err != nil {
-			return err
+		switch pi := iter.Current().(type) {
+		case Variable:
+			return instantiationError(nil)
+		case Compound:
+			if pi.Functor() != atomSlash || pi.Arity() != 2 {
+				return typeError(validTypePredicateIndicator, pi, nil)
+			}
+			switch n := pi.Arg(0).(type) {
+			case Variable:
+				return instantiationError(nil)
+			case Atom:
+				switch a := pi.Arg(1).(type) {
+				case Variable:
+					return instantiationError(nil)
+				case Integer:
+					pi := procedureIndicator{name: n, arity: a}
+					u, ok := t.clauses[pi]
+					if !ok {
+						u = &userDefined{}
+						t.clauses[pi] = u
+					}
+					f(u)
+				default:
+					return typeError(validTypePredicateIndicator, pi, nil)
+				}
+			default:
+				return typeError(validTypePredicateIndicator, pi, nil)
+			}
+		default:
+			return typeError(validTypePredicateIndicator, pi, nil)
 		}
-		u, ok := t.clauses[key]
-		if !ok {
-			u = &userDefined{}
-			t.clauses[key] = u
-		}
-		f(u)
 	}
 	return iter.Err()
 }
@@ -252,7 +275,7 @@ func (t *text) flush() error {
 		t.clauses[pi] = u
 	}
 	if len(u.clauses) > 0 && !u.discontiguous {
-		return &DiscontiguousError{PI: pi}
+		return &discontiguousError{pi: pi}
 	}
 	u.clauses = append(u.clauses, t.buf...)
 	t.buf = t.buf[:0]

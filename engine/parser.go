@@ -21,12 +21,15 @@ var (
 // Parser turns bytes into Term.
 type Parser struct {
 	lexer        Lexer
-	buf          tokenRingBuffer
 	operators    operators
-	placeholder  Atom
-	args         []Term
 	doubleQuotes doubleQuotes
-	vars         *[]ParsedVariable
+
+	Vars []ParsedVariable
+
+	placeholder Atom
+	args        []Term
+
+	buf tokenRingBuffer
 }
 
 // ParsedVariable is a set of information regarding a variable in a parsed term.
@@ -36,48 +39,23 @@ type ParsedVariable struct {
 	Count    int
 }
 
-func newParser(input io.RuneReader, opts ...parserOption) *Parser {
-	p := Parser{
+// NewParser creates a new parser from the current VM and io.RuneReader.
+func NewParser(vm *VM, r io.RuneReader) *Parser {
+	if vm.operators == nil {
+		vm.operators = operators{}
+	}
+	return &Parser{
 		lexer: Lexer{
-			input: newRuneRingBuffer(input),
+			input: newRuneRingBuffer(r),
 		},
-		operators: operators{},
-	}
-	for _, o := range opts {
-		o(&p)
-	}
-	return &p
-}
-
-type parserOption func(p *Parser)
-
-func withCharConversions(charConversions map[rune]rune) parserOption {
-	return func(p *Parser) {
-		p.lexer.charConversions = charConversions
+		operators:    vm.operators,
+		doubleQuotes: vm.doubleQuotes,
 	}
 }
 
-func withOperators(operators operators) parserOption {
-	return func(p *Parser) {
-		p.operators = operators
-	}
-}
-
-func withDoubleQuotes(quotes doubleQuotes) parserOption {
-	return func(p *Parser) {
-		p.doubleQuotes = quotes
-	}
-}
-
-func withParsedVars(vars *[]ParsedVariable) parserOption {
-	return func(p *Parser) {
-		p.vars = vars
-	}
-}
-
-// Replace registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
+// SetPlaceholder registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
-func (p *Parser) Replace(placeholder Atom, args ...interface{}) error {
+func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
 	p.placeholder = placeholder
 	p.args = make([]Term, len(args))
 	for i, a := range args {
@@ -145,8 +123,8 @@ func (p *Parser) Term() (Term, error) {
 		return nil, err
 	}
 
-	switch t, _ := p.next(); t.Kind {
-	case TokenEnd:
+	switch t, _ := p.next(); t.kind {
+	case tokenEnd:
 		break
 	default:
 		p.backup()
@@ -161,7 +139,7 @@ func (p *Parser) Term() (Term, error) {
 }
 
 // Number parses a number term.
-func (p *Parser) Number() (Number, error) {
+func (p *Parser) number() (Number, error) {
 	var (
 		n   Number
 		err error
@@ -170,11 +148,11 @@ func (p *Parser) Number() (Number, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch t.Kind {
-	case TokenInteger:
-		n, err = integer(1, t.Val)
-	case TokenFloatNumber:
-		n, err = float(1, t.Val)
+	switch t.kind {
+	case tokenInteger:
+		n, err = integer(1, t.val)
+	case tokenFloatNumber:
+		n, err = float(1, t.val)
 	default:
 		p.backup()
 		var a Atom
@@ -193,11 +171,11 @@ func (p *Parser) Number() (Number, error) {
 		if err != nil {
 			return nil, errNotANumber
 		}
-		switch t.Kind {
-		case TokenInteger:
-			n, err = integer(-1, t.Val)
-		case TokenFloatNumber:
-			n, err = float(-1, t.Val)
+		switch t.kind {
+		case tokenInteger:
+			n, err = integer(-1, t.val)
+		case tokenFloatNumber:
+			n, err = float(-1, t.val)
 		default:
 			p.backup()
 			p.backup()
@@ -411,8 +389,8 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		if err != nil {
 			return operator{}, err
 		}
-		switch t.Kind {
-		case TokenInteger, TokenFloatNumber:
+		switch t.kind {
+		case tokenInteger, tokenFloatNumber:
 			p.backup()
 			p.backup()
 			return operator{}, errNoOp
@@ -425,8 +403,8 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 	if err != nil {
 		return operator{}, err
 	}
-	switch t.Kind {
-	case TokenOpenCT:
+	switch t.kind {
+	case tokenOpenCT:
 		p.backup()
 		p.backup()
 		return operator{}, errNoOp
@@ -470,13 +448,13 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 		switch a {
 		case atomEmptyList:
 			p.backup()
-			if p.current().Kind == TokenCloseList {
+			if p.current().kind == tokenCloseList {
 				p.backup()
 			}
 			return 0, errNoOp
 		case atomEmptyBlock:
 			p.backup()
-			if p.current().Kind == TokenCloseCurly {
+			if p.current().kind == tokenCloseCurly {
 				p.backup()
 			}
 			return 0, errNoOp
@@ -489,13 +467,13 @@ func (p *Parser) op(maxPriority Integer) (Atom, error) {
 	if err != nil {
 		return 0, err
 	}
-	switch t.Kind {
-	case TokenComma:
+	switch t.kind {
+	case tokenComma:
 		if maxPriority >= 1000 {
-			return NewAtom(t.Val), nil
+			return NewAtom(t.val), nil
 		}
-	case TokenBar:
-		return NewAtom(t.Val), nil
+	case tokenBar:
+		return NewAtom(t.val), nil
 	}
 
 	p.backup()
@@ -507,37 +485,37 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch t.Kind {
-	case TokenOpen, TokenOpenCT:
+	switch t.kind {
+	case tokenOpen, tokenOpenCT:
 		return p.openClose()
-	case TokenInteger:
-		return integer(1, t.Val)
-	case TokenFloatNumber:
-		return float(1, t.Val)
-	case TokenVariable:
-		return p.variable(t.Val)
-	case TokenOpenList:
-		if t, _ := p.next(); t.Kind == TokenCloseList {
+	case tokenInteger:
+		return integer(1, t.val)
+	case tokenFloatNumber:
+		return float(1, t.val)
+	case tokenVariable:
+		return p.variable(t.val)
+	case tokenOpenList:
+		if t, _ := p.next(); t.kind == tokenCloseList {
 			p.backup()
 			p.backup()
 			break
 		}
 		p.backup()
 		return p.list()
-	case TokenOpenCurly:
-		if t, _ := p.next(); t.Kind == TokenCloseCurly {
+	case tokenOpenCurly:
+		if t, _ := p.next(); t.kind == tokenCloseCurly {
 			p.backup()
 			p.backup()
 			break
 		}
 		p.backup()
 		return p.curlyBracketedTerm()
-	case TokenDoubleQuotedList:
+	case tokenDoubleQuotedList:
 		switch p.doubleQuotes {
 		case doubleQuotesChars:
-			return CharList(unDoubleQuote(t.Val)), nil
+			return CharList(unDoubleQuote(t.val)), nil
 		case doubleQuotesCodes:
-			return CodeList(unDoubleQuote(t.Val)), nil
+			return CodeList(unDoubleQuote(t.val)), nil
 		default:
 			p.backup()
 			break
@@ -560,11 +538,11 @@ func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 		if err != nil {
 			return nil, err
 		}
-		switch t.Kind {
-		case TokenInteger:
-			return integer(-1, t.Val)
-		case TokenFloatNumber:
-			return float(-1, t.Val)
+		switch t.kind {
+		case tokenInteger:
+			return integer(-1, t.val)
+		case tokenFloatNumber:
+			return float(-1, t.val)
 		default:
 			p.backup()
 		}
@@ -595,19 +573,16 @@ func (p *Parser) variable(s string) (Term, error) {
 	if s == "_" {
 		return NewVariable(), nil
 	}
-	if p.vars == nil {
-		return NewNamedVariable(s), nil
-	}
 	n := NewAtom(s)
-	for i, v := range *p.vars {
-		if v.Name == n {
-			(*p.vars)[i].Count++
-			return v.Variable, nil
+	for i, pv := range p.Vars {
+		if pv.Name == n {
+			p.Vars[i].Count++
+			return pv.Variable, nil
 		}
 	}
-	w := NewVariable()
-	*p.vars = append(*p.vars, ParsedVariable{Name: n, Variable: w, Count: 1})
-	return w, nil
+	v := NewVariable()
+	p.Vars = append(p.Vars, ParsedVariable{Name: n, Variable: v, Count: 1})
+	return v, nil
 }
 
 func (p *Parser) openClose() (Term, error) {
@@ -615,7 +590,7 @@ func (p *Parser) openClose() (Term, error) {
 	if err != nil {
 		return nil, err
 	}
-	if t, _ := p.next(); t.Kind != TokenClose {
+	if t, _ := p.next(); t.kind != tokenClose {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -631,37 +606,37 @@ func (p *Parser) atom() (Atom, error) {
 	if err != nil {
 		return 0, err
 	}
-	switch t.Kind {
-	case TokenOpenList:
+	switch t.kind {
+	case tokenOpenList:
 		t, err := p.next()
 		if err != nil {
 			return 0, err
 		}
-		switch t.Kind {
-		case TokenCloseList:
+		switch t.kind {
+		case tokenCloseList:
 			return atomEmptyList, nil
 		default:
 			p.backup()
 			p.backup()
 			return 0, errExpectation
 		}
-	case TokenOpenCurly:
+	case tokenOpenCurly:
 		t, err := p.next()
 		if err != nil {
 			return 0, err
 		}
-		switch t.Kind {
-		case TokenCloseCurly:
+		switch t.kind {
+		case tokenCloseCurly:
 			return atomEmptyBlock, nil
 		default:
 			p.backup()
 			p.backup()
 			return 0, errExpectation
 		}
-	case TokenDoubleQuotedList:
+	case tokenDoubleQuotedList:
 		switch p.doubleQuotes {
 		case doubleQuotesAtom:
-			return NewAtom(unDoubleQuote(t.Val)), nil
+			return NewAtom(unDoubleQuote(t.val)), nil
 		default:
 			p.backup()
 			return 0, errExpectation
@@ -677,11 +652,11 @@ func (p *Parser) name() (Atom, error) {
 	if err != nil {
 		return 0, err
 	}
-	switch t.Kind {
-	case TokenLetterDigit, TokenGraphic, TokenSemicolon, TokenCut:
-		return NewAtom(t.Val), nil
-	case TokenQuoted:
-		return NewAtom(unquote(t.Val)), nil
+	switch t.kind {
+	case tokenLetterDigit, tokenGraphic, tokenSemicolon, tokenCut:
+		return NewAtom(t.val), nil
+	case tokenQuoted:
+		return NewAtom(unquote(t.val)), nil
 	default:
 		p.backup()
 		return 0, errExpectation
@@ -695,30 +670,30 @@ func (p *Parser) list() (Term, error) {
 	}
 	args := []Term{arg}
 	for {
-		switch t, _ := p.next(); t.Kind {
-		case TokenComma:
+		switch t, _ := p.next(); t.kind {
+		case tokenComma:
 			arg, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, arg)
-		case TokenBar:
+		case tokenBar:
 			rest, err := p.arg()
 			if err != nil {
 				return nil, err
 			}
 
-			switch t, _ := p.next(); t.Kind {
-			case TokenCloseList:
+			switch t, _ := p.next(); t.kind {
+			case tokenCloseList:
 				if len(args) == 1 {
 					return Cons(args[0], rest), nil
 				}
-				return ListRest(rest, args...), nil
+				return PartialList(rest, args...), nil
 			default:
 				p.backup()
 				return nil, errExpectation
 			}
-		case TokenCloseList:
+		case tokenCloseList:
 			return List(args...), nil
 		default:
 			p.backup()
@@ -733,7 +708,7 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 		return nil, err
 	}
 
-	if t, _ := p.next(); t.Kind != TokenCloseCurly {
+	if t, _ := p.next(); t.kind != tokenCloseCurly {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -742,22 +717,22 @@ func (p *Parser) curlyBracketedTerm() (Term, error) {
 }
 
 func (p *Parser) functionalNotation(functor Atom) (Term, error) {
-	switch t, _ := p.next(); t.Kind {
-	case TokenOpenCT:
+	switch t, _ := p.next(); t.kind {
+	case tokenOpenCT:
 		arg, err := p.arg()
 		if err != nil {
 			return nil, err
 		}
 		args := []Term{arg}
 		for {
-			switch t, _ := p.next(); t.Kind {
-			case TokenComma:
+			switch t, _ := p.next(); t.kind {
+			case tokenComma:
 				arg, err := p.arg()
 				if err != nil {
 					return nil, err
 				}
 				args = append(args, arg)
-			case TokenClose:
+			case tokenClose:
 				return functor.Apply(args...), nil
 			default:
 				p.backup()
@@ -774,8 +749,8 @@ func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
 		if p.operators.defined(arg) {
 			// Check if this atom is not followed by its own arguments.
-			switch t, _ := p.next(); t.Kind {
-			case TokenComma, TokenClose, TokenBar, TokenCloseList:
+			switch t, _ := p.next(); t.kind {
+			case tokenComma, tokenClose, tokenBar, tokenCloseList:
 				p.backup()
 				return arg, nil
 			default:
@@ -783,7 +758,7 @@ func (p *Parser) arg() (Term, error) {
 			}
 		}
 		p.backup()
-		if p.current().Kind == TokenCloseList || p.current().Kind == TokenCloseCurly {
+		if p.current().kind == tokenCloseList || p.current().kind == tokenCloseCurly {
 			p.backup() // Unquoted [] or {} consist of 2 tokens.
 		}
 	}
@@ -814,9 +789,9 @@ func integer(sign int64, s string) (Integer, error) {
 
 	switch i, a := f.Int64(); a {
 	case big.Above:
-		return 0, RepresentationError(FlagMinInteger, nil)
+		return 0, representationError(flagMinInteger, nil)
 	case big.Below:
-		return 0, RepresentationError(FlagMaxInteger, nil)
+		return 0, representationError(flagMaxInteger, nil)
 	default:
 		return Integer(i), nil
 	}

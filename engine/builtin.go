@@ -38,9 +38,9 @@ func Negation(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 func Call(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	default:
-		fvs := env.FreeVariables(g)
+		fvs := env.freeVariables(g)
 		args := make([]Term, len(fvs))
 		for i, fv := range fvs {
 			args[i] = fv
@@ -91,16 +91,16 @@ func Call7(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k fun
 }
 
 func callN(vm *VM, closure Term, additional []Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, arg, err := PI(closure, env)
+	pi, arg, err := piArg(closure, env)
 	if err != nil {
 		return Error(err)
 	}
-	args := make([]Term, pi.Arity, int(pi.Arity)+len(additional))
-	for i := 0; i < int(pi.Arity); i++ {
+	args := make([]Term, pi.arity, int(pi.arity)+len(additional))
+	for i := 0; i < int(pi.arity); i++ {
 		args[i] = arg(i)
 	}
 	args = append(args, additional...)
-	return Call(vm, pi.Name.Apply(args...), k, env)
+	return Call(vm, pi.name.Apply(args...), k, env)
 }
 
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
@@ -113,12 +113,12 @@ func CallNth(vm *VM, goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
 	case Integer:
 		switch {
 		case nth < 0:
-			return Error(DomainError(ValidDomainNotLessThanZero, nth, env))
+			return Error(domainError(validDomainNotLessThanZero, nth, env))
 		case nth == 0:
 			return Bool(false)
 		}
 	default:
-		return Error(TypeError(ValidTypeInteger, nth, env))
+		return Error(typeError(validTypeInteger, nth, env))
 	}
 
 	var (
@@ -130,7 +130,7 @@ func CallNth(vm *VM, goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
 	p = Call(vm, goal, func(env *Env) *Promise {
 		n, err = addI(n, Integer(1))
 		if err != nil {
-			return Error(RepresentationError(FlagMaxInteger, parentEnv))
+			return Error(representationError(flagMaxInteger, parentEnv))
 		}
 
 		u := Unify(vm, n, nth, k, env)
@@ -169,7 +169,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k func(*Env) *Promise, env *Env
 		return Bool(false)
 	}
 
-	if d := env.Compare(theta.Simplify(general), specific); d != OrderEqual {
+	if d := env.compare(theta.Simplify(general), specific); d != 0 {
 		return Bool(false)
 	}
 
@@ -252,19 +252,19 @@ func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Prom
 	case Variable:
 		switch arity := env.Resolve(arity).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Integer:
 			if arity < 0 {
-				return Error(DomainError(ValidDomainNotLessThanZero, arity, env))
+				return Error(domainError(validDomainNotLessThanZero, arity, env))
 			}
 
 			name := env.Resolve(name)
 
 			switch name := name.(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Compound:
-				return Error(TypeError(ValidTypeAtomic, name, env))
+				return Error(typeError(validTypeAtomic, name, env))
 			}
 
 			if arity == 0 {
@@ -273,7 +273,7 @@ func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Prom
 
 			n, ok := name.(Atom)
 			if !ok {
-				return Error(TypeError(ValidTypeAtom, name, env))
+				return Error(typeError(validTypeAtom, name, env))
 			}
 
 			vs := make([]Term, arity)
@@ -282,7 +282,7 @@ func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Prom
 			}
 			return Unify(vm, t, n.Apply(vs...), k, env)
 		default:
-			return Error(TypeError(ValidTypeInteger, arity, env))
+			return Error(typeError(validTypeInteger, arity, env))
 		}
 	case Compound:
 		return Unify(vm, tuple(name, arity), tuple(t.Functor(), Integer(t.Arity())), k, env)
@@ -295,24 +295,24 @@ func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Prom
 func Arg(vm *VM, nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch c := env.Resolve(t).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Compound:
 		switch n := env.Resolve(nth).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Integer:
 			if n == 0 || int(n) > c.Arity() {
 				return Bool(false)
 			}
 			if n < 0 {
-				return Error(DomainError(ValidDomainNotLessThanZero, n, env))
+				return Error(domainError(validDomainNotLessThanZero, n, env))
 			}
 			return Unify(vm, arg, c.Arg(int(n)-1), k, env)
 		default:
-			return Error(TypeError(ValidTypeInteger, n, env))
+			return Error(typeError(validTypeInteger, n, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeCompound, t, env))
+		return Error(typeError(validTypeCompound, t, env))
 	}
 }
 
@@ -320,30 +320,30 @@ func Arg(vm *VM, nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 func Univ(vm *VM, t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
-		elems, err := Slice(list, env)
+		elems, err := slice(list, env)
 		if err != nil {
 			return Error(err)
 		}
 		switch len(elems) {
 		case 0:
-			return Error(DomainError(ValidDomainNonEmptyList, list, env))
+			return Error(domainError(validDomainNonEmptyList, list, env))
 		case 1:
 			switch e := env.Resolve(elems[0]).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Compound:
-				return Error(TypeError(ValidTypeAtomic, e, env))
+				return Error(typeError(validTypeAtomic, e, env))
 			default:
-				return k(env.Bind(t, e))
+				return k(env.bind(t, e))
 			}
 		default:
 			switch e := env.Resolve(elems[0]).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Atom:
-				return k(env.Bind(t, e.Apply(elems[1:]...)))
+				return k(env.bind(t, e.Apply(elems[1:]...)))
 			default:
-				return Error(TypeError(ValidTypeAtom, e, env))
+				return Error(typeError(validTypeAtom, e, env))
 			}
 		}
 	case Compound:
@@ -374,25 +374,34 @@ func CopyTerm(vm *VM, in, out Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Unify(vm, renamedCopy(in, nil, env), out, k, env)
 }
 
-func renamedCopy(t Term, copied map[TermID]Term, env *Env) Term {
+func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 	if copied == nil {
-		copied = map[TermID]Term{}
+		copied = map[termID]Term{}
 	}
 	t = env.Resolve(t)
-	if c, ok := copied[ID(t)]; ok {
+	if c, ok := copied[id(t)]; ok {
 		return c
 	}
 	switch t := t.(type) {
 	case Variable:
 		v := NewVariable()
-		copied[t] = v
+		copied[id(t)] = v
 		return v
+	case charList, codeList:
+		return t
+	case list:
+		l := make(list, len(t))
+		copied[id(t)] = l
+		for i := range t {
+			l[i] = renamedCopy(t[i], copied, env)
+		}
+		return l
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
 			args:    make([]Term, t.Arity()),
 		}
-		copied[ID(t)] = &c
+		copied[id(t)] = &c
 		for i := 0; i < t.Arity(); i++ {
 			c.args[i] = renamedCopy(t.Arg(i), copied, env)
 		}
@@ -452,28 +461,28 @@ func Op(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env *Env) *
 	var p Integer
 	switch priority := env.Resolve(priority).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer:
 		if priority < 0 || priority > 1200 {
-			return Error(DomainError(ValidDomainOperatorPriority, priority, env))
+			return Error(domainError(validDomainOperatorPriority, priority, env))
 		}
 		p = priority
 	default:
-		return Error(TypeError(ValidTypeInteger, priority, env))
+		return Error(typeError(validTypeInteger, priority, env))
 	}
 
 	var spec operatorSpecifier
 	switch specifier := env.Resolve(specifier).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		var ok bool
 		spec, ok = operatorSpecifiers[specifier]
 		if !ok {
-			return Error(DomainError(ValidDomainOperatorSpecifier, specifier, env))
+			return Error(domainError(validDomainOperatorSpecifier, specifier, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeAtom, specifier, env))
+		return Error(typeError(validTypeAtom, specifier, env))
 	}
 
 	var names []Atom
@@ -487,7 +496,7 @@ func Op(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env *Env) *
 			case Atom:
 				names = appendUniqNewAtom(names, op)
 			default:
-				return Error(TypeError(ValidTypeAtom, op, env))
+				return Error(typeError(validTypeAtom, op, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -516,29 +525,29 @@ func validateOp(vm *VM, p Integer, spec operatorSpecifier, name Atom, env *Env) 
 	switch name {
 	case atomComma:
 		if vm.operators.definedInClass(name, operatorClassInfix) {
-			return Error(PermissionError(OperationModify, PermissionTypeOperator, name, env))
+			return Error(permissionError(operationModify, permissionTypeOperator, name, env))
 		}
 	case atomBar:
 		if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
-			op := OperationCreate
+			op := operationCreate
 			if vm.operators.definedInClass(name, operatorClassInfix) {
-				op = OperationModify
+				op = operationModify
 			}
-			return Error(PermissionError(op, PermissionTypeOperator, name, env))
+			return Error(permissionError(op, permissionTypeOperator, name, env))
 		}
 	case atomEmptyBlock, atomEmptyList:
-		return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+		return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 	}
 
 	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
 	switch spec.class() {
 	case operatorClassInfix:
 		if vm.operators.definedInClass(name, operatorClassPostfix) {
-			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	case operatorClassPostfix:
 		if vm.operators.definedInClass(name, operatorClassInfix) {
-			return Error(PermissionError(OperationCreate, PermissionTypeOperator, name, env))
+			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	}
 
@@ -561,10 +570,10 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env 
 		break
 	case Integer:
 		if p < 0 || p > 1200 {
-			return Error(DomainError(ValidDomainOperatorPriority, priority, env))
+			return Error(domainError(validDomainOperatorPriority, priority, env))
 		}
 	default:
-		return Error(DomainError(ValidDomainOperatorPriority, priority, env))
+		return Error(domainError(validDomainOperatorPriority, priority, env))
 	}
 
 	switch s := env.Resolve(specifier).(type) {
@@ -580,17 +589,17 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env 
 			atomFX:  {},
 			atomFY:  {},
 		}[s]; !ok {
-			return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
+			return Error(domainError(validDomainOperatorSpecifier, s, env))
 		}
 	default:
-		return Error(DomainError(ValidDomainOperatorSpecifier, s, env))
+		return Error(domainError(validDomainOperatorSpecifier, s, env))
 	}
 
 	switch env.Resolve(op).(type) {
 	case Variable, Atom:
 		break
 	default:
-		return Error(TypeError(ValidTypeAtom, op, env))
+		return Error(typeError(validTypeAtom, op, env))
 	}
 
 	pattern := tuple(priority, specifier, op)
@@ -630,20 +639,20 @@ func Asserta(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *Env) error {
-	pi, arg, err := PI(t, env)
+	pi, arg, err := piArg(t, env)
 	if err != nil {
 		return err
 	}
 
-	if pi == (ProcedureIndicator{Name: atomIf, Arity: 2}) {
-		pi, _, err = PI(arg(0), env)
+	if pi == (procedureIndicator{name: atomIf, arity: 2}) {
+		pi, _, err = piArg(arg(0), env)
 		if err != nil {
 			return err
 		}
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[ProcedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedure{}
 	}
 	p, ok := vm.procedures[pi]
 	if !ok {
@@ -658,7 +667,7 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 
 	u, ok := p.(*userDefined)
 	if !ok || !u.dynamic {
-		return PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env)
+		return permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env)
 	}
 
 	u.clauses = merge(u.clauses, added)
@@ -675,7 +684,7 @@ func BagOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *E
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
 func SetOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
 	return collectionOf(vm, func(tList []Term, env *Env) Term {
-		return env.Set(tList...)
+		return env.set(tList...)
 	}, template, goal, instances, k, env)
 }
 
@@ -700,7 +709,7 @@ func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances
 	}
 
 	return FindAll(vm, atomPlus.Apply(witness, template), g, s, func(env *Env) *Promise {
-		s, _ := Slice(s, env)
+		s, _ := slice(s, env)
 		ks := make([]func(context.Context) *Promise, 0, len(s))
 		for len(s) > 0 {
 			var wt Compound
@@ -762,14 +771,20 @@ func Compare(vm *VM, order, term1, term2 Term, k func(*Env) *Promise, env *Env) 
 		case atomLessThan, atomEqual, atomGreaterThan:
 			break
 		default:
-			return Error(DomainError(ValidDomainOrder, order, env))
+			return Error(domainError(validDomainOrder, order, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeAtom, order, env))
+		return Error(typeError(validTypeAtom, order, env))
 	}
 
-	o := env.Compare(term1, term2)
-	return Unify(vm, o.Term(), order, k, env)
+	switch o := env.compare(term1, term2); o {
+	case 1:
+		return Unify(vm, atomGreaterThan, order, k, env)
+	case -1:
+		return Unify(vm, atomLessThan, order, k, env)
+	default:
+		return Unify(vm, atomEqual, order, k, env)
+	}
 }
 
 // Between succeeds when lower, upper, and value are all integers, and lower <= value <= upper.
@@ -781,18 +796,18 @@ func Between(vm *VM, lower, upper, value Term, k func(*Env) *Promise, env *Env) 
 	case Integer:
 		low = lower
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	default:
-		return Error(TypeError(ValidTypeInteger, lower, env))
+		return Error(typeError(validTypeInteger, lower, env))
 	}
 
 	switch upper := env.Resolve(upper).(type) {
 	case Integer:
 		high = upper
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	default:
-		return Error(TypeError(ValidTypeInteger, upper, env))
+		return Error(typeError(validTypeInteger, upper, env))
 	}
 
 	if low > high {
@@ -817,7 +832,7 @@ func Between(vm *VM, lower, upper, value Term, k func(*Env) *Promise, env *Env) 
 		}
 		return Delay(ks...)
 	default:
-		return Error(TypeError(ValidTypeInteger, value, env))
+		return Error(typeError(validTypeInteger, value, env))
 	}
 }
 
@@ -839,7 +854,7 @@ func Sort(vm *VM, list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 		return Error(err)
 	}
 
-	return Unify(vm, sorted, env.Set(elems...), k, env)
+	return Unify(vm, sorted, env.set(elems...), k, env)
 }
 
 // KeySort succeeds if sorted is a sorted list of pairs based on their keys.
@@ -849,14 +864,14 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 	for iter.Next() {
 		switch e := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Compound:
 			if e.Functor() != atomMinus || e.Arity() != 2 {
-				return Error(TypeError(ValidTypePair, e, env))
+				return Error(typeError(validTypePair, e, env))
 			}
 			elems = append(elems, e)
 		default:
-			return Error(TypeError(ValidTypePair, e, env))
+			return Error(typeError(validTypePair, e, env))
 		}
 	}
 	if err := iter.Err(); err != nil {
@@ -874,10 +889,10 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 				continue
 			case Compound:
 				if e.Functor() != atomMinus || e.Arity() != 2 {
-					return Error(TypeError(ValidTypePair, e, env))
+					return Error(typeError(validTypePair, e, env))
 				}
 			default:
-				return Error(TypeError(ValidTypePair, e, env))
+				return Error(typeError(validTypePair, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -886,7 +901,7 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 	}
 
 	sort.SliceStable(elems, func(i, j int) bool {
-		return env.Compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == OrderLess
+		return env.compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == -1
 	})
 
 	return Unify(vm, sorted, List(elems...), k, env)
@@ -896,7 +911,7 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 func Throw(_ *VM, ball Term, _ func(*Env) *Promise, env *Env) *Promise {
 	switch b := env.Resolve(ball).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	default:
 		return Error(NewException(b, env))
 	}
@@ -905,9 +920,9 @@ func Throw(_ *VM, ball Term, _ func(*Env) *Promise, env *Env) *Promise {
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func Catch(vm *VM, goal, catcher, recover Term, k func(*Env) *Promise, env *Env) *Promise {
 	return catch(func(err error) *Promise {
-		var e Exception
-		if !errors.As(err, &e) {
-			return nil
+		e, ok := env.Resolve(err).(Exception)
+		if !ok {
+			e = Exception{term: atomError.Apply(NewAtom("system_error"), NewAtom(err.Error()))}
 		}
 
 		env, ok := env.Unify(catcher, e.term, false)
@@ -928,16 +943,16 @@ func CurrentPredicate(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise
 		break
 	case Compound:
 		if pi.Functor() != atomSlash || pi.Arity() != 2 {
-			return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+			return Error(typeError(validTypePredicateIndicator, pi, env))
 		}
 		if _, ok := env.Resolve(pi.Arg(0)).(Atom); !ok {
-			return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+			return Error(typeError(validTypePredicateIndicator, pi, env))
 		}
 		if _, ok := env.Resolve(pi.Arg(1)).(Integer); !ok {
-			return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+			return Error(typeError(validTypePredicateIndicator, pi, env))
 		}
 	default:
-		return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+		return Error(typeError(validTypePredicateIndicator, pi, env))
 	}
 
 	ks := make([]func(context.Context) *Promise, 0, len(vm.procedures))
@@ -957,10 +972,10 @@ func CurrentPredicate(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise
 
 // Retract removes the first clause that matches with t.
 func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
-	t = Rulify(t, env)
+	t = rulify(t, env)
 
 	h := t.(Compound).Arg(0)
-	pi, _, err := PI(h, env)
+	pi, _, err := piArg(h, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -972,14 +987,14 @@ func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 
 	u, ok := p.(*userDefined)
 	if !ok || !u.dynamic {
-		return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, pi.Term(), env))
+		return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env))
 	}
 
 	deleted := 0
 	ks := make([]func(context.Context) *Promise, len(u.clauses))
 	for i, c := range u.clauses {
 		i := i
-		raw := Rulify(c.raw, env)
+		raw := rulify(c.raw, env)
 		ks[i] = func(_ context.Context) *Promise {
 			return Unify(vm, t, raw, func(env *Env) *Promise {
 				j := i - deleted
@@ -996,39 +1011,39 @@ func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 func Abolish(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch pi := env.Resolve(pi).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Compound:
 		if pi.Functor() != atomSlash || pi.Arity() != 2 {
-			return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+			return Error(typeError(validTypePredicateIndicator, pi, env))
 		}
 
 		name, arity := pi.Arg(0), pi.Arg(1)
 
 		switch name := env.Resolve(name).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Atom:
 			switch arity := env.Resolve(arity).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Integer:
 				if arity < 0 {
-					return Error(DomainError(ValidDomainNotLessThanZero, arity, env))
+					return Error(domainError(validDomainNotLessThanZero, arity, env))
 				}
-				key := ProcedureIndicator{Name: name, Arity: arity}
+				key := procedureIndicator{name: name, arity: arity}
 				if u, ok := vm.procedures[key].(*userDefined); !ok || !u.dynamic {
-					return Error(PermissionError(OperationModify, PermissionTypeStaticProcedure, key.Term(), env))
+					return Error(permissionError(operationModify, permissionTypeStaticProcedure, key.Term(), env))
 				}
 				delete(vm.procedures, key)
 				return k(env)
 			default:
-				return Error(TypeError(ValidTypeInteger, arity, env))
+				return Error(typeError(validTypeInteger, arity, env))
 			}
 		default:
-			return Error(TypeError(ValidTypeAtom, name, env))
+			return Error(typeError(validTypeAtom, name, env))
 		}
 	default:
-		return Error(TypeError(ValidTypePredicateIndicator, pi, env))
+		return Error(typeError(validTypePredicateIndicator, pi, env))
 	}
 }
 
@@ -1038,7 +1053,7 @@ func CurrentInput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promise
 	case Variable, *Stream:
 		return Unify(vm, stream, vm.input, k, env)
 	default:
-		return Error(DomainError(ValidDomainStream, stream, env))
+		return Error(domainError(validDomainStream, stream, env))
 	}
 }
 
@@ -1048,19 +1063,19 @@ func CurrentOutput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promis
 	case Variable, *Stream:
 		return Unify(vm, stream, vm.output, k, env)
 	default:
-		return Error(DomainError(ValidDomainStream, stream, env))
+		return Error(domainError(validDomainStream, stream, env))
 	}
 }
 
 // SetInput sets streamOrAlias as the current input stream.
 func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
 	if s.mode != ioModeRead {
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	}
 
 	vm.input = s
@@ -1069,17 +1084,34 @@ func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Prom
 
 // SetOutput sets streamOrAlias as the current output stream.
 func SetOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
 	if s.mode != ioModeWrite && s.mode != ioModeAppend {
-		return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
 	}
 
 	vm.output = s
 	return k(env)
+}
+
+func stream(vm *VM, streamOrAlias Term, env *Env) (*Stream, error) {
+	switch s := env.Resolve(streamOrAlias).(type) {
+	case Variable:
+		return nil, instantiationError(env)
+	case Atom:
+		v, ok := vm.streams.lookup(s)
+		if !ok {
+			return nil, existenceError(objectTypeStream, streamOrAlias, env)
+		}
+		return v, nil
+	case *Stream:
+		return s, nil
+	default:
+		return nil, domainError(validDomainStreamOrAlias, streamOrAlias, env)
+	}
 }
 
 var openFile = os.OpenFile
@@ -1089,17 +1121,17 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise,
 	var name string
 	switch s := env.Resolve(sourceSink).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		name = s.String()
 	default:
-		return Error(DomainError(ValidDomainSourceSink, sourceSink, env))
+		return Error(domainError(validDomainSourceSink, sourceSink, env))
 	}
 
 	var streamMode ioMode
 	switch m := env.Resolve(mode).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		var ok bool
 		streamMode, ok = map[Atom]ioMode{
@@ -1108,14 +1140,14 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise,
 			atomAppend: ioModeAppend,
 		}[m]
 		if !ok {
-			return Error(DomainError(ValidDomainIOMode, m, env))
+			return Error(domainError(validDomainIOMode, m, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeAtom, mode, env))
+		return Error(typeError(validTypeAtom, mode, env))
 	}
 
 	if _, ok := env.Resolve(stream).(Variable); !ok {
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	}
 
 	s := Stream{vm: vm, mode: streamMode}
@@ -1126,11 +1158,11 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise,
 			s.reposition = fi.Mode()&fs.ModeType == 0
 		}
 	case os.IsNotExist(err):
-		return Error(ExistenceError(ObjectTypeSourceSink, sourceSink, env))
+		return Error(existenceError(objectTypeSourceSink, sourceSink, env))
 	case os.IsPermission(err):
-		return Error(PermissionError(OperationOpen, PermissionTypeSourceSink, sourceSink, env))
+		return Error(permissionError(operationOpen, permissionTypeSourceSink, sourceSink, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 
 	iter := ListIterator{List: options, Env: env}
@@ -1153,7 +1185,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise,
 func handleStreamOption(vm *VM, s *Stream, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Compound:
 		if o.Arity() != 1 {
 			break
@@ -1170,29 +1202,29 @@ func handleStreamOption(vm *VM, s *Stream, option Term, env *Env) error {
 			return handleStreamOptionEOFAction(vm, s, o, env)
 		}
 	}
-	return DomainError(ValidDomainStreamOption, option, env)
+	return domainError(validDomainStreamOption, option, env)
 }
 
 func handleStreamOptionAlias(vm *VM, s *Stream, o Compound, env *Env) error {
 	switch a := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Atom:
 		if _, ok := vm.streams.lookup(a); ok {
-			return PermissionError(OperationOpen, PermissionTypeSourceSink, o, env)
+			return permissionError(operationOpen, permissionTypeSourceSink, o, env)
 		}
 		s.alias = a
 		vm.streams.add(s)
 		return nil
 	default:
-		return DomainError(ValidDomainStreamOption, o, env)
+		return domainError(validDomainStreamOption, o, env)
 	}
 }
 
 func handleStreamOptionType(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch t := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Atom:
 		switch t {
 		case atomText:
@@ -1203,13 +1235,13 @@ func handleStreamOptionType(_ *VM, s *Stream, o Compound, env *Env) error {
 			return nil
 		}
 	}
-	return DomainError(ValidDomainStreamOption, o, env)
+	return domainError(validDomainStreamOption, o, env)
 }
 
 func handleStreamOptionReposition(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch r := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Atom:
 		switch r {
 		case atomTrue:
@@ -1220,13 +1252,13 @@ func handleStreamOptionReposition(_ *VM, s *Stream, o Compound, env *Env) error 
 			return nil
 		}
 	}
-	return DomainError(ValidDomainStreamOption, o, env)
+	return domainError(validDomainStreamOption, o, env)
 }
 
 func handleStreamOptionEOFAction(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch e := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Atom:
 		switch e {
 		case atomError:
@@ -1240,12 +1272,12 @@ func handleStreamOptionEOFAction(_ *VM, s *Stream, o Compound, env *Env) error {
 			return nil
 		}
 	}
-	return DomainError(ValidDomainStreamOption, o, env)
+	return domainError(validDomainStreamOption, o, env)
 }
 
 // Close closes a stream specified by streamOrAlias.
 func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1255,12 +1287,12 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 	for iter.Next() {
 		switch option := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Compound:
 			switch option.Functor() {
 			case atomForce:
 				if option.Arity() != 1 {
-					return Error(DomainError(ValidDomainStreamOption, option, env))
+					return Error(domainError(validDomainStreamOption, option, env))
 				}
 
 				switch v := env.Resolve(option.Arg(0)).(type) {
@@ -1271,14 +1303,14 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 					case atomTrue:
 						force = true
 					default:
-						return Error(DomainError(ValidDomainStreamOption, option, env))
+						return Error(domainError(validDomainStreamOption, option, env))
 					}
 				default:
-					return Error(DomainError(ValidDomainStreamOption, option, env))
+					return Error(domainError(validDomainStreamOption, option, env))
 				}
 			}
 		default:
-			return Error(DomainError(ValidDomainStreamOption, option, env))
+			return Error(domainError(validDomainStreamOption, option, env))
 		}
 	}
 	if err := iter.Err(); err != nil {
@@ -1286,7 +1318,7 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 	}
 
 	if err := s.Close(); err != nil && !force {
-		return Error(SystemError(err))
+		return Error(err)
 	}
 
 	return k(env)
@@ -1294,7 +1326,7 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 
 // FlushOutput sends any buffered output to the stream.
 func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1303,27 +1335,23 @@ func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *P
 	case nil:
 		return k(env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
 // WriteTerm outputs term to stream with options.
 func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	// The character sequence for a variable begins with `_` (7.10.5.a).
-	for v := range newVariableSet(t, env) {
-		if !v.Anonymous() {
-			env = env.Bind(v, NewVariable())
-		}
+	opts := writeOptions{
+		ops:      vm.operators,
+		priority: 1200,
 	}
-
-	var opts WriteOptions
 	iter := ListIterator{List: options, Env: env}
 	for iter.Next() {
 		if err := writeTermOption(&opts, iter.Current(), env); err != nil {
@@ -1334,26 +1362,25 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, en
 		return Error(err)
 	}
 
-	switch err := vm.Write(s, env.Resolve(t), &opts, env); err {
+	switch err := writeTerm(s, env.Resolve(t), &opts, env); err {
 	case nil:
 		return k(env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationOutput, PermissionTypeBinaryStream, streamOrAlias, env))
+		return Error(permissionError(operationOutput, permissionTypeBinaryStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
-
 }
 
-func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
+func writeTermOption(opts *writeOptions, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Compound:
 		if o.Arity() != 1 {
-			return DomainError(ValidDomainWriteOption, o, env)
+			return domainError(validDomainWriteOption, o, env)
 		}
 
 		if o.Functor() == atomVariableNames {
@@ -1361,14 +1388,14 @@ func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 			if err != nil {
 				return err
 			}
-			opts.VariableNames = vns
+			opts.variableNames = vns
 			return nil
 		}
 
 		var b bool
 		switch v := env.Resolve(o.Arg(0)).(type) {
 		case Variable:
-			return InstantiationError(env)
+			return instantiationError(env)
 		case Atom:
 			switch v {
 			case atomTrue:
@@ -1376,27 +1403,27 @@ func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 			case atomFalse:
 				b = false
 			default:
-				return DomainError(ValidDomainWriteOption, o, env)
+				return domainError(validDomainWriteOption, o, env)
 			}
 		default:
-			return DomainError(ValidDomainWriteOption, o, env)
+			return domainError(validDomainWriteOption, o, env)
 		}
 
 		switch o.Functor() {
 		case atomQuoted:
-			opts.Quoted = b
+			opts.quoted = b
 			return nil
 		case atomIgnoreOps:
-			opts.IgnoreOps = b
+			opts.ignoreOps = b
 			return nil
 		case atomNumberVars:
-			opts.NumberVars = b
+			opts.numberVars = b
 			return nil
 		default:
-			return DomainError(ValidDomainWriteOption, o, env)
+			return domainError(validDomainWriteOption, o, env)
 		}
 	default:
-		return DomainError(ValidDomainWriteOption, o, env)
+		return domainError(validDomainWriteOption, o, env)
 	}
 }
 
@@ -1407,24 +1434,24 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 		var vn Compound
 		switch elem := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return nil, InstantiationError(env)
+			return nil, instantiationError(env)
 		case Compound:
 			if elem.Functor() != atomEqual || elem.Arity() != 2 {
-				return nil, DomainError(ValidDomainWriteOption, option, env)
+				return nil, domainError(validDomainWriteOption, option, env)
 			}
 			vn = elem
 		default:
-			return nil, DomainError(ValidDomainWriteOption, option, env)
+			return nil, domainError(validDomainWriteOption, option, env)
 		}
 
 		var n Atom
 		switch arg := env.Resolve(vn.Arg(0)).(type) {
 		case Variable:
-			return nil, InstantiationError(env)
+			return nil, instantiationError(env)
 		case Atom:
 			n = arg
 		default:
-			return nil, DomainError(ValidDomainWriteOption, option, env)
+			return nil, domainError(validDomainWriteOption, option, env)
 		}
 
 		var v Variable
@@ -1443,14 +1470,14 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 
 	switch s := iter.Suffix().(type) {
 	case Variable:
-		return nil, InstantiationError(env)
+		return nil, instantiationError(env)
 	case Atom:
 		if s != atomEmptyList {
-			return nil, DomainError(ValidDomainWriteOption, option, env)
+			return nil, domainError(validDomainWriteOption, option, env)
 		}
 		return vns, nil
 	default:
-		return nil, DomainError(ValidDomainWriteOption, option, env)
+		return nil, domainError(validDomainWriteOption, option, env)
 	}
 }
 
@@ -1460,100 +1487,100 @@ func CharCode(vm *VM, char, code Term, k func(*Env) *Promise, env *Env) *Promise
 	case Variable:
 		switch cd := env.Resolve(code).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Integer:
 			r := rune(cd)
 
 			if !utf8.ValidRune(r) {
-				return Error(RepresentationError(FlagCharacterCode, env))
+				return Error(representationError(flagCharacterCode, env))
 			}
 
 			return Delay(func(context.Context) *Promise {
 				return Unify(vm, ch, Atom(r), k, env)
 			})
 		default:
-			return Error(TypeError(ValidTypeInteger, code, env))
+			return Error(typeError(validTypeInteger, code, env))
 		}
 	case Atom:
 		switch code := env.Resolve(code).(type) {
 		case Variable, Integer:
 			break
 		default:
-			return Error(TypeError(ValidTypeInteger, code, env))
+			return Error(typeError(validTypeInteger, code, env))
 		}
 
 		rs := []rune(ch.String())
 		if len(rs) != 1 {
-			return Error(TypeError(ValidTypeCharacter, ch, env))
+			return Error(typeError(validTypeCharacter, ch, env))
 		}
 
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, code, Integer(rs[0]), k, env)
 		})
 	default:
-		return Error(TypeError(ValidTypeCharacter, ch, env))
+		return Error(typeError(validTypeCharacter, ch, env))
 	}
 }
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
 func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
 	switch b := env.Resolve(byt).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer:
 		if 0 > b || 255 < b {
-			return Error(TypeError(ValidTypeByte, byt, env))
+			return Error(typeError(validTypeByte, byt, env))
 		}
 
 		switch err := s.WriteByte(byte(b)); err {
 		case nil:
 			return k(env)
 		case errWrongIOMode:
-			return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
+			return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
 		case errWrongStreamType:
-			return Error(PermissionError(OperationOutput, PermissionTypeTextStream, streamOrAlias, env))
+			return Error(permissionError(operationOutput, permissionTypeTextStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
-		return Error(TypeError(ValidTypeByte, byt, env))
+		return Error(typeError(validTypeByte, byt, env))
 	}
 }
 
 // PutCode outputs code to the stream represented by streamOrAlias.
 func PutCode(vm *VM, streamOrAlias, code Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
 	switch c := env.Resolve(code).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer:
 		r := rune(c)
 
 		if !utf8.ValidRune(r) {
-			return Error(RepresentationError(FlagCharacterCode, env))
+			return Error(representationError(flagCharacterCode, env))
 		}
 
 		switch _, err := s.WriteRune(r); err {
 		case nil:
 			return k(env)
 		case errWrongIOMode:
-			return Error(PermissionError(OperationOutput, PermissionTypeStream, streamOrAlias, env))
+			return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
 		case errWrongStreamType:
-			return Error(PermissionError(OperationOutput, PermissionTypeBinaryStream, streamOrAlias, env))
+			return Error(permissionError(operationOutput, permissionTypeBinaryStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
-		return Error(TypeError(ValidTypeInteger, code, env))
+		return Error(typeError(validTypeInteger, code, env))
 	}
 }
 
@@ -1565,7 +1592,7 @@ type readTermOptions struct {
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
 func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1585,8 +1612,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 		return Error(err)
 	}
 
-	var vars []ParsedVariable
-	p := vm.Parser(s, &vars)
+	p := NewParser(vm, s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -1598,17 +1624,17 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 	case io.EOF:
 		return Unify(vm, out, atomEndOfFile, k, env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeBinaryStream, streamOrAlias, env))
 	case errPastEndOfStream:
-		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SyntaxError(err, env))
+		return Error(syntaxError(err, env))
 	}
 
 	var singletons, variables, variableNames []Term
-	for _, v := range vars {
+	for _, v := range p.Vars {
 		if v.Count == 1 {
 			singletons = append(singletons, v.Variable)
 		}
@@ -1632,10 +1658,10 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, e
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {
 	switch option := env.Resolve(option).(type) {
 	case Variable:
-		return InstantiationError(env)
+		return instantiationError(env)
 	case Compound:
 		if option.Arity() != 1 {
-			return DomainError(ValidDomainReadOption, option, env)
+			return domainError(validDomainReadOption, option, env)
 		}
 
 		v := env.Resolve(option.Arg(0))
@@ -1647,17 +1673,17 @@ func readTermOption(opts *readTermOptions, option Term, env *Env) error {
 		case atomVariableNames:
 			opts.variableNames = v
 		default:
-			return DomainError(ValidDomainReadOption, option, env)
+			return domainError(validDomainReadOption, option, env)
 		}
 		return nil
 	default:
-		return DomainError(ValidDomainReadOption, option, env)
+		return domainError(validDomainReadOption, option, env)
 	}
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1667,10 +1693,10 @@ func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			return Error(TypeError(ValidTypeInByte, inByte, env))
+			return Error(typeError(validTypeInByte, inByte, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInByte, inByte, env))
+		return Error(typeError(validTypeInByte, inByte, env))
 	}
 
 	switch b, err := s.ReadByte(); err {
@@ -1679,19 +1705,19 @@ func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env
 	case io.EOF:
 		return Unify(vm, inByte, Integer(-1), k, env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeTextStream, streamOrAlias, env))
 	case errPastEndOfStream:
-		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
 func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1701,35 +1727,35 @@ func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) 
 		break
 	case Atom:
 		if len([]rune(c.String())) != 1 {
-			return Error(TypeError(ValidTypeInCharacter, char, env))
+			return Error(typeError(validTypeInCharacter, char, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInCharacter, char, env))
+		return Error(typeError(validTypeInCharacter, char, env))
 	}
 
 	switch r, _, err := s.ReadRune(); err {
 	case nil:
 		if r == utf8.RuneError {
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 
 		return Unify(vm, char, Atom(r), k, env)
 	case io.EOF:
 		return Unify(vm, char, atomEndOfFile, k, env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeBinaryStream, streamOrAlias, env))
 	case errPastEndOfStream:
-		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
 func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1739,10 +1765,10 @@ func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 		break
 	case Integer:
 		if b < 0 || b > 255 {
-			return Error(TypeError(ValidTypeInByte, inByte, env))
+			return Error(typeError(validTypeInByte, inByte, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInByte, inByte, env))
+		return Error(typeError(validTypeInByte, inByte, env))
 	}
 
 	b, err := s.ReadByte()
@@ -1755,19 +1781,19 @@ func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 	case io.EOF:
 		return Unify(vm, inByte, Integer(-1), k, env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationInput, PermissionTypeTextStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeTextStream, streamOrAlias, env))
 	case errPastEndOfStream:
-		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
 func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1777,10 +1803,10 @@ func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 		break
 	case Atom:
 		if len([]rune(c.String())) != 1 {
-			return Error(TypeError(ValidTypeInCharacter, char, env))
+			return Error(typeError(validTypeInCharacter, char, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInCharacter, char, env))
+		return Error(typeError(validTypeInCharacter, char, env))
 	}
 
 	r, _, err := s.ReadRune()
@@ -1790,20 +1816,20 @@ func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 	switch err {
 	case nil:
 		if r == unicode.ReplacementChar {
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 
 		return Unify(vm, char, Atom(r), k, env)
 	case io.EOF:
 		return Unify(vm, char, atomEndOfFile, k, env)
 	case errWrongIOMode:
-		return Error(PermissionError(OperationInput, PermissionTypeStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
 	case errWrongStreamType:
-		return Error(PermissionError(OperationInput, PermissionTypeBinaryStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypeBinaryStream, streamOrAlias, env))
 	case errPastEndOfStream:
-		return Error(PermissionError(OperationInput, PermissionTypePastEndOfStream, streamOrAlias, env))
+		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
-		return Error(SystemError(err))
+		return Error(err)
 	}
 }
 
@@ -1813,18 +1839,18 @@ var osExit = os.Exit
 func Halt(_ *VM, n Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch code := env.Resolve(n).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer:
 		osExit(int(code))
 		return k(env)
 	default:
-		return Error(TypeError(ValidTypeInteger, n, env))
+		return Error(typeError(validTypeInteger, n, env))
 	}
 }
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
 func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
-	pi, _, err := PI(head, env)
+	pi, _, err := piArg(head, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -1833,7 +1859,7 @@ func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
 	case Variable, Atom, Compound:
 		break
 	default:
-		return Error(TypeError(ValidTypeCallable, body, env))
+		return Error(typeError(validTypeCallable, body, env))
 	}
 
 	p, ok := vm.procedures[pi]
@@ -1843,12 +1869,12 @@ func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
 
 	u, ok := p.(*userDefined)
 	if !ok || !u.public {
-		return Error(PermissionError(OperationAccess, PermissionTypePrivateProcedure, pi.Term(), env))
+		return Error(permissionError(operationAccess, permissionTypePrivateProcedure, pi.Term(), env))
 	}
 
 	ks := make([]func(context.Context) *Promise, len(u.clauses))
 	for i, c := range u.clauses {
-		r := Rulify(renamedCopy(c.raw, nil, env), env)
+		r := rulify(renamedCopy(c.raw, nil, env), env)
 		ks[i] = func(context.Context) *Promise {
 			return Unify(vm, atomIf.Apply(head, body), r, k, env)
 		}
@@ -1856,28 +1882,36 @@ func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
 	return Delay(ks...)
 }
 
+func rulify(t Term, env *Env) Term {
+	t = env.Resolve(t)
+	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
+		return t
+	}
+	return atomIf.Apply(t, atomTrue)
+}
+
 // AtomLength counts the runes in atom and unifies the result with length.
 func AtomLength(vm *VM, atom, length Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		switch l := env.Resolve(length).(type) {
 		case Variable:
 			break
 		case Integer:
 			if l < 0 {
-				return Error(DomainError(ValidDomainNotLessThanZero, length, env))
+				return Error(domainError(validDomainNotLessThanZero, length, env))
 			}
 		default:
-			return Error(TypeError(ValidTypeInteger, length, env))
+			return Error(typeError(validTypeInteger, length, env))
 		}
 
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, length, Integer(len([]rune(a.String()))), k, env)
 		})
 	default:
-		return Error(TypeError(ValidTypeAtom, atom, env))
+		return Error(typeError(validTypeAtom, atom, env))
 	}
 }
 
@@ -1887,34 +1921,34 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k func(*Env) *Promise, env *En
 	case Variable:
 		switch a1 := env.Resolve(atom1).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Atom:
 			switch a2 := env.Resolve(atom2).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Atom:
 				return Delay(func(context.Context) *Promise {
 					return Unify(vm, a3, NewAtom(a1.String()+a2.String()), k, env)
 				})
 			default:
-				return Error(TypeError(ValidTypeAtom, atom2, env))
+				return Error(typeError(validTypeAtom, atom2, env))
 			}
 		default:
-			return Error(TypeError(ValidTypeAtom, atom1, env))
+			return Error(typeError(validTypeAtom, atom1, env))
 		}
 	case Atom:
 		switch env.Resolve(atom1).(type) {
 		case Variable, Atom:
 			break
 		default:
-			return Error(TypeError(ValidTypeAtom, atom1, env))
+			return Error(typeError(validTypeAtom, atom1, env))
 		}
 
 		switch env.Resolve(atom2).(type) {
 		case Variable, Atom:
 			break
 		default:
-			return Error(TypeError(ValidTypeAtom, atom2, env))
+			return Error(typeError(validTypeAtom, atom2, env))
 		}
 
 		pattern := tuple(atom1, atom2)
@@ -1931,7 +1965,7 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k func(*Env) *Promise, env *En
 		})
 		return Delay(ks...)
 	default:
-		return Error(TypeError(ValidTypeAtom, atom3, env))
+		return Error(typeError(validTypeAtom, atom3, env))
 	}
 }
 
@@ -1939,7 +1973,7 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k func(*Env) *Promise, env *En
 func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch whole := env.Resolve(atom).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		rs := []rune(whole.String())
 
@@ -1959,7 +1993,7 @@ func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k func(*Env) *Pr
 		case Variable, Atom:
 			break
 		default:
-			return Error(TypeError(ValidTypeAtom, subAtom, env))
+			return Error(typeError(validTypeAtom, subAtom, env))
 		}
 
 		pattern := tuple(before, length, after, subAtom)
@@ -1974,7 +2008,7 @@ func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k func(*Env) *Pr
 		}
 		return Delay(ks...)
 	default:
-		return Error(TypeError(ValidTypeAtom, atom, env))
+		return Error(typeError(validTypeAtom, atom, env))
 	}
 }
 
@@ -1984,11 +2018,11 @@ func checkPositiveInteger(n Term, env *Env) error {
 		return nil
 	case Integer:
 		if b < 0 {
-			return DomainError(ValidDomainNotLessThanZero, n, env)
+			return domainError(validDomainNotLessThanZero, n, env)
 		}
 		return nil
 	default:
-		return TypeError(ValidTypeInteger, n, env)
+		return typeError(validTypeInteger, n, env)
 	}
 }
 
@@ -2002,14 +2036,14 @@ func AtomChars(vm *VM, atom, chars Term, k func(*Env) *Promise, env *Env) *Promi
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Atom:
 				if len([]rune(e.String())) != 1 {
-					return Error(TypeError(ValidTypeCharacter, e, env))
+					return Error(typeError(validTypeCharacter, e, env))
 				}
 				_, _ = sb.WriteString(e.String())
 			default:
-				return Error(TypeError(ValidTypeCharacter, e, env))
+				return Error(typeError(validTypeCharacter, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2024,10 +2058,10 @@ func AtomChars(vm *VM, atom, chars Term, k func(*Env) *Promise, env *Env) *Promi
 				break
 			case Atom:
 				if len([]rune(e.String())) != 1 {
-					return Error(TypeError(ValidTypeCharacter, e, env))
+					return Error(typeError(validTypeCharacter, e, env))
 				}
 			default:
-				return Error(TypeError(ValidTypeCharacter, e, env))
+				return Error(typeError(validTypeCharacter, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2040,7 +2074,7 @@ func AtomChars(vm *VM, atom, chars Term, k func(*Env) *Promise, env *Env) *Promi
 		}
 		return Unify(vm, chars, charList(s), k, env)
 	default:
-		return Error(TypeError(ValidTypeAtom, a, env))
+		return Error(typeError(validTypeAtom, a, env))
 	}
 }
 
@@ -2054,14 +2088,14 @@ func AtomCodes(vm *VM, atom, codes Term, k func(*Env) *Promise, env *Env) *Promi
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Integer:
 				if e < 0 || e > unicode.MaxRune {
-					return Error(RepresentationError(FlagCharacterCode, env))
+					return Error(representationError(flagCharacterCode, env))
 				}
 				_, _ = sb.WriteRune(rune(e))
 			default:
-				return Error(TypeError(ValidTypeInteger, e, env))
+				return Error(typeError(validTypeInteger, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2076,10 +2110,10 @@ func AtomCodes(vm *VM, atom, codes Term, k func(*Env) *Promise, env *Env) *Promi
 				break
 			case Integer:
 				if e < 0 || e > unicode.MaxRune {
-					return Error(RepresentationError(FlagCharacterCode, env))
+					return Error(representationError(flagCharacterCode, env))
 				}
 			default:
-				return Error(TypeError(ValidTypeInteger, e, env))
+				return Error(typeError(validTypeInteger, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2092,7 +2126,7 @@ func AtomCodes(vm *VM, atom, codes Term, k func(*Env) *Promise, env *Env) *Promi
 		}
 		return Unify(vm, codes, codeList(s), k, env)
 	default:
-		return Error(TypeError(ValidTypeAtom, atom, env))
+		return Error(typeError(validTypeAtom, atom, env))
 	}
 }
 
@@ -2110,11 +2144,11 @@ func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Prom
 		case Atom:
 			s := e.String()
 			if len([]rune(s)) != 1 {
-				return Error(TypeError(ValidTypeCharacter, e, env))
+				return Error(typeError(validTypeCharacter, e, env))
 			}
 			_, _ = sb.WriteString(s)
 		default:
-			return Error(TypeError(ValidTypeCharacter, e, env))
+			return Error(typeError(validTypeCharacter, e, env))
 		}
 	}
 	if err := iter.Err(); err != nil {
@@ -2124,24 +2158,28 @@ func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Prom
 		return Error(err)
 	}
 
-	p := newParser(strings.NewReader(sb.String()))
-	t, err := p.Number()
+	p := Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(strings.NewReader(sb.String())),
+		},
+	}
+	t, err := p.number()
 	if err != nil {
-		return Error(SyntaxError(err, env))
+		return Error(syntaxError(err, env))
 	}
 
 	switch n := env.Resolve(num).(type) {
 	case Variable, Number:
 		return Unify(vm, n, t, k, env)
 	default:
-		return Error(TypeError(ValidTypeNumber, n, env))
+		return Error(typeError(validTypeNumber, n, env))
 	}
 }
 
 func numberCharsWrite(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch n := env.Resolve(num).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Number:
 		iter := ListIterator{List: chars, Env: env}
 		for iter.Next() {
@@ -2150,10 +2188,10 @@ func numberCharsWrite(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) 
 				break
 			case Atom:
 				if len(e.String()) != 1 {
-					return Error(TypeError(ValidTypeCharacter, e, env))
+					return Error(typeError(validTypeCharacter, e, env))
 				}
 			default:
-				return Error(TypeError(ValidTypeCharacter, e, env))
+				return Error(typeError(validTypeCharacter, e, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
@@ -2172,7 +2210,7 @@ func numberCharsWrite(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) 
 		}
 		return Unify(vm, chars, List(cs...), k, env)
 	default:
-		return Error(TypeError(ValidTypeNumber, n, env))
+		return Error(typeError(validTypeNumber, n, env))
 	}
 }
 
@@ -2187,7 +2225,7 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 		case Variable, Integer, Float:
 			break
 		default:
-			return Error(TypeError(ValidTypeNumber, n, env))
+			return Error(typeError(validTypeNumber, n, env))
 		}
 
 		var sb strings.Builder
@@ -2195,21 +2233,25 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(InstantiationError(env))
+				return Error(instantiationError(env))
 			case Integer:
 				_, _ = sb.WriteRune(rune(e))
 			default:
-				return Error(RepresentationError(FlagCharacterCode, env))
+				return Error(representationError(flagCharacterCode, env))
 			}
 		}
 		if err := iter.Err(); err != nil {
 			return Error(err)
 		}
 
-		p := newParser(strings.NewReader(sb.String()))
-		t, err := p.Number()
+		p := Parser{
+			lexer: Lexer{
+				input: newRuneRingBuffer(strings.NewReader(sb.String())),
+			},
+		}
+		t, err := p.number()
 		if err != nil {
-			return Error(SyntaxError(err, env))
+			return Error(syntaxError(err, env))
 		}
 
 		return Delay(func(context.Context) *Promise {
@@ -2219,7 +2261,7 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 
 	switch n := env.Resolve(num).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer, Float:
 		var buf bytes.Buffer
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
@@ -2232,7 +2274,7 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 			return Unify(vm, codes, List(cs...), k, env)
 		})
 	default:
-		return Error(TypeError(ValidTypeNumber, num, env))
+		return Error(typeError(validTypeNumber, num, env))
 	}
 }
 
@@ -2247,11 +2289,11 @@ func StreamProperty(vm *VM, stream, property Term, k func(*Env) *Promise, env *E
 	case *Stream:
 		streams = append(streams, s)
 	default:
-		return Error(DomainError(ValidDomainStream, stream, env))
+		return Error(domainError(validDomainStream, stream, env))
 	}
 
 	if !isStreamProperty(property, env) {
-		return Error(DomainError(ValidDomainStreamProperty, property, env))
+		return Error(domainError(validDomainStreamProperty, property, env))
 	}
 
 	var ks []func(context.Context) *Promise
@@ -2310,25 +2352,25 @@ func isInteger(t Term, env *Env) bool {
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
 func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promise, env *Env) *Promise {
-	s, err := vm.Stream(streamOrAlias, env)
+	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
 	switch p := env.Resolve(position).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Integer:
 		switch _, err := s.Seek(int64(p), 0); err {
 		case nil:
 			return k(env)
 		case errReposition:
-			return Error(PermissionError(OperationReposition, PermissionTypeStream, streamOrAlias, env))
+			return Error(permissionError(operationReposition, permissionTypeStream, streamOrAlias, env))
 		default:
-			return Error(SystemError(err))
+			return Error(err)
 		}
 	default:
-		return Error(TypeError(ValidTypeInteger, position, env))
+		return Error(typeError(validTypeInteger, position, env))
 	}
 }
 
@@ -2336,20 +2378,20 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promi
 func CharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		i := []rune(in.String())
 		if len(i) != 1 {
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 
 		switch out := env.Resolve(outChar).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Atom:
 			o := []rune(out.String())
 			if len(o) != 1 {
-				return Error(RepresentationError(FlagCharacter, env))
+				return Error(representationError(flagCharacter, env))
 			}
 
 			if vm.charConversions == nil {
@@ -2362,10 +2404,10 @@ func CharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, env *En
 			vm.charConversions[i[0]] = o[0]
 			return k(env)
 		default:
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 	default:
-		return Error(RepresentationError(FlagCharacter, env))
+		return Error(representationError(flagCharacter, env))
 	}
 }
 
@@ -2377,10 +2419,10 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, 
 	case Atom:
 		i := []rune(in.String())
 		if len(i) != 1 {
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 	default:
-		return Error(RepresentationError(FlagCharacter, env))
+		return Error(representationError(flagCharacter, env))
 	}
 
 	switch out := env.Resolve(outChar).(type) {
@@ -2389,10 +2431,10 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, 
 	case Atom:
 		o := []rune(out.String())
 		if len(o) != 1 {
-			return Error(RepresentationError(FlagCharacter, env))
+			return Error(representationError(flagCharacter, env))
 		}
 	default:
-		return Error(RepresentationError(FlagCharacter, env))
+		return Error(representationError(flagCharacter, env))
 	}
 
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
@@ -2423,12 +2465,12 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, 
 func SetPrologFlag(vm *VM, flag, value Term, k func(*Env) *Promise, env *Env) *Promise {
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
-		return Error(InstantiationError(env))
+		return Error(instantiationError(env))
 	case Atom:
 		var modify func(vm *VM, value Atom) error
 		switch f {
 		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity:
-			return Error(PermissionError(OperationModify, PermissionTypeFlag, f, env))
+			return Error(permissionError(operationModify, permissionTypeFlag, f, env))
 		case atomCharConversion:
 			modify = modifyCharConversion
 		case atomDebug:
@@ -2438,22 +2480,22 @@ func SetPrologFlag(vm *VM, flag, value Term, k func(*Env) *Promise, env *Env) *P
 		case atomDoubleQuotes:
 			modify = modifyDoubleQuotes
 		default:
-			return Error(DomainError(ValidDomainPrologFlag, f, env))
+			return Error(domainError(validDomainPrologFlag, f, env))
 		}
 
 		switch v := env.Resolve(value).(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Atom:
 			if err := modify(vm, v); err != nil {
 				return Error(err)
 			}
 			return k(env)
 		default:
-			return Error(DomainError(ValidDomainFlagValue, atomPlus.Apply(flag, value), env))
+			return Error(domainError(validDomainFlagValue, atomPlus.Apply(flag, value), env))
 		}
 	default:
-		return Error(TypeError(ValidTypeAtom, f, env))
+		return Error(typeError(validTypeAtom, f, env))
 	}
 }
 
@@ -2464,7 +2506,7 @@ func modifyCharConversion(vm *VM, value Atom) error {
 	case atomOff:
 		vm.charConvEnabled = false
 	default:
-		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomCharConversion, value), nil)
+		return domainError(validDomainFlagValue, atomPlus.Apply(atomCharConversion, value), nil)
 	}
 	return nil
 }
@@ -2476,7 +2518,7 @@ func modifyDebug(vm *VM, value Atom) error {
 	case atomOff:
 		vm.debug = false
 	default:
-		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomDebug, value), nil)
+		return domainError(validDomainFlagValue, atomPlus.Apply(atomDebug, value), nil)
 	}
 	return nil
 }
@@ -2490,7 +2532,7 @@ func modifyUnknown(vm *VM, value Atom) error {
 	case atomFail:
 		vm.unknown = unknownFail
 	default:
-		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomUnknown, value), nil)
+		return domainError(validDomainFlagValue, atomPlus.Apply(atomUnknown, value), nil)
 	}
 	return nil
 }
@@ -2504,7 +2546,7 @@ func modifyDoubleQuotes(vm *VM, value Atom) error {
 	case atomAtom:
 		vm.doubleQuotes = doubleQuotesAtom
 	default:
-		return DomainError(ValidDomainFlagValue, atomPlus.Apply(atomDoubleQuotes, value), nil)
+		return domainError(validDomainFlagValue, atomPlus.Apply(atomDoubleQuotes, value), nil)
 	}
 	return nil
 }
@@ -2519,10 +2561,10 @@ func CurrentPrologFlag(vm *VM, flag, value Term, k func(*Env) *Promise, env *Env
 		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomCharConversion, atomDebug, atomMaxArity, atomUnknown, atomDoubleQuotes:
 			break
 		default:
-			return Error(DomainError(ValidDomainPrologFlag, f, env))
+			return Error(domainError(validDomainPrologFlag, f, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeAtom, f, env))
+		return Error(typeError(validTypeAtom, f, env))
 	}
 
 	pattern := tuple(flag, value)
@@ -2565,7 +2607,7 @@ func ExpandTerm(vm *VM, term1, term2 Term, k func(*Env) *Promise, env *Env) *Pro
 }
 
 func expand(vm *VM, term Term, env *Env) (Term, error) {
-	if _, ok := vm.procedures[ProcedureIndicator{Name: atomTermExpansion, Arity: 2}]; ok {
+	if _, ok := vm.procedures[procedureIndicator{name: atomTermExpansion, arity: 2}]; ok {
 		var ret Term
 		v := NewVariable()
 		ok, err := Call(vm, atomTermExpansion.Apply(term, v), func(env *Env) *Promise {
@@ -2629,7 +2671,7 @@ func nth(vm *VM, base Integer, n, list, elem Term, k func(*Env) *Promise, env *E
 		if n < base {
 			return Bool(false)
 		}
-		iter := ListIterator{List: list, Env: env}
+		iter := ListIterator{List: list, Env: env, AllowCycle: true}
 		for i := base; iter.Next(); i++ {
 			if i == n {
 				return Unify(vm, elem, iter.Current(), k, env)
@@ -2640,7 +2682,7 @@ func nth(vm *VM, base Integer, n, list, elem Term, k func(*Env) *Promise, env *E
 		}
 		return Bool(false)
 	default:
-		return Error(TypeError(ValidTypeInteger, n, env))
+		return Error(typeError(validTypeInteger, n, env))
 	}
 }
 
@@ -2650,29 +2692,29 @@ func Succ(vm *VM, x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 	case Variable:
 		switch s := s.(type) {
 		case Variable:
-			return Error(InstantiationError(env))
+			return Error(instantiationError(env))
 		case Integer:
 			switch {
 			case s < Integer(0):
-				return Error(DomainError(ValidDomainNotLessThanZero, s, env))
+				return Error(domainError(validDomainNotLessThanZero, s, env))
 			case s == Integer(0):
 				return Bool(false)
 			default:
 				return Unify(vm, x, s-Integer(1), k, env)
 			}
 		default:
-			return Error(TypeError(ValidTypeInteger, s, env))
+			return Error(typeError(validTypeInteger, s, env))
 		}
 	case Integer:
 		if x < Integer(0) {
-			return Error(DomainError(ValidDomainNotLessThanZero, x, env))
+			return Error(domainError(validDomainNotLessThanZero, x, env))
 		}
 
-		r, err := Add(x, Integer(1))
+		r, err := add(x, Integer(1))
 		if err != nil {
-			var ev ExceptionalValue
+			var ev exceptionalValue
 			if errors.As(err, &ev) {
-				return Error(EvaluationError(ev, env))
+				return Error(evaluationError(ev, env))
 			}
 			return Error(err)
 		}
@@ -2682,14 +2724,14 @@ func Succ(vm *VM, x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 			return Unify(vm, s, r, k, env)
 		case Integer:
 			if s < Integer(0) {
-				return Error(DomainError(ValidDomainNotLessThanZero, s, env))
+				return Error(domainError(validDomainNotLessThanZero, s, env))
 			}
 			return Unify(vm, s, r, k, env)
 		default:
-			return Error(TypeError(ValidTypeInteger, s, env))
+			return Error(typeError(validTypeInteger, s, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInteger, x, env))
+		return Error(typeError(validTypeInteger, x, env))
 	}
 }
 
@@ -2704,10 +2746,10 @@ func Length(vm *VM, list, length Term, k func(*Env) *Promise, env *Env) *Promise
 		break
 	case Integer:
 		if n < 0 {
-			return Error(DomainError(ValidDomainNotLessThanZero, n, env))
+			return Error(domainError(validDomainNotLessThanZero, n, env))
 		}
 	default:
-		return Error(TypeError(ValidTypeInteger, n, env))
+		return Error(typeError(validTypeInteger, n, env))
 	}
 
 	var (
@@ -2726,7 +2768,7 @@ func Length(vm *VM, list, length Term, k func(*Env) *Promise, env *Env) *Promise
 			n := n.(Variable)
 
 			if n == suffix {
-				return Error(ResourceError(ResourceFiniteMemory, env))
+				return Error(resourceError(resourceFiniteMemory, env))
 			}
 
 			return lengthAddendum(vm, atomEmptyList, skipped, suffix, n, k, env)
@@ -2745,7 +2787,7 @@ func Length(vm *VM, list, length Term, k func(*Env) *Promise, env *Env) *Promise
 				return Bool(false)
 			}
 
-			return Error(ResourceError(ResourceFiniteMemory, env))
+			return Error(resourceError(resourceFiniteMemory, env))
 		default: // non-list terminated by a term that is neither an atom nor a compound
 			return Bool(false)
 		}
@@ -2767,7 +2809,7 @@ func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, 
 		suffix := atomDot.Apply(NewVariable(), suffix)
 		offset, err := addI(offset, 1)
 		if err != nil {
-			return Error(RepresentationError(FlagMaxInteger, env))
+			return Error(representationError(flagMaxInteger, env))
 		}
 		return lengthAddendum(vm, suffix, offset, list, length, k, env)
 	})
@@ -2781,11 +2823,11 @@ func SkipMaxList(vm *VM, skip, max, list, suffix Term, k func(*Env) *Promise, en
 		break
 	case Integer:
 		if max < 0 {
-			return Error(DomainError(ValidDomainNotLessThanZero, max, env))
+			return Error(domainError(validDomainNotLessThanZero, max, env))
 		}
 		m = max
 	default:
-		return Error(TypeError(ValidTypeInteger, max, env))
+		return Error(typeError(validTypeInteger, max, env))
 	}
 
 	var (

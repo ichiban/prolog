@@ -2,24 +2,14 @@ package engine
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 )
 
-// GoStringEnv is an Env which resolves a Variable when GoString() is called.
-var GoStringEnv *Env
+var varCounter int64
 
-var (
-	varCounter int64
-	varTable   = struct {
-		sync.RWMutex
-		names map[Variable]string
-		vars  map[string]Variable
-	}{
-		names: map[Variable]string{},
-		vars:  map[string]Variable{},
-	}
-)
+func lastVariable() Variable {
+	return Variable(varCounter)
+}
 
 // Variable is a prolog variable.
 type Variable int64
@@ -30,48 +20,8 @@ func NewVariable() Variable {
 	return Variable(n)
 }
 
-func NewNamedVariable(name string) Variable {
-	varTable.Lock()
-	defer varTable.Unlock()
-
-	v, ok := varTable.vars[name]
-	if ok {
-		return v
-	}
-
-	v = NewVariable()
-	varTable.vars[name] = v
-	varTable.names[v] = name
-	return v
-}
-
 func (v Variable) String() string {
-	varTable.RLock()
-	defer varTable.RUnlock()
-
-	n, ok := varTable.names[v]
-	if ok {
-		return n
-	}
-
 	return fmt.Sprintf("_%d", v)
-}
-
-func (v Variable) GoString() string {
-	switch t := GoStringEnv.Resolve(v).(type) {
-	case Variable:
-		return t.String()
-	default:
-		return fmt.Sprintf("%#v", t)
-	}
-}
-
-// Anonymous checks if the variable has no name.
-func (v Variable) Anonymous() bool {
-	varTable.RLock()
-	defer varTable.RUnlock()
-	_, ok := varTable.names[v]
-	return !ok
 }
 
 // variableSet is a set of variables. The key is the variable and the value is the number of occurrences.

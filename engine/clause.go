@@ -18,50 +18,24 @@ type userDefined struct {
 type clauses []clause
 
 func (cs clauses) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
-	if vm.OnCall == nil {
-		vm.OnCall = func(pi ProcedureIndicator, args []Term, env *Env) {}
-	}
-	if vm.OnExit == nil {
-		vm.OnExit = func(pi ProcedureIndicator, args []Term, env *Env) {}
-	}
-	if vm.OnFail == nil {
-		vm.OnFail = func(pi ProcedureIndicator, args []Term, env *Env) {}
-	}
-	if vm.OnRedo == nil {
-		vm.OnRedo = func(pi ProcedureIndicator, args []Term, env *Env) {}
-	}
-
 	var p *Promise
 	ks := make([]func(context.Context) *Promise, len(cs))
 	for i := range cs {
 		i, c := i, cs[i]
 		ks[i] = func(context.Context) *Promise {
-			if i == 0 {
-				vm.OnCall(c.pi, args, env)
-			} else {
-				vm.OnRedo(c.pi, args, env)
-			}
 			vars := make([]Variable, len(c.vars))
 			for i := range vars {
 				vars[i] = NewVariable()
 			}
-			return Delay(func(context.Context) *Promise {
-				return vm.exec(registers{
-					pc:   c.bytecode,
-					xr:   c.xrTable,
-					vars: vars,
-					cont: func(env *Env) *Promise {
-						vm.OnExit(c.pi, args, env)
-						return k(env)
-					},
-					args:      List(args...),
-					astack:    List(),
-					env:       env,
-					cutParent: p,
-				})
-			}, func(context.Context) *Promise {
-				vm.OnFail(c.pi, args, env)
-				return Bool(false)
+			return vm.exec(registers{
+				pc:        c.bytecode,
+				xr:        c.xrTable,
+				vars:      vars,
+				cont:      k,
+				args:      List(args...),
+				astack:    List(),
+				env:       env,
+				cutParent: p,
 			})
 		}
 	}
@@ -74,11 +48,11 @@ func compile(t Term, env *Env) (clauses, error) {
 	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
-		iter := AltIterator{Alt: body, Env: env}
+		iter := altIterator{Alt: body, Env: env}
 		for iter.Next() {
 			c, err := compileClause(head, iter.Current(), env)
 			if err != nil {
-				return nil, TypeError(ValidTypeCallable, body, env)
+				return nil, typeError(validTypeCallable, body, env)
 			}
 			c.raw = t
 			cs = append(cs, c)
@@ -92,7 +66,7 @@ func compile(t Term, env *Env) (clauses, error) {
 }
 
 type clause struct {
-	pi       ProcedureIndicator
+	pi       procedureIndicator
 	raw      Term
 	xrTable  []Term
 	vars     []Variable
@@ -103,16 +77,16 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 	var c clause
 	switch head := env.Resolve(head).(type) {
 	case Atom:
-		c.pi = ProcedureIndicator{Name: head, Arity: 0}
+		c.pi = procedureIndicator{name: head, arity: 0}
 	case Compound:
-		c.pi = ProcedureIndicator{Name: head.Functor(), Arity: Integer(head.Arity())}
+		c.pi = procedureIndicator{name: head.Functor(), arity: Integer(head.Arity())}
 		for i := 0; i < head.Arity(); i++ {
 			c.compileArg(head.Arg(i), env)
 		}
 	}
 	if body != nil {
 		if err := c.compileBody(body, env); err != nil {
-			return c, TypeError(ValidTypeCallable, body, env)
+			return c, typeError(validTypeCallable, body, env)
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})
@@ -121,7 +95,7 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 
 func (c *clause) compileBody(body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-	iter := SeqIterator{Seq: body, Env: env}
+	iter := seqIterator{Seq: body, Env: env}
 	for iter.Next() {
 		if err := c.compilePred(iter.Current(), env); err != nil {
 			return err
@@ -142,13 +116,13 @@ func (c *clause) compilePred(p Term, env *Env) error {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(ProcedureIndicator{Name: p, Arity: 0})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p, arity: 0})})
 		return nil
 	case Compound:
 		for i := 0; i < p.Arity(); i++ {
 			c.compileArg(p.Arg(i), env)
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(ProcedureIndicator{Name: p.Functor(), Arity: Integer(p.Arity())})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())})})
 		return nil
 	default:
 		return errNotCallable
@@ -176,7 +150,7 @@ func (c *clause) compileArg(a Term, env *Env) {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.xrOffset(ProcedureIndicator{Name: a.Functor(), Arity: Integer(a.Arity())})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())})})
 		for i := 0; i < a.Arity(); i++ {
 			c.compileArg(a.Arg(i), env)
 		}
@@ -187,9 +161,9 @@ func (c *clause) compileArg(a Term, env *Env) {
 }
 
 func (c *clause) xrOffset(o Term) byte {
-	id := ID(o)
+	oid := id(o)
 	for i, r := range c.xrTable {
-		if ID(r) == id {
+		if id(r) == oid {
 			return byte(i)
 		}
 	}

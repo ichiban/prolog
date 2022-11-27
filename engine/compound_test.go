@@ -14,7 +14,7 @@ func TestCompound_GoString(t *testing.T) {
 	}{
 		{term: NewAtom("f").Apply(NewAtom("a")), output: `&engine.compound{functor:"f", args:[]engine.Term{"a"}}`},
 		{term: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), output: `engine.list{"a", "b", "c"}`},
-		{term: ListRest(NewAtom("c"), NewAtom("a"), NewAtom("b")), output: `engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}`},
+		{term: PartialList(NewAtom("c"), NewAtom("a"), NewAtom("b")), output: `engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}`},
 	}
 
 	for _, tt := range tests {
@@ -41,41 +41,43 @@ func TestList(t *testing.T) {
 	}
 }
 
-func TestListRest(t *testing.T) {
+func TestPartialList(t *testing.T) {
+	x := NewVariable()
+
 	tests := []struct {
 		title string
 		rest  Term
 		elems []Term
 		list  Term
 	}{
-		{title: "empty", rest: NewNamedVariable("X"), elems: nil, list: NewNamedVariable("X")},
-		{title: "non-empty", rest: NewNamedVariable("X"), elems: []Term{NewAtom("a"), NewAtom("b")}, list: partial{Compound: list{NewAtom("a"), NewAtom("b")}, tail: NewNamedVariable("X")}},
+		{title: "empty", rest: x, elems: nil, list: x},
+		{title: "non-empty", rest: x, elems: []Term{NewAtom("a"), NewAtom("b")}, list: partial{Compound: list{NewAtom("a"), NewAtom("b")}, tail: x}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			assert.Equal(t, tt.list, ListRest(tt.rest, tt.elems...))
+			assert.Equal(t, tt.list, PartialList(tt.rest, tt.elems...))
 		})
 	}
 }
 
 func TestEnv_Set(t *testing.T) {
 	env := NewEnv()
-	assert.Equal(t, List(), env.Set())
-	assert.Equal(t, List(NewAtom("a")), env.Set(NewAtom("a")))
-	assert.Equal(t, List(NewAtom("a")), env.Set(NewAtom("a"), NewAtom("a"), NewAtom("a")))
-	assert.Equal(t, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), env.Set(NewAtom("c"), NewAtom("b"), NewAtom("a")))
+	assert.Equal(t, List(), env.set())
+	assert.Equal(t, List(NewAtom("a")), env.set(NewAtom("a")))
+	assert.Equal(t, List(NewAtom("a")), env.set(NewAtom("a"), NewAtom("a"), NewAtom("a")))
+	assert.Equal(t, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), env.set(NewAtom("c"), NewAtom("b"), NewAtom("a")))
 }
 
 func TestSeq(t *testing.T) {
-	assert.Equal(t, NewAtom("a"), Seq(atomComma, NewAtom("a")))
+	assert.Equal(t, NewAtom("a"), seq(atomComma, NewAtom("a")))
 	assert.Equal(t, &compound{
 		functor: atomComma,
 		args: []Term{
 			NewAtom("a"),
 			NewAtom("b"),
 		},
-	}, Seq(atomComma, NewAtom("a"), NewAtom("b")))
+	}, seq(atomComma, NewAtom("a"), NewAtom("b")))
 	assert.Equal(t, &compound{
 		functor: atomComma,
 		args: []Term{
@@ -88,7 +90,7 @@ func TestSeq(t *testing.T) {
 				},
 			},
 		},
-	}, Seq(atomComma, NewAtom("a"), NewAtom("b"), NewAtom("c")))
+	}, seq(atomComma, NewAtom("a"), NewAtom("b"), NewAtom("c")))
 }
 
 func TestCharList(t *testing.T) {

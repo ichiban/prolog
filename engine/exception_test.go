@@ -21,7 +21,7 @@ func TestInstantiationError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, InstantiationError(nil))
+	}, instantiationError(nil))
 }
 
 func TestTypeError(t *testing.T) {
@@ -39,7 +39,7 @@ func TestTypeError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, TypeError(ValidTypeAtom, Integer(0), nil))
+	}, typeError(validTypeAtom, Integer(0), nil))
 }
 
 func TestDomainError(t *testing.T) {
@@ -57,11 +57,11 @@ func TestDomainError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, DomainError(ValidDomainNotLessThanZero, Integer(-1), nil))
+	}, domainError(validDomainNotLessThanZero, Integer(-1), nil))
 }
 
 func TestExistenceError(t *testing.T) {
-	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
+	pi := procedureIndicator{name: NewAtom("foo"), arity: 0}
 	assert.Equal(t, Exception{
 		term: &compound{
 			functor: atomError,
@@ -76,11 +76,11 @@ func TestExistenceError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, ExistenceError(ObjectTypeProcedure, pi, nil))
+	}, existenceError(objectTypeProcedure, pi, nil))
 }
 
 func TestPermissionError(t *testing.T) {
-	pi := ProcedureIndicator{Name: NewAtom("foo"), Arity: 0}.Term()
+	pi := procedureIndicator{name: NewAtom("foo"), arity: 0}
 	assert.Equal(t, Exception{
 		term: &compound{
 			functor: atomError,
@@ -96,7 +96,7 @@ func TestPermissionError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, PermissionError(OperationModify, PermissionTypeStaticProcedure, pi, nil))
+	}, permissionError(operationModify, permissionTypeStaticProcedure, pi, nil))
 }
 
 func TestRepresentationError(t *testing.T) {
@@ -113,7 +113,7 @@ func TestRepresentationError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, RepresentationError(FlagMaxInteger, nil))
+	}, representationError(flagMaxInteger, nil))
 }
 
 func TestResourceError(t *testing.T) {
@@ -130,7 +130,7 @@ func TestResourceError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, ResourceError(ResourceFiniteMemory, nil))
+	}, resourceError(resourceFiniteMemory, nil))
 }
 
 func TestSyntaxError(t *testing.T) {
@@ -147,13 +147,7 @@ func TestSyntaxError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, SyntaxError(errors.New("foo"), nil))
-}
-
-func TestSystemError(t *testing.T) {
-	assert.Equal(t, Exception{
-		term: atomError.Apply(NewAtom("system_error"), NewAtom("foo")),
-	}, SystemError(errors.New("foo")))
+	}, syntaxError(errors.New("foo"), nil))
 }
 
 func TestEvaluationError(t *testing.T) {
@@ -170,9 +164,9 @@ func TestEvaluationError(t *testing.T) {
 				rootContext,
 			},
 		},
-	}, EvaluationError(ExceptionalValueIntOverflow, nil))
+	}, evaluationError(exceptionalValueIntOverflow, nil))
 }
 
 func TestExceptionalValue_Error(t *testing.T) {
-	assert.Equal(t, "int_overflow", ExceptionalValueIntOverflow.Error())
+	assert.Equal(t, "int_overflow", exceptionalValueIntOverflow.Error())
 }
