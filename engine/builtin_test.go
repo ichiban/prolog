@@ -4262,7 +4262,7 @@ func TestReadTerm(t *testing.T) {
 	})
 
 	t.Run("singletons", func(t *testing.T) {
-		f, err := os.Open("testdata/Vars.txt")
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, f.Close())
@@ -4298,7 +4298,7 @@ func TestReadTerm(t *testing.T) {
 	})
 
 	t.Run("variables", func(t *testing.T) {
-		f, err := os.Open("testdata/Vars.txt")
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, f.Close())
@@ -4334,7 +4334,7 @@ func TestReadTerm(t *testing.T) {
 	})
 
 	t.Run("variable_names", func(t *testing.T) {
-		f, err := os.Open("testdata/Vars.txt")
+		f, err := os.Open("testdata/vars.txt")
 		assert.NoError(t, err)
 		defer func() {
 			assert.NoError(t, f.Close())
