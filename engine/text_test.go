@@ -254,9 +254,13 @@ X :- X.
 		{title: "error: non-callable rule body", text: `
 foo :- 1.
 `, err: typeError(validTypeCallable, Integer(1), nil)},
-		{title: "error: non-PI argument", text: `
-:- dynamic(foo).
-`, err: typeError(validTypePredicateIndicator, NewAtom("foo"), nil)},
+		{title: "error: non-PI argument, variable", text: `:- dynamic(PI).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, not compound", text: `:- dynamic(foo).`, err: typeError(validTypePredicateIndicator, NewAtom("foo"), nil)},
+		{title: "error: non-PI argument, compound", text: `:- dynamic(foo(a, b)).`, err: typeError(validTypePredicateIndicator, NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")), nil)},
+		{title: "error: non-PI argument, name is variable", text: `:- dynamic(Name/2).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, arity is variable", text: `:- dynamic(foo/Arity).`, err: instantiationError(nil)},
+		{title: "error: non-PI argument, arity is not integer", text: `:- dynamic(foo/bar).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(NewAtom("foo"), NewAtom("bar")), nil)},
+		{title: "error: non-PI argument, name is not atom", text: `:- dynamic(0/2).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(Integer(0), Integer(2)), nil)},
 		{title: "error: included variable", text: `
 :- include(X).
 `, err: instantiationError(nil)},
