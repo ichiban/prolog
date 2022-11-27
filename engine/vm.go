@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"strings"
 )
@@ -401,15 +400,6 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	s.alias = atomUserOutput
 	vm.streams.add(s)
 	vm.output = s
-}
-
-// Write outputs term to the io.StringWriter.
-func (vm *VM) Write(w io.StringWriter, t Term, env *Env) error {
-	return writeTerm(w, t, &writeOptions{
-		quoted:   true,
-		ops:      vm.operators,
-		priority: 1200,
-	}, env)
 }
 
 // Predicate0 is a predicate of arity 0.
