@@ -56,7 +56,7 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 }
 
 // Consult executes Prolog texts in files.
-func Consult(vm *VM, files Term, k func(*Env) *Promise, env *Env) *Promise {
+func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 	var filenames []Term
 	iter := ListIterator{List: files, Env: env}
 	for iter.Next() {

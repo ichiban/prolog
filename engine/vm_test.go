@@ -10,7 +10,7 @@ import (
 
 func TestVM_Register0(t *testing.T) {
 	var vm VM
-	vm.Register0(NewAtom("foo"), func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(NewAtom("foo"), func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 0}]
@@ -32,7 +32,7 @@ func TestVM_Register0(t *testing.T) {
 
 func TestVM_Register1(t *testing.T) {
 	var vm VM
-	vm.Register1(NewAtom("foo"), func(_ *VM, a Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register1(NewAtom("foo"), func(_ *VM, a Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}]
@@ -52,7 +52,7 @@ func TestVM_Register1(t *testing.T) {
 
 func TestVM_Register2(t *testing.T) {
 	var vm VM
-	vm.Register2(NewAtom("foo"), func(_ *VM, a, b Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("foo"), func(_ *VM, a, b Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 2}]
@@ -72,7 +72,7 @@ func TestVM_Register2(t *testing.T) {
 
 func TestVM_Register3(t *testing.T) {
 	var vm VM
-	vm.Register3(NewAtom("foo"), func(_ *VM, a, b, c Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register3(NewAtom("foo"), func(_ *VM, a, b, c Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 3}]
@@ -92,7 +92,7 @@ func TestVM_Register3(t *testing.T) {
 
 func TestVM_Register4(t *testing.T) {
 	var vm VM
-	vm.Register4(NewAtom("foo"), func(_ *VM, a, b, c, d Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register4(NewAtom("foo"), func(_ *VM, a, b, c, d Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 4}]
@@ -112,7 +112,7 @@ func TestVM_Register4(t *testing.T) {
 
 func TestVM_Register5(t *testing.T) {
 	var vm VM
-	vm.Register5(NewAtom("foo"), func(_ *VM, a, b, c, d, e Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register5(NewAtom("foo"), func(_ *VM, a, b, c, d, e Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 5}]
@@ -132,7 +132,7 @@ func TestVM_Register5(t *testing.T) {
 
 func TestVM_Register6(t *testing.T) {
 	var vm VM
-	vm.Register6(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register6(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 6}]
@@ -152,7 +152,7 @@ func TestVM_Register6(t *testing.T) {
 
 func TestVM_Register7(t *testing.T) {
 	var vm VM
-	vm.Register7(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register7(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 7}]
@@ -172,7 +172,7 @@ func TestVM_Register7(t *testing.T) {
 
 func TestVM_Register8(t *testing.T) {
 	var vm VM
-	vm.Register8(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g, h Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register8(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g, h Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
 	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 8}]
@@ -194,7 +194,7 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("foo"), arity: 1}: Predicate1(func(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("foo"), arity: 1}: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			},

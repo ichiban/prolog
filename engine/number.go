@@ -119,7 +119,7 @@ func eval(expression Term, env *Env) (_ Number, err error) {
 }
 
 // Is evaluates expression and unifies the result with result.
-func Is(vm *VM, result, expression Term, k func(*Env) *Promise, env *Env) *Promise {
+func Is(vm *VM, result, expression Term, k Cont, env *Env) *Promise {
 	v, err := eval(expression, env)
 	if err != nil {
 		return Error(err)
@@ -128,7 +128,7 @@ func Is(vm *VM, result, expression Term, k func(*Env) *Promise, env *Env) *Promi
 }
 
 // Equal succeeds iff e1 equals to e2.
-func Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Equal(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -163,7 +163,7 @@ func Equal(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // NotEqual succeeds iff e1 doesn't equal to e2.
-func NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func NotEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -198,7 +198,7 @@ func NotEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // LessThan succeeds iff e1 is less than e2.
-func LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func LessThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -233,7 +233,7 @@ func LessThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // GreaterThan succeeds iff e1 is greater than e2.
-func GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func GreaterThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -268,7 +268,7 @@ func GreaterThan(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // LessThanOrEqual succeeds iff e1 is less than or equal to e2.
-func LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func LessThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)
@@ -303,7 +303,7 @@ func LessThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promi
 }
 
 // GreaterThanOrEqual succeeds iff e1 is greater than or equal to e2.
-func GreaterThanOrEqual(_ *VM, e1, e2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func GreaterThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	ev1, err := eval(e1, env)
 	if err != nil {
 		return Error(err)

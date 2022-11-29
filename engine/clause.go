@@ -17,7 +17,7 @@ type userDefined struct {
 
 type clauses []clause
 
-func (cs clauses) call(vm *VM, args []Term, k func(*Env) *Promise, env *Env) *Promise {
+func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	var p *Promise
 	ks := make([]func(context.Context) *Promise, len(cs))
 	for i := range cs {

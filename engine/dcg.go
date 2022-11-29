@@ -8,7 +8,7 @@ import (
 // based on: https://www.complang.tuwien.ac.at/ulrich/iso-prolog/dcgs/dcgsdin150408.pdf
 
 // Phrase succeeds if the difference list of s0-s satisfies the grammar rule of grBody.
-func Phrase(vm *VM, grBody, s0, s Term, k func(*Env) *Promise, env *Env) *Promise {
+func Phrase(vm *VM, grBody, s0, s Term, k Cont, env *Env) *Promise {
 	goal, err := dcgBody(grBody, s0, s, env)
 	if err != nil {
 		return Error(err)
