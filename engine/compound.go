@@ -102,33 +102,33 @@ func List(ts ...Term) Term {
 
 type partial struct {
 	Compound
-	tail Term
+	tail *Term
 }
 
-func (p partial) termID() termID { // The underlying compound might not be comparable.
+func (p *partial) termID() termID { // The underlying compound might not be comparable.
 	type partialID struct {
 		prefixID, tailID termID
 	}
 	return partialID{
 		prefixID: id(p.Compound),
-		tailID:   id(p.tail),
+		tailID:   p.tail,
 	}
 }
 
-func (p partial) Arg(n int) Term {
+func (p *partial) Arg(n int) Term {
 	t := p.Compound.Arg(n)
 	if c := p.Compound; c.Functor() == atomDot && c.Arity() == 2 && n == 1 {
 		if t == atomEmptyList {
-			t = p.tail
+			t = *p.tail
 		} else {
-			t = partial{Compound: t.(Compound), tail: p.tail}
+			t = &partial{Compound: t.(Compound), tail: p.tail}
 		}
 	}
 	return t
 }
 
-func (p partial) GoString() string {
-	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, p.tail)
+func (p *partial) GoString() string {
+	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, *p.tail)
 }
 
 // PartialList returns a list of ts followed by tail.
@@ -136,9 +136,9 @@ func PartialList(tail Term, ts ...Term) Term {
 	if len(ts) == 0 {
 		return tail
 	}
-	return partial{
+	return &partial{
 		Compound: list(ts),
-		tail:     tail,
+		tail:     &tail,
 	}
 }
 

@@ -396,6 +396,13 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 			l[i] = renamedCopy(t[i], copied, env)
 		}
 		return l
+	case *partial:
+		var p partial
+		copied[id(t)] = &p
+		p.Compound = renamedCopy(t.Compound, copied, env).(Compound)
+		tail := renamedCopy(*t.tail, copied, env)
+		p.tail = &tail
+		return &p
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
@@ -2849,9 +2856,9 @@ func Append(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 		for iter.Next() {
 		}
 		if err := iter.Err(); err == nil {
-			return Unify(vm, zs, partial{
+			return Unify(vm, zs, &partial{
 				Compound: xs,
-				tail:     ys,
+				tail:     &ys,
 			}, k, env)
 		}
 	}
