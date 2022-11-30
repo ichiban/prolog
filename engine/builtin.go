@@ -14,14 +14,14 @@ import (
 )
 
 // Repeat repeats the continuation until it succeeds.
-func Repeat(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+func Repeat(_ *VM, k Cont, env *Env) *Promise {
 	return repeat(func(ctx context.Context) *Promise {
 		return k(env)
 	})
 }
 
 // Negation calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
-func Negation(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
+func Negation(vm *VM, goal Term, k Cont, env *Env) *Promise {
 	return Delay(func(ctx context.Context) *Promise {
 		ok, err := Call(vm, goal, Success, env).Force(ctx)
 		if err != nil {
@@ -35,7 +35,7 @@ func Negation(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-func Call(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -56,41 +56,41 @@ func Call(vm *VM, goal Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Call1 succeeds if closure with an additional argument succeeds.
-func Call1(vm *VM, closure, arg1 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call1(vm *VM, closure, arg1 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1}, k, env)
 }
 
 // Call2 succeeds if closure with 2 additional arguments succeeds.
-func Call2(vm *VM, closure, arg1, arg2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call2(vm *VM, closure, arg1, arg2 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2}, k, env)
 }
 
 // Call3 succeeds if closure with 3 additional arguments succeeds.
-func Call3(vm *VM, closure, arg1, arg2, arg3 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call3(vm *VM, closure, arg1, arg2, arg3 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2, arg3}, k, env)
 }
 
 // Call4 succeeds if closure with 4 additional arguments succeeds.
-func Call4(vm *VM, closure, arg1, arg2, arg3, arg4 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call4(vm *VM, closure, arg1, arg2, arg3, arg4 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2, arg3, arg4}, k, env)
 }
 
 // Call5 succeeds if closure with 5 additional arguments succeeds.
-func Call5(vm *VM, closure, arg1, arg2, arg3, arg4, arg5 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call5(vm *VM, closure, arg1, arg2, arg3, arg4, arg5 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2, arg3, arg4, arg5}, k, env)
 }
 
 // Call6 succeeds if closure with 6 additional arguments succeeds.
-func Call6(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call6(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2, arg3, arg4, arg5, arg6}, k, env)
 }
 
 // Call7 succeeds if closure with 7 additional arguments succeeds.
-func Call7(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Call7(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k Cont, env *Env) *Promise {
 	return callN(vm, closure, []Term{arg1, arg2, arg3, arg4, arg5, arg6, arg7}, k, env)
 }
 
-func callN(vm *VM, closure Term, additional []Term, k func(*Env) *Promise, env *Env) *Promise {
+func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
 	pi, arg, err := piArg(closure, env)
 	if err != nil {
 		return Error(err)
@@ -105,7 +105,7 @@ func callN(vm *VM, closure Term, additional []Term, k func(*Env) *Promise, env *
 
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
 // See http://www.complang.tuwien.ac.at/ulrich/iso-prolog/call_nth
-func CallNth(vm *VM, goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
+func CallNth(vm *VM, goal, nth Term, k Cont, env *Env) *Promise {
 	nth = env.Resolve(nth)
 	switch nth := nth.(type) {
 	case Variable:
@@ -145,7 +145,7 @@ func CallNth(vm *VM, goal, nth Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Unify unifies x and y without occurs check (i.e., X = f(X) is allowed).
-func Unify(_ *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+func Unify(_ *VM, x, y Term, k Cont, env *Env) *Promise {
 	env, ok := env.Unify(x, y, false)
 	if !ok {
 		return Bool(false)
@@ -154,7 +154,7 @@ func Unify(_ *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // UnifyWithOccursCheck unifies x and y with occurs check (i.e., X = f(X) is not allowed).
-func UnifyWithOccursCheck(_ *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+func UnifyWithOccursCheck(_ *VM, x, y Term, k Cont, env *Env) *Promise {
 	env, ok := env.Unify(x, y, true)
 	if !ok {
 		return Bool(false)
@@ -163,7 +163,7 @@ func UnifyWithOccursCheck(_ *VM, x, y Term, k func(*Env) *Promise, env *Env) *Pr
 }
 
 // SubsumesTerm succeeds if general and specific are unifiable without binding variables in specific.
-func SubsumesTerm(_ *VM, general, specific Term, k func(*Env) *Promise, env *Env) *Promise {
+func SubsumesTerm(_ *VM, general, specific Term, k Cont, env *Env) *Promise {
 	theta, ok := env.Unify(general, specific, true)
 	if !ok {
 		return Bool(false)
@@ -177,7 +177,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k func(*Env) *Promise, env *Env
 }
 
 // TypeVar checks if t is a variable.
-func TypeVar(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func TypeVar(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Variable); !ok {
 		return Bool(false)
 	}
@@ -185,7 +185,7 @@ func TypeVar(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // TypeFloat checks if t is a floating-point number.
-func TypeFloat(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func TypeFloat(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Float); !ok {
 		return Bool(false)
 	}
@@ -193,7 +193,7 @@ func TypeFloat(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // TypeInteger checks if t is an integer.
-func TypeInteger(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func TypeInteger(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Integer); !ok {
 		return Bool(false)
 	}
@@ -201,7 +201,7 @@ func TypeInteger(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // TypeAtom checks if t is an atom.
-func TypeAtom(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func TypeAtom(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Atom); !ok {
 		return Bool(false)
 	}
@@ -209,7 +209,7 @@ func TypeAtom(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // TypeCompound checks if t is a compound term.
-func TypeCompound(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func TypeCompound(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if _, ok := env.Resolve(t).(Compound); !ok {
 		return Bool(false)
 	}
@@ -217,7 +217,7 @@ func TypeCompound(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // AcyclicTerm checks if t is acyclic.
-func AcyclicTerm(_ *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func AcyclicTerm(_ *VM, t Term, k Cont, env *Env) *Promise {
 	if cyclicTerm(t, nil, env) {
 		return Bool(false)
 	}
@@ -247,7 +247,7 @@ func cyclicTerm(t Term, visited []Term, env *Env) bool {
 
 // Functor extracts the name and arity of term, or unifies term with an atomic/compound term of name and arity with
 // fresh variables as arguments.
-func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Promise {
+func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
 		switch arity := env.Resolve(arity).(type) {
@@ -292,7 +292,7 @@ func Functor(vm *VM, t, name, arity Term, k func(*Env) *Promise, env *Env) *Prom
 }
 
 // Arg extracts nth argument of term as arg, or finds the argument position of arg in term as nth.
-func Arg(vm *VM, nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
+func Arg(vm *VM, nth, t, arg Term, k Cont, env *Env) *Promise {
 	switch c := env.Resolve(t).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -317,7 +317,7 @@ func Arg(vm *VM, nth, t, arg Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Univ constructs list as a list which first element is the functor of term and the rest is the arguments of term, or construct a compound from list as term.
-func Univ(vm *VM, t, list Term, k func(*Env) *Promise, env *Env) *Promise {
+func Univ(vm *VM, t, list Term, k Cont, env *Env) *Promise {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
 		elems, err := slice(list, env)
@@ -370,7 +370,7 @@ func Univ(vm *VM, t, list Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // CopyTerm clones in as out.
-func CopyTerm(vm *VM, in, out Term, k func(*Env) *Promise, env *Env) *Promise {
+func CopyTerm(vm *VM, in, out Term, k Cont, env *Env) *Promise {
 	return Unify(vm, renamedCopy(in, nil, env), out, k, env)
 }
 
@@ -412,7 +412,7 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 }
 
 // TermVariables succeeds if vars unifies with a list of variables in term.
-func TermVariables(vm *VM, term, vars Term, k func(*Env) *Promise, env *Env) *Promise {
+func TermVariables(vm *VM, term, vars Term, k Cont, env *Env) *Promise {
 	var (
 		witness  = map[Variable]struct{}{}
 		ret      []Term
@@ -457,7 +457,7 @@ var operatorSpecifiers = map[Atom]operatorSpecifier{
 }
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
-func Op(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
+func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 	var p Integer
 	switch priority := env.Resolve(priority).(type) {
 	case Variable:
@@ -564,7 +564,7 @@ func appendUniqNewAtom(slice []Atom, elem Atom) []Atom {
 }
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
-func CurrentOp(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 	switch p := env.Resolve(priority).(type) {
 	case Variable:
 		break
@@ -619,7 +619,7 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k func(*Env) *Promise, env 
 }
 
 // Assertz appends t to the database.
-func Assertz(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
 	if err := assertMerge(vm, t, func(existing, new []clause) []clause {
 		return append(existing, new...)
 	}, env); err != nil {
@@ -629,7 +629,7 @@ func Assertz(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Asserta prepends t to the database.
-func Asserta(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 	if err := assertMerge(vm, t, func(existing, new []clause) []clause {
 		return append(new, existing...)
 	}, env); err != nil {
@@ -675,20 +675,20 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 }
 
 // BagOf collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
-func BagOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+func BagOf(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 	return collectionOf(vm, func(tList []Term, env *Env) Term {
 		return List(tList...)
 	}, template, goal, instances, k, env)
 }
 
 // SetOf collects all the solutions of goal as instances, which unify with template. instances don't contain duplications.
-func SetOf(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+func SetOf(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 	return collectionOf(vm, func(tList []Term, env *Env) Term {
 		return env.set(tList...)
 	}, template, goal, instances, k, env)
 }
 
-func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances Term, k Cont, env *Env) *Promise {
 	fvs := newFreeVariablesSet(goal, template, env)
 	w := make([]Term, 0, len(fvs))
 	for v := range fvs {
@@ -742,7 +742,7 @@ func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances
 }
 
 // FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
-func FindAll(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env *Env) *Promise {
+func FindAll(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 	iter := ListIterator{List: instances, Env: env, AllowPartial: true}
 	for iter.Next() {
 	}
@@ -762,7 +762,7 @@ func FindAll(vm *VM, template, goal, instances Term, k func(*Env) *Promise, env 
 }
 
 // Compare compares term1 and term2 and unifies order with <, =, or >.
-func Compare(vm *VM, order, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func Compare(vm *VM, order, term1, term2 Term, k Cont, env *Env) *Promise {
 	switch o := env.Resolve(order).(type) {
 	case Variable:
 		break
@@ -789,7 +789,7 @@ func Compare(vm *VM, order, term1, term2 Term, k func(*Env) *Promise, env *Env) 
 
 // Between succeeds when lower, upper, and value are all integers, and lower <= value <= upper.
 // If value is a variable, it is unified with successive integers from lower to upper.
-func Between(vm *VM, lower, upper, value Term, k func(*Env) *Promise, env *Env) *Promise {
+func Between(vm *VM, lower, upper, value Term, k Cont, env *Env) *Promise {
 	var low, high Integer
 
 	switch lower := env.Resolve(lower).(type) {
@@ -837,7 +837,7 @@ func Between(vm *VM, lower, upper, value Term, k func(*Env) *Promise, env *Env) 
 }
 
 // Sort succeeds if sorted list of elements of list unifies with sorted.
-func Sort(vm *VM, list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
+func Sort(vm *VM, list, sorted Term, k Cont, env *Env) *Promise {
 	var elems []Term
 	iter := ListIterator{List: list, Env: env}
 	for iter.Next() {
@@ -858,7 +858,7 @@ func Sort(vm *VM, list, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // KeySort succeeds if sorted is a sorted list of pairs based on their keys.
-func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promise {
+func KeySort(vm *VM, pairs, sorted Term, k Cont, env *Env) *Promise {
 	var elems []Term
 	iter := ListIterator{List: pairs, Env: env}
 	for iter.Next() {
@@ -908,7 +908,7 @@ func KeySort(vm *VM, pairs, sorted Term, k func(*Env) *Promise, env *Env) *Promi
 }
 
 // Throw throws ball as an exception.
-func Throw(_ *VM, ball Term, _ func(*Env) *Promise, env *Env) *Promise {
+func Throw(_ *VM, ball Term, _ Cont, env *Env) *Promise {
 	switch b := env.Resolve(ball).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -918,7 +918,7 @@ func Throw(_ *VM, ball Term, _ func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
-func Catch(vm *VM, goal, catcher, recover Term, k func(*Env) *Promise, env *Env) *Promise {
+func Catch(vm *VM, goal, catcher, recover Term, k Cont, env *Env) *Promise {
 	return catch(func(err error) *Promise {
 		e, ok := env.Resolve(err).(Exception)
 		if !ok {
@@ -937,7 +937,7 @@ func Catch(vm *VM, goal, catcher, recover Term, k func(*Env) *Promise, env *Env)
 }
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
-func CurrentPredicate(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 	switch pi := env.Resolve(pi).(type) {
 	case Variable:
 		break
@@ -971,7 +971,7 @@ func CurrentPredicate(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise
 }
 
 // Retract removes the first clause that matches with t.
-func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
+func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
 	t = rulify(t, env)
 
 	h := t.(Compound).Arg(0)
@@ -1008,7 +1008,7 @@ func Retract(vm *VM, t Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Abolish removes the procedure indicated by pi from the database.
-func Abolish(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise {
+func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 	switch pi := env.Resolve(pi).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -1048,7 +1048,7 @@ func Abolish(vm *VM, pi Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // CurrentInput unifies stream with the current input stream.
-func CurrentInput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentInput(vm *VM, stream Term, k Cont, env *Env) *Promise {
 	switch env.Resolve(stream).(type) {
 	case Variable, *Stream:
 		return Unify(vm, stream, vm.input, k, env)
@@ -1058,7 +1058,7 @@ func CurrentInput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promise
 }
 
 // CurrentOutput unifies stream with the current output stream.
-func CurrentOutput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentOutput(vm *VM, stream Term, k Cont, env *Env) *Promise {
 	switch env.Resolve(stream).(type) {
 	case Variable, *Stream:
 		return Unify(vm, stream, vm.output, k, env)
@@ -1068,7 +1068,7 @@ func CurrentOutput(vm *VM, stream Term, k func(*Env) *Promise, env *Env) *Promis
 }
 
 // SetInput sets streamOrAlias as the current input stream.
-func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
+func SetInput(vm *VM, streamOrAlias Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1083,7 +1083,7 @@ func SetInput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Prom
 }
 
 // SetOutput sets streamOrAlias as the current output stream.
-func SetOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
+func SetOutput(vm *VM, streamOrAlias Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1117,7 +1117,7 @@ func stream(vm *VM, streamOrAlias Term, env *Env) (*Stream, error) {
 var openFile = os.OpenFile
 
 // Open opens SourceSink in mode and unifies with stream.
-func Open(vm *VM, sourceSink, mode, stream, options Term, k func(*Env) *Promise, env *Env) *Promise {
+func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Promise {
 	var name string
 	switch s := env.Resolve(sourceSink).(type) {
 	case Variable:
@@ -1276,7 +1276,7 @@ func handleStreamOptionEOFAction(_ *VM, s *Stream, o Compound, env *Env) error {
 }
 
 // Close closes a stream specified by streamOrAlias.
-func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env) *Promise {
+func Close(vm *VM, streamOrAlias, options Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1325,7 +1325,7 @@ func Close(vm *VM, streamOrAlias, options Term, k func(*Env) *Promise, env *Env)
 }
 
 // FlushOutput sends any buffered output to the stream.
-func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *Promise {
+func FlushOutput(vm *VM, streamOrAlias Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1342,7 +1342,7 @@ func FlushOutput(vm *VM, streamOrAlias Term, k func(*Env) *Promise, env *Env) *P
 }
 
 // WriteTerm outputs term to stream with options.
-func WriteTerm(vm *VM, streamOrAlias, t, options Term, k func(*Env) *Promise, env *Env) *Promise {
+func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1482,7 +1482,7 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.
-func CharCode(vm *VM, char, code Term, k func(*Env) *Promise, env *Env) *Promise {
+func CharCode(vm *VM, char, code Term, k Cont, env *Env) *Promise {
 	switch ch := env.Resolve(char).(type) {
 	case Variable:
 		switch cd := env.Resolve(code).(type) {
@@ -1523,7 +1523,7 @@ func CharCode(vm *VM, char, code Term, k func(*Env) *Promise, env *Env) *Promise
 }
 
 // PutByte outputs an integer byte to a stream represented by streamOrAlias.
-func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *Promise {
+func PutByte(vm *VM, streamOrAlias, byt Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1553,7 +1553,7 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k func(*Env) *Promise, env *Env) *
 }
 
 // PutCode outputs code to the stream represented by streamOrAlias.
-func PutCode(vm *VM, streamOrAlias, code Term, k func(*Env) *Promise, env *Env) *Promise {
+func PutCode(vm *VM, streamOrAlias, code Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1591,7 +1591,7 @@ type readTermOptions struct {
 }
 
 // ReadTerm reads from the stream represented by streamOrAlias and unifies with stream.
-func ReadTerm(vm *VM, streamOrAlias, out, options Term, k func(*Env) *Promise, env *Env) *Promise {
+func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1682,7 +1682,7 @@ func readTermOption(opts *readTermOptions, option Term, env *Env) error {
 }
 
 // GetByte reads a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
+func GetByte(vm *VM, streamOrAlias, inByte Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1716,7 +1716,7 @@ func GetByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env
 }
 
 // GetChar reads a character from the stream represented by streamOrAlias and unifies it with char.
-func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
+func GetChar(vm *VM, streamOrAlias, char Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1754,7 +1754,7 @@ func GetChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) 
 }
 
 // PeekByte peeks a byte from the stream represented by streamOrAlias and unifies it with inByte.
-func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *Env) *Promise {
+func PeekByte(vm *VM, streamOrAlias, inByte Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1792,7 +1792,7 @@ func PeekByte(vm *VM, streamOrAlias, inByte Term, k func(*Env) *Promise, env *En
 }
 
 // PeekChar peeks a rune from the stream represented by streamOrAlias and unifies it with char.
-func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env) *Promise {
+func PeekChar(vm *VM, streamOrAlias, char Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -1836,7 +1836,7 @@ func PeekChar(vm *VM, streamOrAlias, char Term, k func(*Env) *Promise, env *Env)
 var osExit = os.Exit
 
 // Halt exits the process with exit code of n.
-func Halt(_ *VM, n Term, k func(*Env) *Promise, env *Env) *Promise {
+func Halt(_ *VM, n Term, k Cont, env *Env) *Promise {
 	switch code := env.Resolve(n).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -1849,7 +1849,7 @@ func Halt(_ *VM, n Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
-func Clause(vm *VM, head, body Term, k func(*Env) *Promise, env *Env) *Promise {
+func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 	pi, _, err := piArg(head, env)
 	if err != nil {
 		return Error(err)
@@ -1891,7 +1891,7 @@ func rulify(t Term, env *Env) Term {
 }
 
 // AtomLength counts the runes in atom and unifies the result with length.
-func AtomLength(vm *VM, atom, length Term, k func(*Env) *Promise, env *Env) *Promise {
+func AtomLength(vm *VM, atom, length Term, k Cont, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -1916,7 +1916,7 @@ func AtomLength(vm *VM, atom, length Term, k func(*Env) *Promise, env *Env) *Pro
 }
 
 // AtomConcat concatenates atom1 and atom2 and unifies it with atom3.
-func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k func(*Env) *Promise, env *Env) *Promise {
+func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k Cont, env *Env) *Promise {
 	switch a3 := env.Resolve(atom3).(type) {
 	case Variable:
 		switch a1 := env.Resolve(atom1).(type) {
@@ -1970,7 +1970,7 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k func(*Env) *Promise, env *En
 }
 
 // SubAtom unifies subAtom with a sub atom of length which appears with before runes preceding it and after runes following it.
-func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k func(*Env) *Promise, env *Env) *Promise {
+func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k Cont, env *Env) *Promise {
 	switch whole := env.Resolve(atom).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -2028,7 +2028,7 @@ func checkPositiveInteger(n Term, env *Env) error {
 
 // AtomChars breaks down atom into list of characters and unifies with chars, or constructs an atom from a list of
 // characters chars and unifies it with atom.
-func AtomChars(vm *VM, atom, chars Term, k func(*Env) *Promise, env *Env) *Promise {
+func AtomChars(vm *VM, atom, chars Term, k Cont, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
@@ -2080,7 +2080,7 @@ func AtomChars(vm *VM, atom, chars Term, k func(*Env) *Promise, env *Env) *Promi
 
 // AtomCodes breaks up atom into a list of runes and unifies it with codes, or constructs an atom from the list of runes
 // and unifies it with atom.
-func AtomCodes(vm *VM, atom, codes Term, k func(*Env) *Promise, env *Env) *Promise {
+func AtomCodes(vm *VM, atom, codes Term, k Cont, env *Env) *Promise {
 	switch a := env.Resolve(atom).(type) {
 	case Variable:
 		var sb strings.Builder
@@ -2132,7 +2132,7 @@ func AtomCodes(vm *VM, atom, codes Term, k func(*Env) *Promise, env *Env) *Promi
 
 // NumberChars breaks up an atom representation of a number num into a list of characters and unifies it with chars, or
 // constructs a number from a list of characters chars and unifies it with num.
-func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
+func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 	var (
 		sb   strings.Builder
 		iter = ListIterator{List: chars, Env: env}
@@ -2176,7 +2176,7 @@ func NumberChars(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Prom
 	}
 }
 
-func numberCharsWrite(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) *Promise {
+func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 	switch n := env.Resolve(num).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -2216,7 +2216,7 @@ func numberCharsWrite(vm *VM, num, chars Term, k func(*Env) *Promise, env *Env) 
 
 // NumberCodes breaks up an atom representation of a number num into a list of runes and unifies it with codes, or
 // constructs a number from a list of runes codes and unifies it with num.
-func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Promise {
+func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 	switch codes := env.Resolve(codes).(type) {
 	case Variable:
 		break
@@ -2279,7 +2279,7 @@ func NumberCodes(vm *VM, num, codes Term, k func(*Env) *Promise, env *Env) *Prom
 }
 
 // StreamProperty succeeds iff the stream represented by stream has the stream property.
-func StreamProperty(vm *VM, stream, property Term, k func(*Env) *Promise, env *Env) *Promise {
+func StreamProperty(vm *VM, stream, property Term, k Cont, env *Env) *Promise {
 	streams := make([]*Stream, 0, len(vm.streams.elems))
 	switch s := env.Resolve(stream).(type) {
 	case Variable:
@@ -2351,7 +2351,7 @@ func isInteger(t Term, env *Env) bool {
 }
 
 // SetStreamPosition sets the position property of the stream represented by streamOrAlias.
-func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promise, env *Env) *Promise {
+func SetStreamPosition(vm *VM, streamOrAlias, position Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
@@ -2375,7 +2375,7 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k func(*Env) *Promi
 }
 
 // CharConversion registers a character conversion from inChar to outChar, or remove the conversion if inChar = outChar.
-func CharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, env *Env) *Promise {
+func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -2412,7 +2412,7 @@ func CharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, env *En
 }
 
 // CurrentCharConversion succeeds iff a conversion from inChar to outChar is defined.
-func CurrentCharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
 		break
@@ -2462,7 +2462,7 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k func(*Env) *Promise, 
 }
 
 // SetPrologFlag sets flag to value.
-func SetPrologFlag(vm *VM, flag, value Term, k func(*Env) *Promise, env *Env) *Promise {
+func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
 		return Error(instantiationError(env))
@@ -2552,7 +2552,7 @@ func modifyDoubleQuotes(vm *VM, value Atom) error {
 }
 
 // CurrentPrologFlag succeeds iff flag is set to value.
-func CurrentPrologFlag(vm *VM, flag, value Term, k func(*Env) *Promise, env *Env) *Promise {
+func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
 		break
@@ -2597,7 +2597,7 @@ func onOff(b bool) Atom {
 }
 
 // ExpandTerm transforms term1 according to term_expansion/2 and DCG rules then unifies with term2.
-func ExpandTerm(vm *VM, term1, term2 Term, k func(*Env) *Promise, env *Env) *Promise {
+func ExpandTerm(vm *VM, term1, term2 Term, k Cont, env *Env) *Promise {
 	t, err := expand(vm, term1, env)
 	if err != nil {
 		return Error(err)
@@ -2630,7 +2630,7 @@ func expand(vm *VM, term Term, env *Env) (Term, error) {
 }
 
 // Environ succeeds if an environment variable key has value.
-func Environ(vm *VM, key, value Term, k func(*Env) *Promise, env *Env) *Promise {
+func Environ(vm *VM, key, value Term, k Cont, env *Env) *Promise {
 	lines := os.Environ()
 	ks := make([]func(ctx context.Context) *Promise, len(lines))
 	for i, l := range lines {
@@ -2643,16 +2643,16 @@ func Environ(vm *VM, key, value Term, k func(*Env) *Promise, env *Env) *Promise 
 }
 
 // Nth0 succeeds if elem is the n-th element of list, counting from 0.
-func Nth0(vm *VM, n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
+func Nth0(vm *VM, n, list, elem Term, k Cont, env *Env) *Promise {
 	return nth(vm, 0, n, list, elem, k, env)
 }
 
 // Nth1 succeeds if elem is the n-th element of list, counting from 1.
-func Nth1(vm *VM, n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
+func Nth1(vm *VM, n, list, elem Term, k Cont, env *Env) *Promise {
 	return nth(vm, 1, n, list, elem, k, env)
 }
 
-func nth(vm *VM, base Integer, n, list, elem Term, k func(*Env) *Promise, env *Env) *Promise {
+func nth(vm *VM, base Integer, n, list, elem Term, k Cont, env *Env) *Promise {
 	switch n := env.Resolve(n).(type) {
 	case Variable:
 		var ks []func(context.Context) *Promise
@@ -2687,7 +2687,7 @@ func nth(vm *VM, base Integer, n, list, elem Term, k func(*Env) *Promise, env *E
 }
 
 // Succ succeeds if s is the successor of non-negative integer x.
-func Succ(vm *VM, x, s Term, k func(*Env) *Promise, env *Env) *Promise {
+func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
 	switch x := x.(type) {
 	case Variable:
 		switch s := s.(type) {
@@ -2736,7 +2736,7 @@ func Succ(vm *VM, x, s Term, k func(*Env) *Promise, env *Env) *Promise {
 }
 
 // Length succeeds iff list is a list of length.
-func Length(vm *VM, list, length Term, k func(*Env) *Promise, env *Env) *Promise {
+func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 	// https://github.com/mthom/scryer-prolog/issues/1325#issue-1160713156
 	// Note that it's a bit simpler since we don't have attributed variables (yet).
 
@@ -2794,7 +2794,7 @@ func Length(vm *VM, list, length Term, k func(*Env) *Promise, env *Env) *Promise
 	}, env)
 }
 
-func lengthRundown(vm *VM, list Variable, n Integer, k func(*Env) *Promise, env *Env) *Promise {
+func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
 	elems := make([]Term, n)
 	for i := range elems {
 		elems[i] = NewVariable()
@@ -2802,7 +2802,7 @@ func lengthRundown(vm *VM, list Variable, n Integer, k func(*Env) *Promise, env 
 	return Unify(vm, list, List(elems...), k, env)
 }
 
-func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, k func(*Env) *Promise, env *Env) *Promise {
+func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, k Cont, env *Env) *Promise {
 	return Delay(func(context.Context) *Promise {
 		return Unify(vm, tuple(list, length), tuple(suffix, offset), k, env)
 	}, func(context.Context) *Promise {
@@ -2816,7 +2816,7 @@ func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, 
 }
 
 // SkipMaxList iterates over list up to max elements and unifies the number of skipped elements with skip and the rest with suffix.
-func SkipMaxList(vm *VM, skip, max, list, suffix Term, k func(*Env) *Promise, env *Env) *Promise {
+func SkipMaxList(vm *VM, skip, max, list, suffix Term, k Cont, env *Env) *Promise {
 	m := maxInt
 	switch max := env.Resolve(max).(type) {
 	case Variable:
@@ -2842,7 +2842,7 @@ func SkipMaxList(vm *VM, skip, max, list, suffix Term, k func(*Env) *Promise, en
 }
 
 // Append succeeds iff zs is the concatenation of lists xs and ys.
-func Append(vm *VM, xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
+func Append(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 	// A special case for non-empty lists without a variable in the spine.
 	if xs, ok := env.Resolve(xs).(Compound); ok {
 		iter := ListIterator{List: xs, Env: nil} // No variables allowed.
@@ -2859,7 +2859,7 @@ func Append(vm *VM, xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
 	return appendLists(vm, xs, ys, zs, k, env)
 }
 
-func appendLists(vm *VM, xs, ys, zs Term, k func(*Env) *Promise, env *Env) *Promise {
+func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 	/*
 		append([], L, L).
 		append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).

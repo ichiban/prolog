@@ -18,7 +18,7 @@ import (
 
 func TestCall(t *testing.T) {
 	var vm VM
-	vm.Register0(atomFail, func(_ *VM, f func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomFail, func(_ *VM, f Cont, env *Env) *Promise {
 		return Bool(false)
 	})
 	assert.NoError(t, vm.Compile(context.Background(), `
@@ -72,7 +72,7 @@ func TestCall1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 2}: Predicate2(func(_ *VM, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 2}: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -99,7 +99,7 @@ func TestCall2(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -126,7 +126,7 @@ func TestCall3(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -153,7 +153,7 @@ func TestCall4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -180,7 +180,7 @@ func TestCall5(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -207,7 +207,7 @@ func TestCall6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -234,7 +234,7 @@ func TestCall7(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			vm := VM{procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("p"), arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("p"), arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			}}
@@ -248,7 +248,7 @@ func TestCall7(t *testing.T) {
 func TestCallNth(t *testing.T) {
 	vm := VM{
 		procedures: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 0}: Predicate0(func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+			{name: NewAtom("foo"), arity: 0}: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
 				return Delay(func(context.Context) *Promise {
 					return k(env)
 				}, func(context.Context) *Promise {
@@ -1418,25 +1418,25 @@ func TestBagOf(t *testing.T) {
 		unknown: unknownWarning,
 	}
 	vm.Register2(atomEqual, Unify)
-	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1444,7 +1444,7 @@ func TestBagOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1778,25 +1778,25 @@ func TestSetOf(t *testing.T) {
 		unknown: unknownWarning,
 	}
 	vm.Register2(atomEqual, Unify)
-	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1804,7 +1804,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1820,7 +1820,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	vm.Register2(NewAtom("d"), func(vm *VM, x, y Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("d"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		d := NewAtom("$d")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
@@ -1836,7 +1836,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	vm.Register2(NewAtom("member"), func(vm *VM, elem, list Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(NewAtom("member"), func(vm *VM, elem, list Term, k Cont, env *Env) *Promise {
 		var ks []func(context.Context) *Promise
 		iter := ListIterator{List: list, Env: env, AllowPartial: true}
 		for iter.Next() {
@@ -1908,14 +1908,14 @@ func TestFindAll(t *testing.T) {
 
 	var vm VM
 	vm.Register2(atomEqual, Unify)
-	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
 
@@ -2240,10 +2240,10 @@ func TestCatch(t *testing.T) {
 	var vm VM
 	vm.Register2(atomEqual, Unify)
 	vm.Register1(NewAtom("throw"), Throw)
-	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0(atomFail, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
 
@@ -5358,7 +5358,7 @@ func TestClause(t *testing.T) {
 
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("green"), arity: 1}: Predicate1(func(_ *VM, t Term, f func(*Env) *Promise, env *Env) *Promise {
+				{name: NewAtom("green"), arity: 1}: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
 					return Bool(true)
 				}),
 			},
@@ -7306,13 +7306,13 @@ func TestNegation(t *testing.T) {
 	e := errors.New("failed")
 
 	var vm VM
-	vm.Register0(atomTrue, func(_ *VM, k func(*Env) *Promise, env *Env) *Promise {
+	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	vm.Register0(atomFalse, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomFalse, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	vm.Register0(atomError, func(*VM, func(*Env) *Promise, *Env) *Promise {
+	vm.Register0(atomError, func(*VM, Cont, *Env) *Promise {
 		return Error(e)
 	})
 

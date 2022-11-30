@@ -56,7 +56,7 @@ Type Ctrl-C or 'halt.' to exit.
 		}
 		defer restore()
 
-		halt = func(vm *engine.VM, n engine.Term, k func(*engine.Env) *engine.Promise, env *engine.Env) *engine.Promise {
+		halt = func(vm *engine.VM, n engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
 			restore()
 			return engine.Halt(vm, n, k, env)
 		}
