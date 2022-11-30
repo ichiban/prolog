@@ -66,7 +66,7 @@ func TestEnv_Simplify(t *testing.T) {
 	assert.True(t, iter.Next())
 	assert.Equal(t, NewAtom("b"), iter.Current())
 	assert.False(t, iter.Next())
-	suffix, ok := iter.Suffix().(Compound)
+	suffix, ok := iter.Suffix().(*partial)
 	assert.True(t, ok)
 	assert.Equal(t, atomDot, suffix.Functor())
 	assert.Equal(t, 2, suffix.Arity())

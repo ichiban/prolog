@@ -42,7 +42,7 @@ func TestList(t *testing.T) {
 }
 
 func TestPartialList(t *testing.T) {
-	x := NewVariable()
+	x := Term(NewVariable())
 
 	tests := []struct {
 		title string
@@ -51,7 +51,7 @@ func TestPartialList(t *testing.T) {
 		list  Term
 	}{
 		{title: "empty", rest: x, elems: nil, list: x},
-		{title: "non-empty", rest: x, elems: []Term{NewAtom("a"), NewAtom("b")}, list: partial{Compound: list{NewAtom("a"), NewAtom("b")}, tail: x}},
+		{title: "non-empty", rest: x, elems: []Term{NewAtom("a"), NewAtom("b")}, list: &partial{Compound: list{NewAtom("a"), NewAtom("b")}, tail: &x}},
 	}
 
 	for _, tt := range tests {

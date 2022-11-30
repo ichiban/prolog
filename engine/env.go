@@ -218,6 +218,13 @@ func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
 			l[i] = simplify(e, simplified, env)
 		}
 		return l
+	case *partial:
+		var p partial
+		simplified[id(t)] = &p
+		p.Compound = simplify(t.Compound, simplified, env).(Compound)
+		tail := simplify(*t.tail, simplified, env)
+		p.tail = &tail
+		return &p
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
