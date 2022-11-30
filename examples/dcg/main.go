@@ -66,7 +66,7 @@ verb --> [bites].
 		return
 	}
 
-	sols, err := i.Query(`phrase(s, ?).`, flag.Args())
+	sols, err := i.Query(`phrase(sentence, ?).`, flag.Args())
 	if err != nil {
 		panic(err)
 	}
