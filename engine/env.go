@@ -269,6 +269,10 @@ func (e *Env) Unify(x, y Term) (*Env, bool) {
 	return e.unify(x, y, false)
 }
 
+func (e *Env) unifyWithOccursCheck(x, y Term) (*Env, bool) {
+	return e.unify(x, y, true)
+}
+
 func (e *Env) unify(x, y Term, occursCheck bool) (*Env, bool) {
 	x, y = e.Resolve(x), e.Resolve(y)
 	switch x := x.(type) {

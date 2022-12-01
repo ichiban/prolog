@@ -146,7 +146,7 @@ func CallNth(vm *VM, goal, nth Term, k Cont, env *Env) *Promise {
 
 // Unify unifies x and y without occurs check (i.e., X = f(X) is allowed).
 func Unify(_ *VM, x, y Term, k Cont, env *Env) *Promise {
-	env, ok := env.unify(x, y, false)
+	env, ok := env.Unify(x, y)
 	if !ok {
 		return Bool(false)
 	}
@@ -155,7 +155,7 @@ func Unify(_ *VM, x, y Term, k Cont, env *Env) *Promise {
 
 // UnifyWithOccursCheck unifies x and y with occurs check (i.e., X = f(X) is not allowed).
 func UnifyWithOccursCheck(_ *VM, x, y Term, k Cont, env *Env) *Promise {
-	env, ok := env.unify(x, y, true)
+	env, ok := env.unifyWithOccursCheck(x, y)
 	if !ok {
 		return Bool(false)
 	}
@@ -164,7 +164,7 @@ func UnifyWithOccursCheck(_ *VM, x, y Term, k Cont, env *Env) *Promise {
 
 // SubsumesTerm succeeds if general and specific are unifiable without binding variables in specific.
 func SubsumesTerm(_ *VM, general, specific Term, k Cont, env *Env) *Promise {
-	theta, ok := env.unify(general, specific, true)
+	theta, ok := env.unifyWithOccursCheck(general, specific)
 	if !ok {
 		return Bool(false)
 	}
@@ -739,7 +739,7 @@ func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances
 			ks = append(ks, func(context.Context) *Promise {
 				env := env
 				for _, w = range wList {
-					env, _ = env.unify(witness, w, false)
+					env, _ = env.Unify(witness, w)
 				}
 				return Unify(vm, agg(tList, env), instances, k, env)
 			})
@@ -932,7 +932,7 @@ func Catch(vm *VM, goal, catcher, recover Term, k Cont, env *Env) *Promise {
 			e = Exception{term: atomError.Apply(NewAtom("system_error"), NewAtom(err.Error()))}
 		}
 
-		env, ok := env.unify(catcher, e.term, false)
+		env, ok := env.Unify(catcher, e.term)
 		if !ok {
 			return nil
 		}
