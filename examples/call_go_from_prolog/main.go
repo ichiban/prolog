@@ -26,7 +26,7 @@ func main() {
 		}
 
 		// Return values by unification with the output arguments.
-		env, ok = env.Unify(status, engine.Integer(resp.StatusCode), false)
+		env, ok = env.Unify(status, engine.Integer(resp.StatusCode))
 		if !ok {
 			return engine.Bool(false)
 		}

@@ -370,7 +370,7 @@ func TestUnify(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := Unify(nil, tt.x, tt.y, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -424,7 +424,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := UnifyWithOccursCheck(nil, tt.x, tt.y, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -609,7 +609,7 @@ func TestFunctor(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := Functor(nil, tt.term, tt.name, tt.arity, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -1468,7 +1468,7 @@ func TestBagOf(t *testing.T) {
 			}
 			_, err := BagOf(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := env.Unify(v, k, false)
+					_, ok := env.unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -1860,7 +1860,7 @@ func TestSetOf(t *testing.T) {
 			}
 			_, err := SetOf(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := env.Unify(v, k, false)
+					_, ok := env.unify(v, k, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -1923,7 +1923,7 @@ func TestFindAll(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := FindAll(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(v, k, false)
+					_, ok := env.unify(v, k, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -3739,7 +3739,7 @@ func TestClose(t *testing.T) {
 			t.Run("force but the argument is a variable", func(t *testing.T) {
 				var vm VM
 				_, err := Close(&vm, &Stream{}, List(atomForce.Apply(NewVariable())), Success, nil).Force(context.Background())
-				_, ok := NewEnv().Unify(domainError(validDomainStreamOption, atomForce.Apply(NewVariable()), nil).term, err.(Exception).term, false)
+				_, ok := NewEnv().unify(domainError(validDomainStreamOption, atomForce.Apply(NewVariable()), nil).term, err.(Exception).term, false)
 				assert.True(t, ok)
 			})
 
@@ -3913,7 +3913,7 @@ func TestWriteTerm(t *testing.T) {
 			if tt.err == nil {
 				assert.NoError(t, err)
 			} else if te, ok := tt.err.(*Exception); ok {
-				_, ok := NewEnv().Unify(te.term, err.(*Exception).term, false)
+				_, ok := NewEnv().unify(te.term, err.(*Exception).term, false)
 				assert.True(t, ok)
 			}
 			if tt.outputPattern == nil {
@@ -5662,7 +5662,7 @@ func TestAtomChars(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomChars(nil, tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -5727,7 +5727,7 @@ func TestAtomCodes(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := AtomCodes(nil, tt.atom, tt.list, func(env *Env) *Promise {
 				for k, v := range tt.env {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				return Bool(true)
@@ -5821,7 +5821,7 @@ func TestNumberChars(t *testing.T) {
 
 		t.Run("list-ish", func(t *testing.T) {
 			_, err := NumberChars(nil, Integer(0), PartialList(NewAtom("b"), NewVariable()), Success, nil).Force(context.Background())
-			_, ok := NewEnv().Unify(err.(Exception).Term(), typeError(validTypeList, PartialList(NewAtom("b"), NewVariable()), nil).Term(), false)
+			_, ok := NewEnv().unify(err.(Exception).Term(), typeError(validTypeList, PartialList(NewAtom("b"), NewVariable()), nil).Term(), false)
 			assert.True(t, ok)
 		})
 	})
@@ -6054,7 +6054,7 @@ func TestStreamProperty(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := StreamProperty(&vm, tt.stream, tt.property, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]
@@ -7359,7 +7359,7 @@ func TestAppend(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			ok, err := Append(nil, tt.xs, tt.ys, tt.zs, func(env *Env) *Promise {
 				for k, v := range tt.env[0] {
-					_, ok := env.Unify(k, v, false)
+					_, ok := env.unify(k, v, false)
 					assert.True(t, ok)
 				}
 				tt.env = tt.env[1:]

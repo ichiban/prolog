@@ -264,7 +264,12 @@ func (e *Env) appendFreeVariables(fvs variables, t Term) variables {
 	return fvs
 }
 
-func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
+// Unify unifies 2 terms.
+func (e *Env) Unify(x, y Term) (*Env, bool) {
+	return e.unify(x, y, false)
+}
+
+func (e *Env) unify(x, y Term, occursCheck bool) (*Env, bool) {
 	x, y = e.Resolve(x), e.Resolve(y)
 	switch x := x.(type) {
 	case Variable:
@@ -279,7 +284,7 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 	case Compound:
 		switch y := y.(type) {
 		case Variable:
-			return e.Unify(y, x, occursCheck)
+			return e.unify(y, x, occursCheck)
 		case Compound:
 			if x.Functor() != y.Functor() {
 				return e, false
@@ -289,7 +294,7 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 			}
 			var ok bool
 			for i := 0; i < x.Arity(); i++ {
-				e, ok = e.Unify(x.Arg(i), y.Arg(i), occursCheck)
+				e, ok = e.unify(x.Arg(i), y.Arg(i), occursCheck)
 				if !ok {
 					return e, false
 				}
@@ -301,7 +306,7 @@ func (e *Env) Unify(x, y Term, occursCheck bool) (*Env, bool) {
 	default: // atomic
 		switch y := y.(type) {
 		case Variable:
-			return e.Unify(y, x, occursCheck)
+			return e.unify(y, x, occursCheck)
 		default:
 			return e, x == y
 		}
