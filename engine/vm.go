@@ -229,7 +229,7 @@ func (*VM) execConst(r *registers) *Promise {
 	x := r.xr[r.pc[0].operand]
 	arest := NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(x, arest), false)
+	r.env, ok = r.env.Unify(r.args, Cons(x, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -242,7 +242,7 @@ func (*VM) execVar(r *registers) *Promise {
 	v := r.vars[r.pc[0].operand]
 	arest := NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(Cons(v, arest), r.args, false)
+	r.env, ok = r.env.Unify(Cons(v, arest), r.args)
 	if !ok {
 		return Bool(false)
 	}
@@ -255,7 +255,7 @@ func (vm *VM) execFunctor(r *registers) *Promise {
 	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -281,13 +281,13 @@ func (vm *VM) execFunctor(r *registers) *Promise {
 
 func (*VM) execPop(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List(), false)
+	r.env, ok = r.env.Unify(r.args, List())
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
 	a, arest := NewVariable(), NewVariable()
-	r.env, ok = r.env.Unify(r.astack, Cons(a, arest), false)
+	r.env, ok = r.env.Unify(r.astack, Cons(a, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -298,11 +298,11 @@ func (*VM) execPop(r *registers) *Promise {
 
 func (*VM) execEnter(r *registers) *Promise {
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List(), false)
+	r.env, ok = r.env.Unify(r.args, List())
 	if !ok {
 		return Bool(false)
 	}
-	r.env, ok = r.env.Unify(r.astack, List(), false)
+	r.env, ok = r.env.Unify(r.astack, List())
 	if !ok {
 		return Bool(false)
 	}
@@ -316,7 +316,7 @@ func (*VM) execEnter(r *registers) *Promise {
 func (vm *VM) execCall(r *registers) *Promise {
 	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List(), false)
+	r.env, ok = r.env.Unify(r.args, List())
 	if !ok {
 		return Bool(false)
 	}
@@ -361,7 +361,7 @@ func (vm *VM) execList(r *registers) *Promise {
 	l := r.xr[r.pc[0].operand].(Integer)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -376,7 +376,7 @@ func (vm *VM) execPartial(r *registers) *Promise {
 	l := r.xr[r.pc[0].operand].(Integer)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest), false)
+	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
