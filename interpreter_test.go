@@ -86,7 +86,7 @@ func TestNew(t *testing.T) {
 		p := New(nil, nil)
 
 		var s struct {
-			L []engine.Term
+			L []interface{}
 			N int
 		}
 
@@ -721,41 +721,23 @@ func TestInterpreter_Query(t *testing.T) {
 		args              []interface{}
 		queryErr, scanErr bool
 		scan              interface{}
-		result            func() interface{}
+		result            interface{}
 	}{
-		{query: `append(X, Y, Z).`, scan: map[string]engine.Term{}, result: func() interface{} {
-			last := engine.NewVariable()
-			return map[string]engine.Term{
-				"X": engine.NewAtom("nil"),
-				"Y": last - 16,
-				"Z": last - 16,
-			}
+		{query: `append(X, Y, Z).`, scan: map[string]interface{}{}, result: map[string]interface{}{
+			"X": []interface{}{},
+			"Y": nil,
+			"Z": nil,
 		}},
-		{query: `append(cons(a, cons(b, nil)), cons(c, nil), X).`, scan: map[string]engine.Term{}, result: func() interface{} {
-			return map[string]engine.Term{
-				"X": engine.NewAtom("cons").Apply(
-					engine.NewAtom("a"),
-					engine.NewAtom("cons").Apply(
-						engine.NewAtom("b"),
-						engine.NewAtom("cons").Apply(
-							engine.NewAtom("c"),
-							engine.NewAtom("nil"),
-						),
-					),
-				),
-			}
+		{query: `append([a, b], [c], X).`, scan: map[string]TermString{}, result: map[string]TermString{
+			"X": "[a,b,c]",
 		}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: func() interface{} {
-			return map[string]interface{}{}
-		}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true, result: func() interface{} { return nil }},
-		{query: `foo(A, B, C, D).`, scan: &result{}, result: func() interface{} {
-			return &result{
-				A:    "a",
-				B:    1,
-				C:    2.0,
-				List: []string{"abc", "def"},
-			}
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true, result: nil},
+		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
+			A:    "a",
+			B:    1,
+			C:    2.0,
+			List: []string{"abc", "def"},
 		}},
 	}
 
@@ -766,8 +748,8 @@ func TestInterpreter_Query(t *testing.T) {
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
 
-append(nil, L, L).
-append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).
+append([], L, L).
+append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 
 foo(a, 1, 2.0, [abc, def]).
 `))
@@ -787,7 +769,7 @@ foo(a, 1, 2.0, [abc, def]).
 			} else {
 				assert.NoError(t, sols.Scan(tt.scan))
 			}
-			assert.Equal(t, tt.result(), tt.scan)
+			assert.Equal(t, tt.result, tt.scan)
 		})
 	}
 }
@@ -1170,7 +1152,7 @@ foo(c, d).
 
 			m := map[string]string{}
 			assert.NoError(t, sol.Scan(m))
-			assert.Equal(t, []string{"X", "Y"}, sol.Vars())
+			assert.Len(t, m, 2)
 			assert.Equal(t, "a", m["X"])
 			assert.Equal(t, "b", m["Y"])
 		})
@@ -1184,7 +1166,8 @@ foo(c, d).
 	t.Run("no solutions", func(t *testing.T) {
 		sol := i.QuerySolution(`foo(e, f).`)
 		assert.Equal(t, ErrNoSolutions, sol.Err())
-		assert.Empty(t, sol.Vars())
+		m := map[string]interface{}{}
+		assert.Equal(t, ErrNoSolutions, sol.Scan(m))
 	})
 
 	t.Run("runtime error", func(t *testing.T) {

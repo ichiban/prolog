@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sort"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -126,25 +127,18 @@ func handleLine(ctx context.Context, buf *strings.Builder, p *prolog.Interpreter
 	for sols.Next() {
 		exists = true
 
-		m := map[string]engine.Term{}
+		m := map[string]prolog.TermString{}
 		_ = sols.Scan(m)
 
 		var buf bytes.Buffer
-		vars := sols.Vars()
-		if len(vars) == 0 {
+		if len(m) == 0 {
 			_, _ = fmt.Fprintf(&buf, "%t", true)
 		} else {
-			ls := make([]string, len(vars))
-			for i, v := range vars {
-				var sb strings.Builder
-				_, _ = fmt.Fprintf(&sb, "%s = ", v)
-				s := engine.NewOutputTextStream(&sb)
-				opts := engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true")))
-				if _, err := engine.WriteTerm(&p.VM, s, m[v], opts, engine.Success, nil).Force(ctx); err != nil {
-					return err
-				}
-				ls[i] = sb.String()
+			ls := make([]string, 0, len(m))
+			for v, t := range m {
+				ls = append(ls, fmt.Sprintf("%s = %s", v, t))
 			}
+			sort.Strings(ls)
 			_, _ = fmt.Fprint(&buf, strings.Join(ls, ",\n"))
 		}
 		if _, err := t.Write(buf.Bytes()); err != nil {

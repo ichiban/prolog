@@ -61,7 +61,7 @@ func compile(t Term, env *Env) (clauses, error) {
 	}
 
 	c, err := compileClause(t, nil, env)
-	c.raw = env.Simplify(t)
+	c.raw = env.simplify(t)
 	return []clause{c}, err
 }
 

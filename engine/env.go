@@ -195,8 +195,8 @@ func (e *Env) Resolve(t Term) Term {
 	return nil
 }
 
-// Simplify trys to remove as many variables as possible from term t.
-func (e *Env) Simplify(t Term) Term {
+// simplify trys to remove as many variables as possible from term t.
+func (e *Env) simplify(t Term) Term {
 	return simplify(t, nil, e)
 }
 

@@ -38,168 +38,184 @@ func TestSolutions_Next(t *testing.T) {
 }
 
 func TestSolutions_Scan(t *testing.T) {
-	var (
-		varFloat32 = engine.NewVariable()
-		varFloat64 = engine.NewVariable()
-		varInt     = engine.NewVariable()
-		varInt8    = engine.NewVariable()
-		varInt16   = engine.NewVariable()
-		varInt32   = engine.NewVariable()
-		varInt64   = engine.NewVariable()
-		varString  = engine.NewVariable()
-		varSlice   = engine.NewVariable()
-		varFoo     = engine.NewVariable()
-		varBar     = engine.NewVariable()
-		varBaz     = engine.NewVariable()
-	)
-
-	env := engine.NewEnv()
-	for k, v := range map[engine.Variable]engine.Term{
-		varFloat32: engine.Float(32),
-		varFloat64: engine.Float(64),
-		varInt:     engine.Integer(1),
-		varInt8:    engine.Integer(8),
-		varInt16:   engine.Integer(16),
-		varInt32:   engine.Integer(32),
-		varInt64:   engine.Integer(64),
-		varString:  engine.NewAtom("string"),
-		varSlice:   engine.List(engine.NewAtom("a"), engine.NewAtom("b"), engine.NewAtom("c")),
-		varFoo:     engine.NewAtom("foo"),
-		varBar:     engine.NewAtom("bar"),
-		varBaz:     engine.NewAtom("baz"),
-	} {
-		env, _ = env.Unify(k, v)
+	sols := func(m map[string]engine.Term) Solutions {
+		env := engine.NewEnv()
+		var vars []engine.ParsedVariable
+		for n, t := range m {
+			v := engine.NewVariable()
+			env, _ = env.Unify(v, t)
+			vars = append(vars, engine.ParsedVariable{Name: engine.NewAtom(n), Variable: v})
+		}
+		return Solutions{
+			env:  env,
+			vars: vars,
+		}
 	}
 
-	sols := Solutions{
-		env: env,
-		vars: []engine.ParsedVariable{
-			{Name: engine.NewAtom("Float32"), Variable: varFloat32},
-			{Name: engine.NewAtom("Float64"), Variable: varFloat64},
-			{Name: engine.NewAtom("Int"), Variable: varInt},
-			{Name: engine.NewAtom("Int8"), Variable: varInt8},
-			{Name: engine.NewAtom("Int16"), Variable: varInt16},
-			{Name: engine.NewAtom("Int32"), Variable: varInt32},
-			{Name: engine.NewAtom("Int64"), Variable: varInt64},
-			{Name: engine.NewAtom("String"), Variable: varString},
-			{Name: engine.NewAtom("Slice"), Variable: varSlice},
-			{Name: engine.NewAtom("Foo"), Variable: varFoo},
-			{Name: engine.NewAtom("Bar"), Variable: varBar},
-			{Name: engine.NewAtom("Baz"), Variable: varBaz},
-		},
+	tests := []struct {
+		title  string
+		sols   Solutions
+		dest   interface{}
+		err    error
+		result interface{}
+	}{
+		{title: "struct: empty", sols: Solutions{}, dest: &struct{}{}, result: &struct{}{}},
+
+		{title: "struct: interface, variable", sols: sols(map[string]engine.Term{
+			"X": engine.NewVariable(),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: nil,
+		}},
+		{title: "struct: interface, atom", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: "foo",
+		}},
+		{title: "struct: interface, empty list", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("[]"),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: []interface{}{},
+		}},
+		{title: "struct: interface, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: 1,
+		}},
+		{title: "struct: interface, float", sols: sols(map[string]engine.Term{
+			"X": engine.Float(1),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: 1.0,
+		}},
+		{title: "struct: interface, list", sols: sols(map[string]engine.Term{
+			"X": engine.List(engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
+			X: []interface{}{1, 2, 3},
+		}},
+		{title: "struct: interface, list with unknown", sols: sols(map[string]engine.Term{
+			"X": engine.List(engine.Integer(1), nil, engine.Integer(3)),
+		}), dest: &struct{ X interface{} }{}, err: errConversion},
+		{title: "struct: interface, not list", sols: sols(map[string]engine.Term{
+			"X": engine.PartialList(engine.NewVariable(), engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		}), dest: &struct{ X interface{} }{}, err: errConversion},
+		{title: "struct: interface, unknown", sols: sols(map[string]engine.Term{
+			"X": nil,
+		}), dest: &struct{ X interface{} }{}, err: errConversion},
+
+		{title: "struct: string, atom", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
+		{title: "struct: string, non-atom", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X string }{}, err: errConversion},
+
+		{title: "struct: int, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X int }{}, result: &struct{ X int }{X: 1}},
+		{title: "struct: int, non-integer", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X int }{}, err: errConversion},
+
+		{title: "struct: int8, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X int8 }{}, result: &struct{ X int8 }{X: 1}},
+		{title: "struct: int8, non-integer", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X int8 }{}, err: errConversion},
+
+		{title: "struct: int16, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X int16 }{}, result: &struct{ X int16 }{X: 1}},
+		{title: "struct: int16, non-integer", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X int16 }{}, err: errConversion},
+
+		{title: "struct: int32, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X int32 }{}, result: &struct{ X int32 }{X: 1}},
+		{title: "struct: int32, non-integer", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X int32 }{}, err: errConversion},
+
+		{title: "struct: int64, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X int64 }{}, result: &struct{ X int64 }{X: 1}},
+		{title: "struct: int64, non-integer", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X int64 }{}, err: errConversion},
+
+		{title: "struct: float32, float", sols: sols(map[string]engine.Term{
+			"X": engine.Float(1),
+		}), dest: &struct{ X float32 }{}, result: &struct{ X float32 }{X: 1}},
+		{title: "struct: float32, non-float", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X float32 }{}, err: errConversion},
+
+		{title: "struct: float64, float", sols: sols(map[string]engine.Term{
+			"X": engine.Float(1),
+		}), dest: &struct{ X float64 }{}, result: &struct{ X float64 }{X: 1}},
+		{title: "struct: float64, non-float", sols: sols(map[string]engine.Term{
+			"X": engine.NewAtom("foo"),
+		}), dest: &struct{ X float64 }{}, err: errConversion},
+
+		{title: "struct: slice, list", sols: sols(map[string]engine.Term{
+			"X": engine.List(engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		}), dest: &struct{ X []int }{}, result: &struct{ X []int }{X: []int{1, 2, 3}}},
+		{title: "struct: slice, list with unknown", sols: sols(map[string]engine.Term{
+			"X": engine.List(engine.Integer(1), nil, engine.Integer(3)),
+		}), dest: &struct{ X []int }{}, err: errConversion},
+		{title: "struct: slice, non-list", sols: sols(map[string]engine.Term{
+			"X": engine.PartialList(engine.NewVariable(), engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		}), dest: &struct{ X []int }{}, err: errConversion},
+
+		{title: "struct: unsupported field type", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: &struct{ X bool }{}, err: errConversion},
+
+		{title: "struct: alias", sols: sols(map[string]engine.Term{
+			"Y": engine.Integer(1),
+		}), dest: &struct {
+			X int `prolog:"Y"`
+		}{}, result: &struct {
+			X int `prolog:"Y"`
+		}{X: 1}},
+
+		{title: "struct: ignored variable", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+			"Y": engine.Integer(2), // Y is not a field of the struct. Ignored.
+		}), dest: &struct {
+			X int
+		}{}, result: &struct {
+			X int
+		}{X: 1}},
+
+		{title: "map: empty", sols: Solutions{}, dest: map[string]interface{}{}, result: map[string]interface{}{}},
+		{title: "map: interface, integer", sols: sols(map[string]engine.Term{
+			"X": engine.Integer(1),
+		}), dest: map[string]interface{}{}, result: map[string]interface{}{
+			"X": 1,
+		}},
+		{title: "map: non-string key", sols: Solutions{}, dest: map[int]interface{}{}, err: errors.New("map key is not string")},
+		{title: "map: interface, unknown", sols: sols(map[string]engine.Term{
+			"X": nil,
+		}), dest: map[string]interface{}{}, err: errConversion},
+
+		{title: "invalid", sols: Solutions{}, dest: nil, err: errors.New("invalid kind: invalid")},
 	}
 
-	t.Run("struct", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			var s struct {
-				Float32 float32
-				Float64 float64
-				Int     int
-				Int8    int8
-				Int16   int16
-				Int32   int32
-				Int64   int64
-				String  string
-				Slice   []string
-				Tagged  string `prolog:"Foo"`
-				Bar     engine.Term
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			assert.Equal(t, tt.err, tt.sols.Scan(tt.dest))
+			if tt.err == nil {
+				assert.Equal(t, tt.result, tt.dest)
 			}
-			assert.NoError(t, sols.Scan(&s))
-			assert.Equal(t, float32(32), s.Float32)
-			assert.Equal(t, float64(64), s.Float64)
-			assert.Equal(t, 1, s.Int)
-			assert.Equal(t, int8(8), s.Int8)
-			assert.Equal(t, int16(16), s.Int16)
-			assert.Equal(t, int32(32), s.Int32)
-			assert.Equal(t, int64(64), s.Int64)
-			assert.Equal(t, "string", s.String)
-			assert.Equal(t, []string{"a", "b", "c"}, s.Slice)
-			assert.Equal(t, "foo", s.Tagged)
-			assert.Equal(t, engine.NewAtom("bar"), s.Bar)
 		})
-
-		t.Run("ng", func(t *testing.T) {
-			t.Run("string", func(t *testing.T) {
-				var s struct {
-					Int string
-				}
-				assert.Error(t, sols.Scan(&s))
-			})
-
-			t.Run("float", func(t *testing.T) {
-				var s struct {
-					String float64
-				}
-				assert.Error(t, sols.Scan(&s))
-			})
-
-			t.Run("slice", func(t *testing.T) {
-				var s struct {
-					Slice []int
-				}
-				assert.Error(t, sols.Scan(&s))
-			})
-
-			t.Run("unsupported", func(t *testing.T) {
-				var s struct {
-					Int complex64
-				}
-				assert.Error(t, sols.Scan(&s))
-			})
-		})
-	})
-
-	t.Run("map", func(t *testing.T) {
-		t.Run("ok", func(t *testing.T) {
-			m := map[string]engine.Term{}
-			assert.NoError(t, sols.Scan(m))
-			assert.Equal(t, engine.Float(32), m["Float32"])
-			assert.Equal(t, engine.Float(64), m["Float64"])
-			assert.Equal(t, engine.Integer(1), m["Int"])
-			assert.Equal(t, engine.Integer(8), m["Int8"])
-			assert.Equal(t, engine.Integer(16), m["Int16"])
-			assert.Equal(t, engine.Integer(32), m["Int32"])
-			assert.Equal(t, engine.Integer(64), m["Int64"])
-			assert.Equal(t, engine.NewAtom("string"), m["String"])
-			assert.Equal(t, engine.List(engine.NewAtom("a"), engine.NewAtom("b"), engine.NewAtom("c")), m["Slice"])
-			assert.Equal(t, engine.NewAtom("foo"), m["Foo"])
-			assert.Equal(t, engine.NewAtom("bar"), m["Bar"])
-		})
-
-		t.Run("ng", func(t *testing.T) {
-			t.Run("key", func(t *testing.T) {
-				m := map[int]engine.Term{}
-				assert.Error(t, sols.Scan(m))
-			})
-
-			t.Run("value", func(t *testing.T) {
-				m := map[string]int{}
-				assert.Error(t, sols.Scan(m))
-			})
-		})
-	})
-
-	t.Run("other", func(t *testing.T) {
-		assert.Error(t, sols.Scan(1))
-	})
+	}
 }
 
 func TestSolutions_Err(t *testing.T) {
 	err := errors.New("ng")
 	sols := Solutions{err: err}
 	assert.Equal(t, err, sols.Err())
-}
-
-func TestSolutions_Vars(t *testing.T) {
-	sols := Solutions{
-		vars: []engine.ParsedVariable{
-			{Name: engine.NewAtom("A")},
-			{Name: engine.NewAtom("B")},
-			{Name: engine.NewAtom("C")},
-		},
-	}
-
-	assert.Equal(t, []string{"A", "B", "C"}, sols.Vars())
 }
 
 func ExampleSolutions_Scan() {

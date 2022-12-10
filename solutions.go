@@ -1,16 +1,24 @@
 package prolog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ichiban/prolog/engine"
 )
 
+// ErrClosed indicates the Solutions are already closed and unable to perform the operation.
+var ErrClosed = errors.New("closed")
+
+var errConversion = errors.New("conversion failed")
+
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
+	vm     *engine.VM
 	env    *engine.Env
 	vars   []engine.ParsedVariable
 	more   chan<- bool
@@ -18,9 +26,6 @@ type Solutions struct {
 	err    error
 	closed bool
 }
-
-// ErrClosed indicates the Solutions are already closed and unable to perform the operation.
-var ErrClosed = errors.New("closed")
 
 // Close closes the Solutions and terminates the search for other solutions.
 func (s *Solutions) Close() error {
@@ -47,35 +52,32 @@ func (s *Solutions) Next() bool {
 // Scan copies the variable values of the current solution into the specified struct/map.
 func (s *Solutions) Scan(dest interface{}) error {
 	o := reflect.ValueOf(dest)
-	switch o.Kind() {
-	case reflect.Ptr:
+	for o.Kind() == reflect.Ptr {
 		o = o.Elem()
-		switch o.Kind() {
-		case reflect.Struct:
-			t := o.Type()
+	}
+	switch o.Kind() {
+	case reflect.Struct:
+		t := o.Type()
 
-			fields := map[string]reflect.Value{}
-			for i := 0; i < t.NumField(); i++ {
-				f := t.Field(i)
-				name := f.Name
-				if alias, ok := f.Tag.Lookup("prolog"); ok {
-					name = alias
-				}
-				fields[name] = o.Field(i)
+		fields := make(map[string]interface{}, t.NumField())
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			name := f.Name
+			if alias, ok := f.Tag.Lookup("prolog"); ok {
+				name = alias
+			}
+			fields[name] = o.Field(i).Addr().Interface()
+		}
+
+		for _, v := range s.vars {
+			n := v.Name.String()
+			f, ok := fields[n]
+			if !ok {
+				continue
 			}
 
-			for _, v := range s.vars {
-				n := v.Name.String()
-				f, ok := fields[n]
-				if !ok {
-					continue
-				}
-
-				val, err := convert(v.Variable, f.Type(), s.env)
-				if err != nil {
-					return err
-				}
-				fields[n].Set(val)
+			if err := convertAssign(f, s.vm, v.Variable, s.env); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -86,11 +88,11 @@ func (s *Solutions) Scan(dest interface{}) error {
 		}
 
 		for _, v := range s.vars {
-			val, err := convert(s.env.Simplify(v.Variable), t.Elem(), s.env)
-			if err != nil {
+			dest := reflect.New(t.Elem())
+			if err := convertAssign(dest.Interface(), s.vm, v.Variable, s.env); err != nil {
 				return err
 			}
-			o.SetMapIndex(reflect.ValueOf(v.Name.String()), val)
+			o.SetMapIndex(reflect.ValueOf(v.Name.String()), dest.Elem())
 		}
 		return nil
 	default:
@@ -98,74 +100,182 @@ func (s *Solutions) Scan(dest interface{}) error {
 	}
 }
 
-var errConversion = errors.New("conversion failed")
+var atomEmptyList = engine.NewAtom("[]")
 
-func convert(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
-	switch typ {
-	case reflect.TypeOf((*interface{})(nil)).Elem(), reflect.TypeOf((*engine.Term)(nil)).Elem():
-		return reflect.ValueOf(env.Resolve(t)), nil
-	}
-
-	switch typ.Kind() {
-	case reflect.Float32, reflect.Float64:
-		return convertFloat(t, typ, env)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return convertInteger(t, typ, env)
-	case reflect.String:
-		return convertNewAtom(t, env)
-	case reflect.Slice:
-		return convertList(t, typ, env)
+func convertAssign(dest interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
+	switch d := dest.(type) {
+	case *interface{}:
+		return convertAssignAny(d, vm, t, env)
+	case *string:
+		return convertAssignString(d, t, env)
+	case *int:
+		return convertAssignInt(d, t, env)
+	case *int8:
+		return convertAssignInt8(d, t, env)
+	case *int16:
+		return convertAssignInt16(d, t, env)
+	case *int32:
+		return convertAssignInt32(d, t, env)
+	case *int64:
+		return convertAssignInt64(d, t, env)
+	case *float32:
+		return convertAssignFloat32(d, t, env)
+	case *float64:
+		return convertAssignFloat64(d, t, env)
+	case Scanner:
+		return d.Scan(vm, t, env)
 	default:
-		return reflect.Value{}, errConversion
+		return convertAssignSlice(d, vm, t, env)
 	}
 }
 
-func convertFloat(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
-	if f, ok := env.Resolve(t).(engine.Float); ok {
-		return reflect.ValueOf(f).Convert(typ), nil
+func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Variable:
+		*d = nil
+		return nil
+	case engine.Atom:
+		if t == atomEmptyList {
+			*d = []interface{}{}
+		} else {
+			*d = t.String()
+		}
+		return nil
+	case engine.Integer:
+		*d = int(t)
+		return nil
+	case engine.Float:
+		*d = float64(t)
+		return nil
+	case engine.Compound:
+		var s []interface{}
+		iter := engine.ListIterator{List: t, Env: env}
+		for iter.Next() {
+			s = append(s, nil)
+			if err := convertAssign(&s[len(s)-1], vm, iter.Current(), env); err != nil {
+				return err
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return errConversion
+		}
+		*d = s
+		return nil
+	default:
+		return errConversion
 	}
-	return reflect.Value{}, errConversion
 }
 
-func convertInteger(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
-	if i, ok := env.Resolve(t).(engine.Integer); ok {
-		return reflect.ValueOf(i).Convert(typ), nil
+func convertAssignString(d *string, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Atom:
+		*d = t.String()
+		return nil
+	default:
+		return errConversion
 	}
-	return reflect.Value{}, errConversion
 }
 
-func convertNewAtom(t engine.Term, env *engine.Env) (reflect.Value, error) {
-	if a, ok := env.Resolve(t).(engine.Atom); ok {
-		return reflect.ValueOf(a.String()), nil
+func convertAssignInt(d *int, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Integer:
+		*d = int(t)
+		return nil
+	default:
+		return errConversion
 	}
-	return reflect.Value{}, errConversion
 }
 
-func convertList(t engine.Term, typ reflect.Type, env *engine.Env) (reflect.Value, error) {
-	r := reflect.MakeSlice(reflect.SliceOf(typ.Elem()), 0, 0)
+func convertAssignInt8(d *int8, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Integer:
+		*d = int8(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignInt16(d *int16, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Integer:
+		*d = int16(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignInt32(d *int32, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Integer:
+		*d = int32(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignInt64(d *int64, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Integer:
+		*d = int64(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignFloat32(d *float32, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Float:
+		*d = float32(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignFloat64(d *float64, t engine.Term, env *engine.Env) error {
+	switch t := env.Resolve(t).(type) {
+	case engine.Float:
+		*d = float64(t)
+		return nil
+	default:
+		return errConversion
+	}
+}
+
+func convertAssignSlice(d interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
+	v := reflect.ValueOf(d).Elem()
+
+	if k := v.Kind(); k != reflect.Slice {
+		return errConversion
+	}
+
+	v.SetLen(0)
+	orig := v
+
 	iter := engine.ListIterator{List: t, Env: env}
 	for iter.Next() {
-		e, err := convert(iter.Current(), typ.Elem(), env)
-		if err != nil {
-			return r, err
+		v = reflect.Append(v, reflect.Zero(v.Type().Elem()))
+		dest := v.Index(v.Len() - 1).Addr().Interface()
+		if err := convertAssign(dest, vm, iter.Current(), env); err != nil {
+			return err
 		}
-		r = reflect.Append(r, e)
 	}
-	return r, iter.Err()
+	if err := iter.Err(); err != nil {
+		return errConversion
+	}
+
+	orig.Set(v)
+
+	return nil
 }
 
 // Err returns the error if exists.
 func (s *Solutions) Err() error {
 	return s.err
-}
-
-// Vars returns variable names.
-func (s *Solutions) Vars() []string {
-	ns := make([]string, 0, len(s.vars))
-	for _, v := range s.vars {
-		ns = append(ns, v.Name.String())
-	}
-	return ns
 }
 
 // Solution is the single result of a query.
@@ -187,10 +297,19 @@ func (s *Solution) Err() error {
 	return s.err
 }
 
-// Vars returns variable names.
-func (s *Solution) Vars() []string {
-	if s.sols == nil {
-		return nil
-	}
-	return s.sols.Vars()
+// Scanner is an interface for custom conversion from term to Go value.
+type Scanner interface {
+	Scan(vm *engine.VM, term engine.Term, env *engine.Env) error
+}
+
+// TermString is a string representation of term.
+type TermString string
+
+// Scan implements Scanner interface.
+func (t *TermString) Scan(vm *engine.VM, term engine.Term, env *engine.Env) error {
+	var sb strings.Builder
+	s := engine.NewOutputTextStream(&sb)
+	_, _ = engine.WriteTerm(vm, s, term, engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, env).Force(context.Background())
+	*t = TermString(sb.String())
+	return nil
 }
