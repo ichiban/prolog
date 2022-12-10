@@ -169,7 +169,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k Cont, env *Env) *Promise {
 		return Bool(false)
 	}
 
-	if d := env.compare(theta.Simplify(general), specific); d != 0 {
+	if d := env.compare(theta.simplify(general), specific); d != 0 {
 		return Bool(false)
 	}
 
@@ -1502,9 +1502,7 @@ func CharCode(vm *VM, char, code Term, k Cont, env *Env) *Promise {
 				return Error(representationError(flagCharacterCode, env))
 			}
 
-			return Delay(func(context.Context) *Promise {
-				return Unify(vm, ch, Atom(r), k, env)
-			})
+			return Unify(vm, ch, Atom(r), k, env)
 		default:
 			return Error(typeError(validTypeInteger, code, env))
 		}
@@ -1521,9 +1519,7 @@ func CharCode(vm *VM, char, code Term, k Cont, env *Env) *Promise {
 			return Error(typeError(validTypeCharacter, ch, env))
 		}
 
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, code, Integer(rs[0]), k, env)
-		})
+		return Unify(vm, code, Integer(rs[0]), k, env)
 	default:
 		return Error(typeError(validTypeCharacter, ch, env))
 	}
@@ -2618,7 +2614,7 @@ func expand(vm *VM, term Term, env *Env) (Term, error) {
 		var ret Term
 		v := NewVariable()
 		ok, err := Call(vm, atomTermExpansion.Apply(term, v), func(env *Env) *Promise {
-			ret = env.Simplify(v)
+			ret = env.simplify(v)
 			return Bool(true)
 		}, env).Force(context.Background())
 		if err != nil {

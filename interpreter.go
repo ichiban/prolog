@@ -150,6 +150,7 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 	more := make(chan bool, 1)
 	next := make(chan *engine.Env)
 	sols := Solutions{
+		vm:   &i.VM,
 		vars: p.Vars,
 		more: more,
 		next: next,

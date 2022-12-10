@@ -59,7 +59,7 @@ func TestEnv_Simplify(t *testing.T) {
 	l := NewVariable()
 	p := PartialList(l, NewAtom("a"), NewAtom("b"))
 	env := NewEnv().bind(l, p)
-	c := env.Simplify(l)
+	c := env.simplify(l)
 	iter := ListIterator{List: c, Env: env}
 	assert.True(t, iter.Next())
 	assert.Equal(t, NewAtom("a"), iter.Current())
