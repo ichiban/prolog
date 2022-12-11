@@ -1555,22 +1555,22 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k Cont, env *Env) *Promise {
 	}
 }
 
-// PutCode outputs code to the stream represented by streamOrAlias.
-func PutCode(vm *VM, streamOrAlias, code Term, k Cont, env *Env) *Promise {
+// PutChar outputs char to the stream represented by streamOrAlias.
+func PutChar(vm *VM, streamOrAlias, char Term, k Cont, env *Env) *Promise {
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
 		return Error(err)
 	}
 
-	switch c := env.Resolve(code).(type) {
+	switch c := env.Resolve(char).(type) {
 	case Variable:
 		return Error(instantiationError(env))
-	case Integer:
-		r := rune(c)
-
-		if !utf8.ValidRune(r) {
-			return Error(representationError(flagCharacterCode, env))
+	case Atom:
+		if c > utf8.MaxRune {
+			return Error(typeError(validTypeCharacter, c, env))
 		}
+
+		r := rune(c)
 
 		switch _, err := s.WriteRune(r); err {
 		case nil:
@@ -1583,7 +1583,7 @@ func PutCode(vm *VM, streamOrAlias, code Term, k Cont, env *Env) *Promise {
 			return Error(err)
 		}
 	default:
-		return Error(typeError(validTypeInteger, code, env))
+		return Error(typeError(validTypeCharacter, char, env))
 	}
 }
 

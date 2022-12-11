@@ -76,7 +76,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3(engine.NewAtom("write_term"), engine.WriteTerm)
 	i.Register2(engine.NewAtom("char_code"), engine.CharCode)
 	i.Register2(engine.NewAtom("put_byte"), engine.PutByte)
-	i.Register2(engine.NewAtom("put_code"), engine.PutCode)
+	i.Register2(engine.NewAtom("put_char"), engine.PutChar)
 	i.Register3(engine.NewAtom("read_term"), engine.ReadTerm)
 	i.Register2(engine.NewAtom("get_byte"), engine.GetByte)
 	i.Register2(engine.NewAtom("get_char"), engine.GetChar)
