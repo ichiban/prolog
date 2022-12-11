@@ -92,17 +92,26 @@ writeq(Stream, Term) :- write_term(Stream, Term, [quoted(true), numbervars(true)
 
 writeq(Term) :- current_output(S), writeq(S, Term).
 
-nl(Stream) :- write_term(Stream, '\n', []).
+put_char(Char) :-
+  current_output(S),
+  put_char(S, Char).
 
-nl :- current_output(S), nl(S).
+put_code(Code) :-
+  current_output(S),
+  put_code(S, Code).
+
+put_code(S, Code) :-
+  char_code(Char, Code),
+  put_char(S, Char).
+
+nl :-
+  current_output(S),
+  nl(S).
+
+nl(S) :-
+  put_char(S, '\n').
 
 put_byte(Byte) :- current_output(S), put_byte(S, Byte).
-
-put_code(Code) :- current_output(S), put_code(S, Code).
-
-put_char(Stream, Char) :- char_code(Char, Code), put_code(Stream, Code).
-
-put_char(Char) :- current_output(S), put_char(S, Char).
 
 read_term(Term, Options) :- current_input(S), read_term(S, Term, Options).
 

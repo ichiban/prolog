@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -4119,135 +4120,76 @@ func TestPutByte(t *testing.T) {
 	})
 }
 
-func TestPutCode(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		var m mockWriter
-		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
-		defer m.AssertExpectations(t)
+func TestPutChar(t *testing.T) {
+	tests := []struct {
+		title         string
+		streamOrAlias func() (Term, func(*testing.T))
+		char          Term
+		ok            bool
+		err           error
+	}{
+		// 8.12.3.4 Examples
+		{title: "put_char(t)", streamOrAlias: func() (Term, func(*testing.T)) {
+			var sb strings.Builder
+			sb.WriteString("qwer")
+			return NewOutputTextStream(&sb), func(t *testing.T) {
+				assert.Equal(t, "qwert", sb.String())
+			}
+		}, char: NewAtom("t"), ok: true},
+		{title: "put_char(st_o, 'A')", streamOrAlias: func() (Term, func(*testing.T)) {
+			var sb strings.Builder
+			sb.WriteString("qwer")
+			return NewOutputTextStream(&sb), func(t *testing.T) {
+				assert.Equal(t, "qwerA", sb.String())
+			}
+		}, char: NewAtom("A"), ok: true},
 
-		s := &Stream{sourceSink: &m, mode: ioModeWrite}
+		// 8.12.3.3 Errors
+		{title: "a", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewVariable(), nil
+		}, char: NewAtom("a"), err: instantiationError(nil)},
+		{title: "b", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewOutputTextStream(nil), nil
+		}, char: NewVariable(), err: instantiationError(nil)},
+		{title: "b: atom but not one-char", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewOutputTextStream(nil), nil
+		}, char: NewAtom("foo"), err: typeError(validTypeCharacter, NewAtom("foo"), nil)},
+		{title: "b: not even atom", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewOutputTextStream(nil), nil
+		}, char: Integer(1), err: typeError(validTypeCharacter, Integer(1), nil)},
+		{title: "f", streamOrAlias: func() (Term, func(*testing.T)) {
+			return Integer(1), nil
+		}, char: NewAtom("a"), err: domainError(validDomainStreamOrAlias, Integer(1), nil)},
+		{title: "g", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewAtom("foo"), nil
+		}, char: NewAtom("a"), err: existenceError(objectTypeStream, NewAtom("foo"), nil)},
+		{title: "h", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewInputTextStream(nil), nil
+		}, char: NewAtom("a"), err: permissionError(operationOutput, permissionTypeStream, NewInputTextStream(nil), nil)},
+		{title: "i", streamOrAlias: func() (Term, func(*testing.T)) {
+			return NewOutputBinaryStream(nil), nil
+		}, char: NewAtom("a"), err: permissionError(operationOutput, permissionTypeBinaryStream, NewOutputBinaryStream(nil), nil)},
 
-		var vm VM
-		ok, err := PutCode(&vm, s, Integer('😀'), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+		{title: "error on write", streamOrAlias: func() (Term, func(*testing.T)) {
+			var m mockWriter
+			m.On("Write", mock.Anything).Return(0, errors.New("failed"))
+			return NewOutputTextStream(&m), nil
+		}, char: NewAtom("a"), err: errors.New("failed")},
+	}
 
-	t.Run("ng", func(t *testing.T) {
-		var m mockWriter
-		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(0, errors.New("")).Once()
-		defer m.AssertExpectations(t)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			sOrA, test := tt.streamOrAlias()
+			if test != nil {
+				defer test(t)
+			}
 
-		s := &Stream{sourceSink: &m, mode: ioModeWrite}
-
-		var vm VM
-		_, err := PutCode(&vm, s, Integer('😀'), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-	})
-
-	t.Run("valid stream alias", func(t *testing.T) {
-		var m mockWriter
-		m.On("Write", []byte{0xf0, 0x9f, 0x98, 0x80}).Return(1, nil).Once()
-		defer m.AssertExpectations(t)
-
-		foo := NewAtom("foo")
-		s := &Stream{sourceSink: &m, mode: ioModeWrite, alias: foo}
-
-		var vm VM
-		vm.streams.add(s)
-		ok, err := PutCode(&vm, NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("streamOrAlias is a variable", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, NewVariable(), Integer(97), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("code is a variable", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, &Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("code is neither a variable nor an integer", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, &Stream{sourceSink: os.Stdout, mode: ioModeAppend}, NewAtom("code"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeInteger, NewAtom("code"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is neither a variable nor a stream term or alias", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, Integer(0), Integer(97), Success, nil).Force(context.Background())
-		assert.Equal(t, domainError(validDomainStreamOrAlias, Integer(0), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, NewAtom("foo"), Integer(97), Success, nil).Force(context.Background())
-		assert.Equal(t, existenceError(objectTypeStream, NewAtom("foo"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is an input stream", func(t *testing.T) {
-		s := NewVariable()
-		env := NewEnv().
-			bind(s, &Stream{sourceSink: os.Stdin})
-
-		var vm VM
-		ok, err := PutCode(&vm, s, Integer(97), Success, env).Force(context.Background())
-		assert.Equal(t, permissionError(operationOutput, permissionTypeStream, s, env), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("streamOrAlias is associated with a binary stream", func(t *testing.T) {
-		stream := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
-		stream.streamType = streamTypeBinary
-
-		s := NewVariable()
-		env := NewEnv().
-			bind(s, stream)
-
-		var vm VM
-		ok, err := PutCode(&vm, s, Integer(97), Success, env).Force(context.Background())
-		assert.Equal(t, permissionError(operationOutput, permissionTypeBinaryStream, s, env), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("code is an integer but not an character code", func(t *testing.T) {
-		var vm VM
-		ok, err := PutCode(&vm, &Stream{sourceSink: os.Stdout, mode: ioModeAppend}, Integer(-1), Success, nil).Force(context.Background())
-		assert.Equal(t, representationError(flagCharacterCode, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("unknown stream alias", func(t *testing.T) {
-		var vm VM
-		_, err := PutCode(&vm, NewAtom("foo"), Integer('😀'), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-	})
-
-	t.Run("not a stream", func(t *testing.T) {
-		var vm VM
-		_, err := PutCode(&vm, NewVariable(), Integer('😀'), Success, nil).Force(context.Background())
-		assert.Error(t, err)
-	})
-
-	t.Run("not a code", func(t *testing.T) {
-		s := &Stream{sourceSink: os.Stdout, mode: ioModeAppend}
-
-		t.Run("not an integer", func(t *testing.T) {
 			var vm VM
-			_, err := PutCode(&vm, s, NewAtom("a"), Success, nil).Force(context.Background())
-			assert.Error(t, err)
+			ok, err := PutChar(&vm, sOrA, tt.char, Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
 		})
-	})
+	}
 }
 
 func TestReadTerm(t *testing.T) {
