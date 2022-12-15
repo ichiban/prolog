@@ -20,8 +20,8 @@ func Repeat(_ *VM, k Cont, env *Env) *Promise {
 	})
 }
 
-// Negation calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
-func Negation(vm *VM, goal Term, k Cont, env *Env) *Promise {
+// Negate calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
+func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 	return Delay(func(ctx context.Context) *Promise {
 		ok, err := Call(vm, goal, Success, env).Force(ctx)
 		if err != nil {
@@ -2630,19 +2630,6 @@ func expand(vm *VM, term Term, env *Env) (Term, error) {
 		return term, nil
 	}
 	return t, err
-}
-
-// Environ succeeds if an environment variable key has value.
-func Environ(vm *VM, key, value Term, k Cont, env *Env) *Promise {
-	lines := os.Environ()
-	ks := make([]func(ctx context.Context) *Promise, len(lines))
-	for i, l := range lines {
-		kv := strings.SplitN(l, "=", 2)
-		ks[i] = func(ctx context.Context) *Promise {
-			return Unify(vm, tuple(key, value), tuple(NewAtom(kv[0]), NewAtom(kv[1])), k, env)
-		}
-	}
-	return Delay(ks...)
 }
 
 // Nth0 succeeds if elem is the n-th element of list, counting from 0.

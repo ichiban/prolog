@@ -26,46 +26,64 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.FS = defaultFS{}
 	i.SetUserInput(engine.NewInputTextStream(in))
 	i.SetUserOutput(engine.NewOutputTextStream(out))
-	i.Register0(engine.NewAtom("repeat"), engine.Repeat)
-	i.Register1(engine.NewAtom(`\+`), engine.Negation)
+
+	// Control constructs
 	i.Register1(engine.NewAtom("call"), engine.Call)
-	i.Register2(engine.NewAtom("call"), engine.Call1)
-	i.Register3(engine.NewAtom("call"), engine.Call2)
-	i.Register4(engine.NewAtom("call"), engine.Call3)
-	i.Register5(engine.NewAtom("call"), engine.Call4)
-	i.Register6(engine.NewAtom("call"), engine.Call5)
-	i.Register7(engine.NewAtom("call"), engine.Call6)
-	i.Register8(engine.NewAtom("call"), engine.Call7)
-	i.Register1(engine.NewAtom("current_predicate"), engine.CurrentPredicate)
-	i.Register1(engine.NewAtom("assertz"), engine.Assertz)
-	i.Register1(engine.NewAtom("asserta"), engine.Asserta)
-	i.Register1(engine.NewAtom("retract"), engine.Retract)
-	i.Register1(engine.NewAtom("abolish"), engine.Abolish)
-	i.Register1(engine.NewAtom("var"), engine.TypeVar)
-	i.Register1(engine.NewAtom("float"), engine.TypeFloat)
-	i.Register1(engine.NewAtom("integer"), engine.TypeInteger)
-	i.Register1(engine.NewAtom("atom"), engine.TypeAtom)
-	i.Register1(engine.NewAtom("compound"), engine.TypeCompound)
-	i.Register1(engine.NewAtom("acyclic_term"), engine.AcyclicTerm)
+	i.Register3(engine.NewAtom("catch"), engine.Catch)
 	i.Register1(engine.NewAtom("throw"), engine.Throw)
+
+	// Term unification
 	i.Register2(engine.NewAtom("="), engine.Unify)
 	i.Register2(engine.NewAtom("unify_with_occurs_check"), engine.UnifyWithOccursCheck)
 	i.Register2(engine.NewAtom("subsumes_term"), engine.SubsumesTerm)
+
+	// Type testing
+	i.Register1(engine.NewAtom("var"), engine.TypeVar)
+	i.Register1(engine.NewAtom("atom"), engine.TypeAtom)
+	i.Register1(engine.NewAtom("integer"), engine.TypeInteger)
+	i.Register1(engine.NewAtom("float"), engine.TypeFloat)
+	i.Register1(engine.NewAtom("compound"), engine.TypeCompound)
+	i.Register1(engine.NewAtom("acyclic_term"), engine.AcyclicTerm)
+
+	// Term comparison
+	i.Register3(engine.NewAtom("compare"), engine.Compare)
+	i.Register2(engine.NewAtom("sort"), engine.Sort)
+	i.Register2(engine.NewAtom("keysort"), engine.KeySort)
+
+	// Term creation and decomposition
+	i.Register3(engine.NewAtom("functor"), engine.Functor)
+	i.Register3(engine.NewAtom("arg"), engine.Arg)
 	i.Register2(engine.NewAtom("=.."), engine.Univ)
 	i.Register2(engine.NewAtom("copy_term"), engine.CopyTerm)
 	i.Register2(engine.NewAtom("term_variables"), engine.TermVariables)
-	i.Register3(engine.NewAtom("arg"), engine.Arg)
+
+	// Arithmetic evaluation
+	i.Register2(engine.NewAtom("is"), engine.Is)
+
+	// Arithmetic comparison
+	i.Register2(engine.NewAtom("=:="), engine.Equal)
+	i.Register2(engine.NewAtom("=\\="), engine.NotEqual)
+	i.Register2(engine.NewAtom("<"), engine.LessThan)
+	i.Register2(engine.NewAtom("=<"), engine.LessThanOrEqual)
+	i.Register2(engine.NewAtom(">"), engine.GreaterThan)
+	i.Register2(engine.NewAtom(">="), engine.GreaterThanOrEqual)
+
+	// Clause retrieval and information
+	i.Register2(engine.NewAtom("clause"), engine.Clause)
+	i.Register1(engine.NewAtom("current_predicate"), engine.CurrentPredicate)
+
+	// Clause creation and destruction
+	i.Register1(engine.NewAtom("asserta"), engine.Asserta)
+	i.Register1(engine.NewAtom("assertz"), engine.Assertz)
+	i.Register1(engine.NewAtom("retract"), engine.Retract)
+	i.Register1(engine.NewAtom("abolish"), engine.Abolish)
+
+	// All solutions
+	i.Register3(engine.NewAtom("findall"), engine.FindAll)
 	i.Register3(engine.NewAtom("bagof"), engine.BagOf)
 	i.Register3(engine.NewAtom("setof"), engine.SetOf)
-	i.Register3(engine.NewAtom("findall"), engine.FindAll)
-	i.Register3(engine.NewAtom("catch"), engine.Catch)
-	i.Register3(engine.NewAtom("functor"), engine.Functor)
-	i.Register3(engine.NewAtom("op"), engine.Op)
-	i.Register3(engine.NewAtom("compare"), engine.Compare)
-	i.Register3(engine.NewAtom("between"), engine.Between)
-	i.Register2(engine.NewAtom("sort"), engine.Sort)
-	i.Register2(engine.NewAtom("keysort"), engine.KeySort)
-	i.Register3(engine.NewAtom("current_op"), engine.CurrentOp)
+
+	// Stream selection and control
 	i.Register1(engine.NewAtom("current_input"), engine.CurrentInput)
 	i.Register1(engine.NewAtom("current_output"), engine.CurrentOutput)
 	i.Register1(engine.NewAtom("set_input"), engine.SetInput)
@@ -73,46 +91,69 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register4(engine.NewAtom("open"), engine.Open)
 	i.Register2(engine.NewAtom("close"), engine.Close)
 	i.Register1(engine.NewAtom("flush_output"), engine.FlushOutput)
-	i.Register3(engine.NewAtom("write_term"), engine.WriteTerm)
-	i.Register2(engine.NewAtom("char_code"), engine.CharCode)
-	i.Register2(engine.NewAtom("put_byte"), engine.PutByte)
-	i.Register2(engine.NewAtom("put_char"), engine.PutChar)
-	i.Register3(engine.NewAtom("read_term"), engine.ReadTerm)
-	i.Register2(engine.NewAtom("get_byte"), engine.GetByte)
+	i.Register2(engine.NewAtom("stream_property"), engine.StreamProperty)
+	i.Register2(engine.NewAtom("set_stream_position"), engine.SetStreamPosition)
+
+	// Character input/output
 	i.Register2(engine.NewAtom("get_char"), engine.GetChar)
-	i.Register2(engine.NewAtom("peek_byte"), engine.PeekByte)
 	i.Register2(engine.NewAtom("peek_char"), engine.PeekChar)
-	i.Register1(engine.NewAtom("halt"), engine.Halt)
-	i.Register2(engine.NewAtom("clause"), engine.Clause)
+	i.Register2(engine.NewAtom("put_char"), engine.PutChar)
+
+	// Byte input/output
+	i.Register2(engine.NewAtom("get_byte"), engine.GetByte)
+	i.Register2(engine.NewAtom("peek_byte"), engine.PeekByte)
+	i.Register2(engine.NewAtom("put_byte"), engine.PutByte)
+
+	// Term input/output
+	i.Register3(engine.NewAtom("read_term"), engine.ReadTerm)
+	i.Register3(engine.NewAtom("write_term"), engine.WriteTerm)
+	i.Register3(engine.NewAtom("op"), engine.Op)
+	i.Register3(engine.NewAtom("current_op"), engine.CurrentOp)
+	i.Register2(engine.NewAtom("char_conversion"), engine.CharConversion)
+	i.Register2(engine.NewAtom("current_char_conversion"), engine.CurrentCharConversion)
+
+	// Logic and control
+	i.Register1(engine.NewAtom(`\+`), engine.Negate)
+	i.Register0(engine.NewAtom("repeat"), engine.Repeat)
+	i.Register2(engine.NewAtom("call"), engine.Call1)
+	i.Register3(engine.NewAtom("call"), engine.Call2)
+	i.Register4(engine.NewAtom("call"), engine.Call3)
+	i.Register5(engine.NewAtom("call"), engine.Call4)
+	i.Register6(engine.NewAtom("call"), engine.Call5)
+	i.Register7(engine.NewAtom("call"), engine.Call6)
+	i.Register8(engine.NewAtom("call"), engine.Call7)
+
+	// Atomic term processing
 	i.Register2(engine.NewAtom("atom_length"), engine.AtomLength)
 	i.Register3(engine.NewAtom("atom_concat"), engine.AtomConcat)
 	i.Register5(engine.NewAtom("sub_atom"), engine.SubAtom)
 	i.Register2(engine.NewAtom("atom_chars"), engine.AtomChars)
 	i.Register2(engine.NewAtom("atom_codes"), engine.AtomCodes)
+	i.Register2(engine.NewAtom("char_code"), engine.CharCode)
 	i.Register2(engine.NewAtom("number_chars"), engine.NumberChars)
 	i.Register2(engine.NewAtom("number_codes"), engine.NumberCodes)
-	i.Register2(engine.NewAtom("is"), engine.Is)
-	i.Register2(engine.NewAtom("=:="), engine.Equal)
-	i.Register2(engine.NewAtom("=\\="), engine.NotEqual)
-	i.Register2(engine.NewAtom("<"), engine.LessThan)
-	i.Register2(engine.NewAtom(">"), engine.GreaterThan)
-	i.Register2(engine.NewAtom("=<"), engine.LessThanOrEqual)
-	i.Register2(engine.NewAtom(">="), engine.GreaterThanOrEqual)
-	i.Register2(engine.NewAtom("stream_property"), engine.StreamProperty)
-	i.Register2(engine.NewAtom("set_stream_position"), engine.SetStreamPosition)
-	i.Register2(engine.NewAtom("char_conversion"), engine.CharConversion)
-	i.Register2(engine.NewAtom("current_char_conversion"), engine.CurrentCharConversion)
+
+	// Implementation defined hooks
 	i.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
 	i.Register2(engine.NewAtom("current_prolog_flag"), engine.CurrentPrologFlag)
-	i.Register2(engine.NewAtom("expand_term"), engine.ExpandTerm)
+	i.Register1(engine.NewAtom("halt"), engine.Halt)
+
+	// Consult
 	i.Register1(engine.NewAtom("consult"), engine.Consult)
-	i.Register2(engine.NewAtom("environ"), engine.Environ)
+
+	// Definite clause grammar
 	i.Register3(engine.NewAtom("phrase"), engine.Phrase)
+	i.Register2(engine.NewAtom("expand_term"), engine.ExpandTerm)
+
+	// Prolog prologue
+	i.Register3(engine.NewAtom("append"), engine.Append)
+	i.Register2(engine.NewAtom("length"), engine.Length)
+	i.Register3(engine.NewAtom("between"), engine.Between)
+	i.Register2(engine.NewAtom("succ"), engine.Succ)
 	i.Register3(engine.NewAtom("nth0"), engine.Nth0)
 	i.Register3(engine.NewAtom("nth1"), engine.Nth1)
-	i.Register2(engine.NewAtom("succ"), engine.Succ)
-	i.Register2(engine.NewAtom("length"), engine.Length)
-	i.Register3(engine.NewAtom("append"), engine.Append)
+	i.Register2(engine.NewAtom("call_nth"), engine.CallNth)
+
 	_ = i.Exec(bootstrap)
 
 	return &i

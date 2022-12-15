@@ -6840,34 +6840,6 @@ term_expansion(f(X), g(X)).
 	}
 }
 
-func TestEnviron(t *testing.T) {
-	os.Clearenv()
-	assert.NoError(t, os.Setenv("FOO", "foo"))
-	assert.NoError(t, os.Setenv("BAR", "bar"))
-
-	var (
-		count = 0
-		key   = NewVariable()
-		value = NewVariable()
-	)
-	ok, err := Environ(nil, key, value, func(env *Env) *Promise {
-		count++
-		switch count {
-		case 1:
-			assert.Equal(t, NewAtom("FOO"), env.Resolve(key))
-			assert.Equal(t, NewAtom("foo"), env.Resolve(value))
-		case 2:
-			assert.Equal(t, NewAtom("BAR"), env.Resolve(key))
-			assert.Equal(t, NewAtom("bar"), env.Resolve(value))
-		default:
-			assert.Fail(t, "unreachable")
-		}
-		return Bool(true)
-	}, nil).Force(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, ok)
-}
-
 func TestNth0(t *testing.T) {
 	t.Run("n is a variable", func(t *testing.T) {
 		t.Run("list is a proper list", func(t *testing.T) {
@@ -7258,15 +7230,15 @@ func TestNegation(t *testing.T) {
 		return Error(e)
 	})
 
-	ok, err := Negation(&vm, atomTrue, Success, nil).Force(context.Background())
+	ok, err := Negate(&vm, atomTrue, Success, nil).Force(context.Background())
 	assert.NoError(t, err)
 	assert.False(t, ok)
 
-	ok, err = Negation(&vm, atomFalse, Success, nil).Force(context.Background())
+	ok, err = Negate(&vm, atomFalse, Success, nil).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	_, err = Negation(&vm, atomError, Success, nil).Force(context.Background())
+	_, err = Negate(&vm, atomError, Success, nil).Force(context.Background())
 	assert.Equal(t, e, err)
 }
 
