@@ -2,7 +2,8 @@
  *  bootstrap script
  */
 
-% operators
+% Operators
+
 :-(op(1200, xfx, [:-, -->])).
 :-(op(1200, fx, [:-, ?-])).
 :-(op(1105, xfy, '|')).
@@ -21,44 +22,32 @@
 :-(op(200, xfy, ^)).
 :-(op(200, fy, [+, -, \])).
 
-% true/fail
+% Control constructs
 
 true.
 
 fail :- \+true.
 
-% conjunction/disjunction and if-then-else
+! :- !.
 
 P, Q :- call((P, Q)).
 
 If -> Then; _ :- If, !, Then.
 _ -> _; Else :- !, Else.
+
 P; Q :- call((P; Q)).
 
 If -> Then :- If, !, Then.
 
-% cut
-
-! :- !.
-
-% logic and control
-
-once(P) :- P, !.
-
-% not unifiable
+% Term unification
 
 X \= Y :- \+(X = Y).
 
-% term comparison
+% Type testing
 
-X == Y :- compare(=, X, Y).
-X \== Y :- \+(X == Y).
-X @< Y :- compare(<, X, Y).
-X @=< Y :- compare(=, X, Y).
-X @=< Y :- compare(<, X, Y).
-X @> Y :- compare(>, X, Y).
-X @>= Y :- compare(>, X, Y).
-X @>= Y :- compare(=, X, Y).
+atomic(X) :-
+  nonvar(X),
+  \+compound(X).
 
 nonvar(X) :- \+var(X).
 
@@ -70,27 +59,73 @@ callable(X) :- compound(X).
 
 ground(X) :- term_variables(X, []).
 
-atomic(X) :- nonvar(X), \+compound(X).
+% Term comparison
 
-open(Filename, Mode, Stream) :- open(Filename, Mode, Stream, []).
+X @=< Y :- compare(=, X, Y).
+X @=< Y :- compare(<, X, Y).
+
+X == Y :- compare(=, X, Y).
+
+X \== Y :- \+(X == Y).
+
+X @< Y :- compare(<, X, Y).
+
+X @> Y :- compare(>, X, Y).
+
+X @>= Y :- compare(>, X, Y).
+X @>= Y :- compare(=, X, Y).
+
+% Clause creation and destruction
+
+retractall(Head) :-
+  retract((Head :- _)),
+  fail.
+retractall(_).
+
+% Stream selection and control
+
+open(Filename, Mode, Stream) :-
+  open(Filename, Mode, Stream, []).
 
 close(Stream) :- close(Stream, []).
 
-flush_output :- current_output(S), flush_output(S).
+flush_output :-
+  current_output(S),
+  flush_output(S).
 
-write_term(Term, Options) :- current_output(S), write_term(S, Term, Options).
+at_end_of_stream :-
+  current_input(S),
+  at_end_of_stream(S).
 
-write(Stream, Term) :- write_term(Stream, Term, [numbervars(true)]).
+at_end_of_stream(Stream) :-
+  stream_property(Stream, end_of_stream(E)), !,
+  (E = at; E = past).
 
-write(Term) :- current_output(S), write(S, Term).
+% Character input/output
 
-write_canonical(Stream, Term) :- write_term(Stream, Term, [quoted(true), ignore_ops(true)]).
+get_char(Char) :-
+  current_input(S),
+  get_char(S, Char).
 
-write_canonical(Term) :- current_output(S), write_canonical(S, Term).
+get_code(Code) :-
+  current_input(S),
+  get_code(S, Code).
 
-writeq(Stream, Term) :- write_term(Stream, Term, [quoted(true), numbervars(true)]).
+get_code(Stream, Code) :-
+  get_char(Stream, Char),
+  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
 
-writeq(Term) :- current_output(S), writeq(S, Term).
+peek_char(Char) :-
+  current_input(S),
+  peek_char(S, Char).
+
+peek_code(Code) :-
+  current_input(S),
+  peek_code(S, Code).
+
+peek_code(Stream, Code) :-
+  peek_char(Stream, Char),
+  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
 
 put_char(Char) :-
   current_output(S),
@@ -111,93 +146,114 @@ nl :-
 nl(S) :-
   put_char(S, '\n').
 
-put_byte(Byte) :- current_output(S), put_byte(S, Byte).
+% Byte input/output
 
-read_term(Term, Options) :- current_input(S), read_term(S, Term, Options).
+get_byte(Byte) :-
+  current_input(S),
+  get_byte(S, Byte).
+
+peek_byte(Byte) :-
+  current_input(S),
+  peek_byte(S, Byte).
+
+put_byte(Byte) :-
+  current_output(S),
+  put_byte(S, Byte).
+
+% Term input/output
+
+read_term(Term, Options) :-
+  current_input(S),
+  read_term(S, Term, Options).
+
+read(Term) :-
+  current_input(S),
+  read(S, Term).
 
 read(Stream, Term) :- read_term(Stream, Term, []).
 
-read(Term) :- current_input(S), read(S, Term).
+write_term(Term, Options) :-
+  current_output(S),
+  write_term(S, Term, Options).
 
-get_byte(Byte) :- current_input(S), get_byte(S, Byte).
+write(Term) :-
+  current_output(S),
+  write(S, Term).
 
-get_char(Char) :- current_input(S), get_char(S, Char).
+write(Stream, Term) :- write_term(Stream, Term, [numbervars(true)]).
 
-get_code(Stream, Code) :-
-  get_char(Stream, Char),
-  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
+writeq(Term) :-
+  current_output(S),
+  writeq(S, Term).
 
-get_code(Code) :- current_input(S), get_code(S, Code).
+writeq(Stream, Term) :- write_term(Stream, Term, [quoted(true), numbervars(true)]).
 
-peek_byte(Byte) :- current_input(S), peek_byte(S, Byte).
+write_canonical(Term) :-
+  current_output(S),
+  write_canonical(S, Term).
 
-peek_char(Char) :- current_input(S), peek_char(S, Char).
+write_canonical(Stream, Term) :- write_term(Stream, Term, [quoted(true), ignore_ops(true)]).
 
-peek_code(Stream, Code) :-
-  peek_char(Stream, Char),
-  (Char = end_of_file -> Code = -1; char_code(Char, Code)).
+% Logic and control
 
-peek_code(Code) :- current_input(S), peek_code(S, Code).
+once(P) :- P, !.
+
+false :- fail.
+
+% Atomic term processing
+
+% Implementation defined hooks
 
 halt :- halt(0).
 
-at_end_of_stream(Stream) :-
-  stream_property(Stream, end_of_stream(E)), !,
-  (E = at; E = past).
+% Consult
 
-at_end_of_stream :- current_input(S), at_end_of_stream(S).
+[H|T] :- consult([H|T]).
 
-retractall(Head) :-
-   retract((Head :- _)),
-   fail.
-retractall(_).
+% Definite clause grammar
 
-%%%% non-ISO predicates
+phrase(GRBody, S0) :- phrase(GRBody, S0, []).
 
-false :- fail.
+% Prolog prologue
 
 member(X, [X|_]).
 member(X, [_|Xs]) :- member(X, Xs).
 
-[H|T] :- consult([H|T]).
-
-phrase(GRBody, S0) :- phrase(GRBody, S0, []).
-
 select(E, [E|Xs], Xs).
 select(E, [X|Xs], [X|Ys]) :-
-   select(E, Xs, Ys).
+  select(E, Xs, Ys).
 
 maplist(_Cont_1, []).
 maplist(Cont_1, [E1|E1s]) :-
-   call(Cont_1, E1),
-   maplist(Cont_1, E1s).
+  call(Cont_1, E1),
+  maplist(Cont_1, E1s).
 
 maplist(_Cont_2, [], []).
 maplist(Cont_2, [E1|E1s], [E2|E2s]) :-
-   call(Cont_2, E1, E2),
-   maplist(Cont_2, E1s, E2s).
+  call(Cont_2, E1, E2),
+  maplist(Cont_2, E1s, E2s).
 
 maplist(_Cont_3, [], [], []).
 maplist(Cont_3, [E1|E1s], [E2|E2s], [E3|E3s]) :-
-   call(Cont_3, E1, E2, E3),
-   maplist(Cont_3, E1s, E2s, E3s).
+  call(Cont_3, E1, E2, E3),
+  maplist(Cont_3, E1s, E2s, E3s).
 
 maplist(_Cont_4, [], [], [], []).
 maplist(Cont_4, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s]) :-
-   call(Cont_4, E1, E2, E3, E4),
-   maplist(Cont_4, E1s, E2s, E3s, E4s).
+  call(Cont_4, E1, E2, E3, E4),
+  maplist(Cont_4, E1s, E2s, E3s, E4s).
 
 maplist(_Cont_5, [], [], [], [], []).
 maplist(Cont_5, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s]) :-
-   call(Cont_5, E1, E2, E3, E4, E5),
-   maplist(Cont_5, E1s, E2s, E3s, E4s, E5s).
+  call(Cont_5, E1, E2, E3, E4, E5),
+  maplist(Cont_5, E1s, E2s, E3s, E4s, E5s).
 
 maplist(_Cont_6, [], [], [], [], [], []).
 maplist(Cont_6, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s], [E6|E6s]) :-
-   call(Cont_6, E1, E2, E3, E4, E5, E6),
-   maplist(Cont_6, E1s, E2s, E3s, E4s, E5s, E6s).
+  call(Cont_6, E1, E2, E3, E4, E5, E6),
+  maplist(Cont_6, E1s, E2s, E3s, E4s, E5s, E6s).
 
 maplist(_Cont_7, [], [], [], [], [], [], []).
 maplist(Cont_7, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s], [E6|E6s], [E7|E7s]) :-
-   call(Cont_7, E1, E2, E3, E4, E5, E6, E7),
-   maplist(Cont_7, E1s, E2s, E3s, E4s, E5s, E6s, E7s).
+  call(Cont_7, E1, E2, E3, E4, E5, E6, E7),
+  maplist(Cont_7, E1s, E2s, E3s, E4s, E5s, E6s, E7s).

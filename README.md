@@ -8,8 +8,8 @@
 
 ## What is this?
 
-`ichiban/prolog` is an embeddable scripting language for Go.
-Unlike any other scripting engines, `ichiban/prolog` implements logic programming language Prolog.
+`ichiban/prolog` is an embeddable scripting language for **Go**.
+Unlike any other scripting engines, `ichiban/prolog` implements logic programming language **Prolog**.
 
 - **Easy to reason about:** based on first-order logic
 - **Easy to adopt:** `database/sql`-like Go API
@@ -398,8 +398,6 @@ $(go env GOPATH)/bin/1pl [<file>...]
 #### Program
 - **`consult(File)`** Loads Prolog program files indicated by `File`. `File` is either an atom or a list of atoms. An atom `abc` indicates a Prolog program file `./abc` or `./abc.pl`.
 - **`[File|Files]`** Equivalent to `consult([File|Files])`.
-#### Operating system interface
-- **`environ(Name, Value)`** Succeeds iff the environment variable `Name` has the value `Value`.
 
 ## Extensions
 
@@ -414,10 +412,10 @@ Distributed under the MIT license. See `LICENSE` for more information.
 See `ARCHITECTURE.md` for architecture details.
 
 1. Fork it (https://github.com/ichiban/prolog/fork)
-1. Create your feature branch (git checkout -b feature/fooBar)
-1. Commit your changes (git commit -am 'Add some fooBar')
-1. Push to the branch (git push origin feature/fooBar)
-1. Create a new Pull Request
+2. Create your feature branch (git checkout -b feature/fooBar)
+3. Commit your changes (git commit -am 'Add some fooBar')
+4. Push to the branch (git push origin feature/fooBar)
+5. Create a new Pull Request
 
 ## Acknowledgments
 
