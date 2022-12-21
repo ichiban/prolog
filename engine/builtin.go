@@ -254,8 +254,11 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 		case Variable:
 			return Error(instantiationError(env))
 		case Integer:
-			if arity < 0 {
+			switch {
+			case arity < 0:
 				return Error(domainError(validDomainNotLessThanZero, arity, env))
+			case arity > maxArity:
+				return Error(representationError(flagMaxArity, env))
 			}
 
 			name := env.Resolve(name)
@@ -2205,13 +2208,7 @@ func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 
 		var buf bytes.Buffer
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Atom(r)
-		}
-		return Unify(vm, chars, List(cs...), k, env)
+		return Unify(vm, chars, charList(buf.String()), k, env)
 	default:
 		return Error(typeError(validTypeNumber, n, env))
 	}
@@ -2257,9 +2254,7 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 			return Error(syntaxError(err, env))
 		}
 
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, num, t, k, env)
-		})
+		return Unify(vm, num, t, k, env)
 	}
 
 	switch n := env.Resolve(num).(type) {
@@ -2268,14 +2263,7 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 	case Integer, Float:
 		var buf bytes.Buffer
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Integer(r)
-		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, codes, List(cs...), k, env)
-		})
+		return Unify(vm, codes, codeList(buf.String()), k, env)
 	default:
 		return Error(typeError(validTypeNumber, num, env))
 	}
@@ -2472,7 +2460,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	case Atom:
 		var modify func(vm *VM, value Atom) error
 		switch f {
-		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity:
+		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity, NewAtom("memory_limit"):
 			return Error(permissionError(operationModify, permissionTypeFlag, f, env))
 		case atomCharConversion:
 			modify = modifyCharConversion
@@ -2578,7 +2566,7 @@ func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		tuple(atomIntegerRoundingFunction, atomTowardZero),
 		tuple(atomCharConversion, onOff(vm.charConvEnabled)),
 		tuple(atomDebug, onOff(vm.debug)),
-		tuple(atomMaxArity, atomUnbounded),
+		tuple(atomMaxArity, Integer(maxArity)),
 		tuple(atomUnknown, NewAtom(vm.unknown.String())),
 		tuple(atomDoubleQuotes, NewAtom(vm.doubleQuotes.String())),
 	}

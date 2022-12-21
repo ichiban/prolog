@@ -727,6 +727,9 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 		for {
 			switch t, _ := p.next(); t.kind {
 			case tokenComma:
+				if len(args) == maxArity {
+					return nil, representationError(flagMaxArity, nil)
+				}
 				arg, err := p.arg()
 				if err != nil {
 					return nil, err

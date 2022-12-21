@@ -5686,7 +5686,7 @@ func TestNumberChars(t *testing.T) {
 			chars := NewVariable()
 
 			ok, err := NumberChars(nil, Float(23.4), chars, func(env *Env) *Promise {
-				assert.Equal(t, List(NewAtom("2"), NewAtom("3"), atomDot, NewAtom("4")), env.Resolve(chars))
+				assert.Equal(t, charList("23.4"), env.Resolve(chars))
 				return Bool(true)
 			}, nil).Force(context.Background())
 			assert.NoError(t, err)
@@ -5824,7 +5824,7 @@ func TestNumberCodes(t *testing.T) {
 		codes := NewVariable()
 
 		ok, err := NumberCodes(nil, Float(23.4), codes, func(env *Env) *Promise {
-			assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), env.Resolve(codes))
+			assert.Equal(t, codeList("23.4"), env.Resolve(codes))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
@@ -6468,7 +6468,7 @@ func TestCurrentPrologFlag(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = CurrentPrologFlag(&vm, atomMaxArity, atomUnbounded, Success, nil).Force(context.Background())
+		ok, err = CurrentPrologFlag(&vm, atomMaxArity, Integer(maxArity), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -6502,7 +6502,7 @@ func TestCurrentPrologFlag(t *testing.T) {
 				assert.Equal(t, atomOff, env.Resolve(value))
 			case 6:
 				assert.Equal(t, atomMaxArity, env.Resolve(flag))
-				assert.Equal(t, atomUnbounded, env.Resolve(value))
+				assert.Equal(t, Integer(maxArity), env.Resolve(value))
 			case 7:
 				assert.Equal(t, atomUnknown, env.Resolve(flag))
 				assert.Equal(t, NewAtom(vm.unknown.String()), env.Resolve(value))

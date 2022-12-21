@@ -7,6 +7,8 @@ import (
 	"unicode/utf8"
 )
 
+const maxArity = 1023
+
 // Compound is a Prolog compound.
 type Compound interface {
 	Functor() Atom
