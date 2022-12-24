@@ -221,7 +221,7 @@ func simplify(t Term, simplified map[termID]Compound, env *Env) Term {
 	case *partial:
 		var p partial
 		simplified[id(t)] = &p
-		p.Compound = simplify(t.Compound, simplified, env).(Compound)
+		p.vector = simplify(t.vector, simplified, env).(vector)
 		tail := simplify(*t.tail, simplified, env)
 		p.tail = &tail
 		return &p

@@ -276,11 +276,7 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 				return Error(typeError(validTypeAtom, name, env))
 			}
 
-			vs := make([]Term, arity)
-			for i := range vs {
-				vs[i] = NewVariable()
-			}
-			return Unify(vm, t, n.Apply(vs...), k, env)
+			return Unify(vm, t, &sparseCompound{functor: n, arity: int(arity)}, k, env)
 		default:
 			return Error(typeError(validTypeInteger, arity, env))
 		}
@@ -399,10 +395,35 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 	case *partial:
 		var p partial
 		copied[id(t)] = &p
-		p.Compound = renamedCopy(t.Compound, copied, env).(Compound)
+		p.vector = renamedCopy(t.vector, copied, env).(vector)
 		tail := renamedCopy(*t.tail, copied, env)
 		p.tail = &tail
 		return &p
+	case *sparseCompound:
+		s := sparseCompound{
+			functor: t.functor,
+			arity:   t.arity,
+		}
+		copied[id(t)] = &s
+		s.pairs = make([]sparseCompoundPair, len(t.pairs))
+		for i, p := range t.pairs {
+			s.pairs[i].index = p.index
+			s.pairs[i].arg = renamedCopy(p.arg, copied, env)
+		}
+		return &s
+	case *sparseList:
+		s := sparseList{
+			len:    t.len,
+			offset: t.offset,
+		}
+		copied[id(t)] = &s
+		pairs := make([]sparseListPair, len(*t.pairs))
+		for i, p := range *t.pairs {
+			pairs[i].index = p.index
+			pairs[i].elem = renamedCopy(p.elem, copied, env)
+		}
+		s.pairs = &pairs
+		return &s
 	case Compound:
 		c := compound{
 			functor: t.Functor(),
@@ -2761,7 +2782,7 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 				return Error(resourceError(resourceFiniteMemory, env))
 			}
 
-			return lengthAddendum(vm, atomEmptyList, skipped, suffix, n, k, env)
+			return lengthAddendum(vm, 0, skipped, suffix, n, k, env)
 		case Atom: // list or non-list terminated by an atom
 			if suffix != atomEmptyList {
 				return Bool(false)
@@ -2785,23 +2806,18 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 }
 
 func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
-	elems := make([]Term, n)
-	for i := range elems {
-		elems[i] = NewVariable()
-	}
-	return Unify(vm, list, List(elems...), k, env)
+	return Unify(vm, list, freshVarList(int(n)), k, env)
 }
 
-func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, k Cont, env *Env) *Promise {
+func lengthAddendum(vm *VM, n int, offset Integer, list, length Variable, k Cont, env *Env) *Promise {
 	return Delay(func(context.Context) *Promise {
-		return Unify(vm, tuple(list, length), tuple(suffix, offset), k, env)
+		return Unify(vm, tuple(list, length), tuple(freshVarList(n), offset), k, env)
 	}, func(context.Context) *Promise {
-		suffix := atomDot.Apply(NewVariable(), suffix)
 		offset, err := addI(offset, 1)
 		if err != nil {
 			return Error(representationError(flagMaxInteger, env))
 		}
-		return lengthAddendum(vm, suffix, offset, list, length, k, env)
+		return lengthAddendum(vm, n+1, offset, list, length, k, env)
 	})
 }
 
@@ -2834,16 +2850,8 @@ func SkipMaxList(vm *VM, skip, max, list, suffix Term, k Cont, env *Env) *Promis
 // Append succeeds iff zs is the concatenation of lists xs and ys.
 func Append(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 	// A special case for non-empty lists without a variable in the spine.
-	if xs, ok := env.Resolve(xs).(Compound); ok {
-		iter := ListIterator{List: xs, Env: nil} // No variables allowed.
-		for iter.Next() {
-		}
-		if err := iter.Err(); err == nil {
-			return Unify(vm, zs, &partial{
-				Compound: xs,
-				tail:     &ys,
-			}, k, env)
-		}
+	if xs, ok := env.Resolve(xs).(vector); ok {
+		return Unify(vm, zs, &partial{vector: xs, tail: &ys}, k, env)
 	}
 
 	return appendLists(vm, xs, ys, zs, k, env)

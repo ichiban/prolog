@@ -79,6 +79,14 @@ func (l list) Arg(n int) Term {
 	return t
 }
 
+func (l list) Len() int {
+	return len(l)
+}
+
+func (l list) Elem(at int) Term {
+	return l[at]
+}
+
 func (l list) GoString() string {
 	var sb strings.Builder
 	_, _ = sb.WriteString(`engine.list{`)
@@ -101,7 +109,7 @@ func List(ts ...Term) Term {
 }
 
 type partial struct {
-	Compound
+	vector
 	tail *Term
 }
 
@@ -110,25 +118,25 @@ func (p *partial) termID() termID { // The underlying compound might not be comp
 		prefixID, tailID termID
 	}
 	return partialID{
-		prefixID: id(p.Compound),
+		prefixID: id(p.vector),
 		tailID:   p.tail,
 	}
 }
 
 func (p *partial) Arg(n int) Term {
-	t := p.Compound.Arg(n)
-	if c := p.Compound; c.Functor() == atomDot && c.Arity() == 2 && n == 1 {
+	t := p.vector.Arg(n)
+	if c := p.vector; c.Functor() == atomDot && c.Arity() == 2 && n == 1 {
 		if t == atomEmptyList {
 			t = *p.tail
 		} else {
-			t = &partial{Compound: t.(Compound), tail: p.tail}
+			t = &partial{vector: t.(vector), tail: p.tail}
 		}
 	}
 	return t
 }
 
 func (p *partial) GoString() string {
-	return fmt.Sprintf(`engine.partial{Compound:%#v, tail:%#v}`, p.Compound, *p.tail)
+	return fmt.Sprintf(`engine.partial{vector:%#v, tail:%#v}`, p.vector, *p.tail)
 }
 
 // PartialList returns a list of ts followed by tail.
@@ -137,8 +145,8 @@ func PartialList(tail Term, ts ...Term) Term {
 		return tail
 	}
 	return &partial{
-		Compound: list(ts),
-		tail:     &tail,
+		vector: list(ts),
+		tail:   &tail,
 	}
 }
 
@@ -211,6 +219,14 @@ func (c charList) Arg(n int) Term {
 	return t
 }
 
+func (c charList) Len() int {
+	return len([]rune(c))
+}
+
+func (c charList) Elem(at int) Term {
+	return Atom([]rune(c)[at])
+}
+
 // CharList returns a character list.
 func CharList(s string) Term {
 	if s == "" {
@@ -245,10 +261,136 @@ func (c codeList) Arg(n int) Term {
 	return t
 }
 
+func (c codeList) Len() int {
+	return len([]rune(c))
+}
+
+func (c codeList) Elem(at int) Term {
+	return Integer([]rune(c)[at])
+}
+
 // CodeList returns a character code list.
 func CodeList(s string) Term {
 	if s == "" {
 		return atomEmptyList
 	}
 	return codeList(s)
+}
+
+type sparseCompoundPair struct {
+	index int
+	arg   Term
+}
+
+type sparseCompound struct {
+	functor Atom
+	arity   int
+	pairs   []sparseCompoundPair
+}
+
+func (s *sparseCompound) Functor() Atom {
+	return s.functor
+}
+
+func (s *sparseCompound) Arity() int {
+	return s.arity
+}
+
+func (s *sparseCompound) Arg(n int) Term {
+	i, found := sort.Find(len(s.pairs), func(i int) int {
+		return n - s.pairs[i].index
+	})
+	if found {
+		return s.pairs[i].arg
+	}
+	v := NewVariable()
+	s.pairs = append(s.pairs, sparseCompoundPair{})
+	copy(s.pairs[i+1:], s.pairs[i:])
+	s.pairs[i] = sparseCompoundPair{index: n, arg: v}
+	return v
+}
+
+func freshVarList(n int) Term {
+	if n == 0 {
+		return atomEmptyList
+	}
+	return &sparseList{len: n}
+}
+
+type sparseListPair struct {
+	index int
+	elem  Term
+}
+
+type sparseList struct {
+	len    int
+	offset int
+	pairs  *[]sparseListPair
+}
+
+func (s *sparseList) Functor() Atom {
+	return atomDot
+}
+
+func (s *sparseList) Arity() int {
+	return 2
+}
+
+func (s *sparseList) Arg(n int) Term {
+	if s.pairs == nil {
+		s.pairs = &[]sparseListPair{}
+	}
+
+	if n == 1 {
+		offset := s.offset + 1
+		if offset == s.len {
+			return atomEmptyList
+		}
+		return &sparseList{
+			len:    s.len,
+			offset: offset,
+			pairs:  s.pairs,
+		}
+	}
+
+	return s.Elem(0)
+}
+
+func (s *sparseList) Len() int {
+	return s.len
+}
+
+func (s *sparseList) Elem(at int) Term {
+	n := s.offset + at
+	i, found := sort.Find(len(*s.pairs), func(i int) int {
+		return n - (*s.pairs)[i].index
+	})
+	if found {
+		return (*s.pairs)[i].elem
+	}
+	v := NewVariable()
+	*s.pairs = append(*s.pairs, sparseListPair{})
+	copy((*s.pairs)[i+1:], (*s.pairs)[i:])
+	(*s.pairs)[i] = sparseListPair{index: s.offset, elem: v}
+	return v
+}
+
+// vector is a list which element can be accessed by index.
+type vector interface {
+	Compound
+	Len() int
+	Elem(at int) Term
+}
+
+func length(list Term, env *Env) (int, error) {
+	if v, ok := list.(vector); ok {
+		return v.Len(), nil
+	}
+
+	var n int
+	iter := ListIterator{List: list, Env: env}
+	for iter.Next() {
+		n++
+	}
+	return n, iter.Err()
 }

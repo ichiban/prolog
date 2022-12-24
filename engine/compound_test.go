@@ -14,7 +14,7 @@ func TestCompound_GoString(t *testing.T) {
 	}{
 		{term: NewAtom("f").Apply(NewAtom("a")), output: `&engine.compound{functor:"f", args:[]engine.Term{"a"}}`},
 		{term: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), output: `engine.list{"a", "b", "c"}`},
-		{term: PartialList(NewAtom("c"), NewAtom("a"), NewAtom("b")), output: `engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}`},
+		{term: PartialList(NewAtom("c"), NewAtom("a"), NewAtom("b")), output: `engine.partial{vector:engine.list{"a", "b"}, tail:"c"}`},
 	}
 
 	for _, tt := range tests {
@@ -51,7 +51,7 @@ func TestPartialList(t *testing.T) {
 		list  Term
 	}{
 		{title: "empty", rest: x, elems: nil, list: x},
-		{title: "non-empty", rest: x, elems: []Term{NewAtom("a"), NewAtom("b")}, list: &partial{Compound: list{NewAtom("a"), NewAtom("b")}, tail: &x}},
+		{title: "non-empty", rest: x, elems: []Term{NewAtom("a"), NewAtom("b")}, list: &partial{vector: list{NewAtom("a"), NewAtom("b")}, tail: &x}},
 	}
 
 	for _, tt := range tests {

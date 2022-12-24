@@ -142,11 +142,12 @@ func (c *clause) compileArg(a Term, env *Env) {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case *partial:
-		prefix := a.Compound.(list)
-		c.bytecode = append(c.bytecode, instruction{opcode: opPartial, operand: c.xrOffset(Integer(len(prefix)))})
+		prefix := a.vector
+		c.bytecode = append(c.bytecode, instruction{opcode: opPartial, operand: c.xrOffset(Integer(prefix.Len()))})
 		c.compileArg(*a.tail, env)
-		for _, arg := range prefix {
-			c.compileArg(arg, env)
+		iter := ListIterator{List: prefix, Env: env}
+		for iter.Next() {
+			c.compileArg(iter.Current(), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
