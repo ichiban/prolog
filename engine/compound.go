@@ -83,10 +83,6 @@ func (l list) Len() int {
 	return len(l)
 }
 
-func (l list) Elem(at int) Term {
-	return l[at]
-}
-
 func (l list) GoString() string {
 	var sb strings.Builder
 	_, _ = sb.WriteString(`engine.list{`)
@@ -231,10 +227,6 @@ func (c charList) Len() int {
 	return len([]rune(c))
 }
 
-func (c charList) Elem(at int) Term {
-	return Atom([]rune(c)[at])
-}
-
 // CharList returns a character list.
 func CharList(s string) Term {
 	if s == "" {
@@ -271,10 +263,6 @@ func (c codeList) Arg(n int) Term {
 
 func (c codeList) Len() int {
 	return len([]rune(c))
-}
-
-func (c codeList) Elem(at int) Term {
-	return Integer([]rune(c)[at])
 }
 
 // CodeList returns a character code list.
@@ -361,17 +349,8 @@ func (s *sparseList) Arg(n int) Term {
 		}
 	}
 
-	return s.Elem(0)
-}
-
-func (s *sparseList) Len() int {
-	return s.len
-}
-
-func (s *sparseList) Elem(at int) Term {
-	n := s.offset + at
 	i, found := sort.Find(len(*s.pairs), func(i int) int {
-		return n - (*s.pairs)[i].index
+		return s.offset - (*s.pairs)[i].index
 	})
 	if found {
 		return (*s.pairs)[i].elem
@@ -383,9 +362,12 @@ func (s *sparseList) Elem(at int) Term {
 	return v
 }
 
+func (s *sparseList) Len() int {
+	return s.len
+}
+
 // vector is a list which element can be accessed by index.
 type vector interface {
 	Compound
 	Len() int
-	Elem(at int) Term
 }
