@@ -2763,6 +2763,12 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeInteger, n, env))
 	}
 
+	list = env.Resolve(list)
+
+	if v, ok := list.(vector); ok {
+		return Unify(vm, n, Integer(v.Len()), k, env)
+	}
+
 	var (
 		skipped = NewVariable()
 		suffix  = NewVariable()

@@ -7059,10 +7059,10 @@ func TestSucc(t *testing.T) {
 }
 
 func TestLength(t *testing.T) {
-	t.Run("list is a list", func(t *testing.T) {
+	t.Run("list is a cons list", func(t *testing.T) {
 		t.Run("length is a variable", func(t *testing.T) {
 			n := NewVariable()
-			ok, err := Length(nil, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), n, func(env *Env) *Promise {
+			ok, err := Length(nil, Cons(NewAtom("a"), Cons(NewAtom("b"), Cons(NewAtom("c"), atomEmptyList))), n, func(env *Env) *Promise {
 				assert.Equal(t, Integer(3), env.Resolve(n))
 				return Bool(true)
 			}, nil).Force(context.Background())
@@ -7072,13 +7072,13 @@ func TestLength(t *testing.T) {
 
 		t.Run("length is an integer", func(t *testing.T) {
 			t.Run("length is the exact length of list", func(t *testing.T) {
-				ok, err := Length(nil, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), Integer(3), Success, nil).Force(context.Background())
+				ok, err := Length(nil, Cons(NewAtom("a"), Cons(NewAtom("b"), Cons(NewAtom("c"), atomEmptyList))), Integer(3), Success, nil).Force(context.Background())
 				assert.NoError(t, err)
 				assert.True(t, ok)
 			})
 
 			t.Run("length is smaller than the length fo list", func(t *testing.T) {
-				ok, err := Length(nil, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), Integer(2), Success, nil).Force(context.Background())
+				ok, err := Length(nil, Cons(NewAtom("a"), Cons(NewAtom("b"), Cons(NewAtom("c"), atomEmptyList))), Integer(2), Success, nil).Force(context.Background())
 				assert.NoError(t, err)
 				assert.False(t, ok)
 			})
@@ -7176,14 +7176,42 @@ func TestLength(t *testing.T) {
 			maxInt = math.MaxInt64
 		}()
 
-		t.Run("list is a list", func(t *testing.T) {
-			_, err := Length(nil, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), NewVariable(), Success, nil).Force(context.Background())
+		t.Run("list is an infinite list", func(t *testing.T) {
+			v := NewVariable()
+			l := PartialList(v, NewAtom("a"), NewAtom("b"), NewAtom("c"))
+			_, err := Length(nil, l, NewVariable(), Success, NewEnv().bind(v, l)).Force(context.Background())
 			assert.Equal(t, resourceError(resourceFiniteMemory, nil), err)
 		})
 
 		t.Run("list is a partial list", func(t *testing.T) {
 			_, err := Length(nil, NewVariable(), NewVariable(), Failure, nil).Force(context.Background())
 			assert.Equal(t, representationError(flagMaxInteger, nil), err)
+		})
+	})
+
+	t.Run("list is a vector", func(t *testing.T) {
+		t.Run("list", func(t *testing.T) {
+			ok, err := Length(nil, List(NewAtom("a"), NewAtom("b"), NewAtom("c")), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("charList", func(t *testing.T) {
+			ok, err := Length(nil, CharList("abc"), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("codeList", func(t *testing.T) {
+			ok, err := Length(nil, CodeList("abc"), Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
+		})
+
+		t.Run("sparseList", func(t *testing.T) {
+			ok, err := Length(nil, &sparseList{len: 3}, Integer(3), Success, nil).Force(context.Background())
+			assert.NoError(t, err)
+			assert.True(t, ok)
 		})
 	})
 }
