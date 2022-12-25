@@ -805,6 +805,20 @@ func TestCopyTerm(t *testing.T) {
 		{title: "codeList", in: CodeList("foo"), out: CodeList("foo"), ok: true},
 		{title: "list", in: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), out: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), ok: true},
 		{title: "partial", in: PartialList(x, NewAtom("a"), NewAtom("b")), out: PartialList(x, NewAtom("a"), NewAtom("b")), ok: true},
+		{title: "sparseCompound", in: &sparseCompound{functor: NewAtom("f"), arity: 1024, pairs: []sparseCompoundPair{
+			{index: 256, arg: NewAtom("a")},
+			{index: 512, arg: NewAtom("b")},
+		}}, out: &sparseCompound{functor: NewAtom("f"), arity: 1024, pairs: []sparseCompoundPair{
+			{index: 256, arg: NewAtom("a")},
+			{index: 512, arg: NewAtom("b")},
+		}}, ok: true},
+		{title: "sparseList", in: &sparseList{len: 1024, pairs: &[]sparseListPair{
+			{index: 256, elem: NewAtom("a")},
+			{index: 512, elem: NewAtom("b")},
+		}}, out: &sparseList{len: 1024, pairs: &[]sparseListPair{
+			{index: 256, elem: NewAtom("a")},
+			{index: 512, elem: NewAtom("b")},
+		}}, ok: true},
 	}
 
 	for _, tt := range tests {

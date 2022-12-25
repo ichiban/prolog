@@ -109,8 +109,8 @@ func List(ts ...Term) Term {
 }
 
 type partial struct {
-	vector
-	tail *Term
+	vector vector
+	tail   *Term
 }
 
 func (p *partial) termID() termID { // The underlying compound might not be comparable.
@@ -121,6 +121,14 @@ func (p *partial) termID() termID { // The underlying compound might not be comp
 		prefixID: id(p.vector),
 		tailID:   p.tail,
 	}
+}
+
+func (p *partial) Functor() Atom {
+	return atomDot
+}
+
+func (p *partial) Arity() int {
+	return 2
 }
 
 func (p *partial) Arg(n int) Term {
@@ -380,17 +388,4 @@ type vector interface {
 	Compound
 	Len() int
 	Elem(at int) Term
-}
-
-func length(list Term, env *Env) (int, error) {
-	if v, ok := list.(vector); ok {
-		return v.Len(), nil
-	}
-
-	var n int
-	iter := ListIterator{List: list, Env: env}
-	for iter.Next() {
-		n++
-	}
-	return n, iter.Err()
 }
