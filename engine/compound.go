@@ -100,6 +100,21 @@ func List(ts ...Term) Term {
 	return list(ts)
 }
 
+func freshVarList(n int) (Term, error) {
+	if n == 0 {
+		return atomEmptyList, nil
+	}
+
+	ts, err := makeTermSlice(n)
+	if err != nil {
+		return nil, err
+	}
+	for i := range ts {
+		ts[i] = NewVariable()
+	}
+	return list(ts), nil
+}
+
 type partial struct {
 	Compound
 	tail *Term

@@ -276,7 +276,10 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 				return Error(typeError(validTypeAtom, name, env))
 			}
 
-			vs := make([]Term, arity)
+			vs, err := makeTermSlice(int(arity))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
 			for i := range vs {
 				vs[i] = NewVariable()
 			}
@@ -2761,7 +2764,7 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 				return Error(resourceError(resourceFiniteMemory, env))
 			}
 
-			return lengthAddendum(vm, atomEmptyList, skipped, suffix, n, k, env)
+			return lengthAddendum(vm, 0, skipped, suffix, n, k, env)
 		case Atom: // list or non-list terminated by an atom
 			if suffix != atomEmptyList {
 				return Bool(false)
@@ -2785,23 +2788,31 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 }
 
 func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
-	elems := make([]Term, n)
+	elems, err := makeTermSlice(int(n))
+	if err != nil {
+		return Error(resourceError(resourceMemory, env))
+	}
 	for i := range elems {
 		elems[i] = NewVariable()
 	}
 	return Unify(vm, list, List(elems...), k, env)
 }
 
-func lengthAddendum(vm *VM, suffix Term, offset Integer, list, length Variable, k Cont, env *Env) *Promise {
+func lengthAddendum(vm *VM, n, offset Integer, list, length Variable, k Cont, env *Env) *Promise {
+	suffix, err := freshVarList(int(n))
+	if err != nil {
+		return Error(err)
+	}
+
 	return Delay(func(context.Context) *Promise {
 		return Unify(vm, tuple(list, length), tuple(suffix, offset), k, env)
 	}, func(context.Context) *Promise {
-		suffix := atomDot.Apply(NewVariable(), suffix)
+		n, _ := addI(n, 1)
 		offset, err := addI(offset, 1)
 		if err != nil {
 			return Error(representationError(flagMaxInteger, env))
 		}
-		return lengthAddendum(vm, suffix, offset, list, length, k, env)
+		return lengthAddendum(vm, n, offset, list, length, k, env)
 	})
 }
 

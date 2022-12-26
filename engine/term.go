@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"io"
 	"reflect"
 	"strconv"
@@ -484,4 +485,15 @@ func id(t Term) termID {
 	default:
 		return t // Assuming it's comparable.
 	}
+}
+
+var errTooLarge = errors.New("too large")
+
+func makeTermSlice(n int) (_ []Term, err error) {
+	defer func() {
+		if recover() != nil {
+			err = errTooLarge
+		}
+	}()
+	return make([]Term, n, n), nil
 }
