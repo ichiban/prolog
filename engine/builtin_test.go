@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -604,6 +605,9 @@ func TestFunctor(t *testing.T) {
 
 		// https://github.com/ichiban/prolog/issues/247
 		{title: `functor(X, Y, 0).`, term: x, name: y, arity: Integer(0), err: instantiationError(nil)},
+
+		// https://github.com/ichiban/prolog/issues/226
+		{title: `functor(F, f, max_int).`, term: f, name: NewAtom("f"), arity: maxInt, err: resourceError(resourceMemory, nil)},
 	}
 
 	for _, tt := range tests {
@@ -7114,15 +7118,33 @@ func TestLength(t *testing.T) {
 		})
 
 		t.Run("length is an integer", func(t *testing.T) {
-			l := NewVariable()
-			ok, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), Integer(3), func(env *Env) *Promise {
-				iter := ListIterator{List: l, Env: env}
-				assert.True(t, iter.Next())
-				assert.False(t, iter.Next())
-				return Bool(true)
-			}, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+			t.Run("small", func(t *testing.T) {
+				l := NewVariable()
+				ok, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), Integer(3), func(env *Env) *Promise {
+					iter := ListIterator{List: l, Env: env}
+					assert.True(t, iter.Next())
+					assert.False(t, iter.Next())
+					return Bool(true)
+				}, nil).Force(context.Background())
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			})
+
+			t.Run("large", func(t *testing.T) {
+				l := NewVariable()
+				_, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), Integer(math.MaxInt64), Success, nil).Force(context.Background())
+				assert.Equal(t, resourceError(resourceMemory, nil), err)
+			})
+
+			t.Run("out of memory", func(t *testing.T) {
+				limit := debug.SetMemoryLimit(-1)
+				_ = debug.SetMemoryLimit(100 * 1024 * 1024)
+				defer debug.SetMemoryLimit(limit)
+
+				l := NewVariable()
+				_, err := Length(nil, PartialList(l, NewAtom("a"), NewAtom("b")), Integer(100*1024*1024), Success, nil).Force(context.Background())
+				assert.Equal(t, resourceError(resourceMemory, nil), err)
+			})
 		})
 	})
 

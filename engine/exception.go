@@ -262,10 +262,13 @@ type resource uint8
 // resource is one of these values.
 const (
 	resourceFiniteMemory resource = iota
+
+	resourceMemory
 )
 
 var resourceAtoms = [...]Atom{
 	resourceFiniteMemory: atomFiniteMemory,
+	resourceMemory:       atomMemory,
 }
 
 // Term returns an Atom for the resource.

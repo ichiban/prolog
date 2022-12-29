@@ -124,6 +124,7 @@ var (
 	atomMax                     = NewAtom("max")
 	atomMaxArity                = NewAtom("max_arity")
 	atomMaxInteger              = NewAtom("max_integer")
+	atomMemory                  = NewAtom("memory")
 	atomMin                     = NewAtom("min")
 	atomMinInteger              = NewAtom("min_integer")
 	atomMod                     = NewAtom("mod")

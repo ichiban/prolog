@@ -41,7 +41,10 @@ func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
 		return Error(instantiationError(env))
 	default:
 		fvs := env.freeVariables(g)
-		args := make([]Term, len(fvs))
+		args, err := makeSlice[Term](len(fvs))
+		if err != nil {
+			return Error(resourceError(resourceMemory, env))
+		}
 		for i, fv := range fvs {
 			args[i] = fv
 		}
@@ -95,7 +98,11 @@ func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
 	if err != nil {
 		return Error(err)
 	}
-	args := make([]Term, pi.arity, int(pi.arity)+len(additional))
+	args, err := makeSlice[Term](int(pi.arity) + len(additional))
+	if err != nil {
+		return Error(resourceError(resourceMemory, env))
+	}
+	args = args[:pi.arity]
 	for i := 0; i < int(pi.arity); i++ {
 		args[i] = arg(i)
 	}
@@ -276,7 +283,10 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 				return Error(typeError(validTypeAtom, name, env))
 			}
 
-			vs := make([]Term, arity)
+			vs, err := makeSlice[Term](int(arity))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
 			for i := range vs {
 				vs[i] = NewVariable()
 			}
@@ -404,9 +414,13 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 		p.tail = &tail
 		return &p
 	case Compound:
+		args, err := makeSlice[Term](t.Arity())
+		if err != nil {
+			return resourceError(resourceMemory, env)
+		}
 		c := compound{
 			functor: t.Functor(),
-			args:    make([]Term, t.Arity()),
+			args:    args,
 		}
 		copied[id(t)] = &c
 		for i := 0; i < t.Arity(); i++ {
@@ -435,7 +449,10 @@ func TermVariables(vm *VM, term, vars Term, k Cont, env *Env) *Promise {
 			}
 			witness[t] = struct{}{}
 		case Compound:
-			args := make([]Term, t.Arity())
+			args, err := makeSlice[Term](t.Arity())
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
 			for i := 0; i < t.Arity(); i++ {
 				args[i] = t.Arg(i)
 			}
@@ -697,7 +714,11 @@ func SetOf(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 
 func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances Term, k Cont, env *Env) *Promise {
 	fvs := newFreeVariablesSet(goal, template, env)
-	w := make([]Term, 0, len(fvs))
+	w, err := makeSlice[Term](len(fvs))
+	if err != nil {
+		return Error(resourceError(resourceMemory, env))
+	}
+	w = w[:0]
 	for v := range fvs {
 		w = append(w, v)
 	}
@@ -2207,7 +2228,10 @@ func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 
-		cs := make([]Term, len(rs))
+		cs, err := makeSlice[Term](len(rs))
+		if err != nil {
+			return Error(resourceError(resourceMemory, env))
+		}
 		for i, r := range rs {
 			cs[i] = Atom(r)
 		}
@@ -2269,7 +2293,10 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 		var buf bytes.Buffer
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
-		cs := make([]Term, len(rs))
+		cs, err := makeSlice[Term](len(rs))
+		if err != nil {
+			return Error(resourceError(resourceMemory, env))
+		}
 		for i, r := range rs {
 			cs[i] = Integer(r)
 		}
@@ -2785,7 +2812,10 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 }
 
 func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
-	elems := make([]Term, n)
+	elems, err := makeSlice[Term](int(n))
+	if err != nil {
+		return Error(resourceError(resourceMemory, env))
+	}
 	for i := range elems {
 		elems[i] = NewVariable()
 	}
