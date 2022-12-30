@@ -2228,10 +2228,7 @@ func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
 
-		cs, err := makeSlice[Term](len(rs))
-		if err != nil {
-			return Error(resourceError(resourceMemory, env))
-		}
+		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Atom(r)
 		}
@@ -2293,10 +2290,7 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 		var buf bytes.Buffer
 		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
 		rs := []rune(buf.String())
-		cs, err := makeSlice[Term](len(rs))
-		if err != nil {
-			return Error(resourceError(resourceMemory, env))
-		}
+		cs := make([]Term, len(rs))
 		for i, r := range rs {
 			cs[i] = Integer(r)
 		}
