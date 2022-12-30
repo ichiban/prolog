@@ -19,8 +19,6 @@ var memFree = func() int64 {
 // makeSlice tries to allocate a slice safely by respecting debug.SetMemoryLimit().
 // There's still a chance to breach the limit due to a race condition.
 // Yet, it can still prevent allocation of unreasonably large slices.
-//
-//go:nosplit
 func makeSlice[T any](n int) (_ []T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
