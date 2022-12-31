@@ -262,10 +262,13 @@ type resource uint8
 // resource is one of these values.
 const (
 	resourceFiniteMemory resource = iota
+
+	resourceMemory
 )
 
 var resourceAtoms = [...]Atom{
 	resourceFiniteMemory: atomFiniteMemory,
+	resourceMemory:       atomMemory,
 }
 
 // Term returns an Atom for the resource.
@@ -275,7 +278,8 @@ func (r resource) Term() Term {
 
 // resourceError creates a new resource error exception.
 func resourceError(resource resource, env *Env) Exception {
-	return NewException(atomError.Apply(NewAtom("resource_error").Apply(resource.Term()), varContext), env)
+	// We can't call renamedCopy() since it can lead th resource_error(memory).
+	return Exception{term: atomError.Apply(NewAtom("resource_error").Apply(resource.Term()), env.Resolve(varContext))}
 }
 
 // syntaxError creates a new syntax error exception.
