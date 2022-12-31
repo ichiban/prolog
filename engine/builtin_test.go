@@ -53,15 +53,8 @@ f(g([a, [b|X]])).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
+
 			ok, err := Call(&vm, tt.goal, Success, nil).Force(context.Background())
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
@@ -86,15 +79,7 @@ func TestCall1(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 2}: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
@@ -125,15 +110,7 @@ func TestCall2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -164,15 +141,7 @@ func TestCall3(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -203,15 +172,7 @@ func TestCall4(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -242,15 +203,7 @@ func TestCall5(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -281,15 +234,7 @@ func TestCall6(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -320,15 +265,7 @@ func TestCall7(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm := VM{procedures: map[procedureIndicator]procedure{
 				{name: NewAtom("p"), arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
@@ -968,15 +905,7 @@ func TestTermVariables(t *testing.T) {
 		bind(vt, NewAtom("*").Apply(a, b))
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			ok, err := TermVariables(nil, tt.term, tt.vars, func(env *Env) *Promise {
 				for k, v := range tt.env {
@@ -1586,15 +1515,7 @@ func TestBagOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm.Unknown = func(Atom, []Term, *Env) {
 				assert.True(t, tt.warning)
@@ -1998,15 +1919,7 @@ func TestSetOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			if tt.mem > 0 {
-				orig := memFree
-				memFree = func() int64 {
-					return tt.mem
-				}
-				defer func() {
-					memFree = orig
-				}()
-			}
+			defer setMemFree(tt.mem)()
 
 			vm.Unknown = func(Atom, []Term, *Env) {
 				assert.True(t, tt.warning)
@@ -7479,4 +7392,18 @@ type mockStringWriter struct {
 func (m *mockStringWriter) WriteString(s string) (int, error) {
 	args := m.Called(s)
 	return args.Int(0), args.Error(1)
+}
+
+func setMemFree(n int64) func() {
+	if n <= 0 {
+		return func() {}
+	}
+
+	orig := memFree
+	memFree = func() int64 {
+		return n
+	}
+	return func() {
+		memFree = orig
+	}
 }
