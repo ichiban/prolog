@@ -146,7 +146,7 @@ func TestIs(t *testing.T) {
 		{title: "arity is more than 2", expression: foo.Apply(Integer(1), Integer(2), Integer(3)), err: typeError(validTypeEvaluable, atomSlash.Apply(foo, Integer(3)), nil)},
 
 		// 8.6.1.3 Errors
-		{title: "a", result: NewVariable(), expression: NewVariable(), err: instantiationError(nil)},
+		{title: "a", result: NewVariable(), expression: NewVariable(), err: InstantiationError(nil)},
 
 		{title: "1 ** 1", result: Float(1), expression: atomAsteriskAsterisk.Apply(Integer(1), Integer(1)), ok: true},
 		{title: "1 ** 1.0", result: Float(1), expression: atomAsteriskAsterisk.Apply(Integer(1), Float(1)), ok: true},
@@ -348,8 +348,8 @@ func TestNotEqual(t *testing.T) {
 		{title: `1 =\= 2.0`, e1: Integer(1), e2: Float(2), ok: true},
 		{title: `1.0 =\= 2`, e1: Float(1), e2: Integer(2), ok: true},
 		{title: `1.0 =\= 2.0`, e1: Float(1), e2: Float(2), ok: true},
-		{title: `X =\= 1`, e1: x, e2: Integer(1), err: instantiationError(nil)},
-		{title: `1 =\= X`, e1: Integer(1), e2: x, err: instantiationError(nil)},
+		{title: `X =\= 1`, e1: x, e2: Integer(1), err: InstantiationError(nil)},
+		{title: `1 =\= X`, e1: Integer(1), e2: x, err: InstantiationError(nil)},
 		{title: `1 =\= 1`, e1: Integer(1), e2: Integer(1), ok: false},
 	}
 
@@ -375,8 +375,8 @@ func TestLessThan(t *testing.T) {
 		{title: `1 < 2.0`, e1: Integer(1), e2: Float(2), ok: true},
 		{title: `1.0 < 2`, e1: Float(1), e2: Integer(2), ok: true},
 		{title: `1.0 < 2.0`, e1: Float(1), e2: Float(2), ok: true},
-		{title: `X < 1`, e1: x, e2: Integer(1), err: instantiationError(nil)},
-		{title: `1 < X`, e1: Integer(1), e2: x, err: instantiationError(nil)},
+		{title: `X < 1`, e1: x, e2: Integer(1), err: InstantiationError(nil)},
+		{title: `1 < X`, e1: Integer(1), e2: x, err: InstantiationError(nil)},
 		{title: `1 < 1`, e1: Integer(1), e2: Integer(1), ok: false},
 	}
 
@@ -402,8 +402,8 @@ func TestGreaterThan(t *testing.T) {
 		{title: `2 > 1.0`, e1: Integer(2), e2: Float(1), ok: true},
 		{title: `2.0 > 1`, e1: Float(2), e2: Integer(1), ok: true},
 		{title: `2.0 > 1.0`, e1: Float(2), e2: Float(1), ok: true},
-		{title: `X > 1`, e1: x, e2: Integer(1), err: instantiationError(nil)},
-		{title: `1 > X`, e1: Integer(1), e2: x, err: instantiationError(nil)},
+		{title: `X > 1`, e1: x, e2: Integer(1), err: InstantiationError(nil)},
+		{title: `1 > X`, e1: Integer(1), e2: x, err: InstantiationError(nil)},
 		{title: `1 > 1`, e1: Integer(1), e2: Integer(1), ok: false},
 	}
 
@@ -429,8 +429,8 @@ func TestLessThanOrEqual(t *testing.T) {
 		{title: `1 =< 1.0`, e1: Integer(1), e2: Float(1), ok: true},
 		{title: `1.0 =< 1`, e1: Float(1), e2: Integer(1), ok: true},
 		{title: `1.0 =< 1.0`, e1: Float(1), e2: Float(1), ok: true},
-		{title: `X =< 1`, e1: x, e2: Integer(1), err: instantiationError(nil)},
-		{title: `1 =< X`, e1: Integer(1), e2: x, err: instantiationError(nil)},
+		{title: `X =< 1`, e1: x, e2: Integer(1), err: InstantiationError(nil)},
+		{title: `1 =< X`, e1: Integer(1), e2: x, err: InstantiationError(nil)},
 		{title: `2 =< 1`, e1: Integer(2), e2: Integer(1), ok: false},
 	}
 
@@ -456,8 +456,8 @@ func TestGreaterThanOrEqual(t *testing.T) {
 		{title: `1 >= 1.0`, e1: Integer(1), e2: Float(1), ok: true},
 		{title: `1.0 >= 1`, e1: Float(1), e2: Integer(1), ok: true},
 		{title: `1.0 >= 1.0`, e1: Float(1), e2: Float(1), ok: true},
-		{title: `X >= 1`, e1: x, e2: Integer(1), err: instantiationError(nil)},
-		{title: `1 >= X`, e1: Integer(1), e2: x, err: instantiationError(nil)},
+		{title: `X >= 1`, e1: x, e2: Integer(1), err: InstantiationError(nil)},
+		{title: `1 >= X`, e1: Integer(1), e2: x, err: InstantiationError(nil)},
 		{title: `1 >= 2`, e1: Integer(1), e2: Integer(2), ok: false},
 	}
 

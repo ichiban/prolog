@@ -535,7 +535,7 @@ func (p procedureIndicator) Apply(args ...Term) (Term, error) {
 func piArg(t Term, env *Env) (procedureIndicator, func(int) Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return procedureIndicator{}, nil, instantiationError(env)
+		return procedureIndicator{}, nil, InstantiationError(env)
 	case Atom:
 		return procedureIndicator{name: f, arity: 0}, nil, nil
 	case Compound:

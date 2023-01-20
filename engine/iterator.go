@@ -41,7 +41,7 @@ func (i *ListIterator) Next() bool {
 	switch l := i.hare.(type) {
 	case Variable:
 		if !i.AllowPartial {
-			i.err = instantiationError(i.Env)
+			i.err = InstantiationError(i.Env)
 		}
 		return false
 	case Atom:

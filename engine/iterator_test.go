@@ -27,7 +27,7 @@ func TestListIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, instantiationError(nil), iter.Err())
+			assert.Equal(t, InstantiationError(nil), iter.Err())
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestAnyIterator_Next(t *testing.T) {
 			assert.True(t, iter.Next())
 			assert.Equal(t, NewAtom("b"), iter.Current())
 			assert.False(t, iter.Next())
-			assert.Equal(t, instantiationError(nil), iter.Err())
+			assert.Equal(t, InstantiationError(nil), iter.Err())
 		})
 
 		t.Run("atom", func(t *testing.T) {
