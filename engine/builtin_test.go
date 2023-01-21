@@ -5390,42 +5390,49 @@ func TestClause(t *testing.T) {
 }
 
 func TestAtomLength(t *testing.T) {
-	t.Run("ascii", func(t *testing.T) {
-		ok, err := AtomLength(nil, NewAtom("abc"), Integer(3), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	n := NewVariable()
 
-	t.Run("emoji", func(t *testing.T) {
-		ok, err := AtomLength(nil, NewAtom("😀"), Integer(1), Success, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	tests := []struct {
+		title        string
+		atom, length Term
+		ok           bool
+		err          error
+		env          map[Variable]Term
+	}{
+		// 8.16.1.4 Examples
+		{title: "atom_length('enchanted evening', N).", atom: NewAtom("enchanted evening"), length: n, ok: true, env: map[Variable]Term{
+			n: Integer(17),
+		}},
+		{title: `atom_length('enchanted\
+ evening', N).`, atom: NewAtom("enchanted evening"), length: n, ok: true, env: map[Variable]Term{
+			n: Integer(17),
+		}},
+		{title: "atom_length('', N).", atom: NewAtom(""), length: n, ok: true, env: map[Variable]Term{
+			n: Integer(0),
+		}},
+		{title: "atom_length('scarlet', 5).", atom: NewAtom("scarlet"), length: Integer(5), ok: false},
+		{title: "atom_length(Atom, 4).", atom: NewVariable(), length: Integer(4), err: instantiationError(nil)},
+		{title: "atom_length(1.23, 4).", atom: Float(1.23), length: Integer(4), err: typeError(validTypeAtom, Float(1.23), nil)},
+		{title: "atom_length(atom, '4').", atom: NewAtom("atom"), length: NewAtom("4"), err: typeError(validTypeInteger, NewAtom("4"), nil)},
 
-	t.Run("atom is a variable", func(t *testing.T) {
-		atom := NewVariable()
-		ok, err := AtomLength(nil, atom, Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
-		assert.False(t, ok)
-	})
+		// 8.16.1.3 Errors
+		{title: "d", atom: NewAtom("atom"), length: Integer(-1), err: domainError(validDomainNotLessThanZero, Integer(-1), nil)},
+	}
 
-	t.Run("atom is neither a variable nor an atom", func(t *testing.T) {
-		ok, err := AtomLength(nil, Integer(2), Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeAtom, Integer(2), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("length is neither a variable nor an integer", func(t *testing.T) {
-		ok, err := AtomLength(nil, NewAtom("😀"), NewAtom("1"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeInteger, NewAtom("1"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("length is an integer less than zero", func(t *testing.T) {
-		ok, err := AtomLength(nil, NewAtom("😀"), Integer(-1), Success, nil).Force(context.Background())
-		assert.Equal(t, domainError(validDomainNotLessThanZero, Integer(-1), nil), err)
-		assert.False(t, ok)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			var vm VM
+			ok, err := AtomLength(&vm, tt.atom, tt.length, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
 }
 
 func TestAtomConcat(t *testing.T) {
