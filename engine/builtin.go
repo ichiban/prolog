@@ -1916,27 +1916,28 @@ func rulify(t Term, env *Env) Term {
 
 // AtomLength counts the runes in atom and unifies the result with length.
 func AtomLength(vm *VM, atom, length Term, k Cont, env *Env) *Promise {
-	switch a := env.Resolve(atom).(type) {
+	var a Atom
+	switch atom := env.Resolve(atom).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
 	case Atom:
-		switch l := env.Resolve(length).(type) {
-		case Variable:
-			break
-		case Integer:
-			if l < 0 {
-				return Error(domainError(validDomainNotLessThanZero, length, env))
-			}
-		default:
-			return Error(typeError(validTypeInteger, length, env))
-		}
-
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, length, Integer(len([]rune(a.String()))), k, env)
-		})
+		a = atom
 	default:
 		return Error(typeError(validTypeAtom, atom, env))
 	}
+
+	switch l := env.Resolve(length).(type) {
+	case Variable:
+		break
+	case Integer:
+		if l < 0 {
+			return Error(domainError(validDomainNotLessThanZero, length, env))
+		}
+	default:
+		return Error(typeError(validTypeInteger, length, env))
+	}
+
+	return Unify(vm, length, Integer(len([]rune(a.String()))), k, env)
 }
 
 // AtomConcat concatenates atom1 and atom2 and unifies it with atom3.
