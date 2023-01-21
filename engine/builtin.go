@@ -2158,10 +2158,8 @@ func AtomCodes(vm *VM, atom, codes Term, k Cont, env *Env) *Promise {
 // NumberChars breaks up an atom representation of a number num into a list of characters and unifies it with chars, or
 // constructs a number from a list of characters chars and unifies it with num.
 func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
-	var (
-		sb   strings.Builder
-		iter = ListIterator{List: chars, Env: env}
-	)
+	var sb strings.Builder
+	iter := ListIterator{List: chars, Env: env, AllowPartial: true}
 	for iter.Next() {
 		switch e := env.Resolve(iter.Current()).(type) {
 		case Variable:
@@ -2177,10 +2175,10 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 		}
 	}
 	if err := iter.Err(); err != nil {
-		if _, ok := iter.Suffix().(Variable); ok {
-			return numberCharsWrite(vm, num, chars, k, env)
-		}
 		return Error(err)
+	}
+	if _, ok := iter.Suffix().(Variable); ok {
+		return numberCharsWrite(vm, num, chars, k, env)
 	}
 
 	p := Parser{
@@ -2202,105 +2200,124 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 }
 
 func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
-	switch n := env.Resolve(num).(type) {
+	var n Number
+	switch num := env.Resolve(num).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
 	case Number:
-		iter := ListIterator{List: chars, Env: env}
-		for iter.Next() {
-			switch e := env.Resolve(iter.Current()).(type) {
-			case Variable:
-				break
-			case Atom:
-				if len(e.String()) != 1 {
-					return Error(typeError(validTypeCharacter, e, env))
-				}
-			default:
+		n = num
+	default:
+		return Error(typeError(validTypeNumber, num, env))
+	}
+
+	iter := ListIterator{List: chars, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			break
+		case Atom:
+			if len(e.String()) != 1 {
 				return Error(typeError(validTypeCharacter, e, env))
 			}
+		default:
+			return Error(typeError(validTypeCharacter, e, env))
 		}
-		if err := iter.Err(); err != nil {
-			if _, ok := iter.Suffix().(Variable); !ok {
-				return Error(err)
-			}
-		}
-
-		var buf bytes.Buffer
-		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Atom(r)
-		}
-		return Unify(vm, chars, List(cs...), k, env)
-	default:
-		return Error(typeError(validTypeNumber, n, env))
 	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
+	var buf bytes.Buffer
+	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	rs := []rune(buf.String())
+
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Atom(r)
+	}
+	return Unify(vm, chars, List(cs...), k, env)
 }
 
 // NumberCodes breaks up an atom representation of a number num into a list of runes and unifies it with codes, or
 // constructs a number from a list of runes codes and unifies it with num.
 func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
-	switch codes := env.Resolve(codes).(type) {
-	case Variable:
-		break
-	default:
-		switch n := env.Resolve(num).(type) {
-		case Variable, Integer, Float:
-			break
-		default:
-			return Error(typeError(validTypeNumber, n, env))
-		}
-
-		var sb strings.Builder
-		iter := ListIterator{List: codes, Env: env}
-		for iter.Next() {
-			switch e := env.Resolve(iter.Current()).(type) {
-			case Variable:
-				return Error(InstantiationError(env))
-			case Integer:
-				_, _ = sb.WriteRune(rune(e))
-			default:
+	var sb strings.Builder
+	iter := ListIterator{List: codes, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			return numberCodesWrite(vm, num, codes, k, env)
+		case Integer:
+			if !utf8.ValidRune(rune(e)) {
 				return Error(representationError(flagCharacterCode, env))
 			}
+			_, _ = sb.WriteRune(rune(e))
+		default:
+			return Error(typeError(validTypeInteger, e, env))
 		}
-		if err := iter.Err(); err != nil {
-			return Error(err)
-		}
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	if _, ok := iter.Suffix().(Variable); ok {
+		return numberCodesWrite(vm, num, codes, k, env)
+	}
 
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(sb.String())),
-			},
-		}
-		t, err := p.number()
-		if err != nil {
-			return Error(syntaxError(err, env))
-		}
-
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, num, t, k, env)
-		})
+	p := Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(strings.NewReader(sb.String())),
+		},
+	}
+	t, err := p.number()
+	if err != nil {
+		return Error(syntaxError(err, env))
 	}
 
 	switch n := env.Resolve(num).(type) {
+	case Variable, Number:
+		return Unify(vm, n, t, k, env)
+	default:
+		return Error(typeError(validTypeNumber, n, env))
+	}
+}
+
+func numberCodesWrite(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
+	var n Number
+	switch num := env.Resolve(num).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
-	case Integer, Float:
-		var buf bytes.Buffer
-		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Integer(r)
-		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, codes, List(cs...), k, env)
-		})
+	case Number:
+		n = num
 	default:
 		return Error(typeError(validTypeNumber, num, env))
 	}
+
+	iter := ListIterator{List: codes, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			break
+		case Integer:
+			if !utf8.ValidRune(rune(e)) {
+				return Error(representationError(flagCharacterCode, env))
+			}
+		default:
+			return Error(typeError(validTypeInteger, e, env))
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
+	var buf bytes.Buffer
+	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	rs := []rune(buf.String())
+
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Integer(r)
+	}
+	return Unify(vm, codes, List(cs...), k, env)
 }
 
 // StreamProperty succeeds iff the stream represented by stream has the stream property.

@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"io"
 	"math"
 	"os"
@@ -12,9 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"unicode/utf8"
 )
 
 func TestCall(t *testing.T) {
@@ -3978,8 +3978,8 @@ func TestWriteTerm(t *testing.T) {
 			assert.Equal(t, tt.ok, ok)
 			if tt.err == nil {
 				assert.NoError(t, err)
-			} else if te, ok := tt.err.(*Exception); ok {
-				_, ok := NewEnv().Unify(te.term, err.(*Exception).term)
+			} else if te, ok := tt.err.(Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(Exception).term)
 				assert.True(t, ok)
 			}
 			if tt.outputPattern == nil {
@@ -4492,16 +4492,12 @@ func TestReadTerm(t *testing.T) {
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
-		var vm VM
-		ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), List(&compound{
-			functor: atomUnknown,
-			args:    []Term{NewAtom("option")},
-		}), Success, nil).Force(context.Background())
-		assert.Equal(t, domainError(validDomainReadOption, &compound{
-			functor: atomUnknown,
-			args:    []Term{NewAtom("option")},
-		}, nil), err)
-		assert.False(t, ok)
+		for _, term := range []Term{atomUnknown, atomUnknown.Apply(NewAtom("option")), atomUnknown.Apply(NewAtom("option"), Integer(0))} {
+			var vm VM
+			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), List(term), Success, nil).Force(context.Background())
+			assert.Equal(t, domainError(validDomainReadOption, term, nil), err)
+			assert.False(t, ok)
+		}
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
@@ -5889,98 +5885,78 @@ func TestNumberChars(t *testing.T) {
 			})
 		})
 	})
-
-	t.Run("out of memory", func(t *testing.T) {
-
-	})
 }
 
 func TestNumberCodes(t *testing.T) {
-	t.Run("number to codes", func(t *testing.T) {
-		codes := NewVariable()
+	a, l := NewVariable(), NewVariable()
 
-		ok, err := NumberCodes(nil, Float(23.4), codes, func(env *Env) *Promise {
-			assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), env.Resolve(codes))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	tests := []struct {
+		title        string
+		number, list Term
+		ok           bool
+		err          error
+		env          map[Variable]Term
+	}{
+		// 8.16.8.4 Examples
+		{title: "number_codes(33, L).", number: Integer(33), list: l, ok: true, env: map[Variable]Term{
+			l: List(Integer('3'), Integer('3')),
+		}},
+		{title: "number_codes(33, [0'3, 0'3]).", number: Integer(33), list: List(Integer('3'), Integer('3')), ok: true},
+		{title: "number_codes(33.0, L).", number: Float(33.0), list: l, ok: true, env: map[Variable]Term{
+			l: List(Integer('3'), Integer('3'), Integer('.'), Integer('0')),
+		}},
+		{title: "number_codes(33.0, [0'3, 0'., 0'3, 0'E, 0'+, 0'0, 0'1]).", number: Float(33.0), list: List(Integer('3'), Integer('.'), Integer('3'), Integer('E'), Integer('+'), Integer('0'), Integer('1')), ok: true},
+		{title: "number_codes(A, [0'-, 0'2, 0'5]).", number: a, list: List(Integer('-'), Integer('2'), Integer('5')), ok: true, env: map[Variable]Term{
+			a: Integer(-25),
+		}},
+		{title: "number_codes(A, [0' , 0'3]).", number: a, list: List(Integer(' '), Integer('3')), ok: true, env: map[Variable]Term{
+			a: Integer(3),
+		}},
+		{title: "number_codes(A, [0'0, 0'x, 0'f]).", number: a, list: List(Integer('0'), Integer('x'), Integer('f')), ok: true, env: map[Variable]Term{
+			a: Integer(15),
+		}},
+		{title: "number_codes(A, [0'0, 0''', 0'a]).", number: a, list: List(Integer('0'), Integer('\''), Integer('a')), ok: true, env: map[Variable]Term{
+			a: Integer('a'),
+		}},
+		{title: "number_codes(A, [0'4, 0'., 0'2]).", number: a, list: List(Integer('4'), Integer('.'), Integer('2')), ok: true, env: map[Variable]Term{
+			a: Float(4.2),
+		}},
+		{title: "number_codes(A, [0'4, 0'2, 0'., 0'0, 0'e, 0'-, 0'1]).", number: a, list: List(Integer('4'), Integer('2'), Integer('.'), Integer('0'), Integer('e'), Integer('-'), Integer('1')), ok: true, env: map[Variable]Term{
+			a: Float(4.2),
+		}},
 
-	t.Run("codes to number", func(t *testing.T) {
-		num := NewVariable()
+		// 8.16.8.3 Errors
+		{title: "a", number: a, list: l, err: InstantiationError(nil)},
+		{title: "b: no variables in the list", number: NewAtom("foo"), list: List(Integer('0')), err: typeError(validTypeNumber, NewAtom("foo"), nil)},
+		{title: "b: variables in the list", number: NewAtom("foo"), list: List(NewVariable(), Integer('0')), err: typeError(validTypeNumber, NewAtom("foo"), nil)},
+		{title: "c: without a variable element", number: Integer(0), list: NewAtom("foo"), err: typeError(validTypeList, NewAtom("foo"), nil)},
+		{title: "c: with a variable element", number: Integer(0), list: PartialList(NewAtom("foo"), NewVariable()), err: typeError(validTypeList, PartialList(NewAtom("foo"), NewVariable()), nil)},
+		{title: "d", number: a, list: List(NewVariable()), err: InstantiationError(nil)},
+		{title: "e", number: a, list: List(Integer('f'), Integer('o'), Integer('o')), err: syntaxError(errNotANumber, nil)},
+		{title: "f: without a variable element", number: Integer(0), list: List(NewAtom("foo")), err: typeError(validTypeInteger, NewAtom("foo"), nil)},
+		{title: "f: with a variable element", number: Integer(0), list: List(NewVariable(), NewAtom("foo")), err: typeError(validTypeInteger, NewAtom("foo"), nil)},
+		{title: "g: without a variable element", number: Integer(0), list: List(Integer(utf8.MaxRune + 1)), err: representationError(flagCharacterCode, nil)},
+		{title: "g: with a variable element", number: Integer(0), list: List(NewVariable(), Integer(utf8.MaxRune+1)), err: representationError(flagCharacterCode, nil)},
+	}
 
-		ok, err := NumberCodes(nil, num, List(Integer(50), Integer(51), Integer(46), Integer(52)), func(env *Env) *Promise {
-			assert.Equal(t, Float(23.4), env.Resolve(num))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("both provided", func(t *testing.T) {
-		t.Run("33.0", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(51), Integer(46), Integer(48)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := NumberCodes(nil, tt.number, tt.list, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			if tt.err == nil {
+				assert.NoError(t, err)
+			} else if te, ok := tt.err.(Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(Exception).term)
+				assert.True(t, ok)
+			}
+			assert.Equal(t, tt.ok, ok)
 		})
-
-		t.Run("33", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(51)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("3.3E+01", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(46), Integer(51), Integer(69), Integer(43), Integer(48), Integer(49)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-	})
-
-	t.Run("num is a variable and codes is a partial list or list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			codes := PartialList(NewVariable(),
-				Integer(50), Integer(51), Integer(46), Integer(52),
-			)
-
-			ok, err := NumberCodes(nil, NewVariable(), codes, Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("variable element", func(t *testing.T) {
-			code := NewVariable()
-
-			ok, err := NumberCodes(nil, NewVariable(), List(code, Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-			assert.Equal(t, InstantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("num is neither a variable nor a number", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewAtom("23.4"), List(Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeNumber, NewAtom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("num is a variable and codes is neither a list nor partial list", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), NewAtom("23.4"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeList, NewAtom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("an element E of the list codes is neither a variable nor a one-character atom", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), List(NewAtom("2"), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, representationError(flagCharacterCode, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("codes is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), List(Integer(102), Integer(111), Integer(111)), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxError(errNotANumber, nil), err)
-		assert.False(t, ok)
-	})
+	}
 }
 
 func TestStreamProperty(t *testing.T) {
