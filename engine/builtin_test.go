@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"io"
 	"math"
 	"os"
@@ -12,9 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"unicode/utf8"
 )
 
 func TestCall(t *testing.T) {
@@ -41,7 +41,7 @@ f(g([a, [b|X]])).
 		{title: `defined atom`, goal: NewAtom("foo"), ok: true},
 		{title: `undefined compound`, goal: NewAtom("bar").Apply(NewVariable(), NewVariable()), ok: false, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(2)), nil)},
 		{title: `defined compound`, goal: NewAtom("foo").Apply(NewVariable(), NewVariable()), ok: true},
-		{title: `variable: single predicate`, goal: NewVariable(), ok: false, err: instantiationError(nil)},
+		{title: `variable: single predicate`, goal: NewVariable(), ok: false, err: InstantiationError(nil)},
 		{title: `variable: multiple predicates`, goal: atomComma.Apply(atomFail, NewVariable()), ok: false},
 		{title: `not callable: single predicate`, goal: Integer(0), ok: false, err: typeError(validTypeCallable, Integer(0), nil)},
 		{title: `not callable: conjunction`, goal: atomComma.Apply(atomTrue, Integer(0)), ok: false, err: typeError(validTypeCallable, atomComma.Apply(atomTrue, Integer(0)), nil)},
@@ -72,7 +72,7 @@ func TestCall1(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [1]Term{NewAtom("b")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [1]Term{NewAtom("b")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [1]Term{NewAtom("b")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [1]Term{NewAtom("b")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [1]Term{NewAtom("b")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -103,7 +103,7 @@ func TestCall2(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [2]Term{NewAtom("b"), NewAtom("c")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -134,7 +134,7 @@ func TestCall3(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -165,7 +165,7 @@ func TestCall4(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -196,7 +196,7 @@ func TestCall5(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -227,7 +227,7 @@ func TestCall6(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -258,7 +258,7 @@ func TestCall7(t *testing.T) {
 		mem        int64
 	}{
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, ok: true},
-		{title: "closure is a variable", closure: NewVariable(), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: instantiationError(nil)},
+		{title: "closure is a variable", closure: NewVariable(), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: typeError(validTypeCallable, Integer(3), nil)},
 		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
@@ -333,7 +333,7 @@ func TestCallNth(t *testing.T) {
 
 	t.Run("goal is a variable and nth is not zero", func(t *testing.T) {
 		_, err := CallNth(&vm, NewVariable(), Integer(3), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("goal is neither a variable nor a callable term", func(t *testing.T) {
@@ -627,8 +627,8 @@ func TestFunctor(t *testing.T) {
 		}},
 		{title: `functor([_|_], '.', 2).`, term: Cons(NewVariable(), NewVariable()), name: atomDot, arity: Integer(2), ok: true},
 		{title: `functor([], [], 0).`, term: atomEmptyList, name: atomEmptyList, arity: Integer(0), ok: true},
-		{title: `functor(X, Y, 3).`, term: x, name: y, arity: Integer(3), err: instantiationError(nil)},
-		{title: `functor(X, foo, N).`, term: x, name: NewAtom("foo"), arity: n, err: instantiationError(nil)},
+		{title: `functor(X, Y, 3).`, term: x, name: y, arity: Integer(3), err: InstantiationError(nil)},
+		{title: `functor(X, foo, N).`, term: x, name: NewAtom("foo"), arity: n, err: InstantiationError(nil)},
 		{title: `functor(X, foo, a).`, term: x, name: NewAtom("foo"), arity: NewAtom("a"), err: typeError(validTypeInteger, NewAtom("a"), nil)},
 		{title: `functor(F, 1.5, 1).`, term: f, name: Float(1.5), arity: Integer(1), err: typeError(validTypeAtom, Float(1.5), nil)},
 		{title: `functor(F, foo(a), 1).`, term: f, name: NewAtom("foo").Apply(NewAtom("a")), arity: Integer(1), err: typeError(validTypeAtomic, NewAtom("foo").Apply(NewAtom("a")), nil)},
@@ -636,7 +636,7 @@ func TestFunctor(t *testing.T) {
 		{title: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, term: f, name: NewAtom("foo"), arity: Integer(-1), err: domainError(validDomainNotLessThanZero, Integer(-1), nil)},
 
 		// https://github.com/ichiban/prolog/issues/247
-		{title: `functor(X, Y, 0).`, term: x, name: y, arity: Integer(0), err: instantiationError(nil)},
+		{title: `functor(X, Y, 0).`, term: x, name: y, arity: Integer(0), err: InstantiationError(nil)},
 
 		// https://github.com/ichiban/prolog/issues/226
 		{title: `functor(F, f, max_int).`, term: f, name: NewAtom("f"), arity: maxInt, err: resourceError(resourceMemory, nil)},
@@ -661,7 +661,7 @@ func TestArg(t *testing.T) {
 	t.Run("term is a variable", func(t *testing.T) {
 		v := NewVariable()
 		ok, err := Arg(nil, NewVariable(), v, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -677,7 +677,7 @@ func TestArg(t *testing.T) {
 			functor: NewAtom("f"),
 			args:    []Term{NewAtom("a"), NewAtom("b"), NewAtom("a")},
 		}, NewAtom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("nth is an integer", func(t *testing.T) {
@@ -767,10 +767,10 @@ func TestUniv(t *testing.T) {
 		}},
 		{title: "5", term: Integer(1), list: List(Integer(1)), ok: true},
 		{title: "6", term: NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")), list: List(NewAtom("foo"), NewAtom("b"), NewAtom("a")), ok: false},
-		{title: "7", term: x, list: y, err: instantiationError(nil)},
-		{title: "8", term: x, list: PartialList(y, NewAtom("foo"), NewAtom("a")), err: instantiationError(nil)},
+		{title: "7", term: x, list: y, err: InstantiationError(nil)},
+		{title: "8", term: x, list: PartialList(y, NewAtom("foo"), NewAtom("a")), err: InstantiationError(nil)},
 		{title: "9", term: x, list: PartialList(NewAtom("bar"), NewAtom("foo")), err: typeError(validTypeList, PartialList(NewAtom("bar"), NewAtom("foo")), nil)},
-		{title: "10", term: x, list: List(foo, NewAtom("bar")), err: instantiationError(nil)},
+		{title: "10", term: x, list: List(foo, NewAtom("bar")), err: InstantiationError(nil)},
 		{title: "11", term: x, list: List(Integer(3), Integer(1)), err: typeError(validTypeAtom, Integer(3), nil)},
 		{title: "12", term: x, list: List(Float(1.1), NewAtom("foo")), err: typeError(validTypeAtom, Float(1.1), nil)},
 		{title: "13", term: x, list: List(NewAtom("a").Apply(NewAtom("b")), Integer(1)), err: typeError(validTypeAtom, NewAtom("a").Apply(NewAtom("b")), nil)},
@@ -782,7 +782,7 @@ func TestUniv(t *testing.T) {
 		// 8.5.3.3 Errors
 		{title: "b: term is a compound", term: NewAtom("f").Apply(NewAtom("a")), list: PartialList(NewAtom("a"), NewAtom("f")), err: typeError(validTypeList, PartialList(NewAtom("a"), NewAtom("f")), nil)},
 		{title: "b: term is an atomic", term: Integer(1), list: PartialList(NewAtom("a"), NewAtom("f")), err: typeError(validTypeList, PartialList(NewAtom("a"), NewAtom("f")), nil)},
-		{title: "c", term: x, list: List(y), err: instantiationError(nil)},
+		{title: "c", term: x, list: List(y), err: InstantiationError(nil)},
 		{title: "e", term: x, list: List(NewAtom("f").Apply(NewAtom("a"))), err: typeError(validTypeAtomic, NewAtom("f").Apply(NewAtom("a")), nil)},
 		{title: "f", term: x, list: List(), err: domainError(validDomainNonEmptyList, List(), nil)},
 
@@ -1055,14 +1055,14 @@ func TestOp(t *testing.T) {
 	t.Run("priority is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Op(&vm, NewVariable(), atomXFX, atomPlus, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("specifier is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Op(&vm, Integer(1000), NewVariable(), atomPlus, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -1437,7 +1437,7 @@ func TestBagOf(t *testing.T) {
 			template:  x,
 			goal:      atomCaret.Apply(y, z),
 			instances: l,
-			err:       instantiationError(nil),
+			err:       InstantiationError(nil),
 		},
 		{
 			title:     "bagof(X, 1, L).",
@@ -1965,7 +1965,7 @@ func TestFindAll(t *testing.T) {
 			s: List(Integer(1), Integer(1)),
 		}},
 		{title: "5", template: x, goal: atomSemiColon.Apply(atomEqual.Apply(x, Integer(2)), atomEqual.Apply(x, Integer(1))), instances: List(Integer(1), Integer(2)), ok: false},
-		{title: "6", template: x, goal: goal, instances: s, err: instantiationError(nil)},
+		{title: "6", template: x, goal: goal, instances: s, err: InstantiationError(nil)},
 		{title: "7", template: x, goal: Integer(4), instances: s, err: typeError(validTypeCallable, Integer(4), nil)},
 
 		// 8.10.1.3 Errors
@@ -2134,12 +2134,12 @@ func TestBetween(t *testing.T) {
 
 	t.Run("lower is uninstantiated", func(t *testing.T) {
 		_, err := Between(nil, NewVariable(), Integer(2), Integer(1), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("upper is uninstantiated", func(t *testing.T) {
 		_, err := Between(nil, Integer(1), NewVariable(), Integer(1), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("lower is not an integer", func(t *testing.T) {
@@ -2179,7 +2179,7 @@ func TestSort(t *testing.T) {
 
 	t.Run("list is a partial list", func(t *testing.T) {
 		_, err := Sort(nil, PartialList(NewVariable(), NewAtom("a"), NewAtom("b")), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("list is neither a partial list nor a list", func(t *testing.T) {
@@ -2245,7 +2245,7 @@ func TestKeySort(t *testing.T) {
 
 	t.Run("pairs is a partial list", func(t *testing.T) {
 		_, err := KeySort(nil, PartialList(NewVariable(), pair(NewAtom("a"), Integer(1))), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("pairs is neither a partial list nor a list", func(t *testing.T) {
@@ -2260,7 +2260,7 @@ func TestKeySort(t *testing.T) {
 
 	t.Run("an element of a list prefix of pairs is a variable", func(t *testing.T) {
 		_, err := KeySort(nil, List(NewVariable()), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 	})
 
 	t.Run("an element of a list prefix of pairs is neither a variable nor a compound term with principal functor (-)/2", func(t *testing.T) {
@@ -2297,7 +2297,7 @@ func TestThrow(t *testing.T) {
 
 	t.Run("ball is a variable", func(t *testing.T) {
 		ok, err := Throw(nil, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 }
@@ -2534,7 +2534,7 @@ func TestAssertz(t *testing.T) {
 	t.Run("clause is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Assertz(&vm, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -2551,7 +2551,7 @@ func TestAssertz(t *testing.T) {
 			functor: atomIf,
 			args:    []Term{NewVariable(), atomTrue},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -2748,7 +2748,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("clause is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -2765,7 +2765,7 @@ func TestAsserta(t *testing.T) {
 			functor: atomIf,
 			args:    []Term{NewVariable(), atomTrue},
 		}, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -2916,7 +2916,7 @@ func TestRetract(t *testing.T) {
 	t.Run("variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Retract(&vm, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3002,7 +3002,7 @@ func TestAbolish(t *testing.T) {
 	t.Run("pi is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Abolish(&vm, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3013,7 +3013,7 @@ func TestAbolish(t *testing.T) {
 				functor: atomSlash,
 				args:    []Term{NewVariable(), Integer(2)},
 			}, Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 
@@ -3023,7 +3023,7 @@ func TestAbolish(t *testing.T) {
 				functor: atomSlash,
 				args:    []Term{NewAtom("foo"), NewVariable()},
 			}, Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
@@ -3152,7 +3152,7 @@ func TestSetInput(t *testing.T) {
 		{title: "alias", streamOrAlias: foo, ok: true, input: &input},
 
 		// 8.11.3.3 Errors
-		{title: "a", streamOrAlias: stream, err: instantiationError(nil)},
+		{title: "a", streamOrAlias: stream, err: InstantiationError(nil)},
 		{title: "b", streamOrAlias: Integer(0), err: domainError(validDomainStreamOrAlias, Integer(0), nil)},
 		{title: "c", streamOrAlias: bar, err: existenceError(objectTypeStream, bar, nil)},
 		{title: "d", streamOrAlias: &output, err: permissionError(operationInput, permissionTypeStream, &output, nil)},
@@ -3188,7 +3188,7 @@ func TestSetOutput(t *testing.T) {
 		{title: "alias", streamOrAlias: foo, ok: true, output: &output},
 
 		// 8.11.4.3 Errors
-		{title: "a", streamOrAlias: stream, err: instantiationError(nil)},
+		{title: "a", streamOrAlias: stream, err: InstantiationError(nil)},
 		{title: "b", streamOrAlias: Integer(0), err: domainError(validDomainStreamOrAlias, Integer(0), nil)},
 		{title: "c", streamOrAlias: bar, err: existenceError(objectTypeStream, bar, nil)},
 		{title: "d", streamOrAlias: &input, err: permissionError(operationOutput, permissionTypeStream, &input, nil)},
@@ -3510,14 +3510,14 @@ func TestOpen(t *testing.T) {
 	t.Run("sourceSink is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Open(&vm, NewVariable(), atomRead, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("mode is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Open(&vm, NewAtom("/dev/null"), NewVariable(), NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3528,7 +3528,7 @@ func TestOpen(t *testing.T) {
 				atomType.Apply(atomText),
 				atomAlias.Apply(NewAtom("foo")),
 			), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 
@@ -3539,7 +3539,7 @@ func TestOpen(t *testing.T) {
 				&compound{functor: atomType, args: []Term{atomText}},
 				&compound{functor: atomAlias, args: []Term{NewAtom("foo")}},
 			), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
@@ -3561,7 +3561,7 @@ func TestOpen(t *testing.T) {
 	t.Run("stream is not a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Open(&vm, NewAtom("/dev/null"), atomRead, NewAtom("stream"), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3606,7 +3606,7 @@ func TestOpen(t *testing.T) {
 			&compound{functor: atomEOFAction, args: []Term{NewVariable()}},
 		} {
 			ok, err := Open(&vm, NewAtom("/dev/null"), atomRead, NewVariable(), List(o), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		}
 	})
@@ -3750,7 +3750,7 @@ func TestClose(t *testing.T) {
 	t.Run("streamOrAlias ia a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Close(&vm, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3760,14 +3760,14 @@ func TestClose(t *testing.T) {
 			ok, err := Close(&vm, &Stream{}, PartialList(NewVariable(),
 				atomForce.Apply(atomTrue),
 			), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("variable element", func(t *testing.T) {
 			var vm VM
 			ok, err := Close(&vm, &Stream{}, List(NewVariable(), atomForce.Apply(atomTrue)), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
@@ -3866,7 +3866,7 @@ func TestFlushOutput(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := FlushOutput(&vm, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -3932,17 +3932,17 @@ func TestWriteTerm(t *testing.T) {
 		{title: `write_term(S, '$VAR'(1), [numbervars(false)]).`, sOrA: w, term: atomVar.Apply(Integer(1)), options: List(atomNumberVars.Apply(atomFalse)), ok: true, output: `$VAR(1)`},
 		{title: `write_term(S, '$VAR'(51), [numbervars(true)]).`, sOrA: w, term: atomVar.Apply(Integer(51)), options: List(atomNumberVars.Apply(atomTrue)), ok: true, output: `Z1`},
 		{title: `write_term(1, [quoted(non_boolean)]).`, sOrA: w, term: Integer(1), options: List(atomQuoted.Apply(NewAtom("non_boolean"))), err: domainError(validDomainWriteOption, atomQuoted.Apply(NewAtom("non_boolean")), nil)},
-		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(atomQuoted.Apply(B)), err: instantiationError(nil)},
+		{title: `write_term(1, [quoted(B)]).`, sOrA: w, term: Integer(1), options: List(atomQuoted.Apply(B)), err: InstantiationError(nil)},
 		{title: `B = true, write_term(1, [quoted(B)]).`, sOrA: w, env: NewEnv().bind(B, atomTrue), term: Integer(1), options: List(atomQuoted.Apply(B)), ok: true, output: `1`},
 
 		// 8.14.2.3 Errors
-		{title: `a`, sOrA: s, term: NewAtom("foo"), options: List(), err: instantiationError(nil)},
-		{title: `b: partial list`, sOrA: w, term: NewAtom("foo"), options: PartialList(x, atomQuoted.Apply(atomTrue)), err: instantiationError(nil)},
-		{title: `b: variable element`, sOrA: w, term: NewAtom("foo"), options: List(x), err: instantiationError(nil)},
-		{title: `b: variable component`, sOrA: w, term: NewAtom("foo"), options: List(atomQuoted.Apply(x)), err: instantiationError(nil)},
-		{title: `b: variable_names, partial list`, sOrA: w, term: NewAtom("foo"), options: List(atomVariableNames.Apply(l)), err: instantiationError(nil)},
-		{title: `b: variable_names, element`, sOrA: w, term: NewAtom("foo"), options: List(atomVariableNames.Apply(List(e))), err: instantiationError(nil)},
-		{title: `b: variable_names, name`, sOrA: w, term: x, options: List(atomVariableNames.Apply(List(atomEqual.Apply(n, v)))), err: instantiationError(nil)},
+		{title: `a`, sOrA: s, term: NewAtom("foo"), options: List(), err: InstantiationError(nil)},
+		{title: `b: partial list`, sOrA: w, term: NewAtom("foo"), options: PartialList(x, atomQuoted.Apply(atomTrue)), err: InstantiationError(nil)},
+		{title: `b: variable element`, sOrA: w, term: NewAtom("foo"), options: List(x), err: InstantiationError(nil)},
+		{title: `b: variable component`, sOrA: w, term: NewAtom("foo"), options: List(atomQuoted.Apply(x)), err: InstantiationError(nil)},
+		{title: `b: variable_names, partial list`, sOrA: w, term: NewAtom("foo"), options: List(atomVariableNames.Apply(l)), err: InstantiationError(nil)},
+		{title: `b: variable_names, element`, sOrA: w, term: NewAtom("foo"), options: List(atomVariableNames.Apply(List(e))), err: InstantiationError(nil)},
+		{title: `b: variable_names, name`, sOrA: w, term: x, options: List(atomVariableNames.Apply(List(atomEqual.Apply(n, v)))), err: InstantiationError(nil)},
 		{title: `c`, sOrA: w, term: NewAtom("foo"), options: NewAtom("options"), err: typeError(validTypeList, NewAtom("options"), nil)},
 		{title: `d`, sOrA: Integer(0), term: NewAtom("foo"), options: List(), err: domainError(validDomainStreamOrAlias, Integer(0), nil)},
 		{title: `e: not a compound`, sOrA: w, term: NewAtom("foo"), options: List(NewAtom("bar")), err: domainError(validDomainWriteOption, NewAtom("bar"), nil)},
@@ -3978,8 +3978,8 @@ func TestWriteTerm(t *testing.T) {
 			assert.Equal(t, tt.ok, ok)
 			if tt.err == nil {
 				assert.NoError(t, err)
-			} else if te, ok := tt.err.(*Exception); ok {
-				_, ok := NewEnv().Unify(te.term, err.(*Exception).term)
+			} else if te, ok := tt.err.(Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(Exception).term)
 				assert.True(t, ok)
 			}
 			if tt.outputPattern == nil {
@@ -4039,7 +4039,7 @@ func TestCharCode(t *testing.T) {
 		char, code := NewVariable(), NewVariable()
 
 		ok, err := CharCode(nil, char, code, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -4122,7 +4122,7 @@ func TestPutByte(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := PutByte(&vm, NewVariable(), Integer(97), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -4132,7 +4132,7 @@ func TestPutByte(t *testing.T) {
 
 		var vm VM
 		ok, err := PutByte(&vm, s, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -4212,10 +4212,10 @@ func TestPutChar(t *testing.T) {
 		// 8.12.3.3 Errors
 		{title: "a", streamOrAlias: func() (Term, func(*testing.T)) {
 			return NewVariable(), nil
-		}, char: NewAtom("a"), err: instantiationError(nil)},
+		}, char: NewAtom("a"), err: InstantiationError(nil)},
 		{title: "b", streamOrAlias: func() (Term, func(*testing.T)) {
 			return NewOutputTextStream(nil), nil
-		}, char: NewVariable(), err: instantiationError(nil)},
+		}, char: NewVariable(), err: InstantiationError(nil)},
 		{title: "b: atom but not one-char", streamOrAlias: func() (Term, func(*testing.T)) {
 			return NewOutputTextStream(nil), nil
 		}, char: NewAtom("foo"), err: typeError(validTypeCharacter, NewAtom("foo"), nil)},
@@ -4455,7 +4455,7 @@ func TestReadTerm(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := ReadTerm(&vm, NewVariable(), NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -4465,14 +4465,14 @@ func TestReadTerm(t *testing.T) {
 			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), PartialList(NewVariable(),
 				atomVariables.Apply(NewVariable()),
 			), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("variable element", func(t *testing.T) {
 			var vm VM
 			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), List(NewVariable(), atomVariables.Apply(NewVariable())), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 			assert.False(t, ok)
 		})
 	})
@@ -4492,16 +4492,12 @@ func TestReadTerm(t *testing.T) {
 	})
 
 	t.Run("an element E of the Options list is neither a variable nor a valid read-option", func(t *testing.T) {
-		var vm VM
-		ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), List(&compound{
-			functor: atomUnknown,
-			args:    []Term{NewAtom("option")},
-		}), Success, nil).Force(context.Background())
-		assert.Equal(t, domainError(validDomainReadOption, &compound{
-			functor: atomUnknown,
-			args:    []Term{NewAtom("option")},
-		}, nil), err)
-		assert.False(t, ok)
+		for _, term := range []Term{atomUnknown, atomUnknown.Apply(NewAtom("option")), atomUnknown.Apply(NewAtom("option"), Integer(0))} {
+			var vm VM
+			ok, err := ReadTerm(&vm, &Stream{sourceSink: os.Stdin}, NewVariable(), List(term), Success, nil).Force(context.Background())
+			assert.Equal(t, domainError(validDomainReadOption, term, nil), err)
+			assert.False(t, ok)
+		}
 	})
 
 	t.Run("streamOrAlias is not associated with an open stream", func(t *testing.T) {
@@ -4688,7 +4684,7 @@ func TestGetByte(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := GetByte(&vm, NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -4845,7 +4841,7 @@ func TestGetChar(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := GetChar(&vm, NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5018,7 +5014,7 @@ func TestPeekByte(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := PeekByte(&vm, NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5175,7 +5171,7 @@ func TestPeekChar(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := PeekChar(&vm, NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5285,7 +5281,7 @@ func Test_Halt(t *testing.T) {
 		n := NewVariable()
 
 		ok, err := Halt(nil, n, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5349,7 +5345,7 @@ func TestClause(t *testing.T) {
 	t.Run("head is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Clause(&vm, NewVariable(), atomTrue, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5411,7 +5407,7 @@ func TestAtomLength(t *testing.T) {
 			n: Integer(0),
 		}},
 		{title: "atom_length('scarlet', 5).", atom: NewAtom("scarlet"), length: Integer(5), ok: false},
-		{title: "atom_length(Atom, 4).", atom: NewVariable(), length: Integer(4), err: instantiationError(nil)},
+		{title: "atom_length(Atom, 4).", atom: NewVariable(), length: Integer(4), err: InstantiationError(nil)},
 		{title: "atom_length(1.23, 4).", atom: Float(1.23), length: Integer(4), err: typeError(validTypeAtom, Float(1.23), nil)},
 		{title: "atom_length(atom, '4').", atom: NewAtom("atom"), length: NewAtom("4"), err: typeError(validTypeInteger, NewAtom("4"), nil)},
 
@@ -5478,7 +5474,7 @@ func TestAtomConcat(t *testing.T) {
 		atom1, atom3 := NewVariable(), NewVariable()
 
 		ok, err := AtomConcat(nil, atom1, NewAtom("bar"), atom3, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5486,7 +5482,7 @@ func TestAtomConcat(t *testing.T) {
 		atom2, atom3 := NewVariable(), NewVariable()
 
 		ok, err := AtomConcat(nil, NewAtom("foo"), atom2, atom3, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5569,7 +5565,7 @@ func TestSubAtom(t *testing.T) {
 
 	t.Run("atom is a variable", func(t *testing.T) {
 		ok, err := SubAtom(nil, NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5654,14 +5650,14 @@ func TestAtomChars(t *testing.T) {
 			x: List(NewAtom("o"), NewAtom("r"), NewAtom("t"), NewAtom("h")),
 		}},
 		{title: "atom_chars('soap', ['s', 'o', 'p']).", atom: NewAtom("soap"), list: List(NewAtom("s"), NewAtom("o"), NewAtom("p")), ok: false},
-		{title: "atom_chars(X, Y).", atom: x, list: y, err: instantiationError(nil)},
+		{title: "atom_chars(X, Y).", atom: x, list: y, err: InstantiationError(nil)},
 
 		// 8.16.4.3 Errors
-		{title: "a", atom: x, list: PartialList(y, NewAtom("a")), err: instantiationError(nil)},
+		{title: "a", atom: x, list: PartialList(y, NewAtom("a")), err: InstantiationError(nil)},
 		{title: "b", atom: Integer(0), list: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), err: typeError(validTypeAtom, Integer(0), nil)},
 		{title: "c: atom is a variable", atom: x, list: Integer(0), err: typeError(validTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: NewAtom("a"), list: Integer(0), err: typeError(validTypeList, Integer(0), nil)},
-		{title: "d", atom: x, list: List(y, NewAtom("a")), err: instantiationError(nil)},
+		{title: "d", atom: x, list: List(y, NewAtom("a")), err: InstantiationError(nil)},
 		{title: "e: atom is a variable, more than one char", atom: x, list: List(NewAtom("abc")), err: typeError(validTypeCharacter, NewAtom("abc"), nil)},
 		{title: "e: atom is a variable, not an atom", atom: x, list: List(Integer(0)), err: typeError(validTypeCharacter, Integer(0), nil)},
 		{title: "e: atom is an atom, more than one char", atom: NewAtom("abc"), list: List(NewAtom("ab"), NewAtom("c")), err: typeError(validTypeCharacter, NewAtom("ab"), nil)},
@@ -5719,14 +5715,14 @@ func TestAtomCodes(t *testing.T) {
 			x: List(Integer('o'), Integer('r'), Integer('t'), Integer('h')),
 		}},
 		{title: "atom_codes('soap', [0's, 0'o, 0'p]).", atom: NewAtom("soap"), list: List(Integer('s'), Integer('o'), Integer('p')), ok: false},
-		{title: "atom_codes(X, Y).", atom: x, list: y, err: instantiationError(nil)},
+		{title: "atom_codes(X, Y).", atom: x, list: y, err: InstantiationError(nil)},
 
 		// 8.16.5.3 Errors
-		{title: "a", atom: x, list: PartialList(y, Integer(0)), err: instantiationError(nil)},
+		{title: "a", atom: x, list: PartialList(y, Integer(0)), err: InstantiationError(nil)},
 		{title: "b", atom: Integer(0), list: l, err: typeError(validTypeAtom, Integer(0), nil)},
 		{title: "c: atom is a variable", atom: x, list: Integer(0), err: typeError(validTypeList, Integer(0), nil)},
 		{title: "c: atom is an atom", atom: NewAtom("abc"), list: Integer(0), err: typeError(validTypeList, Integer(0), nil)},
-		{title: "d", atom: x, list: List(y, Integer('b'), Integer('c')), err: instantiationError(nil)},
+		{title: "d", atom: x, list: List(y, Integer('b'), Integer('c')), err: InstantiationError(nil)},
 		{title: "e: atom is a variable", atom: x, list: List(NewAtom("a"), Integer('b'), Integer('c')), err: typeError(validTypeInteger, NewAtom("a"), nil)},
 		{title: "e: atom is an atom", atom: NewAtom("abc"), list: List(NewAtom("a"), Integer('b'), Integer('c')), err: typeError(validTypeInteger, NewAtom("a"), nil)},
 		{title: "f: atom is a variable", atom: x, list: List(Integer(-1), Integer('b'), Integer('c')), err: representationError(flagCharacterCode, nil)},
@@ -5808,7 +5804,7 @@ func TestNumberChars(t *testing.T) {
 		)
 
 		ok, err := NumberChars(nil, NewVariable(), chars, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5842,7 +5838,7 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("num is a variable and an element of a list prefix of chars is a variable", func(t *testing.T) {
 		ok, err := NumberChars(nil, NewVariable(), List(NewAtom("1"), NewVariable()), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -5889,98 +5885,78 @@ func TestNumberChars(t *testing.T) {
 			})
 		})
 	})
-
-	t.Run("out of memory", func(t *testing.T) {
-
-	})
 }
 
 func TestNumberCodes(t *testing.T) {
-	t.Run("number to codes", func(t *testing.T) {
-		codes := NewVariable()
+	a, l := NewVariable(), NewVariable()
 
-		ok, err := NumberCodes(nil, Float(23.4), codes, func(env *Env) *Promise {
-			assert.Equal(t, List(Integer(50), Integer(51), Integer(46), Integer(52)), env.Resolve(codes))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
+	tests := []struct {
+		title        string
+		number, list Term
+		ok           bool
+		err          error
+		env          map[Variable]Term
+	}{
+		// 8.16.8.4 Examples
+		{title: "number_codes(33, L).", number: Integer(33), list: l, ok: true, env: map[Variable]Term{
+			l: List(Integer('3'), Integer('3')),
+		}},
+		{title: "number_codes(33, [0'3, 0'3]).", number: Integer(33), list: List(Integer('3'), Integer('3')), ok: true},
+		{title: "number_codes(33.0, L).", number: Float(33.0), list: l, ok: true, env: map[Variable]Term{
+			l: List(Integer('3'), Integer('3'), Integer('.'), Integer('0')),
+		}},
+		{title: "number_codes(33.0, [0'3, 0'., 0'3, 0'E, 0'+, 0'0, 0'1]).", number: Float(33.0), list: List(Integer('3'), Integer('.'), Integer('3'), Integer('E'), Integer('+'), Integer('0'), Integer('1')), ok: true},
+		{title: "number_codes(A, [0'-, 0'2, 0'5]).", number: a, list: List(Integer('-'), Integer('2'), Integer('5')), ok: true, env: map[Variable]Term{
+			a: Integer(-25),
+		}},
+		{title: "number_codes(A, [0' , 0'3]).", number: a, list: List(Integer(' '), Integer('3')), ok: true, env: map[Variable]Term{
+			a: Integer(3),
+		}},
+		{title: "number_codes(A, [0'0, 0'x, 0'f]).", number: a, list: List(Integer('0'), Integer('x'), Integer('f')), ok: true, env: map[Variable]Term{
+			a: Integer(15),
+		}},
+		{title: "number_codes(A, [0'0, 0''', 0'a]).", number: a, list: List(Integer('0'), Integer('\''), Integer('a')), ok: true, env: map[Variable]Term{
+			a: Integer('a'),
+		}},
+		{title: "number_codes(A, [0'4, 0'., 0'2]).", number: a, list: List(Integer('4'), Integer('.'), Integer('2')), ok: true, env: map[Variable]Term{
+			a: Float(4.2),
+		}},
+		{title: "number_codes(A, [0'4, 0'2, 0'., 0'0, 0'e, 0'-, 0'1]).", number: a, list: List(Integer('4'), Integer('2'), Integer('.'), Integer('0'), Integer('e'), Integer('-'), Integer('1')), ok: true, env: map[Variable]Term{
+			a: Float(4.2),
+		}},
 
-	t.Run("codes to number", func(t *testing.T) {
-		num := NewVariable()
+		// 8.16.8.3 Errors
+		{title: "a", number: a, list: l, err: InstantiationError(nil)},
+		{title: "b: no variables in the list", number: NewAtom("foo"), list: List(Integer('0')), err: typeError(validTypeNumber, NewAtom("foo"), nil)},
+		{title: "b: variables in the list", number: NewAtom("foo"), list: List(NewVariable(), Integer('0')), err: typeError(validTypeNumber, NewAtom("foo"), nil)},
+		{title: "c: without a variable element", number: Integer(0), list: NewAtom("foo"), err: typeError(validTypeList, NewAtom("foo"), nil)},
+		{title: "c: with a variable element", number: Integer(0), list: PartialList(NewAtom("foo"), NewVariable()), err: typeError(validTypeList, PartialList(NewAtom("foo"), NewVariable()), nil)},
+		{title: "d", number: a, list: List(NewVariable()), err: InstantiationError(nil)},
+		{title: "e", number: a, list: List(Integer('f'), Integer('o'), Integer('o')), err: syntaxError(errNotANumber, nil)},
+		{title: "f: without a variable element", number: Integer(0), list: List(NewAtom("foo")), err: typeError(validTypeInteger, NewAtom("foo"), nil)},
+		{title: "f: with a variable element", number: Integer(0), list: List(NewVariable(), NewAtom("foo")), err: typeError(validTypeInteger, NewAtom("foo"), nil)},
+		{title: "g: without a variable element", number: Integer(0), list: List(Integer(utf8.MaxRune + 1)), err: representationError(flagCharacterCode, nil)},
+		{title: "g: with a variable element", number: Integer(0), list: List(NewVariable(), Integer(utf8.MaxRune+1)), err: representationError(flagCharacterCode, nil)},
+	}
 
-		ok, err := NumberCodes(nil, num, List(Integer(50), Integer(51), Integer(46), Integer(52)), func(env *Env) *Promise {
-			assert.Equal(t, Float(23.4), env.Resolve(num))
-			return Bool(true)
-		}, nil).Force(context.Background())
-		assert.NoError(t, err)
-		assert.True(t, ok)
-	})
-
-	t.Run("both provided", func(t *testing.T) {
-		t.Run("33.0", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(51), Integer(46), Integer(48)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := NumberCodes(nil, tt.number, tt.list, func(env *Env) *Promise {
+				for k, v := range tt.env {
+					_, ok := env.Unify(k, v)
+					assert.True(t, ok)
+				}
+				return Bool(true)
+			}, nil).Force(context.Background())
+			if tt.err == nil {
+				assert.NoError(t, err)
+			} else if te, ok := tt.err.(Exception); ok {
+				_, ok := NewEnv().Unify(te.term, err.(Exception).term)
+				assert.True(t, ok)
+			}
+			assert.Equal(t, tt.ok, ok)
 		})
-
-		t.Run("33", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(51)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.False(t, ok)
-		})
-
-		t.Run("3.3E+01", func(t *testing.T) {
-			ok, err := NumberCodes(nil, Float(33.0), List(Integer(51), Integer(46), Integer(51), Integer(69), Integer(43), Integer(48), Integer(49)), Success, nil).Force(context.Background())
-			assert.NoError(t, err)
-			assert.True(t, ok)
-		})
-	})
-
-	t.Run("num is a variable and codes is a partial list or list with an element which is a variable", func(t *testing.T) {
-		t.Run("partial list", func(t *testing.T) {
-			codes := PartialList(NewVariable(),
-				Integer(50), Integer(51), Integer(46), Integer(52),
-			)
-
-			ok, err := NumberCodes(nil, NewVariable(), codes, Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
-			assert.False(t, ok)
-		})
-
-		t.Run("variable element", func(t *testing.T) {
-			code := NewVariable()
-
-			ok, err := NumberCodes(nil, NewVariable(), List(code, Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
-			assert.False(t, ok)
-		})
-	})
-
-	t.Run("num is neither a variable nor a number", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewAtom("23.4"), List(Integer(50), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeNumber, NewAtom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("num is a variable and codes is neither a list nor partial list", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), NewAtom("23.4"), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeList, NewAtom("23.4"), nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("an element E of the list codes is neither a variable nor a one-character atom", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), List(NewAtom("2"), Integer(51), Integer(46), Integer(52)), Success, nil).Force(context.Background())
-		assert.Equal(t, representationError(flagCharacterCode, nil), err)
-		assert.False(t, ok)
-	})
-
-	t.Run("codes is a list of one-char atoms but is not parsable as a number", func(t *testing.T) {
-		ok, err := NumberCodes(nil, NewVariable(), List(Integer(102), Integer(111), Integer(111)), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxError(errNotANumber, nil), err)
-		assert.False(t, ok)
-	})
+	}
 }
 
 func TestStreamProperty(t *testing.T) {
@@ -6116,7 +6092,7 @@ func TestSetStreamPosition(t *testing.T) {
 	t.Run("streamOrAlias is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := SetStreamPosition(&vm, NewVariable(), Integer(0), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -6131,7 +6107,7 @@ func TestSetStreamPosition(t *testing.T) {
 
 		var vm VM
 		ok, err := SetStreamPosition(&vm, s, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -6192,14 +6168,14 @@ func TestCharConversion(t *testing.T) {
 	t.Run("inChar is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := CharConversion(&vm, NewVariable(), NewAtom("a"), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("outChar is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := CharConversion(&vm, NewAtom("a"), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -6473,14 +6449,14 @@ func TestSetPrologFlag(t *testing.T) {
 	t.Run("flag is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := SetPrologFlag(&vm, NewVariable(), atomFail, Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("value is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := SetPrologFlag(&vm, atomUnknown, NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, instantiationError(nil), err)
+		assert.Equal(t, InstantiationError(nil), err)
 		assert.False(t, ok)
 	})
 
@@ -6941,7 +6917,7 @@ func TestNth0(t *testing.T) {
 
 		t.Run("list is an improper list", func(t *testing.T) {
 			_, err := Nth0(nil, NewVariable(), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Failure, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
 
@@ -6968,7 +6944,7 @@ func TestNth0(t *testing.T) {
 
 		t.Run("list is an improper list", func(t *testing.T) {
 			_, err := Nth0(nil, Integer(1), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
 
@@ -7003,7 +6979,7 @@ func TestNth1(t *testing.T) {
 
 		t.Run("list is an improper list", func(t *testing.T) {
 			_, err := Nth1(nil, NewVariable(), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Failure, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
 
@@ -7030,7 +7006,7 @@ func TestNth1(t *testing.T) {
 
 		t.Run("list is an improper list", func(t *testing.T) {
 			_, err := Nth1(nil, Integer(2), PartialList(NewVariable(), NewAtom("a")), NewVariable(), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 		})
 	})
 
@@ -7044,7 +7020,7 @@ func TestSucc(t *testing.T) {
 	t.Run("x is a variable", func(t *testing.T) {
 		t.Run("s is a variable", func(t *testing.T) {
 			_, err := Succ(nil, NewVariable(), NewVariable(), Success, nil).Force(context.Background())
-			assert.Equal(t, instantiationError(nil), err)
+			assert.Equal(t, InstantiationError(nil), err)
 		})
 
 		t.Run("s is an integer", func(t *testing.T) {

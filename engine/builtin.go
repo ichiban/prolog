@@ -38,7 +38,7 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	default:
 		fvs := env.freeVariables(g)
 		args, err := makeSlice[Term](len(fvs))
@@ -259,7 +259,7 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 	case Variable:
 		switch arity := env.Resolve(arity).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Integer:
 			if arity < 0 {
 				return Error(domainError(validDomainNotLessThanZero, arity, env))
@@ -269,7 +269,7 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 
 			switch name := name.(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Compound:
 				return Error(typeError(validTypeAtomic, name, env))
 			}
@@ -305,11 +305,11 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 func Arg(vm *VM, nth, t, arg Term, k Cont, env *Env) *Promise {
 	switch c := env.Resolve(t).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Compound:
 		switch n := env.Resolve(nth).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Integer:
 			if n == 0 || int(n) > c.Arity() {
 				return Bool(false)
@@ -340,7 +340,7 @@ func Univ(vm *VM, t, list Term, k Cont, env *Env) *Promise {
 		case 1:
 			switch e := env.Resolve(elems[0]).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Compound:
 				return Error(typeError(validTypeAtomic, e, env))
 			default:
@@ -349,7 +349,7 @@ func Univ(vm *VM, t, list Term, k Cont, env *Env) *Promise {
 		default:
 			switch e := env.Resolve(elems[0]).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Atom:
 				return k(env.bind(t, e.Apply(elems[1:]...)))
 			default:
@@ -485,7 +485,7 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 	var p Integer
 	switch priority := env.Resolve(priority).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Integer:
 		if priority < 0 || priority > 1200 {
 			return Error(domainError(validDomainOperatorPriority, priority, env))
@@ -498,7 +498,7 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 	var spec operatorSpecifier
 	switch specifier := env.Resolve(specifier).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		var ok bool
 		spec, ok = operatorSpecifiers[specifier]
@@ -824,7 +824,7 @@ func Between(vm *VM, lower, upper, value Term, k Cont, env *Env) *Promise {
 	case Integer:
 		low = lower
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	default:
 		return Error(typeError(validTypeInteger, lower, env))
 	}
@@ -833,7 +833,7 @@ func Between(vm *VM, lower, upper, value Term, k Cont, env *Env) *Promise {
 	case Integer:
 		high = upper
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	default:
 		return Error(typeError(validTypeInteger, upper, env))
 	}
@@ -892,7 +892,7 @@ func KeySort(vm *VM, pairs, sorted Term, k Cont, env *Env) *Promise {
 	for iter.Next() {
 		switch e := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Compound:
 			if e.Functor() != atomMinus || e.Arity() != 2 {
 				return Error(typeError(validTypePair, e, env))
@@ -939,7 +939,7 @@ func KeySort(vm *VM, pairs, sorted Term, k Cont, env *Env) *Promise {
 func Throw(_ *VM, ball Term, _ Cont, env *Env) *Promise {
 	switch b := env.Resolve(ball).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	default:
 		return Error(NewException(b, env))
 	}
@@ -1039,7 +1039,7 @@ func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
 func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 	switch pi := env.Resolve(pi).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Compound:
 		if pi.Functor() != atomSlash || pi.Arity() != 2 {
 			return Error(typeError(validTypePredicateIndicator, pi, env))
@@ -1049,11 +1049,11 @@ func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 
 		switch name := env.Resolve(name).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Atom:
 			switch arity := env.Resolve(arity).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Integer:
 				if arity < 0 {
 					return Error(domainError(validDomainNotLessThanZero, arity, env))
@@ -1128,7 +1128,7 @@ func SetOutput(vm *VM, streamOrAlias Term, k Cont, env *Env) *Promise {
 func stream(vm *VM, streamOrAlias Term, env *Env) (*Stream, error) {
 	switch s := env.Resolve(streamOrAlias).(type) {
 	case Variable:
-		return nil, instantiationError(env)
+		return nil, InstantiationError(env)
 	case Atom:
 		v, ok := vm.streams.lookup(s)
 		if !ok {
@@ -1149,7 +1149,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	var name string
 	switch s := env.Resolve(sourceSink).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		name = s.String()
 	default:
@@ -1159,7 +1159,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	var streamMode ioMode
 	switch m := env.Resolve(mode).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		var ok bool
 		streamMode, ok = map[Atom]ioMode{
@@ -1175,7 +1175,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	}
 
 	if _, ok := env.Resolve(stream).(Variable); !ok {
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	}
 
 	s := Stream{vm: vm, mode: streamMode}
@@ -1213,7 +1213,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 func handleStreamOption(vm *VM, s *Stream, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Compound:
 		if o.Arity() != 1 {
 			break
@@ -1236,7 +1236,7 @@ func handleStreamOption(vm *VM, s *Stream, option Term, env *Env) error {
 func handleStreamOptionAlias(vm *VM, s *Stream, o Compound, env *Env) error {
 	switch a := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Atom:
 		if _, ok := vm.streams.lookup(a); ok {
 			return permissionError(operationOpen, permissionTypeSourceSink, o, env)
@@ -1252,7 +1252,7 @@ func handleStreamOptionAlias(vm *VM, s *Stream, o Compound, env *Env) error {
 func handleStreamOptionType(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch t := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Atom:
 		switch t {
 		case atomText:
@@ -1269,7 +1269,7 @@ func handleStreamOptionType(_ *VM, s *Stream, o Compound, env *Env) error {
 func handleStreamOptionReposition(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch r := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Atom:
 		switch r {
 		case atomTrue:
@@ -1286,7 +1286,7 @@ func handleStreamOptionReposition(_ *VM, s *Stream, o Compound, env *Env) error 
 func handleStreamOptionEOFAction(_ *VM, s *Stream, o Compound, env *Env) error {
 	switch e := env.Resolve(o.Arg(0)).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Atom:
 		switch e {
 		case atomError:
@@ -1315,7 +1315,7 @@ func Close(vm *VM, streamOrAlias, options Term, k Cont, env *Env) *Promise {
 	for iter.Next() {
 		switch option := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Compound:
 			switch option.Functor() {
 			case atomForce:
@@ -1405,7 +1405,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 func writeTermOption(opts *writeOptions, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Compound:
 		if o.Arity() != 1 {
 			return domainError(validDomainWriteOption, o, env)
@@ -1423,7 +1423,7 @@ func writeTermOption(opts *writeOptions, option Term, env *Env) error {
 		var b bool
 		switch v := env.Resolve(o.Arg(0)).(type) {
 		case Variable:
-			return instantiationError(env)
+			return InstantiationError(env)
 		case Atom:
 			switch v {
 			case atomTrue:
@@ -1462,7 +1462,7 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 		var vn Compound
 		switch elem := env.Resolve(iter.Current()).(type) {
 		case Variable:
-			return nil, instantiationError(env)
+			return nil, InstantiationError(env)
 		case Compound:
 			if elem.Functor() != atomEqual || elem.Arity() != 2 {
 				return nil, domainError(validDomainWriteOption, option, env)
@@ -1475,7 +1475,7 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 		var n Atom
 		switch arg := env.Resolve(vn.Arg(0)).(type) {
 		case Variable:
-			return nil, instantiationError(env)
+			return nil, InstantiationError(env)
 		case Atom:
 			n = arg
 		default:
@@ -1498,7 +1498,7 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 
 	switch s := iter.Suffix().(type) {
 	case Variable:
-		return nil, instantiationError(env)
+		return nil, InstantiationError(env)
 	case Atom:
 		if s != atomEmptyList {
 			return nil, domainError(validDomainWriteOption, option, env)
@@ -1515,7 +1515,7 @@ func CharCode(vm *VM, char, code Term, k Cont, env *Env) *Promise {
 	case Variable:
 		switch cd := env.Resolve(code).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Integer:
 			r := rune(cd)
 
@@ -1555,7 +1555,7 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k Cont, env *Env) *Promise {
 
 	switch b := env.Resolve(byt).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Integer:
 		if 0 > b || 255 < b {
 			return Error(typeError(validTypeByte, byt, env))
@@ -1585,7 +1585,7 @@ func PutChar(vm *VM, streamOrAlias, char Term, k Cont, env *Env) *Promise {
 
 	switch c := env.Resolve(char).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		if c > utf8.MaxRune {
 			return Error(typeError(validTypeCharacter, c, env))
@@ -1682,7 +1682,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 func readTermOption(opts *readTermOptions, option Term, env *Env) error {
 	switch option := env.Resolve(option).(type) {
 	case Variable:
-		return instantiationError(env)
+		return InstantiationError(env)
 	case Compound:
 		if option.Arity() != 1 {
 			return domainError(validDomainReadOption, option, env)
@@ -1863,7 +1863,7 @@ var osExit = os.Exit
 func Halt(_ *VM, n Term, k Cont, env *Env) *Promise {
 	switch code := env.Resolve(n).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Integer:
 		osExit(int(code))
 		return k(env)
@@ -1919,7 +1919,7 @@ func AtomLength(vm *VM, atom, length Term, k Cont, env *Env) *Promise {
 	var a Atom
 	switch atom := env.Resolve(atom).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		a = atom
 	default:
@@ -1946,11 +1946,11 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k Cont, env *Env) *Promise {
 	case Variable:
 		switch a1 := env.Resolve(atom1).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Atom:
 			switch a2 := env.Resolve(atom2).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Atom:
 				return Delay(func(context.Context) *Promise {
 					return Unify(vm, a3, NewAtom(a1.String()+a2.String()), k, env)
@@ -1998,7 +1998,7 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k Cont, env *Env) *Promise {
 func SubAtom(vm *VM, atom, before, length, after, subAtom Term, k Cont, env *Env) *Promise {
 	switch whole := env.Resolve(atom).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		rs := []rune(whole.String())
 
@@ -2061,7 +2061,7 @@ func AtomChars(vm *VM, atom, chars Term, k Cont, env *Env) *Promise {
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Atom:
 				if len([]rune(e.String())) != 1 {
 					return Error(typeError(validTypeCharacter, e, env))
@@ -2113,7 +2113,7 @@ func AtomCodes(vm *VM, atom, codes Term, k Cont, env *Env) *Promise {
 		for iter.Next() {
 			switch e := env.Resolve(iter.Current()).(type) {
 			case Variable:
-				return Error(instantiationError(env))
+				return Error(InstantiationError(env))
 			case Integer:
 				if e < 0 || e > unicode.MaxRune {
 					return Error(representationError(flagCharacterCode, env))
@@ -2158,10 +2158,8 @@ func AtomCodes(vm *VM, atom, codes Term, k Cont, env *Env) *Promise {
 // NumberChars breaks up an atom representation of a number num into a list of characters and unifies it with chars, or
 // constructs a number from a list of characters chars and unifies it with num.
 func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
-	var (
-		sb   strings.Builder
-		iter = ListIterator{List: chars, Env: env}
-	)
+	var sb strings.Builder
+	iter := ListIterator{List: chars, Env: env, AllowPartial: true}
 	for iter.Next() {
 		switch e := env.Resolve(iter.Current()).(type) {
 		case Variable:
@@ -2177,10 +2175,10 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 		}
 	}
 	if err := iter.Err(); err != nil {
-		if _, ok := iter.Suffix().(Variable); ok {
-			return numberCharsWrite(vm, num, chars, k, env)
-		}
 		return Error(err)
+	}
+	if _, ok := iter.Suffix().(Variable); ok {
+		return numberCharsWrite(vm, num, chars, k, env)
 	}
 
 	p := Parser{
@@ -2202,105 +2200,124 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 }
 
 func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
-	switch n := env.Resolve(num).(type) {
+	var n Number
+	switch num := env.Resolve(num).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Number:
-		iter := ListIterator{List: chars, Env: env}
-		for iter.Next() {
-			switch e := env.Resolve(iter.Current()).(type) {
-			case Variable:
-				break
-			case Atom:
-				if len(e.String()) != 1 {
-					return Error(typeError(validTypeCharacter, e, env))
-				}
-			default:
+		n = num
+	default:
+		return Error(typeError(validTypeNumber, num, env))
+	}
+
+	iter := ListIterator{List: chars, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			break
+		case Atom:
+			if len(e.String()) != 1 {
 				return Error(typeError(validTypeCharacter, e, env))
 			}
+		default:
+			return Error(typeError(validTypeCharacter, e, env))
 		}
-		if err := iter.Err(); err != nil {
-			if _, ok := iter.Suffix().(Variable); !ok {
-				return Error(err)
-			}
-		}
-
-		var buf bytes.Buffer
-		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Atom(r)
-		}
-		return Unify(vm, chars, List(cs...), k, env)
-	default:
-		return Error(typeError(validTypeNumber, n, env))
 	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
+	var buf bytes.Buffer
+	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	rs := []rune(buf.String())
+
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Atom(r)
+	}
+	return Unify(vm, chars, List(cs...), k, env)
 }
 
 // NumberCodes breaks up an atom representation of a number num into a list of runes and unifies it with codes, or
 // constructs a number from a list of runes codes and unifies it with num.
 func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
-	switch codes := env.Resolve(codes).(type) {
-	case Variable:
-		break
-	default:
-		switch n := env.Resolve(num).(type) {
-		case Variable, Integer, Float:
-			break
-		default:
-			return Error(typeError(validTypeNumber, n, env))
-		}
-
-		var sb strings.Builder
-		iter := ListIterator{List: codes, Env: env}
-		for iter.Next() {
-			switch e := env.Resolve(iter.Current()).(type) {
-			case Variable:
-				return Error(instantiationError(env))
-			case Integer:
-				_, _ = sb.WriteRune(rune(e))
-			default:
+	var sb strings.Builder
+	iter := ListIterator{List: codes, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			return numberCodesWrite(vm, num, codes, k, env)
+		case Integer:
+			if !utf8.ValidRune(rune(e)) {
 				return Error(representationError(flagCharacterCode, env))
 			}
+			_, _ = sb.WriteRune(rune(e))
+		default:
+			return Error(typeError(validTypeInteger, e, env))
 		}
-		if err := iter.Err(); err != nil {
-			return Error(err)
-		}
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	if _, ok := iter.Suffix().(Variable); ok {
+		return numberCodesWrite(vm, num, codes, k, env)
+	}
 
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(sb.String())),
-			},
-		}
-		t, err := p.number()
-		if err != nil {
-			return Error(syntaxError(err, env))
-		}
-
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, num, t, k, env)
-		})
+	p := Parser{
+		lexer: Lexer{
+			input: newRuneRingBuffer(strings.NewReader(sb.String())),
+		},
+	}
+	t, err := p.number()
+	if err != nil {
+		return Error(syntaxError(err, env))
 	}
 
 	switch n := env.Resolve(num).(type) {
+	case Variable, Number:
+		return Unify(vm, n, t, k, env)
+	default:
+		return Error(typeError(validTypeNumber, n, env))
+	}
+}
+
+func numberCodesWrite(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
+	var n Number
+	switch num := env.Resolve(num).(type) {
 	case Variable:
-		return Error(instantiationError(env))
-	case Integer, Float:
-		var buf bytes.Buffer
-		_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
-		rs := []rune(buf.String())
-		cs := make([]Term, len(rs))
-		for i, r := range rs {
-			cs[i] = Integer(r)
-		}
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, codes, List(cs...), k, env)
-		})
+		return Error(InstantiationError(env))
+	case Number:
+		n = num
 	default:
 		return Error(typeError(validTypeNumber, num, env))
 	}
+
+	iter := ListIterator{List: codes, Env: env, AllowPartial: true}
+	for iter.Next() {
+		switch e := env.Resolve(iter.Current()).(type) {
+		case Variable:
+			break
+		case Integer:
+			if !utf8.ValidRune(rune(e)) {
+				return Error(representationError(flagCharacterCode, env))
+			}
+		default:
+			return Error(typeError(validTypeInteger, e, env))
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
+	var buf bytes.Buffer
+	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	rs := []rune(buf.String())
+
+	cs := make([]Term, len(rs))
+	for i, r := range rs {
+		cs[i] = Integer(r)
+	}
+	return Unify(vm, codes, List(cs...), k, env)
 }
 
 // StreamProperty succeeds iff the stream represented by stream has the stream property.
@@ -2384,7 +2401,7 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k Cont, env *Env) *
 
 	switch p := env.Resolve(position).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Integer:
 		switch _, err := s.Seek(int64(p), 0); err {
 		case nil:
@@ -2403,7 +2420,7 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k Cont, env *Env) *
 func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		i := []rune(in.String())
 		if len(i) != 1 {
@@ -2412,7 +2429,7 @@ func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 
 		switch out := env.Resolve(outChar).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Atom:
 			o := []rune(out.String())
 			if len(o) != 1 {
@@ -2490,7 +2507,7 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
-		return Error(instantiationError(env))
+		return Error(InstantiationError(env))
 	case Atom:
 		var modify func(vm *VM, value Atom) error
 		switch f {
@@ -2510,7 +2527,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 
 		switch v := env.Resolve(value).(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Atom:
 			if err := modify(vm, v); err != nil {
 				return Error(err)
@@ -2704,7 +2721,7 @@ func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
 	case Variable:
 		switch s := s.(type) {
 		case Variable:
-			return Error(instantiationError(env))
+			return Error(InstantiationError(env))
 		case Integer:
 			switch {
 			case s < Integer(0):

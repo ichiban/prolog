@@ -202,7 +202,7 @@ func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
 func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 	switch f := env.Resolve(file).(type) {
 	case Variable:
-		return "", nil, instantiationError(env)
+		return "", nil, InstantiationError(env)
 	case Atom:
 		s := f.String()
 		for _, f := range []string{s, s + ".pl"} {
@@ -230,18 +230,18 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 	for iter.Next() {
 		switch pi := iter.Current().(type) {
 		case Variable:
-			return instantiationError(nil)
+			return InstantiationError(nil)
 		case Compound:
 			if pi.Functor() != atomSlash || pi.Arity() != 2 {
 				return typeError(validTypePredicateIndicator, pi, nil)
 			}
 			switch n := pi.Arg(0).(type) {
 			case Variable:
-				return instantiationError(nil)
+				return InstantiationError(nil)
 			case Atom:
 				switch a := pi.Arg(1).(type) {
 				case Variable:
-					return instantiationError(nil)
+					return InstantiationError(nil)
 				case Integer:
 					pi := procedureIndicator{name: n, arity: a}
 					u, ok := t.clauses[pi]

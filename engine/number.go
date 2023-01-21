@@ -75,7 +75,7 @@ func eval(expression Term, env *Env) (_ Number, err error) {
 
 	switch t := env.Resolve(expression).(type) {
 	case Variable:
-		return nil, instantiationError(env)
+		return nil, InstantiationError(env)
 	case Atom:
 		c, ok := constants[t]
 		if !ok {
