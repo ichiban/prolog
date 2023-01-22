@@ -41,7 +41,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	default:
 		fvs := env.freeVariables(g)
-		args, err := makeSlice[Term](len(fvs))
+		args, err := makeSlice(len(fvs))
 		if err != nil {
 			return Error(resourceError(resourceMemory, env))
 		}
@@ -98,7 +98,7 @@ func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
 	if err != nil {
 		return Error(err)
 	}
-	args, err := makeSlice[Term](int(pi.arity) + len(additional))
+	args, err := makeSlice(int(pi.arity) + len(additional))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}
@@ -283,7 +283,7 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 				return Error(typeError(validTypeAtom, name, env))
 			}
 
-			vs, err := makeSlice[Term](int(arity))
+			vs, err := makeSlice(int(arity))
 			if err != nil {
 				return Error(resourceError(resourceMemory, env))
 			}
@@ -414,7 +414,7 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 		p.tail = &tail
 		return &p
 	case Compound:
-		args, err := makeSlice[Term](t.Arity())
+		args, err := makeSlice(t.Arity())
 		if err != nil {
 			return resourceError(resourceMemory, env)
 		}
@@ -449,7 +449,7 @@ func TermVariables(vm *VM, term, vars Term, k Cont, env *Env) *Promise {
 			}
 			witness[t] = struct{}{}
 		case Compound:
-			args, err := makeSlice[Term](t.Arity())
+			args, err := makeSlice(t.Arity())
 			if err != nil {
 				return Error(resourceError(resourceMemory, env))
 			}
@@ -714,7 +714,7 @@ func SetOf(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 
 func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances Term, k Cont, env *Env) *Promise {
 	fvs := newFreeVariablesSet(goal, template, env)
-	w, err := makeSlice[Term](len(fvs))
+	w, err := makeSlice(len(fvs))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}
@@ -2824,7 +2824,7 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 }
 
 func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
-	elems, err := makeSlice[Term](int(n))
+	elems, err := makeSlice(int(n))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}

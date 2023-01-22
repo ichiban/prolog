@@ -48,7 +48,7 @@ f(g([a, [b|X]])).
 		{title: `not callable: disjunction`, goal: atomSemiColon.Apply(Integer(1), atomTrue), ok: false, err: typeError(validTypeCallable, atomSemiColon.Apply(Integer(1), atomTrue), nil)},
 
 		{title: `cover all`, goal: atomComma.Apply(atomCut, NewAtom("f").Apply(NewAtom("g").Apply(List(NewAtom("a"), PartialList(NewVariable(), NewAtom("b")))))), ok: true},
-		{title: `out of memory`, goal: NewAtom("foo").Apply(NewVariable(), NewVariable()), err: resourceError(resourceMemory, nil), mem: 1},
+		{title: `out of memory`, goal: NewAtom("foo").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()), err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -74,7 +74,7 @@ func TestCall1(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [1]Term{NewAtom("b")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [1]Term{NewAtom("b")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [1]Term{NewAtom("b")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [1]Term{NewAtom("b")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [1]Term{NewAtom("b")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -105,7 +105,7 @@ func TestCall2(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [2]Term{NewAtom("b"), NewAtom("c")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [2]Term{NewAtom("b"), NewAtom("c")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -136,7 +136,7 @@ func TestCall3(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [3]Term{NewAtom("b"), NewAtom("c"), NewAtom("d")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -167,7 +167,7 @@ func TestCall4(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [4]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -198,7 +198,7 @@ func TestCall5(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [5]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -229,7 +229,7 @@ func TestCall6(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [6]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -260,7 +260,7 @@ func TestCall7(t *testing.T) {
 		{title: "ok", closure: NewAtom("p").Apply(NewAtom("a")), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, ok: true},
 		{title: "closure is a variable", closure: NewVariable(), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: InstantiationError(nil)},
 		{title: "closure is neither a variable nor a callable term", closure: Integer(3), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: typeError(validTypeCallable, Integer(3), nil)},
-		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a")), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", closure: NewAtom("p").Apply(NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a"), NewAtom("a")), additional: [7]Term{NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	for _, tt := range tests {
@@ -897,7 +897,7 @@ func TestTermVariables(t *testing.T) {
 			vars: List(b),
 		}},
 
-		{title: "out of memory", term: NewAtom("f").Apply(NewVariable(), NewVariable()), vars: vars, ok: false, err: resourceError(resourceMemory, nil), mem: 1},
+		{title: "out of memory", term: NewAtom("f").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()), vars: vars, ok: false, err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
 	env := NewEnv().
@@ -1457,9 +1457,18 @@ func TestBagOf(t *testing.T) {
 		},
 
 		{
-			title:     "out of memory",
-			template:  x,
-			goal:      atomSemiColon.Apply(atomEqual.Apply(x, y), atomEqual.Apply(x, y)),
+			title:    "out of memory",
+			template: x,
+			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+			),
 			instances: s,
 			err:       resourceError(resourceMemory, nil),
 			mem:       1,
@@ -1829,9 +1838,18 @@ func TestSetOf(t *testing.T) {
 		},
 
 		{
-			title:     "out of memory",
-			template:  x,
-			goal:      atomSemiColon.Apply(atomEqual.Apply(x, y), atomEqual.Apply(x, y)),
+			title:    "out of memory",
+			template: x,
+			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+			),
 			instances: s,
 			err:       resourceError(resourceMemory, nil),
 			mem:       1,
