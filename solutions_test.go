@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -20,15 +21,21 @@ func TestSolutions_Close(t *testing.T) {
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		v := engine.NewVariable()
-		env, _ := engine.NewEnv().Unify(v, engine.NewAtom("foo"))
+		var c context.Context
+		ctx := engine.WithCont(context.Background(), func(ctx context.Context) *engine.Promise {
+			c = ctx
+			return engine.Bool(true)
+		})
+		_, err := engine.Unify(ctx, v, engine.NewAtom("foo")).Force()
+		assert.NoError(t, err)
 		more := make(chan bool, 1)
 		defer close(more)
-		next := make(chan *engine.Env, 1)
+		next := make(chan context.Context, 1)
 		defer close(next)
-		next <- env
+		next <- c
 		sols := Solutions{more: more, next: next}
 		assert.True(t, sols.Next())
-		assert.Equal(t, engine.NewAtom("foo"), sols.env.Resolve(v))
+		assert.Equal(t, engine.NewAtom("foo"), engine.Resolve(sols.ctx, v))
 	})
 
 	t.Run("closed", func(t *testing.T) {
@@ -39,15 +46,25 @@ func TestSolutions_Next(t *testing.T) {
 
 func TestSolutions_Scan(t *testing.T) {
 	sols := func(m map[string]engine.Term) Solutions {
-		env := engine.NewEnv()
-		var vars []engine.ParsedVariable
+		var (
+			vars   []engine.ParsedVariable
+			vs, ts []engine.Term
+		)
 		for n, t := range m {
 			v := engine.NewVariable()
-			env, _ = env.Unify(v, t)
 			vars = append(vars, engine.ParsedVariable{Name: engine.NewAtom(n), Variable: v})
+			vs = append(vs, v)
+			ts = append(ts, t)
 		}
+		var c context.Context
+		ctx := engine.WithCont(context.Background(), func(ctx context.Context) *engine.Promise {
+			c = ctx
+			return engine.Bool(true)
+		})
+		_, err := engine.Unify(ctx, engine.List(vs...), engine.List(ts...)).Force()
+		assert.NoError(t, err)
 		return Solutions{
-			env:  env,
+			ctx:  c,
 			vars: vars,
 		}
 	}

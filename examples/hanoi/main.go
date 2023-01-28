@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -27,9 +28,9 @@ move(N, X, Y, Z) :-
 		panic(err)
 	}
 
-	i.Register2(engine.NewAtom("actuate"), func(_ *engine.VM, x engine.Term, y engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
-		fmt.Printf("move a disk from %s to %s.\n", env.Resolve(x), env.Resolve(y))
-		return k(env)
+	i.Register2(engine.NewAtom("actuate"), func(ctx context.Context, x engine.Term, y engine.Term) *engine.Promise {
+		fmt.Printf("move a disk from %s to %s.\n", engine.Resolve(ctx, x), engine.Resolve(ctx, y))
+		return engine.Continue(ctx)
 	})
 
 	sols, err := i.Query(`hanoi(?).`, n)

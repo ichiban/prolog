@@ -18,6 +18,8 @@ func (e *discontiguousError) Error() string {
 
 // Compile compiles the Prolog text and updates the DB accordingly.
 func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
+	ctx = withVM(ctx, vm)
+
 	var t text
 	if err := vm.compile(ctx, &t, s, args...); err != nil {
 		return err
@@ -40,14 +42,14 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	}
 
 	for _, g := range t.goals {
-		ok, err := Call(vm, g, Success, nil).Force(ctx)
+		ok, err := Call(ctx, g).Force()
 		if err != nil {
 			return err
 		}
 		if !ok {
 			var sb strings.Builder
 			s := NewOutputTextStream(&sb)
-			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
+			_, _ = WriteTerm(ctx, s, g, List(atomQuoted.Apply(atomTrue))).Force()
 			return fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
@@ -56,25 +58,28 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 }
 
 // Consult executes Prolog texts in files.
-func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
+func Consult(ctx context.Context, files Term) *Promise {
 	var filenames []Term
-	iter := ListIterator{List: files, Env: env}
-	for iter.Next() {
+	iter := ListIterator{List: files}
+	for iter.Next(ctx) {
 		filenames = append(filenames, iter.Current())
 	}
 	if err := iter.Err(); err != nil {
 		filenames = []Term{files}
 	}
 
-	return Delay(func(ctx context.Context) *Promise {
-		for _, filename := range filenames {
-			if err := vm.ensureLoaded(ctx, filename, env); err != nil {
-				return Error(err)
-			}
-		}
+	vm, err := vm(ctx)
+	if err != nil {
+		return Error(err)
+	}
 
-		return k(env)
-	})
+	for _, filename := range filenames {
+		if err := vm.ensureLoaded(ctx, filename); err != nil {
+			return Error(err)
+		}
+	}
+
+	return Continue(ctx)
 }
 
 func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
@@ -95,12 +100,12 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 			return err
 		}
 
-		et, err := expand(vm, t, nil)
+		et, err := expand(ctx, t)
 		if err != nil {
 			return err
 		}
 
-		pi, arg, err := piArg(et, nil)
+		pi, arg, err := piArg(ctx, et)
 		if err != nil {
 			return err
 		}
@@ -111,7 +116,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 			}
 			continue
 		case procedureIndicator{name: atomIf, arity: 2}: // Rule
-			pi, arg, err = piArg(arg(0), nil)
+			pi, arg, err = piArg(ctx, arg(0))
 			if err != nil {
 				return err
 			}
@@ -123,7 +128,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 				}
 			}
 
-			cs, err := compile(et, nil)
+			cs, err := compile(ctx, et)
 			if err != nil {
 				return err
 			}
@@ -139,7 +144,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		return err
 	}
 
-	switch pi, arg, _ := piArg(d, nil); pi {
+	switch pi, arg, _ := piArg(ctx, d); pi {
 	case procedureIndicator{name: atomDynamic, arity: 1}:
 		return text.forEachUserDefined(arg(0), func(u *userDefined) {
 			u.dynamic = true
@@ -157,31 +162,31 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		text.goals = append(text.goals, arg(0))
 		return nil
 	case procedureIndicator{name: atomInclude, arity: 1}:
-		_, b, err := vm.open(arg(0), nil)
+		_, b, err := vm.open(ctx, arg(0))
 		if err != nil {
 			return err
 		}
 
 		return vm.compile(ctx, text, string(b))
 	case procedureIndicator{name: atomEnsureLoaded, arity: 1}:
-		return vm.ensureLoaded(ctx, arg(0), nil)
+		return vm.ensureLoaded(ctx, arg(0))
 	default:
-		ok, err := Call(vm, d, Success, nil).Force(ctx)
+		ok, err := Call(ctx, d).Force()
 		if err != nil {
 			return err
 		}
 		if !ok {
 			var sb strings.Builder
 			s := NewOutputTextStream(&sb)
-			_, _ = WriteTerm(vm, s, d, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
+			_, _ = WriteTerm(ctx, s, d, List(atomQuoted.Apply(atomTrue))).Force()
 			return fmt.Errorf("failed directive: %s", sb.String())
 		}
 		return nil
 	}
 }
 
-func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
-	f, b, err := vm.open(file, env)
+func (vm *VM) ensureLoaded(ctx context.Context, file Term) error {
+	f, b, err := vm.open(ctx, file)
 	if err != nil {
 		return err
 	}
@@ -199,10 +204,10 @@ func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
 	return vm.Compile(ctx, string(b))
 }
 
-func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
-	switch f := env.Resolve(file).(type) {
+func (vm *VM) open(ctx context.Context, file Term) (string, []byte, error) {
+	switch f := Resolve(ctx, file).(type) {
 	case Variable:
-		return "", nil, InstantiationError(env)
+		return "", nil, InstantiationError(ctx)
 	case Atom:
 		s := f.String()
 		for _, f := range []string{s, s + ".pl"} {
@@ -213,9 +218,9 @@ func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 
 			return f, b, nil
 		}
-		return "", nil, existenceError(objectTypeSourceSink, file, env)
+		return "", nil, existenceError(ctx, objectTypeSourceSink, file)
 	default:
-		return "", nil, typeError(validTypeAtom, file, env)
+		return "", nil, typeError(ctx, validTypeAtom, file)
 	}
 }
 
@@ -227,13 +232,13 @@ type text struct {
 
 func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 	iter := anyIterator{Any: pi}
-	for iter.Next() {
+	for iter.Next(context.Background()) {
 		switch pi := iter.Current().(type) {
 		case Variable:
 			return InstantiationError(nil)
 		case Compound:
 			if pi.Functor() != atomSlash || pi.Arity() != 2 {
-				return typeError(validTypePredicateIndicator, pi, nil)
+				return typeError(context.Background(), validTypePredicateIndicator, pi)
 			}
 			switch n := pi.Arg(0).(type) {
 			case Variable:
@@ -251,13 +256,13 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 					}
 					f(u)
 				default:
-					return typeError(validTypePredicateIndicator, pi, nil)
+					return typeError(context.Background(), validTypePredicateIndicator, pi)
 				}
 			default:
-				return typeError(validTypePredicateIndicator, pi, nil)
+				return typeError(context.Background(), validTypePredicateIndicator, pi)
 			}
 		default:
-			return typeError(validTypePredicateIndicator, pi, nil)
+			return typeError(context.Background(), validTypePredicateIndicator, pi)
 		}
 	}
 	return iter.Err()

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ func Test_iteratedGoalTerm(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.g, iteratedGoalTerm(tt.t, nil))
+		assert.Equal(t, tt.g, iteratedGoalTerm(context.Background(), tt.t))
 	}
 }
 
@@ -113,7 +114,7 @@ func Test_variant(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, variant(tt.t1, tt.t2, nil))
+		assert.Equal(t, tt.result, variant(context.Background(), tt.t1, tt.t2))
 	}
 }
 
@@ -123,6 +124,7 @@ func Test_writeTerm(t *testing.T) {
 	l := PartialList(v, NewAtom("a"), NewAtom("b"))
 	r := f.Apply(w)
 	env := NewEnv().bind(v, l).bind(w, r)
+	ctx := withEnv(context.Background(), env)
 
 	x := NewVariable()
 
@@ -208,7 +210,7 @@ func Test_writeTerm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
-			assert.NoError(t, writeTerm(&buf, tt.term, &tt.opts, env))
+			assert.NoError(t, writeTerm(ctx, &buf, tt.term, &tt.opts))
 			assert.Equal(t, tt.output, buf.String())
 		})
 	}

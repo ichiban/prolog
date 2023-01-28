@@ -186,12 +186,9 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		return nil, err
 	}
 
-	var env *engine.Env
-
 	more := make(chan bool, 1)
-	next := make(chan *engine.Env)
+	next := make(chan context.Context)
 	sols := Solutions{
-		vm:   &i.VM,
 		vars: p.Vars,
 		more: more,
 		next: next,
@@ -202,10 +199,11 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		if !<-more {
 			return
 		}
-		if _, err := engine.Call(&i.VM, t, func(env *engine.Env) *engine.Promise {
-			next <- env
+		ctx := engine.WithCont(ctx, func(ctx context.Context) *engine.Promise {
+			next <- ctx
 			return engine.Bool(!<-more)
-		}, env).Force(ctx); err != nil {
+		})
+		if _, err := engine.Call(ctx, t).Force(); err != nil {
 			sols.err = err
 		}
 	}()

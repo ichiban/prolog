@@ -247,38 +247,38 @@ foo(a).
 `, err: Exception{term: NewAtom("ball")}},
 		{title: "error: variable fact", text: `
 X.
-`, err: InstantiationError(nil)},
+`, err: InstantiationError(context.Background())},
 		{title: "error: variable rule", text: `
 X :- X.
-`, err: InstantiationError(nil)},
+`, err: InstantiationError(context.Background())},
 		{title: "error: non-callable rule body", text: `
 foo :- 1.
-`, err: typeError(validTypeCallable, Integer(1), nil)},
-		{title: "error: non-PI argument, variable", text: `:- dynamic(PI).`, err: InstantiationError(nil)},
-		{title: "error: non-PI argument, not compound", text: `:- dynamic(foo).`, err: typeError(validTypePredicateIndicator, NewAtom("foo"), nil)},
-		{title: "error: non-PI argument, compound", text: `:- dynamic(foo(a, b)).`, err: typeError(validTypePredicateIndicator, NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")), nil)},
-		{title: "error: non-PI argument, name is variable", text: `:- dynamic(Name/2).`, err: InstantiationError(nil)},
-		{title: "error: non-PI argument, arity is variable", text: `:- dynamic(foo/Arity).`, err: InstantiationError(nil)},
-		{title: "error: non-PI argument, arity is not integer", text: `:- dynamic(foo/bar).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(NewAtom("foo"), NewAtom("bar")), nil)},
-		{title: "error: non-PI argument, name is not atom", text: `:- dynamic(0/2).`, err: typeError(validTypePredicateIndicator, atomSlash.Apply(Integer(0), Integer(2)), nil)},
+`, err: typeError(context.Background(), validTypeCallable, Integer(1))},
+		{title: "error: non-PI argument, variable", text: `:- dynamic(PI).`, err: InstantiationError(context.Background())},
+		{title: "error: non-PI argument, not compound", text: `:- dynamic(foo).`, err: typeError(context.Background(), validTypePredicateIndicator, NewAtom("foo"))},
+		{title: "error: non-PI argument, compound", text: `:- dynamic(foo(a, b)).`, err: typeError(context.Background(), validTypePredicateIndicator, NewAtom("foo").Apply(NewAtom("a"), NewAtom("b")))},
+		{title: "error: non-PI argument, name is variable", text: `:- dynamic(Name/2).`, err: InstantiationError(context.Background())},
+		{title: "error: non-PI argument, arity is variable", text: `:- dynamic(foo/Arity).`, err: InstantiationError(context.Background())},
+		{title: "error: non-PI argument, arity is not integer", text: `:- dynamic(foo/bar).`, err: typeError(context.Background(), validTypePredicateIndicator, atomSlash.Apply(NewAtom("foo"), NewAtom("bar")))},
+		{title: "error: non-PI argument, name is not atom", text: `:- dynamic(0/2).`, err: typeError(context.Background(), validTypePredicateIndicator, atomSlash.Apply(Integer(0), Integer(2)))},
 		{title: "error: included variable", text: `
 :- include(X).
-`, err: InstantiationError(nil)},
+`, err: InstantiationError(context.Background())},
 		{title: "error: included file not found", text: `
 :- include('testdata/not_found').
-`, err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found"), nil)},
+`, err: existenceError(context.Background(), objectTypeSourceSink, NewAtom("testdata/not_found"))},
 		{title: "error: included non-atom", text: `
 :- include(1).
-`, err: typeError(validTypeAtom, Integer(1), nil)},
+`, err: typeError(context.Background(), validTypeAtom, Integer(1))},
 		{title: "error: initialization exception", text: `
 :- initialization(bar).
-`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(context.Background(), objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)))},
 		{title: "error: initialization failure", text: `
 :- initialization(foo(d)).
 `, err: errors.New("failed initialization goal: foo(d)")},
 		{title: "error: predicate-backed directive exception", text: `
 :- bar.
-`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(context.Background(), objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)))},
 		{title: "error: predicate-backed directive failure", text: `
 :- foo(d).
 `, err: errors.New("failed directive: foo(d)")},
@@ -347,15 +347,15 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
 		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 
-		{title: `:- consult(X).`, files: x, err: InstantiationError(nil)},
-		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: typeError(validTypeAtom, NewAtom("foo").Apply(NewAtom("bar")), nil)},
-		{title: `:- consult(1).`, files: Integer(1), err: typeError(validTypeAtom, Integer(1), nil)},
-		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: typeError(validTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")), nil)},
-		{title: `:- consult([X]).`, files: List(x), err: InstantiationError(nil)},
-		{title: `:- consult([1]).`, files: List(Integer(1)), err: typeError(validTypeAtom, Integer(1), nil)},
+		{title: `:- consult(X).`, files: x, err: InstantiationError(context.Background())},
+		{title: `:- consult(foo(bar)).`, files: NewAtom("foo").Apply(NewAtom("bar")), err: typeError(context.Background(), validTypeAtom, NewAtom("foo").Apply(NewAtom("bar")))},
+		{title: `:- consult(1).`, files: Integer(1), err: typeError(context.Background(), validTypeAtom, Integer(1))},
+		{title: `:- consult(['testdata/empty.txt'|_]).`, files: PartialList(NewVariable(), NewAtom("testdata/empty.txt")), err: typeError(context.Background(), validTypeAtom, PartialList(NewVariable(), NewAtom("testdata/empty.txt")))},
+		{title: `:- consult([X]).`, files: List(x), err: InstantiationError(context.Background())},
+		{title: `:- consult([1]).`, files: List(Integer(1)), err: typeError(context.Background(), validTypeAtom, Integer(1))},
 
-		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
-		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: existenceError(objectTypeSourceSink, NewAtom("testdata/not_found.txt"), nil)},
+		{title: `:- consult('testdata/not_found.txt').`, files: NewAtom("testdata/not_found.txt"), err: existenceError(context.Background(), objectTypeSourceSink, NewAtom("testdata/not_found.txt"))},
+		{title: `:- consult(['testdata/not_found.txt']).`, files: List(NewAtom("testdata/not_found.txt")), err: existenceError(context.Background(), objectTypeSourceSink, NewAtom("testdata/not_found.txt"))},
 	}
 
 	for _, tt := range tests {
@@ -363,7 +363,8 @@ func TestVM_Consult(t *testing.T) {
 			vm := VM{
 				FS: testdata,
 			}
-			ok, err := Consult(&vm, tt.files, Success, nil).Force(context.Background())
+			ctx := withVM(context.Background(), &vm)
+			ok, err := Consult(ctx, tt.files).Force()
 			assert.Equal(t, tt.ok, ok)
 			if e, ok := tt.err.(Exception); ok {
 				_, ok := NewEnv().Unify(e.Term(), err.(Exception).Term())

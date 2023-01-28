@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 )
@@ -28,10 +29,10 @@ func (v Variable) String() string {
 // So if you look at the value it's a multi set of variable occurrences and if you ignore the value it's a set of occurrences (witness).
 type variableSet map[Variable]int
 
-func newVariableSet(t Term, env *Env) variableSet {
+func newVariableSet(ctx context.Context, t Term) variableSet {
 	s := variableSet{}
 	for terms := []Term{t}; len(terms) > 0; terms, t = terms[:len(terms)-1], terms[len(terms)-1] {
-		switch t := env.Resolve(t).(type) {
+		switch t := Resolve(ctx, t).(type) {
 		case Variable:
 			s[t] += 1
 		case Compound:
@@ -43,11 +44,11 @@ func newVariableSet(t Term, env *Env) variableSet {
 	return s
 }
 
-func newExistentialVariablesSet(t Term, env *Env) variableSet {
+func newExistentialVariablesSet(ctx context.Context, t Term) variableSet {
 	ev := variableSet{}
 	for terms := []Term{t}; len(terms) > 0; terms, t = terms[:len(terms)-1], terms[len(terms)-1] {
-		if c, ok := env.Resolve(t).(Compound); ok && c.Functor() == atomCaret && c.Arity() == 2 {
-			for v, o := range newVariableSet(c.Arg(0), env) {
+		if c, ok := Resolve(ctx, t).(Compound); ok && c.Functor() == atomCaret && c.Arity() == 2 {
+			for v, o := range newVariableSet(ctx, c.Arg(0)) {
 				ev[v] = o
 			}
 			terms = append(terms, c.Arg(1))
@@ -56,12 +57,12 @@ func newExistentialVariablesSet(t Term, env *Env) variableSet {
 	return ev
 }
 
-func newFreeVariablesSet(t, v Term, env *Env) variableSet {
+func newFreeVariablesSet(ctx context.Context, t, v Term) variableSet {
 	fv := variableSet{}
-	s := newVariableSet(t, env)
+	s := newVariableSet(ctx, t)
 
-	bv := newVariableSet(v, env)
-	for v := range newExistentialVariablesSet(t, env) {
+	bv := newVariableSet(ctx, v)
+	for v := range newExistentialVariablesSet(ctx, t) {
 		bv[v] += 1
 	}
 

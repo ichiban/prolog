@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -63,8 +64,8 @@ func TestParser_Term(t *testing.T) {
 		{input: `-1.`, term: Integer(-1)},
 		{input: `- 1.`, term: Integer(-1)},
 		{input: `'-'1.`, term: Integer(-1)},
-		{input: `9223372036854775808.`, err: representationError(flagMaxInteger, nil)},
-		{input: `-9223372036854775809.`, err: representationError(flagMinInteger, nil)},
+		{input: `9223372036854775808.`, err: representationError(context.Background(), flagMaxInteger)},
+		{input: `-9223372036854775809.`, err: representationError(context.Background(), flagMinInteger)},
 		{input: `-`, err: io.EOF},
 		{input: `- -`, err: io.EOF},
 
@@ -240,8 +241,8 @@ func TestParser_Number(t *testing.T) {
 		{input: `- 33`, number: Integer(-33)},
 		{input: `'-'33`, number: Integer(-33)},
 		{input: ` 33`, number: Integer(33)},
-		{input: `9223372036854775808.`, err: representationError(flagMaxInteger, nil)},
-		{input: `-9223372036854775809.`, err: representationError(flagMinInteger, nil)},
+		{input: `9223372036854775808.`, err: representationError(context.Background(), flagMaxInteger)},
+		{input: `-9223372036854775809.`, err: representationError(context.Background(), flagMinInteger)},
 
 		{input: `0'!`, number: Integer(33)},
 		{input: `-0'!`, number: Integer(-33)},

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -789,9 +790,9 @@ func integer(sign int64, s string) (Integer, error) {
 
 	switch i, a := f.Int64(); a {
 	case big.Above:
-		return 0, representationError(flagMinInteger, nil)
+		return 0, representationError(context.Background(), flagMinInteger)
 	case big.Below:
-		return 0, representationError(flagMaxInteger, nil)
+		return 0, representationError(context.Background(), flagMaxInteger)
 	default:
 		return Integer(i), nil
 	}

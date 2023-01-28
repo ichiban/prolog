@@ -43,7 +43,7 @@ func Failure(*Env) *Promise {
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
-	Unknown func(name Atom, args []Term, env *Env)
+	Unknown func(ctx context.Context, name Atom, args []Term)
 
 	procedures map[procedureIndicator]procedure
 	unknown    unknownAction
@@ -156,16 +156,16 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	call(*VM, []Term, Cont, *Env) *Promise
+	call(context.Context, []Term) *Promise
 }
 
 // Cont is a continuation.
-type Cont func(*Env) *Promise
+type Cont func(ctx context.Context) *Promise
 
 // Arrive is the entry point of the VM.
-func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
+func (vm *VM) Arrive(ctx context.Context, name Atom, args []Term) *Promise {
 	if vm.Unknown == nil {
-		vm.Unknown = func(Atom, []Term, *Env) {}
+		vm.Unknown = func(context.Context, Atom, []Term) {}
 	}
 
 	pi := procedureIndicator{name: name, arity: Integer(len(args))}
@@ -173,19 +173,19 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
 	if !ok {
 		switch vm.unknown {
 		case unknownWarning:
-			vm.Unknown(name, args, env)
+			vm.Unknown(ctx, name, args)
 			fallthrough
 		case unknownFail:
 			return Bool(false)
 		default:
-			return Error(existenceError(objectTypeProcedure, pi.Term(), env))
+			return Error(existenceError(ctx, objectTypeProcedure, pi.Term()))
 		}
 	}
 
 	// bind the special variable to inform the predicate about the context.
-	env = env.bind(varContext, pi.Term())
+	ctx = context.WithValue(ctx, prologCtxKey{}, pi.Term())
 
-	return p.call(vm, args, k, env)
+	return p.call(ctx, args)
 }
 
 type registers struct {
@@ -195,17 +195,17 @@ type registers struct {
 	cont         Cont
 	args, astack Term
 
-	env       *Env
+	ctx       context.Context
 	cutParent *Promise
 }
 
-func (r *registers) updateEnv(e *Env) *Promise {
-	r.env = e
+func (r *registers) updateCtx(ctx context.Context) *Promise {
+	r.ctx = ctx
 	return Bool(true)
 }
 
-func (vm *VM) exec(r registers) *Promise {
-	jumpTable := [...]func(r *registers) *Promise{
+func (vm *VM) exec(ctx context.Context, r registers) *Promise {
+	jumpTable := [...]func(context.Context, registers) *Promise{
 		opConst:   vm.execConst,
 		opVar:     vm.execVar,
 		opFunctor: vm.execFunctor,
@@ -219,17 +219,17 @@ func (vm *VM) exec(r registers) *Promise {
 	}
 	for {
 		op := jumpTable[r.pc[0].opcode]
-		if p := op(&r); p != nil {
+		if p := op(ctx, r); p != nil {
 			return p
 		}
 	}
 }
 
-func (*VM) execConst(r *registers) *Promise {
+func (*VM) execConst(_ context.Context, r registers) *Promise {
 	x := r.xr[r.pc[0].operand]
 	arest := NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(x, arest))
+	r.ctx, ok = withUnification(r.ctx, r.args, Cons(x, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -238,11 +238,11 @@ func (*VM) execConst(r *registers) *Promise {
 	return nil
 }
 
-func (*VM) execVar(r *registers) *Promise {
+func (*VM) execVar(_ context.Context, r registers) *Promise {
 	v := r.vars[r.pc[0].operand]
 	arest := NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(Cons(v, arest), r.args)
+	r.ctx, ok = withUnification(r.ctx, Cons(v, arest), r.args)
 	if !ok {
 		return Bool(false)
 	}
@@ -251,27 +251,28 @@ func (*VM) execVar(r *registers) *Promise {
 	return nil
 }
 
-func (vm *VM) execFunctor(r *registers) *Promise {
+func (vm *VM) execFunctor(_ context.Context, r registers) *Promise {
 	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
+	r.ctx, ok = withUnification(r.ctx, r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
-	ok, err := Functor(vm, arg, pi.name, pi.arity, r.updateEnv, r.env).Force(context.Background())
+	vars, err := makeSlice[Term](int(pi.arity))
 	if err != nil {
 		return Error(err)
 	}
+	for i := range vars {
+		vars[i] = NewVariable()
+	}
+	r.ctx, ok = withUnification(r.ctx, arg, pi.name.Apply(vars...))
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
 	r.args = NewVariable()
-	ok, err = Univ(vm, arg, Cons(pi.name, r.args), r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
+	r.ctx, ok = withUnification(r.ctx, List(vars...), r.args)
 	if !ok {
 		return Bool(false)
 	}
@@ -279,15 +280,15 @@ func (vm *VM) execFunctor(r *registers) *Promise {
 	return nil
 }
 
-func (*VM) execPop(r *registers) *Promise {
+func (*VM) execPop(_ context.Context, r registers) *Promise {
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
+	r.ctx, ok = withUnification(r.ctx, r.args, List())
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
 	a, arest := NewVariable(), NewVariable()
-	r.env, ok = r.env.Unify(r.astack, Cons(a, arest))
+	r.ctx, ok = withUnification(r.ctx, r.astack, Cons(a, arest))
 	if !ok {
 		return Bool(false)
 	}
@@ -296,13 +297,13 @@ func (*VM) execPop(r *registers) *Promise {
 	return nil
 }
 
-func (*VM) execEnter(r *registers) *Promise {
+func (*VM) execEnter(_ context.Context, r registers) *Promise {
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
+	r.ctx, ok = withUnification(r.ctx, r.args, List())
 	if !ok {
 		return Bool(false)
 	}
-	r.env, ok = r.env.Unify(r.astack, List())
+	r.ctx, ok = withUnification(r.ctx, r.astack, List())
 	if !ok {
 		return Bool(false)
 	}
@@ -313,76 +314,79 @@ func (*VM) execEnter(r *registers) *Promise {
 	return nil
 }
 
-func (vm *VM) execCall(r *registers) *Promise {
+func (vm *VM) execCall(ctx context.Context, r registers) *Promise {
 	pi := r.xr[r.pc[0].operand].(procedureIndicator)
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
+	r.ctx, ok = withUnification(r.ctx, r.args, List())
 	if !ok {
 		return Bool(false)
 	}
 	r.pc = r.pc[1:]
-	args, _ := slice(r.astack, r.env)
-	return vm.Arrive(pi.name, args, func(env *Env) *Promise {
+	args, _ := slice(r.ctx, r.astack)
+
+	ctx = WithCont(ctx, func(ctx context.Context) *Promise {
 		v := NewVariable()
-		return vm.exec(registers{
+		return vm.exec(ctx, registers{
 			pc:        r.pc,
 			xr:        r.xr,
 			vars:      r.vars,
 			cont:      r.cont,
 			args:      v,
 			astack:    v,
-			env:       env,
+			ctx:       ctx,
 			cutParent: r.cutParent,
 		})
-	}, r.env)
+	})
+	return vm.Arrive(ctx, pi.name, args)
 }
 
-func (*VM) execExit(r *registers) *Promise {
-	return r.cont(r.env)
+func (*VM) execExit(_ context.Context, r registers) *Promise {
+	return r.cont(r.ctx)
 }
 
-func (vm *VM) execCut(r *registers) *Promise {
+func (vm *VM) execCut(ctx context.Context, r registers) *Promise {
 	r.pc = r.pc[1:]
-	return cut(r.cutParent, func(context.Context) *Promise {
-		return vm.exec(registers{
+	return cut(r.cutParent, func() *Promise {
+		return vm.exec(ctx, registers{
 			pc:        r.pc,
 			xr:        r.xr,
 			vars:      r.vars,
 			cont:      r.cont,
 			args:      r.args,
 			astack:    r.astack,
-			env:       r.env,
+			ctx:       r.ctx,
 			cutParent: r.cutParent,
 		})
 	})
 }
 
-func (vm *VM) execList(r *registers) *Promise {
+func (vm *VM) execList(_ context.Context, r registers) *Promise {
 	l := r.xr[r.pc[0].operand].(Integer)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
+	r.ctx, ok = withUnification(r.ctx, r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
-	_, _ = Length(vm, arg, l, r.updateEnv, r.env).Force(context.Background())
+	ctx := WithCont(r.ctx, r.updateCtx)
+	_, _ = Length(ctx, arg, l).Force()
 	r.pc = r.pc[1:]
 	r.args = arg
 	r.astack = Cons(arest, r.astack)
 	return nil
 }
 
-func (vm *VM) execPartial(r *registers) *Promise {
+func (vm *VM) execPartial(_ context.Context, r registers) *Promise {
 	l := r.xr[r.pc[0].operand].(Integer)
 	arg, arest := NewVariable(), NewVariable()
 	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
+	r.ctx, ok = withUnification(r.ctx, r.args, Cons(arg, arest))
 	if !ok {
 		return Bool(false)
 	}
 	prefix, tail := NewVariable(), NewVariable()
-	_, _ = Length(vm, prefix, l, r.updateEnv, r.env).Force(context.Background())
-	_, _ = Append(vm, prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
+	_, _ = Length(WithCont(r.ctx, r.updateCtx), prefix, l).Force()
+	_, _ = Append(WithCont(r.ctx, r.updateCtx), prefix, tail, arg).Force()
 	r.pc = r.pc[1:]
 	r.args = Cons(tail, prefix)
 	r.astack = Cons(arest, r.astack)
@@ -406,102 +410,102 @@ func (vm *VM) SetUserOutput(s *Stream) {
 }
 
 // Predicate0 is a predicate of arity 0.
-type Predicate0 func(*VM, Cont, *Env) *Promise
+type Predicate0 func(context.Context) *Promise
 
-func (p Predicate0) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate0) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 0 {
 		return Error(&wrongNumberOfArgumentsError{expected: 0, actual: args})
 	}
 
-	return p(vm, k, env)
+	return p(ctx)
 }
 
 // Predicate1 is a predicate of arity 1.
-type Predicate1 func(*VM, Term, Cont, *Env) *Promise
+type Predicate1 func(context.Context, Term) *Promise
 
-func (p Predicate1) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate1) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 1 {
 		return Error(&wrongNumberOfArgumentsError{expected: 1, actual: args})
 	}
 
-	return p(vm, args[0], k, env)
+	return p(ctx, args[0])
 }
 
 // Predicate2 is a predicate of arity 2.
-type Predicate2 func(*VM, Term, Term, Cont, *Env) *Promise
+type Predicate2 func(context.Context, Term, Term) *Promise
 
-func (p Predicate2) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate2) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 2 {
 		return Error(&wrongNumberOfArgumentsError{expected: 2, actual: args})
 	}
 
-	return p(vm, args[0], args[1], k, env)
+	return p(ctx, args[0], args[1])
 }
 
 // Predicate3 is a predicate of arity 3.
-type Predicate3 func(*VM, Term, Term, Term, Cont, *Env) *Promise
+type Predicate3 func(context.Context, Term, Term, Term) *Promise
 
-func (p Predicate3) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate3) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 3 {
 		return Error(&wrongNumberOfArgumentsError{expected: 3, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], k, env)
+	return p(ctx, args[0], args[1], args[2])
 }
 
 // Predicate4 is a predicate of arity 4.
-type Predicate4 func(*VM, Term, Term, Term, Term, Cont, *Env) *Promise
+type Predicate4 func(context.Context, Term, Term, Term, Term) *Promise
 
-func (p Predicate4) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate4) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 4 {
 		return Error(&wrongNumberOfArgumentsError{expected: 4, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], args[3], k, env)
+	return p(ctx, args[0], args[1], args[2], args[3])
 }
 
 // Predicate5 is a predicate of arity 5.
-type Predicate5 func(*VM, Term, Term, Term, Term, Term, Cont, *Env) *Promise
+type Predicate5 func(context.Context, Term, Term, Term, Term, Term) *Promise
 
-func (p Predicate5) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate5) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 5 {
 		return Error(&wrongNumberOfArgumentsError{expected: 5, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], args[3], args[4], k, env)
+	return p(ctx, args[0], args[1], args[2], args[3], args[4])
 }
 
 // Predicate6 is a predicate of arity 6.
-type Predicate6 func(*VM, Term, Term, Term, Term, Term, Term, Cont, *Env) *Promise
+type Predicate6 func(context.Context, Term, Term, Term, Term, Term, Term) *Promise
 
-func (p Predicate6) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate6) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 6 {
 		return Error(&wrongNumberOfArgumentsError{expected: 6, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], k, env)
+	return p(ctx, args[0], args[1], args[2], args[3], args[4], args[5])
 }
 
 // Predicate7 is a predicate of arity 7.
-type Predicate7 func(*VM, Term, Term, Term, Term, Term, Term, Term, Cont, *Env) *Promise
+type Predicate7 func(context.Context, Term, Term, Term, Term, Term, Term, Term) *Promise
 
-func (p Predicate7) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate7) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 7 {
 		return Error(&wrongNumberOfArgumentsError{expected: 7, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], k, env)
+	return p(ctx, args[0], args[1], args[2], args[3], args[4], args[5], args[6])
 }
 
 // Predicate8 is a predicate of arity 8.
-type Predicate8 func(*VM, Term, Term, Term, Term, Term, Term, Term, Term, Cont, *Env) *Promise
+type Predicate8 func(context.Context, Term, Term, Term, Term, Term, Term, Term, Term) *Promise
 
-func (p Predicate8) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (p Predicate8) call(ctx context.Context, args []Term) *Promise {
 	if len(args) != 8 {
 		return Error(&wrongNumberOfArgumentsError{expected: 8, actual: args})
 	}
 
-	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
+	return p(ctx, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
 }
 
 // procedureIndicator identifies a procedure e.g. (=)/2.
@@ -532,16 +536,16 @@ func (p procedureIndicator) Apply(args ...Term) (Term, error) {
 	return p.name.Apply(args...), nil
 }
 
-func piArg(t Term, env *Env) (procedureIndicator, func(int) Term, error) {
-	switch f := env.Resolve(t).(type) {
+func piArg(ctx context.Context, t Term) (procedureIndicator, func(int) Term, error) {
+	switch f := Resolve(ctx, t).(type) {
 	case Variable:
-		return procedureIndicator{}, nil, InstantiationError(env)
+		return procedureIndicator{}, nil, InstantiationError(ctx)
 	case Atom:
 		return procedureIndicator{name: f, arity: 0}, nil, nil
 	case Compound:
 		return procedureIndicator{name: f.Functor(), arity: Integer(f.Arity())}, f.Arg, nil
 	default:
-		return procedureIndicator{}, nil, typeError(validTypeCallable, f, env)
+		return procedureIndicator{}, nil, typeError(ctx, validTypeCallable, f)
 	}
 }
 

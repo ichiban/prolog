@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func Test_variableSet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.s, newVariableSet(tt.term, nil))
+		assert.Equal(t, tt.s, newVariableSet(context.Background(), tt.term))
 	}
 }
 
@@ -60,7 +61,7 @@ func Test_existentialVariableSet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.ev, newExistentialVariablesSet(tt.term, nil))
+		assert.Equal(t, tt.ev, newExistentialVariablesSet(context.Background(), tt.term))
 	}
 }
 
@@ -84,6 +85,6 @@ func Test_freeVariablesSet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.fv, newFreeVariablesSet(tt.t, tt.v, nil))
+		assert.Equal(t, tt.fv, newFreeVariablesSet(context.Background(), tt.t, tt.v))
 	}
 }

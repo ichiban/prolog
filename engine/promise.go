@@ -1,9 +1,5 @@
 package engine
 
-import (
-	"context"
-)
-
 var (
 	truePromise  = &Promise{ok: true}
 	falsePromise = &Promise{ok: false}
@@ -12,7 +8,7 @@ var (
 // Promise is a delayed execution that results in (bool, error). The zero value for Promise is equivalent to Bool(false).
 type Promise struct {
 	// delayed execution with multiple choices
-	delayed []func(context.Context) *Promise
+	delayed []func() *Promise
 
 	// final result
 	ok  bool
@@ -25,7 +21,7 @@ type Promise struct {
 }
 
 // Delay delays an execution of k.
-func Delay(k ...func(context.Context) *Promise) *Promise {
+func Delay(k ...func() *Promise) *Promise {
 	return &Promise{delayed: k}
 }
 
@@ -45,20 +41,20 @@ func Error(err error) *Promise {
 var dummyCutParent Promise
 
 // cut returns a promise that once the execution reaches it, it eliminates other possible choices.
-func cut(parent *Promise, k func(context.Context) *Promise) *Promise {
+func cut(parent *Promise, k func() *Promise) *Promise {
 	if parent == nil {
 		parent = &dummyCutParent
 	}
 	return &Promise{
-		delayed:   []func(context.Context) *Promise{k},
+		delayed:   []func() *Promise{k},
 		cutParent: parent,
 	}
 }
 
 // repeat returns a promise that repeats k.
-func repeat(k func(context.Context) *Promise) *Promise {
+func repeat(k func() *Promise) *Promise {
 	return &Promise{
-		delayed: []func(context.Context) *Promise{k},
+		delayed: []func() *Promise{k},
 		repeat:  true,
 	}
 }
@@ -66,53 +62,48 @@ func repeat(k func(context.Context) *Promise) *Promise {
 // catch returns a promise with a recovering function.
 // Once a promise results in error, the error goes through ancestor promises looking for a recovering function that
 // returns a non-nil promise to continue on.
-func catch(recover func(error) *Promise, k func(context.Context) *Promise) *Promise {
+func catch(recover func(error) *Promise, k func() *Promise) *Promise {
 	return &Promise{
-		delayed: []func(context.Context) *Promise{k},
+		delayed: []func() *Promise{k},
 		recover: recover,
 	}
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
-func (p *Promise) Force(ctx context.Context) (bool, error) {
+func (p *Promise) Force() (bool, error) {
 	stack := promiseStack{p}
 	for len(stack) > 0 {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		default:
-			p := stack.pop()
+		p := stack.pop()
 
-			if len(p.delayed) == 0 {
-				switch {
-				case p.err != nil:
-					if err := stack.recover(p.err); err != nil {
-						return false, err
-					}
-					continue
-				case p.ok:
-					return true, nil
-				default:
-					continue
+		if len(p.delayed) == 0 {
+			switch {
+			case p.err != nil:
+				if err := stack.recover(p.err); err != nil {
+					return false, err
 				}
+				continue
+			case p.ok:
+				return true, nil
+			default:
+				continue
 			}
-
-			// If cut, we eliminate other possibilities.
-			if p.cutParent != nil {
-				stack.popUntil(p.cutParent)
-				p.cutParent = nil // we don't have to do this again when we revisit.
-			}
-
-			// Try the child promises from left to right.
-			q := p.child(ctx)
-			stack = append(stack, p, q)
 		}
+
+		// If cut, we eliminate other possibilities.
+		if p.cutParent != nil {
+			stack.popUntil(p.cutParent)
+			p.cutParent = nil // we don't have to do this again when we revisit.
+		}
+
+		// Try the child promises from left to right.
+		q := p.child()
+		stack = append(stack, p, q)
 	}
 	return false, nil
 }
 
-func (p *Promise) child(ctx context.Context) *Promise {
-	q := p.delayed[0](ctx)
+func (p *Promise) child() *Promise {
+	q := p.delayed[0]()
 	if !p.repeat {
 		p.delayed, p.delayed[0] = p.delayed[1:], nil
 	}

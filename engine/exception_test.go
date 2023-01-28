@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ func TestException_Error(t *testing.T) {
 func TestInstantiationError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: atomError.Apply(atomInstantiationError, rootContext),
-	}, InstantiationError(nil))
+	}, InstantiationError(context.Background()))
 }
 
 func TestDomainError(t *testing.T) {
@@ -23,7 +24,7 @@ func TestDomainError(t *testing.T) {
 			atomDomainError.Apply(atomNotLessThanZero, Integer(-1)),
 			rootContext,
 		),
-	}, DomainError(atomNotLessThanZero, Integer(-1), nil))
+	}, DomainError(context.Background(), atomNotLessThanZero, Integer(-1)))
 }
 
 func TestTypeError(t *testing.T) {
@@ -32,7 +33,7 @@ func TestTypeError(t *testing.T) {
 			atomTypeError.Apply(atomAtom, Integer(0)),
 			rootContext,
 		),
-	}, TypeError(atomAtom, Integer(0), nil))
+	}, TypeError(context.Background(), atomAtom, Integer(0)))
 }
 
 func TestExceptionalValue_Error(t *testing.T) {

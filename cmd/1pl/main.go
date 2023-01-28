@@ -57,9 +57,9 @@ Type Ctrl-C or 'halt.' to exit.
 		}
 		defer restore()
 
-		halt = func(vm *engine.VM, n engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+		halt = func(ctx context.Context, n engine.Term) *engine.Promise {
 			restore()
-			return engine.Halt(vm, n, k, env)
+			return engine.Halt(ctx, n)
 		}
 	}
 
@@ -70,10 +70,10 @@ Type Ctrl-C or 'halt.' to exit.
 
 	i := New(&userInput{t: t}, t)
 	i.Register1(engine.NewAtom("halt"), halt)
-	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
+	i.Unknown = func(ctx context.Context, name engine.Atom, args []engine.Term) {
 		var sb strings.Builder
 		s := engine.NewOutputTextStream(&sb)
-		_, _ = engine.WriteTerm(&i.VM, s, name.Apply(args...), engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, env).Force(context.Background())
+		_, _ = engine.WriteTerm(ctx, s, name.Apply(args...), engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true")))).Force()
 		log.Printf("UNKNOWN %s", &sb)
 	}
 

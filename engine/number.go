@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"math"
 )
@@ -65,21 +66,21 @@ type Number interface {
 	number()
 }
 
-func eval(expression Term, env *Env) (_ Number, err error) {
+func eval(ctx context.Context, expression Term) (_ Number, err error) {
 	defer func() {
 		var ev exceptionalValue
 		if errors.As(err, &ev) {
-			err = evaluationError(ev, env)
+			err = evaluationError(ctx, ev)
 		}
 	}()
 
-	switch t := env.Resolve(expression).(type) {
+	switch t := Resolve(ctx, expression).(type) {
 	case Variable:
-		return nil, InstantiationError(env)
+		return nil, InstantiationError(ctx)
 	case Atom:
 		c, ok := constants[t]
 		if !ok {
-			return nil, typeError(validTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
+			return nil, typeError(ctx, validTypeEvaluable, atomSlash.Apply(t, Integer(0)))
 		}
 		return c, nil
 	case Number:
@@ -89,9 +90,9 @@ func eval(expression Term, env *Env) (_ Number, err error) {
 		case 1:
 			f, ok := unaryFunctors[t.Functor()]
 			if !ok {
-				return nil, typeError(validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)), env)
+				return nil, typeError(ctx, validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(1)))
 			}
-			x, err := eval(t.Arg(0), env)
+			x, err := eval(ctx, t.Arg(0))
 			if err != nil {
 				return nil, err
 			}
@@ -99,42 +100,42 @@ func eval(expression Term, env *Env) (_ Number, err error) {
 		case 2:
 			f, ok := binaryFunctors[t.Functor()]
 			if !ok {
-				return nil, typeError(validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)), env)
+				return nil, typeError(ctx, validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(2)))
 			}
-			x, err := eval(t.Arg(0), env)
+			x, err := eval(ctx, t.Arg(0))
 			if err != nil {
 				return nil, err
 			}
-			y, err := eval(t.Arg(1), env)
+			y, err := eval(ctx, t.Arg(1))
 			if err != nil {
 				return nil, err
 			}
 			return f(x, y)
 		default:
-			return nil, typeError(validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)), env)
+			return nil, typeError(ctx, validTypeEvaluable, atomSlash.Apply(t.Functor(), Integer(arity)))
 		}
 	default:
-		return nil, typeError(validTypeEvaluable, atomSlash.Apply(t, Integer(0)), env)
+		return nil, typeError(ctx, validTypeEvaluable, atomSlash.Apply(t, Integer(0)))
 	}
 }
 
 // Is evaluates expression and unifies the result with result.
-func Is(vm *VM, result, expression Term, k Cont, env *Env) *Promise {
-	v, err := eval(expression, env)
+func Is(ctx context.Context, result, expression Term) *Promise {
+	v, err := eval(ctx, expression)
 	if err != nil {
 		return Error(err)
 	}
-	return Unify(vm, result, v, k, env)
+	return Unify(ctx, result, v)
 }
 
 // Equal succeeds iff e1 equals to e2.
-func Equal(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func Equal(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -159,17 +160,17 @@ func Equal(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // NotEqual succeeds iff e1 doesn't equal to e2.
-func NotEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func NotEqual(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -194,17 +195,17 @@ func NotEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // LessThan succeeds iff e1 is less than e2.
-func LessThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func LessThan(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -229,17 +230,17 @@ func LessThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // GreaterThan succeeds iff e1 is greater than e2.
-func GreaterThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func GreaterThan(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -264,17 +265,17 @@ func GreaterThan(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // LessThanOrEqual succeeds iff e1 is less than or equal to e2.
-func LessThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func LessThanOrEqual(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -299,17 +300,17 @@ func LessThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // GreaterThanOrEqual succeeds iff e1 is greater than or equal to e2.
-func GreaterThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
-	ev1, err := eval(e1, env)
+func GreaterThanOrEqual(ctx context.Context, e1, e2 Term) *Promise {
+	ev1, err := eval(ctx, e1)
 	if err != nil {
 		return Error(err)
 	}
 
-	ev2, err := eval(e2, env)
+	ev2, err := eval(ctx, e2)
 	if err != nil {
 		return Error(err)
 	}
@@ -334,7 +335,7 @@ func GreaterThanOrEqual(_ *VM, e1, e2 Term, k Cont, env *Env) *Promise {
 	if !ok {
 		return Bool(false)
 	}
-	return k(env)
+	return Continue(ctx)
 }
 
 // add returns sum of 2 numbers.
@@ -408,10 +409,10 @@ func intDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intDivI(x, y)
 		default:
-			return nil, typeError(validTypeInteger, y, nil)
+			return nil, typeError(context.Background(), validTypeInteger, y)
 		}
 	default:
-		return nil, typeError(validTypeInteger, x, nil)
+		return nil, typeError(context.Background(), validTypeInteger, x)
 	}
 }
 
@@ -444,10 +445,10 @@ func rem(x, y Number) (Number, error) {
 		case Integer:
 			return remI(x, y)
 		default:
-			return nil, typeError(validTypeInteger, y, nil)
+			return nil, typeError(context.Background(), validTypeInteger, y)
 		}
 	default:
-		return nil, typeError(validTypeInteger, x, nil)
+		return nil, typeError(context.Background(), validTypeInteger, x)
 	}
 }
 
@@ -459,10 +460,10 @@ func mod(x, y Number) (Number, error) {
 		case Integer:
 			return modI(x, y)
 		default:
-			return nil, typeError(validTypeInteger, y, nil)
+			return nil, typeError(context.Background(), validTypeInteger, y)
 		}
 	default:
-		return nil, typeError(validTypeInteger, x, nil)
+		return nil, typeError(context.Background(), validTypeInteger, x)
 	}
 }
 
@@ -508,7 +509,7 @@ func floatIntegerPart(x Number) (Number, error) {
 	case Float:
 		return intPartF(x), nil
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -518,7 +519,7 @@ func floatFractionalPart(x Number) (Number, error) {
 	case Float:
 		return fractPartF(x), nil
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -540,7 +541,7 @@ func floor(x Number) (Number, error) {
 	case Float:
 		return floorFtoI(x)
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -550,7 +551,7 @@ func truncate(x Number) (Number, error) {
 	case Float:
 		return truncateFtoI(x)
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -560,7 +561,7 @@ func round(x Number) (Number, error) {
 	case Float:
 		return roundFtoI(x)
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -570,7 +571,7 @@ func ceiling(x Number) (Number, error) {
 	case Float:
 		return ceilingFtoI(x)
 	default:
-		return nil, typeError(validTypeFloat, x, nil)
+		return nil, typeError(context.Background(), validTypeFloat, x)
 	}
 }
 
@@ -727,10 +728,10 @@ func bitwiseRightShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n >> s), nil
 		default:
-			return nil, typeError(validTypeInteger, s, nil)
+			return nil, typeError(context.Background(), validTypeInteger, s)
 		}
 	default:
-		return nil, typeError(validTypeInteger, n, nil)
+		return nil, typeError(context.Background(), validTypeInteger, n)
 	}
 }
 
@@ -742,10 +743,10 @@ func bitwiseLeftShift(n, s Number) (Number, error) {
 		case Integer:
 			return Integer(n << s), nil
 		default:
-			return nil, typeError(validTypeInteger, s, nil)
+			return nil, typeError(context.Background(), validTypeInteger, s)
 		}
 	default:
-		return nil, typeError(validTypeInteger, n, nil)
+		return nil, typeError(context.Background(), validTypeInteger, n)
 	}
 }
 
@@ -757,10 +758,10 @@ func bitwiseAnd(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 & b2, nil
 		default:
-			return nil, typeError(validTypeInteger, b2, nil)
+			return nil, typeError(context.Background(), validTypeInteger, b2)
 		}
 	default:
-		return nil, typeError(validTypeInteger, b1, nil)
+		return nil, typeError(context.Background(), validTypeInteger, b1)
 	}
 }
 
@@ -772,10 +773,10 @@ func bitwiseOr(b1, b2 Number) (Number, error) {
 		case Integer:
 			return b1 | b2, nil
 		default:
-			return nil, typeError(validTypeInteger, b2, nil)
+			return nil, typeError(context.Background(), validTypeInteger, b2)
 		}
 	default:
-		return nil, typeError(validTypeInteger, b1, nil)
+		return nil, typeError(context.Background(), validTypeInteger, b1)
 	}
 }
 
@@ -785,7 +786,7 @@ func bitwiseComplement(b1 Number) (Number, error) {
 	case Integer:
 		return ^b1, nil
 	default:
-		return nil, typeError(validTypeInteger, b1, nil)
+		return nil, typeError(context.Background(), validTypeInteger, b1)
 	}
 }
 
@@ -809,10 +810,10 @@ func intFloorDiv(x, y Number) (Number, error) {
 		case Integer:
 			return intFloorDivI(x, y)
 		default:
-			return nil, typeError(validTypeInteger, y, nil)
+			return nil, typeError(context.Background(), validTypeInteger, y)
 		}
 	default:
-		return nil, typeError(validTypeInteger, x, nil)
+		return nil, typeError(context.Background(), validTypeInteger, x)
 	}
 }
 
@@ -916,7 +917,7 @@ func integerPower(x, y Number) (Number, error) {
 			r, _ := intPow(vx, vy) // Since x is either 1 or -1, no errors occur.
 			return intDivI(1, r)
 		default:
-			return nil, typeError(validTypeFloat, vx, nil)
+			return nil, typeError(context.Background(), validTypeFloat, vx)
 		}
 	}
 
@@ -1036,12 +1037,12 @@ func tan(x Number) (Number, error) {
 func xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
 	if !ok {
-		return nil, typeError(validTypeInteger, x, nil)
+		return nil, typeError(context.Background(), validTypeInteger, x)
 	}
 
 	vy, ok := y.(Integer)
 	if !ok {
-		return nil, typeError(validTypeInteger, y, nil)
+		return nil, typeError(context.Background(), validTypeInteger, y)
 	}
 
 	return vx ^ vy, nil

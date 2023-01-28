@@ -1,13 +1,15 @@
 package engine
 
 import (
+	"context"
 	"reflect"
 	"strings"
 )
 
-var varContext = NewVariable()
-
-var rootContext = NewAtom("root")
+func Resolve(ctx context.Context, t Term) Term {
+	env := env(ctx)
+	return env.Resolve(t)
+}
 
 type envKey int64
 
@@ -42,13 +44,6 @@ type binding struct {
 	// attributes?
 }
 
-var rootEnv = &Env{
-	binding: binding{
-		key:   newEnvKey(varContext),
-		value: rootContext,
-	},
-}
-
 // NewEnv creates an empty environment.
 func NewEnv() *Env {
 	return nil
@@ -59,9 +54,6 @@ func (e *Env) lookup(v Variable) (Term, bool) {
 	k := newEnvKey(v)
 
 	node := e
-	if node == nil {
-		node = rootEnv
-	}
 	for {
 		if node == nil {
 			return nil, false
@@ -82,9 +74,6 @@ func (e *Env) bind(v Variable, t Term) *Env {
 	k := newEnvKey(v)
 
 	node := e
-	if node == nil {
-		node = rootEnv
-	}
 	ret := *node.insert(k, t)
 	ret.color = black
 	return &ret

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -12,9 +13,9 @@ func main() {
 	p := prolog.New(nil, nil)
 
 	// Define a custom predicate of arity 2.
-	p.Register2(engine.NewAtom("get_status"), func(_ *engine.VM, url, status engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	p.Register2(engine.NewAtom("get_status"), func(ctx context.Context, url, status engine.Term) *engine.Promise {
 		// Check if the input arguments are of the types you expected.
-		u, ok := env.Resolve(url).(engine.Atom)
+		u, ok := engine.Resolve(ctx, url).(engine.Atom)
 		if !ok {
 			return engine.Error(fmt.Errorf("%s is not an atom", url))
 		}
@@ -26,13 +27,7 @@ func main() {
 		}
 
 		// Return values by unification with the output arguments.
-		env, ok = env.Unify(status, engine.Integer(resp.StatusCode))
-		if !ok {
-			return engine.Bool(false)
-		}
-
-		// Tell Prolog to continue with the given continuation and environment.
-		return k(env)
+		return engine.Unify(ctx, status, engine.Integer(resp.StatusCode))
 	})
 
 	// Query with the custom predicate get_status/2 but parameterize the first argument.

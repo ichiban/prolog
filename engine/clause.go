@@ -17,24 +17,27 @@ type userDefined struct {
 
 type clauses []clause
 
-func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
+func (cs clauses) call(ctx context.Context, args []Term) *Promise {
+	vm, _ := vm(ctx)
+	k := cont(ctx)
+
 	var p *Promise
-	ks := make([]func(context.Context) *Promise, len(cs))
+	ks := make([]func() *Promise, len(cs))
 	for i := range cs {
 		i, c := i, cs[i]
-		ks[i] = func(context.Context) *Promise {
+		ks[i] = func() *Promise {
 			vars := make([]Variable, len(c.vars))
 			for i := range vars {
 				vars[i] = NewVariable()
 			}
-			return vm.exec(registers{
+			return vm.exec(ctx, registers{
 				pc:        c.bytecode,
 				xr:        c.xrTable,
 				vars:      vars,
 				cont:      k,
 				args:      List(args...),
 				astack:    List(),
-				env:       env,
+				ctx:       ctx,
 				cutParent: p,
 			})
 		}
@@ -43,16 +46,16 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	return p
 }
 
-func compile(t Term, env *Env) (clauses, error) {
-	t = env.Resolve(t)
+func compile(ctx context.Context, t Term) (clauses, error) {
+	t = Resolve(ctx, t)
 	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
-		iter := altIterator{Alt: body, Env: env}
-		for iter.Next() {
-			c, err := compileClause(head, iter.Current(), env)
+		iter := altIterator{Alt: body}
+		for iter.Next(ctx) {
+			c, err := compileClause(ctx, head, iter.Current())
 			if err != nil {
-				return nil, typeError(validTypeCallable, body, env)
+				return nil, typeError(ctx, validTypeCallable, body)
 			}
 			c.raw = t
 			cs = append(cs, c)
@@ -60,8 +63,8 @@ func compile(t Term, env *Env) (clauses, error) {
 		return cs, nil
 	}
 
-	c, err := compileClause(t, nil, env)
-	c.raw = env.simplify(t)
+	c, err := compileClause(ctx, t, nil)
+	c.raw = renamedCopy(ctx, t, nil)
 	return []clause{c}, err
 }
 
@@ -73,31 +76,31 @@ type clause struct {
 	bytecode bytecode
 }
 
-func compileClause(head Term, body Term, env *Env) (clause, error) {
+func compileClause(ctx context.Context, head Term, body Term) (clause, error) {
 	var c clause
-	switch head := env.Resolve(head).(type) {
+	switch head := Resolve(ctx, head).(type) {
 	case Atom:
 		c.pi = procedureIndicator{name: head, arity: 0}
 	case Compound:
 		c.pi = procedureIndicator{name: head.Functor(), arity: Integer(head.Arity())}
 		for i := 0; i < head.Arity(); i++ {
-			c.compileArg(head.Arg(i), env)
+			c.compileArg(ctx, head.Arg(i))
 		}
 	}
 	if body != nil {
-		if err := c.compileBody(body, env); err != nil {
-			return c, typeError(validTypeCallable, body, env)
+		if err := c.compileBody(ctx, body); err != nil {
+			return c, typeError(ctx, validTypeCallable, body)
 		}
 	}
 	c.bytecode = append(c.bytecode, instruction{opcode: opExit})
 	return c, nil
 }
 
-func (c *clause) compileBody(body Term, env *Env) error {
+func (c *clause) compileBody(ctx context.Context, body Term) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
-	iter := seqIterator{Seq: body, Env: env}
-	for iter.Next() {
-		if err := c.compilePred(iter.Current(), env); err != nil {
+	iter := seqIterator{Seq: body}
+	for iter.Next(ctx) {
+		if err := c.compilePred(ctx, iter.Current()); err != nil {
 			return err
 		}
 	}
@@ -106,10 +109,10 @@ func (c *clause) compileBody(body Term, env *Env) error {
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(p Term, env *Env) error {
-	switch p := env.Resolve(p).(type) {
+func (c *clause) compilePred(ctx context.Context, p Term) error {
+	switch p := Resolve(ctx, p).(type) {
 	case Variable:
-		return c.compilePred(atomCall.Apply(p), env)
+		return c.compilePred(ctx, atomCall.Apply(p))
 	case Atom:
 		switch p {
 		case atomCut:
@@ -120,7 +123,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 		return nil
 	case Compound:
 		for i := 0; i < p.Arity(); i++ {
-			c.compileArg(p.Arg(i), env)
+			c.compileArg(ctx, p.Arg(i))
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())})})
 		return nil
@@ -129,8 +132,8 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	}
 }
 
-func (c *clause) compileArg(a Term, env *Env) {
-	switch a := env.Resolve(a).(type) {
+func (c *clause) compileArg(ctx context.Context, a Term) {
+	switch a := Resolve(ctx, a).(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opVar, operand: c.varOffset(a)})
 	case charList, codeList: // Treat them as if they're atomic.
@@ -138,21 +141,21 @@ func (c *clause) compileArg(a Term, env *Env) {
 	case list:
 		c.bytecode = append(c.bytecode, instruction{opcode: opList, operand: c.xrOffset(Integer(len(a)))})
 		for _, arg := range a {
-			c.compileArg(arg, env)
+			c.compileArg(ctx, arg)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case *partial:
 		prefix := a.Compound.(list)
 		c.bytecode = append(c.bytecode, instruction{opcode: opPartial, operand: c.xrOffset(Integer(len(prefix)))})
-		c.compileArg(*a.tail, env)
+		c.compileArg(ctx, *a.tail)
 		for _, arg := range prefix {
-			c.compileArg(arg, env)
+			c.compileArg(ctx, arg)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())})})
 		for i := 0; i < a.Arity(); i++ {
-			c.compileArg(a.Arg(i), env)
+			c.compileArg(ctx, a.Arg(i))
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:

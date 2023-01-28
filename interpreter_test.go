@@ -740,10 +740,10 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register0(engine.NewAtom("true"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
-				return k(env)
+			i.Register0(engine.NewAtom("true"), func(ctx context.Context) *engine.Promise {
+				return engine.Continue(ctx)
 			})
-			i.Register0(engine.NewAtom("fail"), func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
+			i.Register0(engine.NewAtom("fail"), func(ctx context.Context) *engine.Promise {
 				return engine.Bool(false)
 			})
 			i.Register1(engine.NewAtom("consult"), engine.Consult)
@@ -828,9 +828,9 @@ foo(a, 1, 2.0, [abc, def]).
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+	i.Register0(engine.NewAtom("do_not_call"), func(ctx context.Context) *engine.Promise {
 		assert.Fail(t, "unreachable")
-		return k(env)
+		return engine.Continue(ctx)
 	})
 	sols, err := i.Query("do_not_call.")
 	assert.NoError(t, err)
@@ -1225,7 +1225,7 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		i.Register0(engine.NewAtom("error"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+		i.Register0(engine.NewAtom("error"), func(context.Context) *engine.Promise {
 			return engine.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)

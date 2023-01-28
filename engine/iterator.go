@@ -1,9 +1,10 @@
 package engine
 
+import "context"
+
 // ListIterator is an iterator for a list.
 type ListIterator struct {
 	List         Term
-	Env          *Env
 	AllowPartial bool
 	AllowCycle   bool
 
@@ -16,9 +17,9 @@ type ListIterator struct {
 }
 
 // Next proceeds to the next element of the list and returns true if there's such an element.
-func (i *ListIterator) Next() bool {
+func (i *ListIterator) Next(ctx context.Context) bool {
 	if i.hare == nil {
-		i.hare = i.Env.Resolve(i.List)
+		i.hare = Resolve(ctx, i.List)
 	}
 	if i.power == 0 {
 		i.power = 1
@@ -28,7 +29,7 @@ func (i *ListIterator) Next() bool {
 	}
 
 	if id(i.tortoise) == id(i.hare) && !i.AllowCycle { // Detected a cycle.
-		i.err = typeError(validTypeList, i.List, i.Env)
+		i.err = typeError(ctx, validTypeList, i.List)
 		return false
 	}
 
@@ -41,25 +42,25 @@ func (i *ListIterator) Next() bool {
 	switch l := i.hare.(type) {
 	case Variable:
 		if !i.AllowPartial {
-			i.err = InstantiationError(i.Env)
+			i.err = InstantiationError(ctx)
 		}
 		return false
 	case Atom:
 		if l != atomEmptyList {
-			i.err = typeError(validTypeList, i.List, i.Env)
+			i.err = typeError(ctx, validTypeList, i.List)
 		}
 		return false
 	case Compound:
 		if l.Functor() != atomDot || l.Arity() != 2 {
-			i.err = typeError(validTypeList, i.List, i.Env)
+			i.err = typeError(ctx, validTypeList, i.List)
 			return false
 		}
 
-		i.current, i.hare = l.Arg(0), i.Env.Resolve(l.Arg(1))
+		i.current, i.hare = l.Arg(0), Resolve(ctx, l.Arg(1))
 		i.lam++
 		return true
 	default:
-		i.err = typeError(validTypeList, i.List, i.Env)
+		i.err = typeError(ctx, validTypeList, i.List)
 		return false
 	}
 }
@@ -85,14 +86,13 @@ func (i *ListIterator) Suffix() Term {
 // seqIterator is an iterator for a sequence.
 type seqIterator struct {
 	Seq Term
-	Env *Env
 
 	current Term
 }
 
 // Next proceeds to the next element of the sequence and returns true if there's such an element.
-func (i *seqIterator) Next() bool {
-	switch s := i.Env.Resolve(i.Seq).(type) {
+func (i *seqIterator) Next(ctx context.Context) bool {
+	switch s := Resolve(ctx, i.Seq).(type) {
 	case nil:
 		return false
 	case Compound:
@@ -119,14 +119,13 @@ func (i *seqIterator) Current() Term {
 // altIterator is an iterator for alternatives.
 type altIterator struct {
 	Alt Term
-	Env *Env
 
 	current Term
 }
 
 // Next proceeds to the next element of the alternatives and returns true if there's such an element.
-func (i *altIterator) Next() bool {
-	switch a := i.Env.Resolve(i.Alt).(type) {
+func (i *altIterator) Next(ctx context.Context) bool {
+	switch a := Resolve(ctx, i.Alt).(type) {
 	case nil:
 		return false
 	case Compound:
@@ -137,7 +136,7 @@ func (i *altIterator) Next() bool {
 		}
 
 		// if-then-else construct
-		if c, ok := i.Env.Resolve(a.Arg(0)).(Compound); ok && c.Functor() == atomThen && c.Arity() == 2 {
+		if c, ok := Resolve(ctx, a.Arg(0)).(Compound); ok && c.Functor() == atomThen && c.Arity() == 2 {
 			i.current = a
 			i.Alt = nil
 			return true
@@ -161,25 +160,24 @@ func (i *altIterator) Current() Term {
 // anyIterator is an iterator for a list or a sequence.
 type anyIterator struct {
 	Any Term
-	Env *Env
 
 	backend interface {
-		Next() bool
+		Next(context.Context) bool
 		Current() Term
 	}
 }
 
 // Next proceeds to the next element and returns true if there's such an element.
-func (i *anyIterator) Next() bool {
+func (i *anyIterator) Next(ctx context.Context) bool {
 	if i.backend == nil {
-		if a, ok := i.Env.Resolve(i.Any).(Compound); ok && a.Functor() == atomDot && a.Arity() == 2 {
-			i.backend = &ListIterator{List: i.Any, Env: i.Env}
+		if a, ok := Resolve(ctx, i.Any).(Compound); ok && a.Functor() == atomDot && a.Arity() == 2 {
+			i.backend = &ListIterator{List: i.Any}
 		} else {
-			i.backend = &seqIterator{Seq: i.Any, Env: i.Env}
+			i.backend = &seqIterator{Seq: i.Any}
 		}
 	}
 
-	return i.backend.Next()
+	return i.backend.Next(ctx)
 }
 
 // Current returns the current element.

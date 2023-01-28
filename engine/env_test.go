@@ -13,15 +13,9 @@ func TestEnv_Bind(t *testing.T) {
 	var env *Env
 	assert.Equal(t, &Env{
 		color: black,
-		left: &Env{
-			binding: binding{
-				key:   newEnvKey(a),
-				value: NewAtom("a"),
-			},
-		},
 		binding: binding{
-			key:   newEnvKey(varContext),
-			value: NewAtom("root"),
+			key:   newEnvKey(a),
+			value: NewAtom("a"),
 		},
 	}, env.bind(a, NewAtom("a")))
 }
@@ -52,24 +46,6 @@ func TestEnv_Lookup(t *testing.T) {
 			assert.Equal(t, v, w)
 		})
 	}
-}
-
-func TestEnv_Simplify(t *testing.T) {
-	// L = [a, b|L] ==> [a, b, a, b, ...]
-	l := NewVariable()
-	p := PartialList(l, NewAtom("a"), NewAtom("b"))
-	env := NewEnv().bind(l, p)
-	c := env.simplify(l)
-	iter := ListIterator{List: c, Env: env}
-	assert.True(t, iter.Next())
-	assert.Equal(t, NewAtom("a"), iter.Current())
-	assert.True(t, iter.Next())
-	assert.Equal(t, NewAtom("b"), iter.Current())
-	assert.False(t, iter.Next())
-	suffix, ok := iter.Suffix().(*partial)
-	assert.True(t, ok)
-	assert.Equal(t, atomDot, suffix.Functor())
-	assert.Equal(t, 2, suffix.Arity())
 }
 
 func TestEnv_Compare(t *testing.T) {

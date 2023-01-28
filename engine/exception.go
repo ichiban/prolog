@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"context"
 )
 
 // Exception is an error represented by a prolog term.
@@ -10,8 +11,8 @@ type Exception struct {
 }
 
 // NewException creates an Exception from a copy of the given Term.
-func NewException(term Term, env *Env) Exception {
-	return Exception{term: renamedCopy(term, nil, env)}
+func NewException(ctx context.Context, term Term) Exception {
+	return Exception{term: renamedCopy(ctx, term, nil)}
 }
 
 // Term returns the underlying Term of the Exception.
@@ -21,13 +22,14 @@ func (e Exception) Term() Term {
 
 func (e Exception) Error() string {
 	var buf bytes.Buffer
-	_ = writeTerm(&buf, e.term, &defaultWriteOptions, nil)
+	_ = writeTerm(context.Background(), &buf, e.term, &defaultWriteOptions)
 	return buf.String()
 }
 
 // InstantiationError returns an instantiation error exception.
-func InstantiationError(env *Env) Exception {
-	return NewException(atomError.Apply(atomInstantiationError, varContext), env)
+func InstantiationError(ctx context.Context) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomInstantiationError, pc))
 }
 
 // validType is the correct type for an argument or one of its components.
@@ -75,13 +77,14 @@ func (t validType) Term() Term {
 }
 
 // TypeError creates a new type error exception.
-func TypeError(typ, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomTypeError.Apply(typ, culprit), varContext), env)
+func TypeError(ctx context.Context, typ, culprit Term) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomTypeError.Apply(typ, culprit), pc))
 }
 
 // typeError creates a new type error exception.
-func typeError(validType validType, culprit Term, env *Env) Exception {
-	return TypeError(validType.Term(), culprit, env)
+func typeError(ctx context.Context, validType validType, culprit Term) Exception {
+	return TypeError(ctx, validType.Term(), culprit)
 }
 
 // validDomain is the domain which the procedure defines.
@@ -136,13 +139,14 @@ func (vd validDomain) Term() Term {
 }
 
 // DomainError creates a new domain error exception.
-func DomainError(domain, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomDomainError.Apply(domain, culprit), varContext), env)
+func DomainError(ctx context.Context, domain, culprit Term) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomDomainError.Apply(domain, culprit), pc))
 }
 
 // domainError creates a new domain error exception.
-func domainError(validDomain validDomain, culprit Term, env *Env) Exception {
-	return DomainError(validDomain.Term(), culprit, env)
+func domainError(ctx context.Context, validDomain validDomain, culprit Term) Exception {
+	return DomainError(ctx, validDomain.Term(), culprit)
 }
 
 // objectType is the object on which an operation is to be performed.
@@ -166,8 +170,9 @@ func (ot objectType) Term() Term {
 }
 
 // existenceError creates a new existence error exception.
-func existenceError(objectType objectType, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomExistenceError.Apply(objectType.Term(), culprit), varContext), env)
+func existenceError(ctx context.Context, objectType objectType, culprit Term) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomExistenceError.Apply(objectType.Term(), culprit), pc))
 }
 
 // operation is the operation to be performed.
@@ -231,8 +236,9 @@ func (pt permissionType) Term() Term {
 }
 
 // permissionError creates a new permission error exception.
-func permissionError(operation operation, permissionType permissionType, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomPermissionError.Apply(operation.Term(), permissionType.Term(), culprit), varContext), env)
+func permissionError(ctx context.Context, operation operation, permissionType permissionType, culprit Term) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomPermissionError.Apply(operation.Term(), permissionType.Term(), culprit), pc))
 }
 
 // flag is an implementation defined limit.
@@ -262,8 +268,9 @@ func (f flag) Term() Term {
 }
 
 // representationError creates a new representation error exception.
-func representationError(limit flag, env *Env) Exception {
-	return NewException(atomError.Apply(atomRepresentationError.Apply(limit.Term()), varContext), env)
+func representationError(ctx context.Context, limit flag) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomRepresentationError.Apply(limit.Term()), pc))
 }
 
 // resource is a resource required to complete execution.
@@ -287,14 +294,16 @@ func (r resource) Term() Term {
 }
 
 // resourceError creates a new resource error exception.
-func resourceError(resource resource, env *Env) Exception {
+func resourceError(ctx context.Context, resource resource) Exception {
 	// We can't call renamedCopy() since it can lead th resource_error(memory).
-	return Exception{term: atomError.Apply(atomResourceError.Apply(resource.Term()), env.Resolve(varContext))}
+	pc := prologContext(ctx)
+	return Exception{term: atomError.Apply(atomResourceError.Apply(resource.Term()), pc)}
 }
 
 // syntaxError creates a new syntax error exception.
-func syntaxError(err error, env *Env) Exception {
-	return NewException(atomError.Apply(atomSyntaxError.Apply(NewAtom(err.Error())), varContext), env)
+func syntaxError(ctx context.Context, err error) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomSyntaxError.Apply(NewAtom(err.Error())), pc))
 }
 
 // exceptionalValue is an evaluable functor's result which is not a number.
@@ -326,6 +335,7 @@ func (ev exceptionalValue) Term() Term {
 }
 
 // evaluationError creates a new evaluation error exception.
-func evaluationError(ev exceptionalValue, env *Env) Exception {
-	return NewException(atomError.Apply(atomEvaluationError.Apply(ev.Term()), varContext), env)
+func evaluationError(ctx context.Context, ev exceptionalValue) Exception {
+	pc := prologContext(ctx)
+	return NewException(ctx, atomError.Apply(atomEvaluationError.Apply(ev.Term()), pc))
 }

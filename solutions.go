@@ -18,11 +18,10 @@ var errConversion = errors.New("conversion failed")
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	vm     *engine.VM
-	env    *engine.Env
+	ctx    context.Context
 	vars   []engine.ParsedVariable
 	more   chan<- bool
-	next   <-chan *engine.Env
+	next   <-chan context.Context
 	err    error
 	closed bool
 }
@@ -45,7 +44,7 @@ func (s *Solutions) Next() bool {
 	}
 	s.more <- true
 	var ok bool
-	s.env, ok = <-s.next
+	s.ctx, ok = <-s.next
 	return ok
 }
 
@@ -76,7 +75,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 				continue
 			}
 
-			if err := convertAssign(f, s.vm, v.Variable, s.env); err != nil {
+			if err := convertAssign(s.ctx, f, v.Variable); err != nil {
 				return err
 			}
 		}
@@ -89,7 +88,7 @@ func (s *Solutions) Scan(dest interface{}) error {
 
 		for _, v := range s.vars {
 			dest := reflect.New(t.Elem())
-			if err := convertAssign(dest.Interface(), s.vm, v.Variable, s.env); err != nil {
+			if err := convertAssign(s.ctx, dest.Interface(), v.Variable); err != nil {
 				return err
 			}
 			o.SetMapIndex(reflect.ValueOf(v.Name.String()), dest.Elem())
@@ -102,35 +101,35 @@ func (s *Solutions) Scan(dest interface{}) error {
 
 var atomEmptyList = engine.NewAtom("[]")
 
-func convertAssign(dest interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
+func convertAssign(ctx context.Context, dest interface{}, t engine.Term) error {
 	switch d := dest.(type) {
 	case *interface{}:
-		return convertAssignAny(d, vm, t, env)
+		return convertAssignAny(ctx, d, t)
 	case *string:
-		return convertAssignString(d, t, env)
+		return convertAssignString(ctx, d, t)
 	case *int:
-		return convertAssignInt(d, t, env)
+		return convertAssignInt(ctx, d, t)
 	case *int8:
-		return convertAssignInt8(d, t, env)
+		return convertAssignInt8(ctx, d, t)
 	case *int16:
-		return convertAssignInt16(d, t, env)
+		return convertAssignInt16(ctx, d, t)
 	case *int32:
-		return convertAssignInt32(d, t, env)
+		return convertAssignInt32(ctx, d, t)
 	case *int64:
-		return convertAssignInt64(d, t, env)
+		return convertAssignInt64(ctx, d, t)
 	case *float32:
-		return convertAssignFloat32(d, t, env)
+		return convertAssignFloat32(ctx, d, t)
 	case *float64:
-		return convertAssignFloat64(d, t, env)
+		return convertAssignFloat64(ctx, d, t)
 	case Scanner:
-		return d.Scan(vm, t, env)
+		return d.Scan(ctx, t)
 	default:
-		return convertAssignSlice(d, vm, t, env)
+		return convertAssignSlice(ctx, d, t)
 	}
 }
 
-func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignAny(ctx context.Context, d *interface{}, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Variable:
 		*d = nil
 		return nil
@@ -149,10 +148,10 @@ func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.
 		return nil
 	case engine.Compound:
 		var s []interface{}
-		iter := engine.ListIterator{List: t, Env: env}
-		for iter.Next() {
+		iter := engine.ListIterator{List: t}
+		for iter.Next(context.TODO()) {
 			s = append(s, nil)
-			if err := convertAssign(&s[len(s)-1], vm, iter.Current(), env); err != nil {
+			if err := convertAssign(ctx, &s[len(s)-1], iter.Current()); err != nil {
 				return err
 			}
 		}
@@ -166,8 +165,8 @@ func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.
 	}
 }
 
-func convertAssignString(d *string, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignString(ctx context.Context, d *string, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Atom:
 		*d = t.String()
 		return nil
@@ -176,8 +175,8 @@ func convertAssignString(d *string, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignInt(d *int, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignInt(ctx context.Context, d *int, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Integer:
 		*d = int(t)
 		return nil
@@ -186,8 +185,8 @@ func convertAssignInt(d *int, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignInt8(d *int8, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignInt8(ctx context.Context, d *int8, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Integer:
 		*d = int8(t)
 		return nil
@@ -196,8 +195,8 @@ func convertAssignInt8(d *int8, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignInt16(d *int16, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignInt16(ctx context.Context, d *int16, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Integer:
 		*d = int16(t)
 		return nil
@@ -206,8 +205,8 @@ func convertAssignInt16(d *int16, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignInt32(d *int32, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignInt32(ctx context.Context, d *int32, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Integer:
 		*d = int32(t)
 		return nil
@@ -216,8 +215,8 @@ func convertAssignInt32(d *int32, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignInt64(d *int64, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignInt64(ctx context.Context, d *int64, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Integer:
 		*d = int64(t)
 		return nil
@@ -226,8 +225,8 @@ func convertAssignInt64(d *int64, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignFloat32(d *float32, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignFloat32(ctx context.Context, d *float32, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Float:
 		*d = float32(t)
 		return nil
@@ -236,8 +235,8 @@ func convertAssignFloat32(d *float32, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignFloat64(d *float64, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
+func convertAssignFloat64(ctx context.Context, d *float64, t engine.Term) error {
+	switch t := engine.Resolve(ctx, t).(type) {
 	case engine.Float:
 		*d = float64(t)
 		return nil
@@ -246,7 +245,7 @@ func convertAssignFloat64(d *float64, t engine.Term, env *engine.Env) error {
 	}
 }
 
-func convertAssignSlice(d interface{}, vm *engine.VM, t engine.Term, env *engine.Env) error {
+func convertAssignSlice(ctx context.Context, d interface{}, t engine.Term) error {
 	v := reflect.ValueOf(d).Elem()
 
 	if k := v.Kind(); k != reflect.Slice {
@@ -256,11 +255,11 @@ func convertAssignSlice(d interface{}, vm *engine.VM, t engine.Term, env *engine
 	v.SetLen(0)
 	orig := v
 
-	iter := engine.ListIterator{List: t, Env: env}
-	for iter.Next() {
+	iter := engine.ListIterator{List: t}
+	for iter.Next(ctx) {
 		v = reflect.Append(v, reflect.Zero(v.Type().Elem()))
 		dest := v.Index(v.Len() - 1).Addr().Interface()
-		if err := convertAssign(dest, vm, iter.Current(), env); err != nil {
+		if err := convertAssign(ctx, dest, iter.Current()); err != nil {
 			return err
 		}
 	}
@@ -299,17 +298,17 @@ func (s *Solution) Err() error {
 
 // Scanner is an interface for custom conversion from term to Go value.
 type Scanner interface {
-	Scan(vm *engine.VM, term engine.Term, env *engine.Env) error
+	Scan(ctx context.Context, term engine.Term) error
 }
 
 // TermString is a string representation of term.
 type TermString string
 
 // Scan implements Scanner interface.
-func (t *TermString) Scan(vm *engine.VM, term engine.Term, env *engine.Env) error {
+func (t *TermString) Scan(ctx context.Context, term engine.Term) error {
 	var sb strings.Builder
 	s := engine.NewOutputTextStream(&sb)
-	_, _ = engine.WriteTerm(vm, s, term, engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, env).Force(context.Background())
+	_, _ = engine.WriteTerm(ctx, s, term, engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true")))).Force()
 	*t = TermString(sb.String())
 	return nil
 }

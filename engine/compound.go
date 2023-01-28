@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -159,11 +160,11 @@ func (e *Env) set(ts ...Term) Term {
 
 // slice returns a Term slice containing the elements of list.
 // It errors if the given Term is not a list.
-func slice(list Term, env *Env) ([]Term, error) {
+func slice(ctx context.Context, list Term) ([]Term, error) {
 	var ret []Term
-	iter := ListIterator{List: list, Env: env}
-	for iter.Next() {
-		ret = append(ret, env.Resolve(iter.Current()))
+	iter := ListIterator{List: list}
+	for iter.Next(ctx) {
+		ret = append(ret, Resolve(ctx, iter.Current()))
 	}
 	return ret, iter.Err()
 }
