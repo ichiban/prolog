@@ -6,6 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewException(t *testing.T) {
+	assert.Equal(t, Exception{term: NewAtom("foo").Apply(NewAtom("bar"))}, NewException(NewAtom("foo").Apply(NewAtom("bar")), nil))
+
+	defer setMemFree(1)()
+	assert.Equal(t, resourceError(resourceMemory, nil), NewException(NewAtom("foo").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()), nil))
+}
+
 func TestException_Error(t *testing.T) {
 	e := Exception{term: NewAtom("foo")}
 	assert.Equal(t, "foo", e.Error())

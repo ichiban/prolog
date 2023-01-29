@@ -822,6 +822,7 @@ func TestCopyTerm(t *testing.T) {
 		ok      bool
 		err     error
 		env     map[Variable]Term
+		mem     int64
 	}{
 		// 8.5.4.4 Examples
 		{title: "copy_term(X, Y).", in: x, out: y, ok: true},
@@ -841,10 +842,16 @@ func TestCopyTerm(t *testing.T) {
 		{title: "codeList", in: CodeList("foo"), out: CodeList("foo"), ok: true},
 		{title: "list", in: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), out: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), ok: true},
 		{title: "partial", in: PartialList(x, NewAtom("a"), NewAtom("b")), out: PartialList(x, NewAtom("a"), NewAtom("b")), ok: true},
+
+		{title: "out of memory: list", in: List(List(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())), out: NewVariable(), mem: 1, err: resourceError(resourceMemory, nil)},
+		{title: "out of memory: partial", in: PartialList(PartialList(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()), NewVariable()), out: NewVariable(), mem: 1, err: resourceError(resourceMemory, nil)},
+		{title: "out of memory: compound", in: NewAtom("f").Apply(NewAtom("f").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())), out: NewVariable(), mem: 1, err: resourceError(resourceMemory, nil)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
+			defer setMemFree(tt.mem)()
+
 			ok, err := CopyTerm(nil, tt.in, tt.out, func(env *Env) *Promise {
 				for k, v := range tt.env {
 					assert.Equal(t, v, env.Resolve(k))
@@ -1457,9 +1464,27 @@ func TestBagOf(t *testing.T) {
 		},
 
 		{
-			title:    "out of memory",
+			title:    "out of memory: goal",
 			template: x,
 			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+			),
+			instances: s,
+			err:       resourceError(resourceMemory, nil),
+			mem:       1,
+		},
+		{
+			title:    "out of memory: free variables",
+			template: x,
+			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
@@ -1838,9 +1863,27 @@ func TestSetOf(t *testing.T) {
 		},
 
 		{
-			title:    "out of memory",
+			title:    "out of memory: goal",
 			template: x,
 			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+				atomEqual.Apply(x, NewVariable()),
+			),
+			instances: s,
+			err:       resourceError(resourceMemory, nil),
+			mem:       1,
+		},
+		{
+			title:    "out of memory: free variables",
+			template: x,
+			goal: seq(atomSemiColon,
+				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
 				atomEqual.Apply(x, NewVariable()),
