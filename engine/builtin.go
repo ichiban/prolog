@@ -41,7 +41,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	default:
 		fvs := env.freeVariables(g)
-		args, err := makeSlice[Term](len(fvs))
+		args, err := makeSlice(len(fvs))
 		if err != nil {
 			return Error(resourceError(resourceMemory, env))
 		}
@@ -98,7 +98,7 @@ func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
 	if err != nil {
 		return Error(err)
 	}
-	args, err := makeSlice[Term](int(pi.arity) + len(additional))
+	args, err := makeSlice(int(pi.arity) + len(additional))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}
@@ -283,7 +283,7 @@ func Functor(vm *VM, t, name, arity Term, k Cont, env *Env) *Promise {
 				return Error(typeError(validTypeAtom, name, env))
 			}
 
-			vs, err := makeSlice[Term](int(arity))
+			vs, err := makeSlice(int(arity))
 			if err != nil {
 				return Error(resourceError(resourceMemory, env))
 			}
@@ -381,42 +381,62 @@ func Univ(vm *VM, t, list Term, k Cont, env *Env) *Promise {
 
 // CopyTerm clones in as out.
 func CopyTerm(vm *VM, in, out Term, k Cont, env *Env) *Promise {
-	return Unify(vm, renamedCopy(in, nil, env), out, k, env)
+	c, err := renamedCopy(in, nil, env)
+	if err != nil {
+		return Error(err)
+	}
+	return Unify(vm, c, out, k, env)
 }
 
-func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
+func renamedCopy(t Term, copied map[termID]Term, env *Env) (Term, error) {
 	if copied == nil {
 		copied = map[termID]Term{}
 	}
 	t = env.Resolve(t)
 	if c, ok := copied[id(t)]; ok {
-		return c
+		return c, nil
 	}
 	switch t := t.(type) {
 	case Variable:
 		v := NewVariable()
 		copied[id(t)] = v
-		return v
+		return v, nil
 	case charList, codeList:
-		return t
+		return t, nil
 	case list:
-		l := make(list, len(t))
+		s, err := makeSlice(len(t))
+		if err != nil {
+			return nil, resourceError(resourceMemory, env)
+		}
+		l := list(s)
 		copied[id(t)] = l
 		for i := range t {
-			l[i] = renamedCopy(t[i], copied, env)
+			c, err := renamedCopy(t[i], copied, env)
+			if err != nil {
+				return nil, err
+			}
+			l[i] = c
 		}
-		return l
+		return l, nil
 	case *partial:
 		var p partial
 		copied[id(t)] = &p
-		p.Compound = renamedCopy(t.Compound, copied, env).(Compound)
-		tail := renamedCopy(*t.tail, copied, env)
-		p.tail = &tail
-		return &p
-	case Compound:
-		args, err := makeSlice[Term](t.Arity())
+		cp, err := renamedCopy(t.Compound, copied, env)
 		if err != nil {
-			return resourceError(resourceMemory, env)
+			return nil, err
+		}
+		p.Compound = cp.(Compound)
+		cp, err = renamedCopy(*t.tail, copied, env)
+		if err != nil {
+			return nil, err
+		}
+		tail := cp
+		p.tail = &tail
+		return &p, nil
+	case Compound:
+		args, err := makeSlice(t.Arity())
+		if err != nil {
+			return nil, resourceError(resourceMemory, env)
 		}
 		c := compound{
 			functor: t.Functor(),
@@ -424,11 +444,15 @@ func renamedCopy(t Term, copied map[termID]Term, env *Env) Term {
 		}
 		copied[id(t)] = &c
 		for i := 0; i < t.Arity(); i++ {
-			c.args[i] = renamedCopy(t.Arg(i), copied, env)
+			cp, err := renamedCopy(t.Arg(i), copied, env)
+			if err != nil {
+				return nil, err
+			}
+			c.args[i] = cp
 		}
-		return &c
+		return &c, nil
 	default:
-		return t
+		return t, nil
 	}
 }
 
@@ -449,7 +473,7 @@ func TermVariables(vm *VM, term, vars Term, k Cont, env *Env) *Promise {
 			}
 			witness[t] = struct{}{}
 		case Compound:
-			args, err := makeSlice[Term](t.Arity())
+			args, err := makeSlice(t.Arity())
 			if err != nil {
 				return Error(resourceError(resourceMemory, env))
 			}
@@ -714,7 +738,7 @@ func SetOf(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 
 func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances Term, k Cont, env *Env) *Promise {
 	fvs := newFreeVariablesSet(goal, template, env)
-	w, err := makeSlice[Term](len(fvs))
+	w, err := makeSlice(len(fvs))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}
@@ -780,7 +804,11 @@ func FindAll(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise 
 	return Delay(func(ctx context.Context) *Promise {
 		var answers []Term
 		if _, err := Call(vm, goal, func(env *Env) *Promise {
-			answers = append(answers, renamedCopy(template, nil, env))
+			c, err := renamedCopy(template, nil, env)
+			if err != nil {
+				return Error(err)
+			}
+			answers = append(answers, c)
 			return Bool(false) // ask for more solutions
 		}, env).Force(ctx); err != nil {
 			return Error(err)
@@ -1898,7 +1926,11 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 
 	ks := make([]func(context.Context) *Promise, len(u.clauses))
 	for i, c := range u.clauses {
-		r := rulify(renamedCopy(c.raw, nil, env), env)
+		cp, err := renamedCopy(c.raw, nil, env)
+		if err != nil {
+			return Error(err)
+		}
+		r := rulify(cp, env)
 		ks[i] = func(context.Context) *Promise {
 			return Unify(vm, atomIf.Apply(head, body), r, k, env)
 		}
@@ -2824,7 +2856,7 @@ func Length(vm *VM, list, length Term, k Cont, env *Env) *Promise {
 }
 
 func lengthRundown(vm *VM, list Variable, n Integer, k Cont, env *Env) *Promise {
-	elems, err := makeSlice[Term](int(n))
+	elems, err := makeSlice(int(n))
 	if err != nil {
 		return Error(resourceError(resourceMemory, env))
 	}
