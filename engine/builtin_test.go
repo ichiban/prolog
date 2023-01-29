@@ -2011,6 +2011,7 @@ func TestFindAll(t *testing.T) {
 		ok                        bool
 		err                       error
 		env                       map[Variable]Term
+		mem                       int64
 	}{
 		// 8.10.1.4 Examples
 		{title: "1", template: x, goal: atomSemiColon.Apply(atomEqual.Apply(x, Integer(1)), atomEqual.Apply(x, Integer(2))), instances: s, ok: true, env: map[Variable]Term{
@@ -2031,6 +2032,15 @@ func TestFindAll(t *testing.T) {
 
 		// 8.10.1.3 Errors
 		{title: "c", template: x, goal: atomSemiColon.Apply(atomEqual.Apply(x, Integer(1)), atomEqual.Apply(x, Integer(2))), instances: NewAtom("foo"), err: typeError(validTypeList, NewAtom("foo"), nil)},
+
+		{
+			title:     "out of memory",
+			template:  tuple(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()),
+			goal:      atomEqual.Apply(x, Integer(1)),
+			instances: s,
+			err:       Exception{term: atomError.Apply(atomResourceError.Apply(resourceMemory.Term()), atomSlash.Apply(atomEqual, Integer(2)))},
+			mem:       1,
+		},
 	}
 
 	var vm VM
@@ -2048,6 +2058,8 @@ func TestFindAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
+			defer setMemFree(tt.mem)()
+
 			ok, err := FindAll(&vm, tt.template, tt.goal, tt.instances, func(env *Env) *Promise {
 				for k, v := range tt.env {
 					_, ok := env.Unify(v, k)
@@ -5442,6 +5454,21 @@ func TestClause(t *testing.T) {
 		var vm VM
 		ok, err := Clause(&vm, NewAtom("foo"), Integer(0), Success, nil).Force(context.Background())
 		assert.Equal(t, typeError(validTypeCallable, Integer(0), nil), err)
+		assert.False(t, ok)
+	})
+
+	t.Run("out of memory", func(t *testing.T) {
+		defer setMemFree(1)()
+
+		vm := VM{
+			procedures: map[procedureIndicator]procedure{
+				{name: NewAtom("green"), arity: 1}: &userDefined{public: true, clauses: []clause{
+					{raw: NewAtom("green").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())},
+				}},
+			},
+		}
+		ok, err := Clause(&vm, NewAtom("green").Apply(NewVariable()), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, resourceError(resourceMemory, nil), err)
 		assert.False(t, ok)
 	})
 }
