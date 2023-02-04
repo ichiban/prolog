@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"io"
 	"math"
 	"testing"
 
@@ -137,9 +138,9 @@ func TestIs(t *testing.T) {
 		{title: "+ 1.0", result: Float(1), expression: atomPlus.Apply(Float(1)), ok: true},
 		{title: "+ mock", expression: atomPlus.Apply(&mockNumber{}), err: evaluationError(exceptionalValueUndefined, nil)},
 
-		{title: "invalid unary argument", expression: atomMinus.Apply("invalid"), err: typeError(validTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
-		{title: "invalid binary argument: x", expression: atomMinus.Apply("invalid", Integer(0)), err: typeError(validTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
-		{title: "invalid binary argument: y", expression: atomMinus.Apply(Integer(0), "invalid"), err: typeError(validTypeEvaluable, atomSlash.Apply("invalid", Integer(0)), nil)},
+		{title: "invalid unary argument", expression: atomMinus.Apply(&mockTerm{}), err: typeError(validTypeEvaluable, atomSlash.Apply(&mockTerm{}, Integer(0)), nil)},
+		{title: "invalid binary argument: x", expression: atomMinus.Apply(&mockTerm{}, Integer(0)), err: typeError(validTypeEvaluable, atomSlash.Apply(&mockTerm{}, Integer(0)), nil)},
+		{title: "invalid binary argument: y", expression: atomMinus.Apply(Integer(0), &mockTerm{}), err: typeError(validTypeEvaluable, atomSlash.Apply(&mockTerm{}, Integer(0)), nil)},
 		{title: "unknown constant", expression: foo, err: typeError(validTypeEvaluable, atomSlash.Apply(foo, Integer(0)), nil)},
 		{title: "unknown unary", expression: foo.Apply(Integer(1)), err: typeError(validTypeEvaluable, atomSlash.Apply(foo, Integer(1)), nil)},
 		{title: "unknown binary", expression: foo.Apply(Integer(1), Integer(2)), err: typeError(validTypeEvaluable, atomSlash.Apply(foo, Integer(2)), nil)},
@@ -476,4 +477,14 @@ type mockNumber struct {
 
 func (m *mockNumber) number() {
 	_ = m.Called()
+}
+
+func (m *mockNumber) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	args := m.Called(w, opts, env)
+	return args.Error(0)
+}
+
+func (m *mockNumber) Compare(t Term, env *Env) int {
+	args := m.Called(t, env)
+	return args.Int(0)
 }

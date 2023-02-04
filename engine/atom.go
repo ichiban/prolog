@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"sync"
@@ -235,6 +236,61 @@ func NewAtom(name string) Atom {
 	return a
 }
 
+func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
+	ew := errWriter{w: w}
+	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
+
+	if openClose {
+		if opts.left.name != 0 && opts.left.specifier.class() == operatorClassPrefix {
+			_, _ = ew.Write([]byte(" "))
+		}
+		_, _ = ew.Write([]byte("("))
+		opts = opts.withLeft(operator{}).withRight(operator{})
+	}
+
+	if opts.quoted && needQuoted(a) {
+		if opts.left != (operator{}) && needQuoted(opts.left.name) { // Avoid 'FOO''BAR'.
+			_, _ = ew.Write([]byte(" "))
+		}
+		_, _ = ew.Write([]byte(quote(a.String())))
+		if opts.right != (operator{}) && needQuoted(opts.right.name) { // Avoid 'FOO''BAR'.
+			_, _ = ew.Write([]byte(" "))
+		}
+	} else {
+		if (letterDigit(opts.left.name) && letterDigit(a)) || (graphic(opts.left.name) && graphic(a)) {
+			_, _ = ew.Write([]byte(" "))
+		}
+		_, _ = ew.Write([]byte(a.String()))
+		if (letterDigit(opts.right.name) && letterDigit(a)) || (graphic(opts.right.name) && graphic(a)) {
+			_, _ = ew.Write([]byte(" "))
+		}
+	}
+
+	if openClose {
+		_, _ = ew.Write([]byte(")"))
+	}
+
+	return ew.err
+}
+
+func (a Atom) Compare(t Term, env *Env) int {
+	switch t := env.Resolve(t).(type) {
+	case Variable, Float, Integer:
+		return 1
+	case Atom:
+		switch d := strings.Compare(a.String(), t.String()); {
+		case d > 0:
+			return 1
+		case d < 0:
+			return -1
+		default:
+			return 0
+		}
+	default:
+		return -1
+	}
+}
+
 func (a Atom) String() string {
 	if a <= utf8.MaxRune {
 		return string(rune(a))
@@ -242,10 +298,6 @@ func (a Atom) String() string {
 	atomTable.RLock()
 	defer atomTable.RUnlock()
 	return atomTable.names[a-(utf8.MaxRune+1)]
-}
-
-func (a Atom) GoString() string {
-	return fmt.Sprintf("%#v", a.String())
 }
 
 // Apply returns a Compound which Functor is the Atom and args are the arguments. If the arguments are empty,

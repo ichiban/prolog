@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 )
@@ -510,11 +511,34 @@ type procedureIndicator struct {
 	arity Integer
 }
 
+func (p procedureIndicator) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	return WriteCompound(w, p, opts, env)
+}
+
+func (p procedureIndicator) Compare(t Term, env *Env) int {
+	return CompareCompound(p, t, env)
+}
+
+func (p procedureIndicator) Functor() Atom {
+	return atomSlash
+}
+
+func (p procedureIndicator) Arity() int {
+	return 2
+}
+
+func (p procedureIndicator) Arg(n int) Term {
+	if n == 0 {
+		return p.name
+	}
+	return p.arity
+}
+
 func (p procedureIndicator) String() string {
 	var sb strings.Builder
-	_ = writeAtom(&sb, p.name, &writeOptions{
+	_ = p.name.WriteTerm(&sb, &WriteOptions{
 		quoted: true,
-	})
+	}, nil)
 	_, _ = fmt.Fprintf(&sb, "/%d", p.arity)
 	return sb.String()
 }
