@@ -236,6 +236,7 @@ func NewAtom(name string) Atom {
 	return a
 }
 
+// WriteTerm outputs the Atom to an io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
 	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
@@ -273,6 +274,7 @@ func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	return ew.err
 }
 
+// Compare compares the Atom with a Term.
 func (a Atom) Compare(t Term, env *Env) int {
 	switch t := env.Resolve(t).(type) {
 	case Variable, Float, Integer:
@@ -286,7 +288,7 @@ func (a Atom) Compare(t Term, env *Env) int {
 		default:
 			return 0
 		}
-	default:
+	default: // Custom atomic terms, Compound.
 		return -1
 	}
 }

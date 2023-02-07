@@ -17,6 +17,7 @@ type Compound interface {
 	Arg(n int) Term
 }
 
+// WriteCompound outputs the Compound to an io.Writer.
 func WriteCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error {
 	ok, err := writeCompoundVisit(w, c, opts)
 	if err != nil || ok {
@@ -221,6 +222,7 @@ func writeCompoundFunctionalNotation(w io.Writer, c Compound, opts *WriteOptions
 	return ew.err
 }
 
+// CompareCompound compares the Compound with a Term.
 func CompareCompound(c Compound, t Term, env *Env) int {
 	switch t := env.Resolve(t).(type) {
 	case Compound:

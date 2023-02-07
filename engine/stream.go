@@ -79,14 +79,15 @@ func NewOutputBinaryStream(w io.Writer) *Stream {
 	}
 }
 
+// WriteTerm outputs the Stream to an io.Writer.
 func (s *Stream) WriteTerm(w io.Writer, _ *WriteOptions, _ *Env) error {
-	_, err := fmt.Fprint(w, "<stream>")
+	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
 	return err
 }
 
+// Compare compares the Stream with a Term.
 func (s *Stream) Compare(t Term, env *Env) int {
-	switch t := env.Resolve(t).(type) {
-	case *Stream:
+	return CompareAtomic[*Stream](s, t, func(s *Stream, t *Stream) int {
 		switch x, y := uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(t)); {
 		case x > y:
 			return 1
@@ -95,11 +96,7 @@ func (s *Stream) Compare(t Term, env *Env) int {
 		default:
 			return 0
 		}
-	case Compound:
-		return -1
-	default:
-		return 1
-	}
+	}, env)
 }
 
 // Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".

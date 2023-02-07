@@ -54,7 +54,7 @@ func TestStream_WriteTerm(t *testing.T) {
 		opts   WriteOptions
 		output string
 	}{
-		{title: "stream", s: &Stream{}, output: `<stream>`},
+		{title: "stream", s: &Stream{}, output: `<stream>\(0x[[:xdigit:]]+\)`},
 	}
 
 	var buf bytes.Buffer
@@ -62,7 +62,7 @@ func TestStream_WriteTerm(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
 			assert.NoError(t, tt.s.WriteTerm(&buf, &tt.opts, nil))
-			assert.Equal(t, tt.output, buf.String())
+			assert.Regexp(t, tt.output, buf.String())
 		})
 	}
 }

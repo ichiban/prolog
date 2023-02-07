@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"fmt"
 	"io"
+	"strings"
 )
 
 // Term is a prolog term.
@@ -64,6 +66,23 @@ var defaultWriteOptions = WriteOptions{
 	},
 	variableNames: map[Variable]Atom{},
 	priority:      1200,
+}
+
+// CompareAtomic compares a custom atomic term of type T with a Term and returns -1, 0, or 1.
+// The order is Variable < Float < Integer < Atom < custom atomic terms < Compound
+// where different types of custom atomic terms are ordered by the Go-syntax representation of the types.
+// It compares values of the same custom atomic term type T by the provided comparison function.
+func CompareAtomic[T Term](a T, t Term, cmp func(T, T) int, env *Env) int {
+	switch t := env.Resolve(t).(type) {
+	case Variable, Float, Integer, Atom:
+		return 1
+	case T:
+		return cmp(a, t)
+	case Compound:
+		return -1
+	default: // Custom atomic term.
+		return strings.Compare(fmt.Sprintf("%T", a), fmt.Sprintf("%T", t))
+	}
 }
 
 // termIDer lets a Term which is not comparable per se return its termID for comparison.

@@ -10,6 +10,7 @@ type Integer int64
 
 func (i Integer) number() {}
 
+// WriteTerm outputs the Integer to an io.Writer.
 func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
 	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && i > 0
@@ -38,6 +39,7 @@ func (i Integer) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	return ew.err
 }
 
+// Compare compares the Integer with a Term.
 func (i Integer) Compare(t Term, env *Env) int {
 	switch t := env.Resolve(t).(type) {
 	case Variable, Float:
@@ -51,7 +53,7 @@ func (i Integer) Compare(t Term, env *Env) int {
 		default:
 			return 0
 		}
-	default:
+	default: // Atom, custom atomic terms, Compound.
 		return -1
 	}
 }

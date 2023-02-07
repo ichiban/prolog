@@ -11,6 +11,7 @@ type Float float64
 
 func (f Float) number() {}
 
+// WriteTerm outputs the Float to an io.Writer.
 func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
 	openClose := opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix && f > 0
@@ -44,6 +45,7 @@ func (f Float) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	return ew.err
 }
 
+// Compare compares the Float with a Term.
 func (f Float) Compare(t Term, env *Env) int {
 	switch t := env.Resolve(t).(type) {
 	case Variable:
@@ -57,7 +59,7 @@ func (f Float) Compare(t Term, env *Env) int {
 		default:
 			return 0
 		}
-	default:
+	default: // Integer, Atom, custom atomic terms, Compound.
 		return -1
 	}
 }
