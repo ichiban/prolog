@@ -13,7 +13,7 @@ import (
 
 func TestNewInputTextStream(t *testing.T) {
 	assert.Equal(t, &Stream{
-		sourceSink: os.Stdin,
+		source:     os.Stdin,
 		mode:       ioModeRead,
 		eofAction:  eofActionReset,
 		streamType: streamTypeText,
@@ -22,7 +22,7 @@ func TestNewInputTextStream(t *testing.T) {
 
 func TestNewInputBinaryStream(t *testing.T) {
 	assert.Equal(t, &Stream{
-		sourceSink: os.Stdin,
+		source:     os.Stdin,
 		mode:       ioModeRead,
 		eofAction:  eofActionReset,
 		streamType: streamTypeBinary,
@@ -31,7 +31,7 @@ func TestNewInputBinaryStream(t *testing.T) {
 
 func TestNewOutputTextStream(t *testing.T) {
 	assert.Equal(t, &Stream{
-		sourceSink: os.Stdout,
+		sink:       os.Stdout,
 		mode:       ioModeAppend,
 		eofAction:  eofActionReset,
 		streamType: streamTypeText,
@@ -40,11 +40,58 @@ func TestNewOutputTextStream(t *testing.T) {
 
 func TestNewOutputBinaryStream(t *testing.T) {
 	assert.Equal(t, &Stream{
-		sourceSink: os.Stdout,
+		sink:       os.Stdout,
 		mode:       ioModeAppend,
 		eofAction:  eofActionReset,
 		streamType: streamTypeBinary,
 	}, NewOutputBinaryStream(os.Stdout))
+}
+
+func TestStream_WriteTerm(t *testing.T) {
+	tests := []struct {
+		title  string
+		s      *Stream
+		opts   WriteOptions
+		output string
+	}{
+		{title: "stream", s: &Stream{}, output: `<stream>\(0x[[:xdigit:]]+\)`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.s.WriteTerm(&buf, &tt.opts, nil))
+			assert.Regexp(t, tt.output, buf.String())
+		})
+	}
+}
+
+func TestStream_Compare(t *testing.T) {
+	x := NewVariable()
+	var ss [3]Stream
+
+	tests := []struct {
+		title string
+		s     *Stream
+		t     Term
+		o     int
+	}{
+		{title: `s > X`, s: &ss[1], t: x, o: 1},
+		{title: `s > 1.0`, s: &ss[1], t: Float(1), o: 1},
+		{title: `s > 1`, s: &ss[1], t: Integer(2), o: 1},
+		{title: `s > a`, s: &ss[1], t: NewAtom("a"), o: 1},
+		{title: `s > s`, s: &ss[1], t: &ss[0], o: 1},
+		{title: `s = s`, s: &ss[1], t: &ss[1], o: 0},
+		{title: `s < s`, s: &ss[1], t: &ss[2], o: -1},
+		{title: `s < f(a)`, s: &ss[1], t: NewAtom("f").Apply(NewAtom("a")), o: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			assert.Equal(t, tt.o, tt.s.Compare(tt.t, nil))
+		})
+	}
 }
 
 type mockNamer struct {
@@ -58,16 +105,21 @@ func (m *mockNamer) Name() string {
 
 func TestStream_Name(t *testing.T) {
 	t.Run("namer", func(t *testing.T) {
-		var m mockNamer
-		m.On("Name").Return("name").Once()
-		defer m.AssertExpectations(t)
+		var m struct {
+			mockReader
+			mockNamer
+		}
+		m.mockNamer.On("Name").Return("name").Once()
+		defer m.mockNamer.AssertExpectations(t)
 
-		s := &Stream{sourceSink: &m}
+		s := &Stream{source: &m}
 		assert.Equal(t, "name", s.Name())
 	})
 
 	t.Run("not namer", func(t *testing.T) {
-		s := &Stream{sourceSink: "not namer"}
+		var m mockWriter
+
+		s := &Stream{sink: &m}
 		assert.Equal(t, "", s.Name())
 	})
 }
@@ -106,31 +158,37 @@ func (m *mockCloser) Close() error {
 }
 
 func TestStream_Close(t *testing.T) {
-	var okCloser mockCloser
-	okCloser.On("Close").Return(nil)
+	var okCloser struct {
+		mockReader
+		mockCloser
+	}
+	okCloser.mockCloser.On("Close").Return(nil)
 
-	var ngCloser mockCloser
-	ngCloser.On("Close").Return(errors.New("ng"))
+	var ngCloser struct {
+		mockWriter
+		mockCloser
+	}
+	ngCloser.mockCloser.On("Close").Return(errors.New("ng"))
 
 	var vm VM
 
 	foo := NewAtom("foo")
-	s := &Stream{vm: &vm, sourceSink: &okCloser, alias: foo}
+	s := &Stream{vm: &vm, source: &okCloser, alias: foo}
 	vm.streams.add(s)
 
 	bar := NewAtom("bar")
-	vm.streams.add(&Stream{vm: &vm, sourceSink: &okCloser, alias: bar})
+	vm.streams.add(&Stream{vm: &vm, source: &okCloser, alias: bar})
 
 	tests := []struct {
 		title string
 		s     *Stream
 		err   error
 	}{
-		{title: "ok closer", s: &Stream{sourceSink: &okCloser}},
-		{title: "not closer", s: &Stream{sourceSink: "not closer"}},
+		{title: "ok closer", s: &Stream{source: &okCloser}},
+		{title: "not closer", s: &Stream{source: &okCloser.mockReader}},
 		{title: "alias", s: s},
 
-		{title: "ng closer", s: &Stream{sourceSink: &ngCloser}, err: errors.New("ng")},
+		{title: "ng closer", s: &Stream{sink: &ngCloser}, err: errors.New("ng")},
 	}
 
 	for _, tt := range tests {
@@ -160,60 +218,55 @@ func TestStream_ReadByte(t *testing.T) {
 	}{
 		{
 			title: "input binary: 3 bytes left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary},
+			s:     &Stream{source: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary},
 			b:     1,
 			pos:   1,
 			eos:   endOfStreamNot,
 		},
 		{
 			title: "input binary: 2 bytes left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{2, 3}), streamType: streamTypeBinary, position: 1},
+			s:     &Stream{source: bytes.NewReader([]byte{2, 3}), streamType: streamTypeBinary, position: 1},
 			b:     2,
 			pos:   2,
 			eos:   endOfStreamNot,
 		},
 		{
 			title: "input binary: 1 byte left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{3}), streamType: streamTypeBinary, position: 2},
+			s:     &Stream{source: bytes.NewReader([]byte{3}), streamType: streamTypeBinary, position: 2},
 			b:     3,
 			pos:   3,
 			eos:   endOfStreamAt,
 		},
 		{
 			title: "input binary: empty",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{}), streamType: streamTypeBinary, position: 3},
+			s:     &Stream{source: bytes.NewReader([]byte{}), streamType: streamTypeBinary, position: 3},
 			err:   io.EOF,
 			pos:   3,
 			eos:   endOfStreamPast,
 		},
 		{
 			title: "end of stream past: error",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary, endOfStream: endOfStreamPast, eofAction: eofActionError},
+			s:     &Stream{source: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary, endOfStream: endOfStreamPast, eofAction: eofActionError},
 			err:   errPastEndOfStream,
 			pos:   0,
 			eos:   endOfStreamPast,
 		},
 		{
 			title: "end of stream past: reset",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary, endOfStream: endOfStreamPast, eofAction: eofActionReset, reposition: true},
+			s:     &Stream{source: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeBinary, endOfStream: endOfStreamPast, eofAction: eofActionReset, reposition: true},
 			b:     1,
 			pos:   1,
 			eos:   endOfStreamNot,
 		},
 		{
 			title: "input text",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeText},
+			s:     &Stream{source: bytes.NewReader([]byte{1, 2, 3}), streamType: streamTypeText},
 			err:   errWrongStreamType,
 		},
 		{
 			title: "output",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte{1, 2, 3}), mode: ioModeAppend},
+			s:     &Stream{source: bytes.NewReader([]byte{1, 2, 3}), mode: ioModeAppend},
 			err:   errWrongIOMode,
-		},
-		{
-			title: "not reader",
-			s:     &Stream{sourceSink: "not reader"},
-			err:   errNotSupported,
 		},
 	}
 
@@ -241,7 +294,7 @@ func TestStream_ReadRune(t *testing.T) {
 	}{
 		{
 			title: "input text: 3 runes left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("abc")), streamType: streamTypeText},
+			s:     &Stream{source: bytes.NewReader([]byte("abc")), streamType: streamTypeText},
 			r:     'a',
 			size:  1,
 			pos:   1,
@@ -249,7 +302,7 @@ func TestStream_ReadRune(t *testing.T) {
 		},
 		{
 			title: "input text: 2 runes left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("bc")), streamType: streamTypeText, position: 1},
+			s:     &Stream{source: bytes.NewReader([]byte("bc")), streamType: streamTypeText, position: 1},
 			r:     'b',
 			size:  1,
 			pos:   2,
@@ -257,7 +310,7 @@ func TestStream_ReadRune(t *testing.T) {
 		},
 		{
 			title: "input text: 1 rune left",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("c")), streamType: streamTypeText, position: 2},
+			s:     &Stream{source: bytes.NewReader([]byte("c")), streamType: streamTypeText, position: 2},
 			r:     'c',
 			size:  1,
 			pos:   3,
@@ -265,21 +318,21 @@ func TestStream_ReadRune(t *testing.T) {
 		},
 		{
 			title: "input Text: empty",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("")), streamType: streamTypeText, position: 3},
+			s:     &Stream{source: bytes.NewReader([]byte("")), streamType: streamTypeText, position: 3},
 			err:   io.EOF,
 			pos:   3,
 			eos:   endOfStreamPast,
 		},
 		{
 			title: "end of stream past: error",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("abc")), streamType: streamTypeText, endOfStream: endOfStreamPast, eofAction: eofActionError},
+			s:     &Stream{source: bytes.NewReader([]byte("abc")), streamType: streamTypeText, endOfStream: endOfStreamPast, eofAction: eofActionError},
 			err:   errPastEndOfStream,
 			pos:   0,
 			eos:   endOfStreamPast,
 		},
 		{
 			title: "end of stream past: reset",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("abc")), streamType: streamTypeText, endOfStream: endOfStreamPast, eofAction: eofActionReset, reposition: true},
+			s:     &Stream{source: bytes.NewReader([]byte("abc")), streamType: streamTypeText, endOfStream: endOfStreamPast, eofAction: eofActionReset, reposition: true},
 			r:     'a',
 			size:  1,
 			pos:   1,
@@ -287,18 +340,13 @@ func TestStream_ReadRune(t *testing.T) {
 		},
 		{
 			title: "input binary",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("abc")), streamType: streamTypeBinary},
+			s:     &Stream{source: bytes.NewReader([]byte("abc")), streamType: streamTypeBinary},
 			err:   errWrongStreamType,
 		},
 		{
 			title: "output",
-			s:     &Stream{sourceSink: bytes.NewReader([]byte("abc")), mode: ioModeAppend},
+			s:     &Stream{source: bytes.NewReader([]byte("abc")), mode: ioModeAppend},
 			err:   errWrongIOMode,
-		},
-		{
-			title: "not reader",
-			s:     &Stream{sourceSink: "not reader"},
-			err:   errNotSupported,
 		},
 	}
 
@@ -325,13 +373,19 @@ func (m *mockSeeker) Seek(offset int64, whence int) (int64, error) {
 }
 
 func TestStream_Seek(t *testing.T) {
-	var okSeeker mockSeeker
-	okSeeker.On("Seek", int64(0), 0).Return(int64(0), nil)
+	var okSeeker struct {
+		mockReader
+		mockSeeker
+	}
+	okSeeker.mockSeeker.On("Seek", int64(0), 0).Return(int64(0), nil)
 
-	var ngSeeker mockSeeker
-	ngSeeker.On("Seek", mock.Anything, mock.Anything).Return(int64(0), errors.New("ng"))
+	var ngSeeker struct {
+		mockWriter
+		mockSeeker
+	}
+	ngSeeker.mockSeeker.On("Seek", mock.Anything, mock.Anything).Return(int64(0), errors.New("ng"))
 
-	s := &Stream{sourceSink: bytes.NewReader([]byte("abc")), streamType: streamTypeBinary, reposition: true}
+	s := &Stream{source: bytes.NewReader([]byte("abc")), streamType: streamTypeBinary, reposition: true}
 	_, err := s.ReadByte()
 	assert.NoError(t, err)
 
@@ -346,13 +400,13 @@ func TestStream_Seek(t *testing.T) {
 	}{
 		{
 			title:  "ok",
-			s:      &Stream{sourceSink: &okSeeker, reposition: true},
+			s:      &Stream{source: &okSeeker, reposition: true},
 			offset: 0,
 			whence: 0,
 		},
 		{
 			title:  "ng",
-			s:      &Stream{sourceSink: &ngSeeker, reposition: true},
+			s:      &Stream{sink: &ngSeeker, reposition: true},
 			offset: 0,
 			whence: 0,
 			err:    errors.New("ng"),
@@ -363,7 +417,7 @@ func TestStream_Seek(t *testing.T) {
 		{title: "reader", s: s, offset: 3, whence: 0, pos: 3, eos: endOfStreamPast},
 		{
 			title:  "not seeker",
-			s:      &Stream{sourceSink: "not seeker", reposition: true, position: 123},
+			s:      &Stream{source: &okSeeker.mockReader, reposition: true, position: 123},
 			offset: 0,
 			whence: 0,
 			pos:    123,
@@ -377,114 +431,6 @@ func TestStream_Seek(t *testing.T) {
 			assert.Equal(t, tt.err, err)
 
 			assert.Equal(t, tt.eos, tt.s.endOfStream)
-		})
-	}
-}
-
-func TestStream_Write(t *testing.T) {
-	var m mockWriter
-	m.On("Write", []byte("abc")).Return(3, nil).Once()
-	defer m.AssertExpectations(t)
-
-	tests := []struct {
-		title string
-		s     *Stream
-		p     []byte
-		n     int
-		err   error
-		pos   int64
-	}{
-		{
-			title: "writer",
-			s:     &Stream{sourceSink: &m, mode: ioModeAppend, streamType: streamTypeBinary},
-			p:     []byte("abc"),
-			n:     3,
-			pos:   3,
-		},
-		{
-			title: "not writer",
-			s:     &Stream{sourceSink: "not writer", mode: ioModeAppend, streamType: streamTypeBinary},
-			p:     []byte("abc"),
-			err:   errNotSupported,
-			pos:   0,
-		},
-		{
-			title: "input",
-			s:     &Stream{mode: ioModeRead, streamType: streamTypeBinary},
-			p:     []byte("abc"),
-			err:   errWrongIOMode,
-			pos:   0,
-		},
-		{
-			title: "text",
-			s:     &Stream{mode: ioModeAppend, streamType: streamTypeText},
-			p:     []byte("abc"),
-			err:   errWrongStreamType,
-			pos:   0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			n, err := tt.s.Write(tt.p)
-			assert.Equal(t, tt.n, n)
-			assert.Equal(t, tt.err, err)
-
-			assert.Equal(t, tt.pos, tt.s.position)
-		})
-	}
-}
-
-func TestStream_WriteString(t *testing.T) {
-	var m mockWriter
-	m.On("Write", []byte("abc")).Return(3, nil).Once()
-	defer m.AssertExpectations(t)
-
-	tests := []struct {
-		title string
-		s     *Stream
-		str   string
-		n     int
-		err   error
-		pos   int64
-	}{
-		{
-			title: "writer",
-			s:     &Stream{sourceSink: &m, mode: ioModeAppend, streamType: streamTypeText},
-			str:   "abc",
-			n:     3,
-			pos:   3,
-		},
-		{
-			title: "not writer",
-			s:     &Stream{sourceSink: "not writer", mode: ioModeAppend, streamType: streamTypeText},
-			str:   "abc",
-			err:   errNotSupported,
-			pos:   0,
-		},
-		{
-			title: "input",
-			s:     &Stream{mode: ioModeRead, streamType: streamTypeText},
-			str:   "abc",
-			err:   errWrongIOMode,
-			pos:   0,
-		},
-		{
-			title: "binary",
-			s:     &Stream{mode: ioModeAppend, streamType: streamTypeBinary},
-			str:   "abc",
-			err:   errWrongStreamType,
-			pos:   0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			n, err := tt.s.WriteString(tt.str)
-			assert.Equal(t, tt.n, n)
-			assert.Equal(t, tt.err, err)
-
-			assert.Equal(t, tt.pos, tt.s.position)
 		})
 	}
 }
@@ -503,16 +449,9 @@ func TestStream_WriteByte(t *testing.T) {
 	}{
 		{
 			title: "writer",
-			s:     &Stream{sourceSink: &m, mode: ioModeAppend, streamType: streamTypeBinary},
+			s:     &Stream{sink: &m, mode: ioModeAppend, streamType: streamTypeBinary},
 			c:     byte('a'),
 			pos:   1,
-		},
-		{
-			title: "not writer",
-			s:     &Stream{sourceSink: "not writer", mode: ioModeAppend, streamType: streamTypeBinary},
-			c:     byte('a'),
-			err:   errNotSupported,
-			pos:   0,
 		},
 		{
 			title: "input",
@@ -555,17 +494,10 @@ func TestStream_WriteRune(t *testing.T) {
 	}{
 		{
 			title: "writer",
-			s:     &Stream{sourceSink: &m, mode: ioModeAppend, streamType: streamTypeText},
+			s:     &Stream{sink: &m, mode: ioModeAppend, streamType: streamTypeText},
 			r:     'a',
 			n:     1,
 			pos:   1,
-		},
-		{
-			title: "not writer",
-			s:     &Stream{sourceSink: "not writer", mode: ioModeAppend, streamType: streamTypeText},
-			r:     'a',
-			err:   errNotSupported,
-			pos:   0,
 		},
 		{
 			title: "input",
@@ -614,25 +546,34 @@ func (m *mockSyncer) Sync() error {
 
 func TestStream_Flush(t *testing.T) {
 	t.Run("flusher", func(t *testing.T) {
-		var m mockFlusher
-		m.On("Flush").Return(nil).Once()
-		defer m.AssertExpectations(t)
+		var m struct {
+			mockWriter
+			mockFlusher
+		}
+		m.mockFlusher.On("Flush").Return(nil).Once()
+		defer m.mockFlusher.AssertExpectations(t)
 
-		s := &Stream{sourceSink: &m, mode: ioModeAppend}
+		s := &Stream{sink: &m, mode: ioModeAppend}
 		assert.NoError(t, s.Flush())
 	})
 
 	t.Run("syncer", func(t *testing.T) {
-		var m mockSyncer
-		m.On("Sync").Return(nil).Once()
-		defer m.AssertExpectations(t)
+		var m struct {
+			mockWriter
+			mockSyncer
+		}
+		m.mockSyncer.On("Sync").Return(nil).Once()
+		defer m.mockSyncer.AssertExpectations(t)
 
-		s := &Stream{sourceSink: &m, mode: ioModeAppend}
+		s := &Stream{sink: &m, mode: ioModeAppend}
 		assert.NoError(t, s.Flush())
 	})
 
 	t.Run("else", func(t *testing.T) {
-		s := &Stream{sourceSink: "else", mode: ioModeAppend}
+		var m mockWriter
+		defer m.AssertExpectations(t)
+
+		s := &Stream{sink: &m, mode: ioModeAppend}
 		assert.NoError(t, s.Flush())
 	})
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"io"
 	"sync/atomic"
 )
 
@@ -20,8 +21,40 @@ func NewVariable() Variable {
 	return Variable(n)
 }
 
-func (v Variable) String() string {
-	return fmt.Sprintf("_%d", v)
+func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+	x := env.Resolve(v)
+	v, ok := x.(Variable)
+	if !ok {
+		return x.WriteTerm(w, opts, env)
+	}
+
+	if a, ok := opts.variableNames[v]; ok {
+		return a.WriteTerm(w, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
+	}
+	_, err := w.Write([]byte(fmt.Sprintf("_%d", v)))
+	return err
+}
+
+func (v Variable) Compare(t Term, env *Env) int {
+	w := env.Resolve(v)
+	v, ok := w.(Variable)
+	if !ok {
+		return w.Compare(t, env)
+	}
+
+	switch t := env.Resolve(t).(type) {
+	case Variable:
+		switch {
+		case v > t:
+			return 1
+		case v < t:
+			return -1
+		default:
+			return 0
+		}
+	default:
+		return -1
+	}
 }
 
 // variableSet is a set of variables. The key is the variable and the value is the number of occurrences.

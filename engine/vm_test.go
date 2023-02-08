@@ -252,7 +252,7 @@ func TestVM_SetUserInput(t *testing.T) {
 
 		s, ok := vm.streams.lookup(atomUserInput)
 		assert.True(t, ok)
-		assert.Equal(t, os.Stdin, s.sourceSink)
+		assert.Equal(t, os.Stdin, s.source)
 	})
 }
 
@@ -263,7 +263,7 @@ func TestVM_SetUserOutput(t *testing.T) {
 
 		s, ok := vm.streams.lookup(atomUserOutput)
 		assert.True(t, ok)
-		assert.Equal(t, os.Stdout, s.sourceSink)
+		assert.Equal(t, os.Stdout, s.sink)
 	})
 }
 

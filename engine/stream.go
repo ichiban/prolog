@@ -3,8 +3,10 @@ package engine
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"unsafe"
 )
 
 var (
@@ -19,7 +21,8 @@ var (
 type Stream struct {
 	vm *VM
 
-	sourceSink   interface{} // Either io.Reader or io.Writer.
+	source       io.Reader
+	sink         io.Writer
 	buf          *bufio.Reader
 	lastRuneSize int
 
@@ -35,7 +38,7 @@ type Stream struct {
 // NewInputTextStream creates a new input text stream backed by the given io.Reader.
 func NewInputTextStream(r io.Reader) *Stream {
 	return &Stream{
-		sourceSink: r,
+		source:     r,
 		mode:       ioModeRead,
 		eofAction:  eofActionReset,
 		reposition: false,
@@ -46,7 +49,7 @@ func NewInputTextStream(r io.Reader) *Stream {
 // NewInputBinaryStream creates a new input binary stream backed by the given io.Reader.
 func NewInputBinaryStream(r io.Reader) *Stream {
 	return &Stream{
-		sourceSink: r,
+		source:     r,
 		mode:       ioModeRead,
 		eofAction:  eofActionReset,
 		reposition: false,
@@ -57,7 +60,7 @@ func NewInputBinaryStream(r io.Reader) *Stream {
 // NewOutputTextStream creates a new output text stream backed by the given io.Writer.
 func NewOutputTextStream(w io.Writer) *Stream {
 	return &Stream{
-		sourceSink: w,
+		sink:       w,
 		mode:       ioModeAppend,
 		eofAction:  eofActionReset,
 		reposition: false,
@@ -68,12 +71,32 @@ func NewOutputTextStream(w io.Writer) *Stream {
 // NewOutputBinaryStream creates a new output binary stream backed by the given io.Writer.
 func NewOutputBinaryStream(w io.Writer) *Stream {
 	return &Stream{
-		sourceSink: w,
+		sink:       w,
 		mode:       ioModeAppend,
 		eofAction:  eofActionReset,
 		reposition: false,
 		streamType: streamTypeBinary,
 	}
+}
+
+// WriteTerm outputs the Stream to an io.Writer.
+func (s *Stream) WriteTerm(w io.Writer, _ *WriteOptions, _ *Env) error {
+	_, err := fmt.Fprintf(w, "<stream>(%p)", s)
+	return err
+}
+
+// Compare compares the Stream with a Term.
+func (s *Stream) Compare(t Term, env *Env) int {
+	return CompareAtomic[*Stream](s, t, func(s *Stream, t *Stream) int {
+		switch x, y := uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(t)); {
+		case x > y:
+			return 1
+		case x < y:
+			return -1
+		default:
+			return 0
+		}
+	}, env)
 }
 
 // Name returns the stream's name. If the underlying source/sink doesn't have a name, returns "".
@@ -82,12 +105,15 @@ func (s *Stream) Name() string {
 		Name() string
 	}
 
-	f, ok := s.sourceSink.(namer)
-	if !ok {
-		return ""
+	if f, ok := s.source.(namer); ok {
+		return f.Name()
 	}
 
-	return f.Name()
+	if f, ok := s.sink.(namer); ok {
+		return f.Name()
+	}
+
+	return ""
 }
 
 // ReadByte reads a byte from the underlying source.
@@ -188,9 +214,12 @@ func (s *Stream) Seek(offset int64, whence int) (int64, error) {
 		return 0, errReposition
 	}
 
-	sk, ok := s.sourceSink.(io.Seeker)
+	sk, ok := s.source.(io.Seeker)
 	if !ok {
-		return s.position, nil
+		sk, ok = s.sink.(io.Seeker)
+		if !ok {
+			return s.position, nil
+		}
 	}
 
 	n, err := sk.Seek(offset, whence)
@@ -208,88 +237,25 @@ func (s *Stream) Seek(offset int64, whence int) (int64, error) {
 	return n, nil
 }
 
-// Write writes the contents of p to the underlying sink.
-// It throws an error if the stream is not an output binary stream.
-func (s *Stream) Write(p []byte) (int, error) {
-	if s.mode != ioModeWrite && s.mode != ioModeAppend {
-		return 0, errWrongIOMode
-	}
-
-	if s.streamType != streamTypeBinary {
-		return 0, errWrongStreamType
-	}
-
-	w, ok := s.sourceSink.(io.Writer)
-	if !ok {
-		return 0, errNotSupported
-	}
-
-	n, err := w.Write(p)
-	s.position += int64(n)
-	return n, err
-}
-
-// WriteString writes the contents of str to the underlying sink.
-// It throws an error if the stream is not an output text stream.
-func (s *Stream) WriteString(str string) (int, error) {
-	if s.mode != ioModeWrite && s.mode != ioModeAppend {
-		return 0, errWrongIOMode
-	}
-
-	if s.streamType != streamTypeText {
-		return 0, errWrongStreamType
-	}
-
-	w, ok := s.sourceSink.(io.Writer)
-	if !ok {
-		return 0, errNotSupported
-	}
-
-	n, err := w.Write([]byte(str))
-	s.position += int64(n)
-	return n, err
-}
-
 // WriteByte writes the byte c to the underlying sink.
 // It throws an error if the stream is not an output binary stream,.
 func (s *Stream) WriteByte(c byte) error {
-	if s.mode != ioModeWrite && s.mode != ioModeAppend {
-		return errWrongIOMode
+	b, err := s.binaryWriter()
+	if err != nil {
+		return err
 	}
-
-	if s.streamType != streamTypeBinary {
-		return errWrongStreamType
-	}
-
-	w, ok := s.sourceSink.(io.Writer)
-	if !ok {
-		return errNotSupported
-	}
-
-	n, err := w.Write([]byte{c})
-	s.position += int64(n)
+	_, err = b.Write([]byte{c})
 	return err
 }
 
 // WriteRune writes the rune r to the underlying sink.
 // It throws an error if the stream is not an output binary stream.
 func (s *Stream) WriteRune(r rune) (size int, err error) {
-	if s.mode != ioModeWrite && s.mode != ioModeAppend {
-		return 0, errWrongIOMode
+	t, err := s.textWriter()
+	if err != nil {
+		return 0, err
 	}
-
-	if s.streamType != streamTypeText {
-		return 0, errWrongStreamType
-	}
-
-	w, ok := s.sourceSink.(io.Writer)
-	if !ok {
-		return 0, errNotSupported
-	}
-
-	n, err := w.Write([]byte(string(r)))
-	s.position += int64(n)
-	return n, err
+	return t.Write([]byte(string(r)))
 }
 
 // Flush flushes the buffered output to the sink.
@@ -308,7 +274,7 @@ func (s *Stream) Flush() error {
 		return errWrongIOMode
 	}
 
-	switch f := s.sourceSink.(type) {
+	switch f := s.sink.(type) {
 	case flusher:
 		return f.Flush()
 	case syncer:
@@ -320,7 +286,13 @@ func (s *Stream) Flush() error {
 
 // Close closes the underlying source/sink.
 func (s *Stream) Close() error {
-	if c, ok := s.sourceSink.(io.Closer); ok {
+	if c, ok := s.source.(io.Closer); ok {
+		if err := c.Close(); err != nil {
+			return err
+		}
+	}
+
+	if c, ok := s.sink.(io.Closer); ok {
 		if err := c.Close(); err != nil {
 			return err
 		}
@@ -335,11 +307,7 @@ func (s *Stream) Close() error {
 
 func (s *Stream) initRead() error {
 	if s.buf == nil {
-		r, ok := s.sourceSink.(io.Reader)
-		if !ok {
-			return errNotSupported
-		}
-		s.buf = bufio.NewReader(r)
+		s.buf = bufio.NewReader(s.source)
 	}
 
 	if s.mode != ioModeRead {
@@ -406,6 +374,57 @@ func (s *Stream) properties() []Term {
 	ps = append(ps, atomType.Apply(s.streamType.Term()))
 
 	return ps
+}
+
+func (s *Stream) textWriter() (textWriter, error) {
+	if s.mode != ioModeWrite && s.mode != ioModeAppend {
+		return textWriter{}, errWrongIOMode
+	}
+
+	if s.streamType != streamTypeText {
+		return textWriter{}, errWrongStreamType
+	}
+
+	return textWriter{stream: s}, nil
+}
+
+func (s *Stream) binaryWriter() (binaryWriter, error) {
+	if s.mode != ioModeWrite && s.mode != ioModeAppend {
+		return binaryWriter{}, errWrongIOMode
+	}
+
+	if s.streamType != streamTypeBinary {
+		return binaryWriter{}, errWrongStreamType
+	}
+
+	return binaryWriter{stream: s}, nil
+}
+
+type textWriter struct {
+	stream *Stream
+}
+
+// Write writes to the underlying sink.
+// It throws an error if the stream is not an output text stream.
+func (t textWriter) Write(p []byte) (int, error) {
+	s := t.stream
+	n, err := s.sink.Write(p)
+	s.position += int64(n)
+	return n, err
+}
+
+type binaryWriter struct {
+	stream *Stream
+}
+
+// Write writes the contents of p to the underlying sink.
+// It throws an error if the stream is not an output binary stream.
+func (b binaryWriter) Write(p []byte) (int, error) {
+	s := b.stream
+
+	n, err := s.sink.Write(p)
+	s.position += int64(n)
+	return n, err
 }
 
 // ioMode describes what operations you can perform on the stream.

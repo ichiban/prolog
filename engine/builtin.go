@@ -176,7 +176,7 @@ func SubsumesTerm(_ *VM, general, specific Term, k Cont, env *Env) *Promise {
 		return Bool(false)
 	}
 
-	if d := env.compare(theta.simplify(general), specific); d != 0 {
+	if d := theta.simplify(general).Compare(specific, env); d != 0 {
 		return Bool(false)
 	}
 
@@ -793,6 +793,60 @@ func collectionOf(vm *VM, agg func([]Term, *Env) Term, template, goal, instances
 	}, env)
 }
 
+func variant(t1, t2 Term, env *Env) bool {
+	s := map[Variable]Variable{}
+	rest := [][2]Term{
+		{t1, t2},
+	}
+	var xy [2]Term
+	for len(rest) > 0 {
+		rest, xy = rest[:len(rest)-1], rest[len(rest)-1]
+		x, y := env.Resolve(xy[0]), env.Resolve(xy[1])
+		switch x := x.(type) {
+		case Variable:
+			switch y := y.(type) {
+			case Variable:
+				if z, ok := s[x]; ok {
+					if z != y {
+						return false
+					}
+				} else {
+					s[x] = y
+				}
+			default:
+				return false
+			}
+		case Compound:
+			switch y := y.(type) {
+			case Compound:
+				if x.Functor() != y.Functor() || x.Arity() != y.Arity() {
+					return false
+				}
+				for i := 0; i < x.Arity(); i++ {
+					rest = append(rest, [2]Term{x.Arg(i), y.Arg(i)})
+				}
+			default:
+				return false
+			}
+		default:
+			if x != y {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func iteratedGoalTerm(t Term, env *Env) Term {
+	for {
+		c, ok := env.Resolve(t).(Compound)
+		if !ok || c.Functor() != atomCaret || c.Arity() != 2 {
+			return t
+		}
+		t = c.Arg(1)
+	}
+}
+
 // FindAll collects all the solutions of goal as instances, which unify with template. instances may contain duplications.
 func FindAll(vm *VM, template, goal, instances Term, k Cont, env *Env) *Promise {
 	iter := ListIterator{List: instances, Env: env, AllowPartial: true}
@@ -833,7 +887,7 @@ func Compare(vm *VM, order, term1, term2 Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, order, env))
 	}
 
-	switch o := env.compare(term1, term2); o {
+	switch o := term1.Compare(term2, env); o {
 	case 1:
 		return Unify(vm, atomGreaterThan, order, k, env)
 	case -1:
@@ -957,7 +1011,7 @@ func KeySort(vm *VM, pairs, sorted Term, k Cont, env *Env) *Promise {
 	}
 
 	sort.SliceStable(elems, func(i, j int) bool {
-		return env.compare(elems[i].(Compound).Arg(0), elems[j].(Compound).Arg(0)) == -1
+		return elems[i].(Compound).Arg(0).Compare(elems[j].(Compound).Arg(0), env) == -1
 	})
 
 	return Unify(vm, sorted, List(elems...), k, env)
@@ -976,7 +1030,7 @@ func Throw(_ *VM, ball Term, _ Cont, env *Env) *Promise {
 // Catch calls goal. If an exception is thrown and unifies with catcher, it calls recover.
 func Catch(vm *VM, goal, catcher, recover Term, k Cont, env *Env) *Promise {
 	return catch(func(err error) *Promise {
-		e, ok := env.Resolve(err).(Exception)
+		e, ok := err.(Exception)
 		if !ok {
 			e = Exception{term: atomError.Apply(NewAtom("system_error"), NewAtom(err.Error()))}
 		}
@@ -1209,7 +1263,11 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	s := Stream{vm: vm, mode: streamMode}
 	switch f, err := openFile(name, int(s.mode), 0644); {
 	case err == nil:
-		s.sourceSink = f
+		if s.mode == ioModeRead {
+			s.source = f
+		} else {
+			s.sink = f
+		}
 		if fi, err := f.Stat(); err == nil {
 			s.reposition = fi.Mode()&fs.ModeType == 0
 		}
@@ -1231,8 +1289,10 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 		return Error(err)
 	}
 
-	if err := s.initRead(); err == nil {
-		s.checkEOS()
+	if s.mode == ioModeRead {
+		if err := s.initRead(); err == nil {
+			s.checkEOS()
+		}
 	}
 
 	return Unify(vm, stream, &s, k, env)
@@ -1404,7 +1464,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 		return Error(err)
 	}
 
-	opts := writeOptions{
+	opts := WriteOptions{
 		ops:      vm.operators,
 		priority: 1200,
 	}
@@ -1418,19 +1478,24 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 		return Error(err)
 	}
 
-	switch err := writeTerm(s, env.Resolve(t), &opts, env); err {
-	case nil:
-		return k(env)
-	case errWrongIOMode:
+	w, err := s.textWriter()
+	switch {
+	case errors.Is(err, errWrongIOMode):
 		return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
-	case errWrongStreamType:
+	case errors.Is(err, errWrongStreamType):
 		return Error(permissionError(operationOutput, permissionTypeBinaryStream, streamOrAlias, env))
-	default:
+	case err != nil:
 		return Error(err)
 	}
+
+	if err := env.Resolve(t).WriteTerm(w, &opts, env); err != nil {
+		return Error(err)
+	}
+
+	return k(env)
 }
 
-func writeTermOption(opts *writeOptions, option Term, env *Env) error {
+func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 	switch o := env.Resolve(option).(type) {
 	case Variable:
 		return InstantiationError(env)
@@ -1589,16 +1654,16 @@ func PutByte(vm *VM, streamOrAlias, byt Term, k Cont, env *Env) *Promise {
 			return Error(typeError(validTypeByte, byt, env))
 		}
 
-		switch err := s.WriteByte(byte(b)); err {
-		case nil:
-			return k(env)
-		case errWrongIOMode:
+		switch err := s.WriteByte(byte(b)); {
+		case errors.Is(err, errWrongIOMode):
 			return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
-		case errWrongStreamType:
+		case errors.Is(err, errWrongStreamType):
 			return Error(permissionError(operationOutput, permissionTypeTextStream, streamOrAlias, env))
-		default:
+		case err != nil:
 			return Error(err)
 		}
+
+		return k(env)
 	default:
 		return Error(typeError(validTypeByte, byt, env))
 	}
@@ -1621,16 +1686,16 @@ func PutChar(vm *VM, streamOrAlias, char Term, k Cont, env *Env) *Promise {
 
 		r := rune(c)
 
-		switch _, err := s.WriteRune(r); err {
-		case nil:
-			return k(env)
-		case errWrongIOMode:
+		switch _, err := s.WriteRune(r); {
+		case errors.Is(err, errWrongIOMode):
 			return Error(permissionError(operationOutput, permissionTypeStream, streamOrAlias, env))
-		case errWrongStreamType:
+		case errors.Is(err, errWrongStreamType):
 			return Error(permissionError(operationOutput, permissionTypeBinaryStream, streamOrAlias, env))
-		default:
+		case err != nil:
 			return Error(err)
 		}
+
+		return k(env)
 	default:
 		return Error(typeError(validTypeCharacter, char, env))
 	}
@@ -2014,11 +2079,11 @@ func AtomConcat(vm *VM, atom1, atom2, atom3 Term, k Cont, env *Env) *Promise {
 		for i := range s {
 			a1, a2 := s[:i], s[i:]
 			ks = append(ks, func(context.Context) *Promise {
-				return Unify(vm, &pattern, tuple(NewAtom(a1), NewAtom(a2)), k, env)
+				return Unify(vm, pattern, tuple(NewAtom(a1), NewAtom(a2)), k, env)
 			})
 		}
 		ks = append(ks, func(context.Context) *Promise {
-			return Unify(vm, &pattern, tuple(a3, atomEmpty), k, env)
+			return Unify(vm, pattern, tuple(a3, atomEmpty), k, env)
 		})
 		return Delay(ks...)
 	default:
@@ -2260,7 +2325,7 @@ func numberCharsWrite(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 	}
 
 	var buf bytes.Buffer
-	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 	rs := []rune(buf.String())
 
 	cs := make([]Term, len(rs))
@@ -2342,7 +2407,7 @@ func numberCodesWrite(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 	}
 
 	var buf bytes.Buffer
-	_ = writeTerm(&buf, n, &defaultWriteOptions, nil)
+	_ = n.WriteTerm(&buf, &defaultWriteOptions, nil)
 	rs := []rune(buf.String())
 
 	cs := make([]Term, len(rs))

@@ -1,10 +1,62 @@
 package engine
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestVariable_WriteTerm(t *testing.T) {
+	x := NewVariable()
+
+	tests := []struct {
+		title  string
+		v      Variable
+		w      io.StringWriter
+		opts   WriteOptions
+		output string
+	}{
+		{title: "unnamed", v: x, output: fmt.Sprintf("_%d", x)},
+		{title: "variable_names", v: x, opts: WriteOptions{variableNames: map[Variable]Atom{x: NewAtom("Foo")}}, output: `Foo`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, tt.v.WriteTerm(&buf, &tt.opts, nil))
+			assert.Equal(t, tt.output, buf.String())
+		})
+	}
+}
+
+func TestVariable_Compare(t *testing.T) {
+	w, x, y := NewVariable(), NewVariable(), NewVariable()
+
+	tests := []struct {
+		title string
+		v     Variable
+		t     Term
+		o     int
+	}{
+		{title: `X > W`, v: x, t: w, o: 1},
+		{title: `X = X`, v: x, t: x, o: 0},
+		{title: `X < Y`, v: x, t: y, o: -1},
+		{title: `X < 0.0`, v: x, t: Float(0), o: -1},
+		{title: `X < 0`, v: x, t: Integer(0), o: -1},
+		{title: `X < a`, v: x, t: NewAtom("a"), o: -1},
+		{title: `X < f(a)`, v: x, t: NewAtom("f").Apply(NewAtom("a")), o: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			assert.Equal(t, tt.o, tt.v.Compare(tt.t, nil))
+		})
+	}
+}
 
 func Test_variableSet(t *testing.T) {
 	f := NewAtom("f")

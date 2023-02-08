@@ -25,7 +25,7 @@ func (e Exception) Term() Term {
 
 func (e Exception) Error() string {
 	var buf bytes.Buffer
-	_ = writeTerm(&buf, e.term, &defaultWriteOptions, nil)
+	_ = e.term.WriteTerm(&buf, &defaultWriteOptions, nil)
 	return buf.String()
 }
 

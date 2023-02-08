@@ -1,25 +1,92 @@
 package engine
 
 import (
-	"fmt"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCompound_GoString(t *testing.T) {
+func TestWriteCompound(t *testing.T) {
+	f := NewAtom("f")
+	v, w := NewVariable(), NewVariable()
+	l := PartialList(v, NewAtom("a"), NewAtom("b"))
+	r := f.Apply(w)
+	env := NewEnv().bind(v, l).bind(w, r)
+
+	ops := operators{}
+	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`))
+	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`))
+	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`))
+	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`))
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+	ops.define(900, operatorSpecifierFY, atomNegation)
+	ops.define(900, operatorSpecifierYF, NewAtom(`+/`))
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
+
 	tests := []struct {
+		title  string
 		term   Term
+		opts   WriteOptions
 		output string
 	}{
-		{term: NewAtom("f").Apply(NewAtom("a")), output: `&engine.compound{functor:"f", args:[]engine.Term{"a"}}`},
-		{term: List(NewAtom("a"), NewAtom("b"), NewAtom("c")), output: `engine.list{"a", "b", "c"}`},
-		{term: PartialList(NewAtom("c"), NewAtom("a"), NewAtom("b")), output: `engine.partial{Compound:engine.list{"a", "b"}, tail:"c"}`},
+		{title: "list", term: List(NewAtom(`a`), NewAtom(`b`), NewAtom(`c`)), output: `[a,b,c]`},
+		{title: "list-ish", term: PartialList(NewAtom(`rest`), NewAtom(`a`), NewAtom(`b`)), output: `[a,b|rest]`},
+		{title: "circular list", term: l, output: `[a,b,a|...]`},
+		{title: "curly brackets", term: atomEmptyBlock.Apply(NewAtom(`foo`)), output: `{foo}`},
+		{title: "fx", term: atomIf.Apply(atomIf.Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
+		{title: "fy", term: atomNegation.Apply(atomMinus.Apply(atomNegation.Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
+		{title: "xf", term: NewAtom(`-:`).Apply(NewAtom(`-:`).Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
+		{title: "yf", term: NewAtom(`+/`).Apply(NewAtom(`--`).Apply(NewAtom(`+/`).Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
+		{title: "xfx", term: atomIf.Apply(NewAtom("foo"), atomIf.Apply(NewAtom("bar"), NewAtom("baz"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
+		{title: "yfx", term: atomAsterisk.Apply(Integer(2), atomPlus.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
+		{title: "xfy", term: atomComma.Apply(Integer(2), atomBar.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
+		{title: "ignore_ops(false)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{ignoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
+		{title: "ignore_ops(true)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{ignoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
+		{title: "number_vars(false)", term: f.Apply(atomVar.Apply(Integer(0)), atomVar.Apply(Integer(1)), atomVar.Apply(Integer(25)), atomVar.Apply(Integer(26)), atomVar.Apply(Integer(27))), opts: WriteOptions{quoted: true, numberVars: false, ops: ops, priority: 1201}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "number_vars(true)", term: f.Apply(atomVar.Apply(Integer(0)), atomVar.Apply(Integer(1)), atomVar.Apply(Integer(25)), atomVar.Apply(Integer(26)), atomVar.Apply(Integer(27))), opts: WriteOptions{quoted: true, numberVars: true, ops: ops, priority: 1201}, output: `f(A,B,Z,A1,B1)`},
+		{title: "prefix: spacing between operators", term: atomAsterisk.Apply(NewAtom("a"), atomMinus.Apply(NewAtom("b"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `a* -b`},
+		{title: "postfix: spacing between unary minus and open/close", term: atomMinus.Apply(NewAtom(`+/`).Apply(NewAtom("a"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a+/)`},
+		{title: "infix: spacing between unary minus and open/close", term: atomMinus.Apply(atomAsterisk.Apply(NewAtom("a"), NewAtom("b"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a*b)`},
+		{title: "recursive", term: r, output: `f(...)`},
+	}
+
+	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			buf.Reset()
+			assert.NoError(t, WriteCompound(&buf, tt.term.(Compound), &tt.opts, env))
+			assert.Equal(t, tt.output, buf.String())
+		})
+	}
+}
+
+func TestCompareCompound(t *testing.T) {
+	x := NewVariable()
+
+	tests := []struct {
+		title string
+		x, y  Term
+		o     int
+	}{
+		{title: `f(a) > X`, x: NewAtom("f").Apply(NewAtom("a")), y: x, o: 1},
+		{title: `f(a) > 1.0`, x: NewAtom("f").Apply(NewAtom("a")), y: Float(1), o: 1},
+		{title: `f(a) > 1`, x: NewAtom("f").Apply(NewAtom("a")), y: Integer(1), o: 1},
+		{title: `f(a) > a`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("a"), o: 1}, {title: `f(a) > f('Z')`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("Z")), o: 1},
+		{title: `f(a) > e(a)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("e").Apply(NewAtom("a")), o: 1},
+		{title: `f(a, b) > f(a)`, x: NewAtom("f").Apply(NewAtom("a"), NewAtom("b")), y: NewAtom("f").Apply(NewAtom("a")), o: 1},
+		{title: `f(a) = f(a)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("a")), o: 0},
+		{title: `f(a) < g(a)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("g").Apply(NewAtom("a")), o: -1},
+		{title: `f(a) < f(a,b)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("a"), NewAtom("b")), o: -1},
+		{title: `f(a) < f(b)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("b")), o: -1},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.output, func(t *testing.T) {
-			assert.Equal(t, tt.output, tt.term.(fmt.GoStringer).GoString())
+		t.Run(tt.title, func(t *testing.T) {
+			assert.Equal(t, tt.o, CompareCompound(tt.x.(Compound), tt.y, nil))
 		})
 	}
 }
