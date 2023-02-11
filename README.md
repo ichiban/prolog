@@ -144,6 +144,7 @@ $(go env GOPATH)/bin/1pl [<file>...]
 ## Extensions
 
 - **[predicates](https://github.com/guregu/predicates):** Native predicates for ichiban/prolog.
+- **[kagomelog](https://github.com/ichiban/kagomelog):** a Japanese morphological analyzing predicate.
 
 ## License
 
