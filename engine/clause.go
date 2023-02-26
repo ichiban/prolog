@@ -27,16 +27,16 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 			for i := range vars {
 				vars[i] = NewVariable()
 			}
-			return vm.exec(registers{
-				pc:        c.bytecode,
-				xr:        c.xrTable,
-				vars:      vars,
-				cont:      k,
-				args:      List(args...),
-				astack:    List(),
-				env:       env,
-				cutParent: p,
-			})
+			return vm.exec(
+				c.bytecode,
+				c.xrTable,
+				vars,
+				k,
+				List(args...),
+				List(),
+				env,
+				p,
+			)
 		}
 	}
 	p = Delay(ks...)
