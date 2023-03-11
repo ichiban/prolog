@@ -21,14 +21,19 @@ const (
 	opEnter opcode = iota
 	opCall
 	opExit
-	opConst
-	opVar
-	opFunctor
+	opGetConst
+	opPutConst
+	opGetVar
+	opPutVar
+	opGetFunctor
+	opPutFunctor
 	opPop
 
 	opCut
-	opList
-	opPartial
+	opGetList
+	opPutList
+	opGetPartial
+	opPutPartial
 )
 
 // Success is a continuation that leads to true.
@@ -194,92 +199,83 @@ func (vm *VM) exec(
 	xr []Term,
 	vars []Variable,
 	cont Cont,
-	args, astack Term,
+	args []Term,
+	astack [][]Term,
 	env *Env,
 	cutParent *Promise,
 ) *Promise {
-	var ok bool
+	var (
+		ok  bool
+		arg Term
+		err error
+	)
 	for i, op := range pc {
 		switch opcode, operand := op.opcode, op.operand; opcode {
-		case opConst:
+		case opGetConst:
 			x := xr[operand]
-			arest := NewVariable()
-			env, ok = env.Unify(args, Cons(x, arest))
+			arg, args = args[0], args[1:]
+			env, ok = env.Unify(arg, x)
 			if !ok {
 				return Bool(false)
 			}
-			args = arest
-		case opVar:
+		case opPutConst:
+			x := xr[operand]
+			args = append(args, x)
+		case opGetVar:
 			v := vars[operand]
-			arest := NewVariable()
-			env, ok = env.Unify(Cons(v, arest), args)
+			arg, args = args[0], args[1:]
+			env, ok = env.Unify(arg, v)
 			if !ok {
 				return Bool(false)
 			}
-			args = arest
-		case opFunctor:
+		case opPutVar:
+			v := vars[operand]
+			args = append(args, v)
+		case opGetFunctor:
 			pi := xr[operand].(procedureIndicator)
-			arg, arest := NewVariable(), NewVariable()
-			env, ok = env.Unify(args, Cons(arg, arest))
-			if !ok {
+			arg, astack = env.Resolve(args[0]), append(astack, args[1:])
+			switch arg := arg.(type) {
+			case Variable:
+				break
+			case Compound:
+				if arg.Functor() != pi.name || arg.Arity() != int(pi.arity) {
+					return Bool(false)
+				}
+			default:
 				return Bool(false)
 			}
-			ok, err := Functor(vm, arg, pi.name, pi.arity, func(e *Env) *Promise {
-				env = e
-				return Bool(true)
-			}, env).Force(context.Background())
+			args, err = makeSlice(int(pi.arity))
 			if err != nil {
-				return Error(err)
+				return Error(resourceError(resourceMemory, env))
 			}
-			if !ok {
-				return Bool(false)
+			for i := range args {
+				args[i] = NewVariable()
 			}
-			args = NewVariable()
-			ok, err = Univ(vm, arg, Cons(pi.name, args), func(e *Env) *Promise {
-				env = e
-				return Bool(true)
-			}, env).Force(context.Background())
+			env, _ = env.Unify(arg, pi.name.Apply(args...))
+		case opPutFunctor:
+			pi := xr[operand].(procedureIndicator)
+			vs, err := makeSlice(int(pi.arity))
 			if err != nil {
-				return Error(err)
+				return Error(resourceError(resourceMemory, env))
 			}
-			if !ok {
-				return Bool(false)
+			for i := range vs {
+				vs[i] = NewVariable()
 			}
-			astack = Cons(arest, astack)
+			arg = &compound{
+				functor: pi.name,
+				args:    vs,
+			}
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
 		case opPop:
-			env, ok = env.Unify(args, List())
-			if !ok {
-				return Bool(false)
-			}
-			a, arest := NewVariable(), NewVariable()
-			env, ok = env.Unify(astack, Cons(a, arest))
-			if !ok {
-				return Bool(false)
-			}
-			args = a
-			astack = arest
+			args, astack = astack[len(astack)-1], astack[:len(astack)-1]
 		case opEnter:
-			env, ok = env.Unify(args, List())
-			if !ok {
-				return Bool(false)
-			}
-			env, ok = env.Unify(astack, List())
-			if !ok {
-				return Bool(false)
-			}
-			v := NewVariable()
-			args = v
-			astack = v
+			break
 		case opCall:
 			pi := xr[operand].(procedureIndicator)
-			env, ok = env.Unify(args, List())
-			if !ok {
-				return Bool(false)
-			}
-			args, _ := slice(astack, env)
 			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
-				v := NewVariable()
-				return vm.exec(pc[i+1:], xr, vars, cont, v, v, env, cutParent)
+				return vm.exec(pc[i+1:], xr, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:
 			return cont(env)
@@ -287,37 +283,66 @@ func (vm *VM) exec(
 			return cut(cutParent, func(context.Context) *Promise {
 				return vm.exec(pc[i+1:], xr, vars, cont, args, astack, env, cutParent)
 			})
-		case opList:
+		case opGetList:
 			l := xr[operand].(Integer)
-			arg, arest := NewVariable(), NewVariable()
-			env, ok = env.Unify(args, Cons(arg, arest))
+			arg, astack = args[0], append(astack, args[1:])
+			args, err = makeSlice(int(l))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
+			for i := range args {
+				args[i] = NewVariable()
+			}
+			env, ok = env.Unify(arg, list(args))
 			if !ok {
 				return Bool(false)
 			}
-			_, _ = Length(vm, arg, l, func(e *Env) *Promise {
-				env = e
-				return Bool(true)
-			}, env).Force(context.Background())
-			args = arg
-			astack = Cons(arest, astack)
-		case opPartial:
+		case opPutList:
 			l := xr[operand].(Integer)
-			arg, arest := NewVariable(), NewVariable()
-			env, ok = env.Unify(args, Cons(arg, arest))
+			vs, err := makeSlice(int(l))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
+			for i := range vs {
+				vs[i] = NewVariable()
+			}
+			arg = list(vs)
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
+		case opGetPartial:
+			l := xr[operand].(Integer)
+			arg, astack = args[0], append(astack, args[1:])
+			args, err = makeSlice(int(l + 1))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
+			for i := range args {
+				args[i] = NewVariable()
+			}
+			env, ok = env.Unify(arg, &partial{
+				Compound: list(args[1:]),
+				tail:     &args[0],
+			})
 			if !ok {
 				return Bool(false)
 			}
-			prefix, tail := NewVariable(), NewVariable()
-			_, _ = Length(vm, prefix, l, func(e *Env) *Promise {
-				env = e
-				return Bool(true)
-			}, env).Force(context.Background())
-			_, _ = Append(vm, prefix, tail, arg, func(e *Env) *Promise {
-				env = e
-				return Bool(true)
-			}, env).Force(context.Background())
-			args = Cons(tail, prefix)
-			astack = Cons(arest, astack)
+		case opPutPartial:
+			l := xr[operand].(Integer)
+			vs, err := makeSlice(int(l + 1))
+			if err != nil {
+				return Error(resourceError(resourceMemory, env))
+			}
+			for i := range vs {
+				vs[i] = NewVariable()
+			}
+			arg = &partial{
+				Compound: list(vs[1:]),
+				tail:     &vs[0],
+			}
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
 		}
 	}
 	panic("")

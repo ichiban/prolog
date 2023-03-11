@@ -2579,7 +2579,7 @@ func TestAssertz(t *testing.T) {
 				},
 				xrTable: []Term{NewAtom("a")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: 0},
 					{opcode: opExit},
 				},
 			},
@@ -2594,7 +2594,7 @@ func TestAssertz(t *testing.T) {
 				},
 				xrTable: []Term{NewAtom("b")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: 0},
 					{opcode: opExit},
 				},
 			},
@@ -2708,7 +2708,7 @@ func TestAsserta(t *testing.T) {
 				},
 				xrTable: []Term{NewAtom("b")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: 0},
 					{opcode: opExit},
 				},
 			},
@@ -2720,7 +2720,7 @@ func TestAsserta(t *testing.T) {
 				},
 				xrTable: []Term{NewAtom("a")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: 0},
 					{opcode: opExit},
 				},
 			},
@@ -2742,22 +2742,13 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Asserta(&vm, &compound{
-			functor: atomIf,
-			args: []Term{
-				NewAtom("foo"),
-				&compound{
-					functor: atomComma,
-					args: []Term{
-						&compound{
-							functor: NewAtom("p"),
-							args:    []Term{NewAtom("a")},
-						},
-						atomCut,
-					},
-				},
-			},
-		}, Success, nil).Force(context.Background())
+		ok, err = Asserta(&vm, atomIf.Apply(
+			NewAtom("foo"),
+			atomComma.Apply(
+				NewAtom("p").Apply(NewAtom("a")),
+				atomCut,
+			),
+		), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -2786,7 +2777,7 @@ func TestAsserta(t *testing.T) {
 				},
 				bytecode: bytecode{
 					{opcode: opEnter},
-					{opcode: opConst, operand: 0},
+					{opcode: opPutConst, operand: 0},
 					{opcode: opCall, operand: 1},
 					{opcode: opCut},
 					{opcode: opExit},
@@ -2810,7 +2801,7 @@ func TestAsserta(t *testing.T) {
 				},
 				bytecode: bytecode{
 					{opcode: opEnter},
-					{opcode: opConst, operand: 0},
+					{opcode: opPutConst, operand: 0},
 					{opcode: opCall, operand: 1},
 					{opcode: opExit},
 				},

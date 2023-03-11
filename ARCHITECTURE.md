@@ -21,19 +21,22 @@ Hence, our deviation from the original ZIP arose.
 
 We use the same VM opcodes you can find in the original paper:
 
-- `opConst`
-- `opVar`
-- `opFunctor`
+- `opGetConst` / `opPutConst`
+- `opGetVar` / `opPutVar`
+- `opGetFunctor` / `opPutFunctor`
 - `opPop`
 - `opEnter`
 - `opCall`
 - `opExit`
 
+Note that `const`, `var`, and `functor` in the original paper work differently in the head/body with the clever use of a differential list.
+We split them into `opGet*` for the head and `opPut*` for the body so that we can base our VM on Go slices instead of (differential) lists.
+
 Also, we've added some extra opcodes:
 
 - `opCut` to perform cut operation
-- `opList` to handle lists
-- `opPartial` to handle partial lists
+- `opGetList` / `opPutList` to handle lists
+- `opGetPartial` / `opPutPartial` to handle partial lists
 
 ### Registers
 
