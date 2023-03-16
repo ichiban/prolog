@@ -194,30 +194,19 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
 	return p.call(vm, args, k, env)
 }
 
-func (vm *VM) exec(
-	pc bytecode,
-	xr []Term,
-	vars []Variable,
-	cont Cont,
-	args []Term,
-	astack [][]Term,
-	env *Env,
-	cutParent *Promise,
-) *Promise {
+func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
 	var (
-		ok  bool
+		ok  = true
+		op  instruction
 		arg Term
-		err error
 	)
-	for i, op := range pc {
+	for ok {
+		op, pc = pc[0], pc[1:]
 		switch opcode, operand := op.opcode, op.operand; opcode {
 		case opGetConst:
 			x := xr[operand]
 			arg, args = args[0], args[1:]
 			env, ok = env.Unify(arg, x)
-			if !ok {
-				return Bool(false)
-			}
 		case opPutConst:
 			x := xr[operand]
 			args = append(args, x)
@@ -225,46 +214,21 @@ func (vm *VM) exec(
 			v := vars[operand]
 			arg, args = args[0], args[1:]
 			env, ok = env.Unify(arg, v)
-			if !ok {
-				return Bool(false)
-			}
 		case opPutVar:
 			v := vars[operand]
 			args = append(args, v)
 		case opGetFunctor:
 			pi := xr[operand].(procedureIndicator)
 			arg, astack = env.Resolve(args[0]), append(astack, args[1:])
-			switch arg := arg.(type) {
-			case Variable:
-				break
-			case Compound:
-				if arg.Functor() != pi.name || arg.Arity() != int(pi.arity) {
-					return Bool(false)
-				}
-			default:
-				return Bool(false)
-			}
-			args, err = makeSlice(int(pi.arity))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
+			args = make([]Term, int(pi.arity))
 			for i := range args {
 				args[i] = NewVariable()
 			}
-			env, _ = env.Unify(arg, pi.name.Apply(args...))
+			env, ok = env.Unify(arg, pi.name.Apply(args...))
 		case opPutFunctor:
 			pi := xr[operand].(procedureIndicator)
-			vs, err := makeSlice(int(pi.arity))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
-			for i := range vs {
-				vs[i] = NewVariable()
-			}
-			arg = &compound{
-				functor: pi.name,
-				args:    vs,
-			}
+			vs := make([]Term, int(pi.arity))
+			arg = pi.name.Apply(vs...)
 			args = append(args, arg)
 			astack = append(astack, args)
 			args = vs[:0]
@@ -275,37 +239,25 @@ func (vm *VM) exec(
 		case opCall:
 			pi := xr[operand].(procedureIndicator)
 			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
-				return vm.exec(pc[i+1:], xr, vars, cont, nil, nil, env, cutParent)
+				return vm.exec(pc, xr, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:
 			return cont(env)
 		case opCut:
 			return cut(cutParent, func(context.Context) *Promise {
-				return vm.exec(pc[i+1:], xr, vars, cont, args, astack, env, cutParent)
+				return vm.exec(pc, xr, vars, cont, args, astack, env, cutParent)
 			})
 		case opGetList:
 			l := xr[operand].(Integer)
 			arg, astack = args[0], append(astack, args[1:])
-			args, err = makeSlice(int(l))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
+			args = make([]Term, int(l))
 			for i := range args {
 				args[i] = NewVariable()
 			}
 			env, ok = env.Unify(arg, list(args))
-			if !ok {
-				return Bool(false)
-			}
 		case opPutList:
 			l := xr[operand].(Integer)
-			vs, err := makeSlice(int(l))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
-			for i := range vs {
-				vs[i] = NewVariable()
-			}
+			vs := make([]Term, int(l))
 			arg = list(vs)
 			args = append(args, arg)
 			astack = append(astack, args)
@@ -313,29 +265,14 @@ func (vm *VM) exec(
 		case opGetPartial:
 			l := xr[operand].(Integer)
 			arg, astack = args[0], append(astack, args[1:])
-			args, err = makeSlice(int(l + 1))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
+			args = make([]Term, int(l+1))
 			for i := range args {
 				args[i] = NewVariable()
 			}
-			env, ok = env.Unify(arg, &partial{
-				Compound: list(args[1:]),
-				tail:     &args[0],
-			})
-			if !ok {
-				return Bool(false)
-			}
+			env, ok = env.Unify(arg, PartialList(args[0], args[1:]...))
 		case opPutPartial:
 			l := xr[operand].(Integer)
-			vs, err := makeSlice(int(l + 1))
-			if err != nil {
-				return Error(resourceError(resourceMemory, env))
-			}
-			for i := range vs {
-				vs[i] = NewVariable()
-			}
+			vs := make([]Term, int(l+1))
 			arg = &partial{
 				Compound: list(vs[1:]),
 				tail:     &vs[0],
@@ -345,7 +282,8 @@ func (vm *VM) exec(
 			args = vs[:0]
 		}
 	}
-	panic("")
+
+	return Bool(false)
 }
 
 // SetUserInput sets the given stream as user_input.
