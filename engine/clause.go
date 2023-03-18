@@ -82,7 +82,7 @@ func (c *clause) compileHead(head Term, env *Env) {
 	case Compound:
 		c.pi = procedureIndicator{name: head.Functor(), arity: Integer(head.Arity())}
 		for i := 0; i < head.Arity(); i++ {
-			c.compileArgH(head.Arg(i), env)
+			c.compileHeadArg(head.Arg(i), env)
 		}
 	}
 }
@@ -114,7 +114,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 		return nil
 	case Compound:
 		for i := 0; i < p.Arity(); i++ {
-			c.compileArgB(p.Arg(i), env)
+			c.compileBodyArg(p.Arg(i), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())}})
 		return nil
@@ -123,7 +123,7 @@ func (c *clause) compilePred(p Term, env *Env) error {
 	}
 }
 
-func (c *clause) compileArgH(a Term, env *Env) {
+func (c *clause) compileHeadArg(a Term, env *Env) {
 	switch a := env.Resolve(a).(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opGetVar, operand: c.varOffset(a)})
@@ -132,21 +132,21 @@ func (c *clause) compileArgH(a Term, env *Env) {
 	case list:
 		c.bytecode = append(c.bytecode, instruction{opcode: opGetList, operand: Integer(len(a))})
 		for _, arg := range a {
-			c.compileArgH(arg, env)
+			c.compileHeadArg(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case *partial:
 		prefix := a.Compound.(list)
 		c.bytecode = append(c.bytecode, instruction{opcode: opGetPartial, operand: Integer(len(prefix))})
-		c.compileArgH(*a.tail, env)
+		c.compileHeadArg(*a.tail, env)
 		for _, arg := range prefix {
-			c.compileArgH(arg, env)
+			c.compileHeadArg(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opGetFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
-			c.compileArgH(a.Arg(i), env)
+			c.compileHeadArg(a.Arg(i), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
@@ -154,7 +154,7 @@ func (c *clause) compileArgH(a Term, env *Env) {
 	}
 }
 
-func (c *clause) compileArgB(a Term, env *Env) {
+func (c *clause) compileBodyArg(a Term, env *Env) {
 	switch a := env.Resolve(a).(type) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opPutVar, operand: c.varOffset(a)})
@@ -163,7 +163,7 @@ func (c *clause) compileArgB(a Term, env *Env) {
 	case list:
 		c.bytecode = append(c.bytecode, instruction{opcode: opPutList, operand: Integer(len(a))})
 		for _, arg := range a {
-			c.compileArgB(arg, env)
+			c.compileBodyArg(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case *partial:
@@ -173,16 +173,16 @@ func (c *clause) compileArgB(a Term, env *Env) {
 			l++
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPutPartial, operand: Integer(l)})
-		c.compileArgB(*a.tail, env)
+		c.compileBodyArg(*a.tail, env)
 		iter = ListIterator{List: a.Compound}
 		for iter.Next() {
-			c.compileArgB(iter.Current(), env)
+			c.compileBodyArg(iter.Current(), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
 		c.bytecode = append(c.bytecode, instruction{opcode: opPutFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
-			c.compileArgB(a.Arg(i), env)
+			c.compileBodyArg(a.Arg(i), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
