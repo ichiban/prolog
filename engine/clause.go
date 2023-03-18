@@ -66,9 +66,7 @@ type clause struct {
 
 func compileClause(head Term, body Term, env *Env) (clause, error) {
 	var c clause
-	if err := c.compileHead(head, env); err != nil {
-		return c, typeError(validTypeCallable, body, env)
-	}
+	c.compileHead(head, env)
 	if body != nil {
 		if err := c.compileBody(body, env); err != nil {
 			return c, typeError(validTypeCallable, body, env)
@@ -78,7 +76,7 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 	return c, nil
 }
 
-func (c *clause) compileHead(head Term, env *Env) error {
+func (c *clause) compileHead(head Term, env *Env) {
 	switch head := env.Resolve(head).(type) {
 	case Atom:
 		c.pi = procedureIndicator{name: head, arity: 0}
@@ -88,7 +86,6 @@ func (c *clause) compileHead(head Term, env *Env) error {
 			c.compileArgH(head.Arg(i), env)
 		}
 	}
-	return nil
 }
 
 func (c *clause) compileBody(body Term, env *Env) error {
