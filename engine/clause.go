@@ -27,7 +27,7 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 			for i := range vars {
 				vars[i] = NewVariable()
 			}
-			return vm.exec(c.bytecode, c.xrTable, vars, k, args, nil, env, p)
+			return vm.exec(c.bytecode, vars, k, args, nil, env, p)
 		}
 	}
 	p = Delay(ks...)
@@ -59,7 +59,6 @@ func compile(t Term, env *Env) (clauses, error) {
 type clause struct {
 	pi       procedureIndicator
 	raw      Term
-	xrTable  []Term
 	vars     []Variable
 	bytecode bytecode
 }
@@ -111,13 +110,13 @@ func (c *clause) compilePred(p Term, env *Env) error {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p, arity: 0})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p, arity: 0}})
 		return nil
 	case Compound:
 		for i := 0; i < p.Arity(); i++ {
 			c.compileArgB(p.Arg(i), env)
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: c.xrOffset(procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())}})
 		return nil
 	default:
 		return errNotCallable
@@ -129,29 +128,29 @@ func (c *clause) compileArgH(a Term, env *Env) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opGetVar, operand: c.varOffset(a)})
 	case charList, codeList: // Treat them as if they're atomic.
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetConst, operand: c.xrOffset(a)})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetConst, operand: a})
 	case list:
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetList, operand: c.xrOffset(Integer(len(a)))})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetList, operand: Integer(len(a))})
 		for _, arg := range a {
 			c.compileArgH(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case *partial:
 		prefix := a.Compound.(list)
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetPartial, operand: c.xrOffset(Integer(len(prefix)))})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetPartial, operand: Integer(len(prefix))})
 		c.compileArgH(*a.tail, env)
 		for _, arg := range prefix {
 			c.compileArgH(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
 			c.compileArgH(a.Arg(i), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetConst, operand: c.xrOffset(a)})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetConst, operand: a})
 	}
 }
 
@@ -160,9 +159,9 @@ func (c *clause) compileArgB(a Term, env *Env) {
 	case Variable:
 		c.bytecode = append(c.bytecode, instruction{opcode: opPutVar, operand: c.varOffset(a)})
 	case charList, codeList: // Treat them as if they're atomic.
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutConst, operand: c.xrOffset(a)})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutConst, operand: a})
 	case list:
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutList, operand: c.xrOffset(Integer(len(a)))})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutList, operand: Integer(len(a))})
 		for _, arg := range a {
 			c.compileArgB(arg, env)
 		}
@@ -173,7 +172,7 @@ func (c *clause) compileArgB(a Term, env *Env) {
 		for iter.Next() {
 			l++
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutPartial, operand: c.xrOffset(Integer(l))})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutPartial, operand: Integer(l)})
 		c.compileArgB(*a.tail, env)
 		iter = ListIterator{List: a.Compound}
 		for iter.Next() {
@@ -181,33 +180,22 @@ func (c *clause) compileArgB(a Term, env *Env) {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutFunctor, operand: c.xrOffset(procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())})})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
 			c.compileArgB(a.Arg(i), env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	default:
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutConst, operand: c.xrOffset(a)})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutConst, operand: a})
 	}
 }
 
-func (c *clause) xrOffset(o Term) byte {
-	oid := id(o)
-	for i, r := range c.xrTable {
-		if id(r) == oid {
-			return byte(i)
-		}
-	}
-	c.xrTable = append(c.xrTable, o)
-	return byte(len(c.xrTable) - 1)
-}
-
-func (c *clause) varOffset(o Variable) byte {
+func (c *clause) varOffset(o Variable) Integer {
 	for i, v := range c.vars {
 		if v == o {
-			return byte(i)
+			return Integer(i)
 		}
 	}
 	c.vars = append(c.vars, o)
-	return byte(len(c.vars) - 1)
+	return Integer(len(c.vars) - 1)
 }

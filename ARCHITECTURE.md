@@ -40,14 +40,16 @@ Also, we've added some extra opcodes:
 
 ### Registers
 
-We use the same registers you can find in the original paper:
+We use the same registers you can find in the original paper except `xr`:
 
 - `pc`
-- `xr`
 - `vars`
 - `cont`
 - `args`
 - `astack`
+
+We don't need `xr` register because each instruction can point to the constant via a Go pointer.
+In other words, our XR table is the Go heap.
 
 Also, we've added some extra registers:
 

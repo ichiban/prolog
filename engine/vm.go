@@ -12,7 +12,7 @@ type bytecode []instruction
 
 type instruction struct {
 	opcode  opcode
-	operand byte
+	operand Term
 }
 
 type opcode byte
@@ -194,7 +194,7 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
 	return p.call(vm, args, k, env)
 }
 
-func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
+func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
 	var (
 		ok  = true
 		op  instruction
@@ -204,21 +204,19 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Te
 		op, pc = pc[0], pc[1:]
 		switch opcode, operand := op.opcode, op.operand; opcode {
 		case opGetConst:
-			x := xr[operand]
 			arg, args = args[0], args[1:]
-			env, ok = env.Unify(arg, x)
+			env, ok = env.Unify(arg, operand)
 		case opPutConst:
-			x := xr[operand]
-			args = append(args, x)
+			args = append(args, operand)
 		case opGetVar:
-			v := vars[operand]
+			v := vars[operand.(Integer)]
 			arg, args = args[0], args[1:]
 			env, ok = env.Unify(arg, v)
 		case opPutVar:
-			v := vars[operand]
+			v := vars[operand.(Integer)]
 			args = append(args, v)
 		case opGetFunctor:
-			pi := xr[operand].(procedureIndicator)
+			pi := operand.(procedureIndicator)
 			arg, astack = env.Resolve(args[0]), append(astack, args[1:])
 			args = make([]Term, int(pi.arity))
 			for i := range args {
@@ -226,7 +224,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Te
 			}
 			env, ok = env.Unify(arg, pi.name.Apply(args...))
 		case opPutFunctor:
-			pi := xr[operand].(procedureIndicator)
+			pi := operand.(procedureIndicator)
 			vs := make([]Term, int(pi.arity))
 			arg = pi.name.Apply(vs...)
 			args = append(args, arg)
@@ -237,18 +235,18 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Te
 		case opEnter:
 			break
 		case opCall:
-			pi := xr[operand].(procedureIndicator)
+			pi := operand.(procedureIndicator)
 			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
-				return vm.exec(pc, xr, vars, cont, nil, nil, env, cutParent)
+				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:
 			return cont(env)
 		case opCut:
 			return cut(cutParent, func(context.Context) *Promise {
-				return vm.exec(pc, xr, vars, cont, args, astack, env, cutParent)
+				return vm.exec(pc, vars, cont, args, astack, env, cutParent)
 			})
 		case opGetList:
-			l := xr[operand].(Integer)
+			l := operand.(Integer)
 			arg, astack = args[0], append(astack, args[1:])
 			args = make([]Term, int(l))
 			for i := range args {
@@ -256,14 +254,14 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Te
 			}
 			env, ok = env.Unify(arg, list(args))
 		case opPutList:
-			l := xr[operand].(Integer)
+			l := operand.(Integer)
 			vs := make([]Term, int(l))
 			arg = list(vs)
 			args = append(args, arg)
 			astack = append(astack, args)
 			args = vs[:0]
 		case opGetPartial:
-			l := xr[operand].(Integer)
+			l := operand.(Integer)
 			arg, astack = args[0], append(astack, args[1:])
 			args = make([]Term, int(l+1))
 			for i := range args {
@@ -271,7 +269,7 @@ func (vm *VM) exec(pc bytecode, xr []Term, vars []Variable, cont Cont, args []Te
 			}
 			env, ok = env.Unify(arg, PartialList(args[0], args[1:]...))
 		case opPutPartial:
-			l := xr[operand].(Integer)
+			l := operand.(Integer)
 			vs := make([]Term, int(l+1))
 			arg = &partial{
 				Compound: list(vs[1:]),

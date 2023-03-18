@@ -26,10 +26,14 @@ foo(a).
 `, result: map[procedureIndicator]procedure{
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -37,10 +41,14 @@ foo(a).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -50,14 +58,22 @@ foo(b).
 `, result: map[procedureIndicator]procedure{
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("b")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -68,32 +84,46 @@ baz(X) :- bar(X).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 			{name: NewAtom("bar"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: atomIf.Apply(NewAtom("bar").Apply(lastVariable()+1), NewAtom("foo").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("foo"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
-						{opcode: opGetVar, operand: 0},
-						{opcode: opEnter},
-						{opcode: opPutVar, operand: 0},
-						{opcode: opCall, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:   procedureIndicator{name: NewAtom("bar"), arity: 1},
+						raw:  atomIf.Apply(NewAtom("bar").Apply(lastVariable()+1), NewAtom("foo").Apply(lastVariable()+1)),
+						vars: []Variable{lastVariable() + 1},
+						bytecode: bytecode{
+							{opcode: opGetVar, operand: Integer(0)},
+							{opcode: opEnter},
+							{opcode: opPutVar, operand: Integer(0)},
+							{opcode: opCall, operand: procedureIndicator{name: NewAtom("foo"), arity: 1}},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 			{name: NewAtom("baz"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("baz"), arity: 1}, raw: atomIf.Apply(NewAtom("baz").Apply(lastVariable()+1), NewAtom("bar").Apply(lastVariable()+1)), xrTable: []Term{procedureIndicator{name: NewAtom("bar"), arity: 1}}, vars: []Variable{lastVariable() + 1}, bytecode: bytecode{
-						{opcode: opGetVar, operand: 0},
-						{opcode: opEnter},
-						{opcode: opPutVar, operand: 0},
-						{opcode: opCall, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:   procedureIndicator{name: NewAtom("baz"), arity: 1},
+						raw:  atomIf.Apply(NewAtom("baz").Apply(lastVariable()+1), NewAtom("bar").Apply(lastVariable()+1)),
+						vars: []Variable{lastVariable() + 1},
+						bytecode: bytecode{
+							{opcode: opGetVar, operand: Integer(0)},
+							{opcode: opEnter},
+							{opcode: opPutVar, operand: Integer(0)},
+							{opcode: opCall, operand: procedureIndicator{name: NewAtom("bar"), arity: 1}},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -106,14 +136,22 @@ foo(b).
 				public:  true,
 				dynamic: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("b")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -125,18 +163,30 @@ foo(b).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("b")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -149,22 +199,34 @@ foo(b).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				discontiguous: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}, xrTable: []Term{NewAtom("b")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("b")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 			{name: NewAtom("bar"), arity: 1}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("bar"), arity: 1}, raw: &compound{functor: NewAtom("bar"), args: []Term{NewAtom("a")}}, xrTable: []Term{NewAtom("a")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("bar"), arity: 1},
+						raw: &compound{functor: NewAtom("bar"), args: []Term{NewAtom("a")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("a")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -173,18 +235,26 @@ foo(b).
 `, result: map[procedureIndicator]procedure{
 			{name: NewAtom("foo"), arity: 0}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},
+						raw: NewAtom("foo"),
+						bytecode: bytecode{
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -193,18 +263,26 @@ foo(b).
 `, result: map[procedureIndicator]procedure{
 			{name: NewAtom("foo"), arity: 0}: &userDefined{
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 0}, raw: NewAtom("foo"), bytecode: bytecode{
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},
+						raw: NewAtom("foo"),
+						bytecode: bytecode{
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -214,10 +292,14 @@ foo(b).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -227,10 +309,14 @@ foo(b).
 			{name: NewAtom("foo"), arity: 1}: &userDefined{
 				multifile: true,
 				clauses: clauses{
-					{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-						{opcode: opGetConst, operand: 0},
-						{opcode: opExit},
-					}},
+					{
+						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+						bytecode: bytecode{
+							{opcode: opGetConst, operand: NewAtom("c")},
+							{opcode: opExit},
+						},
+					},
 				},
 			},
 		}},
@@ -312,10 +398,14 @@ bar(b).
 				{name: NewAtom("foo"), arity: 1}: &userDefined{
 					multifile: true,
 					clauses: clauses{
-						{pi: procedureIndicator{name: NewAtom("foo"), arity: 1}, raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}, xrTable: []Term{NewAtom("c")}, bytecode: bytecode{
-							{opcode: opGetConst, operand: 0},
-							{opcode: opExit},
-						}},
+						{
+							pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
+							raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
+							bytecode: bytecode{
+								{opcode: opGetConst, operand: NewAtom("c")},
+								{opcode: opExit},
+							},
+						},
 					},
 				},
 			}
