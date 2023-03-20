@@ -826,6 +826,20 @@ foo(a, 1, 2.0, [abc, def]).
 	}
 }
 
+func TestInterpreter_Query_panic(t *testing.T) {
+	var i Interpreter
+	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+		panic("told you")
+	})
+
+	sols, err := i.Query("do_not_call.")
+	assert.NoError(t, err)
+	assert.PanicsWithValue(t, "told you", func() {
+		sols.Next()
+	})
+	assert.NoError(t, sols.Close())
+}
+
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
 	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
