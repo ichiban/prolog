@@ -25,7 +25,7 @@ func TestCall(t *testing.T) {
 	assert.NoError(t, vm.Compile(context.Background(), `
 foo.
 foo(_, _).
-f(g([a, [b|X]])).
+f(g([a, [b, c|X]])).
 `))
 
 	tests := []struct {
@@ -47,7 +47,7 @@ f(g([a, [b|X]])).
 		{title: `not callable: conjunction`, goal: atomComma.Apply(atomTrue, Integer(0)), ok: false, err: typeError(validTypeCallable, atomComma.Apply(atomTrue, Integer(0)), nil)},
 		{title: `not callable: disjunction`, goal: atomSemiColon.Apply(Integer(1), atomTrue), ok: false, err: typeError(validTypeCallable, atomSemiColon.Apply(Integer(1), atomTrue), nil)},
 
-		{title: `cover all`, goal: atomComma.Apply(atomCut, NewAtom("f").Apply(NewAtom("g").Apply(List(NewAtom("a"), PartialList(NewVariable(), NewAtom("b")))))), ok: true},
+		{title: `cover all`, goal: atomComma.Apply(atomCut, NewAtom("f").Apply(NewAtom("g").Apply(List(NewAtom("a"), PartialList(NewVariable(), NewAtom("b"), NewAtom("c")))))), ok: true},
 		{title: `out of memory`, goal: NewAtom("foo").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable()), err: resourceError(resourceMemory, nil), mem: 1},
 	}
 
@@ -2577,9 +2577,8 @@ func TestAssertz(t *testing.T) {
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("a")},
 				},
-				xrTable: []Term{NewAtom("a")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: NewAtom("a")},
 					{opcode: opExit},
 				},
 			},
@@ -2592,9 +2591,8 @@ func TestAssertz(t *testing.T) {
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("b")},
 				},
-				xrTable: []Term{NewAtom("b")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: NewAtom("b")},
 					{opcode: opExit},
 				},
 			},
@@ -2706,9 +2704,8 @@ func TestAsserta(t *testing.T) {
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("b")},
 				},
-				xrTable: []Term{NewAtom("b")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: NewAtom("b")},
 					{opcode: opExit},
 				},
 			},
@@ -2718,9 +2715,8 @@ func TestAsserta(t *testing.T) {
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("a")},
 				},
-				xrTable: []Term{NewAtom("a")},
 				bytecode: bytecode{
-					{opcode: opConst, operand: 0},
+					{opcode: opGetConst, operand: NewAtom("a")},
 					{opcode: opExit},
 				},
 			},
@@ -2742,22 +2738,13 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Asserta(&vm, &compound{
-			functor: atomIf,
-			args: []Term{
-				NewAtom("foo"),
-				&compound{
-					functor: atomComma,
-					args: []Term{
-						&compound{
-							functor: NewAtom("p"),
-							args:    []Term{NewAtom("a")},
-						},
-						atomCut,
-					},
-				},
-			},
-		}, Success, nil).Force(context.Background())
+		ok, err = Asserta(&vm, atomIf.Apply(
+			NewAtom("foo"),
+			atomComma.Apply(
+				NewAtom("p").Apply(NewAtom("a")),
+				atomCut,
+			),
+		), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
@@ -2780,14 +2767,10 @@ func TestAsserta(t *testing.T) {
 						},
 					},
 				},
-				xrTable: []Term{
-					NewAtom("a"),
-					procedureIndicator{name: NewAtom("p"), arity: 1},
-				},
 				bytecode: bytecode{
 					{opcode: opEnter},
-					{opcode: opConst, operand: 0},
-					{opcode: opCall, operand: 1},
+					{opcode: opPutConst, operand: NewAtom("a")},
+					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
 					{opcode: opCut},
 					{opcode: opExit},
 				},
@@ -2804,14 +2787,10 @@ func TestAsserta(t *testing.T) {
 						},
 					},
 				},
-				xrTable: []Term{
-					NewAtom("b"),
-					procedureIndicator{name: NewAtom("p"), arity: 1},
-				},
 				bytecode: bytecode{
 					{opcode: opEnter},
-					{opcode: opConst, operand: 0},
-					{opcode: opCall, operand: 1},
+					{opcode: opPutConst, operand: NewAtom("b")},
+					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
 					{opcode: opExit},
 				},
 			},

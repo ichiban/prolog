@@ -12,7 +12,7 @@ type bytecode []instruction
 
 type instruction struct {
 	opcode  opcode
-	operand byte
+	operand Term
 }
 
 type opcode byte
@@ -21,14 +21,19 @@ const (
 	opEnter opcode = iota
 	opCall
 	opExit
-	opConst
-	opVar
-	opFunctor
+	opGetConst
+	opPutConst
+	opGetVar
+	opPutVar
+	opGetFunctor
+	opPutFunctor
 	opPop
 
 	opCut
-	opList
-	opPartial
+	opGetList
+	opPutList
+	opGetPartial
+	opPutPartial
 )
 
 // Success is a continuation that leads to true.
@@ -189,205 +194,94 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
 	return p.call(vm, args, k, env)
 }
 
-type registers struct {
-	pc           bytecode
-	xr           []Term
-	vars         []Variable
-	cont         Cont
-	args, astack Term
-
-	env       *Env
-	cutParent *Promise
-}
-
-func (r *registers) updateEnv(e *Env) *Promise {
-	r.env = e
-	return Bool(true)
-}
-
-func (vm *VM) exec(r registers) *Promise {
-	jumpTable := [...]func(r *registers) *Promise{
-		opConst:   vm.execConst,
-		opVar:     vm.execVar,
-		opFunctor: vm.execFunctor,
-		opPop:     vm.execPop,
-		opEnter:   vm.execEnter,
-		opCall:    vm.execCall,
-		opExit:    vm.execExit,
-		opCut:     vm.execCut,
-		opList:    vm.execList,
-		opPartial: vm.execPartial,
-	}
-	for {
-		op := jumpTable[r.pc[0].opcode]
-		if p := op(&r); p != nil {
-			return p
+func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
+	var (
+		ok  = true
+		op  instruction
+		arg Term
+	)
+	for ok {
+		op, pc = pc[0], pc[1:]
+		switch opcode, operand := op.opcode, op.operand; opcode {
+		case opGetConst:
+			arg, args = args[0], args[1:]
+			env, ok = env.Unify(arg, operand)
+		case opPutConst:
+			args = append(args, operand)
+		case opGetVar:
+			v := vars[operand.(Integer)]
+			arg, args = args[0], args[1:]
+			env, ok = env.Unify(arg, v)
+		case opPutVar:
+			v := vars[operand.(Integer)]
+			args = append(args, v)
+		case opGetFunctor:
+			pi := operand.(procedureIndicator)
+			arg, astack = env.Resolve(args[0]), append(astack, args[1:])
+			args = make([]Term, int(pi.arity))
+			for i := range args {
+				args[i] = NewVariable()
+			}
+			env, ok = env.Unify(arg, pi.name.Apply(args...))
+		case opPutFunctor:
+			pi := operand.(procedureIndicator)
+			vs := make([]Term, int(pi.arity))
+			arg = pi.name.Apply(vs...)
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
+		case opPop:
+			args, astack = astack[len(astack)-1], astack[:len(astack)-1]
+		case opEnter:
+			break
+		case opCall:
+			pi := operand.(procedureIndicator)
+			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
+				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
+			}, env)
+		case opExit:
+			return cont(env)
+		case opCut:
+			return cut(cutParent, func(context.Context) *Promise {
+				return vm.exec(pc, vars, cont, args, astack, env, cutParent)
+			})
+		case opGetList:
+			l := operand.(Integer)
+			arg, astack = args[0], append(astack, args[1:])
+			args = make([]Term, int(l))
+			for i := range args {
+				args[i] = NewVariable()
+			}
+			env, ok = env.Unify(arg, list(args))
+		case opPutList:
+			l := operand.(Integer)
+			vs := make([]Term, int(l))
+			arg = list(vs)
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
+		case opGetPartial:
+			l := operand.(Integer)
+			arg, astack = args[0], append(astack, args[1:])
+			args = make([]Term, int(l+1))
+			for i := range args {
+				args[i] = NewVariable()
+			}
+			env, ok = env.Unify(arg, PartialList(args[0], args[1:]...))
+		case opPutPartial:
+			l := operand.(Integer)
+			vs := make([]Term, int(l+1))
+			arg = &partial{
+				Compound: list(vs[1:]),
+				tail:     &vs[0],
+			}
+			args = append(args, arg)
+			astack = append(astack, args)
+			args = vs[:0]
 		}
 	}
-}
 
-func (*VM) execConst(r *registers) *Promise {
-	x := r.xr[r.pc[0].operand]
-	arest := NewVariable()
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(x, arest))
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	r.args = arest
-	return nil
-}
-
-func (*VM) execVar(r *registers) *Promise {
-	v := r.vars[r.pc[0].operand]
-	arest := NewVariable()
-	var ok bool
-	r.env, ok = r.env.Unify(Cons(v, arest), r.args)
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	r.args = arest
-	return nil
-}
-
-func (vm *VM) execFunctor(r *registers) *Promise {
-	pi := r.xr[r.pc[0].operand].(procedureIndicator)
-	arg, arest := NewVariable(), NewVariable()
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
-	if !ok {
-		return Bool(false)
-	}
-	ok, err := Functor(vm, arg, pi.name, pi.arity, r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	r.args = NewVariable()
-	ok, err = Univ(vm, arg, Cons(pi.name, r.args), r.updateEnv, r.env).Force(context.Background())
-	if err != nil {
-		return Error(err)
-	}
-	if !ok {
-		return Bool(false)
-	}
-	r.astack = Cons(arest, r.astack)
-	return nil
-}
-
-func (*VM) execPop(r *registers) *Promise {
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	a, arest := NewVariable(), NewVariable()
-	r.env, ok = r.env.Unify(r.astack, Cons(a, arest))
-	if !ok {
-		return Bool(false)
-	}
-	r.args = a
-	r.astack = arest
-	return nil
-}
-
-func (*VM) execEnter(r *registers) *Promise {
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
-	if !ok {
-		return Bool(false)
-	}
-	r.env, ok = r.env.Unify(r.astack, List())
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	v := NewVariable()
-	r.args = v
-	r.astack = v
-	return nil
-}
-
-func (vm *VM) execCall(r *registers) *Promise {
-	pi := r.xr[r.pc[0].operand].(procedureIndicator)
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, List())
-	if !ok {
-		return Bool(false)
-	}
-	r.pc = r.pc[1:]
-	args, _ := slice(r.astack, r.env)
-	return vm.Arrive(pi.name, args, func(env *Env) *Promise {
-		v := NewVariable()
-		return vm.exec(registers{
-			pc:        r.pc,
-			xr:        r.xr,
-			vars:      r.vars,
-			cont:      r.cont,
-			args:      v,
-			astack:    v,
-			env:       env,
-			cutParent: r.cutParent,
-		})
-	}, r.env)
-}
-
-func (*VM) execExit(r *registers) *Promise {
-	return r.cont(r.env)
-}
-
-func (vm *VM) execCut(r *registers) *Promise {
-	r.pc = r.pc[1:]
-	return cut(r.cutParent, func(context.Context) *Promise {
-		return vm.exec(registers{
-			pc:        r.pc,
-			xr:        r.xr,
-			vars:      r.vars,
-			cont:      r.cont,
-			args:      r.args,
-			astack:    r.astack,
-			env:       r.env,
-			cutParent: r.cutParent,
-		})
-	})
-}
-
-func (vm *VM) execList(r *registers) *Promise {
-	l := r.xr[r.pc[0].operand].(Integer)
-	arg, arest := NewVariable(), NewVariable()
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
-	if !ok {
-		return Bool(false)
-	}
-	_, _ = Length(vm, arg, l, r.updateEnv, r.env).Force(context.Background())
-	r.pc = r.pc[1:]
-	r.args = arg
-	r.astack = Cons(arest, r.astack)
-	return nil
-}
-
-func (vm *VM) execPartial(r *registers) *Promise {
-	l := r.xr[r.pc[0].operand].(Integer)
-	arg, arest := NewVariable(), NewVariable()
-	var ok bool
-	r.env, ok = r.env.Unify(r.args, Cons(arg, arest))
-	if !ok {
-		return Bool(false)
-	}
-	prefix, tail := NewVariable(), NewVariable()
-	_, _ = Length(vm, prefix, l, r.updateEnv, r.env).Force(context.Background())
-	_, _ = Append(vm, prefix, tail, arg, r.updateEnv, r.env).Force(context.Background())
-	r.pc = r.pc[1:]
-	r.args = Cons(tail, prefix)
-	r.astack = Cons(arest, r.astack)
-	return nil
+	return Bool(false)
 }
 
 // SetUserInput sets the given stream as user_input.
