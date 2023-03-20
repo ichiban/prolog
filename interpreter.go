@@ -199,6 +199,12 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 
 	go func() {
 		defer close(next)
+		defer func() {
+			if r := recover(); r != nil {
+				sols.panicked = r
+			}
+		}()
+
 		if !<-more {
 			return
 		}

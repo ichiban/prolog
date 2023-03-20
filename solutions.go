@@ -18,13 +18,14 @@ var errConversion = errors.New("conversion failed")
 // Solutions is the result of a query. Everytime the Next method is called, it searches for the next solution.
 // By calling the Scan method, you can retrieve the content of the solution.
 type Solutions struct {
-	vm     *engine.VM
-	env    *engine.Env
-	vars   []engine.ParsedVariable
-	more   chan<- bool
-	next   <-chan *engine.Env
-	err    error
-	closed bool
+	vm       *engine.VM
+	env      *engine.Env
+	vars     []engine.ParsedVariable
+	more     chan<- bool
+	panicked any
+	next     <-chan *engine.Env
+	err      error
+	closed   bool
 }
 
 // Close closes the Solutions and terminates the search for other solutions.
@@ -46,6 +47,11 @@ func (s *Solutions) Next() bool {
 	s.more <- true
 	var ok bool
 	s.env, ok = <-s.next
+
+	if s.panicked != nil {
+		panic(s.panicked)
+	}
+
 	return ok
 }
 
