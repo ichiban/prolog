@@ -460,6 +460,10 @@ func tuple(args ...Term) Term {
 
 type charList string
 
+func (c charList) String() string {
+	return string(c)
+}
+
 func (c charList) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	return WriteCompound(w, c, opts, env)
 }
@@ -501,6 +505,10 @@ func CharList(s string) Term {
 }
 
 type codeList string
+
+func (c codeList) String() string {
+	return string(c)
+}
 
 func (c codeList) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	return WriteCompound(w, c, opts, env)

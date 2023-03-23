@@ -192,7 +192,7 @@ func TestParser_Replace(t *testing.T) {
 
 		list, err := p.Term()
 		assert.NoError(t, err)
-		assert.Equal(t, List(Float(1.0), Integer(2), NewAtom("foo"), List(NewAtom("a"), NewAtom("b"), NewAtom("c"))), list)
+		assert.Equal(t, List(Float(1.0), Integer(2), CharList("foo"), List(CharList("a"), CharList("b"), CharList("c"))), list)
 	})
 
 	t.Run("invalid argument", func(t *testing.T) {

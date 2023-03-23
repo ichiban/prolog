@@ -104,6 +104,12 @@ func TestSolutions_Scan(t *testing.T) {
 		{title: "struct: string, atom", sols: sols(map[string]engine.Term{
 			"X": engine.NewAtom("foo"),
 		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
+		{title: "struct: string, character list", sols: sols(map[string]engine.Term{
+			"X": engine.CharList("foo"),
+		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
+		{title: "struct: string, code list", sols: sols(map[string]engine.Term{
+			"X": engine.CodeList("foo"),
+		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
 		{title: "struct: string, non-atom", sols: sols(map[string]engine.Term{
 			"X": engine.Integer(1),
 		}), dest: &struct{ X string }{}, err: errConversion},

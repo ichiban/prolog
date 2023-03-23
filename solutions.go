@@ -168,7 +168,7 @@ func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.
 
 func convertAssignString(d *string, t engine.Term, env *engine.Env) error {
 	switch t := env.Resolve(t).(type) {
-	case engine.Atom:
+	case fmt.Stringer:
 		*d = t.String()
 		return nil
 	default:

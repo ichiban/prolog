@@ -60,7 +60,7 @@ func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
 	p.args = make([]Term, len(args))
 	for i, a := range args {
 		var err error
-		p.args[i], err = termOf(reflect.ValueOf(a))
+		p.args[i], err = p.termOf(reflect.ValueOf(a))
 		if err != nil {
 			return err
 		}
@@ -68,20 +68,27 @@ func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
 	return nil
 }
 
-func termOf(o reflect.Value) (Term, error) {
+func (p *Parser) termOf(o reflect.Value) (Term, error) {
 	switch o.Kind() {
 	case reflect.Float32, reflect.Float64:
 		return Float(o.Float()), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return Integer(o.Int()), nil
 	case reflect.String:
-		return NewAtom(o.String()), nil
+		switch p.doubleQuotes {
+		case doubleQuotesCodes:
+			return CodeList(o.String()), nil
+		case doubleQuotesAtom:
+			return NewAtom(o.String()), nil
+		default:
+			return CharList(o.String()), nil
+		}
 	case reflect.Array, reflect.Slice:
 		l := o.Len()
 		es := make([]Term, l)
 		for i := 0; i < l; i++ {
 			var err error
-			es[i], err = termOf(o.Index(i))
+			es[i], err = p.termOf(o.Index(i))
 			if err != nil {
 				return nil, err
 			}

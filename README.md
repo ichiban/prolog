@@ -67,7 +67,7 @@ if err := p.Exec(`
 Similar to `database/sql`, you can use placeholder `?` to insert Go data as Prolog data.
 
 ```go
-if err := p.Exec(`human(?).`, "socrates"); err != nil { // Same as p.Exec(`human(socrates).`)
+if err := p.Exec(`human(?).`, "socrates"); err != nil { // Same as p.Exec(`human("socrates").`)
 	panic(err)
 }
 ```
@@ -75,7 +75,7 @@ if err := p.Exec(`human(?).`, "socrates"); err != nil { // Same as p.Exec(`human
 #### Run the Prolog program
 
 ```go
-sols, err := p.Query(`mortal(?).`, "socrates") // Same as p.Query(`mortal(socrates).`)
+sols, err := p.Query(`mortal(?).`, "socrates") // Same as p.Query(`mortal("socrates").`)
 if err != nil {
 	panic(err)
 }
