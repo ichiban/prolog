@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -182,51 +183,75 @@ func TestParser_Term(t *testing.T) {
 }
 
 func TestParser_Replace(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
-			},
-		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
+	tests := []struct {
+		title        string
+		doubleQuotes doubleQuotes
+		input        string
+		args         []interface{}
+		err, termErr error
+		term         Term
+	}{
+		{
+			title:        "chars",
+			doubleQuotes: doubleQuotesChars,
+			input:        `[?, ?, ?, ?].`,
+			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Float(1.0), Integer(2), CharList("foo"), List(CharList("a"), CharList("b"), CharList("c"))),
+		},
+		{
+			title:        "codes",
+			doubleQuotes: doubleQuotesCodes,
+			input:        `[?, ?, ?, ?].`,
+			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Float(1.0), Integer(2), CodeList("foo"), List(CodeList("a"), CodeList("b"), CodeList("c"))),
+		},
+		{
+			title:        "atom",
+			doubleQuotes: doubleQuotesAtom,
+			input:        `[?, ?, ?, ?].`,
+			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Float(1.0), Integer(2), NewAtom("foo"), List(NewAtom("a"), NewAtom("b"), NewAtom("c"))),
+		},
+		{
+			title: "invalid argument",
+			input: `[?].`,
+			args:  []interface{}{nil},
+			err:   errors.New("can't convert to term: <invalid reflect.Value>"),
+		},
+		{
+			title:   "too few arguments",
+			input:   `[?, ?, ?, ?, ?].`,
+			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
+			termErr: errors.New("not enough arguments for placeholders"),
+		},
+		{
+			title:   "too many arguments",
+			input:   `[?, ?, ?, ?].`,
+			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}, "extra"},
+			termErr: errors.New("too many arguments for placeholders: [extra]"),
+		},
+	}
 
-		list, err := p.Term()
-		assert.NoError(t, err)
-		assert.Equal(t, List(Float(1.0), Integer(2), CharList("foo"), List(CharList("a"), CharList("b"), CharList("c"))), list)
-	})
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			p := Parser{
+				doubleQuotes: tt.doubleQuotes,
+				lexer: Lexer{
+					input: newRuneRingBuffer(strings.NewReader(tt.input)),
+				},
+			}
+			err := p.SetPlaceholder(NewAtom("?"), tt.args...)
+			assert.Equal(t, tt.err, err)
 
-	t.Run("invalid argument", func(t *testing.T) {
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(`[?].`)),
-			},
-		}
-		assert.Error(t, p.SetPlaceholder(NewAtom("?"), []struct{}{{}}))
-	})
+			if err != nil {
+				return
+			}
 
-	t.Run("too few arguments", func(t *testing.T) {
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?, ?].`)),
-			},
-		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}))
-
-		_, err := p.Term()
-		assert.Error(t, err)
-	})
-
-	t.Run("too many arguments", func(t *testing.T) {
-		p := Parser{
-			lexer: Lexer{
-				input: newRuneRingBuffer(strings.NewReader(`[?, ?, ?, ?].`)),
-			},
-		}
-		assert.NoError(t, p.SetPlaceholder(NewAtom("?"), 1.0, 2, "foo", []string{"a", "b", "c"}, "extra"))
-
-		_, err := p.Term()
-		assert.Error(t, err)
-	})
+			term, err := p.Term()
+			assert.Equal(t, tt.termErr, err)
+			assert.Equal(t, tt.term, term)
+		})
+	}
 }
 
 func TestParser_Number(t *testing.T) {
