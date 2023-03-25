@@ -165,7 +165,35 @@ func TestCharList(t *testing.T) {
 	assert.Equal(t, charList("abc"), CharList("abc"))
 }
 
+func TestCharList_String(t *testing.T) {
+	assert.Equal(t, "abc", CharList("abc").(charList).String())
+}
+
+func TestCharList_WriteTerm(t *testing.T) {
+	var b bytes.Buffer
+	assert.NoError(t, CharList("abc").WriteTerm(&b, &WriteOptions{}, nil))
+	assert.Equal(t, `[a,b,c]`, b.String())
+}
+
+func TestCharList_Compare(t *testing.T) {
+	assert.Equal(t, 0, CharList("abc").Compare(List(NewAtom("a"), NewAtom("b"), NewAtom("c")), nil))
+}
+
 func TestCodeList(t *testing.T) {
 	assert.Equal(t, atomEmptyList, CodeList(""))
 	assert.Equal(t, codeList("abc"), CodeList("abc"))
+}
+
+func TestCodeList_String(t *testing.T) {
+	assert.Equal(t, "abc", CodeList("abc").(codeList).String())
+}
+
+func TestCodeList_WriteTerm(t *testing.T) {
+	var b bytes.Buffer
+	assert.NoError(t, CodeList("abc").WriteTerm(&b, &WriteOptions{}, nil))
+	assert.Equal(t, `[97,98,99]`, b.String())
+}
+
+func TestCodeList_Compare(t *testing.T) {
+	assert.Equal(t, 0, CodeList("abc").Compare(List(Integer('a'), Integer('b'), Integer('c')), nil))
 }

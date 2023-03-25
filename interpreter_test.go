@@ -797,8 +797,10 @@ func TestInterpreter_Query(t *testing.T) {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
 			i.Register3(engine.NewAtom("op"), engine.Op)
+			i.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
+:-(set_prolog_flag(double_quotes, atom)).
 
 append([], L, L).
 append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
@@ -1239,8 +1241,8 @@ foo(c, d).
 func ExampleInterpreter_Exec_placeholders() {
 	p := New(nil, os.Stdout)
 
-	_ = p.Exec(`my_atom(?).`, "foo")
-	sols, _ := p.Query(`my_atom(A), atom(A), write(A), nl.`)
+	_ = p.Exec(`my_string(?).`, "foo")
+	sols, _ := p.Query(`my_string(A), maplist(atom, A), write(A), nl.`)
 	sols.Next()
 	_ = sols.Close()
 
@@ -1255,7 +1257,7 @@ func ExampleInterpreter_Exec_placeholders() {
 	_ = sols.Close()
 
 	_ = p.Exec(`my_atom_list(?).`, []string{"foo", "bar", "baz"})
-	sols, _ = p.Query(`my_atom_list(As), maplist(atom, As), write(As), nl.`)
+	sols, _ = p.Query(`my_atom_list(As), maplist(maplist(atom), As), write(As), nl.`)
 	sols.Next()
 	_ = sols.Close()
 
@@ -1270,17 +1272,17 @@ func ExampleInterpreter_Exec_placeholders() {
 	_ = sols.Close()
 
 	// Output:
-	// foo
+	// [f,o,o]
 	// 1
 	// 1.0
-	// [foo,bar,baz]
+	// [[f,o,o],[b,a,r],[b,a,z]]
 	// [1,2,3]
 	// [1.0,2.0,3.0]
 }
 
 func ExampleInterpreter_Query_placeholders() {
 	p := New(nil, os.Stdout)
-	sols, _ := p.Query(`A = ?, atom(A), write(A), nl.`, "foo")
+	sols, _ := p.Query(`A = ?, maplist(atom, A), write(A), nl.`, "foo")
 	sols.Next()
 	_ = sols.Close()
 	sols, _ = p.Query(`(I, I, I, I, I) = (?, ?, ?, ?, ?), integer(I), write(I), nl.`, int8(1), int16(1), int32(1), int64(1), 1)
@@ -1289,7 +1291,7 @@ func ExampleInterpreter_Query_placeholders() {
 	sols, _ = p.Query(`(F, F) = (?, ?), float(F), write(F), nl.`, float32(1), float64(1))
 	sols.Next()
 	_ = sols.Close()
-	sols, _ = p.Query(`L = ?, maplist(atom, L), write(L), nl.`, []string{"foo", "bar", "baz"})
+	sols, _ = p.Query(`L = ?, maplist(maplist(atom), L), write(L), nl.`, []string{"foo", "bar", "baz"})
 	sols.Next()
 	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(integer, L), write(L), nl.`, []int{1, 2, 3})
@@ -1300,10 +1302,10 @@ func ExampleInterpreter_Query_placeholders() {
 	_ = sols.Close()
 
 	// Output:
-	// foo
+	// [f,o,o]
 	// 1
 	// 1.0
-	// [foo,bar,baz]
+	// [[f,o,o],[b,a,r],[b,a,z]]
 	// [1,2,3]
 	// [1.0,2.0,3.0]
 }
