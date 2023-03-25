@@ -169,7 +169,9 @@ type procedure interface {
 type Cont func(*Env) *Promise
 
 // Arrive is the entry point of the VM.
-func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
+func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise) {
+	defer ensurePromise(&promise)
+
 	if vm.Unknown == nil {
 		vm.Unknown = func(Atom, []Term, *Env) {}
 	}

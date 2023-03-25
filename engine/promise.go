@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 )
 
 var (
@@ -74,7 +75,7 @@ func catch(recover func(error) *Promise, k func(context.Context) *Promise) *Prom
 }
 
 // Force enforces the delayed execution and returns the result. (i.e. trampoline)
-func (p *Promise) Force(ctx context.Context) (bool, error) {
+func (p *Promise) Force(ctx context.Context) (ok bool, err error) {
 	stack := promiseStack{p}
 	for len(stack) > 0 {
 		select {
@@ -111,12 +112,24 @@ func (p *Promise) Force(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (p *Promise) child(ctx context.Context) *Promise {
-	q := p.delayed[0](ctx)
-	if !p.repeat {
-		p.delayed, p.delayed[0] = p.delayed[1:], nil
+func (p *Promise) child(ctx context.Context) (promise *Promise) {
+	defer ensurePromise(&promise)
+	defer func() {
+		if !p.repeat {
+			p.delayed, p.delayed[0] = p.delayed[1:], nil
+		}
+	}()
+	return p.delayed[0](ctx)
+}
+
+func ensurePromise(p **Promise) {
+	if r := recover(); r != nil {
+		*p = Error(panicError(r))
 	}
-	return q
+}
+
+func panicError(r interface{}) error {
+	return fmt.Errorf("panic: %v", r)
 }
 
 type promiseStack []*Promise
