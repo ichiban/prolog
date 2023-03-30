@@ -35,7 +35,8 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 }
 
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
-func Call(vm *VM, goal Term, k Cont, env *Env) *Promise {
+func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
+	defer ensurePromise(&promise)
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
