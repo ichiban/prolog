@@ -16,7 +16,7 @@ func main() {
 		// Check if the input arguments are of the types you expected.
 		u, ok := env.Resolve(url).(engine.Atom)
 		if !ok {
-			return engine.Error(fmt.Errorf("%s is not an atom", url))
+			return engine.Error(engine.TypeError(engine.NewAtom("atom"), url, env))
 		}
 
 		// Do whatever you want with the given inputs.
@@ -34,6 +34,11 @@ func main() {
 		// Tell Prolog to continue with the given continuation and environment.
 		return k(env)
 	})
+
+	// Treat a string argument as an atom.
+	if err := p.Exec(`:- set_prolog_flag(double_quotes, atom).`); err != nil {
+		panic(err)
+	}
 
 	// Query with the custom predicate get_status/2 but parameterize the first argument.
 	sols, err := p.Query(`get_status(?, Status).`, "https://httpbin.org/status/200")
