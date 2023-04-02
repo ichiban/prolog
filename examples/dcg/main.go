@@ -26,6 +26,8 @@ func main() {
 
 	// Then, define DCG rules with -->/2.
 	if err := i.Exec(`
+:- set_prolog_flag(double_quotes, atom).
+
 sentence --> noun_phrase, verb_phrase.
 verb_phrase --> verb.
 noun_phrase --> article, noun.
