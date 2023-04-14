@@ -467,7 +467,7 @@ func TestVM_Consult(t *testing.T) {
 		{title: `:- consult([]).`, files: List(), ok: true},
 		{title: `:- consult(['testdata/empty.txt']).`, files: List(NewAtom("testdata/empty.txt")), ok: true},
 		{title: `:- consult(['testdata/empty.txt', 'testdata/empty.txt']).`, files: List(NewAtom("testdata/empty.txt"), NewAtom("testdata/empty.txt")), ok: true},
-
+		{title: `:- consult(['testdata/break_term_expansion.pl']).`, files: List(NewAtom("testdata/break_term_expansion.pl")), ok: true},
 		{title: `:- consult('testdata/abc.txt').`, files: NewAtom("testdata/abc.txt"), err: io.EOF},
 		{title: `:- consult(['testdata/abc.txt']).`, files: List(NewAtom("testdata/abc.txt")), err: io.EOF},
 

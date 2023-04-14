@@ -68,7 +68,8 @@ type VM struct {
 	// I/O
 	streams       streams
 	input, output *Stream
-
+	// raw text
+	rawtext map[string]string
 	// Misc
 	debug bool
 }
@@ -300,6 +301,15 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	s.alias = atomUserOutput
 	vm.streams.add(s)
 	vm.output = s
+}
+
+func (vm *VM) SetPrologOperators() {
+	vm.operators.define(1200, operatorSpecifierXFX, atomIf)
+	vm.operators.define(1200, operatorSpecifierXFX, atomArrow)
+	vm.operators.define(1200, operatorSpecifierFX, atomIf)
+	vm.operators.define(1000, operatorSpecifierXFY, atomComma)
+	vm.operators.define(400, operatorSpecifierYFX, atomSlash)
+	return
 }
 
 // Predicate0 is a predicate of arity 0.
