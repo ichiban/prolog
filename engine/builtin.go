@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -674,7 +675,24 @@ func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
 	}, env); err != nil {
 		return Error(err)
 	}
+	saveToRaw(vm, t, "assertz")
 	return k(env)
+}
+
+// saveToRaw - saves a copy of the predicate to the rawText in the VM so that it can be exported later - if required.
+func saveToRaw(vm *VM, t Term, rawkey string) {
+	var buf bytes.Buffer
+	opts := WriteOptions{}
+	t.WriteTerm(&buf, &opts, nil)
+	if vm.rawtext == nil {
+		vm.rawtext = make(map[string]string)
+	}
+	if vm.rawtext["asserta"] == "" {
+		vm.rawtext["asserta"] = fmt.Sprintf("%s\n", buf.String())
+	} else {
+		vm.rawtext["asserta"] = fmt.Sprintf("%s%s\n", vm.rawtext["asserta"], buf.String())
+	}
+
 }
 
 // Asserta prepends t to the database.
@@ -684,6 +702,7 @@ func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 	}, env); err != nil {
 		return Error(err)
 	}
+	saveToRaw(vm, t, "asserta")
 	return k(env)
 }
 

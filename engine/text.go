@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os"
 	"strings"
 )
 
@@ -195,7 +196,8 @@ func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
 	defer func() {
 		vm.loaded[f] = struct{}{}
 	}()
-
+	vm.rawtext = make(map[string]string, 0)
+	vm.rawtext[f] = string(b)
 	return vm.Compile(ctx, string(b))
 }
 
@@ -291,4 +293,52 @@ func ignoreShebangLine(query string) string {
 		i = len(query)
 	}
 	return query[i:]
+}
+
+// Save saves the Prolog text into a file.
+func Save(vm *VM, files Term, k Cont, env *Env) *Promise {
+	var filenames []Term
+	iter := ListIterator{List: files, Env: env}
+	for iter.Next() {
+		filenames = append(filenames, iter.Current())
+	}
+	if err := iter.Err(); err != nil {
+		filenames = []Term{files}
+	}
+
+	return Delay(func(ctx context.Context) *Promise {
+		for _, filename := range filenames {
+			if err := vm.saveFile(ctx, filename, env); err != nil {
+				return Error(err)
+			}
+		}
+		return k(env)
+	})
+}
+
+func (vm *VM) saveFile(ctx context.Context, file Term, env *Env) error {
+	switch f := env.Resolve(file).(type) {
+	case Variable:
+		return InstantiationError(env)
+	case Atom:
+		s := f.String()
+		for _, f := range []string{s, s + ".pl"} {
+			fh, err := os.Create(f)
+			if err != nil {
+				continue
+			}
+			defer fh.Close()
+			return vm.writeToFile(fh)
+		}
+		return existenceError(objectTypeSourceSink, file, env)
+	default:
+		return typeError(validTypeAtom, file, env)
+	}
+}
+
+func (vm *VM) writeToFile(fh *os.File) error {
+	for file, _ := range vm.rawtext {
+		fmt.Fprintf(fh, "%s\n", vm.rawtext[file])
+	}
+	return nil
 }
