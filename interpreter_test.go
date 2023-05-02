@@ -1597,6 +1597,86 @@ func ExampleNew_arg() {
 	// error(type_error(compound,3),arg/3)
 }
 
+/* TODO:
+func ExampleNew_module() {
+	// ISO/IEC 13211-2:2000(E) 6.2.6.1 Examples
+	p := New(nil, nil)
+	if err := p.Exec(`
+:- module(utilities, [length/2, reverse/2]).
+
+length(List, Len) :- length1(List, 0, Len).
+length1([], N, N).
+length1([H|T], N, L) :-
+  N1 is N + 1, length1(T, N1, L).
+
+reverse(List, Reversed) :-
+  reverse1(List, [], Reversed).
+
+reverse1([], R, R).
+reverse1([H|T], Acc, R) :-
+  reverse1(T, [H|Acc], R).
+`); err != nil {
+		panic(err)
+	}
+
+	if err := p.Exec(`
+:- module(foo, []).
+:- use_module(utilities, _, all).
+
+p(Y) :- q(X), length(X, Y).
+
+q([1, 2, 3, 4]).
+`); err != nil {
+		panic(err)
+	}
+
+	{
+		var s struct {
+			X int
+		}
+		if err := p.QuerySolution(`foo:p(X).`).Scan(&s); err != nil {
+			panic(err)
+		}
+		fmt.Printf("X = %d\n", s.X)
+	}
+
+	{
+		var s struct {
+			L []int
+		}
+		if err := p.QuerySolution(`foo:reverse([1, 2, 3], L).`).Scan(&s); err != nil {
+			panic(err)
+		}
+		fmt.Printf("L = %d\n", s.L)
+	}
+
+	{
+		var s struct {
+			L []int
+		}
+		if err := p.QuerySolution(`utilities:reverse1([1, 2, 3], [], L).`).Scan(&s); err != nil {
+			panic(err)
+		}
+		fmt.Printf("L = %d\n", s.L)
+	}
+
+	{
+		var s struct {
+			X TermString
+		}
+		if err := p.QuerySolution(`catch(foo:reverse1([1,2,3], [], L), error(X, _), true).`).Scan(&s); err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s\n", s.X)
+	}
+
+	// Output:
+	// X = 4
+	// L = [3 2 1]
+	// L = [3 2 1]
+}
+*/
+
 func TestDefaultFS_Open(t *testing.T) {
 	var fs defaultFS
 	f, err := fs.Open("interpreter.go")

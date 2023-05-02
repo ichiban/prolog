@@ -13,7 +13,7 @@ func TestVM_Register0(t *testing.T) {
 	vm.Register0(NewAtom("foo"), func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 0}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 0}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{}, Success, nil).Force(context.Background())
@@ -35,7 +35,7 @@ func TestVM_Register1(t *testing.T) {
 	vm.Register1(NewAtom("foo"), func(_ *VM, a Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 1}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
@@ -55,7 +55,7 @@ func TestVM_Register2(t *testing.T) {
 	vm.Register2(NewAtom("foo"), func(_ *VM, a, b Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 2}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 2}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
@@ -75,7 +75,7 @@ func TestVM_Register3(t *testing.T) {
 	vm.Register3(NewAtom("foo"), func(_ *VM, a, b, c Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 3}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 3}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
@@ -95,7 +95,7 @@ func TestVM_Register4(t *testing.T) {
 	vm.Register4(NewAtom("foo"), func(_ *VM, a, b, c, d Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 4}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 4}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
@@ -115,7 +115,7 @@ func TestVM_Register5(t *testing.T) {
 	vm.Register5(NewAtom("foo"), func(_ *VM, a, b, c, d, e Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 5}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 5}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
@@ -135,7 +135,7 @@ func TestVM_Register6(t *testing.T) {
 	vm.Register6(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 6}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 6}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
@@ -155,7 +155,7 @@ func TestVM_Register7(t *testing.T) {
 	vm.Register7(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 7}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 7}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
@@ -175,7 +175,7 @@ func TestVM_Register8(t *testing.T) {
 	vm.Register8(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g, h Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{name: NewAtom("foo"), arity: 8}]
+	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 8}]
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())
@@ -194,7 +194,7 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
 			procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("foo"), arity: 1}: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
+				{module: atomUser, name: NewAtom("foo"), arity: 1}: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
 					return k(env)
 				}),
 			},
@@ -207,7 +207,9 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("unknown procedure", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			vm := VM{
-				unknown: unknownError,
+				unknown: map[Atom]unknownAction{
+					atomUser: unknownError,
+				},
 			}
 			ok, err := vm.Arrive(NewAtom("foo"), []Term{NewAtom("a")}, Success, nil).Force(context.Background())
 			assert.Equal(t, existenceError(objectTypeProcedure, &compound{
@@ -220,7 +222,9 @@ func TestVM_Arrive(t *testing.T) {
 		t.Run("warning", func(t *testing.T) {
 			var warned bool
 			vm := VM{
-				unknown: unknownWarning,
+				unknown: map[Atom]unknownAction{
+					atomUser: unknownWarning,
+				},
 				Unknown: func(name Atom, args []Term, env *Env) {
 					assert.Equal(t, NewAtom("foo"), name)
 					assert.Equal(t, []Term{NewAtom("a")}, args)
@@ -236,7 +240,9 @@ func TestVM_Arrive(t *testing.T) {
 
 		t.Run("fail", func(t *testing.T) {
 			vm := VM{
-				unknown: unknownFail,
+				unknown: map[Atom]unknownAction{
+					atomUser: unknownFail,
+				},
 			}
 			ok, err := vm.Arrive(NewAtom("foo"), []Term{NewAtom("a")}, Success, nil).Force(context.Background())
 			assert.NoError(t, err)

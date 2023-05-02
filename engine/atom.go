@@ -42,6 +42,7 @@ var (
 	atomComma             = NewAtom(",")
 	atomBar               = NewAtom("|")
 	atomCut               = NewAtom("!")
+	atomColon             = NewAtom(":")
 	atomSemiColon         = NewAtom(";")
 	atomNegation          = NewAtom(`\+`)
 	atomThen              = NewAtom("->")
@@ -135,6 +136,7 @@ var (
 	atomMod                     = NewAtom("mod")
 	atomMode                    = NewAtom("mode")
 	atomModify                  = NewAtom("modify")
+	atomModule                  = NewAtom("module")
 	atomMultifile               = NewAtom("multifile")
 	atomNonEmptyList            = NewAtom("non_empty_list")
 	atomNot                     = NewAtom("not")
@@ -182,6 +184,7 @@ var (
 	atomStreamPosition          = NewAtom("stream_position")
 	atomStreamProperty          = NewAtom("stream_property")
 	atomSyntaxError             = NewAtom("syntax_error")
+	atomSystem                  = NewAtom("system")
 	atomTan                     = NewAtom("tan")
 	atomTermExpansion           = NewAtom("term_expansion")
 	atomText                    = NewAtom("text")
@@ -195,6 +198,8 @@ var (
 	atomUndefined               = NewAtom("undefined")
 	atomUnderflow               = NewAtom("underflow")
 	atomUnknown                 = NewAtom("unknown")
+	atomUseModule               = NewAtom("use_module")
+	atomUser                    = NewAtom("user")
 	atomUserInput               = NewAtom("user_input")
 	atomUserOutput              = NewAtom("user_output")
 	atomVar                     = NewAtom("$VAR")
@@ -239,7 +244,7 @@ func NewAtom(name string) Atom {
 // WriteTerm outputs the Atom to an io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
+	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(opts.module, a)
 
 	if openClose {
 		if opts.left.name != 0 && opts.left.specifier.class() == operatorClassPrefix {

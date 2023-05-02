@@ -19,6 +19,7 @@ type WriteOptions struct {
 	variableNames map[Variable]Atom
 	numberVars    bool
 
+	module      Atom
 	ops         operators
 	priority    Integer
 	visited     map[termID]struct{}
@@ -56,11 +57,15 @@ func (o WriteOptions) withRight(op operator) *WriteOptions {
 }
 
 var defaultWriteOptions = WriteOptions{
+	module: atomUser,
 	ops: operators{
-		atomPlus: [_operatorClassLen]operator{
+		opKey{module: atomUser, name: atomColon}: [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 600, specifier: operatorSpecifierXFY, name: atomColon}, // for module qualification
+		},
+		opKey{module: atomUser, name: atomPlus}: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: atomPlus}, // for flag+value
 		},
-		atomSlash: [_operatorClassLen]operator{
+		opKey{module: atomUser, name: atomSlash}: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: atomSlash}, // for principal functors
 		},
 	},
@@ -101,4 +106,33 @@ func id(t Term) termID {
 	default:
 		return t // Assuming it's comparable.
 	}
+}
+
+func moduleTerm(module Atom, t Term, env *Env) (qualifyingModule Atom, unqualifiedTerm Term, _ error) {
+	var c Compound
+	switch t := env.Resolve(t).(type) {
+	case Variable:
+		return 0, nil, InstantiationError(env)
+	case Compound:
+		if t.Functor() != atomColon || t.Arity() != 2 {
+			return module, t, nil
+		}
+		c = t
+	default:
+		return module, t, nil
+	}
+
+	var mm Atom
+	switch a := env.Resolve(c.Arg(0)).(type) {
+	case Variable:
+		return 0, nil, InstantiationError(env)
+	case Atom:
+		mm = a
+	default:
+		return module, t, nil
+	}
+
+	tt := c.Arg(1)
+
+	return moduleTerm(mm, tt, env)
 }

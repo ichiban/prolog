@@ -14,6 +14,9 @@ import (
 //go:embed bootstrap.pl
 var bootstrap string
 
+//go:embed system.pl
+var system string
+
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
 	engine.VM
@@ -154,7 +157,13 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.Register3(engine.NewAtom("nth1"), engine.Nth1)
 	i.Register2(engine.NewAtom("call_nth"), engine.CallNth)
 
-	_ = i.Exec(bootstrap)
+	if err := i.Exec(bootstrap); err != nil {
+		panic(err)
+	}
+
+	if err := i.Exec(system); err != nil {
+		panic(err)
+	}
 
 	return &i
 }

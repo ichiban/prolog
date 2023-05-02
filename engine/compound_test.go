@@ -15,17 +15,17 @@ func TestWriteCompound(t *testing.T) {
 	env := NewEnv().bind(v, l).bind(w, r)
 
 	ops := operators{}
-	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`))
-	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`))
-	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`))
-	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`))
-	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-	ops.define(900, operatorSpecifierFY, atomNegation)
-	ops.define(900, operatorSpecifierYF, NewAtom(`+/`))
-	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
-	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
-	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
-	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
+	ops.define(atomUser, 1200, operatorSpecifierXFX, NewAtom(`:-`))
+	ops.define(atomUser, 1200, operatorSpecifierFX, NewAtom(`:-`))
+	ops.define(atomUser, 1200, operatorSpecifierXF, NewAtom(`-:`))
+	ops.define(atomUser, 1105, operatorSpecifierXFY, NewAtom(`|`))
+	ops.define(atomUser, 1000, operatorSpecifierXFY, NewAtom(`,`))
+	ops.define(atomUser, 900, operatorSpecifierFY, atomNegation)
+	ops.define(atomUser, 900, operatorSpecifierYF, NewAtom(`+/`))
+	ops.define(atomUser, 500, operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(atomUser, 400, operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(atomUser, 200, operatorSpecifierFY, NewAtom(`-`))
+	ops.define(atomUser, 200, operatorSpecifierYF, NewAtom(`--`))
 
 	tests := []struct {
 		title  string
@@ -37,20 +37,20 @@ func TestWriteCompound(t *testing.T) {
 		{title: "list-ish", term: PartialList(NewAtom(`rest`), NewAtom(`a`), NewAtom(`b`)), output: `[a,b|rest]`},
 		{title: "circular list", term: l, output: `[a,b,a|...]`},
 		{title: "curly brackets", term: atomEmptyBlock.Apply(NewAtom(`foo`)), output: `{foo}`},
-		{title: "fx", term: atomIf.Apply(atomIf.Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
-		{title: "fy", term: atomNegation.Apply(atomMinus.Apply(atomNegation.Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
-		{title: "xf", term: NewAtom(`-:`).Apply(NewAtom(`-:`).Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
-		{title: "yf", term: NewAtom(`+/`).Apply(NewAtom(`--`).Apply(NewAtom(`+/`).Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
-		{title: "xfx", term: atomIf.Apply(NewAtom("foo"), atomIf.Apply(NewAtom("bar"), NewAtom("baz"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
-		{title: "yfx", term: atomAsterisk.Apply(Integer(2), atomPlus.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
-		{title: "xfy", term: atomComma.Apply(Integer(2), atomBar.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
-		{title: "ignore_ops(false)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{ignoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
-		{title: "ignore_ops(true)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{ignoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
+		{title: "fx", term: atomIf.Apply(atomIf.Apply(NewAtom(`foo`))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `:- (:-foo)`},
+		{title: "fy", term: atomNegation.Apply(atomMinus.Apply(atomNegation.Apply(NewAtom(`foo`)))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
+		{title: "xf", term: NewAtom(`-:`).Apply(NewAtom(`-:`).Apply(NewAtom(`foo`))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `(foo-:)-:`},
+		{title: "yf", term: NewAtom(`+/`).Apply(NewAtom(`--`).Apply(NewAtom(`+/`).Apply(NewAtom(`foo`)))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
+		{title: "xfx", term: atomIf.Apply(NewAtom("foo"), atomIf.Apply(NewAtom("bar"), NewAtom("baz"))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
+		{title: "yfx", term: atomAsterisk.Apply(Integer(2), atomPlus.Apply(Integer(2), Integer(2))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `2*(2+2)`},
+		{title: "xfy", term: atomComma.Apply(Integer(2), atomBar.Apply(Integer(2), Integer(2))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `2,(2|2)`},
+		{title: "ignore_ops(false)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{module: atomUser, ignoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},
+		{title: "ignore_ops(true)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{module: atomUser, ignoreOps: true, ops: ops, priority: 1201}, output: `+(2,-2)`},
 		{title: "number_vars(false)", term: f.Apply(atomVar.Apply(Integer(0)), atomVar.Apply(Integer(1)), atomVar.Apply(Integer(25)), atomVar.Apply(Integer(26)), atomVar.Apply(Integer(27))), opts: WriteOptions{quoted: true, numberVars: false, ops: ops, priority: 1201}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
 		{title: "number_vars(true)", term: f.Apply(atomVar.Apply(Integer(0)), atomVar.Apply(Integer(1)), atomVar.Apply(Integer(25)), atomVar.Apply(Integer(26)), atomVar.Apply(Integer(27))), opts: WriteOptions{quoted: true, numberVars: true, ops: ops, priority: 1201}, output: `f(A,B,Z,A1,B1)`},
-		{title: "prefix: spacing between operators", term: atomAsterisk.Apply(NewAtom("a"), atomMinus.Apply(NewAtom("b"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `a* -b`},
-		{title: "postfix: spacing between unary minus and open/close", term: atomMinus.Apply(NewAtom(`+/`).Apply(NewAtom("a"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a+/)`},
-		{title: "infix: spacing between unary minus and open/close", term: atomMinus.Apply(atomAsterisk.Apply(NewAtom("a"), NewAtom("b"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `- (a*b)`},
+		{title: "prefix: spacing between operators", term: atomAsterisk.Apply(NewAtom("a"), atomMinus.Apply(NewAtom("b"))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `a* -b`},
+		{title: "postfix: spacing between unary minus and open/close", term: atomMinus.Apply(NewAtom(`+/`).Apply(NewAtom("a"))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `- (a+/)`},
+		{title: "infix: spacing between unary minus and open/close", term: atomMinus.Apply(atomAsterisk.Apply(NewAtom("a"), NewAtom("b"))), opts: WriteOptions{module: atomUser, ops: ops, priority: 1201}, output: `- (a*b)`},
 		{title: "recursive", term: r, output: `f(...)`},
 	}
 

@@ -20,9 +20,10 @@ var (
 
 // Parser turns bytes into Term.
 type Parser struct {
+	module       *Atom
 	lexer        Lexer
 	operators    operators
-	doubleQuotes doubleQuotes
+	doubleQuotes map[Atom]doubleQuotes
 
 	Vars []ParsedVariable
 
@@ -41,10 +42,15 @@ type ParsedVariable struct {
 
 // NewParser creates a new parser from the current VM and io.RuneReader.
 func NewParser(vm *VM, r io.RuneReader) *Parser {
+	return newParserModule(vm, &atomUser, r)
+}
+
+func newParserModule(vm *VM, module *Atom, r io.RuneReader) *Parser {
 	if vm.operators == nil {
 		vm.operators = operators{}
 	}
 	return &Parser{
+		module: module,
 		lexer: Lexer{
 			input: newRuneRingBuffer(r),
 		},
@@ -75,7 +81,7 @@ func (p *Parser) termOf(o reflect.Value) (Term, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return Integer(o.Int()), nil
 	case reflect.String:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes[*p.module] {
 		case doubleQuotesCodes:
 			return CodeList(o.String()), nil
 		case doubleQuotesAtom:
@@ -260,48 +266,55 @@ func (s operatorSpecifier) arity() int {
 	}[s]
 }
 
-type operators map[Atom][_operatorClassLen]operator
+type opKey struct {
+	module Atom
+	name   Atom
+}
 
-func (ops *operators) defined(name Atom) bool {
+type operators map[opKey][_operatorClassLen]operator
+
+func (ops *operators) defined(module, name Atom) bool {
 	ops.init()
-	_, ok := (*ops)[name]
+	_, ok := (*ops)[opKey{module: module, name: name}]
 	return ok
 }
 
-func (ops *operators) definedInClass(name Atom, class operatorClass) bool {
+func (ops *operators) definedInClass(module, name Atom, class operatorClass) bool {
 	ops.init()
-	return (*ops)[name][class] != operator{}
+	return (*ops)[opKey{module: module, name: name}][class] != operator{}
 }
 
-func (ops *operators) define(p Integer, spec operatorSpecifier, op Atom) {
+func (ops *operators) define(module Atom, p Integer, spec operatorSpecifier, op Atom) {
 	if p == 0 {
 		return
 	}
 	ops.init()
-	os := (*ops)[op]
+	key := opKey{module: module, name: op}
+	os := (*ops)[key]
 	os[spec.class()] = operator{
 		priority:  p,
 		specifier: spec,
 		name:      op,
 	}
-	(*ops)[op] = os
+	(*ops)[key] = os
 }
 
 func (ops *operators) init() {
 	if *ops != nil {
 		return
 	}
-	*ops = map[Atom][3]operator{}
+	*ops = map[opKey][3]operator{}
 }
 
-func (ops *operators) remove(name Atom, class operatorClass) {
-	os := (*ops)[name]
+func (ops *operators) remove(module, name Atom, class operatorClass) {
+	key := opKey{module: module, name: name}
+	os := (*ops)[key]
 	os[class] = operator{}
 	if os == ([_operatorClassLen]operator{}) {
-		delete(*ops, name)
+		delete(*ops, key)
 		return
 	}
-	(*ops)[name] = os
+	(*ops)[key] = os
 }
 
 type operator struct {
@@ -419,7 +432,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		p.backup()
 	}
 
-	if op := p.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
+	if op := p.operators[opKey{module: *p.module, name: a}][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
 		return op, nil
 	}
 
@@ -433,13 +446,14 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	if op := p.operators[a][operatorClassInfix]; op != (operator{}) {
+	key := opKey{module: *p.module, name: a}
+	if op := p.operators[key][operatorClassInfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
 		}
 	}
-	if op := p.operators[a][operatorClassPostfix]; op != (operator{}) {
+	if op := p.operators[key][operatorClassPostfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
@@ -518,7 +532,7 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 		return p.curlyBracketedTerm()
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes[*p.module] {
 		case doubleQuotesChars:
 			return CharList(unDoubleQuote(t.val)), nil
 		case doubleQuotesCodes:
@@ -561,7 +575,7 @@ func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(t) {
+	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(*p.module, t) {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -641,7 +655,7 @@ func (p *Parser) atom() (Atom, error) {
 			return 0, errExpectation
 		}
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes[*p.module] {
 		case doubleQuotesAtom:
 			return NewAtom(unDoubleQuote(t.val)), nil
 		default:
@@ -754,7 +768,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 
 func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
-		if p.operators.defined(arg) {
+		if p.operators.defined(*p.module, arg) {
 			// Check if this atom is not followed by its own arguments.
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:

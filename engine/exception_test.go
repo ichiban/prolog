@@ -20,7 +20,7 @@ func TestException_Error(t *testing.T) {
 
 func TestInstantiationError(t *testing.T) {
 	assert.Equal(t, Exception{
-		term: atomError.Apply(atomInstantiationError, rootContext),
+		term: atomError.Apply(atomInstantiationError, atomSlash.Apply(NewAtom("root"), Integer(0))),
 	}, InstantiationError(nil))
 }
 
@@ -28,7 +28,7 @@ func TestDomainError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: atomError.Apply(
 			atomDomainError.Apply(atomNotLessThanZero, Integer(-1)),
-			rootContext,
+			atomSlash.Apply(NewAtom("root"), Integer(0)),
 		),
 	}, DomainError(atomNotLessThanZero, Integer(-1), nil))
 }
@@ -37,7 +37,7 @@ func TestTypeError(t *testing.T) {
 	assert.Equal(t, Exception{
 		term: atomError.Apply(
 			atomTypeError.Apply(atomAtom, Integer(0)),
-			rootContext,
+			atomSlash.Apply(NewAtom("root"), Integer(0)),
 		),
 	}, TypeError(atomAtom, Integer(0), nil))
 }
