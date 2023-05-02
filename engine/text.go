@@ -179,7 +179,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 				}
 			}
 
-			cs, err := compile(et, nil)
+			cs, err := compile(text.module, et, nil)
 			if err != nil {
 				return err
 			}

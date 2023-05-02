@@ -45,6 +45,7 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
+	module := callingContext(env)
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
@@ -57,7 +58,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 		for i, fv := range fvs {
 			args[i] = fv
 		}
-		cs, err := compile(atomIf.Apply(tuple(args...), g), env)
+		cs, err := compile(module, atomIf.Apply(tuple(args...), g), env)
 		if err != nil {
 			return Error(err)
 		}
@@ -731,7 +732,7 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 		vm.procedures[pi] = p
 	}
 
-	added, err := compile(t, env)
+	added, err := compile(cm, t, env)
 	if err != nil {
 		return err
 	}

@@ -34,14 +34,14 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	return p
 }
 
-func compile(t Term, env *Env) (clauses, error) {
+func compile(module Atom, t Term, env *Env) (clauses, error) {
 	t = env.Resolve(t)
 	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
 		iter := altIterator{Alt: body, Env: env}
 		for iter.Next() {
-			c, err := compileClause(head, iter.Current(), env)
+			c, err := compileClause(module, head, iter.Current(), env)
 			if err != nil {
 				return nil, typeError(validTypeCallable, body, env)
 			}
@@ -51,7 +51,7 @@ func compile(t Term, env *Env) (clauses, error) {
 		return cs, nil
 	}
 
-	c, err := compileClause(t, nil, env)
+	c, err := compileClause(module, t, nil, env)
 	c.raw = env.simplify(t)
 	return []clause{c}, err
 }
@@ -63,11 +63,11 @@ type clause struct {
 	bytecode bytecode
 }
 
-func compileClause(head Term, body Term, env *Env) (clause, error) {
+func compileClause(module Atom, head Term, body Term, env *Env) (clause, error) {
 	var c clause
 	c.compileHead(head, env)
 	if body != nil {
-		if err := c.compileBody(body, env); err != nil {
+		if err := c.compileBody(module, body, env); err != nil {
 			return c, typeError(validTypeCallable, body, env)
 		}
 	}
@@ -87,11 +87,11 @@ func (c *clause) compileHead(head Term, env *Env) {
 	}
 }
 
-func (c *clause) compileBody(body Term, env *Env) error {
+func (c *clause) compileBody(module Atom, body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 	iter := seqIterator{Seq: body, Env: env}
 	for iter.Next() {
-		if err := c.compilePred(iter.Current(), env); err != nil {
+		if err := c.compilePred(module, iter.Current(), env); err != nil {
 			return err
 		}
 	}
@@ -100,23 +100,23 @@ func (c *clause) compileBody(body Term, env *Env) error {
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(p Term, env *Env) error {
+func (c *clause) compilePred(module Atom, p Term, env *Env) error {
 	switch p := env.Resolve(p).(type) {
 	case Variable:
-		return c.compilePred(atomCall.Apply(p), env)
+		return c.compilePred(module, atomCall.Apply(p), env)
 	case Atom:
 		switch p {
 		case atomCut:
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p, arity: 0}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{module: module, name: p, arity: 0}})
 		return nil
 	case Compound:
 		for i := 0; i < p.Arity(); i++ {
 			c.compileBodyArg(p.Arg(i), env)
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{module: module, name: p.Functor(), arity: Integer(p.Arity())}})
 		return nil
 	default:
 		return errNotCallable

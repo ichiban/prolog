@@ -2785,7 +2785,7 @@ func TestAsserta(t *testing.T) {
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opPutConst, operand: NewAtom("a")},
-					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
+					{opcode: opCall, operand: procedureIndicator{module: atomUser, name: NewAtom("p"), arity: 1}},
 					{opcode: opCut},
 					{opcode: opExit},
 				},
@@ -2805,7 +2805,7 @@ func TestAsserta(t *testing.T) {
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opPutConst, operand: NewAtom("b")},
-					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
+					{opcode: opCall, operand: procedureIndicator{module: atomUser, name: NewAtom("p"), arity: 1}},
 					{opcode: opExit},
 				},
 			},

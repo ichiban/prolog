@@ -251,9 +251,6 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			break
 		case opCall:
 			pi := operand.(procedureIndicator)
-			if pi.module == 0 {
-				pi.module = callingContext(env)
-			}
 			return vm.ArriveModule(pi.module, pi.name, args, func(env *Env) *Promise {
 				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
