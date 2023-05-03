@@ -28,16 +28,21 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	for pi, u := range t.clauses {
+	for pi, e := range t.procs {
 		pi.module = t.module
-		if existing, ok := vm.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
-			existing.clauses = append(existing.clauses, u.clauses...)
-			continue
+		if existing, ok := vm.procedures[pi]; ok {
+			if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
+				if cs, ok := e.procedure.(clauses); ok && e.multifile {
+					existing.procedure = append(ecs, cs...)
+					vm.procedures[pi] = existing
+					continue
+				}
+			}
 		}
 
-		vm.procedures[pi] = u
+		vm.procedures[pi] = e
 	}
 
 	env := NewEnv().bind(varContext, procedureIndicator{module: t.module, name: atomInitialization, arity: 1})
@@ -58,7 +63,6 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 }
 
 func (vm *VM) resetModule(module Atom) {
-	delete(vm.exported, module)
 	for pi := range vm.procedures {
 		if pi.module != module {
 			continue
@@ -83,24 +87,25 @@ func (vm *VM) resetModule(module Atom) {
 	delete(vm.debug, module)
 }
 
-func (vm *VM) importModule(dst, src Atom, pis []procedureIndicator) {
-	exported := func(pi procedureIndicator) bool {
-		if pis == nil {
+func (vm *VM) importModule(dst, src Atom, limit []procedureIndicator) {
+	target := func(pi procedureIndicator) bool {
+		if limit == nil {
 			return true
 		}
-		for _, e := range pis {
+		for _, e := range limit {
 			if e == (procedureIndicator{name: pi.name, arity: pi.arity}) {
 				return true
 			}
 		}
 		return false
 	}
-	for pi, p := range vm.procedures {
-		if pi.module != src || !exported(pi) {
+	for pi, e := range vm.procedures {
+		if pi.module != src || !e.exported || !target(pi) {
 			continue
 		}
 		pi.module = dst
-		vm.procedures[pi] = p
+		e.importedFrom = src
+		vm.procedures[pi] = e
 	}
 	for opKey, ops := range vm.operators {
 		if opKey.module != src {
@@ -134,8 +139,8 @@ func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 }
 
 func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
-	if text.clauses == nil {
-		text.clauses = map[procedureIndicator]*userDefined{}
+	if text.procs == nil {
+		text.procs = map[procedureIndicator]procedureEntry{}
 	}
 
 	s = ignoreShebangLine(s)
@@ -207,16 +212,17 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		}
 
 		vm.resetModule(text.module)
-		vm.importModule(text.module, atomSystem, vm.exported[atomSystem])
+		vm.importModule(text.module, atomSystem, nil)
 
-		text.exported = text.exported[:0]
 		iter := ListIterator{List: arg(1)}
 		for iter.Next() {
 			pi, _, err := piArg(iter.Current(), nil)
 			if err != nil {
 				return err
 			}
-			text.exported = append(text.exported, pi)
+			e := text.procs[pi]
+			e.exported = true
+			text.procs[pi] = e
 		}
 		return iter.Err()
 	case procedureIndicator{name: atomUseModule, arity: 3}:
@@ -229,20 +235,23 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		default:
 			return typeError(validTypeAtom, m, nil)
 		}
-		vm.importModule(text.module, module, vm.exported[module])
+		vm.importModule(text.module, module, nil)
 		return nil
 	case procedureIndicator{name: atomDynamic, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.dynamic = true
-			u.public = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.dynamic = true
+			e.public = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomMultifile, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.multifile = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.multifile = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomDiscontiguous, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.discontiguous = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.discontiguous = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomInitialization, arity: 1}:
 		text.goals = append(text.goals, arg(0))
@@ -316,14 +325,13 @@ func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
 }
 
 type text struct {
-	module   Atom
-	exported []procedureIndicator
-	buf      clauses
-	clauses  map[procedureIndicator]*userDefined
-	goals    []Term
+	module Atom
+	buf    clauses
+	procs  map[procedureIndicator]procedureEntry
+	goals  []Term
 }
 
-func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
+func (t *text) forEachProcedureEntry(pi Term, f func(pi procedureIndicator, e procedureEntry)) error {
 	iter := anyIterator{Any: pi}
 	for iter.Next() {
 		switch pi := iter.Current().(type) {
@@ -342,12 +350,7 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 					return InstantiationError(nil)
 				case Integer:
 					pi := procedureIndicator{name: n, arity: a}
-					u, ok := t.clauses[pi]
-					if !ok {
-						u = &userDefined{}
-						t.clauses[pi] = u
-					}
-					f(u)
+					f(pi, t.procs[pi])
 				default:
 					return typeError(validTypePredicateIndicator, pi, nil)
 				}
@@ -367,15 +370,16 @@ func (t *text) flush() error {
 	}
 
 	pi := t.buf[0].pi
-	u, ok := t.clauses[pi]
-	if !ok {
-		u = &userDefined{}
-		t.clauses[pi] = u
+	e := t.procs[pi]
+	if e.procedure == nil {
+		e.procedure = clauses{}
 	}
-	if len(u.clauses) > 0 && !u.discontiguous {
+	cs := e.procedure.(clauses)
+	if len(cs) > 0 && !e.discontiguous {
 		return &discontiguousError{pi: pi}
 	}
-	u.clauses = append(u.clauses, t.buf...)
+	e.procedure = append(cs, t.buf...)
+	t.procs[pi] = e
 	t.buf = t.buf[:0]
 	return nil
 }

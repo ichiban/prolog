@@ -63,8 +63,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 			return Error(err)
 		}
 
-		u := userDefined{clauses: cs}
-		return u.call(vm, args, k, env)
+		return cs.call(vm, args, k, env)
 	}
 }
 
@@ -724,12 +723,12 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 	pi.module = cm
 
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	p, ok := vm.procedures[pi]
+	e, ok := vm.procedures[pi]
 	if !ok {
-		p = &userDefined{dynamic: true}
-		vm.procedures[pi] = p
+		e = procedureEntry{dynamic: true, procedure: clauses{}}
+		vm.procedures[pi] = e
 	}
 
 	added, err := compile(cm, t, env)
@@ -737,12 +736,12 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 		return err
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.dynamic {
+	if !e.dynamic {
 		return permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env)
 	}
 
-	u.clauses = merge(u.clauses, added)
+	e.procedure = clauses(merge(e.procedure.(clauses), added))
+	vm.procedures[pi] = e
 	return nil
 }
 
@@ -1091,12 +1090,12 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 	}
 
 	ks := make([]func(context.Context) *Promise, 0, len(vm.procedures))
-	for key, p := range vm.procedures {
+	for key, e := range vm.procedures {
 		if key.module != module {
 			continue
 		}
-		switch p.(type) {
-		case *userDefined:
+		switch e.procedure.(type) {
+		case clauses:
 			c := key.Term()
 			ks = append(ks, func(context.Context) *Promise {
 				return Unify(vm, pi, c, k, env)
@@ -1126,25 +1125,28 @@ func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
 
 	pi.module = dm
 
-	p, ok := vm.procedures[pi]
+	e, ok := vm.procedures[pi]
 	if !ok {
 		return Bool(false)
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.dynamic {
+	if !e.dynamic {
 		return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env))
 	}
 
+	cs := e.procedure.(clauses)
+
 	deleted := 0
-	ks := make([]func(context.Context) *Promise, len(u.clauses))
-	for i, c := range u.clauses {
+	ks := make([]func(context.Context) *Promise, len(cs))
+	for i, c := range cs {
 		i := i
 		raw := rulify(c.raw, env)
 		ks[i] = func(_ context.Context) *Promise {
 			return Unify(vm, t, raw, func(env *Env) *Promise {
 				j := i - deleted
-				u.clauses, u.clauses[len(u.clauses)-1] = append(u.clauses[:j], u.clauses[j+1:]...), clause{}
+				cs, cs[len(cs)-1] = append(cs[:j], cs[j+1:]...), clause{}
+				e.procedure = cs
+				vm.procedures[pi] = e
 				deleted++
 				return k(env)
 			}, env)
@@ -1198,7 +1200,7 @@ func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 	}
 
 	key := procedureIndicator{module: dm, name: n, arity: a}
-	if u, ok := vm.procedures[key].(*userDefined); !ok || !u.dynamic {
+	if e := vm.procedures[key]; !e.dynamic {
 		return Error(permissionError(operationModify, permissionTypeStaticProcedure, key.Term(), env))
 	}
 	delete(vm.procedures, key)
@@ -2037,18 +2039,19 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeCallable, body, env))
 	}
 
-	p, ok := vm.procedures[pi]
+	e, ok := vm.procedures[pi]
 	if !ok {
 		return Bool(false)
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.public {
+	if !e.public {
 		return Error(permissionError(operationAccess, permissionTypePrivateProcedure, pi.Term(), env))
 	}
 
-	ks := make([]func(context.Context) *Promise, len(u.clauses))
-	for i, c := range u.clauses {
+	cs := e.procedure.(clauses)
+
+	ks := make([]func(context.Context) *Promise, len(cs))
+	for i, c := range cs {
 		cp, err := renamedCopy(c.raw, nil, env)
 		if err != nil {
 			return Error(err)

@@ -5,16 +5,7 @@ import (
 	"errors"
 )
 
-type userDefined struct {
-	public        bool
-	dynamic       bool
-	multifile     bool
-	discontiguous bool
-
-	// 7.4.3 says "If no clauses are defined for a procedure indicated by a directive ... then the procedure shall exist but have no clauses."
-	clauses
-}
-
+// 7.4.3 says "If no clauses are defined for a procedure indicated by a directive ... then the procedure shall exist but have no clauses."
 type clauses []clause
 
 func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
