@@ -1597,7 +1597,6 @@ func ExampleNew_arg() {
 	// error(type_error(compound,3),arg/3)
 }
 
-/* TODO:
 func ExampleNew_module() {
 	// ISO/IEC 13211-2:2000(E) 6.2.6.1 Examples
 	p := New(nil, nil)
@@ -1675,7 +1674,6 @@ q([1, 2, 3, 4]).
 	// L = [3 2 1]
 	// L = [3 2 1]
 }
-*/
 
 func TestDefaultFS_Open(t *testing.T) {
 	var fs defaultFS

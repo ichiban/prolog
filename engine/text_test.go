@@ -14,7 +14,6 @@ import (
 var testdata embed.FS
 
 func TestVM_Compile(t *testing.T) {
-
 	tests := []struct {
 		title  string
 		text   string
@@ -430,6 +429,7 @@ bar(b).
 			vm.operators.define(atomUser, 1000, operatorSpecifierXFY, atomComma)
 			vm.operators.define(atomUser, 400, operatorSpecifierYFX, atomSlash)
 			vm.procedures = map[procedureIndicator]procedureEntry{
+				{module: atomUser, name: NewAtom("throw"), arity: 1}: {procedure: Predicate1(Throw)},
 				{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 					multifile: true,
 					procedure: clauses{
@@ -445,7 +445,6 @@ bar(b).
 				},
 			}
 			vm.FS = testdata
-			vm.Register1(NewAtom("throw"), Throw)
 			err := vm.Compile(context.Background(), tt.text, tt.args...)
 			assert.Equal(t, tt.err, err)
 			if tt.err == nil {

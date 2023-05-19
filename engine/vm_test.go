@@ -13,7 +13,7 @@ func TestVM_Register0(t *testing.T) {
 	vm.Register0(NewAtom("foo"), func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 0}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 0}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{}, Success, nil).Force(context.Background())
@@ -35,7 +35,7 @@ func TestVM_Register1(t *testing.T) {
 	vm.Register1(NewAtom("foo"), func(_ *VM, a Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 1}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 1}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a")}, Success, nil).Force(context.Background())
@@ -55,7 +55,7 @@ func TestVM_Register2(t *testing.T) {
 	vm.Register2(NewAtom("foo"), func(_ *VM, a, b Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 2}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 2}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b")}, Success, nil).Force(context.Background())
@@ -75,7 +75,7 @@ func TestVM_Register3(t *testing.T) {
 	vm.Register3(NewAtom("foo"), func(_ *VM, a, b, c Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 3}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 3}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c")}, Success, nil).Force(context.Background())
@@ -95,7 +95,7 @@ func TestVM_Register4(t *testing.T) {
 	vm.Register4(NewAtom("foo"), func(_ *VM, a, b, c, d Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 4}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 4}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d")}, Success, nil).Force(context.Background())
@@ -115,7 +115,7 @@ func TestVM_Register5(t *testing.T) {
 	vm.Register5(NewAtom("foo"), func(_ *VM, a, b, c, d, e Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 5}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 5}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e")}, Success, nil).Force(context.Background())
@@ -135,7 +135,7 @@ func TestVM_Register6(t *testing.T) {
 	vm.Register6(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 6}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 6}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f")}, Success, nil).Force(context.Background())
@@ -155,7 +155,7 @@ func TestVM_Register7(t *testing.T) {
 	vm.Register7(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 7}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 7}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g")}, Success, nil).Force(context.Background())
@@ -175,7 +175,7 @@ func TestVM_Register8(t *testing.T) {
 	vm.Register8(NewAtom("foo"), func(_ *VM, a, b, c, d, e, f, g, h Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	p := vm.procedures[procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 8}].procedure
+	p := vm.procedures[procedureIndicator{module: atomSystem, name: NewAtom("foo"), arity: 8}].procedure
 
 	t.Run("ok", func(t *testing.T) {
 		ok, err := p.call(&vm, []Term{NewAtom("a"), NewAtom("b"), NewAtom("c"), NewAtom("d"), NewAtom("e"), NewAtom("f"), NewAtom("g"), NewAtom("h")}, Success, nil).Force(context.Background())

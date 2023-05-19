@@ -2,6 +2,31 @@
  *  bootstrap script
  */
 
+:-(module(system, [
+  /(true, 0), /(fail, 0), /(!, 0), /(',', 2), /((;), 2), /((->), 2),
+  /(\=, 2),
+  /(atomic, 1), /(nonvar, 1), /(number, 1), /(callable, 1), /(ground, 1),
+  /(@=<, 2), /(==, 2), /(\==, 2), /(@<, 2), /(@>, 2), /(@>=, 2),
+  /(retractall, 1),
+  /(open, 3), /(close, 1), /(flush_output, 0), /(at_end_of_stream, 0), /(at_end_of_stream, 1),
+  /(get_char, 1), /(get_code, 1), /(get_code, 2), /(peek_char, 1), /(peek_code, 1), /(peek_code, 2), /(put_char, 1), /(put_code, 1), /(put_code, 2), /(nl, 0), /(nl, 1),
+  /(get_byte, 1), /(peek_byte, 1), /(put_byte, 1),
+  /(read_term, 2), /(read, 1), /(read, 2),
+  /(write_term, 2), /(write, 1), /(write, 2), /(writeq, 1), /(writeq, 2), /(write_canonical, 1), /(write_canonical, 2),
+  /(once, 1), /(false, 0),
+  /(halt, 0),
+  /(., 1),
+  /(member, 2),
+  /(select, 3),
+  /(maplist, 2),
+  /(maplist, 3),
+  /(maplist, 4),
+  /(maplist, 5),
+  /(maplist, 6),
+  /(maplist, 7),
+  /(maplist, 8)
+])).
+
 % Operators
 
 :-(op(1200, xfx, [:-, -->])).

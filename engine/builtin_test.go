@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"io"
 	"math"
 	"os"
@@ -30,6 +31,7 @@ func TestCall(t *testing.T) {
 			panic("told you")
 		})
 	})
+	require.NoError(t, vm.Compile(context.Background(), `:-(module(user, [])).`))
 	assert.NoError(t, vm.Compile(context.Background(), `
 foo.
 foo(_, _).
@@ -1511,53 +1513,55 @@ func TestBagOf(t *testing.T) {
 	}
 
 	vm := VM{
+		procedures: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
+			{module: atomUser, name: atomComma, arity: 2}: {procedure: Predicate2(func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+				return Call(vm, g1, func(env *Env) *Promise {
+					return Call(vm, g2, k, env)
+				}, env)
+			})},
+			{module: atomUser, name: atomSemiColon, arity: 2}: {procedure: Predicate2(func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+				return Delay(func(context.Context) *Promise {
+					return Call(vm, g1, k, env)
+				}, func(context.Context) *Promise {
+					return Call(vm, g2, k, env)
+				})
+			})},
+			{module: atomUser, name: atomTrue, arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
+				return k(env)
+			})},
+			{module: atomUser, name: atomFail, arity: 0}: {procedure: Predicate0(func(*VM, Cont, *Env) *Promise {
+				return Bool(false)
+			})},
+			{module: atomUser, name: NewAtom("a"), arity: 2}: {procedure: Predicate2(func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+				a, f := NewAtom("$a"), NewAtom("f")
+				return Delay(func(context.Context) *Promise {
+					return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
+				})
+			})},
+			{module: atomUser, name: NewAtom("b"), arity: 2}: {procedure: Predicate2(func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+				b := NewAtom("$b")
+				return Delay(func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+				})
+			})},
+		},
 		unknown: map[Atom]unknownAction{
 			atomUser: unknownWarning,
 		},
 	}
-	vm.Register2(atomEqual, Unify)
-	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
-		return Call(vm, g1, func(env *Env) *Promise {
-			return Call(vm, g2, k, env)
-		}, env)
-	})
-	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
-		return Delay(func(context.Context) *Promise {
-			return Call(vm, g1, k, env)
-		}, func(context.Context) *Promise {
-			return Call(vm, g2, k, env)
-		})
-	})
-	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
-		return k(env)
-	})
-	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
-		return Bool(false)
-	})
-	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
-		a, f := NewAtom("$a"), NewAtom("f")
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
-		})
-	})
-	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
-		b := NewAtom("$b")
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
-		})
-	})
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
@@ -1912,85 +1916,87 @@ func TestSetOf(t *testing.T) {
 	}
 
 	vm := VM{
+		procedures: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
+			{module: atomUser, name: atomComma, arity: 2}: {procedure: Predicate2(func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+				return Call(vm, g1, func(env *Env) *Promise {
+					return Call(vm, g2, k, env)
+				}, env)
+			})},
+			{module: atomUser, name: atomSemiColon, arity: 2}: {procedure: Predicate2(func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+				return Delay(func(context.Context) *Promise {
+					return Call(vm, g1, k, env)
+				}, func(context.Context) *Promise {
+					return Call(vm, g2, k, env)
+				})
+			})},
+			{module: atomUser, name: atomTrue, arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
+				return k(env)
+			})},
+			{module: atomUser, name: atomFail, arity: 0}: {procedure: Predicate0(func(*VM, Cont, *Env) *Promise {
+				return Bool(false)
+			})},
+			{module: atomUser, name: NewAtom("a"), arity: 2}: {procedure: Predicate2(func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+				a, f := NewAtom("$a"), NewAtom("f")
+				return Delay(func(context.Context) *Promise {
+					return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
+				})
+			})},
+			{module: atomUser, name: NewAtom("b"), arity: 2}: {procedure: Predicate2(func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+				b := NewAtom("$b")
+				return Delay(func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
+				})
+			})},
+			{module: atomUser, name: NewAtom("d"), arity: 2}: {procedure: Predicate2(func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+				d := NewAtom("$d")
+				return Delay(func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(1)), k, env)
+				}, func(context.Context) *Promise {
+					return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
+				})
+			})},
+			{module: atomUser, name: NewAtom("member"), arity: 2}: {procedure: Predicate2(func(vm *VM, elem, list Term, k Cont, env *Env) *Promise {
+				var ks []func(context.Context) *Promise
+				iter := ListIterator{List: list, Env: env, AllowPartial: true}
+				for iter.Next() {
+					e := iter.Current()
+					ks = append(ks, func(context.Context) *Promise {
+						return Unify(vm, elem, e, k, env)
+					})
+				}
+				if err := iter.Err(); err != nil {
+					return Error(err)
+				}
+				return Delay(ks...)
+			})},
+			{module: atomUser, name: NewAtom("setof"), arity: 3}: {procedure: Predicate3(SetOf)},
+			{module: atomUser, name: NewAtom("bagof"), arity: 3}: {procedure: Predicate3(BagOf)},
+		},
 		unknown: map[Atom]unknownAction{
 			atomUser: unknownWarning,
 		},
 	}
-	vm.Register2(atomEqual, Unify)
-	vm.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
-		return Call(vm, g1, func(env *Env) *Promise {
-			return Call(vm, g2, k, env)
-		}, env)
-	})
-	vm.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
-		return Delay(func(context.Context) *Promise {
-			return Call(vm, g1, k, env)
-		}, func(context.Context) *Promise {
-			return Call(vm, g2, k, env)
-		})
-	})
-	vm.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
-		return k(env)
-	})
-	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
-		return Bool(false)
-	})
-	vm.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
-		a, f := NewAtom("$a"), NewAtom("f")
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
-		})
-	})
-	vm.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
-		b := NewAtom("$b")
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
-		})
-	})
-	vm.Register2(NewAtom("d"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
-		d := NewAtom("$d")
-		return Delay(func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(1)), k, env)
-		}, func(context.Context) *Promise {
-			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
-		})
-	})
-	vm.Register2(NewAtom("member"), func(vm *VM, elem, list Term, k Cont, env *Env) *Promise {
-		var ks []func(context.Context) *Promise
-		iter := ListIterator{List: list, Env: env, AllowPartial: true}
-		for iter.Next() {
-			e := iter.Current()
-			ks = append(ks, func(context.Context) *Promise {
-				return Unify(vm, elem, e, k, env)
-			})
-		}
-		if err := iter.Err(); err != nil {
-			return Error(err)
-		}
-		return Delay(ks...)
-	})
-	vm.Register3(NewAtom("setof"), SetOf)
-	vm.Register3(NewAtom("bagof"), BagOf)
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
@@ -2069,6 +2075,7 @@ func TestFindAll(t *testing.T) {
 	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
+	require.NoError(t, vm.Compile(context.Background(), `:-(module(user, [])).`))
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
@@ -2399,6 +2406,7 @@ func TestCatch(t *testing.T) {
 	vm.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
+	require.NoError(t, vm.Compile(context.Background(), `:-(module(user, [])).`))
 
 	t.Run("match", func(t *testing.T) {
 		v := NewVariable()
@@ -7420,6 +7428,7 @@ func TestNegation(t *testing.T) {
 	vm.Register0(atomError, func(*VM, Cont, *Env) *Promise {
 		return Error(e)
 	})
+	require.NoError(t, vm.Compile(context.Background(), `:-(module(user, [])).`))
 
 	ok, err := Negate(&vm, atomTrue, Success, nil).Force(context.Background())
 	assert.NoError(t, err)

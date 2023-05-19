@@ -101,13 +101,25 @@ func (c *clause) compilePred(module Atom, p Term, env *Env) error {
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{module: module, name: p, arity: 0}})
+		pi := procedureIndicator{module: module, name: p, arity: 0}
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: pi})
 		return nil
 	case Compound:
+		if p.Functor() == atomColon && p.Arity() == 2 {
+			switch m := env.Resolve(p.Arg(0)).(type) {
+			case Variable:
+				return c.compilePred(module, atomCall.Apply(p), env)
+			case Atom:
+				return c.compilePred(m, p.Arg(1), env)
+			default:
+				break
+			}
+		}
 		for i := 0; i < p.Arity(); i++ {
 			c.compileBodyArg(p.Arg(i), env)
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{module: module, name: p.Functor(), arity: Integer(p.Arity())}})
+		pi := procedureIndicator{module: module, name: p.Functor(), arity: Integer(p.Arity())}
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: pi})
 		return nil
 	default:
 		return errNotCallable

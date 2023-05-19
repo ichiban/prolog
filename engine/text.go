@@ -63,8 +63,8 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 }
 
 func (vm *VM) resetModule(module Atom) {
-	for pi := range vm.procedures {
-		if pi.module != module {
+	for pi, e := range vm.procedures {
+		if pi.module != module || e.builtIn {
 			continue
 		}
 		delete(vm.procedures, pi)
@@ -103,8 +103,13 @@ func (vm *VM) importModule(dst, src Atom, limit []procedureIndicator) {
 		if pi.module != src || !e.exported || !target(pi) {
 			continue
 		}
+		p := e.procedure
+		definedIn := e.definedIn
 		pi.module = dst
+		e := vm.procedures[pi]
 		e.importedFrom = src
+		e.definedIn = definedIn
+		e.procedure = p
 		vm.procedures[pi] = e
 	}
 	for opKey, ops := range vm.operators {
@@ -216,27 +221,37 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 
 		iter := ListIterator{List: arg(1)}
 		for iter.Next() {
-			pi, _, err := piArg(iter.Current(), nil)
-			if err != nil {
-				return err
+			var pi procedureIndicator
+			switch i := iter.Current().(type) {
+			case Variable:
+				return InstantiationError(nil)
+			case Compound:
+				if i.Functor() != atomSlash || i.Arity() != 2 {
+					return typeError(validTypePredicateIndicator, i, nil)
+				}
+				switch n := i.Arg(0).(type) {
+				case Variable:
+					return InstantiationError(nil)
+				case Atom:
+					switch a := i.Arg(1).(type) {
+					case Variable:
+						return InstantiationError(nil)
+					case Integer:
+						pi = procedureIndicator{name: n, arity: a}
+					default:
+						return typeError(validTypePredicateIndicator, i, nil)
+					}
+				default:
+					return typeError(validTypePredicateIndicator, i, nil)
+				}
+			default:
+				return typeError(validTypePredicateIndicator, i, nil)
 			}
 			e := text.procs[pi]
 			e.exported = true
 			text.procs[pi] = e
 		}
 		return iter.Err()
-	case procedureIndicator{name: atomUseModule, arity: 3}:
-		var module Atom
-		switch m := arg(0).(type) {
-		case Variable:
-			return InstantiationError(nil)
-		case Atom:
-			module = m
-		default:
-			return typeError(validTypeAtom, m, nil)
-		}
-		vm.importModule(text.module, module, nil)
-		return nil
 	case procedureIndicator{name: atomDynamic, arity: 1}:
 		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
 			e.dynamic = true
@@ -271,7 +286,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 			module = atomUser
 		}
 		env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
-		ok, err := Call(vm, d, Success, env).Force(ctx)
+		ok, err := Call(vm, atomColon.Apply(module, d), Success, env).Force(ctx)
 		if err != nil {
 			return err
 		}

@@ -45,7 +45,10 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
-	module := callingContext(env)
+	module, goal, err := moduleTerm(atomUser, goal, env)
+	if err != nil {
+		return Error(err)
+	}
 	switch g := env.Resolve(goal).(type) {
 	case Variable:
 		return Error(InstantiationError(env))
@@ -3088,4 +3091,71 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 			return appendLists(vm, l1, ys, l3, k, env)
 		}, env)
 	})
+}
+
+func UseModule(vm *VM, module, file, imports Term, k Cont, env *Env) *Promise {
+	cm, imports, err := moduleTerm(atomUser, imports, env)
+	if err != nil {
+		return Error(err)
+	}
+
+	var m Atom
+	switch module := env.Resolve(module).(type) {
+	case Variable:
+		// TODO: load from file
+		return Error(InstantiationError(env))
+	case Atom:
+		m = module
+	default:
+		return Error(typeError(validTypeAtom, module, env))
+	}
+
+	switch file := env.Resolve(file).(type) {
+	case Variable:
+		break
+	case Atom:
+		// TODO: check if it's actually the file.
+		break
+	default:
+		return Error(typeError(validTypeAtom, file, env))
+	}
+
+	if i, ok := env.Resolve(imports).(Atom); ok && i == atomAll {
+		vm.importModule(cm, m, nil)
+		return k(env)
+	}
+
+	var pis []procedureIndicator
+	iter := ListIterator{List: imports, Env: env}
+	for iter.Next() {
+		var pi procedureIndicator
+		switch i := iter.Current().(type) {
+		case Variable:
+			return Error(InstantiationError(env))
+		case Compound:
+			if i.Functor() != atomSlash || i.Arity() != 2 {
+				return Error(typeError(validTypePredicateIndicator, i, env))
+			}
+			switch n := i.Arg(0).(type) {
+			case Variable:
+				return Error(InstantiationError(env))
+			case Atom:
+				switch a := i.Arg(1).(type) {
+				case Variable:
+					return Error(InstantiationError(env))
+				case Integer:
+					pi = procedureIndicator{name: n, arity: a}
+				default:
+					return Error(typeError(validTypePredicateIndicator, i, env))
+				}
+			default:
+				return Error(typeError(validTypePredicateIndicator, i, env))
+			}
+		default:
+			return Error(typeError(validTypePredicateIndicator, i, env))
+		}
+		pis = append(pis, pi)
+	}
+	vm.importModule(cm, m, pis)
+	return k(env)
 }
