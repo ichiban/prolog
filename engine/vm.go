@@ -190,7 +190,7 @@ type Cont func(*Env) *Promise
 
 // Arrive is the entry point of the VM.
 func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	return vm.ArriveModule(module, name, args, k, env)
 }
 
@@ -268,7 +268,12 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			break
 		case opCall:
 			pi := operand.(procedureIndicator)
-			return vm.ArriveModule(pi.module, pi.name, args, func(env *Env) *Promise {
+			module := pi.module
+			if module == atomSystem {
+				// `system` is a special module for built-ins. It can't be a calling module.
+				module = callingModule(env)
+			}
+			return vm.ArriveModule(module, pi.name, args, func(env *Env) *Promise {
 				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:

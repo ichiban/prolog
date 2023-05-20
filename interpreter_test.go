@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ichiban/prolog/engine"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"regexp"
@@ -748,6 +749,7 @@ append(nil, L, L).`},
 			})
 			i.Register1(engine.NewAtom("consult"), engine.Consult)
 			i.Register3(engine.NewAtom("op"), engine.Op)
+			require.NoError(t, i.Exec(`:-(module(user, [])).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
 			assert.NoError(t, i.Exec(tt.premise))
@@ -798,6 +800,7 @@ func TestInterpreter_Query(t *testing.T) {
 			var i Interpreter
 			i.Register3(engine.NewAtom("op"), engine.Op)
 			i.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
+			require.NoError(t, i.Exec(`:-(module(user, [])).`))
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
 :-(set_prolog_flag(double_quotes, atom)).
@@ -1230,6 +1233,7 @@ foo(c, d).
 		i.Register0(engine.NewAtom("error"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
+		require.NoError(t, i.Exec(`:-(module(user, [])).`))
 		sol := i.QuerySolution(`error.`)
 		assert.Equal(t, err, sol.Err())
 
@@ -1673,6 +1677,7 @@ q([1, 2, 3, 4]).
 	// X = 4
 	// L = [3 2 1]
 	// L = [3 2 1]
+	// existence_error(procedure,reverse1/3)
 }
 
 func TestDefaultFS_Open(t *testing.T) {

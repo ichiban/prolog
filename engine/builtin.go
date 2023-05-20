@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-func callingContext(env *Env) Atom {
+func callingModule(env *Env) Atom {
 	pi, ok := env.Resolve(varContext).(procedureIndicator)
 	if !ok {
 		return atomUser
@@ -45,7 +45,7 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
-	module, goal, err := moduleTerm(atomUser, goal, env)
+	module, goal, err := moduleTerm(callingModule(env), goal, env)
 	if err != nil {
 		return Error(err)
 	}
@@ -518,7 +518,7 @@ var operatorSpecifiers = map[Atom]operatorSpecifier{
 
 // Op defines operator with priority and specifier, or removes when priority is 0.
 func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	var p Integer
 	switch priority := env.Resolve(priority).(type) {
 	case Variable:
@@ -626,7 +626,7 @@ func appendUniqNewAtom(slice []Atom, elem Atom) []Atom {
 
 // CurrentOp succeeds if operator is defined with priority and specifier.
 func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 
 	switch p := env.Resolve(priority).(type) {
 	case Variable:
@@ -705,7 +705,7 @@ func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 }
 
 func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *Env) error {
-	module := callingContext(env)
+	module := callingModule(env)
 	cm, c, err := moduleTerm(module, t, env)
 	if err != nil {
 		return err
@@ -1074,7 +1074,7 @@ func Catch(vm *VM, goal, catcher, recover Term, k Cont, env *Env) *Promise {
 
 // CurrentPredicate matches pi with a predicate indicator of the user-defined procedures in the database.
 func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	switch pi := env.Resolve(pi).(type) {
 	case Variable:
 		break
@@ -1112,7 +1112,7 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 
 // Retract removes the first clause that matches with t.
 func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	dm, c, err := moduleTerm(module, t, env)
 	if err != nil {
 		return Error(err)
@@ -1160,7 +1160,7 @@ func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
 
 // Abolish removes the procedure indicated by pi from the database.
 func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	dm, pi, err := moduleTerm(module, pi, env)
 	if err != nil {
 		return Error(err)
@@ -1512,7 +1512,7 @@ func FlushOutput(vm *VM, streamOrAlias Term, k Cont, env *Env) *Promise {
 
 // WriteTerm outputs term to stream with options.
 func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 
 	s, err := stream(vm, streamOrAlias, env)
 	if err != nil {
@@ -2023,7 +2023,7 @@ func Halt(_ *VM, n Term, k Cont, env *Env) *Promise {
 
 // Clause unifies head and body with H and B respectively where H :- B is in the database.
 func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	dm, hh, err := moduleTerm(module, head, env)
 	if err != nil {
 		return Error(err)
@@ -2579,7 +2579,7 @@ func SetStreamPosition(vm *VM, streamOrAlias, position Term, k Cont, env *Env) *
 
 // CharConversion registers a character conversion from inChar to outChar, or remove the conversion if inChar = outChar.
 func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	var i rune
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
@@ -2622,7 +2622,7 @@ func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 
 // CurrentCharConversion succeeds iff a conversion from inChar to outChar is defined.
 func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	switch in := env.Resolve(inChar).(type) {
 	case Variable:
 		break
@@ -2673,7 +2673,7 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 
 // SetPrologFlag sets flag to value.
 func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	var modify func(vm *VM, module, value Atom) error
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
@@ -2779,7 +2779,7 @@ func modifyDoubleQuotes(vm *VM, module, value Atom) error {
 
 // CurrentPrologFlag succeeds iff flag is set to value.
 func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
-	module := callingContext(env)
+	module := callingModule(env)
 	switch f := env.Resolve(flag).(type) {
 	case Variable:
 		break
@@ -2834,7 +2834,7 @@ func ExpandTerm(vm *VM, term1, term2 Term, k Cont, env *Env) *Promise {
 }
 
 func expand(vm *VM, term Term, env *Env) (Term, error) {
-	module := callingContext(env)
+	module := callingModule(env)
 	if _, ok := vm.procedures[procedureIndicator{module: module, name: atomTermExpansion, arity: 2}]; ok {
 		var ret Term
 		v := NewVariable()
@@ -3094,7 +3094,7 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 }
 
 func UseModule(vm *VM, module, file, imports Term, k Cont, env *Env) *Promise {
-	cm, imports, err := moduleTerm(atomUser, imports, env)
+	cm, imports, err := moduleTerm(callingModule(env), imports, env)
 	if err != nil {
 		return Error(err)
 	}
