@@ -16,6 +16,7 @@
   /(once, 1), /(false, 0),
   /(halt, 0),
   /(., 1),
+  /(phrase, 2),
   /(member, 2),
   /(select, 3),
   /(maplist, 2),
