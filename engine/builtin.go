@@ -14,10 +14,7 @@ import (
 )
 
 func callingModule(env *Env) Atom {
-	pi, ok := env.Resolve(varContext).(procedureIndicator)
-	if !ok {
-		return atomUser
-	}
+	pi, _ := env.Resolve(varContext).(procedureIndicator)
 	return pi.module
 }
 
@@ -45,29 +42,26 @@ func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
 // Call executes goal. it succeeds if goal followed by k succeeds. A cut inside goal doesn't affect outside of Call.
 func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
+
 	module, goal, err := moduleTerm(callingModule(env), goal, env)
 	if err != nil {
 		return Error(err)
 	}
-	switch g := env.Resolve(goal).(type) {
-	case Variable:
-		return Error(InstantiationError(env))
-	default:
-		fvs := env.freeVariables(g)
-		args, err := makeSlice(len(fvs))
-		if err != nil {
-			return Error(resourceError(resourceMemory, env))
-		}
-		for i, fv := range fvs {
-			args[i] = fv
-		}
-		cs, err := compile(module, atomIf.Apply(tuple(args...), g), env)
-		if err != nil {
-			return Error(err)
-		}
 
-		return cs.call(vm, args, k, env)
+	fvs := env.freeVariables(goal)
+	args, err := makeSlice(len(fvs))
+	if err != nil {
+		return Error(resourceError(resourceMemory, env))
 	}
+	for i, fv := range fvs {
+		args[i] = fv
+	}
+	cs, err := compile(module, atomIf.Apply(tuple(args...), goal), env)
+	if err != nil {
+		return Error(err)
+	}
+
+	return cs.call(vm, args, k, env)
 }
 
 // Call1 succeeds if closure with an additional argument succeeds.
@@ -1168,8 +1162,6 @@ func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 
 	var name, arity Term
 	switch pi := env.Resolve(pi).(type) {
-	case Variable:
-		return Error(InstantiationError(env))
 	case Compound:
 		if pi.Functor() != atomSlash || pi.Arity() != 2 {
 			return Error(typeError(validTypePredicateIndicator, pi, env))

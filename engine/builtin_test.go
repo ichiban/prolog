@@ -1242,6 +1242,7 @@ func TestCurrentOp(t *testing.T) {
 	vm.operators.define(atomUser, 900, operatorSpecifierXFX, NewAtom(`+++`))
 	vm.operators.define(atomUser, 1000, operatorSpecifierXFX, NewAtom(`++`))
 	vm.operators.define(atomUser, 1100, operatorSpecifierXFX, NewAtom(`+`))
+	vm.operators.define(NewAtom("foo"), 1200, operatorSpecifierFX, NewAtom(`-`))
 
 	t.Run("single solution", func(t *testing.T) {
 		ok, err := CurrentOp(&vm, Integer(1100), atomXFX, atomPlus, Success, nil).Force(context.Background())
@@ -2507,7 +2508,7 @@ func TestCurrentPredicate(t *testing.T) {
 
 	t.Run("builtin predicate", func(t *testing.T) {
 		vm := VM{procedures: map[procedureIndicator]procedureEntry{
-			{name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
+			{module: atomUser, name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
 		}}
 		ok, err := CurrentPredicate(&vm, &compound{
 			functor: atomSlash,
@@ -2568,6 +2569,21 @@ func TestCurrentPredicate(t *testing.T) {
 				assert.False(t, ok)
 			})
 		})
+	})
+
+	t.Run("different module", func(t *testing.T) {
+		vm := VM{procedures: map[procedureIndicator]procedureEntry{
+			{module: NewAtom("bar"), name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
+		}}
+		ok, err := CurrentPredicate(&vm, &compound{
+			functor: atomSlash,
+			args: []Term{
+				NewAtom("foo"),
+				Integer(1),
+			},
+		}, Success, nil).Force(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, ok)
 	})
 }
 
@@ -5401,7 +5417,7 @@ func TestClause(t *testing.T) {
 
 		vm := VM{
 			procedures: map[procedureIndicator]procedureEntry{
-				{name: NewAtom("green"), arity: 1}: {public: true, procedure: clauses{
+				{module: atomUser, name: NewAtom("green"), arity: 1}: {public: true, procedure: clauses{
 					{raw: &compound{
 						functor: atomIf, args: []Term{
 							&compound{functor: NewAtom("green"), args: []Term{x}},
