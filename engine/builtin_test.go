@@ -7593,6 +7593,34 @@ func Test_iteratedGoalTerm(t *testing.T) {
 	}
 }
 
+func TestCurrentModule(t *testing.T) {
+	tests := []struct {
+		title  string
+		module Term
+		ok     bool
+		err    error
+	}{
+		{title: `current_module(foo).`, module: NewAtom("foo"), ok: true},
+		{title: `current_module(fred:sid).`, module: atomColon.Apply(NewAtom("fred"), NewAtom("sid")), err: typeError(validTypeAtom, atomColon.Apply(NewAtom("fred"), NewAtom("sid")), nil)},
+	}
+
+	vm := VM{
+		procedures: map[procedureIndicator]procedureEntry{
+			{module: NewAtom("foo"), name: NewAtom("p"), arity: 0}: {},
+			{module: NewAtom("foo"), name: NewAtom("q"), arity: 0}: {},
+			{module: NewAtom("bar"), name: NewAtom("p"), arity: 0}: {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			ok, err := CurrentModule(&vm, tt.module, Success, nil).Force(context.Background())
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.err, err)
+		})
+	}
+}
+
 type mockWriter struct {
 	mock.Mock
 }

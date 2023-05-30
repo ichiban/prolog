@@ -3151,3 +3151,25 @@ func UseModule(vm *VM, module, file, imports Term, k Cont, env *Env) *Promise {
 	vm.importModule(cm, m, pis)
 	return k(env)
 }
+
+func CurrentModule(vm *VM, module Term, k Cont, env *Env) *Promise {
+	switch m := env.Resolve(module).(type) {
+	case Variable, Atom:
+		break
+	default:
+		return Error(typeError(validTypeAtom, m, env))
+	}
+
+	ms := map[Atom]struct{}{}
+	for pi := range vm.procedures {
+		ms[pi.module] = struct{}{}
+	}
+	ks := make([]func(context.Context) *Promise, 0, len(ms))
+	for m := range ms {
+		m := m
+		ks = append(ks, func(context.Context) *Promise {
+			return Unify(vm, module, m, k, env)
+		})
+	}
+	return Delay(ks...)
+}

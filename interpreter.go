@@ -156,6 +156,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 
 	// Module
 	i.Register3(engine.NewAtom("use_module"), engine.UseModule)
+	i.Register1(engine.NewAtom("current_module"), engine.CurrentModule)
 
 	if err := i.Exec(bootstrap); err != nil {
 		panic(err)
