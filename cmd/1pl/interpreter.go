@@ -14,8 +14,5 @@ func New(r io.Reader, w io.Writer) *prolog.Interpreter {
 	i.Register2(engine.NewAtom("go_string"), func(vm *engine.VM, term, s engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
 		return engine.Unify(vm, s, engine.NewAtom(fmt.Sprintf("%#v", term)), k, env)
 	})
-	if err := i.Exec(`:- module(user, []).`); err != nil {
-		panic(err)
-	}
 	return i
 }

@@ -146,6 +146,7 @@ var (
 	atomNumberVars              = NewAtom("numbervars")
 	atomOff                     = NewAtom("off")
 	atomOn                      = NewAtom("on")
+	atomOp                      = NewAtom("op")
 	atomOpen                    = NewAtom("open")
 	atomOperator                = NewAtom("operator")
 	atomOperatorPriority        = NewAtom("operator_priority")

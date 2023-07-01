@@ -2,8 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -16,15 +20,17 @@ func (e *discontiguousError) Error() string {
 	return fmt.Sprintf("%s is discontiguous", e.pi)
 }
 
-// Compile compiles the Prolog text and updates the DB accordingly.
-func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
+// CompileModule compiles the Prolog text and updates the DB accordingly.
+// If the given Prolog text defines a module, it returns the module name.
+// Otherwise, it returns an atom `user`.
+func (vm *VM) CompileModule(ctx context.Context, s string, args ...interface{}) (Atom, error) {
 	t := text{module: atomUser}
 	if err := vm.compile(ctx, &t, s, args...); err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := t.flush(); err != nil {
-		return err
+		return 0, err
 	}
 
 	if vm.procedures == nil {
@@ -32,14 +38,21 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	}
 	for pi, e := range t.procs {
 		pi.module = t.module
-		if existing, ok := vm.procedures[pi]; ok {
-			if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
-				if cs, ok := e.procedure.(clauses); ok && e.multifile {
-					existing.procedure = append(ecs, cs...)
-					vm.procedures[pi] = existing
-					continue
-				}
+
+		existing := vm.procedures[pi]
+		if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
+			if cs, ok := e.procedure.(clauses); ok && e.multifile {
+				e.procedure = append(ecs, cs...)
 			}
+		}
+
+		// Imported predicates are already in vm.procedures.
+		if e.procedure == nil {
+			e.procedure = existing.procedure
+		}
+
+		if e.procedure == nil {
+			e.procedure = clauses{}
 		}
 
 		vm.procedures[pi] = e
@@ -49,17 +62,23 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 	for _, g := range t.goals {
 		ok, err := Call(vm, g, Success, env).Force(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if !ok {
 			var sb strings.Builder
 			s := NewOutputTextStream(&sb)
 			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
-			return fmt.Errorf("failed initialization goal: %s", sb.String())
+			return 0, fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
 
-	return nil
+	return t.module, nil
+}
+
+// Compile compiles the Prolog text and updates the DB accordingly.
+func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
+	_, err := vm.CompileModule(ctx, s, args...)
+	return err
 }
 
 func (vm *VM) resetModule(module Atom) {
@@ -87,7 +106,7 @@ func (vm *VM) resetModule(module Atom) {
 	delete(vm.debug, module)
 }
 
-func (vm *VM) importModule(dst, src Atom, limit []procedureIndicator) {
+func (vm *VM) importPredicates(dst, src Atom, limit []procedureIndicator) {
 	target := func(pi procedureIndicator) bool {
 		if limit == nil {
 			return true
@@ -107,11 +126,15 @@ func (vm *VM) importModule(dst, src Atom, limit []procedureIndicator) {
 		definedIn := e.definedIn
 		pi.module = dst
 		e := vm.procedures[pi]
+		e.exported = true
 		e.importedFrom = src
 		e.definedIn = definedIn
 		e.procedure = p
 		vm.procedures[pi] = e
 	}
+}
+
+func (vm *VM) importOps(dst, src Atom) {
 	for opKey, ops := range vm.operators {
 		if opKey.module != src {
 			continue
@@ -134,7 +157,7 @@ func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 
 	return Delay(func(ctx context.Context) *Promise {
 		for _, filename := range filenames {
-			if err := vm.ensureLoaded(ctx, filename, env); err != nil {
+			if _, err := vm.ensureLoaded(ctx, filename, env); err != nil {
 				return Error(err)
 			}
 		}
@@ -217,7 +240,8 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		}
 
 		vm.resetModule(text.module)
-		vm.importModule(text.module, atomSystem, nil)
+		vm.importPredicates(text.module, atomSystem, nil)
+		vm.importOps(text.module, atomSystem)
 
 		iter := ListIterator{List: arg(1)}
 		for iter.Next() {
@@ -252,6 +276,14 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 			text.procs[pi] = e
 		}
 		return iter.Err()
+	case procedureIndicator{name: atomUseModule, arity: 2}:
+		module := text.module
+		if module == 0 {
+			module = atomUser
+		}
+		env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
+		_, err := UseModule(vm, NewVariable(), arg(0), arg(1), Success, env).Force(ctx)
+		return err
 	case procedureIndicator{name: atomDynamic, arity: 1}:
 		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
 			e.dynamic = true
@@ -272,14 +304,25 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		text.goals = append(text.goals, arg(0))
 		return nil
 	case procedureIndicator{name: atomInclude, arity: 1}:
-		_, b, err := vm.open(arg(0), nil)
+		var n string
+		switch a := arg(0).(type) {
+		case Variable:
+			return InstantiationError(nil)
+		case Atom:
+			n = a.String()
+		default:
+			return typeError(validTypeAtom, a, nil)
+		}
+
+		b, err := os.ReadFile(n)
 		if err != nil {
-			return err
+			return existenceError(objectTypeSourceSink, arg(0), nil)
 		}
 
 		return vm.compile(ctx, text, string(b))
 	case procedureIndicator{name: atomEnsureLoaded, arity: 1}:
-		return vm.ensureLoaded(ctx, arg(0), nil)
+		_, err := vm.ensureLoaded(ctx, arg(0), nil)
+		return err
 	default:
 		module := text.module
 		if module == 0 {
@@ -300,43 +343,69 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 	}
 }
 
-func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
-	f, b, err := vm.open(file, env)
-	if err != nil {
-		return err
-	}
-
-	if vm.loaded == nil {
-		vm.loaded = map[string]struct{}{}
-	}
-	if _, ok := vm.loaded[f]; ok {
-		return nil
-	}
-	defer func() {
-		vm.loaded[f] = struct{}{}
-	}()
-
-	return vm.Compile(ctx, string(b))
-}
-
-func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
+func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) (Atom, error) {
+	var fn string
 	switch f := env.Resolve(file).(type) {
 	case Variable:
-		return "", nil, InstantiationError(env)
+		return 0, InstantiationError(env)
 	case Atom:
-		s := f.String()
-		for _, f := range []string{s, s + ".pl"} {
-			b, err := fs.ReadFile(vm.FS, f)
-			if err != nil {
-				continue
-			}
-
-			return f, b, nil
-		}
-		return "", nil, existenceError(objectTypeSourceSink, file, env)
+		fn = f.String()
 	default:
-		return "", nil, typeError(validTypeAtom, file, env)
+		return 0, typeError(validTypeAtom, file, env)
 	}
+
+	for _, f := range []string{fn, fn + ".pl"} {
+		switch m, err := vm.load(ctx, f); {
+		case err == nil:
+			return m, nil
+		case errors.Is(err, fs.ErrNotExist):
+			continue
+		default:
+			return 0, err
+		}
+	}
+	return 0, existenceError(objectTypeSourceSink, file, env)
+}
+
+func (vm *VM) load(ctx context.Context, filename string) (Atom, error) {
+	if vm.loaded == nil {
+		vm.loaded = map[string]Atom{}
+	}
+	if m, ok := vm.loaded[filename]; ok {
+		return m, nil
+	}
+
+	f, err := vm.FS.Open(filename)
+	if err != nil {
+		return 0, err
+	}
+
+	var m Atom
+	switch f := f.(type) {
+	case Module:
+		base := filepath.Base(filename)
+		m = NewAtom(strings.TrimSuffix(base, filepath.Ext(base)))
+		if vm.procedures == nil {
+			vm.procedures = map[procedureIndicator]procedureEntry{}
+		}
+		for pi, e := range f.procedures {
+			pi.module = m
+			vm.procedures[pi] = e
+		}
+	default:
+		b, err := io.ReadAll(f)
+		_ = f.Close()
+		if err != nil {
+			return 0, err
+		}
+
+		if m, err = vm.CompileModule(ctx, string(b)); err != nil {
+			return 0, err
+		}
+	}
+
+	vm.loaded[filename] = m
+	return m, nil
 }
 
 type text struct {

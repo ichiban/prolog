@@ -1680,13 +1680,6 @@ q([1, 2, 3, 4]).
 	// existence_error(procedure,reverse1/3)
 }
 
-func TestDefaultFS_Open(t *testing.T) {
-	var fs defaultFS
-	f, err := fs.Open("interpreter.go")
-	assert.NoError(t, err)
-	assert.NotNil(t, f)
-}
-
 type readFn func(p []byte) (n int, err error)
 
 func (f readFn) Read(p []byte) (n int, err error) {

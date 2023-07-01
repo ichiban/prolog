@@ -264,7 +264,7 @@ foo(b).
 			},
 		}},
 		{title: "include", text: `
-:- include('testdata/foo').
+:- include('testdata/foo.pl').
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 0}: {
 				procedure: clauses{

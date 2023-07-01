@@ -3086,70 +3086,68 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 }
 
 func UseModule(vm *VM, module, file, imports Term, k Cont, env *Env) *Promise {
-	cm, imports, err := moduleTerm(callingModule(env), imports, env)
-	if err != nil {
-		return Error(err)
-	}
-
-	var m Atom
-	switch module := env.Resolve(module).(type) {
-	case Variable:
-		// TODO: load from file
-		return Error(InstantiationError(env))
-	case Atom:
-		m = module
-	default:
-		return Error(typeError(validTypeAtom, module, env))
-	}
-
-	switch file := env.Resolve(file).(type) {
-	case Variable:
-		break
-	case Atom:
-		// TODO: check if it's actually the file.
-		break
-	default:
-		return Error(typeError(validTypeAtom, file, env))
-	}
-
-	if i, ok := env.Resolve(imports).(Atom); ok && i == atomAll {
-		vm.importModule(cm, m, nil)
-		return k(env)
-	}
-
 	var pis []procedureIndicator
-	iter := ListIterator{List: imports, Env: env}
-	for iter.Next() {
-		var pi procedureIndicator
-		switch i := iter.Current().(type) {
-		case Variable:
-			return Error(InstantiationError(env))
-		case Compound:
-			if i.Functor() != atomSlash || i.Arity() != 2 {
-				return Error(typeError(validTypePredicateIndicator, i, env))
-			}
-			switch n := i.Arg(0).(type) {
+	if i, ok := env.Resolve(imports).(Atom); !ok || i != atomAll {
+		iter := ListIterator{List: imports, Env: env}
+		for iter.Next() {
+			var pi procedureIndicator
+			switch i := iter.Current().(type) {
 			case Variable:
 				return Error(InstantiationError(env))
-			case Atom:
-				switch a := i.Arg(1).(type) {
+			case Compound:
+				if i.Functor() != atomSlash || i.Arity() != 2 {
+					return Error(typeError(validTypePredicateIndicator, i, env))
+				}
+				switch n := i.Arg(0).(type) {
 				case Variable:
 					return Error(InstantiationError(env))
-				case Integer:
-					pi = procedureIndicator{name: n, arity: a}
+				case Atom:
+					switch a := i.Arg(1).(type) {
+					case Variable:
+						return Error(InstantiationError(env))
+					case Integer:
+						pi = procedureIndicator{name: n, arity: a}
+					default:
+						return Error(typeError(validTypePredicateIndicator, i, env))
+					}
 				default:
 					return Error(typeError(validTypePredicateIndicator, i, env))
 				}
 			default:
 				return Error(typeError(validTypePredicateIndicator, i, env))
 			}
-		default:
-			return Error(typeError(validTypePredicateIndicator, i, env))
+			pis = append(pis, pi)
 		}
-		pis = append(pis, pi)
 	}
-	vm.importModule(cm, m, pis)
-	return k(env)
+
+	switch module := env.Resolve(module).(type) {
+	case Variable:
+		break
+	case Atom:
+		vm.importPredicates(callingModule(env), module, pis)
+		return k(env)
+	default:
+		return Error(typeError(validTypeAtom, module, env))
+	}
+
+	switch file := env.Resolve(file).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Atom:
+		break
+	default:
+		return Error(typeError(validTypeAtom, file, env))
+	}
+
+	return Delay(func(ctx context.Context) *Promise {
+		m, err := vm.ensureLoaded(ctx, file, env)
+		if err != nil {
+			return Error(err)
+		}
+
+		vm.importPredicates(callingModule(env), m, pis)
+		return Unify(vm, module, m, k, env)
+	})
 }
 
 func CurrentModule(vm *VM, module Term, k Cont, env *Env) *Promise {
