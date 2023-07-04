@@ -31,11 +31,12 @@ func (o WriteOptions) withQuoted(quoted bool) *WriteOptions {
 	return &o
 }
 
-func (o WriteOptions) withFreshVisited() *WriteOptions {
+func (o WriteOptions) withVisited(t Term) *WriteOptions {
 	visited := make(map[termID]struct{}, len(o.visited))
 	for k, v := range o.visited {
 		visited[k] = v
 	}
+	visited[id(t)] = struct{}{}
 	o.visited = visited
 	return &o
 }

@@ -24,6 +24,8 @@ func WriteCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error 
 		return err
 	}
 
+	opts = opts.withVisited(c)
+
 	a := env.Resolve(c.Arg(0))
 	if n, ok := a.(Integer); ok && opts.numberVars && c.Functor() == atomVar && c.Arity() == 1 && n >= 0 {
 		return writeCompoundNumberVars(w, n)
@@ -53,15 +55,10 @@ func WriteCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error 
 }
 
 func writeCompoundVisit(w io.Writer, c Compound, opts *WriteOptions) (bool, error) {
-	if opts.visited == nil {
-		opts.visited = map[termID]struct{}{}
-	}
-
 	if _, ok := opts.visited[id(c)]; ok {
 		_, err := w.Write([]byte("..."))
 		return true, err
 	}
-	opts.visited[id(c)] = struct{}{}
 	return false, nil
 }
 
@@ -135,7 +132,6 @@ func writeCompoundOp(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *
 
 func writeCompoundOpPrefix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
 	_, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority || (opts.right != operator{} && r >= opts.right.priority)
 
@@ -156,7 +152,6 @@ func writeCompoundOpPrefix(w io.Writer, c Compound, opts *WriteOptions, env *Env
 
 func writeCompoundOpPostfix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
 	l, _ := op.bindingPriorities()
 	openClose := opts.priority < op.priority || (opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix)
 
@@ -179,7 +174,6 @@ func writeCompoundOpPostfix(w io.Writer, c Compound, opts *WriteOptions, env *En
 
 func writeCompoundOpInfix(w io.Writer, c Compound, opts *WriteOptions, env *Env, op *operator) error {
 	ew := errWriter{w: w}
-	opts = opts.withFreshVisited()
 	l, r := op.bindingPriorities()
 	openClose := opts.priority < op.priority ||
 		(opts.left.name == atomMinus && opts.left.specifier.class() == operatorClassPrefix) ||
