@@ -52,6 +52,7 @@ var (
 	atomBitwiseLeftShift  = NewAtom("<<")
 	atomBitwiseAnd        = NewAtom(`/\`)
 	atomBitwiseOr         = NewAtom(`\/`)
+	atomElipsis           = NewAtom(`...`)
 
 	atomAbs                     = NewAtom("abs")
 	atomAccess                  = NewAtom("access")

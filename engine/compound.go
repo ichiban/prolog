@@ -56,7 +56,7 @@ func WriteCompound(w io.Writer, c Compound, opts *WriteOptions, env *Env) error 
 
 func writeCompoundVisit(w io.Writer, c Compound, opts *WriteOptions) (bool, error) {
 	if _, ok := opts.visited[id(c)]; ok {
-		_, err := w.Write([]byte("..."))
+		err := atomElipsis.WriteTerm(w, opts, nil)
 		return true, err
 	}
 	return false, nil
@@ -87,7 +87,7 @@ func writeCompoundList(w io.Writer, c Compound, opts *WriteOptions, env *Env) er
 		_, _ = fmt.Fprint(&ew, "|")
 		s := iter.Suffix()
 		if l, ok := iter.Suffix().(Compound); ok && l.Functor() == atomDot && l.Arity() == 2 {
-			_, _ = fmt.Fprint(&ew, "...")
+			_ = atomElipsis.WriteTerm(&ew, opts, nil)
 		} else {
 			_ = s.WriteTerm(&ew, opts, env)
 		}
