@@ -24,6 +24,7 @@ type WriteOptions struct {
 	visited     map[termID]struct{}
 	prefixMinus bool
 	left, right operator
+	maxDepth    Integer
 }
 
 func (o WriteOptions) withQuoted(quoted bool) *WriteOptions {

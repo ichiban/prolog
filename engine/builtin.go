@@ -1505,51 +1505,48 @@ func writeTermOption(opts *WriteOptions, option Term, env *Env) error {
 			return domainError(validDomainWriteOption, o, env)
 		}
 
-		if o.Functor() == atomVariableNames {
-			vns, err := variableNames(o, env)
-			if err != nil {
-				return err
-			}
-			opts.variableNames = vns
-			return nil
-		}
-
-		var b bool
-		switch v := env.Resolve(o.Arg(0)).(type) {
-		case Variable:
-			return InstantiationError(env)
-		case Atom:
-			switch v {
-			case atomTrue:
-				b = true
-			case atomFalse:
-				b = false
-			default:
-				return domainError(validDomainWriteOption, o, env)
-			}
-		default:
-			return domainError(validDomainWriteOption, o, env)
-		}
-
 		switch o.Functor() {
 		case atomQuoted:
+			b, err := writeTermOptionBool(o, env)
 			opts.quoted = b
-			return nil
+			return err
 		case atomIgnoreOps:
+			b, err := writeTermOptionBool(o, env)
 			opts.ignoreOps = b
-			return nil
+			return err
 		case atomNumberVars:
+			b, err := writeTermOptionBool(o, env)
 			opts.numberVars = b
-			return nil
-		default:
-			return domainError(validDomainWriteOption, o, env)
+			return err
+		case atomVariableNames:
+			vns, err := writeTermOptionVariableNames(o, env)
+			opts.variableNames = vns
+			return err
+		case atomMaxDepth:
+			n, err := writeTermOptionInteger(o, env)
+			opts.maxDepth = n
+			return err
 		}
-	default:
-		return domainError(validDomainWriteOption, o, env)
 	}
+	return domainError(validDomainWriteOption, option, env)
 }
 
-func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
+func writeTermOptionBool(o Compound, env *Env) (bool, error) {
+	switch v := env.Resolve(o.Arg(0)).(type) {
+	case Variable:
+		return false, InstantiationError(env)
+	case Atom:
+		switch v {
+		case atomTrue:
+			return true, nil
+		case atomFalse:
+			return false, nil
+		}
+	}
+	return false, domainError(validDomainWriteOption, o, env)
+}
+
+func writeTermOptionVariableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 	vns := map[Variable]Atom{}
 	iter := ListIterator{List: option.Arg(0), Env: env}
 	for iter.Next() {
@@ -1601,6 +1598,16 @@ func variableNames(option Compound, env *Env) (map[Variable]Atom, error) {
 	default:
 		return nil, domainError(validDomainWriteOption, option, env)
 	}
+}
+
+func writeTermOptionInteger(o Compound, env *Env) (Integer, error) {
+	switch v := env.Resolve(o.Arg(0)).(type) {
+	case Variable:
+		return 0, InstantiationError(env)
+	case Integer:
+		return v, nil
+	}
+	return 0, domainError(validDomainWriteOption, o, env)
 }
 
 // CharCode converts a single-rune Atom char to an Integer code, or vice versa.

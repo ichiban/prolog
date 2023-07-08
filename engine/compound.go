@@ -80,6 +80,12 @@ func writeCompoundList(w io.Writer, c Compound, opts *WriteOptions, env *Env) er
 	_ = c.Arg(0).WriteTerm(&ew, opts, env)
 	iter := ListIterator{List: c.Arg(1), Env: env}
 	for iter.Next() {
+		opts.maxDepth--
+		if opts.maxDepth == 0 {
+			_, _ = fmt.Fprint(&ew, "|")
+			_ = atomElipsis.WriteTerm(&ew, opts, nil)
+			break
+		}
 		_, _ = fmt.Fprint(&ew, ",")
 		_ = iter.Current().WriteTerm(&ew, opts, env)
 	}
@@ -143,7 +149,15 @@ func writeCompoundOpPrefix(w io.Writer, c Compound, opts *WriteOptions, env *Env
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
 	_ = c.Functor().WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
-	_ = c.Arg(0).WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
+	{
+		opts := opts.withPriority(r).withLeft(*op)
+		opts.maxDepth--
+		if opts.maxDepth == 0 {
+			_ = atomElipsis.WriteTerm(&ew, opts, env)
+		} else {
+			_ = c.Arg(0).WriteTerm(&ew, opts, env)
+		}
+	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
@@ -162,7 +176,15 @@ func writeCompoundOpPostfix(w io.Writer, c Compound, opts *WriteOptions, env *En
 		_, _ = fmt.Fprint(&ew, "(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = c.Arg(0).WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
+	{
+		opts := opts.withPriority(l).withRight(*op)
+		opts.maxDepth--
+		if opts.maxDepth == 0 {
+			_ = atomElipsis.WriteTerm(&ew, opts, env)
+		} else {
+			_ = c.Arg(0).WriteTerm(&ew, opts, env)
+		}
+	}
 	_ = c.Functor().WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -186,14 +208,30 @@ func writeCompoundOpInfix(w io.Writer, c Compound, opts *WriteOptions, env *Env,
 		_, _ = fmt.Fprint(&ew, "(")
 		opts = opts.withLeft(operator{}).withRight(operator{})
 	}
-	_ = c.Arg(0).WriteTerm(&ew, opts.withPriority(l).withRight(*op), env)
+	{
+		opts := opts.withPriority(l).withRight(*op)
+		opts.maxDepth--
+		if opts.maxDepth == 0 {
+			_ = atomElipsis.WriteTerm(&ew, opts, env)
+		} else {
+			_ = c.Arg(0).WriteTerm(&ew, opts, env)
+		}
+	}
 	switch c.Functor() {
 	case atomComma, atomBar:
 		_, _ = fmt.Fprint(&ew, c.Functor().String())
 	default:
 		_ = c.Functor().WriteTerm(&ew, opts.withLeft(operator{}).withRight(operator{}), env)
 	}
-	_ = c.Arg(1).WriteTerm(&ew, opts.withPriority(r).withLeft(*op), env)
+	{
+		opts := opts.withPriority(r).withLeft(*op)
+		opts.maxDepth--
+		if opts.maxDepth == 0 {
+			_ = atomElipsis.WriteTerm(&ew, opts, env)
+		} else {
+			_ = c.Arg(1).WriteTerm(&ew, opts, env)
+		}
+	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
 	}
@@ -206,9 +244,14 @@ func writeCompoundFunctionalNotation(w io.Writer, c Compound, opts *WriteOptions
 	_ = c.Functor().WriteTerm(&ew, opts, env)
 	_, _ = fmt.Fprint(&ew, "(")
 	opts = opts.withLeft(operator{}).withPriority(999)
+	opts.maxDepth--
 	for i := 0; i < c.Arity(); i++ {
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
+		}
+		if opts.maxDepth == 0 {
+			_ = atomElipsis.WriteTerm(&ew, opts, env)
+			continue
 		}
 		_ = c.Arg(i).WriteTerm(&ew, opts, env)
 	}
