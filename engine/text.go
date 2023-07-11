@@ -240,8 +240,8 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		}
 
 		vm.resetModule(text.module)
-		vm.importPredicates(text.module, atomSystem, nil)
-		vm.importOps(text.module, atomSystem)
+		vm.importPredicates(text.module, atomProlog, nil)
+		vm.importOps(text.module, atomProlog)
 
 		iter := ListIterator{List: arg(1)}
 		for iter.Next() {

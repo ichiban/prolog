@@ -2,7 +2,7 @@
  *  bootstrap script
  */
 
-:-(module(system, [
+:-(module(prolog, [
   /(true, 0),
   /(fail, 0),
   /(call, 1),
@@ -179,7 +179,7 @@
 
 % Dependencies
 
-:-(use_module('/prolog/builtins', all)).
+:-(use_module('/prolog/system', all)).
 
 % Operators
 

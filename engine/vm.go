@@ -269,8 +269,8 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 		case opCall:
 			pi := operand.(procedureIndicator)
 			module := pi.module
-			if module == atomSystem {
-				// `system` is a special module for built-ins. It can't be a calling module.
+			if module == atomProlog {
+				// `prolog` is a special module for built-ins. It can't be a calling module.
 				module = callingModule(env)
 			}
 			return vm.ArriveModule(module, pi.name, args, func(env *Env) *Promise {
