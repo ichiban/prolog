@@ -52,6 +52,7 @@ var (
 	atomBitwiseLeftShift  = NewAtom("<<")
 	atomBitwiseAnd        = NewAtom(`/\`)
 	atomBitwiseOr         = NewAtom(`\/`)
+	atomElipsis           = NewAtom(`...`)
 
 	atomAbs                     = NewAtom("abs")
 	atomAccess                  = NewAtom("access")
@@ -128,6 +129,7 @@ var (
 	atomLog                     = NewAtom("log")
 	atomMax                     = NewAtom("max")
 	atomMaxArity                = NewAtom("max_arity")
+	atomMaxDepth                = NewAtom("max_depth")
 	atomMaxInteger              = NewAtom("max_integer")
 	atomMemory                  = NewAtom("memory")
 	atomMin                     = NewAtom("min")
