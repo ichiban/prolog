@@ -2605,7 +2605,7 @@ func TestAssertz(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
+		assert.Equal(t, procedureEntry{dynamic: true, definedIn: atomUser, procedure: clauses{
 			{
 				pi: procedureIndicator{
 					name:  NewAtom("foo"),
@@ -2736,7 +2736,7 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
+		assert.Equal(t, procedureEntry{dynamic: true, definedIn: atomUser, procedure: clauses{
 			{
 				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
@@ -2787,7 +2787,7 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
+		assert.Equal(t, procedureEntry{dynamic: true, definedIn: atomUser, procedure: clauses{
 			{
 				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{

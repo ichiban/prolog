@@ -25,6 +25,7 @@ func TestVM_Compile(t *testing.T) {
 foo(a).
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
@@ -57,6 +58,7 @@ foo(a).
 foo(b).
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
@@ -95,6 +97,7 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 				},
 			},
 			{module: atomUser, name: NewAtom("bar"), arity: 0}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("bar"), arity: 0},
@@ -108,6 +111,7 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 				},
 			},
 			{module: atomUser, name: NewAtom("bar"), arity: 5}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi: procedureIndicator{name: NewAtom("bar"), arity: 5},
@@ -166,8 +170,9 @@ foo(a).
 foo(b).
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
-				public:  true,
-				dynamic: true,
+				public:    true,
+				dynamic:   true,
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
@@ -195,6 +200,7 @@ foo(b).
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
@@ -231,6 +237,7 @@ foo(b).
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				discontiguous: true,
+				definedIn:     atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
@@ -251,6 +258,7 @@ foo(b).
 				},
 			},
 			{module: atomUser, name: NewAtom("bar"), arity: 1}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("bar"), arity: 1},
@@ -267,6 +275,7 @@ foo(b).
 :- include('testdata/foo.pl').
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 0}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},
@@ -295,6 +304,7 @@ foo(b).
 :- ensure_loaded('testdata/foo').
 `, result: map[procedureIndicator]procedureEntry{
 			{module: atomUser, name: NewAtom("foo"), arity: 0}: {
+				definedIn: atomUser,
 				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},

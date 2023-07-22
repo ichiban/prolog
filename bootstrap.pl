@@ -201,6 +201,22 @@
 :-(op(200, xfy, ^)).
 :-(op(200, fy, [+, -, \])).
 
+% Meta predicates
+
+:- meta_predicate([
+  clause(0, ?),
+  asserta(0),
+  assertz(0),
+  retract(0),
+  abolish(0),
+  predicate_property(0, ?),
+  once(0),
+  \+ 0,
+  setof(+, 0, -),
+  bagof(+, 0, -),
+  findall(+, 0, -)
+]).
+
 % Control constructs
 
 true.

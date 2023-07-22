@@ -124,7 +124,9 @@ func init() {
 	system.Register1(engine.NewAtom("halt"), engine.Halt)
 
 	// Modules
+	system.Register3(engine.NewAtom("use_module"), engine.UseModule)
 	system.Register1(engine.NewAtom("current_module"), engine.CurrentModule)
+	system.Register2(engine.NewAtom("predicate_property"), engine.PredicateProperty)
 
 	// Prolog prologue
 	system.Register3(engine.NewAtom("append"), engine.Append)

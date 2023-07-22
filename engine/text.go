@@ -39,16 +39,23 @@ func (vm *VM) CompileModule(ctx context.Context, s string, args ...interface{}) 
 	for pi, e := range t.procs {
 		pi.module = t.module
 
-		existing := vm.procedures[pi]
-		if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
-			if cs, ok := e.procedure.(clauses); ok && e.multifile {
-				e.procedure = append(ecs, cs...)
+		if existing, ok := vm.procedures[pi]; ok {
+			if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
+				if cs, ok := e.procedure.(clauses); ok && e.multifile {
+					e.definedIn = existing.definedIn
+					e.procedure = append(ecs, cs...)
+				}
+			}
+
+			// Imported predicates are already in the database.
+			if e.procedure == nil {
+				e.definedIn = existing.definedIn
+				e.procedure = existing.procedure
 			}
 		}
 
-		// Imported predicates are already in vm.procedures.
-		if e.procedure == nil {
-			e.procedure = existing.procedure
+		if e.definedIn == 0 {
+			e.definedIn = t.module
 		}
 
 		if e.procedure == nil {
@@ -228,15 +235,21 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		return err
 	}
 
-	switch pi, arg, _ := piArg(d, nil); pi {
+	module := text.module
+	if module == 0 {
+		module = atomUser
+	}
+	env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
+
+	switch pi, arg, _ := piArg(d, env); pi {
 	case procedureIndicator{name: atomModule, arity: 2}:
 		switch m := arg(0).(type) {
 		case Variable:
-			return InstantiationError(nil)
+			return InstantiationError(env)
 		case Atom:
 			text.module = m
 		default:
-			return typeError(validTypeAtom, m, nil)
+			return typeError(validTypeAtom, m, env)
 		}
 
 		vm.resetModule(text.module)
@@ -251,7 +264,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 				return InstantiationError(nil)
 			case Compound:
 				if i.Functor() != atomSlash || i.Arity() != 2 {
-					return typeError(validTypePredicateIndicator, i, nil)
+					return typeError(validTypePredicateIndicator, i, env)
 				}
 				switch n := i.Arg(0).(type) {
 				case Variable:
@@ -263,13 +276,13 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 					case Integer:
 						pi = procedureIndicator{name: n, arity: a}
 					default:
-						return typeError(validTypePredicateIndicator, i, nil)
+						return typeError(validTypePredicateIndicator, i, env)
 					}
 				default:
-					return typeError(validTypePredicateIndicator, i, nil)
+					return typeError(validTypePredicateIndicator, i, env)
 				}
 			default:
-				return typeError(validTypePredicateIndicator, i, nil)
+				return typeError(validTypePredicateIndicator, i, env)
 			}
 			e := text.procs[pi]
 			e.exported = true
@@ -277,13 +290,27 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		}
 		return iter.Err()
 	case procedureIndicator{name: atomUseModule, arity: 2}:
-		module := text.module
-		if module == 0 {
-			module = atomUser
-		}
-		env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
 		_, err := UseModule(vm, NewVariable(), arg(0), arg(1), Success, env).Force(ctx)
 		return err
+	case procedureIndicator{name: atomMetaPredicate, arity: 1}:
+		iter := anyIterator{Any: arg(0)}
+		for iter.Next() {
+			switch c := iter.Current().(type) {
+			case Variable:
+				return InstantiationError(env)
+			case Compound:
+				key := procedureIndicator{name: c.Functor(), arity: Integer(c.Arity())}
+				e := text.procs[key]
+				e.metapredicate = make([]Term, c.Arity())
+				for i := 0; i < c.Arity(); i++ {
+					e.metapredicate[i] = c.Arg(i)
+				}
+				text.procs[key] = e
+			default:
+				return typeError(validTypeCompound, c, env)
+			}
+		}
+		return iter.Err()
 	case procedureIndicator{name: atomDynamic, arity: 1}:
 		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
 			e.dynamic = true
@@ -324,11 +351,6 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		_, err := vm.ensureLoaded(ctx, arg(0), nil)
 		return err
 	default:
-		module := text.module
-		if module == 0 {
-			module = atomUser
-		}
-		env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
 		ok, err := Call(vm, atomColon.Apply(module, d), Success, env).Force(ctx)
 		if err != nil {
 			return err
@@ -390,6 +412,7 @@ func (vm *VM) load(ctx context.Context, filename string) (Atom, error) {
 		}
 		for pi, e := range f.procedures {
 			pi.module = m
+			e.definedIn = m
 			vm.procedures[pi] = e
 		}
 	default:

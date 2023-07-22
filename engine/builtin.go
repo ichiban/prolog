@@ -724,7 +724,7 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 	}
 	e, ok := vm.procedures[pi]
 	if !ok {
-		e = procedureEntry{dynamic: true, procedure: clauses{}}
+		e = procedureEntry{dynamic: true, definedIn: module, procedure: clauses{}}
 		vm.procedures[pi] = e
 	}
 
@@ -3167,6 +3167,70 @@ func CurrentModule(vm *VM, module Term, k Cont, env *Env) *Promise {
 		m := m
 		ks = append(ks, func(context.Context) *Promise {
 			return Unify(vm, module, m, k, env)
+		})
+	}
+	return Delay(ks...)
+}
+
+func PredicateProperty(vm *VM, prototype, property Term, k Cont, env *Env) *Promise {
+	module, prototype, err := moduleTerm(atomUser, prototype, env)
+	if err != nil {
+		return Error(err)
+	}
+
+	pi, _, err := piArg(prototype, env)
+	if err != nil {
+		return Error(err)
+	}
+	pi.module = module
+
+	e, ok := vm.procedures[pi]
+	if !ok {
+		return Bool(false)
+	}
+
+	ks := []func(context.Context) *Promise{
+		func(ctx context.Context) *Promise {
+			p := atomStatic
+			if e.dynamic {
+				p = atomDynamic
+			}
+			return Unify(vm, property, p, k, env)
+		},
+		func(ctx context.Context) *Promise {
+			p := atomPrivate
+			if e.public {
+				p = atomPublic
+			}
+			return Unify(vm, property, p, k, env)
+		},
+		func(ctx context.Context) *Promise {
+			return Unify(vm, property, atomDefinedIn.Apply(e.definedIn), k, env)
+		},
+	}
+	if e.builtIn {
+		ks = append(ks, func(ctx context.Context) *Promise {
+			return Unify(vm, property, atomBuiltIn, k, env)
+		})
+	}
+	if e.multifile {
+		ks = append(ks, func(ctx context.Context) *Promise {
+			return Unify(vm, property, atomMultifile, k, env)
+		})
+	}
+	if e.exported {
+		ks = append(ks, func(ctx context.Context) *Promise {
+			return Unify(vm, property, atomExported, k, env)
+		})
+	}
+	if e.metapredicate != nil {
+		ks = append(ks, func(ctx context.Context) *Promise {
+			return Unify(vm, property, pi.name.Apply(e.metapredicate...), k, env)
+		})
+	}
+	if e.importedFrom != 0 {
+		ks = append(ks, func(ctx context.Context) *Promise {
+			return Unify(vm, property, atomImportedFrom.Apply(e.importedFrom), k, env)
 		})
 	}
 	return Delay(ks...)

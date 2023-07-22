@@ -221,9 +221,28 @@ func (vm *VM) ArriveModule(module, name Atom, args []Term, k Cont, env *Env) (pr
 		}
 	}
 
+	// Module name expansion
+	for i, mode := range e.metapredicate {
+		if !isMetaArg(mode) {
+			continue
+		}
+		args[i] = atomColon.Apply(module, args[i])
+	}
+
 	// bind the special variable to inform the predicate about the context.
 	env = env.bind(varContext, pi)
 	return e.procedure.call(vm, args, k, env)
+}
+
+func isMetaArg(mode Term) bool {
+	switch m := mode.(type) {
+	case Atom:
+		return m == atomColon
+	case Integer:
+		return m >= 0
+	default:
+		return false
+	}
 }
 
 func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
