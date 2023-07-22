@@ -35,7 +35,7 @@
 ### Install latest version
 
 ```console
-go get -u github.com/ichiban/prolog
+go install github.com/ichiban/prolog@latest
 ```
 
 ### Usage
