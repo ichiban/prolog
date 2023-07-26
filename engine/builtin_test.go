@@ -4053,6 +4053,7 @@ func TestWriteTerm(t *testing.T) {
 		{title: `write_term(S, s(s(0)), [max_depth(2)]).`, sOrA: w, term: NewAtom("s").Apply(NewAtom("s").Apply(Integer(0))), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `s(s(...))`},
 		{title: `write_term(S, _, [max_depth(_)]).`, sOrA: w, term: NewVariable(), options: List(atomMaxDepth.Apply(NewVariable())), err: InstantiationError(nil)},
 		{title: `write_term(S, _, [max_depth(foo)]).`, sOrA: w, term: NewVariable(), options: List(atomMaxDepth.Apply(NewAtom("foo"))), err: domainError(validDomainWriteOption, atomMaxDepth.Apply(NewAtom("foo")), nil)},
+		{title: `L = [a, b|L], write_term(S, L, [max_depth(9)]).`, sOrA: w, term: l, options: List(atomMaxDepth.Apply(Integer(9))), env: NewEnv().bind(l, PartialList(l, NewAtom("a"), NewAtom("b"))), ok: true, output: `[a,b,a,b,a,b,a,b,a|...]`}, // https://github.com/ichiban/prolog/issues/297#issuecomment-1646750461
 	}
 
 	var vm VM
