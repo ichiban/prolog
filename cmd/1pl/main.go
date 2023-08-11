@@ -78,7 +78,7 @@ Type Ctrl-C or 'halt.' to exit.
 	}
 
 	// Consult arguments.
-	if err := i.QuerySolution(`consult(?).`, flag.Args()).Err(); err != nil {
+	if err := i.QuerySolution(`findall(F, (member(X, ?), atom_chars(F, X)), Fs), consult(Fs).`, flag.Args()).Err(); err != nil {
 		log.Panic(err)
 	}
 

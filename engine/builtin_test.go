@@ -3324,6 +3324,7 @@ func TestOpen(t *testing.T) {
 				assert.True(t, ok)
 				assert.Equal(t, l, s)
 
+				assert.NoError(t, s.initRead())
 				b, err := io.ReadAll(s.buf)
 				assert.NoError(t, err)
 				assert.Equal(t, "test\n", string(b))
@@ -4074,9 +4075,21 @@ func TestWriteTerm(t *testing.T) {
 		))), ok: true, output: `n`},
 
 		{title: `failure`, sOrA: mw, term: NewAtom("foo"), options: List(), err: err},
+
+		{title: `write_term(S, + +1, [max_depth(2)]).`, sOrA: w, term: atomPlus.Apply(atomPlus.Apply(Integer(1))), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `+ + ...`},
+		{title: `write_term(S, 1- -, [max_depth(2)]).`, sOrA: w, term: atomMinus.Apply(atomMinus.Apply(Integer(1))), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `... - -`},
+		{title: `write_term(S, 1+2+3, [max_depth(2)]).`, sOrA: w, term: atomPlus.Apply(atomPlus.Apply(Integer(1), Integer(2)), Integer(3)), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `... + ... +3`},
+		{title: `write_term(S, [1,2,3], [max_depth(2)]).`, sOrA: w, term: List(Integer(1), Integer(2), Integer(3)), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `[1,2|...]`},
+		{title: `write_term(S, s(s(0)), [max_depth(2)]).`, sOrA: w, term: NewAtom("s").Apply(NewAtom("s").Apply(Integer(0))), options: List(atomMaxDepth.Apply(Integer(2))), ok: true, output: `s(s(...))`},
+		{title: `write_term(S, _, [max_depth(_)]).`, sOrA: w, term: NewVariable(), options: List(atomMaxDepth.Apply(NewVariable())), err: InstantiationError(nil)},
+		{title: `write_term(S, _, [max_depth(foo)]).`, sOrA: w, term: NewVariable(), options: List(atomMaxDepth.Apply(NewAtom("foo"))), err: domainError(validDomainWriteOption, atomMaxDepth.Apply(NewAtom("foo")), nil)},
+		{title: `L = [a, b|L], write_term(S, L, [max_depth(9)]).`, sOrA: w, term: l, options: List(atomMaxDepth.Apply(Integer(9))), env: NewEnv().bind(l, PartialList(l, NewAtom("a"), NewAtom("b"))), ok: true, output: `[a,b,a,b,a,b,a,b,a|...]`}, // https://github.com/ichiban/prolog/issues/297#issuecomment-1646750461
 	}
 
 	var vm VM
+	vm.operators.define(500, operatorSpecifierYFX, atomPlus)
+	vm.operators.define(200, operatorSpecifierFY, atomPlus)
+	vm.operators.define(200, operatorSpecifierYF, atomMinus)
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
@@ -4785,7 +4798,7 @@ func TestGetByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{source: &m, mode: ioModeRead, streamType: streamTypeBinary}
@@ -4943,7 +4956,7 @@ func TestGetChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Times(2)
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		v := NewVariable()
@@ -5113,7 +5126,7 @@ func TestPeekByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{source: &m, mode: ioModeRead}
@@ -5273,7 +5286,7 @@ func TestPeekChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		v := NewVariable()
