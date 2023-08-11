@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestNewInputTextStream(t *testing.T) {
@@ -148,6 +149,40 @@ func (m *mockFile) Seek(offset int64, whence int) (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
+type mockFileInfo struct {
+	mock.Mock
+}
+
+func (m *mockFileInfo) Name() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockFileInfo) Size() int64 {
+	args := m.Called()
+	return int64(args.Int(0))
+}
+
+func (m *mockFileInfo) Mode() fs.FileMode {
+	args := m.Called()
+	return fs.FileMode(args.Int(0))
+}
+
+func (m *mockFileInfo) ModTime() time.Time {
+	args := m.Called()
+	return args.Get(0).(time.Time)
+}
+
+func (m *mockFileInfo) IsDir() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *mockFileInfo) Sys() any {
+	args := m.Called()
+	return args.Get(0)
+}
+
 type mockCloser struct {
 	mock.Mock
 }
@@ -283,6 +318,13 @@ func TestStream_ReadByte(t *testing.T) {
 }
 
 func TestStream_ReadRune(t *testing.T) {
+	var m mockFile
+	m.On("Stat").Return(&mockFileInfo{}, errors.New("failed"))
+	m.On("Read", mock.AnythingOfType("[]uint8")).Return(1, nil).Run(func(args mock.Arguments) {
+		p := args.Get(0).([]byte)
+		copy(p, "a")
+	})
+
 	tests := []struct {
 		title string
 		s     *Stream
@@ -331,6 +373,14 @@ func TestStream_ReadRune(t *testing.T) {
 			size:  1,
 			pos:   1,
 			eos:   endOfStreamAt,
+		},
+		{
+			title: "input text: 1 rune left, file, failed to get file size",
+			s:     &Stream{source: &m, streamType: streamTypeText, position: 0},
+			r:     'a',
+			size:  1,
+			pos:   1,
+			eos:   endOfStreamNot,
 		},
 		{
 			title: "input Text: empty",
@@ -391,11 +441,13 @@ func (m *mockSeeker) Seek(offset int64, whence int) (int64, error) {
 func TestStream_Seek(t *testing.T) {
 	var okSeeker struct {
 		mockReader
+		mockWriter
 		mockSeeker
 	}
 	okSeeker.mockSeeker.On("Seek", int64(0), 0).Return(int64(0), nil)
 
 	var ngSeeker struct {
+		mockReader
 		mockWriter
 		mockSeeker
 	}
@@ -414,14 +466,27 @@ func TestStream_Seek(t *testing.T) {
 		err    error
 	}{
 		{
-			title:  "ok",
-			s:      &Stream{source: &okSeeker, reposition: true},
+			title:  "ok input",
+			s:      &Stream{source: &okSeeker, mode: ioModeRead, reposition: true},
 			offset: 0,
 			whence: 0,
 		},
 		{
-			title:  "ng",
-			s:      &Stream{sink: &ngSeeker, reposition: true},
+			title:  "ok output",
+			s:      &Stream{sink: &okSeeker, mode: ioModeWrite, reposition: true},
+			offset: 0,
+			whence: 0,
+		},
+		{
+			title:  "ng input",
+			s:      &Stream{source: &ngSeeker, mode: ioModeRead, reposition: true},
+			offset: 0,
+			whence: 0,
+			err:    errors.New("ng"),
+		},
+		{
+			title:  "ng output",
+			s:      &Stream{sink: &ngSeeker, mode: ioModeWrite, reposition: true},
 			offset: 0,
 			whence: 0,
 			err:    errors.New("ng"),
