@@ -3295,6 +3295,7 @@ func TestOpen(t *testing.T) {
 				assert.True(t, ok)
 				assert.Equal(t, l, s)
 
+				assert.NoError(t, s.initRead())
 				b, err := io.ReadAll(s.buf)
 				assert.NoError(t, err)
 				assert.Equal(t, "test\n", string(b))
@@ -4768,7 +4769,7 @@ func TestGetByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{source: &m, mode: ioModeRead, streamType: streamTypeBinary}
@@ -4926,7 +4927,7 @@ func TestGetChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Times(2)
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		v := NewVariable()
@@ -5096,7 +5097,7 @@ func TestPeekByte(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		s := &Stream{source: &m, mode: ioModeRead}
@@ -5256,7 +5257,7 @@ func TestPeekChar(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		var m mockReader
-		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Twice()
+		m.On("Read", mock.Anything).Return(0, errors.New("failed")).Once()
 		defer m.AssertExpectations(t)
 
 		v := NewVariable()

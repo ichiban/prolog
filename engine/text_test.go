@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"io"
+	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,14 @@ import (
 
 //go:embed testdata
 var testdata embed.FS
+
+func mustOpen(fs fs.FS, name string) fs.File {
+	f, err := fs.Open(name)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
 
 func TestVM_Compile(t *testing.T) {
 	tests := []struct {
