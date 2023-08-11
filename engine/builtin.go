@@ -1266,6 +1266,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	case err == nil:
 		if s.mode == ioModeRead {
 			s.source = f
+			s.initRead()
 		} else {
 			s.sink = f
 		}
@@ -1288,12 +1289,6 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	}
 	if err := iter.Err(); err != nil {
 		return Error(err)
-	}
-
-	if s.mode == ioModeRead {
-		if err := s.initRead(); err == nil {
-			s.checkEOS()
-		}
 	}
 
 	return Unify(vm, stream, &s, k, env)

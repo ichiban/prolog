@@ -235,7 +235,7 @@ func TestStream_ReadByte(t *testing.T) {
 			s:     &Stream{source: bytes.NewReader([]byte{3}), streamType: streamTypeBinary, position: 2},
 			b:     3,
 			pos:   3,
-			eos:   endOfStreamAt,
+			eos:   endOfStreamNot,
 		},
 		{
 			title: "input binary: empty",
@@ -309,11 +309,27 @@ func TestStream_ReadRune(t *testing.T) {
 			eos:   endOfStreamNot,
 		},
 		{
-			title: "input text: 1 rune left",
+			title: "input text: 1 rune left, abrupt EOF",
 			s:     &Stream{source: bytes.NewReader([]byte("c")), streamType: streamTypeText, position: 2},
 			r:     'c',
 			size:  1,
 			pos:   3,
+			eos:   endOfStreamNot,
+		},
+		{
+			title: "input text: 1 rune left, non-abrupt EOF",
+			s:     &Stream{source: newNonAbruptReader([]byte("c")), streamType: streamTypeText, position: 2},
+			r:     'c',
+			size:  1,
+			pos:   3,
+			eos:   endOfStreamAt,
+		},
+		{
+			title: "input text: 1 rune left, file",
+			s:     &Stream{source: mustOpen(testdata, "testdata/a.txt"), streamType: streamTypeText, position: 0},
+			r:     'a',
+			size:  1,
+			pos:   1,
 			eos:   endOfStreamAt,
 		},
 		{
@@ -396,7 +412,6 @@ func TestStream_Seek(t *testing.T) {
 		whence int
 		pos    int64
 		err    error
-		eos    endOfStream
 	}{
 		{
 			title:  "ok",
@@ -411,10 +426,10 @@ func TestStream_Seek(t *testing.T) {
 			whence: 0,
 			err:    errors.New("ng"),
 		},
-		{title: "reader", s: s, offset: 0, whence: 0, pos: 0, eos: endOfStreamNot},
-		{title: "reader", s: s, offset: 1, whence: 0, pos: 1, eos: endOfStreamNot},
-		{title: "reader", s: s, offset: 2, whence: 0, pos: 2, eos: endOfStreamAt},
-		{title: "reader", s: s, offset: 3, whence: 0, pos: 3, eos: endOfStreamPast},
+		{title: "reader", s: s, offset: 0, whence: 0, pos: 0},
+		{title: "reader", s: s, offset: 1, whence: 0, pos: 1},
+		{title: "reader", s: s, offset: 2, whence: 0, pos: 2},
+		{title: "reader", s: s, offset: 3, whence: 0, pos: 3},
 		{
 			title:  "not seeker",
 			s:      &Stream{source: &okSeeker.mockReader, reposition: true, position: 123},
@@ -429,8 +444,6 @@ func TestStream_Seek(t *testing.T) {
 			pos, err := tt.s.Seek(tt.offset, tt.whence)
 			assert.Equal(t, tt.pos, pos)
 			assert.Equal(t, tt.err, err)
-
-			assert.Equal(t, tt.eos, tt.s.endOfStream)
 		})
 	}
 }
@@ -576,4 +589,22 @@ func TestStream_Flush(t *testing.T) {
 		s := &Stream{sink: &m, mode: ioModeAppend}
 		assert.NoError(t, s.Flush())
 	})
+}
+
+type nonAbruptReader struct {
+	*bytes.Reader
+}
+
+func newNonAbruptReader(b []byte) nonAbruptReader {
+	return nonAbruptReader{
+		Reader: bytes.NewReader(b),
+	}
+}
+
+func (r nonAbruptReader) Read(b []byte) (int, error) {
+	n, err := r.Reader.Read(b)
+	if err == nil && r.Reader.Len() == 0 {
+		err = io.EOF
+	}
+	return n, err
 }

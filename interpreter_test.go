@@ -229,6 +229,7 @@ func TestNew_variableNames(t *testing.T) {
 		output   string
 		outputFn func(t *testing.T, output string)
 		err      error
+		waits    bool
 	}{
 		{name: "1", query: `catch(write_term(T,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
 		{name: "2", query: `N = 'X', write_term(T,[quoted(true), variable_names([N=T])]).`, output: `X`},
@@ -269,7 +270,7 @@ func TestNew_variableNames(t *testing.T) {
 		}},
 		{name: "26", query: `T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `X,X,X`},
 		{name: "27", query: `T=(1,2,3), T=(X,Y,Z), write_term(T,[quoted(true), variable_names(['X'=Z,'X'=Y,'X'=X])]).`, output: `1,2,3`},
-		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, err: context.DeadlineExceeded},
+		{name: "32", query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, err: context.DeadlineExceeded, waits: true},
 		{name: "29", input: `B+C+A+B+C+A.`, query: `read_term(T,[variable_names(VN_list)]), VN_list=[_=1,_=2,_=3], writeq(VN_list).`, output: `['B'=1,'C'=2,'A'=3]`},
 		{name: "30", query: `catch(write_term(T, [variable_names(VN_list)]), error(instantiation_error, _), true).`},
 		{name: "31", query: `catch((VN_list = 1, write_term(T, [variable_names(VN_list)])), error(domain_error(write_option, variable_names(_)), _), true).`},
@@ -297,9 +298,9 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "60", query: `catch((O = alias(_), open(f,write,_,[O])), error(instantiation_error, _), true).`},
 		{name: "42", query: `catch((O = type(nontype), open(f,write,_,[O])), error(domain_error(stream_option, type(nontype)), _), true).`},
 		{name: "61", query: `catch((O = alias(1), open(f,write,_,[O])), error(domain_error(stream_option, alias(1)), _), true).`},
-		{name: "45", query: `read_term(T,[variable_names(VN_list)]).`, err: context.DeadlineExceeded},
+		{name: "45", query: `read_term(T,[variable_names(VN_list)]).`, waits: true},
 		{name: "46", input: `a.`, query: `read_term(T,[variable_names(VN_list)]), T = a, VN_list = [].`},
-		{name: "47", query: `VN_list = 42, read_term(T,[variable_names(VN_list)]).`, err: context.DeadlineExceeded},
+		{name: "47", query: `VN_list = 42, read_term(T,[variable_names(VN_list)]).`, waits: true},
 		{name: "48", input: `a.`, query: `VN_list = 42, \+read_term(T,[variable_names(VN_list)]).`},
 		{name: "49", input: `a b.`, query: `VN_list = 42, catch(read_term(T,[variable_names(VN_list)]), error(syntax_error(_), _), true).`},
 		{name: "53", query: `catch(write_term(S,[quoted(true), variable_names([N=T])]), error(instantiation_error, _), true).`},
@@ -307,7 +308,7 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "55", query: `S=1+T,N=' /*r*/V',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+ /*r*/V`},
 		{name: "58", query: `S=1+T,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1++`},
 		{name: "59", query: `S=T+1,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `++1`},
-		{name: "69", query: `read_term(T, [singletons(1)]).`, err: context.DeadlineExceeded},
+		{name: "69", query: `read_term(T, [singletons(1)]).`, waits: true},
 		{name: "70", input: `a.`, query: `\+read_term(T, [singletons(1)]).`},
 	}
 
@@ -331,6 +332,7 @@ func TestNew_variableNames(t *testing.T) {
 			} else {
 				tt.outputFn(t, out.String())
 			}
+			assert.Equal(t, tt.waits, errors.Is(ctx.Err(), context.DeadlineExceeded))
 		})
 	}
 }
