@@ -4087,9 +4087,9 @@ func TestWriteTerm(t *testing.T) {
 	}
 
 	var vm VM
-	vm.operators.define(500, operatorSpecifierYFX, atomPlus)
-	vm.operators.define(200, operatorSpecifierFY, atomPlus)
-	vm.operators.define(200, operatorSpecifierYF, atomMinus)
+	vm.operators.define(atomUser, 500, operatorSpecifierYFX, atomPlus)
+	vm.operators.define(atomUser, 200, operatorSpecifierFY, atomPlus)
+	vm.operators.define(atomUser, 200, operatorSpecifierYF, atomMinus)
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
