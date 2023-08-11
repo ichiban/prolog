@@ -78,7 +78,7 @@ func writeCompoundList(w io.Writer, c Compound, opts *WriteOptions, env *Env) er
 	opts = opts.withPriority(999).withLeft(operator{}).withRight(operator{})
 	_, _ = fmt.Fprint(&ew, "[")
 	_ = c.Arg(0).WriteTerm(&ew, opts, env)
-	iter := ListIterator{List: c.Arg(1), Env: env}
+	iter := ListIterator{List: c.Arg(1), Env: env, AllowCycle: opts.maxDepth > 0}
 	for iter.Next() {
 		opts.maxDepth--
 		if opts.maxDepth == 0 {
