@@ -174,7 +174,9 @@
 
   /(current_module, 1),
   /(predicate_property, 2),
-  /(current_predicate, 1)
+  /(current_predicate, 1),
+  /(use_module, 2),
+  /(use_module, 1)
 ])).
 
 % Dependencies
@@ -358,36 +360,48 @@ put_byte(Byte) :-
 % Term input/output
 
 read_term(Term, Options) :-
+  calling_context(M),
   current_input(S),
-  read_term(S, Term, Options).
+  M:read_term(S, Term, Options).
 
 read(Term) :-
+  calling_context(M),
   current_input(S),
-  read(S, Term).
+  M:read(S, Term).
 
-read(Stream, Term) :- read_term(Stream, Term, []).
+read(Stream, Term) :-
+  calling_context(M),
+  M:read_term(Stream, Term, []).
 
 write_term(Term, Options) :-
+  calling_context(M),
   current_output(S),
-  write_term(S, Term, Options).
+  M:write_term(S, Term, Options).
 
 write(Term) :-
+  calling_context(M),
   current_output(S),
-  write(S, Term).
+  M:write(S, Term).
 
-write(Stream, Term) :- write_term(Stream, Term, [numbervars(true)]).
+write(Stream, Term) :-
+  calling_context(M),
+  M:write_term(Stream, Term, [numbervars(true)]).
 
 writeq(Term) :-
+  calling_context(M),
   current_output(S),
-  writeq(S, Term).
+  M:writeq(S, Term).
 
-writeq(Stream, Term) :- write_term(Stream, Term, [quoted(true), numbervars(true)]).
+writeq(Stream, Term) :-
+  calling_context(M),
+  M:write_term(Stream, Term, [quoted(true), numbervars(true)]).
 
 write_canonical(Term) :-
   current_output(S),
   write_canonical(S, Term).
 
-write_canonical(Stream, Term) :- write_term(Stream, Term, [quoted(true), ignore_ops(true)]).
+write_canonical(Stream, Term) :-
+  write_term(Stream, Term, [quoted(true), ignore_ops(true)]).
 
 % Logic and control
 
@@ -407,7 +421,9 @@ halt :- halt(0).
 
 % Definite clause grammar
 
-phrase(GRBody, S0) :- phrase(GRBody, S0, []).
+phrase(GRBody, S0) :-
+  calling_context(M),
+  M:phrase(GRBody, S0, []).
 
 % Prolog prologue
 
@@ -452,3 +468,11 @@ maplist(_Cont_7, [], [], [], [], [], [], []).
 maplist(Cont_7, [E1|E1s], [E2|E2s], [E3|E3s], [E4|E4s], [E5|E5s], [E6|E6s], [E7|E7s]) :-
   call(Cont_7, E1, E2, E3, E4, E5, E6, E7),
   maplist(Cont_7, E1s, E2s, E3s, E4s, E5s, E6s, E7s).
+
+use_module(File, Imports) :-
+  calling_context(M),
+  M:use_module(_, File, Imports).
+
+use_module(File) :-
+  calling_context(M),
+  M:use_module(File, all).

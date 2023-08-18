@@ -223,6 +223,7 @@ func (vm *VM) ArriveModule(module, name Atom, args []Term, k Cont, env *Env) (pr
 	}
 
 	// bind the special variable to inform the predicate about the context.
+	env = env.bind(varCallingContext, env.Resolve(varContext))
 	env = env.bind(varContext, pi)
 	return e.procedure.call(vm, args, k, env)
 }
@@ -280,12 +281,7 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			break
 		case opCall:
 			pi := operand.(procedureIndicator)
-			module := pi.module
-			if module == atomProlog {
-				// `prolog` is a special module for built-ins. It can't be a calling module.
-				module = callingModule(env)
-			}
-			return vm.ArriveModule(module, pi.name, args, func(env *Env) *Promise {
+			return vm.ArriveModule(pi.module, pi.name, args, func(env *Env) *Promise {
 				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:

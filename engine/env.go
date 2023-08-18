@@ -1,6 +1,9 @@
 package engine
 
-var varContext = NewVariable()
+var (
+	varContext        = NewVariable()
+	varCallingContext = NewVariable()
+)
 
 var rootContext = procedureIndicator{
 	module: atomUser,

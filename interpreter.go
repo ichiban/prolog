@@ -127,6 +127,7 @@ func init() {
 	system.Register3(engine.NewAtom("use_module"), engine.UseModule)
 	system.Register1(engine.NewAtom("current_module"), engine.CurrentModule)
 	system.Register2(engine.NewAtom("predicate_property"), engine.PredicateProperty)
+	system.Register1(engine.NewAtom("calling_context"), engine.CallingContext)
 
 	// Prolog prologue
 	system.Register3(engine.NewAtom("append"), engine.Append)
@@ -139,8 +140,6 @@ func init() {
 
 	// Compatibility
 	system.Register1(engine.NewAtom("consult"), engine.Consult)
-	system.Register3(engine.NewAtom("use_module"), engine.UseModule)
-	system.Register1(engine.NewAtom("calling_context"), engine.CallingContext)
 
 	// DCGs
 	system.Register3(engine.NewAtom("phrase"), engine.Phrase)

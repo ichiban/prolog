@@ -1783,7 +1783,8 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 		return Error(err)
 	}
 
-	p := NewParser(vm, s)
+	module := callingModule(env)
+	p := newParserModule(vm, &module, s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -3258,6 +3259,8 @@ func PredicateProperty(vm *VM, prototype, property Term, k Cont, env *Env) *Prom
 	return Delay(ks...)
 }
 
-func CallingContext(vm *VM, ctx Term, k Cont, env *Env) *Promise {
-	return Unify(vm, ctx, callingModule(env), k, env)
+// CallingContext unifies moduleName with the calling context.
+func CallingContext(vm *VM, moduleName Term, k Cont, env *Env) *Promise {
+	pi := env.Resolve(varCallingContext).(procedureIndicator)
+	return Unify(vm, moduleName, pi.module, k, env)
 }
