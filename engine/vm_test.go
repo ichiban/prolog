@@ -207,8 +207,10 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("unknown procedure", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			vm := VM{
-				unknown: map[Atom]unknownAction{
-					atomUser: unknownError,
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						unknown: unknownError,
+					},
 				},
 			}
 			ok, err := vm.Arrive(NewAtom("foo"), []Term{NewAtom("a")}, Success, nil).Force(context.Background())
@@ -222,8 +224,10 @@ func TestVM_Arrive(t *testing.T) {
 		t.Run("warning", func(t *testing.T) {
 			var warned bool
 			vm := VM{
-				unknown: map[Atom]unknownAction{
-					atomUser: unknownWarning,
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						unknown: unknownWarning,
+					},
 				},
 				Unknown: func(name Atom, args []Term, env *Env) {
 					assert.Equal(t, NewAtom("foo"), name)
@@ -240,8 +244,10 @@ func TestVM_Arrive(t *testing.T) {
 
 		t.Run("fail", func(t *testing.T) {
 			vm := VM{
-				unknown: map[Atom]unknownAction{
-					atomUser: unknownFail,
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						unknown: unknownFail,
+					},
 				},
 			}
 			ok, err := vm.Arrive(NewAtom("foo"), []Term{NewAtom("a")}, Success, nil).Force(context.Background())

@@ -95,22 +95,7 @@ func (vm *VM) resetModule(module Atom) {
 		}
 		delete(vm.procedures, pi)
 	}
-	delete(vm.unknown, module)
-	for opKey := range vm.operators {
-		if opKey.module != module {
-			continue
-		}
-		delete(vm.operators, opKey)
-	}
-	for charConvKey := range vm.charConversions {
-		if charConvKey.module != module {
-			continue
-		}
-		delete(vm.charConversions, charConvKey)
-	}
-	delete(vm.charConvEnabled, module)
-	delete(vm.doubleQuotes, module)
-	delete(vm.debug, module)
+	delete(vm.moduleLocals, module)
 }
 
 func (vm *VM) importPredicates(dst, src Atom, limit []procedureIndicator) {
@@ -142,12 +127,19 @@ func (vm *VM) importPredicates(dst, src Atom, limit []procedureIndicator) {
 }
 
 func (vm *VM) importOps(dst, src Atom) {
-	for opKey, ops := range vm.operators {
-		if opKey.module != src {
-			continue
-		}
-		opKey.module = dst
-		vm.operators[opKey] = ops
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
+	}
+	srcL, _ := vm.moduleLocals[src]
+	dstL, ok := vm.moduleLocals[dst]
+	if !ok {
+		dstL.operators = operators{}
+	}
+	defer func() {
+		vm.moduleLocals[dst] = dstL
+	}()
+	for name, ops := range srcL.operators {
+		dstL.operators[name] = ops
 	}
 }
 
@@ -235,11 +227,10 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		return err
 	}
 
-	module := text.module
-	if module == 0 {
-		module = atomUser
+	if text.module == 0 {
+		text.module = atomUser
 	}
-	env := NewEnv().bind(varContext, procedureIndicator{module: module, name: atomIf, arity: 1})
+	env := NewEnv().bind(varContext, procedureIndicator{module: text.module, name: atomIf, arity: 1})
 
 	switch pi, arg, _ := piArg(d, env); pi {
 	case procedureIndicator{name: atomModule, arity: 2}:
@@ -252,6 +243,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 			return typeError(validTypeAtom, m, env)
 		}
 
+		env = NewEnv().bind(varContext, procedureIndicator{module: text.module, name: atomIf, arity: 1})
 		vm.resetModule(text.module)
 		vm.importPredicates(text.module, atomProlog, nil)
 		vm.importOps(text.module, atomProlog)
@@ -351,7 +343,7 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		_, err := vm.ensureLoaded(ctx, arg(0), nil)
 		return err
 	default:
-		ok, err := Call(vm, atomColon.Apply(module, d), Success, env).Force(ctx)
+		ok, err := Call(vm, atomColon.Apply(text.module, d), Success, env).Force(ctx)
 		if err != nil {
 			return err
 		}

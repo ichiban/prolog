@@ -140,6 +140,7 @@ func init() {
 	// Compatibility
 	system.Register1(engine.NewAtom("consult"), engine.Consult)
 	system.Register3(engine.NewAtom("use_module"), engine.UseModule)
+	system.Register1(engine.NewAtom("calling_context"), engine.CallingContext)
 
 	// DCGs
 	system.Register3(engine.NewAtom("phrase"), engine.Phrase)

@@ -61,14 +61,15 @@ type procedureEntry struct {
 	procedure procedure
 }
 
-type charConvKey struct {
-	module Atom
-	rune   rune
-}
+type moduleLocal struct {
+	operators       operators
+	charConversions map[rune]rune
 
-type fileKey struct {
-	fsName   Atom
-	filename string
+	// flags
+	charConversion bool
+	debug          bool
+	unknown        unknownAction
+	doubleQuotes   doubleQuotes
 }
 
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
@@ -77,25 +78,17 @@ type VM struct {
 	Unknown func(name Atom, args []Term, env *Env)
 
 	procedures map[procedureIndicator]procedureEntry
-	unknown    map[Atom]unknownAction
 
 	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
 	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
 	loaded map[string]Atom
 
-	// Internal/external expression
-	operators       operators
-	charConversions map[charConvKey]rune
-	charConvEnabled map[Atom]bool
-	doubleQuotes    map[Atom]doubleQuotes
-
 	// I/O
 	streams       streams
 	input, output *Stream
 
-	// Misc
-	debug map[Atom]bool
+	moduleLocals map[Atom]moduleLocal
 }
 
 // Register0 registers a predicate of arity 0.
@@ -210,7 +203,7 @@ func (vm *VM) ArriveModule(module, name Atom, args []Term, k Cont, env *Env) (pr
 	pi := procedureIndicator{module: module, name: name, arity: Integer(len(args))}
 	e, ok := vm.procedures[pi]
 	if !ok {
-		switch vm.unknown[module] {
+		switch l, _ := vm.moduleLocals[module]; l.unknown {
 		case unknownWarning:
 			vm.Unknown(name, args, env)
 			fallthrough
@@ -488,7 +481,6 @@ func (p procedureIndicator) Arg(n int) Term {
 func (p procedureIndicator) String() string {
 	var sb strings.Builder
 	_ = p.name.WriteTerm(&sb, &WriteOptions{
-		module: atomUser,
 		quoted: true,
 	}, nil)
 	_, _ = fmt.Fprintf(&sb, "/%d", p.arity)

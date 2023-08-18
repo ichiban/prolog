@@ -566,11 +566,13 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 	}
 
 	for _, name := range names {
-		if class := spec.class(); vm.operators.definedInClass(module, name, spec.class()) {
-			vm.operators.remove(module, name, class)
+		l, _ := vm.moduleLocals[module]
+		if class := spec.class(); l.operators.definedInClass(name, class) {
+			l.operators.remove(name, class)
 		}
 
-		vm.operators.define(module, p, spec, name)
+		l.operators.define(p, spec, name)
+		vm.moduleLocals[module] = l
 	}
 
 	return k(env)
@@ -579,13 +581,15 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 func validateOp(vm *VM, module Atom, p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
 	switch name {
 	case atomComma:
-		if vm.operators.definedInClass(module, name, operatorClassInfix) {
+		l, _ := vm.moduleLocals[module]
+		if l.operators.definedInClass(name, operatorClassInfix) {
 			return Error(permissionError(operationModify, permissionTypeOperator, name, env))
 		}
 	case atomBar:
 		if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
 			op := operationCreate
-			if vm.operators.definedInClass(module, name, operatorClassInfix) {
+			l, _ := vm.moduleLocals[module]
+			if l.operators.definedInClass(name, operatorClassInfix) {
 				op = operationModify
 			}
 			return Error(permissionError(op, permissionTypeOperator, name, env))
@@ -597,11 +601,13 @@ func validateOp(vm *VM, module Atom, p Integer, spec operatorSpecifier, name Ato
 	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
 	switch spec.class() {
 	case operatorClassInfix:
-		if vm.operators.definedInClass(module, name, operatorClassPostfix) {
+		l, _ := vm.moduleLocals[module]
+		if l.operators.definedInClass(name, operatorClassPostfix) {
 			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	case operatorClassPostfix:
-		if vm.operators.definedInClass(module, name, operatorClassInfix) {
+		l, _ := vm.moduleLocals[module]
+		if l.operators.definedInClass(name, operatorClassInfix) {
 			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	}
@@ -660,11 +666,9 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise 
 	}
 
 	pattern := tuple(priority, specifier, op)
-	ks := make([]func(context.Context) *Promise, 0, len(vm.operators)*int(_operatorClassLen))
-	for opKey, ops := range vm.operators {
-		if opKey.module != module {
-			continue
-		}
+	l, _ := vm.moduleLocals[module]
+	ks := make([]func(context.Context) *Promise, 0, len(l.operators)*int(_operatorClassLen))
+	for _, ops := range l.operators {
 		for _, op := range ops {
 			op := op
 			if op == (operator{}) {
@@ -1310,7 +1314,7 @@ func Open(vm *VM, sourceSink, mode, stream, options Term, k Cont, env *Env) *Pro
 	case err == nil:
 		if s.mode == ioModeRead {
 			s.source = f
-			s.initRead()
+			_ = s.initRead()
 		} else {
 			s.sink = f
 		}
@@ -1506,9 +1510,9 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 		return Error(err)
 	}
 
+	l, _ := vm.moduleLocals[module]
 	opts := WriteOptions{
-		module:   module,
-		ops:      vm.operators,
+		ops:      l.operators,
 		priority: 1200,
 	}
 	iter := ListIterator{List: options, Env: env}
@@ -2602,15 +2606,19 @@ func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 		return Error(representationError(flagCharacter, env))
 	}
 
-	key := charConvKey{module: module, rune: i}
-	if vm.charConversions == nil {
-		vm.charConversions = map[charConvKey]rune{}
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
+	}
+	l, _ := vm.moduleLocals[module]
+	if l.charConversions == nil {
+		l.charConversions = map[rune]rune{}
 	}
 	if i == o {
-		delete(vm.charConversions, key)
-		return k(env)
+		delete(l.charConversions, i)
+	} else {
+		l.charConversions[i] = o
 	}
-	vm.charConversions[key] = o
+	vm.moduleLocals[module] = l
 	return k(env)
 }
 
@@ -2643,7 +2651,8 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
 		r := []rune(c1.String())
-		if r, ok := vm.charConversions[charConvKey{module: module, rune: r[0]}]; ok {
+		l, _ := vm.moduleLocals[module]
+		if r, ok := l.charConversions[r[0]]; ok {
 			return Unify(vm, outChar, Atom(r), k, env)
 		}
 		return Unify(vm, outChar, c1, k, env)
@@ -2653,7 +2662,8 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 	ks := make([]func(context.Context) *Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
-		cr, ok := vm.charConversions[charConvKey{module: module, rune: r}]
+		l, _ := vm.moduleLocals[module]
+		cr, ok := l.charConversions[r]
 		if !ok {
 			cr = r
 		}
@@ -2708,14 +2718,18 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 }
 
 func modifyCharConversion(vm *VM, module, value Atom) error {
-	if vm.charConvEnabled == nil {
-		vm.charConvEnabled = map[Atom]bool{}
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
 	}
+	l, _ := vm.moduleLocals[module]
+	defer func() {
+		vm.moduleLocals[module] = l
+	}()
 	switch value {
 	case atomOn:
-		vm.charConvEnabled[module] = true
+		l.charConversion = true
 	case atomOff:
-		vm.charConvEnabled[module] = false
+		l.charConversion = false
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomCharConversion, value), nil)
 	}
@@ -2723,14 +2737,18 @@ func modifyCharConversion(vm *VM, module, value Atom) error {
 }
 
 func modifyDebug(vm *VM, module, value Atom) error {
-	if vm.debug == nil {
-		vm.debug = map[Atom]bool{}
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
 	}
+	l, _ := vm.moduleLocals[module]
+	defer func() {
+		vm.moduleLocals[module] = l
+	}()
 	switch value {
 	case atomOn:
-		vm.debug[module] = true
+		l.debug = true
 	case atomOff:
-		vm.debug[module] = false
+		l.debug = false
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomDebug, value), nil)
 	}
@@ -2738,16 +2756,17 @@ func modifyDebug(vm *VM, module, value Atom) error {
 }
 
 func modifyUnknown(vm *VM, module, value Atom) error {
-	if vm.unknown == nil {
-		vm.unknown = map[Atom]unknownAction{}
-	}
+	l, _ := vm.moduleLocals[module]
+	defer func() {
+		vm.moduleLocals[module] = l
+	}()
 	switch value {
 	case atomError:
-		vm.unknown[module] = unknownError
+		l.unknown = unknownError
 	case atomWarning:
-		vm.unknown[module] = unknownWarning
+		l.unknown = unknownWarning
 	case atomFail:
-		vm.unknown[module] = unknownFail
+		l.unknown = unknownFail
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomUnknown, value), nil)
 	}
@@ -2755,16 +2774,20 @@ func modifyUnknown(vm *VM, module, value Atom) error {
 }
 
 func modifyDoubleQuotes(vm *VM, module, value Atom) error {
-	if vm.doubleQuotes == nil {
-		vm.doubleQuotes = map[Atom]doubleQuotes{}
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
 	}
+	l, _ := vm.moduleLocals[module]
+	defer func() {
+		vm.moduleLocals[module] = l
+	}()
 	switch value {
 	case atomCodes:
-		vm.doubleQuotes[module] = doubleQuotesCodes
+		l.doubleQuotes = doubleQuotesCodes
 	case atomChars:
-		vm.doubleQuotes[module] = doubleQuotesChars
+		l.doubleQuotes = doubleQuotesChars
 	case atomAtom:
-		vm.doubleQuotes[module] = doubleQuotesAtom
+		l.doubleQuotes = doubleQuotesAtom
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomDoubleQuotes, value), nil)
 	}
@@ -2788,17 +2811,18 @@ func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, f, env))
 	}
 
+	l, _ := vm.moduleLocals[module]
 	pattern := tuple(flag, value)
 	flags := []Term{
 		tuple(atomBounded, atomTrue),
 		tuple(atomMaxInteger, maxInt),
 		tuple(atomMinInteger, minInt),
 		tuple(atomIntegerRoundingFunction, atomTowardZero),
-		tuple(atomCharConversion, onOff(vm.charConvEnabled[module])),
-		tuple(atomDebug, onOff(vm.debug[module])),
+		tuple(atomCharConversion, onOff(l.charConversion)),
+		tuple(atomDebug, onOff(l.debug)),
 		tuple(atomMaxArity, atomUnbounded),
-		tuple(atomUnknown, NewAtom(vm.unknown[module].String())),
-		tuple(atomDoubleQuotes, NewAtom(vm.doubleQuotes[module].String())),
+		tuple(atomUnknown, NewAtom(l.unknown.String())),
+		tuple(atomDoubleQuotes, NewAtom(l.doubleQuotes.String())),
 	}
 	ks := make([]func(context.Context) *Promise, len(flags))
 	for i := range flags {
@@ -3160,12 +3184,8 @@ func CurrentModule(vm *VM, module Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, m, env))
 	}
 
-	ms := map[Atom]struct{}{}
-	for pi := range vm.procedures {
-		ms[pi.module] = struct{}{}
-	}
-	ks := make([]func(context.Context) *Promise, 0, len(ms))
-	for m := range ms {
+	ks := make([]func(context.Context) *Promise, 0, len(vm.moduleLocals))
+	for m := range vm.moduleLocals {
 		m := m
 		ks = append(ks, func(context.Context) *Promise {
 			return Unify(vm, module, m, k, env)
@@ -3236,4 +3256,8 @@ func PredicateProperty(vm *VM, prototype, property Term, k Cont, env *Env) *Prom
 		})
 	}
 	return Delay(ks...)
+}
+
+func CallingContext(vm *VM, ctx Term, k Cont, env *Env) *Promise {
+	return Unify(vm, ctx, callingModule(env), k, env)
 }

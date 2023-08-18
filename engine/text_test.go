@@ -441,12 +441,13 @@ bar(b).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			var vm VM
-			vm.operators.define(atomUser, 1200, operatorSpecifierXFX, atomIf)
-			vm.operators.define(atomUser, 1200, operatorSpecifierXFX, atomArrow)
-			vm.operators.define(atomUser, 1200, operatorSpecifierFX, atomIf)
-			vm.operators.define(atomUser, 1000, operatorSpecifierXFY, atomComma)
-			vm.operators.define(atomUser, 400, operatorSpecifierYFX, atomSlash)
+			ops := operators{}
+			ops.define(1200, operatorSpecifierXFX, atomIf)
+			ops.define(1200, operatorSpecifierXFX, atomArrow)
+			ops.define(1200, operatorSpecifierFX, atomIf)
+			ops.define(1000, operatorSpecifierXFY, atomComma)
+			ops.define(400, operatorSpecifierYFX, atomSlash)
+			vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 			vm.procedures = map[procedureIndicator]procedureEntry{
 				{module: atomUser, name: NewAtom("throw"), arity: 1}: {procedure: Predicate1(Throw)},
 				{module: atomUser, name: NewAtom("foo"), arity: 1}: {

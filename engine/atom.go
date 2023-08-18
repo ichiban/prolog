@@ -256,7 +256,7 @@ func NewAtom(name string) Atom {
 // WriteTerm outputs the Atom to an io.Writer.
 func (a Atom) WriteTerm(w io.Writer, opts *WriteOptions, _ *Env) error {
 	ew := errWriter{w: w}
-	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(opts.module, a)
+	openClose := (opts.left != (operator{}) || opts.right != (operator{})) && opts.ops.defined(a)
 
 	if openClose {
 		if opts.left.name != 0 && opts.left.specifier.class() == operatorClassPrefix {

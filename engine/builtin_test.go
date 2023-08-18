@@ -941,54 +941,64 @@ func TestTermVariables(t *testing.T) {
 func TestOp(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
-			vm := VM{operators: operators{}}
-			vm.operators.define(atomUser, 900, operatorSpecifierXFX, NewAtom(`+++`))
-			vm.operators.define(atomUser, 1100, operatorSpecifierXFX, NewAtom(`+`))
+			var ops operators
+			ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+			ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+
+			vm := VM{moduleLocals: map[Atom]moduleLocal{
+				atomUser: {
+					operators: ops,
+				},
+			}}
 
 			ok, err := Op(&vm, Integer(1000), atomXFX, NewAtom("++"), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 
 			assert.Equal(t, operators{
-				opKey{module: atomUser, name: NewAtom(`+++`)}: {
+				NewAtom(`+++`): {
 					operatorClassInfix: {
 						priority:  900,
 						specifier: operatorSpecifierXFX,
 						name:      NewAtom("+++"),
 					},
 				},
-				opKey{module: atomUser, name: NewAtom(`++`)}: {
+				NewAtom(`++`): {
 					operatorClassInfix: {
 						priority:  1000,
 						specifier: operatorSpecifierXFX,
 						name:      NewAtom("++"),
 					},
 				},
-				opKey{module: atomUser, name: NewAtom(`+`)}: {
+				NewAtom(`+`): {
 					operatorClassInfix: {
 						priority:  1100,
 						specifier: operatorSpecifierXFX,
 						name:      atomPlus,
 					},
 				},
-			}, vm.operators)
+			}, vm.moduleLocals[atomUser].operators)
 		})
 
 		t.Run("list", func(t *testing.T) {
 			vm := VM{
-				operators: operators{
-					opKey{module: atomUser, name: NewAtom(`+++`)}: {
-						operatorClassInfix: {
-							priority:  900,
-							specifier: operatorSpecifierXFX,
-							name:      NewAtom("+++"),
-						},
-					},
-					opKey{module: atomUser, name: NewAtom(`+`)}: {
-						operatorClassInfix: {
-							priority:  1100,
-							specifier: operatorSpecifierXFX,
-							name:      atomPlus,
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						operators: operators{
+							NewAtom(`+++`): {
+								operatorClassInfix: {
+									priority:  900,
+									specifier: operatorSpecifierXFX,
+									name:      NewAtom("+++"),
+								},
+							},
+							NewAtom(`+`): {
+								operatorClassInfix: {
+									priority:  1100,
+									specifier: operatorSpecifierXFX,
+									name:      atomPlus,
+								},
+							},
 						},
 					},
 				},
@@ -998,53 +1008,57 @@ func TestOp(t *testing.T) {
 			assert.True(t, ok)
 
 			assert.Equal(t, operators{
-				opKey{module: atomUser, name: NewAtom(`+++`)}: {
+				NewAtom(`+++`): {
 					operatorClassInfix: {
 						priority:  900,
 						specifier: operatorSpecifierXFX,
 						name:      NewAtom("+++"),
 					},
 				},
-				opKey{module: atomUser, name: NewAtom(`++`)}: {
+				NewAtom(`++`): {
 					operatorClassInfix: {
 						priority:  1000,
 						specifier: operatorSpecifierXFX,
 						name:      NewAtom("++"),
 					},
 				},
-				opKey{module: atomUser, name: NewAtom(`+`)}: {
+				NewAtom(`+`): {
 					operatorClassInfix: {
 						priority:  1100,
 						specifier: operatorSpecifierXFX,
 						name:      atomPlus,
 					},
 				},
-			}, vm.operators)
+			}, vm.moduleLocals[atomUser].operators)
 		})
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			operators: operators{
-				opKey{module: atomUser, name: NewAtom(`+++`)}: {
-					operatorClassInfix: {
-						priority:  900,
-						specifier: operatorSpecifierXFX,
-						name:      NewAtom("+++"),
-					},
-				},
-				opKey{module: atomUser, name: NewAtom(`++`)}: {
-					operatorClassInfix: {
-						priority:  1000,
-						specifier: operatorSpecifierXFX,
-						name:      NewAtom("++"),
-					},
-				},
-				opKey{module: atomUser, name: NewAtom(`+`)}: {
-					operatorClassInfix: {
-						priority:  1100,
-						specifier: operatorSpecifierXFX,
-						name:      atomPlus,
+			moduleLocals: map[Atom]moduleLocal{
+				atomUser: {
+					operators: operators{
+						NewAtom(`+++`): {
+							operatorClassInfix: {
+								priority:  900,
+								specifier: operatorSpecifierXFX,
+								name:      NewAtom("+++"),
+							},
+						},
+						NewAtom(`++`): {
+							operatorClassInfix: {
+								priority:  1000,
+								specifier: operatorSpecifierXFX,
+								name:      NewAtom("++"),
+							},
+						},
+						NewAtom(`+`): {
+							operatorClassInfix: {
+								priority:  1100,
+								specifier: operatorSpecifierXFX,
+								name:      atomPlus,
+							},
+						},
 					},
 				},
 			},
@@ -1054,21 +1068,21 @@ func TestOp(t *testing.T) {
 		assert.True(t, ok)
 
 		assert.Equal(t, operators{
-			opKey{module: atomUser, name: NewAtom(`+++`)}: {
+			NewAtom(`+++`): {
 				operatorClassInfix: {
 					priority:  900,
 					specifier: operatorSpecifierXFX,
 					name:      NewAtom("+++"),
 				},
 			},
-			opKey{module: atomUser, name: NewAtom(`+`)}: {
+			NewAtom(`+`): {
 				operatorClassInfix: {
 					priority:  1100,
 					specifier: operatorSpecifierXFX,
 					name:      atomPlus,
 				},
 			},
-		}, vm.operators)
+		}, vm.moduleLocals[atomUser].operators)
 	})
 
 	t.Run("priority is a variable", func(t *testing.T) {
@@ -1137,16 +1151,18 @@ func TestOp(t *testing.T) {
 	})
 
 	t.Run("operator is ','", func(t *testing.T) {
-		vm := VM{operators: operators{}}
-		vm.operators.define(atomUser, 1000, operatorSpecifierXFY, NewAtom(`,`))
+		var ops operators
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 		ok, err := Op(&vm, Integer(1000), atomXFY, atomComma, Success, nil).Force(context.Background())
 		assert.Equal(t, permissionError(operationModify, permissionTypeOperator, atomComma, nil), err)
 		assert.False(t, ok)
 	})
 
 	t.Run("an element of the operator list is ','", func(t *testing.T) {
-		vm := VM{operators: operators{}}
-		vm.operators.define(atomUser, 1000, operatorSpecifierXFY, NewAtom(`,`))
+		var ops operators
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 		ok, err := Op(&vm, Integer(1000), atomXFY, List(atomComma), Success, nil).Force(context.Background())
 		assert.Equal(t, permissionError(operationModify, permissionTypeOperator, atomComma, nil), err)
 		assert.False(t, ok)
@@ -1176,8 +1192,9 @@ func TestOp(t *testing.T) {
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				vm := VM{operators: operators{}}
-				vm.operators.define(atomUser, 1001, operatorSpecifierXFY, NewAtom(`|`))
+				var ops operators
+				ops.define(1001, operatorSpecifierXFY, NewAtom(`|`))
+				vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 				ok, err := Op(&vm, Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
 				assert.Equal(t, permissionError(operationModify, permissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
@@ -1209,8 +1226,9 @@ func TestOp(t *testing.T) {
 			})
 
 			t.Run("modify", func(t *testing.T) {
-				vm := VM{operators: operators{}}
-				vm.operators.define(atomUser, 101, operatorSpecifierXFY, NewAtom(`|`))
+				var ops operators
+				ops.define(101, operatorSpecifierXFY, NewAtom(`|`))
+				vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 				ok, err := Op(&vm, Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
 				assert.Equal(t, permissionError(operationModify, permissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
@@ -1220,16 +1238,18 @@ func TestOp(t *testing.T) {
 
 	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
 		t.Run("infix", func(t *testing.T) {
-			vm := VM{operators: operators{}}
-			vm.operators.define(atomUser, 200, operatorSpecifierYF, NewAtom(`+`))
+			var ops operators
+			ops.define(200, operatorSpecifierYF, NewAtom(`+`))
+			vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 			ok, err := Op(&vm, Integer(500), atomYFX, List(atomPlus), Success, nil).Force(context.Background())
 			assert.Equal(t, permissionError(operationCreate, permissionTypeOperator, atomPlus, nil), err)
 			assert.False(t, ok)
 		})
 
 		t.Run("postfix", func(t *testing.T) {
-			vm := VM{operators: operators{}}
-			vm.operators.define(atomUser, 500, operatorSpecifierYFX, NewAtom(`+`))
+			var ops operators
+			ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+			vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 			ok, err := Op(&vm, Integer(200), atomYF, List(atomPlus), Success, nil).Force(context.Background())
 			assert.Equal(t, permissionError(operationCreate, permissionTypeOperator, atomPlus, nil), err)
 			assert.False(t, ok)
@@ -1238,11 +1258,15 @@ func TestOp(t *testing.T) {
 }
 
 func TestCurrentOp(t *testing.T) {
-	vm := VM{operators: operators{}}
-	vm.operators.define(atomUser, 900, operatorSpecifierXFX, NewAtom(`+++`))
-	vm.operators.define(atomUser, 1000, operatorSpecifierXFX, NewAtom(`++`))
-	vm.operators.define(atomUser, 1100, operatorSpecifierXFX, NewAtom(`+`))
-	vm.operators.define(NewAtom("foo"), 1200, operatorSpecifierFX, NewAtom(`-`))
+	var ops, opsFoo operators
+	ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+	ops.define(1000, operatorSpecifierXFX, NewAtom(`++`))
+	ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+	opsFoo.define(1200, operatorSpecifierFX, NewAtom(`-`))
+	vm := VM{moduleLocals: map[Atom]moduleLocal{
+		atomUser:       {operators: ops},
+		NewAtom("foo"): {operators: opsFoo},
+	}}
 
 	t.Run("single solution", func(t *testing.T) {
 		ok, err := CurrentOp(&vm, Integer(1100), atomXFX, atomPlus, Success, nil).Force(context.Background())
@@ -1559,8 +1583,10 @@ func TestBagOf(t *testing.T) {
 				})
 			})},
 		},
-		unknown: map[Atom]unknownAction{
-			atomUser: unknownWarning,
+		moduleLocals: map[Atom]moduleLocal{
+			atomUser: {
+				unknown: unknownWarning,
+			},
 		},
 	}
 
@@ -1994,8 +2020,10 @@ func TestSetOf(t *testing.T) {
 			{module: atomUser, name: NewAtom("setof"), arity: 3}: {procedure: Predicate3(SetOf)},
 			{module: atomUser, name: NewAtom("bagof"), arity: 3}: {procedure: Predicate3(BagOf)},
 		},
-		unknown: map[Atom]unknownAction{
-			atomUser: unknownWarning,
+		moduleLocals: map[Atom]moduleLocal{
+			atomUser: {
+				unknown: unknownWarning,
+			},
 		},
 	}
 
@@ -4086,10 +4114,11 @@ func TestWriteTerm(t *testing.T) {
 		{title: `L = [a, b|L], write_term(S, L, [max_depth(9)]).`, sOrA: w, term: l, options: List(atomMaxDepth.Apply(Integer(9))), env: NewEnv().bind(l, PartialList(l, NewAtom("a"), NewAtom("b"))), ok: true, output: `[a,b,a,b,a,b,a,b,a|...]`}, // https://github.com/ichiban/prolog/issues/297#issuecomment-1646750461
 	}
 
-	var vm VM
-	vm.operators.define(atomUser, 500, operatorSpecifierYFX, atomPlus)
-	vm.operators.define(atomUser, 200, operatorSpecifierFY, atomPlus)
-	vm.operators.define(atomUser, 200, operatorSpecifierYF, atomMinus)
+	var ops operators
+	ops.define(500, operatorSpecifierYFX, atomPlus)
+	ops.define(200, operatorSpecifierFY, atomPlus)
+	ops.define(200, operatorSpecifierYF, atomMinus)
+	vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			buf.Reset()
@@ -6292,20 +6321,26 @@ func TestCharConversion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, 'b', vm.charConversions[charConvKey{module: atomUser, rune: 'a'}])
+		assert.Equal(t, 'b', vm.moduleLocals[atomUser].charConversions['a'])
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			charConversions: map[charConvKey]rune{
-				{module: atomUser, rune: 'a'}: 'b',
+			moduleLocals: map[Atom]moduleLocal{
+				atomUser: {
+					charConversions: map[rune]rune{
+						'a': 'b',
+					},
+				},
 			},
 		}
 		ok, err := CharConversion(&vm, NewAtom("a"), NewAtom("a"), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.charConversions[charConvKey{module: atomUser, rune: 'a'}]
+		l, ok := vm.moduleLocals[atomUser]
+		assert.True(t, ok)
+		_, ok = l.charConversions['a']
 		assert.False(t, ok)
 	})
 
@@ -6367,8 +6402,12 @@ func TestCurrentCharConversion(t *testing.T) {
 
 		t.Run("converted", func(t *testing.T) {
 			vm := VM{
-				charConversions: map[charConvKey]rune{
-					{module: atomUser, rune: 'a'}: 'b',
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						charConversions: map[rune]rune{
+							'a': 'b',
+						},
+					},
 				},
 			}
 			ok, err := CurrentCharConversion(&vm, NewAtom("a"), NewAtom("b"), Success, nil).Force(context.Background())
@@ -6473,23 +6512,31 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomCharConversion, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, vm.charConvEnabled[atomUser])
+			assert.True(t, vm.moduleLocals[atomUser].charConversion)
 		})
 
 		t.Run("off", func(t *testing.T) {
-			vm := VM{charConvEnabled: map[Atom]bool{
-				atomUser: true,
-			}}
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						charConversion: true,
+					},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomCharConversion, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, vm.charConvEnabled[atomUser])
+			assert.False(t, vm.moduleLocals[atomUser].charConversion)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
-			vm := VM{charConvEnabled: map[Atom]bool{
-				atomUser: true,
-			}}
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						charConversion: true,
+					},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomCharConversion, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
@@ -6502,23 +6549,25 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomDebug, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, vm.debug[atomUser])
+			assert.True(t, vm.moduleLocals[atomUser].debug)
 		})
 
 		t.Run("off", func(t *testing.T) {
-			vm := VM{debug: map[Atom]bool{
-				atomUser: true,
-			}}
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						debug: true,
+					},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomDebug, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, vm.debug[atomUser])
+			assert.False(t, vm.moduleLocals[atomUser].debug)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
-			vm := VM{debug: map[Atom]bool{
-				atomUser: true,
-			}}
+			var vm VM
 			ok, err := SetPrologFlag(&vm, atomDebug, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
@@ -6534,33 +6583,47 @@ func TestSetPrologFlag(t *testing.T) {
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
-			vm := VM{unknown: map[Atom]unknownAction{
-				atomUser: unknownFail,
-			}}
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomError, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownError, vm.unknown[atomUser])
+			assert.Equal(t, unknownError, vm.moduleLocals[atomUser].unknown)
 		})
 
 		t.Run("warning", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomWarning, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownWarning, vm.unknown[atomUser])
+			assert.Equal(t, unknownWarning, vm.moduleLocals[atomUser].unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomFail, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownFail, vm.unknown[atomUser])
+			assert.Equal(t, unknownFail, vm.moduleLocals[atomUser].unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomUnknown, NewAtom("foo"), Success, nil).Force(context.Background())
 			assert.Error(t, err)
 			assert.False(t, ok)
@@ -6569,27 +6632,39 @@ func TestSetPrologFlag(t *testing.T) {
 
 	t.Run("double_quotes", func(t *testing.T) {
 		t.Run("codes", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomCodes, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesCodes, vm.doubleQuotes[atomUser])
+			assert.Equal(t, doubleQuotesCodes, vm.moduleLocals[atomUser].doubleQuotes)
 		})
 
 		t.Run("chars", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomChars, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesChars, vm.doubleQuotes[atomUser])
+			assert.Equal(t, doubleQuotesChars, vm.moduleLocals[atomUser].doubleQuotes)
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			var vm VM
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {},
+				},
+			}
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomAtom, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesAtom, vm.doubleQuotes[atomUser])
+			assert.Equal(t, doubleQuotesAtom, vm.moduleLocals[atomUser].doubleQuotes)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
@@ -6711,10 +6786,10 @@ func TestCurrentPrologFlag(t *testing.T) {
 				assert.Equal(t, atomUnbounded, env.Resolve(value))
 			case 7:
 				assert.Equal(t, atomUnknown, env.Resolve(flag))
-				assert.Equal(t, NewAtom(vm.unknown[atomUser].String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.moduleLocals[atomUser].unknown.String()), env.Resolve(value))
 			case 8:
 				assert.Equal(t, atomDoubleQuotes, env.Resolve(flag))
-				assert.Equal(t, NewAtom(vm.doubleQuotes[atomUser].String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.moduleLocals[atomUser].doubleQuotes.String()), env.Resolve(value))
 			default:
 				assert.Fail(t, "unreachable")
 			}
@@ -7606,6 +7681,20 @@ func Test_iteratedGoalTerm(t *testing.T) {
 	}
 }
 
+func TestUseModule(t *testing.T) {
+	tests := []struct {
+		title string
+	}{
+		{},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+
+		})
+	}
+}
+
 func TestCurrentModule(t *testing.T) {
 	tests := []struct {
 		title  string
@@ -7618,10 +7707,9 @@ func TestCurrentModule(t *testing.T) {
 	}
 
 	vm := VM{
-		procedures: map[procedureIndicator]procedureEntry{
-			{module: NewAtom("foo"), name: NewAtom("p"), arity: 0}: {},
-			{module: NewAtom("foo"), name: NewAtom("q"), arity: 0}: {},
-			{module: NewAtom("bar"), name: NewAtom("p"), arity: 0}: {},
+		moduleLocals: map[Atom]moduleLocal{
+			NewAtom("foo"): {},
+			NewAtom("bar"): {},
 		},
 	}
 

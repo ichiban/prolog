@@ -23,8 +23,8 @@ func TestAtom_WriteTerm(t *testing.T) {
 		{name: `{}`, opts: WriteOptions{quoted: false}, output: `{}`},
 		{name: `{}`, opts: WriteOptions{quoted: true}, output: `{}`},
 		{name: `-`, output: `-`},
-		{name: `-`, opts: WriteOptions{ops: operators{opKey{name: atomPlus}: {}, opKey{name: atomMinus}: {}}, left: operator{specifier: operatorSpecifierFY, name: atomPlus}}, output: ` (-)`},
-		{name: `-`, opts: WriteOptions{ops: operators{opKey{name: atomPlus}: {}, opKey{name: atomMinus}: {}}, right: operator{name: atomPlus}}, output: `(-)`},
+		{name: `-`, opts: WriteOptions{ops: operators{atomPlus: {}, atomMinus: {}}, left: operator{specifier: operatorSpecifierFY, name: atomPlus}}, output: ` (-)`},
+		{name: `-`, opts: WriteOptions{ops: operators{atomPlus: {}, atomMinus: {}}, right: operator{name: atomPlus}}, output: `(-)`},
 		{name: `X`, opts: WriteOptions{quoted: true, left: operator{name: NewAtom(`F`)}}, output: ` 'X'`},  // So that it won't be 'F''X'.
 		{name: `X`, opts: WriteOptions{quoted: true, right: operator{name: NewAtom(`F`)}}, output: `'X' `}, // So that it won't be 'X''F'.
 		{name: `foo`, opts: WriteOptions{left: operator{name: NewAtom(`bar`)}}, output: ` foo`},            // So that it won't be barfoo.

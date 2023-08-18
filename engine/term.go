@@ -19,7 +19,6 @@ type WriteOptions struct {
 	variableNames map[Variable]Atom
 	numberVars    bool
 
-	module      Atom
 	ops         operators
 	priority    Integer
 	visited     map[termID]struct{}
@@ -59,15 +58,14 @@ func (o WriteOptions) withRight(op operator) *WriteOptions {
 }
 
 var defaultWriteOptions = WriteOptions{
-	module: atomUser,
 	ops: operators{
-		opKey{module: atomUser, name: atomColon}: [_operatorClassLen]operator{
+		atomColon: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 600, specifier: operatorSpecifierXFY, name: atomColon}, // for module qualification
 		},
-		opKey{module: atomUser, name: atomPlus}: [_operatorClassLen]operator{
+		atomPlus: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: atomPlus}, // for flag+value
 		},
-		opKey{module: atomUser, name: atomSlash}: [_operatorClassLen]operator{
+		atomSlash: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 400, specifier: operatorSpecifierYFX, name: atomSlash}, // for principal functors
 		},
 	},
