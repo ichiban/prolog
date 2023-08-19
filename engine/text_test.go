@@ -28,13 +28,14 @@ func TestVM_Compile(t *testing.T) {
 		text   string
 		args   []interface{}
 		err    error
-		result map[procedureIndicator]procedure
+		result map[procedureIndicator]procedureEntry
 	}{
 		{title: "shebang", text: `#!/foo/bar
 foo(a).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
-				clauses: clauses{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
@@ -46,10 +47,10 @@ foo(a).
 				},
 			},
 		}},
-		{title: "shebang: no following lines", text: `#!/foo/bar`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+		{title: "shebang: no following lines", text: `#!/foo/bar`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -64,9 +65,10 @@ foo(a).
 		{title: "facts", text: `
 foo(a).
 foo(b).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
-				clauses: clauses{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
@@ -89,10 +91,10 @@ foo(b).
 		{title: "rules", text: `
 bar :- true.
 bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f(a)).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -103,21 +105,23 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 					},
 				},
 			},
-			{name: NewAtom("bar"), arity: 0}: &userDefined{
-				clauses: clauses{
+			{module: atomUser, name: NewAtom("bar"), arity: 0}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("bar"), arity: 0},
 						raw: atomIf.Apply(NewAtom("bar"), atomTrue),
 						bytecode: bytecode{
 							{opcode: opEnter},
-							{opcode: opCall, operand: procedureIndicator{name: atomTrue, arity: 0}},
+							{opcode: opCall, operand: procedureIndicator{module: atomUser, name: atomTrue, arity: 0}},
 							{opcode: opExit},
 						},
 					},
 				},
 			},
-			{name: NewAtom("bar"), arity: 5}: &userDefined{
-				clauses: clauses{
+			{module: atomUser, name: NewAtom("bar"), arity: 5}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi: procedureIndicator{name: NewAtom("bar"), arity: 5},
 						raw: atomIf.Apply(
@@ -146,7 +150,7 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 							{opcode: opPop},
 							{opcode: opEnter},
 							{opcode: opPutVar, operand: Integer(0)},
-							{opcode: opCall, operand: procedureIndicator{name: atomCall, arity: 1}},
+							{opcode: opCall, operand: procedureIndicator{module: atomUser, name: atomCall, arity: 1}},
 							{opcode: opCut},
 							{opcode: opPutVar, operand: Integer(0)},
 							{opcode: opPutConst, operand: charList("abc")},
@@ -162,7 +166,7 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 							{opcode: opPutFunctor, operand: procedureIndicator{name: NewAtom("f"), arity: 1}},
 							{opcode: opPutConst, operand: NewAtom("a")},
 							{opcode: opPop},
-							{opcode: opCall, operand: procedureIndicator{name: NewAtom("foo"), arity: 5}},
+							{opcode: opCall, operand: procedureIndicator{module: atomUser, name: NewAtom("foo"), arity: 5}},
 							{opcode: opExit},
 						},
 					},
@@ -173,11 +177,12 @@ bar(X, "abc", [a, b], [a, b|Y], f(a)) :- X, !, foo(X, "abc", [a, b], [a, b|Y], f
 :- dynamic(foo/1).
 foo(a).
 foo(b).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
-				public:  true,
-				dynamic: true,
-				clauses: clauses{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
+				public:    true,
+				dynamic:   true,
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
@@ -201,10 +206,11 @@ foo(b).
 :- multifile(foo/1).
 foo(a).
 foo(b).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -237,10 +243,11 @@ foo(b).
 foo(a).
 bar(a).
 foo(b).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				discontiguous: true,
-				clauses: clauses{
+				definedIn:     atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}},
@@ -259,8 +266,9 @@ foo(b).
 					},
 				},
 			},
-			{name: NewAtom("bar"), arity: 1}: &userDefined{
-				clauses: clauses{
+			{module: atomUser, name: NewAtom("bar"), arity: 1}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("bar"), arity: 1},
 						raw: &compound{functor: NewAtom("bar"), args: []Term{NewAtom("a")}},
@@ -273,10 +281,11 @@ foo(b).
 			},
 		}},
 		{title: "include", text: `
-:- include('testdata/foo').
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 0}: &userDefined{
-				clauses: clauses{
+:- include('testdata/foo.pl').
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 0}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},
 						raw: NewAtom("foo"),
@@ -286,9 +295,9 @@ foo(b).
 					},
 				},
 			},
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -302,9 +311,10 @@ foo(b).
 		}},
 		{title: "ensure_loaded", text: `
 :- ensure_loaded('testdata/foo').
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 0}: &userDefined{
-				clauses: clauses{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 0}: {
+				definedIn: atomUser,
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 0},
 						raw: NewAtom("foo"),
@@ -314,9 +324,9 @@ foo(b).
 					},
 				},
 			},
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -330,10 +340,10 @@ foo(b).
 		}},
 		{title: "initialization", text: `
 :- initialization(foo(c)).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -347,10 +357,10 @@ foo(b).
 		}},
 		{title: "predicate-backed directive", text: `
 :- foo(c).
-`, result: map[procedureIndicator]procedure{
-			{name: NewAtom("foo"), arity: 1}: &userDefined{
+`, result: map[procedureIndicator]procedureEntry{
+			{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 				multifile: true,
-				clauses: clauses{
+				procedure: clauses{
 					{
 						pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 						raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -400,13 +410,13 @@ foo :- 1.
 `, err: typeError(validTypeAtom, Integer(1), nil)},
 		{title: "error: initialization exception", text: `
 :- initialization(bar).
-`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), NewEnv().bind(varContext, procedureIndicator{module: atomUser, name: atomInitialization, arity: 1}))},
 		{title: "error: initialization failure", text: `
 :- initialization(foo(d)).
 `, err: errors.New("failed initialization goal: foo(d)")},
 		{title: "error: predicate-backed directive exception", text: `
 :- bar.
-`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), nil)},
+`, err: existenceError(objectTypeProcedure, atomSlash.Apply(NewAtom("bar"), Integer(0)), NewEnv().bind(varContext, procedureIndicator{module: atomUser, name: atomIf, arity: 1}))},
 		{title: "error: predicate-backed directive failure", text: `
 :- foo(d).
 `, err: errors.New("failed directive: foo(d)")},
@@ -431,16 +441,18 @@ bar(b).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			var vm VM
-			vm.operators.define(1200, operatorSpecifierXFX, atomIf)
-			vm.operators.define(1200, operatorSpecifierXFX, atomArrow)
-			vm.operators.define(1200, operatorSpecifierFX, atomIf)
-			vm.operators.define(1000, operatorSpecifierXFY, atomComma)
-			vm.operators.define(400, operatorSpecifierYFX, atomSlash)
-			vm.procedures = map[procedureIndicator]procedure{
-				{name: NewAtom("foo"), arity: 1}: &userDefined{
+			ops := operators{}
+			ops.define(1200, operatorSpecifierXFX, atomIf)
+			ops.define(1200, operatorSpecifierXFX, atomArrow)
+			ops.define(1200, operatorSpecifierFX, atomIf)
+			ops.define(1000, operatorSpecifierXFY, atomComma)
+			ops.define(400, operatorSpecifierYFX, atomSlash)
+			vm := VM{moduleLocals: map[Atom]moduleLocal{atomUser: {operators: ops}}}
+			vm.procedures = map[procedureIndicator]procedureEntry{
+				{module: atomUser, name: NewAtom("throw"), arity: 1}: {procedure: Predicate1(Throw)},
+				{module: atomUser, name: NewAtom("foo"), arity: 1}: {
 					multifile: true,
-					clauses: clauses{
+					procedure: clauses{
 						{
 							pi:  procedureIndicator{name: NewAtom("foo"), arity: 1},
 							raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}},
@@ -453,10 +465,10 @@ bar(b).
 				},
 			}
 			vm.FS = testdata
-			vm.Register1(NewAtom("throw"), Throw)
-			assert.Equal(t, tt.err, vm.Compile(context.Background(), tt.text, tt.args...))
+			err := vm.Compile(context.Background(), tt.text, tt.args...)
+			assert.Equal(t, tt.err, err)
 			if tt.err == nil {
-				delete(vm.procedures, procedureIndicator{name: NewAtom("throw"), arity: 1})
+				delete(vm.procedures, procedureIndicator{module: atomUser, name: NewAtom("throw"), arity: 1})
 				assert.Equal(t, tt.result, vm.procedures)
 			}
 		})

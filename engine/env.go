@@ -1,8 +1,14 @@
 package engine
 
-var varContext = NewVariable()
+var (
+	varContext        = NewVariable()
+	varCallingContext = NewVariable()
+)
 
-var rootContext = NewAtom("root")
+var rootContext = procedureIndicator{
+	module: atomUser,
+	name:   NewAtom("root"),
+}
 
 type envKey int64
 

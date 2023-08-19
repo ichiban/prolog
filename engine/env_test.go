@@ -22,7 +22,7 @@ func TestEnv_Bind(t *testing.T) {
 		},
 		binding: binding{
 			key:   newEnvKey(varContext),
-			value: NewAtom("root"),
+			value: rootContext,
 		},
 	}, env.bind(a, NewAtom("a")))
 }

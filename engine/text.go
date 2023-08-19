@@ -2,8 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -16,43 +20,127 @@ func (e *discontiguousError) Error() string {
 	return fmt.Sprintf("%s is discontiguous", e.pi)
 }
 
-// Compile compiles the Prolog text and updates the DB accordingly.
-func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
-	var t text
+// CompileModule compiles the Prolog text and updates the DB accordingly.
+// If the given Prolog text defines a module, it returns the module name.
+// Otherwise, it returns an atom `user`.
+func (vm *VM) CompileModule(ctx context.Context, s string, args ...interface{}) (Atom, error) {
+	t := text{module: atomUser}
 	if err := vm.compile(ctx, &t, s, args...); err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := t.flush(); err != nil {
-		return err
+		return 0, err
 	}
 
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	for pi, u := range t.clauses {
-		if existing, ok := vm.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
-			existing.clauses = append(existing.clauses, u.clauses...)
-			continue
+	for pi, e := range t.procs {
+		pi.module = t.module
+
+		if existing, ok := vm.procedures[pi]; ok {
+			if ecs, ok := existing.procedure.(clauses); ok && existing.multifile {
+				if cs, ok := e.procedure.(clauses); ok && e.multifile {
+					e.definedIn = existing.definedIn
+					e.procedure = append(ecs, cs...)
+				}
+			}
+
+			// Imported predicates are already in the database.
+			if e.procedure == nil {
+				e.definedIn = existing.definedIn
+				e.procedure = existing.procedure
+			}
 		}
 
-		vm.procedures[pi] = u
+		if e.definedIn == 0 {
+			e.definedIn = t.module
+		}
+
+		if e.procedure == nil {
+			e.procedure = clauses{}
+		}
+
+		vm.procedures[pi] = e
 	}
 
+	env := NewEnv().bind(varContext, procedureIndicator{module: t.module, name: atomInitialization, arity: 1})
 	for _, g := range t.goals {
-		ok, err := Call(vm, g, Success, nil).Force(ctx)
+		ok, err := Call(vm, g, Success, env).Force(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if !ok {
 			var sb strings.Builder
 			s := NewOutputTextStream(&sb)
 			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
-			return fmt.Errorf("failed initialization goal: %s", sb.String())
+			return 0, fmt.Errorf("failed initialization goal: %s", sb.String())
 		}
 	}
 
-	return nil
+	return t.module, nil
+}
+
+// Compile compiles the Prolog text and updates the DB accordingly.
+func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error {
+	_, err := vm.CompileModule(ctx, s, args...)
+	return err
+}
+
+func (vm *VM) resetModule(module Atom) {
+	for pi, e := range vm.procedures {
+		if pi.module != module || e.builtIn {
+			continue
+		}
+		delete(vm.procedures, pi)
+	}
+	delete(vm.moduleLocals, module)
+}
+
+func (vm *VM) importPredicates(dst, src Atom, limit []procedureIndicator) {
+	target := func(pi procedureIndicator) bool {
+		if limit == nil {
+			return true
+		}
+		for _, e := range limit {
+			if e == (procedureIndicator{name: pi.name, arity: pi.arity}) {
+				return true
+			}
+		}
+		return false
+	}
+	for pi, e := range vm.procedures {
+		if pi.module != src || !e.exported || !target(pi) {
+			continue
+		}
+		p := e.procedure
+		definedIn := e.definedIn
+		pi.module = dst
+		e := vm.procedures[pi]
+		e.exported = true
+		e.importedFrom = src
+		e.definedIn = definedIn
+		e.procedure = p
+		vm.procedures[pi] = e
+	}
+}
+
+func (vm *VM) importOps(dst, src Atom) {
+	if vm.moduleLocals == nil {
+		vm.moduleLocals = map[Atom]moduleLocal{}
+	}
+	srcL, _ := vm.moduleLocals[src]
+	dstL, ok := vm.moduleLocals[dst]
+	if !ok {
+		dstL.operators = operators{}
+	}
+	defer func() {
+		vm.moduleLocals[dst] = dstL
+	}()
+	for name, ops := range srcL.operators {
+		dstL.operators[name] = ops
+	}
 }
 
 // Consult executes Prolog texts in files.
@@ -68,7 +156,7 @@ func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 
 	return Delay(func(ctx context.Context) *Promise {
 		for _, filename := range filenames {
-			if err := vm.ensureLoaded(ctx, filename, env); err != nil {
+			if _, err := vm.ensureLoaded(ctx, filename, env); err != nil {
 				return Error(err)
 			}
 		}
@@ -78,12 +166,12 @@ func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 }
 
 func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interface{}) error {
-	if text.clauses == nil {
-		text.clauses = map[procedureIndicator]*userDefined{}
+	if text.procs == nil {
+		text.procs = map[procedureIndicator]procedureEntry{}
 	}
 
 	s = ignoreShebangLine(s)
-	p := NewParser(vm, strings.NewReader(s))
+	p := newParserModule(vm, &text.module, strings.NewReader(s))
 	if err := p.SetPlaceholder(NewAtom("?"), args...); err != nil {
 		return err
 	}
@@ -123,7 +211,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 				}
 			}
 
-			cs, err := compile(et, nil)
+			cs, err := compile(text.module, et, nil)
 			if err != nil {
 				return err
 			}
@@ -139,34 +227,123 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 		return err
 	}
 
-	switch pi, arg, _ := piArg(d, nil); pi {
+	if text.module == 0 {
+		text.module = atomUser
+	}
+	env := NewEnv().bind(varContext, procedureIndicator{module: text.module, name: atomIf, arity: 1})
+
+	switch pi, arg, _ := piArg(d, env); pi {
+	case procedureIndicator{name: atomModule, arity: 2}:
+		switch m := arg(0).(type) {
+		case Variable:
+			return InstantiationError(env)
+		case Atom:
+			text.module = m
+		default:
+			return typeError(validTypeAtom, m, env)
+		}
+
+		env = NewEnv().bind(varContext, procedureIndicator{module: text.module, name: atomIf, arity: 1})
+		vm.resetModule(text.module)
+		vm.importPredicates(text.module, atomProlog, nil)
+		vm.importOps(text.module, atomProlog)
+
+		iter := ListIterator{List: arg(1)}
+		for iter.Next() {
+			var pi procedureIndicator
+			switch i := iter.Current().(type) {
+			case Variable:
+				return InstantiationError(nil)
+			case Compound:
+				if i.Functor() != atomSlash || i.Arity() != 2 {
+					return typeError(validTypePredicateIndicator, i, env)
+				}
+				switch n := i.Arg(0).(type) {
+				case Variable:
+					return InstantiationError(nil)
+				case Atom:
+					switch a := i.Arg(1).(type) {
+					case Variable:
+						return InstantiationError(nil)
+					case Integer:
+						pi = procedureIndicator{name: n, arity: a}
+					default:
+						return typeError(validTypePredicateIndicator, i, env)
+					}
+				default:
+					return typeError(validTypePredicateIndicator, i, env)
+				}
+			default:
+				return typeError(validTypePredicateIndicator, i, env)
+			}
+			e := text.procs[pi]
+			e.exported = true
+			text.procs[pi] = e
+		}
+		return iter.Err()
+	case procedureIndicator{name: atomUseModule, arity: 2}:
+		_, err := UseModule(vm, NewVariable(), arg(0), arg(1), Success, env).Force(ctx)
+		return err
+	case procedureIndicator{name: atomMetaPredicate, arity: 1}:
+		iter := anyIterator{Any: arg(0)}
+		for iter.Next() {
+			switch c := iter.Current().(type) {
+			case Variable:
+				return InstantiationError(env)
+			case Compound:
+				key := procedureIndicator{name: c.Functor(), arity: Integer(c.Arity())}
+				e := text.procs[key]
+				e.metapredicate = make([]Term, c.Arity())
+				for i := 0; i < c.Arity(); i++ {
+					e.metapredicate[i] = c.Arg(i)
+				}
+				text.procs[key] = e
+			default:
+				return typeError(validTypeCompound, c, env)
+			}
+		}
+		return iter.Err()
 	case procedureIndicator{name: atomDynamic, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.dynamic = true
-			u.public = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.dynamic = true
+			e.public = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomMultifile, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.multifile = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.multifile = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomDiscontiguous, arity: 1}:
-		return text.forEachUserDefined(arg(0), func(u *userDefined) {
-			u.discontiguous = true
+		return text.forEachProcedureEntry(arg(0), func(pi procedureIndicator, e procedureEntry) {
+			e.discontiguous = true
+			text.procs[pi] = e
 		})
 	case procedureIndicator{name: atomInitialization, arity: 1}:
 		text.goals = append(text.goals, arg(0))
 		return nil
 	case procedureIndicator{name: atomInclude, arity: 1}:
-		_, b, err := vm.open(arg(0), nil)
+		var n string
+		switch a := arg(0).(type) {
+		case Variable:
+			return InstantiationError(nil)
+		case Atom:
+			n = a.String()
+		default:
+			return typeError(validTypeAtom, a, nil)
+		}
+
+		b, err := os.ReadFile(n)
 		if err != nil {
-			return err
+			return existenceError(objectTypeSourceSink, arg(0), nil)
 		}
 
 		return vm.compile(ctx, text, string(b))
 	case procedureIndicator{name: atomEnsureLoaded, arity: 1}:
-		return vm.ensureLoaded(ctx, arg(0), nil)
+		_, err := vm.ensureLoaded(ctx, arg(0), nil)
+		return err
 	default:
-		ok, err := Call(vm, d, Success, nil).Force(ctx)
+		ok, err := Call(vm, atomColon.Apply(text.module, d), Success, env).Force(ctx)
 		if err != nil {
 			return err
 		}
@@ -180,52 +357,80 @@ func (vm *VM) directive(ctx context.Context, text *text, d Term) error {
 	}
 }
 
-func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) error {
-	f, b, err := vm.open(file, env)
-	if err != nil {
-		return err
-	}
-
-	if vm.loaded == nil {
-		vm.loaded = map[string]struct{}{}
-	}
-	if _, ok := vm.loaded[f]; ok {
-		return nil
-	}
-	defer func() {
-		vm.loaded[f] = struct{}{}
-	}()
-
-	return vm.Compile(ctx, string(b))
-}
-
-func (vm *VM) open(file Term, env *Env) (string, []byte, error) {
+func (vm *VM) ensureLoaded(ctx context.Context, file Term, env *Env) (Atom, error) {
+	var fn string
 	switch f := env.Resolve(file).(type) {
 	case Variable:
-		return "", nil, InstantiationError(env)
+		return 0, InstantiationError(env)
 	case Atom:
-		s := f.String()
-		for _, f := range []string{s, s + ".pl"} {
-			b, err := fs.ReadFile(vm.FS, f)
-			if err != nil {
-				continue
-			}
-
-			return f, b, nil
-		}
-		return "", nil, existenceError(objectTypeSourceSink, file, env)
+		fn = f.String()
 	default:
-		return "", nil, typeError(validTypeAtom, file, env)
+		return 0, typeError(validTypeAtom, file, env)
 	}
+
+	for _, f := range []string{fn, fn + ".pl"} {
+		switch m, err := vm.load(ctx, f); {
+		case err == nil:
+			return m, nil
+		case errors.Is(err, fs.ErrNotExist):
+			continue
+		default:
+			return 0, err
+		}
+	}
+	return 0, existenceError(objectTypeSourceSink, file, env)
+}
+
+func (vm *VM) load(ctx context.Context, filename string) (Atom, error) {
+	if vm.loaded == nil {
+		vm.loaded = map[string]Atom{}
+	}
+	if m, ok := vm.loaded[filename]; ok {
+		return m, nil
+	}
+
+	f, err := vm.FS.Open(filename)
+	if err != nil {
+		return 0, err
+	}
+
+	var m Atom
+	switch f := f.(type) {
+	case Module:
+		base := filepath.Base(filename)
+		m = NewAtom(strings.TrimSuffix(base, filepath.Ext(base)))
+		if vm.procedures == nil {
+			vm.procedures = map[procedureIndicator]procedureEntry{}
+		}
+		for pi, e := range f.procedures {
+			pi.module = m
+			e.definedIn = m
+			vm.procedures[pi] = e
+		}
+	default:
+		b, err := io.ReadAll(f)
+		_ = f.Close()
+		if err != nil {
+			return 0, err
+		}
+
+		if m, err = vm.CompileModule(ctx, string(b)); err != nil {
+			return 0, err
+		}
+	}
+
+	vm.loaded[filename] = m
+	return m, nil
 }
 
 type text struct {
-	buf     clauses
-	clauses map[procedureIndicator]*userDefined
-	goals   []Term
+	module Atom
+	buf    clauses
+	procs  map[procedureIndicator]procedureEntry
+	goals  []Term
 }
 
-func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
+func (t *text) forEachProcedureEntry(pi Term, f func(pi procedureIndicator, e procedureEntry)) error {
 	iter := anyIterator{Any: pi}
 	for iter.Next() {
 		switch pi := iter.Current().(type) {
@@ -244,12 +449,7 @@ func (t *text) forEachUserDefined(pi Term, f func(u *userDefined)) error {
 					return InstantiationError(nil)
 				case Integer:
 					pi := procedureIndicator{name: n, arity: a}
-					u, ok := t.clauses[pi]
-					if !ok {
-						u = &userDefined{}
-						t.clauses[pi] = u
-					}
-					f(u)
+					f(pi, t.procs[pi])
 				default:
 					return typeError(validTypePredicateIndicator, pi, nil)
 				}
@@ -269,15 +469,16 @@ func (t *text) flush() error {
 	}
 
 	pi := t.buf[0].pi
-	u, ok := t.clauses[pi]
-	if !ok {
-		u = &userDefined{}
-		t.clauses[pi] = u
+	e := t.procs[pi]
+	if e.procedure == nil {
+		e.procedure = clauses{}
 	}
-	if len(u.clauses) > 0 && !u.discontiguous {
+	cs := e.procedure.(clauses)
+	if len(cs) > 0 && !e.discontiguous {
 		return &discontiguousError{pi: pi}
 	}
-	u.clauses = append(u.clauses, t.buf...)
+	e.procedure = append(cs, t.buf...)
+	t.procs[pi] = e
 	t.buf = t.buf[:0]
 	return nil
 }

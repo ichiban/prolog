@@ -20,9 +20,9 @@ var (
 
 // Parser turns bytes into Term.
 type Parser struct {
-	lexer        Lexer
-	operators    operators
-	doubleQuotes doubleQuotes
+	vm     *VM
+	module *Atom
+	lexer  Lexer
 
 	Vars []ParsedVariable
 
@@ -41,21 +41,35 @@ type ParsedVariable struct {
 
 // NewParser creates a new parser from the current VM and io.RuneReader.
 func NewParser(vm *VM, r io.RuneReader) *Parser {
-	if vm.operators == nil {
-		vm.operators = operators{}
-	}
+	return newParserModule(vm, &atomUser, r)
+}
+
+func newParserModule(vm *VM, module *Atom, r io.RuneReader) *Parser {
 	return &Parser{
+		vm:     vm,
+		module: module,
 		lexer: Lexer{
 			input: newRuneRingBuffer(r),
 		},
-		operators:    vm.operators,
-		doubleQuotes: vm.doubleQuotes,
 	}
+}
+
+func (p *Parser) doubleQuotes() doubleQuotes {
+	l, _ := p.vm.moduleLocals[*p.module]
+	return l.doubleQuotes
+}
+
+func (p *Parser) operators() operators {
+	l, _ := p.vm.moduleLocals[*p.module]
+	return l.operators
 }
 
 // SetPlaceholder registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
 func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
+	if len(args) == 0 { // If no arguments given, treat `?` as is (e.g. meta predicate mode indicators).
+		return nil
+	}
 	p.placeholder = placeholder
 	p.args = make([]Term, len(args))
 	for i, a := range args {
@@ -75,7 +89,7 @@ func (p *Parser) termOf(o reflect.Value) (Term, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return Integer(o.Int()), nil
 	case reflect.String:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes() {
 		case doubleQuotesCodes:
 			return CodeList(o.String()), nil
 		case doubleQuotesAtom:
@@ -419,7 +433,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		p.backup()
 	}
 
-	if op := p.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
+	if op := p.operators()[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
 		return op, nil
 	}
 
@@ -433,13 +447,13 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	if op := p.operators[a][operatorClassInfix]; op != (operator{}) {
+	if op := p.operators()[a][operatorClassInfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
 		}
 	}
-	if op := p.operators[a][operatorClassPostfix]; op != (operator{}) {
+	if op := p.operators()[a][operatorClassPostfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
@@ -518,7 +532,7 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 		return p.curlyBracketedTerm()
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes() {
 		case doubleQuotesChars:
 			return CharList(unDoubleQuote(t.val)), nil
 		case doubleQuotesCodes:
@@ -561,9 +575,12 @@ func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(t) {
-		p.backup()
-		return nil, errExpectation
+	if t, ok := t.(Atom); ok && maxPriority < 1201 {
+		ops := p.operators()
+		if ops.defined(t) {
+			p.backup()
+			return nil, errExpectation
+		}
 	}
 
 	if p.placeholder != 0 && t == p.placeholder {
@@ -641,7 +658,7 @@ func (p *Parser) atom() (Atom, error) {
 			return 0, errExpectation
 		}
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.doubleQuotes() {
 		case doubleQuotesAtom:
 			return NewAtom(unDoubleQuote(t.val)), nil
 		default:
@@ -754,7 +771,8 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 
 func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
-		if p.operators.defined(arg) {
+		ops := p.operators()
+		if ops.defined(arg) {
 			// Check if this atom is not followed by its own arguments.
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:

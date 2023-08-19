@@ -59,6 +59,9 @@ func (o WriteOptions) withRight(op operator) *WriteOptions {
 
 var defaultWriteOptions = WriteOptions{
 	ops: operators{
+		atomColon: [_operatorClassLen]operator{
+			operatorClassInfix: {priority: 600, specifier: operatorSpecifierXFY, name: atomColon}, // for module qualification
+		},
 		atomPlus: [_operatorClassLen]operator{
 			operatorClassInfix: {priority: 500, specifier: operatorSpecifierYFX, name: atomPlus}, // for flag+value
 		},
@@ -103,4 +106,33 @@ func id(t Term) termID {
 	default:
 		return t // Assuming it's comparable.
 	}
+}
+
+func moduleTerm(module Atom, t Term, env *Env) (qualifyingModule Atom, unqualifiedTerm Term, _ error) {
+	var c Compound
+	switch t := env.Resolve(t).(type) {
+	case Variable:
+		return 0, nil, InstantiationError(env)
+	case Compound:
+		if t.Functor() != atomColon || t.Arity() != 2 {
+			return module, t, nil
+		}
+		c = t
+	default:
+		return module, t, nil
+	}
+
+	var mm Atom
+	switch a := env.Resolve(c.Arg(0)).(type) {
+	case Variable:
+		return 0, nil, InstantiationError(env)
+	case Atom:
+		mm = a
+	default:
+		return module, t, nil
+	}
+
+	tt := c.Arg(1)
+
+	return moduleTerm(mm, tt, env)
 }

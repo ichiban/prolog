@@ -159,12 +159,20 @@ func TestParser_Term(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						operators:    ops,
+						doubleQuotes: tc.doubleQuotes,
+					},
+				},
+			}
 			p := Parser{
+				vm:     &vm,
+				module: &atomUser,
 				lexer: Lexer{
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
-				operators:    ops,
-				doubleQuotes: tc.doubleQuotes,
 			}
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
@@ -234,8 +242,16 @@ func TestParser_Replace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
+			vm := VM{
+				moduleLocals: map[Atom]moduleLocal{
+					atomUser: {
+						doubleQuotes: tt.doubleQuotes,
+					},
+				},
+			}
 			p := Parser{
-				doubleQuotes: tt.doubleQuotes,
+				vm:     &vm,
+				module: &atomUser,
 				lexer: Lexer{
 					input: newRuneRingBuffer(strings.NewReader(tt.input)),
 				},
@@ -308,7 +324,10 @@ func TestParser_Number(t *testing.T) {
 }
 
 func TestParser_More(t *testing.T) {
+	var vm VM
 	p := Parser{
+		vm:     &vm,
+		module: &atomUser,
 		lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(`foo. bar.`)),
 		},

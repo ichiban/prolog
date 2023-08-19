@@ -46,103 +46,121 @@ func Failure(*Env) *Promise {
 	return Bool(false)
 }
 
+type procedureEntry struct {
+	dynamic       bool
+	public        bool
+	builtIn       bool
+	multifile     bool
+	exported      bool
+	metapredicate []Term
+	importedFrom  Atom
+	definedIn     Atom
+
+	discontiguous bool
+
+	procedure procedure
+}
+
+type moduleLocal struct {
+	operators       operators
+	charConversions map[rune]rune
+
+	// flags
+	charConversion bool
+	debug          bool
+	unknown        unknownAction
+	doubleQuotes   doubleQuotes
+}
+
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
 	Unknown func(name Atom, args []Term, env *Env)
 
-	procedures map[procedureIndicator]procedure
-	unknown    unknownAction
+	procedures map[procedureIndicator]procedureEntry
 
 	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
 	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
-	loaded map[string]struct{}
-
-	// Internal/external expression
-	operators       operators
-	charConversions map[rune]rune
-	charConvEnabled bool
-	doubleQuotes    doubleQuotes
+	loaded map[string]Atom
 
 	// I/O
 	streams       streams
 	input, output *Stream
 
-	// Misc
-	debug bool
+	moduleLocals map[Atom]moduleLocal
 }
 
 // Register0 registers a predicate of arity 0.
 func (vm *VM) Register0(name Atom, p Predicate0) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 0}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 0}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register1 registers a predicate of arity 1.
 func (vm *VM) Register1(name Atom, p Predicate1) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 1}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 1}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register2 registers a predicate of arity 2.
 func (vm *VM) Register2(name Atom, p Predicate2) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 2}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 2}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register3 registers a predicate of arity 3.
 func (vm *VM) Register3(name Atom, p Predicate3) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 3}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 3}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register4 registers a predicate of arity 4.
 func (vm *VM) Register4(name Atom, p Predicate4) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 4}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 4}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register5 registers a predicate of arity 5.
 func (vm *VM) Register5(name Atom, p Predicate5) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 5}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 5}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register6 registers a predicate of arity 6.
 func (vm *VM) Register6(name Atom, p Predicate6) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 6}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 6}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register7 registers a predicate of arity 7.
 func (vm *VM) Register7(name Atom, p Predicate7) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 7}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 7}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 // Register8 registers a predicate of arity 8.
 func (vm *VM) Register8(name Atom, p Predicate8) {
 	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+		vm.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 8}] = p
+	vm.procedures[procedureIndicator{module: atomUser, name: name, arity: 8}] = procedureEntry{builtIn: true, exported: true, procedure: p}
 }
 
 type unknownAction int
@@ -162,24 +180,30 @@ func (u unknownAction) String() string {
 }
 
 type procedure interface {
-	call(*VM, []Term, Cont, *Env) *Promise
+	call(vm *VM, args []Term, k Cont, env *Env) *Promise
 }
 
 // Cont is a continuation.
 type Cont func(*Env) *Promise
 
 // Arrive is the entry point of the VM.
-func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise) {
+func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) *Promise {
+	module := callingModule(env)
+	return vm.ArriveModule(module, name, args, k, env)
+}
+
+// ArriveModule is the entry point of the VM.
+func (vm *VM) ArriveModule(module, name Atom, args []Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
 
 	if vm.Unknown == nil {
 		vm.Unknown = func(Atom, []Term, *Env) {}
 	}
 
-	pi := procedureIndicator{name: name, arity: Integer(len(args))}
-	p, ok := vm.procedures[pi]
+	pi := procedureIndicator{module: module, name: name, arity: Integer(len(args))}
+	e, ok := vm.procedures[pi]
 	if !ok {
-		switch vm.unknown {
+		switch l, _ := vm.moduleLocals[module]; l.unknown {
 		case unknownWarning:
 			vm.Unknown(name, args, env)
 			fallthrough
@@ -190,10 +214,29 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 		}
 	}
 
-	// bind the special variable to inform the predicate about the context.
-	env = env.bind(varContext, pi.Term())
+	// Module name expansion
+	for i, mode := range e.metapredicate {
+		if !isMetaArg(mode) {
+			continue
+		}
+		args[i] = atomColon.Apply(module, args[i])
+	}
 
-	return p.call(vm, args, k, env)
+	// bind the special variable to inform the predicate about the context.
+	env = env.bind(varCallingContext, env.Resolve(varContext))
+	env = env.bind(varContext, pi)
+	return e.procedure.call(vm, args, k, env)
+}
+
+func isMetaArg(mode Term) bool {
+	switch m := mode.(type) {
+	case Atom:
+		return m == atomColon
+	case Integer:
+		return m >= 0
+	default:
+		return false
+	}
 }
 
 func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
@@ -238,7 +281,7 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			break
 		case opCall:
 			pi := operand.(procedureIndicator)
-			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
+			return vm.ArriveModule(pi.module, pi.name, args, func(env *Env) *Promise {
 				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:
@@ -403,8 +446,9 @@ func (p Predicate8) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 
 // procedureIndicator identifies a procedure e.g. (=)/2.
 type procedureIndicator struct {
-	name  Atom
-	arity Integer
+	module Atom
+	name   Atom
+	arity  Integer
 }
 
 func (p procedureIndicator) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
