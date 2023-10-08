@@ -41,15 +41,16 @@ type ParsedVariable struct {
 
 // NewParser creates a new parser from the current VM and io.RuneReader.
 func NewParser(vm *VM, r io.RuneReader) *Parser {
-	if vm.operators == nil {
-		vm.operators = operators{}
+	m := vm.Module()
+	if m.operators == nil {
+		m.operators = operators{}
 	}
 	return &Parser{
 		lexer: Lexer{
 			input: newRuneRingBuffer(r),
 		},
-		operators:    vm.operators,
-		doubleQuotes: vm.doubleQuotes,
+		operators:    m.operators,
+		doubleQuotes: m.doubleQuotes,
 	}
 }
 

@@ -431,13 +431,15 @@ bar(b).
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			var vm VM
-			vm.operators.define(1200, operatorSpecifierXFX, atomIf)
-			vm.operators.define(1200, operatorSpecifierXFX, atomArrow)
-			vm.operators.define(1200, operatorSpecifierFX, atomIf)
-			vm.operators.define(1000, operatorSpecifierXFY, atomComma)
-			vm.operators.define(400, operatorSpecifierYFX, atomSlash)
-			vm.procedures = map[procedureIndicator]procedure{
+			var ops operators
+			ops.define(1200, operatorSpecifierXFX, atomIf)
+			ops.define(1200, operatorSpecifierXFX, atomArrow)
+			ops.define(1200, operatorSpecifierFX, atomIf)
+			ops.define(1000, operatorSpecifierXFY, atomComma)
+			ops.define(400, operatorSpecifierYFX, atomSlash)
+			var m Module
+			m.operators = ops
+			m.procedures = map[procedureIndicator]procedure{
 				{name: NewAtom("foo"), arity: 1}: &userDefined{
 					multifile: true,
 					clauses: clauses{
@@ -452,12 +454,16 @@ bar(b).
 					},
 				},
 			}
-			vm.FS = testdata
-			vm.Register1(NewAtom("throw"), Throw)
+			m.Register1(NewAtom("throw"), Throw)
+			vm := VM{
+				typeIn: &m,
+				FS:     testdata,
+			}
 			assert.Equal(t, tt.err, vm.Compile(context.Background(), tt.text, tt.args...))
 			if tt.err == nil {
-				delete(vm.procedures, procedureIndicator{name: NewAtom("throw"), arity: 1})
-				assert.Equal(t, tt.result, vm.procedures)
+				m := vm.Module()
+				delete(m.procedures, procedureIndicator{name: NewAtom("throw"), arity: 1})
+				assert.Equal(t, tt.result, m.procedures)
 			}
 		})
 	}

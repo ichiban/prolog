@@ -15,7 +15,8 @@ func main() {
 	// Instead of writing `:-(mortal(X), human(X)).`, you may want to define the infix operator first.
 
 	// To define operators, register op/3.
-	p.Register3(engine.NewAtom("op"), engine.Op)
+	m := p.Module()
+	m.Register3(engine.NewAtom("op"), engine.Op)
 
 	// Then, define the infix operator with priority 1200 and specifier XFX.
 	if err := p.Exec(`:-(op(1200, xfx, :-)).`); err != nil {

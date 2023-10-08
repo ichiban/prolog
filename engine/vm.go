@@ -51,118 +51,54 @@ type VM struct {
 	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
 	Unknown func(name Atom, args []Term, env *Env)
 
-	procedures map[procedureIndicator]procedure
-	unknown    unknownAction
-
 	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
 	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
 	loaded map[string]struct{}
 
-	// Internal/external expression
-	operators       operators
-	charConversions map[rune]rune
-	charConvEnabled bool
-	doubleQuotes    doubleQuotes
+	modules map[Atom]*Module
+	system  *Module
+	typeIn  *Module
 
 	// I/O
 	streams       streams
 	input, output *Stream
-
-	// Misc
-	debug bool
 }
 
-// Register0 registers a predicate of arity 0.
-func (vm *VM) Register0(name Atom, p Predicate0) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+// Module returns the type-in module.
+func (vm *VM) Module() *Module {
+	m := vm.typeIn
+	if m != nil {
+		return m
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 0}] = p
-}
 
-// Register1 registers a predicate of arity 1.
-func (vm *VM) Register1(name Atom, p Predicate1) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	m, _ = vm.modules[atomUser]
+	if m != nil {
+		return m
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 1}] = p
-}
 
-// Register2 registers a predicate of arity 2.
-func (vm *VM) Register2(name Atom, p Predicate2) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	m = &Module{name: atomUser}
+	if vm.modules == nil {
+		vm.modules = map[Atom]*Module{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 2}] = p
+	vm.modules[atomUser] = m
+	return m
 }
 
-// Register3 registers a predicate of arity 3.
-func (vm *VM) Register3(name Atom, p Predicate3) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+// SetModule sets the type-in module.
+func (vm *VM) SetModule(name Atom) {
+	m, _ := vm.modules[name]
+	if m != nil {
+		vm.typeIn = m
+		return
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 3}] = p
-}
 
-// Register4 registers a predicate of arity 4.
-func (vm *VM) Register4(name Atom, p Predicate4) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	m = &Module{name: name}
+	if vm.modules == nil {
+		vm.modules = map[Atom]*Module{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 4}] = p
-}
-
-// Register5 registers a predicate of arity 5.
-func (vm *VM) Register5(name Atom, p Predicate5) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 5}] = p
-}
-
-// Register6 registers a predicate of arity 6.
-func (vm *VM) Register6(name Atom, p Predicate6) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 6}] = p
-}
-
-// Register7 registers a predicate of arity 7.
-func (vm *VM) Register7(name Atom, p Predicate7) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 7}] = p
-}
-
-// Register8 registers a predicate of arity 8.
-func (vm *VM) Register8(name Atom, p Predicate8) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 8}] = p
-}
-
-type unknownAction int
-
-const (
-	unknownError unknownAction = iota
-	unknownFail
-	unknownWarning
-)
-
-func (u unknownAction) String() string {
-	return [...]string{
-		unknownError:   "error",
-		unknownFail:    "fail",
-		unknownWarning: "warning",
-	}[u]
-}
-
-type procedure interface {
-	call(*VM, []Term, Cont, *Env) *Promise
+	vm.modules[name] = m
+	vm.typeIn = m
 }
 
 // Cont is a continuation.
@@ -176,10 +112,11 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 		vm.Unknown = func(Atom, []Term, *Env) {}
 	}
 
+	m := vm.Module()
 	pi := procedureIndicator{name: name, arity: Integer(len(args))}
-	p, ok := vm.procedures[pi]
+	p, ok := m.procedures[pi]
 	if !ok {
-		switch vm.unknown {
+		switch m.unknown {
 		case unknownWarning:
 			vm.Unknown(name, args, env)
 			fallthrough

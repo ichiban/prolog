@@ -197,6 +197,7 @@ var (
 	atomUndefined               = NewAtom("undefined")
 	atomUnderflow               = NewAtom("underflow")
 	atomUnknown                 = NewAtom("unknown")
+	atomUser                    = NewAtom("user")
 	atomUserInput               = NewAtom("user_input")
 	atomUserOutput              = NewAtom("user_output")
 	atomVar                     = NewAtom("$VAR")

@@ -742,14 +742,15 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register0(engine.NewAtom("true"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+			m := i.Module()
+			m.Register0(engine.NewAtom("true"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 				return k(env)
 			})
-			i.Register0(engine.NewAtom("fail"), func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
+			m.Register0(engine.NewAtom("fail"), func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1(engine.NewAtom("consult"), engine.Consult)
-			i.Register3(engine.NewAtom("op"), engine.Op)
+			m.Register1(engine.NewAtom("consult"), engine.Consult)
+			m.Register3(engine.NewAtom("op"), engine.Op)
 			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
 			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
 			assert.NoError(t, i.Exec(tt.premise))
@@ -798,8 +799,9 @@ func TestInterpreter_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register3(engine.NewAtom("op"), engine.Op)
-			i.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
+			m := i.Module()
+			m.Register3(engine.NewAtom("op"), engine.Op)
+			m.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
 			assert.NoError(t, i.Exec(`
 :-(op(1200, xfx, :-)).
 :-(set_prolog_flag(double_quotes, atom)).
@@ -832,7 +834,8 @@ foo(a, 1, 2.0, [abc, def]).
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+	m := i.Module()
+	m.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
 	})
@@ -1229,7 +1232,8 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		i.Register0(engine.NewAtom("error"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+		m := i.Module()
+		m.Register0(engine.NewAtom("error"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)

@@ -27,16 +27,17 @@ func (vm *VM) Compile(ctx context.Context, s string, args ...interface{}) error 
 		return err
 	}
 
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	m := vm.Module()
+	if m.procedures == nil {
+		m.procedures = map[procedureIndicator]procedure{}
 	}
 	for pi, u := range t.clauses {
-		if existing, ok := vm.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
+		if existing, ok := m.procedures[pi].(*userDefined); ok && existing.multifile && u.multifile {
 			existing.clauses = append(existing.clauses, u.clauses...)
 			continue
 		}
 
-		vm.procedures[pi] = u
+		m.procedures[pi] = u
 	}
 
 	for _, g := range t.goals {
