@@ -194,7 +194,12 @@ a quoted ident"`}},
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			l := Lexer{input: newRuneRingBuffer(noMonkeyReader{strings.NewReader(tt.input)}), charConversions: tt.charConversions}
+			l := Lexer{
+				module: &Module{
+					charConversions: tt.charConversions,
+				},
+				input: newRuneRingBuffer(noMonkeyReader{strings.NewReader(tt.input)}),
+			}
 
 			token, err := l.Token()
 			assert.Equal(t, tt.token, token)

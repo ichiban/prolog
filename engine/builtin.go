@@ -1741,7 +1741,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 		return Error(err)
 	}
 
-	p := NewParser(vm, s)
+	p := NewParser(vm.Module(), s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -2292,7 +2292,7 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 	}
 
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(sb.String())),
 		},
 	}
@@ -2374,7 +2374,7 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 	}
 
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(sb.String())),
 		},
 	}

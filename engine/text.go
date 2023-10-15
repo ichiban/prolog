@@ -84,7 +84,7 @@ func (vm *VM) compile(ctx context.Context, text *text, s string, args ...interfa
 	}
 
 	s = ignoreShebangLine(s)
-	p := NewParser(vm, strings.NewReader(s))
+	p := NewParser(vm.Module(), strings.NewReader(s))
 	if err := p.SetPlaceholder(NewAtom("?"), args...); err != nil {
 		return err
 	}

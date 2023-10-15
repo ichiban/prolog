@@ -319,7 +319,7 @@ func (a Atom) Apply(args ...Term) Term {
 
 func needQuoted(a Atom) bool {
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(a.String())),
 		},
 	}

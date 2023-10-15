@@ -20,9 +20,7 @@ var (
 
 // Parser turns bytes into Term.
 type Parser struct {
-	lexer        Lexer
-	operators    operators
-	doubleQuotes doubleQuotes
+	Lexer
 
 	Vars []ParsedVariable
 
@@ -39,18 +37,16 @@ type ParsedVariable struct {
 	Count    int
 }
 
-// NewParser creates a new parser from the current VM and io.RuneReader.
-func NewParser(vm *VM, r io.RuneReader) *Parser {
-	m := vm.Module()
+// NewParser creates a new parser from the Module and io.RuneReader.
+func NewParser(m *Module, r io.RuneReader) *Parser {
 	if m.operators == nil {
 		m.operators = operators{}
 	}
 	return &Parser{
-		lexer: Lexer{
-			input: newRuneRingBuffer(r),
+		Lexer: Lexer{
+			module: m,
+			input:  newRuneRingBuffer(r),
 		},
-		operators:    m.operators,
-		doubleQuotes: m.doubleQuotes,
 	}
 }
 
@@ -76,7 +72,7 @@ func (p *Parser) termOf(o reflect.Value) (Term, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return Integer(o.Int()), nil
 	case reflect.String:
-		switch p.doubleQuotes {
+		switch p.module.doubleQuotes {
 		case doubleQuotesCodes:
 			return CodeList(o.String()), nil
 		case doubleQuotesAtom:
@@ -102,7 +98,7 @@ func (p *Parser) termOf(o reflect.Value) (Term, error) {
 
 func (p *Parser) next() (Token, error) {
 	if p.buf.empty() {
-		t, err := p.lexer.Token()
+		t, err := p.Token()
 		if err != nil {
 			return Token{}, err
 		}
@@ -195,7 +191,7 @@ func (p *Parser) number() (Number, error) {
 	}
 
 	// No more runes after a number.
-	switch _, err := p.lexer.rawNext(); err {
+	switch _, err := p.rawNext(); err {
 	case io.EOF:
 		return n, nil
 	default:
@@ -420,7 +416,7 @@ func (p *Parser) prefix(maxPriority Integer) (operator, error) {
 		p.backup()
 	}
 
-	if op := p.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
+	if op := p.module.operators[a][operatorClassPrefix]; op != (operator{}) && op.priority <= maxPriority {
 		return op, nil
 	}
 
@@ -434,13 +430,13 @@ func (p *Parser) infix(maxPriority Integer) (operator, error) {
 		return operator{}, errNoOp
 	}
 
-	if op := p.operators[a][operatorClassInfix]; op != (operator{}) {
+	if op := p.module.operators[a][operatorClassInfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
 		}
 	}
-	if op := p.operators[a][operatorClassPostfix]; op != (operator{}) {
+	if op := p.module.operators[a][operatorClassPostfix]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, nil
@@ -519,7 +515,7 @@ func (p *Parser) term0(maxPriority Integer) (Term, error) {
 		p.backup()
 		return p.curlyBracketedTerm()
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.module.doubleQuotes {
 		case doubleQuotesChars:
 			return CharList(unDoubleQuote(t.val)), nil
 		case doubleQuotesCodes:
@@ -562,7 +558,7 @@ func (p *Parser) term0Atom(maxPriority Integer) (Term, error) {
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.operators.defined(t) {
+	if t, ok := t.(Atom); ok && maxPriority < 1201 && p.module.operators.defined(t) {
 		p.backup()
 		return nil, errExpectation
 	}
@@ -642,7 +638,7 @@ func (p *Parser) atom() (Atom, error) {
 			return 0, errExpectation
 		}
 	case tokenDoubleQuotedList:
-		switch p.doubleQuotes {
+		switch p.module.doubleQuotes {
 		case doubleQuotesAtom:
 			return NewAtom(unDoubleQuote(t.val)), nil
 		default:
@@ -755,7 +751,7 @@ func (p *Parser) functionalNotation(functor Atom) (Term, error) {
 
 func (p *Parser) arg() (Term, error) {
 	if arg, err := p.atom(); err == nil {
-		if p.operators.defined(arg) {
+		if p.module.operators.defined(arg) {
 			// Check if this atom is not followed by its own arguments.
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:
