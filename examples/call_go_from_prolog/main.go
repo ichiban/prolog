@@ -13,7 +13,7 @@ func main() {
 
 	// Define a custom predicate of arity 2.
 	m := p.Module()
-	m.Register2(engine.NewAtom("get_status"), func(_ *engine.VM, url, status engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	m.Register2("get_status", func(_ *engine.VM, url, status engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
 		// Check if the input arguments are of the types you expected.
 		u, ok := env.Resolve(url).(engine.Atom)
 		if !ok {
@@ -37,7 +37,7 @@ func main() {
 	})
 
 	// Treat a string argument as an atom.
-	if err := p.Exec(`:- set_prolog_flag(double_quotes, atom).`); err != nil {
+	if err := p.QuerySolution(`set_prolog_flag(double_quotes, atom).`).Err(); err != nil {
 		panic(err)
 	}
 

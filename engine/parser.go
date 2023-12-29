@@ -52,8 +52,8 @@ func NewParser(m *Module, r io.RuneReader) *Parser {
 
 // SetPlaceholder registers placeholder and its arguments. Every occurrence of placeholder will be replaced by arguments.
 // Mismatch of the number of occurrences of placeholder and the number of arguments raises an error.
-func (p *Parser) SetPlaceholder(placeholder Atom, args ...interface{}) error {
-	p.placeholder = placeholder
+func (p *Parser) SetPlaceholder(placeholder string, args ...interface{}) error {
+	p.placeholder = NewAtom(placeholder)
 	p.args = make([]Term, len(args))
 	for i, a := range args {
 		var err error

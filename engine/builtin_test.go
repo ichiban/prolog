@@ -19,13 +19,13 @@ import (
 
 func TestCall(t *testing.T) {
 	var m Module
-	m.Register0(atomFail, func(_ *VM, f Cont, env *Env) *Promise {
+	m.Register0("fail", func(_ *VM, f Cont, env *Env) *Promise {
 		return Bool(false)
 	})
-	m.Register0(NewAtom("do_not_call"), func(*VM, Cont, *Env) *Promise {
+	m.Register0("do_not_call", func(*VM, Cont, *Env) *Promise {
 		panic("told you")
 	})
-	m.Register0(NewAtom("lazy_do_not_call"), func(*VM, Cont, *Env) *Promise {
+	m.Register0("lazy_do_not_call", func(*VM, Cont, *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			panic("told you")
 		})
@@ -1589,26 +1589,26 @@ func TestBagOf(t *testing.T) {
 	m := Module{
 		unknown: unknownWarning,
 	}
-	m.Register2(atomEqual, Unify)
-	m.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+	m.Register2("=", Unify)
+	m.Register2(",", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	m.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+	m.Register2(";", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	m.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
+	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	m.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
+	m.Register0("fail", func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	m.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+	m.Register2("a", func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -1616,7 +1616,7 @@ func TestBagOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	m.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+	m.Register2("b", func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -1991,26 +1991,26 @@ func TestSetOf(t *testing.T) {
 	m := Module{
 		unknown: unknownWarning,
 	}
-	m.Register2(atomEqual, Unify)
-	m.Register2(atomComma, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+	m.Register2("=", Unify)
+	m.Register2(",", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Call(vm, g1, func(env *Env) *Promise {
 			return Call(vm, g2, k, env)
 		}, env)
 	})
-	m.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+	m.Register2(";", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	m.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
+	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	m.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
+	m.Register0("fail", func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	m.Register2(NewAtom("a"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+	m.Register2("a", func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		a, f := NewAtom("$a"), NewAtom("f")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(1), f.Apply(NewVariable())), k, env)
@@ -2018,7 +2018,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, a.Apply(x, y), a.Apply(Integer(2), f.Apply(NewVariable())), k, env)
 		})
 	})
-	m.Register2(NewAtom("b"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+	m.Register2("b", func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		b := NewAtom("$b")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(1), Integer(1)), k, env)
@@ -2034,7 +2034,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, b.Apply(x, y), b.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	m.Register2(NewAtom("d"), func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
+	m.Register2("d", func(vm *VM, x, y Term, k Cont, env *Env) *Promise {
 		d := NewAtom("$d")
 		return Delay(func(context.Context) *Promise {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(1), Integer(1)), k, env)
@@ -2050,7 +2050,7 @@ func TestSetOf(t *testing.T) {
 			return Unify(vm, d.Apply(x, y), d.Apply(Integer(2), Integer(2)), k, env)
 		})
 	})
-	m.Register2(NewAtom("member"), func(vm *VM, elem, list Term, k Cont, env *Env) *Promise {
+	m.Register2("member", func(vm *VM, elem, list Term, k Cont, env *Env) *Promise {
 		var ks []func(context.Context) *Promise
 		iter := ListIterator{List: list, Env: env, AllowPartial: true}
 		for iter.Next() {
@@ -2064,8 +2064,8 @@ func TestSetOf(t *testing.T) {
 		}
 		return Delay(ks...)
 	})
-	m.Register3(NewAtom("setof"), SetOf)
-	m.Register3(NewAtom("bagof"), BagOf)
+	m.Register3("setof", SetOf)
+	m.Register3("bagof", BagOf)
 	vm := VM{
 		typeIn: &m,
 	}
@@ -2136,15 +2136,15 @@ func TestFindAll(t *testing.T) {
 	}
 
 	var m Module
-	m.Register2(atomEqual, Unify)
-	m.Register2(atomSemiColon, func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
+	m.Register2("=", Unify)
+	m.Register2(";", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
 			return Call(vm, g1, k, env)
 		}, func(context.Context) *Promise {
 			return Call(vm, g2, k, env)
 		})
 	})
-	m.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
+	m.Register0("fail", func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
 	vm := VM{
@@ -2472,12 +2472,12 @@ func TestThrow(t *testing.T) {
 
 func TestCatch(t *testing.T) {
 	var m Module
-	m.Register2(atomEqual, Unify)
-	m.Register1(NewAtom("throw"), Throw)
-	m.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
+	m.Register2("=", Unify)
+	m.Register1("throw", Throw)
+	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	m.Register0(atomFail, func(*VM, Cont, *Env) *Promise {
+	m.Register0("fail", func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
 	vm := VM{
@@ -7562,13 +7562,13 @@ func TestNegation(t *testing.T) {
 	e := errors.New("failed")
 
 	var m Module
-	m.Register0(atomTrue, func(_ *VM, k Cont, env *Env) *Promise {
+	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
-	m.Register0(atomFalse, func(*VM, Cont, *Env) *Promise {
+	m.Register0("false", func(*VM, Cont, *Env) *Promise {
 		return Bool(false)
 	})
-	m.Register0(atomError, func(*VM, Cont, *Env) *Promise {
+	m.Register0("error", func(*VM, Cont, *Env) *Promise {
 		return Error(e)
 	})
 	vm := VM{

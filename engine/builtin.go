@@ -3021,3 +3021,148 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 		}, env)
 	})
 }
+
+func Dynamic(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		p, ok := m.procedures[pi]
+		if !ok {
+			p = &userDefined{}
+		}
+		ud, ok := p.(*userDefined)
+		if !ok {
+			return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi, env))
+		}
+		ud.dynamic = true
+		ud.public = true
+		m.procedures[pi] = ud
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Multifile(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		p, ok := m.procedures[pi]
+		if !ok {
+			p = &userDefined{}
+		}
+		ud, ok := p.(*userDefined)
+		if !ok {
+			return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi, env))
+		}
+		ud.multifile = true
+		m.procedures[pi] = ud
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Discontiguous(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		p, ok := m.procedures[pi]
+		if !ok {
+			p = &userDefined{}
+		}
+		ud, ok := p.(*userDefined)
+		if !ok {
+			return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi, env))
+		}
+		ud.discontiguous = true
+		m.procedures[pi] = ud
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Initialization(vm *VM, goal Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	m.initGoals = append(m.initGoals, goal)
+	return k(env)
+}
+
+func Include(vm *VM, file Term, k Cont, env *Env) *Promise {
+	f, err := mustBeAtom(file, env)
+	if err != nil {
+		return Error(err)
+	}
+	return Delay(func(ctx context.Context) *Promise {
+		if err := vm.Load(ctx, f.String()); err != nil {
+			return Error(err)
+		}
+		return k(env)
+	})
+}
+
+func EnsureLoaded(vm *VM, file Term, k Cont, env *Env) *Promise {
+	f, err := mustBeAtom(file, env)
+	if err != nil {
+		return Error(err)
+	}
+	s := f.String()
+
+	extensions := []string{"", ".pl"}
+	ks := make([]func(context.Context) *Promise, len(extensions), len(extensions)+1)
+	for i, e := range extensions {
+		ks[i] = func(ctx context.Context) *Promise {
+			if err := vm.Load(ctx, s+e); err != nil {
+				return Bool(false)
+			}
+
+			return k(env)
+		}
+	}
+	ks = append(ks, func(context.Context) *Promise {
+		return Error(existenceError(objectTypeSourceSink, file, env))
+	})
+	return Delay(ks...)
+}
+
+// Consult executes Prolog texts in files.
+func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
+	var filenames []Term
+	iter := ListIterator{List: files, Env: env}
+	for iter.Next() {
+		filenames = append(filenames, iter.Current())
+	}
+	if err := iter.Err(); err != nil {
+		filenames = []Term{files}
+	}
+
+	return Delay(func(ctx context.Context) *Promise {
+		for _, filename := range filenames {
+			f, err := mustBeAtom(filename, env)
+			if err != nil {
+				return Error(err)
+			}
+			if err := vm.Load(ctx, f.String()); err != nil {
+				return Error(err)
+			}
+		}
+
+		return k(env)
+	})
+}

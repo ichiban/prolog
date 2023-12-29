@@ -161,6 +161,7 @@ var (
 	atomPredicateIndicator      = NewAtom("predicate_indicator")
 	atomPrivateProcedure        = NewAtom("private_procedure")
 	atomProcedure               = NewAtom("procedure")
+	atomProlog                  = NewAtom("prolog")
 	atomPrologFlag              = NewAtom("prolog_flag")
 	atomQuoted                  = NewAtom("quoted")
 	atomRead                    = NewAtom("read")

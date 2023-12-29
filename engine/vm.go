@@ -72,25 +72,22 @@ func (vm *VM) Module() *Module {
 		return m
 	}
 
-	m, _ = vm.modules[atomUser]
+	return vm.module(atomUser)
+}
+
+func (vm *VM) SystemModule() *Module {
+	m := vm.system
 	if m != nil {
 		return m
 	}
 
-	m = &Module{name: atomUser}
-	if vm.modules == nil {
-		vm.modules = map[Atom]*Module{}
-	}
-	vm.modules[atomUser] = m
-	return m
+	return vm.module(atomProlog)
 }
 
-// SetModule sets the type-in module.
-func (vm *VM) SetModule(name Atom) {
+func (vm *VM) module(name Atom) *Module {
 	m, _ := vm.modules[name]
 	if m != nil {
-		vm.typeIn = m
-		return
+		return m
 	}
 
 	m = &Module{name: name}
@@ -98,6 +95,24 @@ func (vm *VM) SetModule(name Atom) {
 		vm.modules = map[Atom]*Module{}
 	}
 	vm.modules[name] = m
+	return m
+}
+
+// SetModule sets the type-in module.
+func (vm *VM) SetModule(name string) {
+	n := NewAtom(name)
+
+	m, _ := vm.modules[n]
+	if m != nil {
+		vm.typeIn = m
+		return
+	}
+
+	m = &Module{name: n}
+	if vm.modules == nil {
+		vm.modules = map[Atom]*Module{}
+	}
+	vm.modules[n] = m
 	vm.typeIn = m
 }
 
@@ -237,6 +252,113 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	s.alias = atomUserOutput
 	vm.streams.add(s)
 	vm.output = s
+}
+
+func (vm *VM) Compile(ctx context.Context, text string) error {
+	m := vm.Module()
+
+	// Skip a shebang line if exists.
+	if strings.HasPrefix(text, "#!") {
+		switch i := strings.IndexRune(text, '\n'); i {
+		case -1:
+			text = ""
+		default:
+			text = text[i+1:]
+		}
+	}
+
+	r := strings.NewReader(text)
+	p := NewParser(m, r)
+	for p.More() {
+		p.Vars = p.Vars[:]
+		t, err := p.Term()
+		if err != nil {
+			return err
+		}
+
+		et, err := expand(vm, t, nil)
+		if err != nil {
+			return err
+		}
+
+		pi, arg, err := piArg(et, nil)
+		if err != nil {
+			return err
+		}
+		switch pi {
+		case procedureIndicator{name: atomIf, arity: 1}: // Directive
+			if err := m.flushClauseBuf(); err != nil {
+				return err
+			}
+
+			ok, err := Call(vm, arg(0), Success, nil).Force(ctx)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errExpectation
+			}
+
+			continue
+		case procedureIndicator{name: atomIf, arity: 2}: // Rule
+			pi, arg, err = piArg(arg(0), nil)
+			if err != nil {
+				return err
+			}
+
+			fallthrough
+		default:
+			if len(m.buf) > 0 && pi != m.buf[0].pi {
+				if err := m.flushClauseBuf(); err != nil {
+					return err
+				}
+			}
+
+			cs, err := compile(et, nil)
+			if err != nil {
+				return err
+			}
+
+			m.buf = append(m.buf, cs...)
+		}
+	}
+
+	if err := m.flushClauseBuf(); err != nil {
+		return err
+	}
+
+	for _, g := range m.initGoals {
+		ok, err := Call(vm, g, Success, nil).Force(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			var sb strings.Builder
+			s := NewOutputTextStream(&sb)
+			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
+			return fmt.Errorf("failed initialization goal: %s", sb.String())
+		}
+	}
+	m.initGoals = m.initGoals[:0]
+
+	return nil
+}
+
+func (vm *VM) Load(ctx context.Context, filename string) error {
+	f, err := vm.FS.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	return vm.Compile(ctx, string(b))
 }
 
 // Predicate0 is a predicate of arity 0.

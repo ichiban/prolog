@@ -1,5 +1,7 @@
 package engine
 
+import "fmt"
+
 type Module struct {
 	name Atom
 
@@ -14,6 +16,9 @@ type Module struct {
 
 	// Misc
 	debug bool
+
+	buf       clauses
+	initGoals []Term
 }
 
 // Name returns the module name.
@@ -22,75 +27,101 @@ func (m *Module) Name() Atom {
 }
 
 // Register0 registers a predicate of arity 0.
-func (m *Module) Register0(name Atom, p Predicate0) {
+func (m *Module) Register0(name string, p Predicate0) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 0}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 0}] = p
 }
 
 // Register1 registers a predicate of arity 1.
-func (m *Module) Register1(name Atom, p Predicate1) {
+func (m *Module) Register1(name string, p Predicate1) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 1}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 1}] = p
 }
 
 // Register2 registers a predicate of arity 2.
-func (m *Module) Register2(name Atom, p Predicate2) {
+func (m *Module) Register2(name string, p Predicate2) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 2}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 2}] = p
 }
 
 // Register3 registers a predicate of arity 3.
-func (m *Module) Register3(name Atom, p Predicate3) {
+func (m *Module) Register3(name string, p Predicate3) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 3}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 3}] = p
 }
 
 // Register4 registers a predicate of arity 4.
-func (m *Module) Register4(name Atom, p Predicate4) {
+func (m *Module) Register4(name string, p Predicate4) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 4}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 4}] = p
 }
 
 // Register5 registers a predicate of arity 5.
-func (m *Module) Register5(name Atom, p Predicate5) {
+func (m *Module) Register5(name string, p Predicate5) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 5}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 5}] = p
 }
 
 // Register6 registers a predicate of arity 6.
-func (m *Module) Register6(name Atom, p Predicate6) {
+func (m *Module) Register6(name string, p Predicate6) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 6}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 6}] = p
 }
 
 // Register7 registers a predicate of arity 7.
-func (m *Module) Register7(name Atom, p Predicate7) {
+func (m *Module) Register7(name string, p Predicate7) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 7}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 7}] = p
 }
 
 // Register8 registers a predicate of arity 8.
-func (m *Module) Register8(name Atom, p Predicate8) {
+func (m *Module) Register8(name string, p Predicate8) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedure{}
 	}
-	m.procedures[procedureIndicator{name: name, arity: 8}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 8}] = p
+}
+
+func (m *Module) flushClauseBuf() error {
+	if len(m.buf) == 0 {
+		return nil
+	}
+
+	pi := m.buf[0].pi
+	p, ok := m.procedures[pi]
+	if !ok {
+		p = &userDefined{}
+		if m.procedures == nil {
+			m.procedures = map[procedureIndicator]procedure{}
+		}
+		m.procedures[pi] = p
+	}
+	u, ok := p.(*userDefined)
+	if !ok {
+		return permissionError(operationModify, permissionTypeStaticProcedure, pi, nil)
+	}
+	if len(u.clauses) > 0 && !u.discontiguous {
+		return &discontiguousError{pi: pi}
+	}
+	u.clauses = append(u.clauses, m.buf...)
+	m.buf = m.buf[:0]
+	return nil
 }
 
 type unknownAction int
@@ -111,4 +142,13 @@ func (u unknownAction) String() string {
 
 type procedure interface {
 	call(*VM, []Term, Cont, *Env) *Promise
+}
+
+// discontiguousError is an error that the user-defined predicate is defined by clauses which are not consecutive read-terms.
+type discontiguousError struct {
+	pi procedureIndicator
+}
+
+func (e *discontiguousError) Error() string {
+	return fmt.Sprintf("%s is discontiguous", e.pi)
 }

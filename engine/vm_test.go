@@ -30,17 +30,17 @@ func TestVM_SetModule(t *testing.T) {
 	tests := []struct {
 		title string
 		vm    VM
-		name  Atom
+		name  string
 	}{
-		{title: "by name", vm: VM{modules: map[Atom]*Module{atomUser: {name: atomUser}}}, name: atomUser},
-		{title: "creating", vm: VM{}, name: atomUser},
+		{title: "by name", vm: VM{modules: map[Atom]*Module{atomUser: {name: atomUser}}}, name: "user"},
+		{title: "creating", vm: VM{}, name: "user"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			tt.vm.SetModule(tt.name)
-			assert.Equal(t, tt.name, tt.vm.typeIn.name)
-			_, ok := tt.vm.modules[tt.name]
+			assert.Equal(t, NewAtom(tt.name), tt.vm.typeIn.name)
+			_, ok := tt.vm.modules[NewAtom(tt.name)]
 			assert.True(t, ok)
 		})
 	}

@@ -244,7 +244,7 @@ func TestParser_Replace(t *testing.T) {
 					input: newRuneRingBuffer(strings.NewReader(tt.input)),
 				},
 			}
-			err := p.SetPlaceholder(NewAtom("?"), tt.args...)
+			err := p.SetPlaceholder("?", tt.args...)
 			assert.Equal(t, tt.err, err)
 
 			if err != nil {

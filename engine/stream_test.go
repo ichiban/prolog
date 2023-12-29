@@ -2,6 +2,8 @@ package engine
 
 import (
 	"bytes"
+	"embed"
+	_ "embed"
 	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -368,7 +370,7 @@ func TestStream_ReadRune(t *testing.T) {
 		},
 		{
 			title: "input text: 1 rune left, file",
-			s:     &Stream{source: mustOpen(testdata, "testdata/a.txt"), streamType: streamTypeText, position: 0},
+			s:     &Stream{source: must(testdata.Open("testdata/a.txt")), streamType: streamTypeText, position: 0},
 			r:     'a',
 			size:  1,
 			pos:   1,
@@ -427,6 +429,18 @@ func TestStream_ReadRune(t *testing.T) {
 			assert.Equal(t, tt.eos, tt.s.endOfStream)
 		})
 	}
+}
+
+var (
+	//go:embed testdata
+	testdata embed.FS
+)
+
+func must(fs fs.File, err error) fs.File {
+	if err != nil {
+		panic(err)
+	}
+	return fs
 }
 
 type mockSeeker struct {
