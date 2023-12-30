@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"context"
+	"embed"
 	_ "embed" // for go:embed
 	"errors"
 	"github.com/ichiban/prolog/engine"
@@ -9,8 +10,8 @@ import (
 	"strings"
 )
 
-//go:embed bootstrap.pl
-var bootstrap string
+//go:embed libraries
+var libraries embed.FS
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
@@ -21,7 +22,10 @@ type Interpreter struct {
 // New creates a new Prolog interpreter with predefined predicates/operators.
 func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
-	i.FS = RealFS{}
+	i.FS = OverlayFS{
+		libraries,
+		RealFS{},
+	}
 	i.SetUserInput(engine.NewInputTextStream(in))
 	i.SetUserOutput(engine.NewOutputTextStream(out))
 
@@ -162,7 +166,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	m.Register3("nth1", engine.Nth1)
 	m.Register2("call_nth", engine.CallNth)
 
-	_ = i.Compile(context.Background(), bootstrap)
+	_ = i.Load(context.Background(), "libraries/bootstrap.pl")
 
 	return &i
 }
