@@ -161,6 +161,7 @@ var (
 	atomPredicateIndicator      = NewAtom("predicate_indicator")
 	atomPrivateProcedure        = NewAtom("private_procedure")
 	atomProcedure               = NewAtom("procedure")
+	atomProlog                  = NewAtom("prolog")
 	atomPrologFlag              = NewAtom("prolog_flag")
 	atomQuoted                  = NewAtom("quoted")
 	atomRead                    = NewAtom("read")
@@ -197,6 +198,7 @@ var (
 	atomUndefined               = NewAtom("undefined")
 	atomUnderflow               = NewAtom("underflow")
 	atomUnknown                 = NewAtom("unknown")
+	atomUser                    = NewAtom("user")
 	atomUserInput               = NewAtom("user_input")
 	atomUserOutput              = NewAtom("user_output")
 	atomVar                     = NewAtom("$VAR")
@@ -318,7 +320,7 @@ func (a Atom) Apply(args ...Term) Term {
 
 func needQuoted(a Atom) bool {
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(a.String())),
 		},
 	}

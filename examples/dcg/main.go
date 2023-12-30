@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"embed"
 	"flag"
 	"fmt"
 
@@ -16,6 +18,9 @@ import (
 //   $ go run examples/dcg/main.go the cat chases the mouse
 //   $ go run examples/dcg/main.go -prefix the cat
 
+//go:embed prolog
+var prologTexts embed.FS
+
 func main() {
 	var prefix bool
 	flag.BoolVar(&prefix, "prefix", false, "prefix search mode")
@@ -23,23 +28,10 @@ func main() {
 
 	// First, create a Prolog interpreter.
 	i := prolog.New(nil, nil)
+	i.FS = prologTexts
 
 	// Then, define DCG rules with -->/2.
-	if err := i.Exec(`
-:- set_prolog_flag(double_quotes, atom).
-
-sentence --> noun_phrase, verb_phrase.
-verb_phrase --> verb.
-noun_phrase --> article, noun.
-noun_phrase --> article, adjective, noun.
-article --> [the].
-adjective --> [nice].
-noun --> [dog].
-noun --> [cat].
-verb --> [runs].
-verb --> [barks].
-verb --> [bites].
-`); err != nil {
+	if err := i.Load(context.Background(), "prolog/sentence.pl"); err != nil {
 		panic(err)
 	}
 

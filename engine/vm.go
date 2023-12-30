@@ -51,118 +51,55 @@ type VM struct {
 	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
 	Unknown func(name Atom, args []Term, env *Env)
 
-	procedures map[procedureIndicator]procedure
-	unknown    unknownAction
-
 	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
 	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
 	loaded map[string]struct{}
 
-	// Internal/external expression
-	operators       operators
-	charConversions map[rune]rune
-	charConvEnabled bool
-	doubleQuotes    doubleQuotes
+	modules map[Atom]*Module
+	system  *Module
+	typeIn  *Module
 
 	// I/O
 	streams       streams
 	input, output *Stream
-
-	// Misc
-	debug bool
 }
 
-// Register0 registers a predicate of arity 0.
-func (vm *VM) Register0(name Atom, p Predicate0) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+// Module returns the type-in module.
+func (vm *VM) Module() *Module {
+	if vm.typeIn == nil {
+		vm.typeIn = vm.module(atomUser)
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 0}] = p
+	return vm.typeIn
 }
 
-// Register1 registers a predicate of arity 1.
-func (vm *VM) Register1(name Atom, p Predicate1) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+func (vm *VM) SystemModule() *Module {
+	if vm.system == nil {
+		vm.system = vm.module(atomProlog)
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 1}] = p
+	return vm.system
 }
 
-// Register2 registers a predicate of arity 2.
-func (vm *VM) Register2(name Atom, p Predicate2) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+func (vm *VM) module(name Atom) *Module {
+	m, _ := vm.modules[name]
+	if m != nil {
+		return m
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 2}] = p
-}
 
-// Register3 registers a predicate of arity 3.
-func (vm *VM) Register3(name Atom, p Predicate3) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	m = &Module{name: name}
+	// TODO: import from the system module.
+
+	if vm.modules == nil {
+		vm.modules = map[Atom]*Module{}
 	}
-	vm.procedures[procedureIndicator{name: name, arity: 3}] = p
+	vm.modules[name] = m
+	return m
 }
 
-// Register4 registers a predicate of arity 4.
-func (vm *VM) Register4(name Atom, p Predicate4) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 4}] = p
-}
-
-// Register5 registers a predicate of arity 5.
-func (vm *VM) Register5(name Atom, p Predicate5) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 5}] = p
-}
-
-// Register6 registers a predicate of arity 6.
-func (vm *VM) Register6(name Atom, p Predicate6) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 6}] = p
-}
-
-// Register7 registers a predicate of arity 7.
-func (vm *VM) Register7(name Atom, p Predicate7) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 7}] = p
-}
-
-// Register8 registers a predicate of arity 8.
-func (vm *VM) Register8(name Atom, p Predicate8) {
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
-	}
-	vm.procedures[procedureIndicator{name: name, arity: 8}] = p
-}
-
-type unknownAction int
-
-const (
-	unknownError unknownAction = iota
-	unknownFail
-	unknownWarning
-)
-
-func (u unknownAction) String() string {
-	return [...]string{
-		unknownError:   "error",
-		unknownFail:    "fail",
-		unknownWarning: "warning",
-	}[u]
-}
-
-type procedure interface {
-	call(*VM, []Term, Cont, *Env) *Promise
+// SetModule sets the type-in module.
+func (vm *VM) SetModule(name string) {
+	n := NewAtom(name)
+	vm.typeIn = vm.module(n)
 }
 
 // Cont is a continuation.
@@ -176,10 +113,11 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 		vm.Unknown = func(Atom, []Term, *Env) {}
 	}
 
+	m := vm.Module()
 	pi := procedureIndicator{name: name, arity: Integer(len(args))}
-	p, ok := vm.procedures[pi]
+	e, ok := m.procedures[pi]
 	if !ok {
-		switch vm.unknown {
+		switch m.unknown {
 		case unknownWarning:
 			vm.Unknown(name, args, env)
 			fallthrough
@@ -193,7 +131,7 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 	// bind the special variable to inform the predicate about the context.
 	env = env.bind(varContext, pi.Term())
 
-	return p.call(vm, args, k, env)
+	return e.procedure.call(vm, args, k, env)
 }
 
 func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {
@@ -300,6 +238,113 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	s.alias = atomUserOutput
 	vm.streams.add(s)
 	vm.output = s
+}
+
+func (vm *VM) Compile(ctx context.Context, text string) error {
+	m := vm.Module()
+
+	// Skip a shebang line if exists.
+	if strings.HasPrefix(text, "#!") {
+		switch i := strings.IndexRune(text, '\n'); i {
+		case -1:
+			text = ""
+		default:
+			text = text[i+1:]
+		}
+	}
+
+	r := strings.NewReader(text)
+	p := NewParser(m, r)
+	for p.More() {
+		p.Vars = p.Vars[:]
+		t, err := p.Term()
+		if err != nil {
+			return err
+		}
+
+		et, err := expand(vm, t, nil)
+		if err != nil {
+			return err
+		}
+
+		pi, arg, err := piArg(et, nil)
+		if err != nil {
+			return err
+		}
+		switch pi {
+		case procedureIndicator{name: atomIf, arity: 1}: // Directive
+			if err := m.flushClauseBuf(); err != nil {
+				return err
+			}
+
+			ok, err := Call(vm, arg(0), Success, nil).Force(ctx)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errExpectation
+			}
+
+			continue
+		case procedureIndicator{name: atomIf, arity: 2}: // Rule
+			pi, arg, err = piArg(arg(0), nil)
+			if err != nil {
+				return err
+			}
+
+			fallthrough
+		default:
+			if len(m.buf) > 0 && pi != m.buf[0].pi {
+				if err := m.flushClauseBuf(); err != nil {
+					return err
+				}
+			}
+
+			cs, err := compile(et, nil)
+			if err != nil {
+				return err
+			}
+
+			m.buf = append(m.buf, cs...)
+		}
+	}
+
+	if err := m.flushClauseBuf(); err != nil {
+		return err
+	}
+
+	for _, g := range m.initGoals {
+		ok, err := Call(vm, g, Success, nil).Force(ctx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			var sb strings.Builder
+			s := NewOutputTextStream(&sb)
+			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
+			return fmt.Errorf("failed initialization goal: %s", sb.String())
+		}
+	}
+	m.initGoals = m.initGoals[:0]
+
+	return nil
+}
+
+func (vm *VM) Load(ctx context.Context, filename string) error {
+	f, err := vm.FS.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	return vm.Compile(ctx, string(b))
 }
 
 // Predicate0 is a predicate of arity 0.

@@ -1,25 +1,21 @@
 package main
 
 import (
+	"context"
+	"embed"
 	"fmt"
 
 	"github.com/ichiban/prolog"
 )
 
+//go:embed prolog
+var prologTexts embed.FS
+
 // http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
 func main() {
 	p := prolog.New(nil, nil)
-	if err := p.Exec(`
-teaches(dr_fred, history).
-teaches(dr_fred, english).
-teaches(dr_fred, drama).
-teaches(dr_fiona, physics).
-
-studies(alice, english).
-studies(angus, english).
-studies(amelia, drama).
-studies(alex, physics).
-`); err != nil {
+	p.FS = prologTexts
+	if err := p.Load(context.Background(), "prolog/main.pl"); err != nil {
 		panic(err)
 	}
 

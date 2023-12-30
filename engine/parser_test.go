@@ -160,11 +160,13 @@ func TestParser_Term(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			p := Parser{
-				lexer: Lexer{
+				Lexer: Lexer{
+					module: &Module{
+						operators:    ops,
+						doubleQuotes: tc.doubleQuotes,
+					},
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
-				operators:    ops,
-				doubleQuotes: tc.doubleQuotes,
 			}
 			term, err := p.Term()
 			assert.Equal(t, tc.err, err)
@@ -235,12 +237,14 @@ func TestParser_Replace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			p := Parser{
-				doubleQuotes: tt.doubleQuotes,
-				lexer: Lexer{
+				Lexer: Lexer{
+					module: &Module{
+						doubleQuotes: tt.doubleQuotes,
+					},
 					input: newRuneRingBuffer(strings.NewReader(tt.input)),
 				},
 			}
-			err := p.SetPlaceholder(NewAtom("?"), tt.args...)
+			err := p.SetPlaceholder("?", tt.args...)
 			assert.Equal(t, tt.err, err)
 
 			if err != nil {
@@ -296,7 +300,7 @@ func TestParser_Number(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			p := Parser{
-				lexer: Lexer{
+				Lexer: Lexer{
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
 			}
@@ -309,8 +313,9 @@ func TestParser_Number(t *testing.T) {
 
 func TestParser_More(t *testing.T) {
 	p := Parser{
-		lexer: Lexer{
-			input: newRuneRingBuffer(strings.NewReader(`foo. bar.`)),
+		Lexer: Lexer{
+			module: &Module{},
+			input:  newRuneRingBuffer(strings.NewReader(`foo. bar.`)),
 		},
 	}
 	term, err := p.Term()

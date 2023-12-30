@@ -333,3 +333,46 @@ func (ev exceptionalValue) Term() Term {
 func evaluationError(ev exceptionalValue, env *Env) Exception {
 	return NewException(atomError.Apply(atomEvaluationError.Apply(ev.Term()), varContext), env)
 }
+
+func mustBeAtom(t Term, env *Env) (Atom, error) {
+	switch t := t.(type) {
+	case Variable:
+		return 0, InstantiationError(env)
+	case Atom:
+		return t, nil
+	default:
+		return 0, typeError(validTypeAtom, t, env)
+	}
+}
+
+func mustBePI(t Term, env *Env) (procedureIndicator, error) {
+	var pi procedureIndicator
+	switch t := t.(type) {
+	case Variable:
+		return pi, InstantiationError(env)
+	case Compound:
+		if t.Functor() != atomSlash || t.Arity() != 2 {
+			return pi, typeError(validTypePredicateIndicator, t, env)
+		}
+		switch n := t.Arg(0).(type) {
+		case Variable:
+			return pi, InstantiationError(env)
+		case Atom:
+			pi.name = n
+		default:
+			return pi, typeError(validTypePredicateIndicator, t, env)
+		}
+
+		switch a := t.Arg(1).(type) {
+		case Variable:
+			return pi, InstantiationError(env)
+		case Integer:
+			pi.arity = a
+		default:
+			return pi, typeError(validTypePredicateIndicator, t, env)
+		}
+	default:
+		return pi, typeError(validTypePredicateIndicator, t, env)
+	}
+	return pi, nil
+}

@@ -710,19 +710,15 @@ a.`, output: `syntax err.`},
 	}
 }
 
-func TestInterpreter_Exec(t *testing.T) {
+func TestInterpreter_Compile(t *testing.T) {
 	tests := []struct {
 		query   string
-		args    []interface{}
 		err     bool
 		premise string
 	}{
 		{query: `append(nil, L, L).`},
 		{query: `0.`, err: true},
 		{query: `append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`},
-
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}},
-		{query: `foo(?).`, args: []interface{}{nil}, err: true},
 
 		{query: `#!/usr/bin/env 1pl
 append(nil, L, L).`},
@@ -742,21 +738,23 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register0(engine.NewAtom("true"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+			m := i.Module()
+			m.Register0("true", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 				return k(env)
 			})
-			i.Register0(engine.NewAtom("fail"), func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
+			m.Register0("fail", func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			i.Register1(engine.NewAtom("consult"), engine.Consult)
-			i.Register3(engine.NewAtom("op"), engine.Op)
-			assert.NoError(t, i.Exec(`:-(op(1200, xfx, :-)).`))
-			assert.NoError(t, i.Exec(`:-(op(1200, fx, :-)).`))
-			assert.NoError(t, i.Exec(tt.premise))
+			m.Register1("consult", engine.Consult)
+			m.Register3("op", engine.Op)
+			m.Register1("initialization", engine.Initialization)
+			assert.NoError(t, i.Compile(context.Background(), `:-(op(1200, xfx, :-)).`))
+			assert.NoError(t, i.Compile(context.Background(), `:-(op(1200, fx, :-)).`))
+			assert.NoError(t, i.Compile(context.Background(), tt.premise))
 			if tt.err {
-				assert.Error(t, i.Exec(tt.query, tt.args...))
+				assert.Error(t, i.Compile(context.Background(), tt.query))
 			} else {
-				assert.NoError(t, i.Exec(tt.query, tt.args...))
+				assert.NoError(t, i.Compile(context.Background(), tt.query))
 			}
 		})
 	}
@@ -798,9 +796,10 @@ func TestInterpreter_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			i.Register3(engine.NewAtom("op"), engine.Op)
-			i.Register2(engine.NewAtom("set_prolog_flag"), engine.SetPrologFlag)
-			assert.NoError(t, i.Exec(`
+			m := i.Module()
+			m.Register3("op", engine.Op)
+			m.Register2("set_prolog_flag", engine.SetPrologFlag)
+			assert.NoError(t, i.Compile(context.Background(), `
 :-(op(1200, xfx, :-)).
 :-(set_prolog_flag(double_quotes, atom)).
 
@@ -832,7 +831,8 @@ foo(a, 1, 2.0, [abc, def]).
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	i.Register0(engine.NewAtom("do_not_call"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+	m := i.Module()
+	m.Register0("do_not_call", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
 	})
@@ -854,7 +854,7 @@ func TestMisc(t *testing.T) {
 		// https://www.cs.uleth.ca/~gaur/post/prolog-cut-negation/
 		t.Run("p", func(t *testing.T) {
 			i := New(nil, nil)
-			assert.NoError(t, i.Exec(`
+			assert.NoError(t, i.Compile(context.Background(), `
 p(a).
 p(b):-!.
 p(c).
@@ -921,7 +921,7 @@ p(c).
 		// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
 		t.Run("teaches", func(t *testing.T) {
 			i := New(nil, nil)
-			assert.NoError(t, i.Exec(`
+			assert.NoError(t, i.Compile(context.Background(), `
 teaches(dr_fred, history).
 teaches(dr_fred, english).
 teaches(dr_fred, drama).
@@ -1116,7 +1116,7 @@ studies(alex, physics).
 
 	t.Run("call cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec(`
+		assert.NoError(t, i.Compile(context.Background(), `
 foo :- call(true), !.
 foo :- throw(unreachable).
 `))
@@ -1129,7 +1129,7 @@ foo :- throw(unreachable).
 
 	t.Run("catch cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec(`
+		assert.NoError(t, i.Compile(context.Background(), `
 foo :- catch(true, _, true), !.
 foo :- throw(unreachable).
 `))
@@ -1142,7 +1142,7 @@ foo :- throw(unreachable).
 
 	t.Run("counter", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Exec(`
+		assert.NoError(t, i.Compile(context.Background(), `
 :- dynamic(count/1).
 count(0).
 
@@ -1184,7 +1184,7 @@ next(N) :- retract(count(X)), N is X + 1, asserta(count(N)).
 
 func TestInterpreter_QuerySolution(t *testing.T) {
 	var i Interpreter
-	assert.NoError(t, i.Exec(`
+	assert.NoError(t, i.Compile(context.Background(), `
 foo(a, b).
 foo(b, c).
 foo(c, d).
@@ -1229,7 +1229,8 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		i.Register0(engine.NewAtom("error"), func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+		m := i.Module()
+		m.Register0("error", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)
@@ -1238,48 +1239,6 @@ foo(c, d).
 		var s struct{}
 		assert.Error(t, sol.Scan(&s))
 	})
-}
-
-func ExampleInterpreter_Exec_placeholders() {
-	p := New(nil, os.Stdout)
-
-	_ = p.Exec(`my_string(?).`, "foo")
-	sols, _ := p.Query(`my_string(A), maplist(atom, A), write(A), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	_ = p.Exec(`my_int(?, ?, ?, ?, ?).`, int8(1), int16(1), int32(1), int64(1), 1)
-	sols, _ = p.Query(`my_int(I, I, I, I, I), integer(I), write(I), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	_ = p.Exec(`my_float(?, ?).`, float32(1), float64(1))
-	sols, _ = p.Query(`my_float(F, F), float(F), write(F), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	_ = p.Exec(`my_atom_list(?).`, []string{"foo", "bar", "baz"})
-	sols, _ = p.Query(`my_atom_list(As), maplist(maplist(atom), As), write(As), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	_ = p.Exec(`my_int_list(?).`, []int{1, 2, 3})
-	sols, _ = p.Query(`my_int_list(Is), maplist(integer, Is), write(Is), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	_ = p.Exec(`my_float_list(?).`, []float64{1, 2, 3})
-	sols, _ = p.Query(`my_float_list(Fs), maplist(float, Fs), write(Fs), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
-	// Output:
-	// [f,o,o]
-	// 1
-	// 1.0
-	// [[f,o,o],[b,a,r],[b,a,z]]
-	// [1,2,3]
-	// [1.0,2.0,3.0]
 }
 
 func ExampleInterpreter_Query_placeholders() {
@@ -1314,7 +1273,7 @@ func ExampleInterpreter_Query_placeholders() {
 
 func ExampleNew_phrase() {
 	p := New(nil, nil)
-	_ = p.Exec(`
+	_ = p.Compile(context.Background(), `
 determiner --> [the].
 determiner --> [a].
 
@@ -1600,7 +1559,7 @@ func ExampleNew_arg() {
 }
 
 func TestDefaultFS_Open(t *testing.T) {
-	var fs defaultFS
+	var fs RealFS
 	f, err := fs.Open("interpreter.go")
 	assert.NoError(t, err)
 	assert.NotNil(t, f)

@@ -54,8 +54,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 			return Error(err)
 		}
 
-		u := userDefined{clauses: cs}
-		return u.call(vm, args, k, env)
+		return cs.call(vm, args, k, env)
 	}
 }
 
@@ -553,33 +552,35 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 		}
 	}
 
+	m := vm.Module()
+
 	for _, name := range names {
-		if p := validateOp(vm, p, spec, name, env); p != nil {
+		if p := validateOp(m, p, spec, name, env); p != nil {
 			return p
 		}
 	}
 
 	for _, name := range names {
-		if class := spec.class(); vm.operators.definedInClass(name, spec.class()) {
-			vm.operators.remove(name, class)
+		if class := spec.class(); m.operators.definedInClass(name, spec.class()) {
+			m.operators.remove(name, class)
 		}
 
-		vm.operators.define(p, spec, name)
+		m.operators.define(p, spec, name)
 	}
 
 	return k(env)
 }
 
-func validateOp(vm *VM, p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
+func validateOp(m *Module, p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
 	switch name {
 	case atomComma:
-		if vm.operators.definedInClass(name, operatorClassInfix) {
+		if m.operators.definedInClass(name, operatorClassInfix) {
 			return Error(permissionError(operationModify, permissionTypeOperator, name, env))
 		}
 	case atomBar:
 		if spec.class() != operatorClassInfix || (p > 0 && p < 1001) {
 			op := operationCreate
-			if vm.operators.definedInClass(name, operatorClassInfix) {
+			if m.operators.definedInClass(name, operatorClassInfix) {
 				op = operationModify
 			}
 			return Error(permissionError(op, permissionTypeOperator, name, env))
@@ -591,11 +592,11 @@ func validateOp(vm *VM, p Integer, spec operatorSpecifier, name Atom, env *Env) 
 	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
 	switch spec.class() {
 	case operatorClassInfix:
-		if vm.operators.definedInClass(name, operatorClassPostfix) {
+		if m.operators.definedInClass(name, operatorClassPostfix) {
 			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	case operatorClassPostfix:
-		if vm.operators.definedInClass(name, operatorClassInfix) {
+		if m.operators.definedInClass(name, operatorClassInfix) {
 			return Error(permissionError(operationCreate, permissionTypeOperator, name, env))
 		}
 	}
@@ -651,9 +652,10 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise 
 		return Error(typeError(validTypeAtom, op, env))
 	}
 
+	m := vm.Module()
 	pattern := tuple(priority, specifier, op)
-	ks := make([]func(context.Context) *Promise, 0, len(vm.operators)*int(_operatorClassLen))
-	for _, ops := range vm.operators {
+	ks := make([]func(context.Context) *Promise, 0, len(m.operators)*int(_operatorClassLen))
+	for _, ops := range m.operators {
 		for _, op := range ops {
 			op := op
 			if op == (operator{}) {
@@ -669,7 +671,8 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise 
 
 // Assertz appends t to the database.
 func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
-	if err := assertMerge(vm, t, func(existing, new []clause) []clause {
+	m := vm.Module()
+	if err := assertMerge(m, t, func(existing, new []clause) clauses {
 		return append(existing, new...)
 	}, env); err != nil {
 		return Error(err)
@@ -679,7 +682,8 @@ func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
 
 // Asserta prepends t to the database.
 func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
-	if err := assertMerge(vm, t, func(existing, new []clause) []clause {
+	m := vm.Module()
+	if err := assertMerge(m, t, func(existing, new []clause) clauses {
 		return append(new, existing...)
 	}, env); err != nil {
 		return Error(err)
@@ -687,7 +691,7 @@ func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 	return k(env)
 }
 
-func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *Env) error {
+func assertMerge(m *Module, t Term, merge func([]clause, []clause) clauses, env *Env) error {
 	pi, arg, err := piArg(t, env)
 	if err != nil {
 		return err
@@ -700,13 +704,14 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 		}
 	}
 
-	if vm.procedures == nil {
-		vm.procedures = map[procedureIndicator]procedure{}
+	if m.procedures == nil {
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	p, ok := vm.procedures[pi]
+	e, ok := m.procedures[pi]
 	if !ok {
-		p = &userDefined{dynamic: true}
-		vm.procedures[pi] = p
+		e.dynamic = true
+		e.procedure = clauses{}
+		m.procedures[pi] = e
 	}
 
 	added, err := compile(t, env)
@@ -714,12 +719,13 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 		return err
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.dynamic {
+	cs, ok := e.procedure.(clauses)
+	if !ok || !e.dynamic {
 		return permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env)
 	}
 
-	u.clauses = merge(u.clauses, added)
+	e.procedure = merge(cs, added)
+	m.procedures[pi] = e
 	return nil
 }
 
@@ -1066,10 +1072,11 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypePredicateIndicator, pi, env))
 	}
 
-	ks := make([]func(context.Context) *Promise, 0, len(vm.procedures))
-	for key, p := range vm.procedures {
-		switch p.(type) {
-		case *userDefined:
+	m := vm.Module()
+	ks := make([]func(context.Context) *Promise, 0, len(m.procedures))
+	for key, e := range m.procedures {
+		switch e.procedure.(type) {
+		case clauses:
 			c := key.Term()
 			ks = append(ks, func(context.Context) *Promise {
 				return Unify(vm, pi, c, k, env)
@@ -1083,6 +1090,7 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 
 // Retract removes the first clause that matches with t.
 func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
 	t = rulify(t, env)
 
 	h := t.(Compound).Arg(0)
@@ -1091,25 +1099,27 @@ func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
 		return Error(err)
 	}
 
-	p, ok := vm.procedures[pi]
+	e, ok := m.procedures[pi]
 	if !ok {
 		return Bool(false)
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.dynamic {
+	cs, ok := e.procedure.(clauses)
+	if !ok || !e.dynamic {
 		return Error(permissionError(operationModify, permissionTypeStaticProcedure, pi.Term(), env))
 	}
 
 	deleted := 0
-	ks := make([]func(context.Context) *Promise, len(u.clauses))
-	for i, c := range u.clauses {
+	ks := make([]func(context.Context) *Promise, len(cs))
+	for i, c := range cs {
 		i := i
 		raw := rulify(c.raw, env)
 		ks[i] = func(_ context.Context) *Promise {
 			return Unify(vm, t, raw, func(env *Env) *Promise {
 				j := i - deleted
-				u.clauses, u.clauses[len(u.clauses)-1] = append(u.clauses[:j], u.clauses[j+1:]...), clause{}
+				cs, cs[len(cs)-1] = append(cs[:j], cs[j+1:]...), clause{}
+				e.procedure = cs
+				m.procedures[pi] = e
 				deleted++
 				return k(env)
 			}, env)
@@ -1141,11 +1151,12 @@ func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 				if arity < 0 {
 					return Error(domainError(validDomainNotLessThanZero, arity, env))
 				}
+				m := vm.Module()
 				key := procedureIndicator{name: name, arity: arity}
-				if u, ok := vm.procedures[key].(*userDefined); !ok || !u.dynamic {
+				if e, ok := m.procedures[key]; !ok || !e.dynamic {
 					return Error(permissionError(operationModify, permissionTypeStaticProcedure, key.Term(), env))
 				}
-				delete(vm.procedures, key)
+				delete(m.procedures, key)
 				return k(env)
 			default:
 				return Error(typeError(validTypeInteger, arity, env))
@@ -1460,8 +1471,9 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 		return Error(err)
 	}
 
+	m := vm.Module()
 	opts := WriteOptions{
-		ops:      vm.operators,
+		ops:      m.operators,
 		priority: 1200,
 	}
 	iter := ListIterator{List: options, Env: env}
@@ -1732,7 +1744,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 		return Error(err)
 	}
 
-	p := NewParser(vm, s)
+	p := NewParser(vm.Module(), s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -1982,18 +1994,19 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeCallable, body, env))
 	}
 
-	p, ok := vm.procedures[pi]
+	m := vm.Module()
+	e, ok := m.procedures[pi]
 	if !ok {
 		return Bool(false)
 	}
 
-	u, ok := p.(*userDefined)
-	if !ok || !u.public {
+	cs, ok := e.procedure.(clauses)
+	if !ok || !e.public {
 		return Error(permissionError(operationAccess, permissionTypePrivateProcedure, pi.Term(), env))
 	}
 
-	ks := make([]func(context.Context) *Promise, len(u.clauses))
-	for i, c := range u.clauses {
+	ks := make([]func(context.Context) *Promise, len(cs))
+	for i, c := range cs {
 		cp, err := renamedCopy(c.raw, nil, env)
 		if err != nil {
 			return Error(err)
@@ -2282,7 +2295,7 @@ func NumberChars(vm *VM, num, chars Term, k Cont, env *Env) *Promise {
 	}
 
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(sb.String())),
 		},
 	}
@@ -2364,7 +2377,7 @@ func NumberCodes(vm *VM, num, codes Term, k Cont, env *Env) *Promise {
 	}
 
 	p := Parser{
-		lexer: Lexer{
+		Lexer: Lexer{
 			input: newRuneRingBuffer(strings.NewReader(sb.String())),
 		},
 	}
@@ -2536,14 +2549,15 @@ func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 				return Error(representationError(flagCharacter, env))
 			}
 
-			if vm.charConversions == nil {
-				vm.charConversions = map[rune]rune{}
+			m := vm.Module()
+			if m.charConversions == nil {
+				m.charConversions = map[rune]rune{}
 			}
 			if i[0] == o[0] {
-				delete(vm.charConversions, i[0])
+				delete(m.charConversions, i[0])
 				return k(env)
 			}
-			vm.charConversions[i[0]] = o[0]
+			m.charConversions[i[0]] = o[0]
 			return k(env)
 		default:
 			return Error(representationError(flagCharacter, env))
@@ -2579,9 +2593,10 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 		return Error(representationError(flagCharacter, env))
 	}
 
+	m := vm.Module()
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
 		r := []rune(c1.String())
-		if r, ok := vm.charConversions[r[0]]; ok {
+		if r, ok := m.charConversions[r[0]]; ok {
 			return Unify(vm, outChar, Atom(r), k, env)
 		}
 		return Unify(vm, outChar, c1, k, env)
@@ -2591,7 +2606,7 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 	ks := make([]func(context.Context) *Promise, 256)
 	for i := 0; i < 256; i++ {
 		r := rune(i)
-		cr, ok := vm.charConversions[r]
+		cr, ok := m.charConversions[r]
 		if !ok {
 			cr = r
 		}
@@ -2609,7 +2624,8 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	case Variable:
 		return Error(InstantiationError(env))
 	case Atom:
-		var modify func(vm *VM, value Atom) error
+		m := vm.Module()
+		var modify func(m *Module, value Atom) error
 		switch f {
 		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity:
 			return Error(permissionError(operationModify, permissionTypeFlag, f, env))
@@ -2629,7 +2645,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		case Variable:
 			return Error(InstantiationError(env))
 		case Atom:
-			if err := modify(vm, v); err != nil {
+			if err := modify(m, v); err != nil {
 				return Error(err)
 			}
 			return k(env)
@@ -2641,52 +2657,52 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	}
 }
 
-func modifyCharConversion(vm *VM, value Atom) error {
+func modifyCharConversion(m *Module, value Atom) error {
 	switch value {
 	case atomOn:
-		vm.charConvEnabled = true
+		m.charConvEnabled = true
 	case atomOff:
-		vm.charConvEnabled = false
+		m.charConvEnabled = false
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomCharConversion, value), nil)
 	}
 	return nil
 }
 
-func modifyDebug(vm *VM, value Atom) error {
+func modifyDebug(m *Module, value Atom) error {
 	switch value {
 	case atomOn:
-		vm.debug = true
+		m.debug = true
 	case atomOff:
-		vm.debug = false
+		m.debug = false
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomDebug, value), nil)
 	}
 	return nil
 }
 
-func modifyUnknown(vm *VM, value Atom) error {
+func modifyUnknown(m *Module, value Atom) error {
 	switch value {
 	case atomError:
-		vm.unknown = unknownError
+		m.unknown = unknownError
 	case atomWarning:
-		vm.unknown = unknownWarning
+		m.unknown = unknownWarning
 	case atomFail:
-		vm.unknown = unknownFail
+		m.unknown = unknownFail
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomUnknown, value), nil)
 	}
 	return nil
 }
 
-func modifyDoubleQuotes(vm *VM, value Atom) error {
+func modifyDoubleQuotes(m *Module, value Atom) error {
 	switch value {
 	case atomCodes:
-		vm.doubleQuotes = doubleQuotesCodes
+		m.doubleQuotes = doubleQuotesCodes
 	case atomChars:
-		vm.doubleQuotes = doubleQuotesChars
+		m.doubleQuotes = doubleQuotesChars
 	case atomAtom:
-		vm.doubleQuotes = doubleQuotesAtom
+		m.doubleQuotes = doubleQuotesAtom
 	default:
 		return domainError(validDomainFlagValue, atomPlus.Apply(atomDoubleQuotes, value), nil)
 	}
@@ -2709,17 +2725,18 @@ func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, f, env))
 	}
 
+	m := vm.Module()
 	pattern := tuple(flag, value)
 	flags := []Term{
 		tuple(atomBounded, atomTrue),
 		tuple(atomMaxInteger, maxInt),
 		tuple(atomMinInteger, minInt),
 		tuple(atomIntegerRoundingFunction, atomTowardZero),
-		tuple(atomCharConversion, onOff(vm.charConvEnabled)),
-		tuple(atomDebug, onOff(vm.debug)),
+		tuple(atomCharConversion, onOff(m.charConvEnabled)),
+		tuple(atomDebug, onOff(m.debug)),
 		tuple(atomMaxArity, atomUnbounded),
-		tuple(atomUnknown, NewAtom(vm.unknown.String())),
-		tuple(atomDoubleQuotes, NewAtom(vm.doubleQuotes.String())),
+		tuple(atomUnknown, NewAtom(m.unknown.String())),
+		tuple(atomDoubleQuotes, NewAtom(m.doubleQuotes.String())),
 	}
 	ks := make([]func(context.Context) *Promise, len(flags))
 	for i := range flags {
@@ -2749,7 +2766,8 @@ func ExpandTerm(vm *VM, term1, term2 Term, k Cont, env *Env) *Promise {
 }
 
 func expand(vm *VM, term Term, env *Env) (Term, error) {
-	if _, ok := vm.procedures[procedureIndicator{name: atomTermExpansion, arity: 2}]; ok {
+	m := vm.Module()
+	if _, ok := m.procedures[procedureIndicator{name: atomTermExpansion, arity: 2}]; ok {
 		var ret Term
 		v := NewVariable()
 		ok, err := Call(vm, atomTermExpansion.Apply(term, v), func(env *Env) *Promise {
@@ -3004,5 +3022,132 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 		return Unify(vm, tuple(xs, zs), tuple(Cons(x, l1), Cons(x, l3)), func(env *Env) *Promise {
 			return appendLists(vm, l1, ys, l3, k, env)
 		}, env)
+	})
+}
+
+func Dynamic(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		e, _ := m.procedures[pi]
+		e.dynamic = true
+		e.public = true
+		if e.procedure == nil {
+			e.procedure = clauses{}
+		}
+		m.procedures[pi] = e
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Multifile(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		e, _ := m.procedures[pi]
+		e.multifile = true
+		m.procedures[pi] = e
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Discontiguous(vm *VM, pi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: pi, Env: env}
+	for iter.Next() {
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
+		}
+		e, _ := m.procedures[pi]
+		e.discontiguous = true
+		m.procedures[pi] = e
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
+}
+
+func Initialization(vm *VM, goal Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	m.initGoals = append(m.initGoals, goal)
+	return k(env)
+}
+
+func Include(vm *VM, file Term, k Cont, env *Env) *Promise {
+	f, err := mustBeAtom(file, env)
+	if err != nil {
+		return Error(err)
+	}
+	return Delay(func(ctx context.Context) *Promise {
+		if err := vm.Load(ctx, f.String()); err != nil {
+			return Error(err)
+		}
+		return k(env)
+	})
+}
+
+func EnsureLoaded(vm *VM, file Term, k Cont, env *Env) *Promise {
+	f, err := mustBeAtom(file, env)
+	if err != nil {
+		return Error(err)
+	}
+	s := f.String()
+
+	extensions := []string{"", ".pl"}
+	ks := make([]func(context.Context) *Promise, len(extensions), len(extensions)+1)
+	for i, e := range extensions {
+		ks[i] = func(ctx context.Context) *Promise {
+			if err := vm.Load(ctx, s+e); err != nil {
+				return Bool(false)
+			}
+
+			return k(env)
+		}
+	}
+	ks = append(ks, func(context.Context) *Promise {
+		return Error(existenceError(objectTypeSourceSink, file, env))
+	})
+	return Delay(ks...)
+}
+
+// Consult executes Prolog texts in files.
+func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
+	var filenames []Term
+	iter := ListIterator{List: files, Env: env}
+	for iter.Next() {
+		filenames = append(filenames, iter.Current())
+	}
+	if err := iter.Err(); err != nil {
+		filenames = []Term{files}
+	}
+
+	return Delay(func(ctx context.Context) *Promise {
+		for _, filename := range filenames {
+			f, err := mustBeAtom(filename, env)
+			if err != nil {
+				return Error(err)
+			}
+			if err := vm.Load(ctx, f.String()); err != nil {
+				return Error(err)
+			}
+		}
+
+		return k(env)
 	})
 }

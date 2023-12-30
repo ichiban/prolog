@@ -69,7 +69,8 @@ Type Ctrl-C or 'halt.' to exit.
 	log.SetOutput(t)
 
 	i := New(&userInput{t: t}, t)
-	i.Register1(engine.NewAtom("halt"), halt)
+	m := i.Module()
+	m.Register1("halt", halt)
 	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
 		var sb strings.Builder
 		s := engine.NewOutputTextStream(&sb)
