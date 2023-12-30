@@ -67,21 +67,17 @@ type VM struct {
 
 // Module returns the type-in module.
 func (vm *VM) Module() *Module {
-	m := vm.typeIn
-	if m != nil {
-		return m
+	if vm.typeIn == nil {
+		vm.typeIn = vm.module(atomUser)
 	}
-
-	return vm.module(atomUser)
+	return vm.typeIn
 }
 
 func (vm *VM) SystemModule() *Module {
-	m := vm.system
-	if m != nil {
-		return m
+	if vm.system == nil {
+		vm.system = vm.module(atomProlog)
 	}
-
-	return vm.module(atomProlog)
+	return vm.system
 }
 
 func (vm *VM) module(name Atom) *Module {
@@ -91,6 +87,8 @@ func (vm *VM) module(name Atom) *Module {
 	}
 
 	m = &Module{name: name}
+	// TODO: import from the system module.
+
 	if vm.modules == nil {
 		vm.modules = map[Atom]*Module{}
 	}
@@ -101,19 +99,7 @@ func (vm *VM) module(name Atom) *Module {
 // SetModule sets the type-in module.
 func (vm *VM) SetModule(name string) {
 	n := NewAtom(name)
-
-	m, _ := vm.modules[n]
-	if m != nil {
-		vm.typeIn = m
-		return
-	}
-
-	m = &Module{name: n}
-	if vm.modules == nil {
-		vm.modules = map[Atom]*Module{}
-	}
-	vm.modules[n] = m
-	vm.typeIn = m
+	vm.typeIn = vm.module(n)
 }
 
 // Cont is a continuation.
@@ -129,7 +115,7 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 
 	m := vm.Module()
 	pi := procedureIndicator{name: name, arity: Integer(len(args))}
-	p, ok := m.procedures[pi]
+	e, ok := m.procedures[pi]
 	if !ok {
 		switch m.unknown {
 		case unknownWarning:
@@ -145,7 +131,7 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 	// bind the special variable to inform the predicate about the context.
 	env = env.bind(varContext, pi.Term())
 
-	return p.call(vm, args, k, env)
+	return e.procedure.call(vm, args, k, env)
 }
 
 func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack [][]Term, env *Env, cutParent *Promise) *Promise {

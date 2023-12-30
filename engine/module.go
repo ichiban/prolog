@@ -5,7 +5,7 @@ import "fmt"
 type Module struct {
 	name Atom
 
-	procedures map[procedureIndicator]procedure
+	procedures map[procedureIndicator]procedureEntry
 	unknown    unknownAction
 
 	// Internal/external expression
@@ -29,73 +29,73 @@ func (m *Module) Name() Atom {
 // Register0 registers a predicate of arity 0.
 func (m *Module) Register0(name string, p Predicate0) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 0}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 0}] = procedureEntry{procedure: p}
 }
 
 // Register1 registers a predicate of arity 1.
 func (m *Module) Register1(name string, p Predicate1) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 1}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 1}] = procedureEntry{procedure: p}
 }
 
 // Register2 registers a predicate of arity 2.
 func (m *Module) Register2(name string, p Predicate2) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 2}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 2}] = procedureEntry{procedure: p}
 }
 
 // Register3 registers a predicate of arity 3.
 func (m *Module) Register3(name string, p Predicate3) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 3}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 3}] = procedureEntry{procedure: p}
 }
 
 // Register4 registers a predicate of arity 4.
 func (m *Module) Register4(name string, p Predicate4) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 4}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 4}] = procedureEntry{procedure: p}
 }
 
 // Register5 registers a predicate of arity 5.
 func (m *Module) Register5(name string, p Predicate5) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 5}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 5}] = procedureEntry{procedure: p}
 }
 
 // Register6 registers a predicate of arity 6.
 func (m *Module) Register6(name string, p Predicate6) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 6}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 6}] = procedureEntry{procedure: p}
 }
 
 // Register7 registers a predicate of arity 7.
 func (m *Module) Register7(name string, p Predicate7) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 7}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 7}] = procedureEntry{procedure: p}
 }
 
 // Register8 registers a predicate of arity 8.
 func (m *Module) Register8(name string, p Predicate8) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedure{}
+		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 8}] = p
+	m.procedures[procedureIndicator{name: NewAtom(name), arity: 8}] = procedureEntry{procedure: p}
 }
 
 func (m *Module) flushClauseBuf() error {
@@ -104,22 +104,25 @@ func (m *Module) flushClauseBuf() error {
 	}
 
 	pi := m.buf[0].pi
-	p, ok := m.procedures[pi]
+	e, ok := m.procedures[pi]
 	if !ok {
-		p = &userDefined{}
+		e.procedure = clauses{}
 		if m.procedures == nil {
-			m.procedures = map[procedureIndicator]procedure{}
+			m.procedures = map[procedureIndicator]procedureEntry{}
 		}
-		m.procedures[pi] = p
+		m.procedures[pi] = e
 	}
-	u, ok := p.(*userDefined)
+
+	cs, ok := e.procedure.(clauses)
 	if !ok {
 		return permissionError(operationModify, permissionTypeStaticProcedure, pi, nil)
 	}
-	if len(u.clauses) > 0 && !u.discontiguous {
+
+	if len(cs) > 0 && !e.discontiguous {
 		return &discontiguousError{pi: pi}
 	}
-	u.clauses = append(u.clauses, m.buf...)
+	e.procedure = append(cs, m.buf...)
+	m.procedures[pi] = e
 	m.buf = m.buf[:0]
 	return nil
 }
@@ -138,6 +141,19 @@ func (u unknownAction) String() string {
 		unknownFail:    "fail",
 		unknownWarning: "warning",
 	}[u]
+}
+
+type procedureEntry struct {
+	dynamic       bool
+	public        bool
+	builtIn       bool
+	multifile     bool
+	exported      bool
+	metapredicate []Term
+	importedFrom  Atom
+	definedIn     Atom
+	discontiguous bool
+	procedure     procedure
 }
 
 type procedure interface {

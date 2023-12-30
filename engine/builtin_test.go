@@ -94,10 +94,10 @@ func TestCall1(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 2}: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 2}: {procedure: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -129,10 +129,10 @@ func TestCall2(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 3}: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 3}: {procedure: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -164,10 +164,10 @@ func TestCall3(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 4}: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 4}: {procedure: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -199,10 +199,10 @@ func TestCall4(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 5}: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 5}: {procedure: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -234,10 +234,10 @@ func TestCall5(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 6}: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 6}: {procedure: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -269,10 +269,10 @@ func TestCall6(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 7}: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 7}: {procedure: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -304,10 +304,10 @@ func TestCall7(t *testing.T) {
 
 			vm := VM{
 				typeIn: &Module{
-					procedures: map[procedureIndicator]procedure{
-						{name: NewAtom("p"), arity: 8}: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+					procedures: map[procedureIndicator]procedureEntry{
+						{name: NewAtom("p"), arity: 8}: {procedure: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
-						}),
+						})},
 					},
 				},
 			}
@@ -321,8 +321,8 @@ func TestCall7(t *testing.T) {
 func TestCallNth(t *testing.T) {
 	vm := VM{
 		typeIn: &Module{
-			procedures: map[procedureIndicator]procedure{
-				{name: NewAtom("foo"), arity: 0}: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
+			procedures: map[procedureIndicator]procedureEntry{
+				{name: NewAtom("foo"), arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
 					return Delay(func(context.Context) *Promise {
 						return k(env)
 					}, func(context.Context) *Promise {
@@ -330,7 +330,7 @@ func TestCallNth(t *testing.T) {
 					}, func(context.Context) *Promise {
 						return Error(errors.New("three"))
 					})
-				}),
+				})},
 			},
 		},
 	}
@@ -2533,8 +2533,8 @@ func TestCurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
 				},
 			},
 		}
@@ -2556,10 +2556,10 @@ func TestCurrentPredicate(t *testing.T) {
 
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{},
-					{name: NewAtom("bar"), arity: 1}: &userDefined{},
-					{name: NewAtom("baz"), arity: 1}: &userDefined{},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
+					{name: NewAtom("bar"), arity: 1}: {procedure: clauses{}},
+					{name: NewAtom("baz"), arity: 1}: {procedure: clauses{}},
 				},
 			},
 		}
@@ -2592,8 +2592,8 @@ func TestCurrentPredicate(t *testing.T) {
 	t.Run("builtin predicate", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: atomEqual, arity: 2}: Predicate2(Unify),
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
 				},
 			},
 		}
@@ -2677,7 +2677,7 @@ func TestAssertz(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
+		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
 				pi: procedureIndicator{
 					name:  NewAtom("foo"),
@@ -2774,8 +2774,8 @@ func TestAssertz(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
 			},
 		}
@@ -2809,7 +2809,7 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
+		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
 				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
@@ -2860,7 +2860,7 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
+		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
 				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{
@@ -2979,8 +2979,8 @@ func TestAsserta(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
 			},
 		}
@@ -3014,8 +3014,8 @@ func TestRetract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -3031,7 +3031,7 @@ func TestRetract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
+		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
 		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
@@ -3040,8 +3040,8 @@ func TestRetract(t *testing.T) {
 	t.Run("retract the specific one", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -3057,7 +3057,7 @@ func TestRetract(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, &userDefined{dynamic: true, clauses: []clause{
+		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
 		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
@@ -3066,8 +3066,8 @@ func TestRetract(t *testing.T) {
 	t.Run("retract all", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -3082,7 +3082,7 @@ func TestRetract(t *testing.T) {
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -3113,8 +3113,8 @@ func TestRetract(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
 			},
 		}
@@ -3130,8 +3130,8 @@ func TestRetract(t *testing.T) {
 	t.Run("exception in continuation", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 					}},
 				},
@@ -3148,7 +3148,7 @@ func TestRetract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].(*userDefined).clauses)
+		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
 	})
 }
 
@@ -3156,8 +3156,8 @@ func TestAbolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: &userDefined{dynamic: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
@@ -3255,8 +3255,8 @@ func TestAbolish(t *testing.T) {
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 0}: &userDefined{dynamic: false},
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 0}: procedureEntry{dynamic: false},
 				},
 			},
 		}
@@ -5524,8 +5524,8 @@ func TestClause(t *testing.T) {
 
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("green"), arity: 1}: &userDefined{public: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
 						{raw: &compound{
 							functor: atomIf, args: []Term{
 								&compound{functor: NewAtom("green"), args: []Term{x}},
@@ -5586,10 +5586,10 @@ func TestClause(t *testing.T) {
 
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("green"), arity: 1}: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("green"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
 						return Bool(true)
-					}),
+					})},
 				},
 			},
 		}
@@ -5616,8 +5616,8 @@ func TestClause(t *testing.T) {
 
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("green"), arity: 1}: &userDefined{public: true, clauses: []clause{
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
 						{raw: NewAtom("green").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())},
 					}},
 				},

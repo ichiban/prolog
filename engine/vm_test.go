@@ -50,10 +50,10 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
 			typeIn: &Module{
-				procedures: map[procedureIndicator]procedure{
-					{name: NewAtom("foo"), arity: 1}: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
+				procedures: map[procedureIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
 						return k(env)
-					}),
+					})},
 				},
 			},
 		}
