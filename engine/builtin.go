@@ -705,7 +705,7 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) []clause, env *E
 	}
 	p, ok := vm.procedures[pi]
 	if !ok {
-		p = &userDefined{dynamic: true}
+		p = &userDefined{public: true, dynamic: true}
 		vm.procedures[pi] = p
 	}
 
