@@ -2,7 +2,7 @@ package engine
 
 import "fmt"
 
-type Module struct {
+type module struct {
 	name Atom
 
 	procedures map[procedureIndicator]procedureEntry
@@ -21,84 +21,136 @@ type Module struct {
 	initGoals []Term
 }
 
+func (m *module) reset() {
+	m.operators.reset()
+	for k := range m.procedures {
+		delete(m.procedures, k)
+	}
+}
+
 // Name returns the module name.
-func (m *Module) Name() Atom {
+func (m *module) Name() Atom {
 	return m.name
 }
 
 // Register0 registers a predicate of arity 0.
-func (m *Module) Register0(name string, p Predicate0) {
+func (m *module) Register0(name string, p Predicate0) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 0}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 0}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register1 registers a predicate of arity 1.
-func (m *Module) Register1(name string, p Predicate1) {
+func (m *module) Register1(name string, p Predicate1) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 1}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 1}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register2 registers a predicate of arity 2.
-func (m *Module) Register2(name string, p Predicate2) {
+func (m *module) Register2(name string, p Predicate2) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 2}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 2}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register3 registers a predicate of arity 3.
-func (m *Module) Register3(name string, p Predicate3) {
+func (m *module) Register3(name string, p Predicate3) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 3}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 3}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register4 registers a predicate of arity 4.
-func (m *Module) Register4(name string, p Predicate4) {
+func (m *module) Register4(name string, p Predicate4) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 4}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 4}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register5 registers a predicate of arity 5.
-func (m *Module) Register5(name string, p Predicate5) {
+func (m *module) Register5(name string, p Predicate5) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 5}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 5}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register6 registers a predicate of arity 6.
-func (m *Module) Register6(name string, p Predicate6) {
+func (m *module) Register6(name string, p Predicate6) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 6}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 6}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register7 registers a predicate of arity 7.
-func (m *Module) Register7(name string, p Predicate7) {
+func (m *module) Register7(name string, p Predicate7) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 7}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 7}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
 // Register8 registers a predicate of arity 8.
-func (m *Module) Register8(name string, p Predicate8) {
+func (m *module) Register8(name string, p Predicate8) {
 	if m.procedures == nil {
 		m.procedures = map[procedureIndicator]procedureEntry{}
 	}
-	m.procedures[procedureIndicator{name: NewAtom(name), arity: 8}] = procedureEntry{procedure: p}
+	pi := procedureIndicator{name: NewAtom(name), arity: 8}
+	e := m.procedures[pi]
+	e.public = false
+	e.dynamic = false
+	e.procedure = p
+	m.procedures[pi] = e
 }
 
-func (m *Module) flushClauseBuf() error {
+func (m *module) flushClauseBuf() error {
 	if len(m.buf) == 0 {
 		return nil
 	}
@@ -111,6 +163,10 @@ func (m *Module) flushClauseBuf() error {
 			m.procedures = map[procedureIndicator]procedureEntry{}
 		}
 		m.procedures[pi] = e
+	}
+
+	if e.procedure == nil {
+		e.procedure = clauses{}
 	}
 
 	cs, ok := e.procedure.(clauses)
@@ -149,11 +205,16 @@ type procedureEntry struct {
 	builtIn       bool
 	multifile     bool
 	exported      bool
-	metapredicate []Term
+	metaPredicate []metaArgumentSpecifier
 	importedFrom  Atom
 	definedIn     Atom
 	discontiguous bool
 	procedure     procedure
+}
+
+type metaArgumentSpecifier struct {
+	atom    Atom
+	integer Integer
 }
 
 type procedure interface {

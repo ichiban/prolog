@@ -11,11 +11,11 @@ import (
 
 func TestParser_Term(t *testing.T) {
 	ops := operators{}
-	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
-	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
-	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
-	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`), false)
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`), false)
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`), false)
 
 	tests := []struct {
 		input        string
@@ -161,9 +161,11 @@ func TestParser_Term(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			p := Parser{
 				Lexer: Lexer{
-					module: &Module{
-						operators:    ops,
-						doubleQuotes: tc.doubleQuotes,
+					module: func() *module {
+						return &module{
+							operators:    ops,
+							doubleQuotes: tc.doubleQuotes,
+						}
 					},
 					input: newRuneRingBuffer(strings.NewReader(tc.input)),
 				},
@@ -224,13 +226,13 @@ func TestParser_Replace(t *testing.T) {
 			title:   "too few arguments",
 			input:   `[?, ?, ?, ?, ?].`,
 			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
-			termErr: errors.New("not enough arguments for placeholders"),
+			termErr: errPlaceholder,
 		},
 		{
 			title:   "too many arguments",
 			input:   `[?, ?, ?, ?].`,
 			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}, "extra"},
-			termErr: errors.New("too many arguments for placeholders: [extra]"),
+			termErr: errPlaceholder,
 		},
 	}
 
@@ -238,8 +240,10 @@ func TestParser_Replace(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			p := Parser{
 				Lexer: Lexer{
-					module: &Module{
-						doubleQuotes: tt.doubleQuotes,
+					module: func() *module {
+						return &module{
+							doubleQuotes: tt.doubleQuotes,
+						}
 					},
 					input: newRuneRingBuffer(strings.NewReader(tt.input)),
 				},
@@ -252,7 +256,7 @@ func TestParser_Replace(t *testing.T) {
 			}
 
 			term, err := p.Term()
-			assert.Equal(t, tt.termErr, err)
+			assert.ErrorIs(t, err, tt.termErr)
 			assert.Equal(t, tt.term, term)
 		})
 	}
@@ -314,8 +318,10 @@ func TestParser_Number(t *testing.T) {
 func TestParser_More(t *testing.T) {
 	p := Parser{
 		Lexer: Lexer{
-			module: &Module{},
-			input:  newRuneRingBuffer(strings.NewReader(`foo. bar.`)),
+			module: func() *module {
+				return &module{}
+			},
+			input: newRuneRingBuffer(strings.NewReader(`foo. bar.`)),
 		},
 	}
 	term, err := p.Term()

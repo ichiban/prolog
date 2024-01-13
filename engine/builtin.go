@@ -20,8 +20,8 @@ func Repeat(_ *VM, k Cont, env *Env) *Promise {
 	})
 }
 
-// Negate calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
-func Negate(vm *VM, goal Term, k Cont, env *Env) *Promise {
+// Not calls goal and returns false if it succeeds. Otherwise, invokes the continuation.
+func Not(vm *VM, goal Term, k Cont, env *Env) *Promise {
 	return Delay(func(ctx context.Context) *Promise {
 		ok, err := Call(vm, goal, Success, env).Force(ctx)
 		if err != nil {
@@ -565,13 +565,13 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 			m.operators.remove(name, class)
 		}
 
-		m.operators.define(p, spec, name)
+		m.operators.define(p, spec, name, false)
 	}
 
 	return k(env)
 }
 
-func validateOp(m *Module, p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
+func validateOp(m *module, p Integer, spec operatorSpecifier, name Atom, env *Env) *Promise {
 	switch name {
 	case atomComma:
 		if m.operators.definedInClass(name, operatorClassInfix) {
@@ -691,7 +691,7 @@ func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 	return k(env)
 }
 
-func assertMerge(m *Module, t Term, merge func([]clause, []clause) clauses, env *Env) error {
+func assertMerge(m *module, t Term, merge func([]clause, []clause) clauses, env *Env) error {
 	pi, arg, err := piArg(t, env)
 	if err != nil {
 		return err
@@ -1744,22 +1744,22 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 		return Error(err)
 	}
 
-	p := NewParser(vm.Module(), s)
+	p := NewParser(vm.Module, s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
 
 	t, err := p.Term()
-	switch err {
-	case nil:
+	switch {
+	case err == nil:
 		break
-	case io.EOF:
+	case errors.Is(err, io.EOF):
 		return Unify(vm, out, atomEndOfFile, k, env)
-	case errWrongIOMode:
+	case errors.Is(err, errWrongIOMode):
 		return Error(permissionError(operationInput, permissionTypeStream, streamOrAlias, env))
-	case errWrongStreamType:
+	case errors.Is(err, errWrongStreamType):
 		return Error(permissionError(operationInput, permissionTypeBinaryStream, streamOrAlias, env))
-	case errPastEndOfStream:
+	case errors.Is(err, errPastEndOfStream):
 		return Error(permissionError(operationInput, permissionTypePastEndOfStream, streamOrAlias, env))
 	default:
 		return Error(syntaxError(err, env))
@@ -2625,7 +2625,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		return Error(InstantiationError(env))
 	case Atom:
 		m := vm.Module()
-		var modify func(m *Module, value Atom) error
+		var modify func(m *module, value Atom) error
 		switch f {
 		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity:
 			return Error(permissionError(operationModify, permissionTypeFlag, f, env))
@@ -2657,7 +2657,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	}
 }
 
-func modifyCharConversion(m *Module, value Atom) error {
+func modifyCharConversion(m *module, value Atom) error {
 	switch value {
 	case atomOn:
 		m.charConvEnabled = true
@@ -2669,7 +2669,7 @@ func modifyCharConversion(m *Module, value Atom) error {
 	return nil
 }
 
-func modifyDebug(m *Module, value Atom) error {
+func modifyDebug(m *module, value Atom) error {
 	switch value {
 	case atomOn:
 		m.debug = true
@@ -2681,7 +2681,7 @@ func modifyDebug(m *Module, value Atom) error {
 	return nil
 }
 
-func modifyUnknown(m *Module, value Atom) error {
+func modifyUnknown(m *module, value Atom) error {
 	switch value {
 	case atomError:
 		m.unknown = unknownError
@@ -2695,7 +2695,7 @@ func modifyUnknown(m *Module, value Atom) error {
 	return nil
 }
 
-func modifyDoubleQuotes(m *Module, value Atom) error {
+func modifyDoubleQuotes(m *module, value Atom) error {
 	switch value {
 	case atomCodes:
 		m.doubleQuotes = doubleQuotesCodes
@@ -3150,4 +3150,159 @@ func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
 
 		return k(env)
 	})
+}
+
+func Module(vm *VM, moduleName, exportList Term, k Cont, env *Env) *Promise {
+	var name Atom
+	switch n := env.Resolve(moduleName).(type) {
+	case Variable:
+		return Error(InstantiationError(env))
+	case Atom:
+		name = n
+	default:
+		return Error(typeError(validTypeAtom, moduleName, env))
+	}
+
+	var (
+		ops []operator
+		pis []procedureIndicator
+	)
+	iter := ListIterator{List: exportList, Env: env}
+	for iter.Next() {
+		switch c := iter.Current().(type) {
+		case Variable:
+			return Error(InstantiationError(env))
+		case Compound:
+			switch pi, arg, _ := piArg(c, env); pi {
+			case procedureIndicator{name: NewAtom("op"), arity: 3}:
+				var p Integer
+				switch priority := env.Resolve(arg(0)).(type) {
+				case Variable:
+					return Error(InstantiationError(env))
+				case Integer:
+					if priority < 0 || priority > 1200 {
+						return Error(domainError(validDomainOperatorPriority, priority, env))
+					}
+					p = priority
+				default:
+					return Error(typeError(validTypeInteger, priority, env))
+				}
+
+				var spec operatorSpecifier
+				switch specifier := env.Resolve(arg(1)).(type) {
+				case Variable:
+					return Error(InstantiationError(env))
+				case Atom:
+					var ok bool
+					spec, ok = operatorSpecifiers[specifier]
+					if !ok {
+						return Error(domainError(validDomainOperatorSpecifier, specifier, env))
+					}
+				default:
+					return Error(typeError(validTypeAtom, specifier, env))
+				}
+
+				var names []Atom
+				switch op := env.Resolve(arg(2)).(type) {
+				case Atom:
+					names = []Atom{op}
+				default:
+					iter := ListIterator{List: op, Env: env}
+					for iter.Next() {
+						switch op := env.Resolve(iter.Current()).(type) {
+						case Atom:
+							names = appendUniqNewAtom(names, op)
+						default:
+							return Error(typeError(validTypeAtom, op, env))
+						}
+					}
+					if err := iter.Err(); err != nil {
+						return Error(err)
+					}
+				}
+
+				for _, name := range names {
+					ops = append(ops, operator{
+						priority:  p,
+						specifier: spec,
+						name:      name,
+					})
+				}
+			case procedureIndicator{name: atomSlash, arity: 2}:
+				var name Atom
+				switch n := env.Resolve(arg(0)).(type) {
+				case Variable:
+					return Error(InstantiationError(env))
+				case Atom:
+					name = n
+				default:
+					return Error(typeError(validTypeAtom, n, env))
+				}
+
+				var arity Integer
+				switch a := env.Resolve(arg(1)).(type) {
+				case Variable:
+					return Error(InstantiationError(env))
+				case Integer:
+					arity = a
+				default:
+					return Error(typeError(validTypeInteger, a, env))
+				}
+
+				pis = append(pis, procedureIndicator{name: name, arity: arity})
+			default:
+				return Error(typeError(validTypePredicateIndicator, c, env))
+			}
+		default:
+			return Error(typeError(validTypeCompound, c, env))
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+
+	m := vm.module(name)
+	m.reset()
+	for _, op := range ops {
+		m.operators.define(op.priority, op.specifier, op.name, true)
+	}
+	for _, pi := range pis {
+		e := m.procedures[pi]
+		e.exported = true
+		m.procedures[pi] = e
+	}
+
+	vm.SetModule(name)
+
+	return k(env)
+}
+
+func MetaPredicate(vm *VM, mi Term, k Cont, env *Env) *Promise {
+	m := vm.Module()
+	iter := anyIterator{Any: mi, Env: env}
+	for iter.Next() {
+		pi, arg, err := piArg(mi, env)
+		if err != nil {
+			return Error(err)
+		}
+		e, _ := m.procedures[pi]
+		e.metaPredicate = make([]metaArgumentSpecifier, pi.arity)
+		for i := 0; i < int(pi.arity); i++ {
+			switch t := env.Resolve(arg(i)).(type) {
+			case Variable:
+				return Error(InstantiationError(env))
+			case Atom:
+				e.metaPredicate[i] = metaArgumentSpecifier{atom: t}
+			case Integer:
+				e.metaPredicate[i] = metaArgumentSpecifier{integer: t}
+			default:
+				return Error(domainError(validDomainMetaArgumentSpecifier, t, env))
+			}
+		}
+		m.procedures[pi] = e
+	}
+	if err := iter.Err(); err != nil {
+		return Error(err)
+	}
+	return k(env)
 }

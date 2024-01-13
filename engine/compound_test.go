@@ -15,17 +15,17 @@ func TestWriteCompound(t *testing.T) {
 	env := NewEnv().bind(v, l).bind(w, r)
 
 	ops := operators{}
-	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`))
-	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`))
-	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`))
-	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`))
-	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
-	ops.define(900, operatorSpecifierFY, atomNegation)
-	ops.define(900, operatorSpecifierYF, NewAtom(`+/`))
-	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
-	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
-	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
-	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
+	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`), false)
+	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`), false)
+	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`), false)
+	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`), false)
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
+	ops.define(900, operatorSpecifierFY, atomNegation, false)
+	ops.define(900, operatorSpecifierYF, NewAtom(`+/`), false)
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`), false)
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`), false)
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`), false)
 
 	tests := []struct {
 		title  string

@@ -132,6 +132,7 @@ var (
 	atomMaxDepth                = NewAtom("max_depth")
 	atomMaxInteger              = NewAtom("max_integer")
 	atomMemory                  = NewAtom("memory")
+	atomMetaArgumentSpecifier   = NewAtom("meta_argument_specifier")
 	atomMin                     = NewAtom("min")
 	atomMinInteger              = NewAtom("min_integer")
 	atomMod                     = NewAtom("mod")

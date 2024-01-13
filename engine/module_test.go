@@ -7,7 +7,7 @@ import (
 )
 
 func TestModule_Register0(t *testing.T) {
-	var m Module
+	var m module
 	m.Register0("foo", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -29,7 +29,7 @@ func TestModule_Register0(t *testing.T) {
 }
 
 func TestModule_Register1(t *testing.T) {
-	var m Module
+	var m module
 	m.Register1("foo", func(_ *VM, a Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -49,7 +49,7 @@ func TestModule_Register1(t *testing.T) {
 }
 
 func TestModule_Register2(t *testing.T) {
-	var m Module
+	var m module
 	m.Register2("foo", func(_ *VM, a, b Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -69,7 +69,7 @@ func TestModule_Register2(t *testing.T) {
 }
 
 func TestModule_Register3(t *testing.T) {
-	var m Module
+	var m module
 	m.Register3("foo", func(_ *VM, a, b, c Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -89,7 +89,7 @@ func TestModule_Register3(t *testing.T) {
 }
 
 func TestModule_Register4(t *testing.T) {
-	var m Module
+	var m module
 	m.Register4("foo", func(_ *VM, a, b, c, d Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -109,7 +109,7 @@ func TestModule_Register4(t *testing.T) {
 }
 
 func TestModule_Register5(t *testing.T) {
-	var m Module
+	var m module
 	m.Register5("foo", func(_ *VM, a, b, c, d, e Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -129,7 +129,7 @@ func TestModule_Register5(t *testing.T) {
 }
 
 func TestModule_Register6(t *testing.T) {
-	var m Module
+	var m module
 	m.Register6("foo", func(_ *VM, a, b, c, d, e, f Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -149,7 +149,7 @@ func TestModule_Register6(t *testing.T) {
 }
 
 func TestModule_Register7(t *testing.T) {
-	var m Module
+	var m module
 	m.Register7("foo", func(_ *VM, a, b, c, d, e, f, g Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -169,7 +169,7 @@ func TestModule_Register7(t *testing.T) {
 }
 
 func TestModule_Register8(t *testing.T) {
-	var m Module
+	var m module
 	m.Register8("foo", func(_ *VM, a, b, c, d, e, f, g, h Term, k Cont, env *Env) *Promise {
 		return k(env)
 	})

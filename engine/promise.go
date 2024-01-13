@@ -132,6 +132,20 @@ func panicError(r interface{}) error {
 	return fmt.Errorf("panic: %v", r)
 }
 
+type errorWithCaller struct {
+	file string
+	line int
+	err  error
+}
+
+func (e errorWithCaller) Error() string {
+	return fmt.Sprintf("%s (%s:%d)", e.err.Error(), e.file, e.line)
+}
+
+func (e errorWithCaller) Unwrap() error {
+	return e.err
+}
+
 type promiseStack []*Promise
 
 func (s *promiseStack) pop() *Promise {

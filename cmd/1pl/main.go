@@ -68,14 +68,38 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := New(&userInput{t: t}, t)
+	i := prolog.New(&userInput{t: t}, t)
 	m := i.Module()
+	log.Printf("module: %s", m.Name())
+	m.Register4("skip_max_list", engine.SkipMaxList)
+	m.Register2("go_string", func(vm *engine.VM, term, s engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+		return engine.Unify(vm, s, engine.NewAtom(fmt.Sprintf("%#v", term)), k, env)
+	})
 	m.Register1("halt", halt)
 	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
 		var sb strings.Builder
 		s := engine.NewOutputTextStream(&sb)
 		_, _ = engine.WriteTerm(&i.VM, s, name.Apply(args...), engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, env).Force(context.Background())
 		log.Printf("UNKNOWN %s", &sb)
+	}
+
+	sols, err := i.Query(`current_ops(P, S, N).`)
+	if err != nil {
+		panic(err)
+	}
+	for sols.Next() {
+		var s struct {
+			P int
+			S string
+			N string
+		}
+		if err := sols.Scan(&s); err != nil {
+			panic(err)
+		}
+		log.Printf("%d %s %s", s.P, s.S, s.N)
+	}
+	if err := sols.Close(); err != nil {
+		panic(err)
 	}
 
 	// Consult arguments.

@@ -12,7 +12,7 @@ import (
 
 // Lexer turns runes into tokens.
 type Lexer struct {
-	module *Module
+	module func() *module
 	input  runeRingBuffer
 
 	buf    bytes.Buffer
@@ -42,7 +42,8 @@ func (l *Lexer) conv(r rune) rune {
 	if l.module == nil {
 		return r
 	}
-	if r, ok := l.module.charConversions[r]; ok {
+	m := l.module()
+	if r, ok := m.charConversions[r]; ok {
 		return r
 	}
 	return r

@@ -11,7 +11,7 @@ func TestVM_Phrase(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("a"), arity: 2}: {procedure: Predicate2(func(_ *VM, s0, s Term, k Cont, env *Env) *Promise {
 						called = true

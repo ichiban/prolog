@@ -111,27 +111,29 @@ const (
 	validDomainWriteOption
 
 	validDomainOrder
+	validDomainMetaArgumentSpecifier
 )
 
 var validDomainAtoms = [...]Atom{
-	validDomainCharacterCodeList: atomCharacterCodeList,
-	validDomainCloseOption:       atomCloseOption,
-	validDomainFlagValue:         atomFlagValue,
-	validDomainIOMode:            atomIOMode,
-	validDomainNonEmptyList:      atomNonEmptyList,
-	validDomainNotLessThanZero:   atomNotLessThanZero,
-	validDomainOperatorPriority:  atomOperatorPriority,
-	validDomainOperatorSpecifier: atomOperatorSpecifier,
-	validDomainPrologFlag:        atomPrologFlag,
-	validDomainReadOption:        atomReadOption,
-	validDomainSourceSink:        atomSourceSink,
-	validDomainStream:            atomStream,
-	validDomainStreamOption:      atomStreamOption,
-	validDomainStreamOrAlias:     atomStreamOrAlias,
-	validDomainStreamPosition:    atomStreamPosition,
-	validDomainStreamProperty:    atomStreamProperty,
-	validDomainWriteOption:       atomWriteOption,
-	validDomainOrder:             atomOrder,
+	validDomainCharacterCodeList:     atomCharacterCodeList,
+	validDomainCloseOption:           atomCloseOption,
+	validDomainFlagValue:             atomFlagValue,
+	validDomainIOMode:                atomIOMode,
+	validDomainNonEmptyList:          atomNonEmptyList,
+	validDomainNotLessThanZero:       atomNotLessThanZero,
+	validDomainOperatorPriority:      atomOperatorPriority,
+	validDomainOperatorSpecifier:     atomOperatorSpecifier,
+	validDomainPrologFlag:            atomPrologFlag,
+	validDomainReadOption:            atomReadOption,
+	validDomainSourceSink:            atomSourceSink,
+	validDomainStream:                atomStream,
+	validDomainStreamOption:          atomStreamOption,
+	validDomainStreamOrAlias:         atomStreamOrAlias,
+	validDomainStreamPosition:        atomStreamPosition,
+	validDomainStreamProperty:        atomStreamProperty,
+	validDomainWriteOption:           atomWriteOption,
+	validDomainOrder:                 atomOrder,
+	validDomainMetaArgumentSpecifier: atomMetaArgumentSpecifier,
 }
 
 // Term returns an Atom for the validDomain.

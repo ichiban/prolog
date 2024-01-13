@@ -56,9 +56,9 @@ type VM struct {
 	FS     fs.FS
 	loaded map[string]struct{}
 
-	modules map[Atom]*Module
-	system  *Module
-	typeIn  *Module
+	modules map[Atom]*module
+	system  *module
+	typeIn  *module
 
 	// I/O
 	streams       streams
@@ -66,40 +66,61 @@ type VM struct {
 }
 
 // Module returns the type-in module.
-func (vm *VM) Module() *Module {
+func (vm *VM) Module() *module {
 	if vm.typeIn == nil {
-		vm.typeIn = vm.module(atomUser)
+		vm.typeIn = vm.module(0)
 	}
 	return vm.typeIn
 }
 
-func (vm *VM) SystemModule() *Module {
-	if vm.system == nil {
-		vm.system = vm.module(atomProlog)
-	}
+func (vm *VM) SystemModule() *module {
 	return vm.system
 }
 
-func (vm *VM) module(name Atom) *Module {
+func (vm *VM) module(name Atom) *module {
 	m, _ := vm.modules[name]
 	if m != nil {
 		return m
 	}
 
-	m = &Module{name: name}
-	// TODO: import from the system module.
+	m = &module{
+		name:       name,
+		operators:  operators{},
+		procedures: map[procedureIndicator]procedureEntry{},
+	}
+	if sm := vm.SystemModule(); sm != nil {
+		for _, class := range sm.operators {
+			for _, op := range class {
+				if !op.exported {
+					continue
+				}
+				m.operators.define(op.priority, op.specifier, op.name, false)
+			}
+		}
+		for pi, e := range sm.procedures {
+			if !e.exported {
+				continue
+			}
+
+			e.importedFrom = sm.name
+			m.procedures[pi] = e
+		}
+	}
 
 	if vm.modules == nil {
-		vm.modules = map[Atom]*Module{}
+		vm.modules = map[Atom]*module{}
 	}
 	vm.modules[name] = m
 	return m
 }
 
 // SetModule sets the type-in module.
-func (vm *VM) SetModule(name string) {
-	n := NewAtom(name)
-	vm.typeIn = vm.module(n)
+func (vm *VM) SetModule(name Atom) {
+	vm.typeIn = vm.module(name)
+}
+
+func (vm *VM) SetSystemModule(name Atom) {
+	vm.system = vm.module(name)
 }
 
 // Cont is a continuation.
@@ -115,8 +136,8 @@ func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise
 
 	m := vm.Module()
 	pi := procedureIndicator{name: name, arity: Integer(len(args))}
-	e, ok := m.procedures[pi]
-	if !ok {
+	e := m.procedures[pi]
+	if e.procedure == nil {
 		switch m.unknown {
 		case unknownWarning:
 			vm.Unknown(name, args, env)
@@ -241,7 +262,10 @@ func (vm *VM) SetUserOutput(s *Stream) {
 }
 
 func (vm *VM) Compile(ctx context.Context, text string) error {
-	m := vm.Module()
+	{
+		m := vm.Module()
+		defer vm.SetModule(m.Name())
+	}
 
 	// Skip a shebang line if exists.
 	if strings.HasPrefix(text, "#!") {
@@ -254,7 +278,7 @@ func (vm *VM) Compile(ctx context.Context, text string) error {
 	}
 
 	r := strings.NewReader(text)
-	p := NewParser(m, r)
+	p := NewParser(vm.Module, r)
 	for p.More() {
 		p.Vars = p.Vars[:]
 		t, err := p.Term()
@@ -273,7 +297,7 @@ func (vm *VM) Compile(ctx context.Context, text string) error {
 		}
 		switch pi {
 		case procedureIndicator{name: atomIf, arity: 1}: // Directive
-			if err := m.flushClauseBuf(); err != nil {
+			if err := vm.Module().flushClauseBuf(); err != nil {
 				return err
 			}
 
@@ -282,7 +306,7 @@ func (vm *VM) Compile(ctx context.Context, text string) error {
 				return err
 			}
 			if !ok {
-				return errExpectation
+				return p.unexpected()
 			}
 
 			continue
@@ -294,6 +318,7 @@ func (vm *VM) Compile(ctx context.Context, text string) error {
 
 			fallthrough
 		default:
+			m := vm.Module()
 			if len(m.buf) > 0 && pi != m.buf[0].pi {
 				if err := m.flushClauseBuf(); err != nil {
 					return err
@@ -309,6 +334,7 @@ func (vm *VM) Compile(ctx context.Context, text string) error {
 		}
 	}
 
+	m := vm.Module()
 	if err := m.flushClauseBuf(); err != nil {
 		return err
 	}

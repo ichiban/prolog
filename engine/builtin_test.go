@@ -18,7 +18,8 @@ import (
 )
 
 func TestCall(t *testing.T) {
-	var m Module
+	var vm VM
+	m := vm.Module()
 	m.Register0("fail", func(_ *VM, f Cont, env *Env) *Promise {
 		return Bool(false)
 	})
@@ -30,7 +31,6 @@ func TestCall(t *testing.T) {
 			panic("told you")
 		})
 	})
-	vm := VM{typeIn: &m}
 	assert.NoError(t, vm.Compile(context.Background(), `
 foo.
 foo(_, _).
@@ -67,8 +67,8 @@ f(g([a, [b, c|X]])).
 			defer setMemFree(tt.mem)()
 
 			ok, err := Call(&vm, tt.goal, Success, nil).Force(context.Background())
-			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.err, err)
+			assert.Equal(t, tt.ok, ok)
 		})
 	}
 }
@@ -93,7 +93,7 @@ func TestCall1(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 2}: {procedure: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -128,7 +128,7 @@ func TestCall2(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 3}: {procedure: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -163,7 +163,7 @@ func TestCall3(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 4}: {procedure: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -198,7 +198,7 @@ func TestCall4(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 5}: {procedure: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -233,7 +233,7 @@ func TestCall5(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 6}: {procedure: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -268,7 +268,7 @@ func TestCall6(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 7}: {procedure: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -303,7 +303,7 @@ func TestCall7(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					procedures: map[procedureIndicator]procedureEntry{
 						{name: NewAtom("p"), arity: 8}: {procedure: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
 							return k(env)
@@ -320,7 +320,7 @@ func TestCall7(t *testing.T) {
 
 func TestCallNth(t *testing.T) {
 	vm := VM{
-		typeIn: &Module{
+		typeIn: &module{
 			procedures: map[procedureIndicator]procedureEntry{
 				{name: NewAtom("foo"), arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
 					return Delay(func(context.Context) *Promise {
@@ -971,11 +971,11 @@ func TestOp(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			var ops operators
-			ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
-			ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+			ops.define(900, operatorSpecifierXFX, NewAtom(`+++`), false)
+			ops.define(1100, operatorSpecifierXFX, NewAtom(`+`), false)
 
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					operators: ops,
 				},
 			}
@@ -1011,7 +1011,7 @@ func TestOp(t *testing.T) {
 
 		t.Run("list", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					operators: operators{
 						NewAtom(`+++`): {
 							operatorClassInfix: {
@@ -1062,7 +1062,7 @@ func TestOp(t *testing.T) {
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				operators: operators{
 					NewAtom(`+++`): {
 						operatorClassInfix: {
@@ -1177,9 +1177,9 @@ func TestOp(t *testing.T) {
 
 	t.Run("operator is ','", func(t *testing.T) {
 		var ops operators
-		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				operators: ops,
 			},
 		}
@@ -1190,9 +1190,9 @@ func TestOp(t *testing.T) {
 
 	t.Run("an element of the operator list is ','", func(t *testing.T) {
 		var ops operators
-		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				operators: ops,
 			},
 		}
@@ -1226,9 +1226,9 @@ func TestOp(t *testing.T) {
 
 			t.Run("modify", func(t *testing.T) {
 				var ops operators
-				ops.define(1001, operatorSpecifierXFY, NewAtom(`|`))
+				ops.define(1001, operatorSpecifierXFY, NewAtom(`|`), false)
 				vm := VM{
-					typeIn: &Module{
+					typeIn: &module{
 						operators: ops,
 					},
 				}
@@ -1264,9 +1264,9 @@ func TestOp(t *testing.T) {
 
 			t.Run("modify", func(t *testing.T) {
 				var ops operators
-				ops.define(101, operatorSpecifierXFY, NewAtom(`|`))
+				ops.define(101, operatorSpecifierXFY, NewAtom(`|`), false)
 				vm := VM{
-					typeIn: &Module{
+					typeIn: &module{
 						operators: ops,
 					},
 				}
@@ -1280,9 +1280,9 @@ func TestOp(t *testing.T) {
 	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
 		t.Run("infix", func(t *testing.T) {
 			var ops operators
-			ops.define(200, operatorSpecifierYF, NewAtom(`+`))
+			ops.define(200, operatorSpecifierYF, NewAtom(`+`), false)
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					operators: ops,
 				},
 			}
@@ -1293,9 +1293,9 @@ func TestOp(t *testing.T) {
 
 		t.Run("postfix", func(t *testing.T) {
 			var ops operators
-			ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+			ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					operators: ops,
 				},
 			}
@@ -1308,11 +1308,11 @@ func TestOp(t *testing.T) {
 
 func TestCurrentOp(t *testing.T) {
 	var ops operators
-	ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
-	ops.define(1000, operatorSpecifierXFX, NewAtom(`++`))
-	ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
+	ops.define(900, operatorSpecifierXFX, NewAtom(`+++`), false)
+	ops.define(1000, operatorSpecifierXFX, NewAtom(`++`), false)
+	ops.define(1100, operatorSpecifierXFX, NewAtom(`+`), false)
 	vm := VM{
-		typeIn: &Module{
+		typeIn: &module{
 			operators: ops,
 		},
 	}
@@ -1586,7 +1586,7 @@ func TestBagOf(t *testing.T) {
 		},
 	}
 
-	m := Module{
+	m := module{
 		unknown: unknownWarning,
 	}
 	m.Register2("=", Unify)
@@ -1988,7 +1988,7 @@ func TestSetOf(t *testing.T) {
 		},
 	}
 
-	m := Module{
+	m := module{
 		unknown: unknownWarning,
 	}
 	m.Register2("=", Unify)
@@ -2135,7 +2135,7 @@ func TestFindAll(t *testing.T) {
 		},
 	}
 
-	var m Module
+	var m module
 	m.Register2("=", Unify)
 	m.Register2(";", func(vm *VM, g1, g2 Term, k Cont, env *Env) *Promise {
 		return Delay(func(context.Context) *Promise {
@@ -2471,7 +2471,7 @@ func TestThrow(t *testing.T) {
 }
 
 func TestCatch(t *testing.T) {
-	var m Module
+	var m module
 	m.Register2("=", Unify)
 	m.Register1("throw", Throw)
 	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
@@ -2532,7 +2532,7 @@ func TestCatch(t *testing.T) {
 func TestCurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
 				},
@@ -2555,7 +2555,7 @@ func TestCurrentPredicate(t *testing.T) {
 		v := NewVariable()
 
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
 					{name: NewAtom("bar"), arity: 1}: {procedure: clauses{}},
@@ -2591,7 +2591,7 @@ func TestCurrentPredicate(t *testing.T) {
 
 	t.Run("builtin predicate", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
 				},
@@ -2773,7 +2773,7 @@ func TestAssertz(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
@@ -2978,7 +2978,7 @@ func TestAsserta(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
@@ -3013,7 +3013,7 @@ func TestAsserta(t *testing.T) {
 func TestRetract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
@@ -3039,7 +3039,7 @@ func TestRetract(t *testing.T) {
 
 	t.Run("retract the specific one", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
@@ -3065,7 +3065,7 @@ func TestRetract(t *testing.T) {
 
 	t.Run("retract all", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
@@ -3112,7 +3112,7 @@ func TestRetract(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
 				},
@@ -3129,7 +3129,7 @@ func TestRetract(t *testing.T) {
 
 	t.Run("exception in continuation", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
@@ -3155,7 +3155,7 @@ func TestRetract(t *testing.T) {
 func TestAbolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
 						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
@@ -3254,7 +3254,7 @@ func TestAbolish(t *testing.T) {
 
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 0}: procedureEntry{dynamic: false},
 				},
@@ -4176,11 +4176,11 @@ func TestWriteTerm(t *testing.T) {
 	}
 
 	var ops operators
-	ops.define(500, operatorSpecifierYFX, atomPlus)
-	ops.define(200, operatorSpecifierFY, atomPlus)
-	ops.define(200, operatorSpecifierYF, atomMinus)
+	ops.define(500, operatorSpecifierYFX, atomPlus, false)
+	ops.define(200, operatorSpecifierFY, atomPlus, false)
+	ops.define(200, operatorSpecifierYF, atomMinus, false)
 	vm := VM{
-		typeIn: &Module{
+		typeIn: &module{
 			operators: ops,
 		},
 	}
@@ -5523,7 +5523,7 @@ func TestClause(t *testing.T) {
 		var c int
 
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
 						{raw: &compound{
@@ -5585,7 +5585,7 @@ func TestClause(t *testing.T) {
 		what, body := NewVariable(), NewVariable()
 
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("green"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
 						return Bool(true)
@@ -5615,7 +5615,7 @@ func TestClause(t *testing.T) {
 		defer setMemFree(1)()
 
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
 						{raw: NewAtom("green").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())},
@@ -6397,7 +6397,7 @@ func TestCharConversion(t *testing.T) {
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				charConversions: map[rune]rune{
 					'a': 'b',
 				},
@@ -6469,7 +6469,7 @@ func TestCurrentCharConversion(t *testing.T) {
 
 		t.Run("converted", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					charConversions: map[rune]rune{
 						'a': 'b',
 					},
@@ -6582,7 +6582,7 @@ func TestSetPrologFlag(t *testing.T) {
 
 		t.Run("off", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					charConvEnabled: true,
 				},
 			}
@@ -6594,7 +6594,7 @@ func TestSetPrologFlag(t *testing.T) {
 
 		t.Run("unknown", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					charConvEnabled: true,
 				},
 			}
@@ -6615,7 +6615,7 @@ func TestSetPrologFlag(t *testing.T) {
 
 		t.Run("off", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					debug: true,
 				},
 			}
@@ -6627,7 +6627,7 @@ func TestSetPrologFlag(t *testing.T) {
 
 		t.Run("unknown", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					debug: true,
 				},
 			}
@@ -6647,7 +6647,7 @@ func TestSetPrologFlag(t *testing.T) {
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					unknown: unknownFail,
 				},
 			}
@@ -7558,10 +7558,10 @@ func TestRepeat(t *testing.T) {
 	assert.Equal(t, 1, c)
 }
 
-func TestNegation(t *testing.T) {
+func TestNot(t *testing.T) {
 	e := errors.New("failed")
 
-	var m Module
+	var m module
 	m.Register0("true", func(_ *VM, k Cont, env *Env) *Promise {
 		return k(env)
 	})
@@ -7575,15 +7575,15 @@ func TestNegation(t *testing.T) {
 		typeIn: &m,
 	}
 
-	ok, err := Negate(&vm, atomTrue, Success, nil).Force(context.Background())
+	ok, err := Not(&vm, atomTrue, Success, nil).Force(context.Background())
 	assert.NoError(t, err)
 	assert.False(t, ok)
 
-	ok, err = Negate(&vm, atomFalse, Success, nil).Force(context.Background())
+	ok, err = Not(&vm, atomFalse, Success, nil).Force(context.Background())
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
-	_, err = Negate(&vm, atomError, Success, nil).Force(context.Background())
+	_, err = Not(&vm, atomError, Success, nil).Force(context.Background())
 	assert.Equal(t, e, err)
 }
 

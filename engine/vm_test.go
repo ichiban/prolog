@@ -14,9 +14,9 @@ func TestVM_Module(t *testing.T) {
 		vm    VM
 		name  Atom
 	}{
-		{title: "already set", vm: VM{typeIn: &Module{name: NewAtom("foo")}}, name: NewAtom("foo")},
-		{title: "by name", vm: VM{modules: map[Atom]*Module{atomUser: {name: atomUser}}}, name: atomUser},
-		{title: "creating", vm: VM{}, name: atomUser},
+		{title: "already set", vm: VM{typeIn: &module{name: NewAtom("foo")}}, name: NewAtom("foo")},
+		{title: "by name", vm: VM{modules: map[Atom]*module{atomUser: {name: atomUser}}}},
+		{title: "creating", vm: VM{}},
 	}
 
 	for _, tt := range tests {
@@ -30,17 +30,17 @@ func TestVM_SetModule(t *testing.T) {
 	tests := []struct {
 		title string
 		vm    VM
-		name  string
+		name  Atom
 	}{
-		{title: "by name", vm: VM{modules: map[Atom]*Module{atomUser: {name: atomUser}}}, name: "user"},
-		{title: "creating", vm: VM{}, name: "user"},
+		{title: "by name", vm: VM{modules: map[Atom]*module{atomUser: {name: atomUser}}}, name: atomUser},
+		{title: "creating", vm: VM{}, name: atomUser},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			tt.vm.SetModule(tt.name)
-			assert.Equal(t, NewAtom(tt.name), tt.vm.typeIn.name)
-			_, ok := tt.vm.modules[NewAtom(tt.name)]
+			assert.Equal(t, tt.name, tt.vm.typeIn.name)
+			_, ok := tt.vm.modules[tt.name]
 			assert.True(t, ok)
 		})
 	}
@@ -49,7 +49,7 @@ func TestVM_SetModule(t *testing.T) {
 func TestVM_Arrive(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		vm := VM{
-			typeIn: &Module{
+			typeIn: &module{
 				procedures: map[procedureIndicator]procedureEntry{
 					{name: NewAtom("foo"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, k Cont, env *Env) *Promise {
 						return k(env)
@@ -65,7 +65,7 @@ func TestVM_Arrive(t *testing.T) {
 	t.Run("unknown procedure", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					unknown: unknownError,
 				},
 			}
@@ -80,7 +80,7 @@ func TestVM_Arrive(t *testing.T) {
 		t.Run("warning", func(t *testing.T) {
 			var warned bool
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					unknown: unknownWarning,
 				},
 				Unknown: func(name Atom, args []Term, env *Env) {
@@ -98,7 +98,7 @@ func TestVM_Arrive(t *testing.T) {
 
 		t.Run("fail", func(t *testing.T) {
 			vm := VM{
-				typeIn: &Module{
+				typeIn: &module{
 					unknown: unknownFail,
 				},
 			}
