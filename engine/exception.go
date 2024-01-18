@@ -169,9 +169,14 @@ func (ot objectType) Term() Term {
 	return objectTypeAtoms[ot]
 }
 
+// ExistenceError creates a new existence error exception.
+func ExistenceError(objectType, culprit Term, env *Env) Exception {
+	return NewException(atomError.Apply(atomExistenceError.Apply(objectType, culprit), varContext), env)
+}
+
 // existenceError creates a new existence error exception.
 func existenceError(objectType objectType, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomExistenceError.Apply(objectType.Term(), culprit), varContext), env)
+	return ExistenceError(objectType.Term(), culprit, env)
 }
 
 // operation is the operation to be performed.
@@ -234,9 +239,14 @@ func (pt permissionType) Term() Term {
 	return permissionTypeAtoms[pt]
 }
 
+// PermissionError creates a new permission error exception.
+func PermissionError(operation, permissionType, culprit Term, env *Env) Exception {
+	return NewException(atomError.Apply(atomPermissionError.Apply(operation, permissionType, culprit), varContext), env)
+}
+
 // permissionError creates a new permission error exception.
 func permissionError(operation operation, permissionType permissionType, culprit Term, env *Env) Exception {
-	return NewException(atomError.Apply(atomPermissionError.Apply(operation.Term(), permissionType.Term(), culprit), varContext), env)
+	return PermissionError(operation.Term(), permissionType.Term(), culprit, env)
 }
 
 // flag is an implementation defined limit.
@@ -265,9 +275,14 @@ func (f flag) Term() Term {
 	return flagAtoms[f]
 }
 
+// RepresentationError creates a new representation error exception.
+func RepresentationError(limit Term, env *Env) Exception {
+	return NewException(atomError.Apply(atomRepresentationError.Apply(limit), varContext), env)
+}
+
 // representationError creates a new representation error exception.
 func representationError(limit flag, env *Env) Exception {
-	return NewException(atomError.Apply(atomRepresentationError.Apply(limit.Term()), varContext), env)
+	return RepresentationError(limit.Term(), env)
 }
 
 // resource is a resource required to complete execution.
@@ -290,15 +305,24 @@ func (r resource) Term() Term {
 	return resourceAtoms[r]
 }
 
+// ResourceError creates a new resource error exception.
+func ResourceError(resource Term, env *Env) Exception {
+	return Exception{term: atomError.Apply(atomResourceError.Apply(resource), env.Resolve(varContext))}
+}
+
 // resourceError creates a new resource error exception.
 func resourceError(resource resource, env *Env) Exception {
-	// We can't call renamedCopy() since it can lead th resource_error(memory).
-	return Exception{term: atomError.Apply(atomResourceError.Apply(resource.Term()), env.Resolve(varContext))}
+	return ResourceError(resource.Term(), env)
+}
+
+// SyntaxError creates a new syntax error exception.
+func SyntaxError(error Term, env *Env) Exception {
+	return NewException(atomError.Apply(atomSyntaxError.Apply(error), varContext), env)
 }
 
 // syntaxError creates a new syntax error exception.
 func syntaxError(err error, env *Env) Exception {
-	return NewException(atomError.Apply(atomSyntaxError.Apply(NewAtom(err.Error())), varContext), env)
+	return SyntaxError(NewAtom(err.Error()), env)
 }
 
 // exceptionalValue is an evaluable functor's result which is not a number.
@@ -329,7 +353,12 @@ func (ev exceptionalValue) Term() Term {
 	return exceptionalValueAtoms[ev]
 }
 
+// EvaluationError creates a new evaluation error exception.
+func EvaluationError(error Term, env *Env) Exception {
+	return NewException(atomError.Apply(atomEvaluationError.Apply(error), varContext), env)
+}
+
 // evaluationError creates a new evaluation error exception.
 func evaluationError(ev exceptionalValue, env *Env) Exception {
-	return NewException(atomError.Apply(atomEvaluationError.Apply(ev.Term()), varContext), env)
+	return EvaluationError(ev.Term(), env)
 }
