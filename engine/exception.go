@@ -337,7 +337,7 @@ func evaluationError(ev exceptionalValue, env *Env) Exception {
 }
 
 func mustBeAtom(t Term, env *Env) (Atom, error) {
-	switch t := t.(type) {
+	switch t := env.Resolve(t).(type) {
 	case Variable:
 		return 0, InstantiationError(env)
 	case Atom:
@@ -347,8 +347,8 @@ func mustBeAtom(t Term, env *Env) (Atom, error) {
 	}
 }
 
-func mustBePI(t Term, env *Env) (procedureIndicator, error) {
-	var pi procedureIndicator
+func mustBePI(t Term, env *Env) (predicateIndicator, error) {
+	var pi predicateIndicator
 	switch t := t.(type) {
 	case Variable:
 		return pi, InstantiationError(env)

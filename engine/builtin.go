@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -49,7 +50,7 @@ func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 		for i, fv := range fvs {
 			args[i] = fv
 		}
-		cs, err := compile(atomIf.Apply(tuple(args...), g), env)
+		cs, err := compileTerm(vm.typeIn, atomColonMinus.Apply(tuple(args...), g), env)
 		if err != nil {
 			return Error(err)
 		}
@@ -552,7 +553,7 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 		}
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 
 	for _, name := range names {
 		if p := validateOp(m, p, spec, name, env); p != nil {
@@ -565,7 +566,7 @@ func Op(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise {
 			m.operators.remove(name, class)
 		}
 
-		m.operators.define(p, spec, name, false)
+		m.operators.define(p, spec, name)
 	}
 
 	return k(env)
@@ -652,7 +653,7 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise 
 		return Error(typeError(validTypeAtom, op, env))
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	pattern := tuple(priority, specifier, op)
 	ks := make([]func(context.Context) *Promise, 0, len(m.operators)*int(_operatorClassLen))
 	for _, ops := range m.operators {
@@ -671,8 +672,7 @@ func CurrentOp(vm *VM, priority, specifier, op Term, k Cont, env *Env) *Promise 
 
 // Assertz appends t to the database.
 func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
-	if err := assertMerge(m, t, func(existing, new []clause) clauses {
+	if err := assertMerge(vm, t, func(existing, new []clause) clauses {
 		return append(existing, new...)
 	}, env); err != nil {
 		return Error(err)
@@ -682,8 +682,7 @@ func Assertz(vm *VM, t Term, k Cont, env *Env) *Promise {
 
 // Asserta prepends t to the database.
 func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
-	if err := assertMerge(m, t, func(existing, new []clause) clauses {
+	if err := assertMerge(vm, t, func(existing, new []clause) clauses {
 		return append(new, existing...)
 	}, env); err != nil {
 		return Error(err)
@@ -691,21 +690,22 @@ func Asserta(vm *VM, t Term, k Cont, env *Env) *Promise {
 	return k(env)
 }
 
-func assertMerge(m *module, t Term, merge func([]clause, []clause) clauses, env *Env) error {
+func assertMerge(vm *VM, t Term, merge func([]clause, []clause) clauses, env *Env) error {
 	pi, arg, err := piArg(t, env)
 	if err != nil {
 		return err
 	}
 
-	if pi == (procedureIndicator{name: atomIf, arity: 2}) {
+	if pi == (predicateIndicator{name: atomColonMinus, arity: 2}) {
 		pi, _, err = piArg(arg(0), env)
 		if err != nil {
 			return err
 		}
 	}
 
+	m := vm.TypeInModule()
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
 	e, ok := m.procedures[pi]
 	if !ok {
@@ -714,7 +714,7 @@ func assertMerge(m *module, t Term, merge func([]clause, []clause) clauses, env 
 		m.procedures[pi] = e
 	}
 
-	added, err := compile(t, env)
+	added, err := compileTerm(vm.typeIn, t, env)
 	if err != nil {
 		return err
 	}
@@ -1072,7 +1072,7 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypePredicateIndicator, pi, env))
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	ks := make([]func(context.Context) *Promise, 0, len(m.procedures))
 	for key, e := range m.procedures {
 		switch e.procedure.(type) {
@@ -1090,7 +1090,7 @@ func CurrentPredicate(vm *VM, pi Term, k Cont, env *Env) *Promise {
 
 // Retract removes the first clause that matches with t.
 func Retract(vm *VM, t Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	t = rulify(t, env)
 
 	h := t.(Compound).Arg(0)
@@ -1151,8 +1151,8 @@ func Abolish(vm *VM, pi Term, k Cont, env *Env) *Promise {
 				if arity < 0 {
 					return Error(domainError(validDomainNotLessThanZero, arity, env))
 				}
-				m := vm.Module()
-				key := procedureIndicator{name: name, arity: arity}
+				m := vm.TypeInModule()
+				key := predicateIndicator{name: name, arity: arity}
 				if e, ok := m.procedures[key]; !ok || !e.dynamic {
 					return Error(permissionError(operationModify, permissionTypeStaticProcedure, key.Term(), env))
 				}
@@ -1471,7 +1471,7 @@ func WriteTerm(vm *VM, streamOrAlias, t, options Term, k Cont, env *Env) *Promis
 		return Error(err)
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	opts := WriteOptions{
 		ops:      m.operators,
 		priority: 1200,
@@ -1744,7 +1744,7 @@ func ReadTerm(vm *VM, streamOrAlias, out, options Term, k Cont, env *Env) *Promi
 		return Error(err)
 	}
 
-	p := NewParser(vm.Module, s)
+	p := NewParser(vm.TypeInModule, s)
 	defer func() {
 		_ = s.UnreadRune()
 	}()
@@ -1994,7 +1994,7 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeCallable, body, env))
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	e, ok := m.procedures[pi]
 	if !ok {
 		return Bool(false)
@@ -2013,7 +2013,7 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 		}
 		r := rulify(cp, env)
 		ks[i] = func(context.Context) *Promise {
-			return Unify(vm, atomIf.Apply(head, body), r, k, env)
+			return Unify(vm, atomColonMinus.Apply(head, body), r, k, env)
 		}
 	}
 	return Delay(ks...)
@@ -2021,10 +2021,10 @@ func Clause(vm *VM, head, body Term, k Cont, env *Env) *Promise {
 
 func rulify(t Term, env *Env) Term {
 	t = env.Resolve(t)
-	if c, ok := t.(Compound); ok && c.Functor() == atomIf && c.Arity() == 2 {
+	if c, ok := t.(Compound); ok && c.Functor() == atomColonMinus && c.Arity() == 2 {
 		return t
 	}
-	return atomIf.Apply(t, atomTrue)
+	return atomColonMinus.Apply(t, atomTrue)
 }
 
 // AtomLength counts the runes in atom and unifies the result with length.
@@ -2549,7 +2549,7 @@ func CharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Promise {
 				return Error(representationError(flagCharacter, env))
 			}
 
-			m := vm.Module()
+			m := vm.TypeInModule()
 			if m.charConversions == nil {
 				m.charConversions = map[rune]rune{}
 			}
@@ -2593,7 +2593,7 @@ func CurrentCharConversion(vm *VM, inChar, outChar Term, k Cont, env *Env) *Prom
 		return Error(representationError(flagCharacter, env))
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	if c1, ok := env.Resolve(inChar).(Atom); ok {
 		r := []rune(c1.String())
 		if r, ok := m.charConversions[r[0]]; ok {
@@ -2624,7 +2624,7 @@ func SetPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 	case Variable:
 		return Error(InstantiationError(env))
 	case Atom:
-		m := vm.Module()
+		m := vm.TypeInModule()
 		var modify func(m *module, value Atom) error
 		switch f {
 		case atomBounded, atomMaxInteger, atomMinInteger, atomIntegerRoundingFunction, atomMaxArity:
@@ -2725,7 +2725,7 @@ func CurrentPrologFlag(vm *VM, flag, value Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, f, env))
 	}
 
-	m := vm.Module()
+	m := vm.TypeInModule()
 	pattern := tuple(flag, value)
 	flags := []Term{
 		tuple(atomBounded, atomTrue),
@@ -2766,8 +2766,8 @@ func ExpandTerm(vm *VM, term1, term2 Term, k Cont, env *Env) *Promise {
 }
 
 func expand(vm *VM, term Term, env *Env) (Term, error) {
-	m := vm.Module()
-	if _, ok := m.procedures[procedureIndicator{name: atomTermExpansion, arity: 2}]; ok {
+	m := vm.TypeInModule()
+	if _, ok := m.procedures[predicateIndicator{name: atomTermExpansion, arity: 2}]; ok {
 		var ret Term
 		v := NewVariable()
 		ok, err := Call(vm, atomTermExpansion.Apply(term, v), func(env *Env) *Promise {
@@ -3026,7 +3026,7 @@ func appendLists(vm *VM, xs, ys, zs Term, k Cont, env *Env) *Promise {
 }
 
 func Dynamic(vm *VM, pi Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	iter := anyIterator{Any: pi, Env: env}
 	for iter.Next() {
 		pi, err := mustBePI(iter.Current(), env)
@@ -3048,7 +3048,7 @@ func Dynamic(vm *VM, pi Term, k Cont, env *Env) *Promise {
 }
 
 func Multifile(vm *VM, pi Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	iter := anyIterator{Any: pi, Env: env}
 	for iter.Next() {
 		pi, err := mustBePI(iter.Current(), env)
@@ -3066,7 +3066,7 @@ func Multifile(vm *VM, pi Term, k Cont, env *Env) *Promise {
 }
 
 func Discontiguous(vm *VM, pi Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	iter := anyIterator{Any: pi, Env: env}
 	for iter.Next() {
 		pi, err := mustBePI(iter.Current(), env)
@@ -3084,7 +3084,7 @@ func Discontiguous(vm *VM, pi Term, k Cont, env *Env) *Promise {
 }
 
 func Initialization(vm *VM, goal Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	m.initGoals = append(m.initGoals, goal)
 	return k(env)
 }
@@ -3095,64 +3095,84 @@ func Include(vm *VM, file Term, k Cont, env *Env) *Promise {
 		return Error(err)
 	}
 	return Delay(func(ctx context.Context) *Promise {
-		if err := vm.Load(ctx, f.String()); err != nil {
+		if _, err := vm.LoadFile(ctx, f.String()); err != nil {
 			return Error(err)
 		}
 		return k(env)
 	})
 }
 
-func EnsureLoaded(vm *VM, file Term, k Cont, env *Env) *Promise {
-	f, err := mustBeAtom(file, env)
+// LoadFile loads a Prolog text from a file.
+func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
+	filename, err := mustBeAtom(file, env)
 	if err != nil {
 		return Error(err)
 	}
-	s := f.String()
+	fn := filename.String()
 
-	extensions := []string{"", ".pl"}
-	ks := make([]func(context.Context) *Promise, len(extensions), len(extensions)+1)
-	for i, e := range extensions {
-		ks[i] = func(ctx context.Context) *Promise {
-			if err := vm.Load(ctx, s+e); err != nil {
-				return Bool(false)
-			}
-
-			return k(env)
-		}
+	// TODO: implement absolute_file_name/[2, 3]?
+	if ext := filepath.Ext(fn); ext == "" {
+		fn += ".pl"
 	}
-	ks = append(ks, func(context.Context) *Promise {
-		return Error(existenceError(objectTypeSourceSink, file, env))
-	})
-	return Delay(ks...)
-}
 
-// Consult executes Prolog texts in files.
-func Consult(vm *VM, files Term, k Cont, env *Env) *Promise {
-	var filenames []Term
-	iter := ListIterator{List: files, Env: env}
+	var (
+		onlyIfChanged bool
+		importList    []predicateIndicator
+	)
+	iter := ListIterator{List: options, Env: env}
 	for iter.Next() {
-		filenames = append(filenames, iter.Current())
-	}
-	if err := iter.Err(); err != nil {
-		filenames = []Term{files}
-	}
+		opt := iter.Current()
 
-	return Delay(func(ctx context.Context) *Promise {
-		for _, filename := range filenames {
-			f, err := mustBeAtom(filename, env)
-			if err != nil {
-				return Error(err)
+		if _, ok := env.Unify(opt, atomIf.Apply(atomTrue)); ok {
+			onlyIfChanged = false
+			break
+		}
+
+		if _, ok := env.Unify(opt, atomIf.Apply(atomChanged)); ok {
+			onlyIfChanged = true
+			break
+		}
+
+		imports := NewVariable()
+		if env, ok := env.Unify(opt, atomImports.Apply(imports)); ok {
+			iter := ListIterator{List: imports, Env: env}
+			for iter.Next() {
+				i := iter.Current()
+
+				pi, err := mustBePI(i, env)
+				if err != nil {
+					return Error(err)
+				}
+				importList = append(importList, pi)
 			}
-			if err := vm.Load(ctx, f.String()); err != nil {
+			if err := iter.Err(); err != nil {
 				return Error(err)
 			}
 		}
+	}
 
-		return k(env)
-	})
+	var opts []LoadFileOption
+	if onlyIfChanged {
+		opts = append(opts, LoadFileOptionIfChanged)
+	}
+	module, err := vm.LoadFile(context.Background(), fn, opts...)
+	switch {
+	case err == nil:
+		break
+	case errors.Is(err, fs.ErrInvalid):
+		fallthrough
+	case errors.Is(err, fs.ErrNotExist):
+		return Error(existenceError(objectTypeSourceSink, file, env))
+	default:
+		return Error(err)
+	}
+
+	vm.importPredicates(vm.typeIn, module, importList)
+
+	return k(env)
 }
 
-func Module(vm *VM, moduleName, exportList Term, k Cont, env *Env) *Promise {
+func DefineModule(vm *VM, moduleName, exportList Term, k Cont, env *Env) *Promise {
 	var name Atom
 	switch n := env.Resolve(moduleName).(type) {
 	case Variable:
@@ -3163,99 +3183,14 @@ func Module(vm *VM, moduleName, exportList Term, k Cont, env *Env) *Promise {
 		return Error(typeError(validTypeAtom, moduleName, env))
 	}
 
-	var (
-		ops []operator
-		pis []procedureIndicator
-	)
+	var pis []predicateIndicator
 	iter := ListIterator{List: exportList, Env: env}
 	for iter.Next() {
-		switch c := iter.Current().(type) {
-		case Variable:
-			return Error(InstantiationError(env))
-		case Compound:
-			switch pi, arg, _ := piArg(c, env); pi {
-			case procedureIndicator{name: NewAtom("op"), arity: 3}:
-				var p Integer
-				switch priority := env.Resolve(arg(0)).(type) {
-				case Variable:
-					return Error(InstantiationError(env))
-				case Integer:
-					if priority < 0 || priority > 1200 {
-						return Error(domainError(validDomainOperatorPriority, priority, env))
-					}
-					p = priority
-				default:
-					return Error(typeError(validTypeInteger, priority, env))
-				}
-
-				var spec operatorSpecifier
-				switch specifier := env.Resolve(arg(1)).(type) {
-				case Variable:
-					return Error(InstantiationError(env))
-				case Atom:
-					var ok bool
-					spec, ok = operatorSpecifiers[specifier]
-					if !ok {
-						return Error(domainError(validDomainOperatorSpecifier, specifier, env))
-					}
-				default:
-					return Error(typeError(validTypeAtom, specifier, env))
-				}
-
-				var names []Atom
-				switch op := env.Resolve(arg(2)).(type) {
-				case Atom:
-					names = []Atom{op}
-				default:
-					iter := ListIterator{List: op, Env: env}
-					for iter.Next() {
-						switch op := env.Resolve(iter.Current()).(type) {
-						case Atom:
-							names = appendUniqNewAtom(names, op)
-						default:
-							return Error(typeError(validTypeAtom, op, env))
-						}
-					}
-					if err := iter.Err(); err != nil {
-						return Error(err)
-					}
-				}
-
-				for _, name := range names {
-					ops = append(ops, operator{
-						priority:  p,
-						specifier: spec,
-						name:      name,
-					})
-				}
-			case procedureIndicator{name: atomSlash, arity: 2}:
-				var name Atom
-				switch n := env.Resolve(arg(0)).(type) {
-				case Variable:
-					return Error(InstantiationError(env))
-				case Atom:
-					name = n
-				default:
-					return Error(typeError(validTypeAtom, n, env))
-				}
-
-				var arity Integer
-				switch a := env.Resolve(arg(1)).(type) {
-				case Variable:
-					return Error(InstantiationError(env))
-				case Integer:
-					arity = a
-				default:
-					return Error(typeError(validTypeInteger, a, env))
-				}
-
-				pis = append(pis, procedureIndicator{name: name, arity: arity})
-			default:
-				return Error(typeError(validTypePredicateIndicator, c, env))
-			}
-		default:
-			return Error(typeError(validTypeCompound, c, env))
+		pi, err := mustBePI(iter.Current(), env)
+		if err != nil {
+			return Error(err)
 		}
+		pis = append(pis, pi)
 	}
 	if err := iter.Err(); err != nil {
 		return Error(err)
@@ -3263,22 +3198,15 @@ func Module(vm *VM, moduleName, exportList Term, k Cont, env *Env) *Promise {
 
 	m := vm.module(name)
 	m.reset()
-	for _, op := range ops {
-		m.operators.define(op.priority, op.specifier, op.name, true)
-	}
-	for _, pi := range pis {
-		e := m.procedures[pi]
-		e.exported = true
-		m.procedures[pi] = e
-	}
 
+	vm.importPredicates(name, vm.system, nil)
 	vm.SetModule(name)
 
 	return k(env)
 }
 
 func MetaPredicate(vm *VM, mi Term, k Cont, env *Env) *Promise {
-	m := vm.Module()
+	m := vm.TypeInModule()
 	iter := anyIterator{Any: mi, Env: env}
 	for iter.Next() {
 		pi, arg, err := piArg(mi, env)

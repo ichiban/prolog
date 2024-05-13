@@ -3,7 +3,111 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 )
+
+func (vm *VM) Compile(ctx context.Context, text string) (Atom, error) {
+	{
+		m := vm.typeIn
+		defer vm.SetModule(m)
+	}
+
+	// Skip a shebang line if exists.
+	if strings.HasPrefix(text, "#!") {
+		switch i := strings.IndexRune(text, '\n'); i {
+		case -1:
+			text = ""
+		default:
+			text = text[i+1:]
+		}
+	}
+
+	r := strings.NewReader(text)
+	p := NewParser(vm.TypeInModule, r)
+	for p.More() {
+		p.Vars = p.Vars[:]
+		t, err := p.Term()
+		if err != nil {
+			return 0, err
+		}
+
+		et, err := expand(vm, t, nil)
+		if err != nil {
+			return 0, err
+		}
+
+		pi, arg, err := piArg(et, nil)
+		if err != nil {
+			return 0, err
+		}
+		switch pi {
+		case predicateIndicator{name: atomColonMinus, arity: 1}: // Directive
+			if err := vm.TypeInModule().flushClauseBuf(); err != nil {
+				return 0, err
+			}
+
+			ok, err := Call(vm, arg(0), Success, nil).Force(ctx)
+			if err != nil {
+				return 0, err
+			}
+			if !ok {
+				return 0, p.unexpected()
+			}
+
+			continue
+		case predicateIndicator{name: atomColonMinus, arity: 2}: // Rule
+			pi, arg, err = piArg(arg(0), nil)
+			if err != nil {
+				return 0, err
+			}
+
+			fallthrough
+		default:
+			m := vm.TypeInModule()
+			if len(m.buf) > 0 && pi != m.buf[0].pi {
+				if err := m.flushClauseBuf(); err != nil {
+					return 0, err
+				}
+			}
+
+			cs, err := compileTerm(vm.typeIn, et, nil)
+			if err != nil {
+				return 0, err
+			}
+
+			m.buf = append(m.buf, cs...)
+		}
+	}
+
+	m := vm.TypeInModule()
+	if err := m.flushClauseBuf(); err != nil {
+		return 0, err
+	}
+
+	for _, g := range m.initGoals {
+		ok, err := Call(vm, g, Success, nil).Force(ctx)
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			var sb strings.Builder
+			s := NewOutputTextStream(&sb)
+			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
+			return 0, fmt.Errorf("failed initialization goal: %s", sb.String())
+		}
+	}
+	m.initGoals = m.initGoals[:0]
+
+	return vm.typeIn, nil
+}
+
+type clause struct {
+	pi       predicateIndicator
+	raw      Term
+	vars     []Variable
+	bytecode bytecode
+}
 
 type clauses []clause
 
@@ -24,14 +128,14 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	return p
 }
 
-func compile(t Term, env *Env) (clauses, error) {
+func compileTerm(module Atom, t Term, env *Env) (clauses, error) {
 	t = env.Resolve(t)
-	if t, ok := t.(Compound); ok && t.Functor() == atomIf && t.Arity() == 2 {
+	if t, ok := t.(Compound); ok && t.Functor() == atomColonMinus && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
 		iter := altIterator{Alt: body, Env: env}
 		for iter.Next() {
-			c, err := compileClause(head, iter.Current(), env)
+			c, err := compileClause(module, head, iter.Current(), env)
 			if err != nil {
 				return nil, typeError(validTypeCallable, body, env)
 			}
@@ -41,23 +145,16 @@ func compile(t Term, env *Env) (clauses, error) {
 		return cs, nil
 	}
 
-	c, err := compileClause(t, nil, env)
+	c, err := compileClause(module, t, nil, env)
 	c.raw = env.simplify(t)
 	return []clause{c}, err
 }
 
-type clause struct {
-	pi       procedureIndicator
-	raw      Term
-	vars     []Variable
-	bytecode bytecode
-}
-
-func compileClause(head Term, body Term, env *Env) (clause, error) {
+func compileClause(module Atom, head Term, body Term, env *Env) (clause, error) {
 	var c clause
 	c.compileHead(head, env)
 	if body != nil {
-		if err := c.compileBody(body, env); err != nil {
+		if err := c.compileBody(module, body, env); err != nil {
 			return c, typeError(validTypeCallable, body, env)
 		}
 	}
@@ -68,20 +165,20 @@ func compileClause(head Term, body Term, env *Env) (clause, error) {
 func (c *clause) compileHead(head Term, env *Env) {
 	switch head := env.Resolve(head).(type) {
 	case Atom:
-		c.pi = procedureIndicator{name: head, arity: 0}
+		c.pi = predicateIndicator{name: head, arity: 0}
 	case Compound:
-		c.pi = procedureIndicator{name: head.Functor(), arity: Integer(head.Arity())}
+		c.pi = predicateIndicator{name: head.Functor(), arity: Integer(head.Arity())}
 		for i := 0; i < head.Arity(); i++ {
 			c.compileHeadArg(head.Arg(i), env)
 		}
 	}
 }
 
-func (c *clause) compileBody(body Term, env *Env) error {
+func (c *clause) compileBody(module Atom, body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 	iter := seqIterator{Seq: body, Env: env}
 	for iter.Next() {
-		if err := c.compilePred(iter.Current(), env); err != nil {
+		if err := c.compilePred(module, iter.Current(), env); err != nil {
 			return err
 		}
 	}
@@ -90,23 +187,35 @@ func (c *clause) compileBody(body Term, env *Env) error {
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(p Term, env *Env) error {
+func (c *clause) compilePred(module Atom, p Term, env *Env) error {
 	switch p := env.Resolve(p).(type) {
 	case Variable:
-		return c.compilePred(atomCall.Apply(p), env)
+		return c.compilePred(module, atomCall.Apply(p), env)
 	case Atom:
 		switch p {
 		case atomCut:
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p, arity: 0}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: qualifiedPredicateIndicator{
+			module:             module,
+			predicateIndicator: predicateIndicator{name: p, arity: 0},
+		}})
 		return nil
 	case Compound:
+		if pi, arg, _ := piArg(p, env); pi == (predicateIndicator{name: atomColon, arity: 2}) {
+			switch m := env.Resolve(arg(0)).(type) {
+			case Atom:
+				return c.compilePred(m, arg(1), env)
+			}
+		}
 		for i := 0; i < p.Arity(); i++ {
 			c.compileBodyArg(p.Arg(i), env)
 		}
-		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: procedureIndicator{name: p.Functor(), arity: Integer(p.Arity())}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: qualifiedPredicateIndicator{
+			module:             module,
+			predicateIndicator: predicateIndicator{name: p.Functor(), arity: Integer(p.Arity())},
+		}})
 		return nil
 	default:
 		return errNotCallable
@@ -134,7 +243,7 @@ func (c *clause) compileHeadArg(a Term, env *Env) {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opGetFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opGetFunctor, operand: predicateIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
 			c.compileHeadArg(a.Arg(i), env)
 		}
@@ -170,7 +279,7 @@ func (c *clause) compileBodyArg(a Term, env *Env) {
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opPop})
 	case Compound:
-		c.bytecode = append(c.bytecode, instruction{opcode: opPutFunctor, operand: procedureIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
+		c.bytecode = append(c.bytecode, instruction{opcode: opPutFunctor, operand: predicateIndicator{name: a.Functor(), arity: Integer(a.Arity())}})
 		for i := 0; i < a.Arity(); i++ {
 			c.compileBodyArg(a.Arg(i), env)
 		}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ichiban/prolog/engine"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"regexp"
@@ -83,7 +84,8 @@ func TestNew(t *testing.T) {
 
 	t.Run("length", func(t *testing.T) {
 		// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/length_quad.pl
-		p := New(nil, nil)
+		p := New(nil, os.Stdout)
+		require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
 
 		var s struct {
 			L []interface{}
@@ -165,6 +167,7 @@ func TestNew(t *testing.T) {
 		}
 
 		p := New(nil, nil)
+		require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
 
 		assert.NoError(t, p.QuerySolution(`call_nth(true, Nth), Nth = 1.`).Err())
 
@@ -217,6 +220,7 @@ func TestNew_variableNames(t *testing.T) {
 
 	var out bytes.Buffer
 	p := New(nil, &out)
+	require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
 
 	defer func() {
 		_ = os.Remove("f") // Some test cases open a file 'f'.
@@ -738,23 +742,27 @@ append(nil, L, L).`},
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			m := i.Module()
+			m := i.TypeInModule()
 			m.Register0("true", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 				return k(env)
 			})
 			m.Register0("fail", func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
 				return engine.Bool(false)
 			})
-			m.Register1("consult", engine.Consult)
 			m.Register3("op", engine.Op)
 			m.Register1("initialization", engine.Initialization)
-			assert.NoError(t, i.Compile(context.Background(), `:-(op(1200, xfx, :-)).`))
-			assert.NoError(t, i.Compile(context.Background(), `:-(op(1200, fx, :-)).`))
-			assert.NoError(t, i.Compile(context.Background(), tt.premise))
+			_, err := i.Compile(context.Background(), `:-(op(1200, xfx, :-)).`)
+			assert.NoError(t, err)
+			_, err = i.Compile(context.Background(), `:-(op(1200, fx, :-)).`)
+			assert.NoError(t, err)
+			_, err = i.Compile(context.Background(), tt.premise)
+			assert.NoError(t, err)
 			if tt.err {
-				assert.Error(t, i.Compile(context.Background(), tt.query))
+				_, err = i.Compile(context.Background(), tt.query)
+				assert.Error(t, err)
 			} else {
-				assert.NoError(t, i.Compile(context.Background(), tt.query))
+				_, err = i.Compile(context.Background(), tt.query)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -796,10 +804,10 @@ func TestInterpreter_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
-			m := i.Module()
+			m := i.TypeInModule()
 			m.Register3("op", engine.Op)
 			m.Register2("set_prolog_flag", engine.SetPrologFlag)
-			assert.NoError(t, i.Compile(context.Background(), `
+			_, err := i.Compile(context.Background(), `
 :-(op(1200, xfx, :-)).
 :-(set_prolog_flag(double_quotes, atom)).
 
@@ -807,7 +815,8 @@ append([], L, L).
 append([X|L1], L2, [X|L3]) :- append(L1, L2, L3).
 
 foo(a, 1, 2.0, [abc, def]).
-`))
+`)
+			assert.NoError(t, err)
 
 			sols, err := i.Query(tt.query, tt.args...)
 			if tt.queryErr {
@@ -831,7 +840,7 @@ foo(a, 1, 2.0, [abc, def]).
 
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
-	m := i.Module()
+	m := i.TypeInModule()
 	m.Register0("do_not_call", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
@@ -854,11 +863,12 @@ func TestMisc(t *testing.T) {
 		// https://www.cs.uleth.ca/~gaur/post/prolog-cut-negation/
 		t.Run("p", func(t *testing.T) {
 			i := New(nil, nil)
-			assert.NoError(t, i.Compile(context.Background(), `
+			_, err := i.Compile(context.Background(), `
 p(a).
 p(b):-!.
 p(c).
-`))
+`)
+			assert.NoError(t, err)
 
 			t.Run("single", func(t *testing.T) {
 				sols, err := i.Query(`p(X).`)
@@ -921,7 +931,7 @@ p(c).
 		// http://www.cse.unsw.edu.au/~billw/dictionaries/prolog/cut.html
 		t.Run("teaches", func(t *testing.T) {
 			i := New(nil, nil)
-			assert.NoError(t, i.Compile(context.Background(), `
+			_, err := i.Compile(context.Background(), `
 teaches(dr_fred, history).
 teaches(dr_fred, english).
 teaches(dr_fred, drama).
@@ -930,7 +940,8 @@ studies(alice, english).
 studies(angus, english).
 studies(amelia, drama).
 studies(alex, physics).
-`))
+`)
+			assert.NoError(t, err)
 
 			t.Run("without cut", func(t *testing.T) {
 				sols, err := i.Query(`teaches(dr_fred, Course), studies(Student, Course).`)
@@ -1116,10 +1127,11 @@ studies(alex, physics).
 
 	t.Run("call cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Compile(context.Background(), `
+		_, err := i.Compile(context.Background(), `
 foo :- call(true), !.
 foo :- throw(unreachable).
-`))
+`)
+		assert.NoError(t, err)
 		sols, err := i.Query("foo.")
 		assert.NoError(t, err)
 		assert.True(t, sols.Next())
@@ -1129,10 +1141,11 @@ foo :- throw(unreachable).
 
 	t.Run("catch cut", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Compile(context.Background(), `
+		_, err := i.Compile(context.Background(), `
 foo :- catch(true, _, true), !.
 foo :- throw(unreachable).
-`))
+`)
+		assert.NoError(t, err)
 		sols, err := i.Query("foo.")
 		assert.NoError(t, err)
 		assert.True(t, sols.Next())
@@ -1142,12 +1155,13 @@ foo :- throw(unreachable).
 
 	t.Run("counter", func(t *testing.T) {
 		i := New(nil, nil)
-		assert.NoError(t, i.Compile(context.Background(), `
+		_, err := i.Compile(context.Background(), `
 :- dynamic(count/1).
 count(0).
 
 next(N) :- retract(count(X)), N is X + 1, asserta(count(N)).
-`))
+`)
+		assert.NoError(t, err)
 
 		var s struct {
 			X int
@@ -1184,11 +1198,12 @@ next(N) :- retract(count(X)), N is X + 1, asserta(count(N)).
 
 func TestInterpreter_QuerySolution(t *testing.T) {
 	var i Interpreter
-	assert.NoError(t, i.Compile(context.Background(), `
+	_, err := i.Compile(context.Background(), `
 foo(a, b).
 foo(b, c).
 foo(c, d).
-`))
+`)
+	assert.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {
 		t.Run("struct", func(t *testing.T) {
@@ -1229,7 +1244,7 @@ foo(c, d).
 	t.Run("runtime error", func(t *testing.T) {
 		err := errors.New("something went wrong")
 
-		m := i.Module()
+		m := i.TypeInModule()
 		m.Register0("error", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
 			return engine.Error(err)
 		})
@@ -1243,6 +1258,7 @@ foo(c, d).
 
 func ExampleInterpreter_Query_placeholders() {
 	p := New(nil, os.Stdout)
+	_ = p.QuerySolution(`use_module('libraries/prologue.pl').`)
 	sols, _ := p.Query(`A = ?, maplist(atom, A), write(A), nl.`, "foo")
 	sols.Next()
 	_ = sols.Close()
@@ -1273,7 +1289,8 @@ func ExampleInterpreter_Query_placeholders() {
 
 func ExampleNew_phrase() {
 	p := New(nil, nil)
-	_ = p.Compile(context.Background(), `
+	_ = p.QuerySolution(`use_module('libraries/dcg.pl').`)
+	_, _ = p.Compile(context.Background(), `
 determiner --> [the].
 determiner --> [a].
 

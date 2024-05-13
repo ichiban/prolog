@@ -41,7 +41,7 @@ func expandDCG(term Term, env *Env) (Term, error) {
 			return nil, err
 		}
 		body := atomComma.Apply(goal1, goal2)
-		return atomIf.Apply(head, body), nil
+		return atomColonMinus.Apply(head, body), nil
 	}
 
 	head, err := dcgNonTerminal(rule.Arg(0), s0, s, env)
@@ -52,7 +52,7 @@ func expandDCG(term Term, env *Env) (Term, error) {
 	if err != nil {
 		return nil, err
 	}
-	return atomIf.Apply(head, body), nil
+	return atomColonMinus.Apply(head, body), nil
 }
 
 func dcgNonTerminal(nonTerminal, list, rest Term, env *Env) (Term, error) {
@@ -80,10 +80,10 @@ func dcgTerminals(terminals, list, rest Term, env *Env) (Term, error) {
 	return atomEqual.Apply(list, PartialList(rest, elems...)), nil
 }
 
-var dcgConstr map[procedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error)
+var dcgConstr map[predicateIndicator]func(args []Term, list, rest Term, env *Env) (Term, error)
 
 func init() {
-	dcgConstr = map[procedureIndicator]func(args []Term, list, rest Term, env *Env) (Term, error){
+	dcgConstr = map[predicateIndicator]func(args []Term, list, rest Term, env *Env) (Term, error){
 		{name: atomEmptyList, arity: 0}: func(_ []Term, list, rest Term, _ *Env) (Term, error) {
 			return atomEqual.Apply(list, rest), nil
 		},

@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"strings"
+	"time"
 )
 
 type bytecode []instruction
@@ -46,6 +47,11 @@ func Failure(*Env) *Promise {
 	return Bool(false)
 }
 
+type loadResult struct {
+	module   Atom
+	loadedAt time.Time
+}
+
 // VM is the core of a Prolog interpreter. The zero value for VM is a valid VM without any builtin predicates.
 type VM struct {
 	// Unknown is a callback that is triggered when the VM reaches to an unknown predicate while current_prolog_flag(unknown, warning).
@@ -54,88 +60,71 @@ type VM struct {
 	// FS is a file system that is referenced when the VM loads Prolog texts e.g. ensure_loaded/1.
 	// It has no effect on open/4 nor open/3 which always access the actual file system.
 	FS     fs.FS
-	loaded map[string]struct{}
+	loaded map[string]loadResult
 
 	modules map[Atom]*module
-	system  *module
-	typeIn  *module
+	system  Atom
+	typeIn  Atom
 
 	// I/O
 	streams       streams
 	input, output *Stream
 }
 
-// Module returns the type-in module.
-func (vm *VM) Module() *module {
-	if vm.typeIn == nil {
-		vm.typeIn = vm.module(0)
-	}
-	return vm.typeIn
+// Module returns the module.
+func (vm *VM) Module(name string) *module {
+	return vm.module(NewAtom(name))
 }
 
-func (vm *VM) SystemModule() *module {
-	return vm.system
+// TypeInModule returns the type-in module.
+func (vm *VM) TypeInModule() *module {
+	return vm.module(vm.typeIn)
 }
 
 func (vm *VM) module(name Atom) *module {
-	m, _ := vm.modules[name]
-	if m != nil {
+	if vm.modules == nil {
+		vm.modules = map[Atom]*module{}
+	}
+
+	if m, ok := vm.modules[name]; ok {
 		return m
 	}
 
-	m = &module{
-		name:       name,
-		operators:  operators{},
-		procedures: map[procedureIndicator]procedureEntry{},
-	}
-	if sm := vm.SystemModule(); sm != nil {
-		for _, class := range sm.operators {
-			for _, op := range class {
-				if !op.exported {
-					continue
-				}
-				m.operators.define(op.priority, op.specifier, op.name, false)
-			}
-		}
-		for pi, e := range sm.procedures {
-			if !e.exported {
-				continue
-			}
-
-			e.importedFrom = sm.name
-			m.procedures[pi] = e
-		}
-	}
-
+	m := newModule()
 	if vm.modules == nil {
 		vm.modules = map[Atom]*module{}
 	}
 	vm.modules[name] = m
+
+	if s := vm.system; s != 0 {
+		vm.importPredicates(name, vm.system, nil)
+	}
+
 	return m
 }
 
 // SetModule sets the type-in module.
 func (vm *VM) SetModule(name Atom) {
-	vm.typeIn = vm.module(name)
+	vm.typeIn = name
 }
 
 func (vm *VM) SetSystemModule(name Atom) {
-	vm.system = vm.module(name)
+	vm.system = name
 }
 
 // Cont is a continuation.
 type Cont func(*Env) *Promise
 
 // Arrive is the entry point of the VM.
-func (vm *VM) Arrive(name Atom, args []Term, k Cont, env *Env) (promise *Promise) {
+func (vm *VM) Arrive(module, name Atom, args []Term, k Cont, env *Env) (promise *Promise) {
 	defer ensurePromise(&promise)
 
 	if vm.Unknown == nil {
 		vm.Unknown = func(Atom, []Term, *Env) {}
 	}
 
-	m := vm.Module()
-	pi := procedureIndicator{name: name, arity: Integer(len(args))}
+	m := vm.module(module)
+	pi := predicateIndicator{name: name, arity: Integer(len(args))}
 	e := m.procedures[pi]
 	if e.procedure == nil {
 		switch m.unknown {
@@ -177,7 +166,7 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			v := vars[operand.(Integer)]
 			args = append(args, v)
 		case opGetFunctor:
-			pi := operand.(procedureIndicator)
+			pi := operand.(predicateIndicator)
 			arg, astack = env.Resolve(args[0]), append(astack, args[1:])
 			args = make([]Term, int(pi.arity))
 			for i := range args {
@@ -185,7 +174,7 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 			}
 			env, ok = env.Unify(arg, pi.name.Apply(args...))
 		case opPutFunctor:
-			pi := operand.(procedureIndicator)
+			pi := operand.(predicateIndicator)
 			vs := make([]Term, int(pi.arity))
 			arg = pi.name.Apply(vs...)
 			args = append(args, arg)
@@ -196,8 +185,8 @@ func (vm *VM) exec(pc bytecode, vars []Variable, cont Cont, args []Term, astack 
 		case opEnter:
 			break
 		case opCall:
-			pi := operand.(procedureIndicator)
-			return vm.Arrive(pi.name, args, func(env *Env) *Promise {
+			pi := operand.(qualifiedPredicateIndicator)
+			return vm.Arrive(pi.module, pi.name, args, func(env *Env) *Promise {
 				return vm.exec(pc, vars, cont, nil, nil, env, cutParent)
 			}, env)
 		case opExit:
@@ -261,116 +250,79 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	vm.output = s
 }
 
-func (vm *VM) Compile(ctx context.Context, text string) error {
-	{
-		m := vm.Module()
-		defer vm.SetModule(m.Name())
-	}
-
-	// Skip a shebang line if exists.
-	if strings.HasPrefix(text, "#!") {
-		switch i := strings.IndexRune(text, '\n'); i {
-		case -1:
-			text = ""
-		default:
-			text = text[i+1:]
-		}
-	}
-
-	r := strings.NewReader(text)
-	p := NewParser(vm.Module, r)
-	for p.More() {
-		p.Vars = p.Vars[:]
-		t, err := p.Term()
-		if err != nil {
-			return err
-		}
-
-		et, err := expand(vm, t, nil)
-		if err != nil {
-			return err
-		}
-
-		pi, arg, err := piArg(et, nil)
-		if err != nil {
-			return err
-		}
-		switch pi {
-		case procedureIndicator{name: atomIf, arity: 1}: // Directive
-			if err := vm.Module().flushClauseBuf(); err != nil {
-				return err
-			}
-
-			ok, err := Call(vm, arg(0), Success, nil).Force(ctx)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return p.unexpected()
-			}
-
-			continue
-		case procedureIndicator{name: atomIf, arity: 2}: // Rule
-			pi, arg, err = piArg(arg(0), nil)
-			if err != nil {
-				return err
-			}
-
-			fallthrough
-		default:
-			m := vm.Module()
-			if len(m.buf) > 0 && pi != m.buf[0].pi {
-				if err := m.flushClauseBuf(); err != nil {
-					return err
-				}
-			}
-
-			cs, err := compile(et, nil)
-			if err != nil {
-				return err
-			}
-
-			m.buf = append(m.buf, cs...)
-		}
-	}
-
-	m := vm.Module()
-	if err := m.flushClauseBuf(); err != nil {
-		return err
-	}
-
-	for _, g := range m.initGoals {
-		ok, err := Call(vm, g, Success, nil).Force(ctx)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			var sb strings.Builder
-			s := NewOutputTextStream(&sb)
-			_, _ = WriteTerm(vm, s, g, List(atomQuoted.Apply(atomTrue)), Success, nil).Force(ctx)
-			return fmt.Errorf("failed initialization goal: %s", sb.String())
-		}
-	}
-	m.initGoals = m.initGoals[:0]
-
-	return nil
+type loadFileOptions struct {
+	ifChanged  bool
+	importList []string
 }
 
-func (vm *VM) Load(ctx context.Context, filename string) error {
+type LoadFileOption func(*loadFileOptions)
+
+func LoadFileOptionIfChanged(opts *loadFileOptions) {
+	opts.ifChanged = true
+}
+
+func LoadFileOptionImports(importList []string) func(options *loadFileOptions) {
+	return func(opts *loadFileOptions) {
+		opts.importList = importList
+	}
+}
+
+func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFileOption) (Atom, error) {
+	var opts loadFileOptions
+	for _, f := range options {
+		f(&opts)
+	}
+
 	f, err := vm.FS.Open(filename)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 
-	b, err := io.ReadAll(f)
+	fi, err := f.Stat()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return vm.Compile(ctx, string(b))
+	r := vm.loaded[filename]
+	if !opts.ifChanged || fi.ModTime().After(r.loadedAt) {
+		b, err := io.ReadAll(f)
+		if err != nil {
+			return 0, err
+		}
+
+		module, err := vm.Compile(ctx, string(b))
+		if err != nil {
+			return 0, err
+		}
+
+		r.module = module
+		r.loadedAt = time.Now()
+	}
+
+	return r.module, nil
+}
+
+func (vm *VM) importPredicates(to, from Atom, pis []predicateIndicator) {
+	dst, src := vm.module(to), vm.module(from)
+	if pis == nil {
+		pis = make([]predicateIndicator, 0, len(src.procedures))
+		for pi := range src.procedures {
+			pis = append(pis, pi)
+		}
+	}
+	if dst.procedures == nil {
+		dst.procedures = map[predicateIndicator]procedureEntry{}
+	}
+	for _, pi := range pis {
+		orig := dst.procedures[pi]
+		e := src.procedures[pi]
+		e.importedFrom = from
+		e.exported = orig.exported
+		dst.procedures[pi] = e
+	}
 }
 
 // Predicate0 is a predicate of arity 0.
@@ -472,36 +424,41 @@ func (p Predicate8) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	return p(vm, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], k, env)
 }
 
-// procedureIndicator identifies a procedure e.g. (=)/2.
-type procedureIndicator struct {
+type qualifiedPredicateIndicator struct {
+	module Atom
+	predicateIndicator
+}
+
+// predicateIndicator identifies a predicate e.g. (=)/2.
+type predicateIndicator struct {
 	name  Atom
 	arity Integer
 }
 
-func (p procedureIndicator) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
+func (p predicateIndicator) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 	return WriteCompound(w, p, opts, env)
 }
 
-func (p procedureIndicator) Compare(t Term, env *Env) int {
+func (p predicateIndicator) Compare(t Term, env *Env) int {
 	return CompareCompound(p, t, env)
 }
 
-func (p procedureIndicator) Functor() Atom {
+func (p predicateIndicator) Functor() Atom {
 	return atomSlash
 }
 
-func (p procedureIndicator) Arity() int {
+func (p predicateIndicator) Arity() int {
 	return 2
 }
 
-func (p procedureIndicator) Arg(n int) Term {
+func (p predicateIndicator) Arg(n int) Term {
 	if n == 0 {
 		return p.name
 	}
 	return p.arity
 }
 
-func (p procedureIndicator) String() string {
+func (p predicateIndicator) String() string {
 	var sb strings.Builder
 	_ = p.name.WriteTerm(&sb, &WriteOptions{
 		quoted: true,
@@ -511,28 +468,28 @@ func (p procedureIndicator) String() string {
 }
 
 // Term returns p as term.
-func (p procedureIndicator) Term() Term {
+func (p predicateIndicator) Term() Term {
 	return atomSlash.Apply(p.name, p.arity)
 }
 
 // Apply applies p to args.
-func (p procedureIndicator) Apply(args ...Term) (Term, error) {
+func (p predicateIndicator) Apply(args ...Term) (Term, error) {
 	if p.arity != Integer(len(args)) {
 		return nil, &wrongNumberOfArgumentsError{expected: int(p.arity), actual: args}
 	}
 	return p.name.Apply(args...), nil
 }
 
-func piArg(t Term, env *Env) (procedureIndicator, func(int) Term, error) {
+func piArg(t Term, env *Env) (predicateIndicator, func(int) Term, error) {
 	switch f := env.Resolve(t).(type) {
 	case Variable:
-		return procedureIndicator{}, nil, InstantiationError(env)
+		return predicateIndicator{}, nil, InstantiationError(env)
 	case Atom:
-		return procedureIndicator{name: f, arity: 0}, nil, nil
+		return predicateIndicator{name: f, arity: 0}, nil, nil
 	case Compound:
-		return procedureIndicator{name: f.Functor(), arity: Integer(f.Arity())}, f.Arg, nil
+		return predicateIndicator{name: f.Functor(), arity: Integer(f.Arity())}, f.Arg, nil
 	default:
-		return procedureIndicator{}, nil, typeError(validTypeCallable, f, env)
+		return predicateIndicator{}, nil, typeError(validTypeCallable, f, env)
 	}
 }
 

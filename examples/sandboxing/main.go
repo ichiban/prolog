@@ -21,7 +21,7 @@ func main() {
 	// Instead of writing `:-(mortal(X), human(X)).`, you may want to define the infix operator first.
 
 	// To define operators, register op/3.
-	m := p.Module()
+	m := p.TypeInModule()
 	m.Register3("op", engine.Op)
 
 	// Then, define the infix operator with priority 1200 and specifier XFX.
@@ -33,7 +33,7 @@ func main() {
 	// You can use p.Register0~5 to register any builtin/custom predicates of respective arity.
 
 	// Now you can load a Prolog program with infix `:-`.
-	if err := p.Load(context.Background(), "prolog/main.pl"); err != nil {
+	if _, err := p.LoadFile(context.Background(), "prolog/main.pl"); err != nil {
 		panic(err)
 	}
 

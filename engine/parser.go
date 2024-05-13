@@ -271,7 +271,7 @@ func (ops *operators) definedInClass(name Atom, class operatorClass) bool {
 	return (*ops)[name][class] != operator{}
 }
 
-func (ops *operators) define(p Integer, spec operatorSpecifier, op Atom, exported bool) {
+func (ops *operators) define(p Integer, spec operatorSpecifier, op Atom) {
 	if p == 0 {
 		return
 	}
@@ -281,7 +281,6 @@ func (ops *operators) define(p Integer, spec operatorSpecifier, op Atom, exporte
 		priority:  p,
 		specifier: spec,
 		name:      op,
-		exported:  exported,
 	}
 	(*ops)[op] = os
 }
@@ -313,7 +312,6 @@ type operator struct {
 	priority  Integer // 1 ~ 1200
 	specifier operatorSpecifier
 	name      Atom
-	exported  bool
 }
 
 // Pratt parser's binding powers but in Prolog priority.

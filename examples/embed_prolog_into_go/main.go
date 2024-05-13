@@ -15,7 +15,7 @@ var prologTexts embed.FS
 func main() {
 	p := prolog.New(nil, nil)
 	p.FS = prologTexts
-	if err := p.Load(context.Background(), "prolog/main.pl"); err != nil {
+	if _, err := p.LoadFile(context.Background(), "prolog/main.pl"); err != nil {
 		panic(err)
 	}
 

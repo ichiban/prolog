@@ -11,11 +11,11 @@ import (
 
 func TestParser_Term(t *testing.T) {
 	ops := operators{}
-	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
-	ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
-	ops.define(400, operatorSpecifierYFX, NewAtom(`*`), false)
-	ops.define(200, operatorSpecifierFY, NewAtom(`-`), false)
-	ops.define(200, operatorSpecifierYF, NewAtom(`--`), false)
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
 
 	tests := []struct {
 		input        string

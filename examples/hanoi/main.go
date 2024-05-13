@@ -20,11 +20,11 @@ func main() {
 
 	i := prolog.New(nil, nil)
 	i.FS = prologTexts
-	if err := i.Load(context.Background(), "prolog/hanoi.pl"); err != nil {
+	if _, err := i.LoadFile(context.Background(), "prolog/hanoi.pl"); err != nil {
 		panic(err)
 	}
 
-	m := i.Module()
+	m := i.TypeInModule()
 	m.Register2("actuate", func(_ *engine.VM, x engine.Term, y engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
 		fmt.Printf("move a disk from %s to %s.\n", env.Resolve(x), env.Resolve(y))
 		return k(env)

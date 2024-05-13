@@ -1,11 +1,12 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 type module struct {
-	name Atom
-
-	procedures map[procedureIndicator]procedureEntry
+	procedures map[predicateIndicator]procedureEntry
 	unknown    unknownAction
 
 	// Internal/external expression
@@ -21,24 +22,85 @@ type module struct {
 	initGoals []Term
 }
 
-func (m *module) reset() {
-	m.operators.reset()
-	for k := range m.procedures {
-		delete(m.procedures, k)
+func newModule() *module {
+	ops := operators{}
+	//  op(1200, xfx, [:-, -->]).
+	ops.define(Integer(1200), operatorSpecifierXFX, NewAtom(`:-`))
+	ops.define(Integer(1200), operatorSpecifierXFX, NewAtom(`-->`))
+	//  op(1200, fx, [:-, ?-]).
+	ops.define(Integer(1200), operatorSpecifierFX, NewAtom(`:-`))
+	ops.define(Integer(1200), operatorSpecifierFX, NewAtom(`?-`))
+	//  op(1105, xfy, '|').
+	ops.define(Integer(1105), operatorSpecifierXFY, NewAtom(`|`))
+	//  op(1100, xfy, ;).
+	ops.define(Integer(1100), operatorSpecifierXFY, NewAtom(`;`))
+	//  op(1050, xfy, ->).
+	ops.define(Integer(1050), operatorSpecifierXFY, NewAtom(`->`))
+	//  op(1000, xfy, ',').
+	ops.define(Integer(1000), operatorSpecifierXFY, NewAtom(`,`))
+	//  op(900, fy, \+).
+	ops.define(Integer(900), operatorSpecifierFY, NewAtom(`\+`))
+	//  op(700, xfx, [=, \=]).
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`=`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`\=`))
+	//  op(700, xfx, [==, \==, @<, @=<, @>, @>=]).
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`==`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`\==`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`@<`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`@=<`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`@>`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`@>=`))
+	//  op(700, xfx, =..).
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`=..`))
+	//  op(700, xfx, [is, =:=, =\=, <, =<, >, >=]).
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`is`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`=:=`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`=\=`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`<`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`=<`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`>`))
+	ops.define(Integer(700), operatorSpecifierXFX, NewAtom(`>=`))
+	//  op(600, xfy, :).
+	ops.define(Integer(600), operatorSpecifierXFY, NewAtom(`:`))
+	//  op(500, yfx, [+, -, /\, \/]).
+	ops.define(Integer(500), operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(Integer(500), operatorSpecifierYFX, NewAtom(`-`))
+	ops.define(Integer(500), operatorSpecifierYFX, NewAtom(`/\`))
+	ops.define(Integer(500), operatorSpecifierYFX, NewAtom(`\/`))
+	//  op(400, yfx, [*, /, //, div, rem, mod, <<, >>]).
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`/`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`//`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`div`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`rem`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`mod`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`<<`))
+	ops.define(Integer(400), operatorSpecifierYFX, NewAtom(`>>`))
+	//  op(200, xfx, **).
+	ops.define(Integer(200), operatorSpecifierXFX, NewAtom(`**`))
+	//  op(200, xfy, ^).
+	ops.define(Integer(200), operatorSpecifierXFY, NewAtom(`^`))
+	//  op(200, fy, [+, -, \]).
+	ops.define(Integer(200), operatorSpecifierFY, NewAtom(`+`))
+	ops.define(Integer(200), operatorSpecifierFY, NewAtom(`-`))
+	ops.define(Integer(200), operatorSpecifierFY, NewAtom(`\`))
+
+	return &module{
+		operators:  ops,
+		procedures: map[predicateIndicator]procedureEntry{},
 	}
 }
 
-// Name returns the module name.
-func (m *module) Name() Atom {
-	return m.name
+func (m *module) reset() {
+	*m = *newModule()
 }
 
 // Register0 registers a predicate of arity 0.
 func (m *module) Register0(name string, p Predicate0) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 0}
+	pi := predicateIndicator{name: NewAtom(name), arity: 0}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -49,9 +111,9 @@ func (m *module) Register0(name string, p Predicate0) {
 // Register1 registers a predicate of arity 1.
 func (m *module) Register1(name string, p Predicate1) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 1}
+	pi := predicateIndicator{name: NewAtom(name), arity: 1}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -62,9 +124,9 @@ func (m *module) Register1(name string, p Predicate1) {
 // Register2 registers a predicate of arity 2.
 func (m *module) Register2(name string, p Predicate2) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 2}
+	pi := predicateIndicator{name: NewAtom(name), arity: 2}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -75,9 +137,9 @@ func (m *module) Register2(name string, p Predicate2) {
 // Register3 registers a predicate of arity 3.
 func (m *module) Register3(name string, p Predicate3) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 3}
+	pi := predicateIndicator{name: NewAtom(name), arity: 3}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -88,9 +150,9 @@ func (m *module) Register3(name string, p Predicate3) {
 // Register4 registers a predicate of arity 4.
 func (m *module) Register4(name string, p Predicate4) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 4}
+	pi := predicateIndicator{name: NewAtom(name), arity: 4}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -101,9 +163,9 @@ func (m *module) Register4(name string, p Predicate4) {
 // Register5 registers a predicate of arity 5.
 func (m *module) Register5(name string, p Predicate5) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 5}
+	pi := predicateIndicator{name: NewAtom(name), arity: 5}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -114,9 +176,9 @@ func (m *module) Register5(name string, p Predicate5) {
 // Register6 registers a predicate of arity 6.
 func (m *module) Register6(name string, p Predicate6) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 6}
+	pi := predicateIndicator{name: NewAtom(name), arity: 6}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -127,9 +189,9 @@ func (m *module) Register6(name string, p Predicate6) {
 // Register7 registers a predicate of arity 7.
 func (m *module) Register7(name string, p Predicate7) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 7}
+	pi := predicateIndicator{name: NewAtom(name), arity: 7}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
@@ -140,14 +202,30 @@ func (m *module) Register7(name string, p Predicate7) {
 // Register8 registers a predicate of arity 8.
 func (m *module) Register8(name string, p Predicate8) {
 	if m.procedures == nil {
-		m.procedures = map[procedureIndicator]procedureEntry{}
+		m.procedures = map[predicateIndicator]procedureEntry{}
 	}
-	pi := procedureIndicator{name: NewAtom(name), arity: 8}
+	pi := predicateIndicator{name: NewAtom(name), arity: 8}
 	e := m.procedures[pi]
 	e.public = false
 	e.dynamic = false
 	e.procedure = p
 	m.procedures[pi] = e
+}
+
+func (m *module) Import(from *module, importList []predicateIndicator) {
+	if m.procedures == nil {
+		m.procedures = map[predicateIndicator]procedureEntry{}
+	}
+	for pi, e := range from.procedures {
+		if !e.exported {
+			continue
+		}
+
+		if importList != nil && !slices.Contains(importList, pi) {
+			continue
+		}
+
+	}
 }
 
 func (m *module) flushClauseBuf() error {
@@ -160,7 +238,7 @@ func (m *module) flushClauseBuf() error {
 	if !ok {
 		e.procedure = clauses{}
 		if m.procedures == nil {
-			m.procedures = map[procedureIndicator]procedureEntry{}
+			m.procedures = map[predicateIndicator]procedureEntry{}
 		}
 		m.procedures[pi] = e
 	}
@@ -223,7 +301,7 @@ type procedure interface {
 
 // discontiguousError is an error that the user-defined predicate is defined by clauses which are not consecutive read-terms.
 type discontiguousError struct {
-	pi procedureIndicator
+	pi predicateIndicator
 }
 
 func (e *discontiguousError) Error() string {

@@ -69,13 +69,29 @@ Type Ctrl-C or 'halt.' to exit.
 	log.SetOutput(t)
 
 	i := prolog.New(&userInput{t: t}, t)
-	m := i.Module()
-	log.Printf("module: %s", m.Name())
-	m.Register4("skip_max_list", engine.SkipMaxList)
-	m.Register2("go_string", func(vm *engine.VM, term, s engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	if err := i.QuerySolution(`use_module('libraries/prologue.pl').`).Err(); err != nil {
+		log.Panic(err)
+	}
+	i.SetPredicate1("cd", func(vm *engine.VM, path engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+		var p string
+		switch path := env.Resolve(path).(type) {
+		case engine.Variable:
+			return engine.Error(engine.InstantiationError(env))
+		case engine.Atom:
+			p = path.String()
+		default:
+			return engine.Error(engine.TypeError(engine.NewAtom("atom"), path, env))
+		}
+		if err := os.Chdir(p); err != nil {
+			return engine.Error(err)
+		}
+		return k(env)
+	})
+	i.SetPredicate4("skip_max_list", engine.SkipMaxList)
+	i.SetPredicate2("go_string", func(vm *engine.VM, term, s engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
 		return engine.Unify(vm, s, engine.NewAtom(fmt.Sprintf("%#v", term)), k, env)
 	})
-	m.Register1("halt", halt)
+	i.SetPredicate1("halt", halt)
 	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
 		var sb strings.Builder
 		s := engine.NewOutputTextStream(&sb)

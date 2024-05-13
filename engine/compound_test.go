@@ -15,17 +15,17 @@ func TestWriteCompound(t *testing.T) {
 	env := NewEnv().bind(v, l).bind(w, r)
 
 	ops := operators{}
-	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`), false)
-	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`), false)
-	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`), false)
-	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`), false)
-	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
-	ops.define(900, operatorSpecifierFY, atomNegation, false)
-	ops.define(900, operatorSpecifierYF, NewAtom(`+/`), false)
-	ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
-	ops.define(400, operatorSpecifierYFX, NewAtom(`*`), false)
-	ops.define(200, operatorSpecifierFY, NewAtom(`-`), false)
-	ops.define(200, operatorSpecifierYF, NewAtom(`--`), false)
+	ops.define(1200, operatorSpecifierXFX, NewAtom(`:-`))
+	ops.define(1200, operatorSpecifierFX, NewAtom(`:-`))
+	ops.define(1200, operatorSpecifierXF, NewAtom(`-:`))
+	ops.define(1105, operatorSpecifierXFY, NewAtom(`|`))
+	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
+	ops.define(900, operatorSpecifierFY, atomNegation)
+	ops.define(900, operatorSpecifierYF, NewAtom(`+/`))
+	ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
+	ops.define(400, operatorSpecifierYFX, NewAtom(`*`))
+	ops.define(200, operatorSpecifierFY, NewAtom(`-`))
+	ops.define(200, operatorSpecifierYF, NewAtom(`--`))
 
 	tests := []struct {
 		title  string
@@ -37,11 +37,11 @@ func TestWriteCompound(t *testing.T) {
 		{title: "list-ish", term: PartialList(NewAtom(`rest`), NewAtom(`a`), NewAtom(`b`)), output: `[a,b|rest]`},
 		{title: "circular list", term: l, output: `[a,b,a|...]`},
 		{title: "curly brackets", term: atomEmptyBlock.Apply(NewAtom(`foo`)), output: `{foo}`},
-		{title: "fx", term: atomIf.Apply(atomIf.Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
+		{title: "fx", term: atomColonMinus.Apply(atomColonMinus.Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `:- (:-foo)`},
 		{title: "fy", term: atomNegation.Apply(atomMinus.Apply(atomNegation.Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `\+ - (\+foo)`},
 		{title: "xf", term: NewAtom(`-:`).Apply(NewAtom(`-:`).Apply(NewAtom(`foo`))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo-:)-:`},
 		{title: "yf", term: NewAtom(`+/`).Apply(NewAtom(`--`).Apply(NewAtom(`+/`).Apply(NewAtom(`foo`)))), opts: WriteOptions{ops: ops, priority: 1201}, output: `(foo+/)-- +/`},
-		{title: "xfx", term: atomIf.Apply(NewAtom("foo"), atomIf.Apply(NewAtom("bar"), NewAtom("baz"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
+		{title: "xfx", term: atomColonMinus.Apply(NewAtom("foo"), atomColonMinus.Apply(NewAtom("bar"), NewAtom("baz"))), opts: WriteOptions{ops: ops, priority: 1201}, output: `foo:-(bar:-baz)`},
 		{title: "yfx", term: atomAsterisk.Apply(Integer(2), atomPlus.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2*(2+2)`},
 		{title: "xfy", term: atomComma.Apply(Integer(2), atomBar.Apply(Integer(2), Integer(2))), opts: WriteOptions{ops: ops, priority: 1201}, output: `2,(2|2)`},
 		{title: "ignore_ops(false)", term: atomPlus.Apply(Integer(2), Integer(-2)), opts: WriteOptions{ignoreOps: false, ops: ops, priority: 1201}, output: `2+ -2`},

@@ -19,7 +19,7 @@ import (
 
 func TestCall(t *testing.T) {
 	var vm VM
-	m := vm.Module()
+	m := vm.TypeInModule()
 	m.Register0("fail", func(_ *VM, f Cont, env *Env) *Promise {
 		return Bool(false)
 	})
@@ -31,11 +31,12 @@ func TestCall(t *testing.T) {
 			panic("told you")
 		})
 	})
-	assert.NoError(t, vm.Compile(context.Background(), `
+	_, err := vm.Compile(context.Background(), `
 foo.
 foo(_, _).
 f(g([a, [b, c|X]])).
-`))
+`)
+	assert.NoError(t, err)
 
 	tests := []struct {
 		title string
@@ -93,11 +94,14 @@ func TestCall1(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 2}: {procedure: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 2}: {procedure: Predicate2(func(_ *VM, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -128,11 +132,14 @@ func TestCall2(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 3}: {procedure: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 3}: {procedure: Predicate3(func(_ *VM, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -163,11 +170,14 @@ func TestCall3(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 4}: {procedure: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 4}: {procedure: Predicate4(func(_ *VM, _, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -198,11 +208,14 @@ func TestCall4(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 5}: {procedure: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 5}: {procedure: Predicate5(func(_ *VM, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -233,11 +246,14 @@ func TestCall5(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 6}: {procedure: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 6}: {procedure: Predicate6(func(_ *VM, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -268,11 +284,14 @@ func TestCall6(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 7}: {procedure: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 7}: {procedure: Predicate7(func(_ *VM, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -303,11 +322,14 @@ func TestCall7(t *testing.T) {
 			defer setMemFree(tt.mem)()
 
 			vm := VM{
-				typeIn: &module{
-					procedures: map[procedureIndicator]procedureEntry{
-						{name: NewAtom("p"), arity: 8}: {procedure: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
-							return k(env)
-						})},
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						procedures: map[predicateIndicator]procedureEntry{
+							{name: NewAtom("p"), arity: 8}: {procedure: Predicate8(func(_ *VM, _, _, _, _, _, _, _, _ Term, k Cont, env *Env) *Promise {
+								return k(env)
+							})},
+						},
 					},
 				},
 			}
@@ -320,17 +342,20 @@ func TestCall7(t *testing.T) {
 
 func TestCallNth(t *testing.T) {
 	vm := VM{
-		typeIn: &module{
-			procedures: map[procedureIndicator]procedureEntry{
-				{name: NewAtom("foo"), arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
-					return Delay(func(context.Context) *Promise {
-						return k(env)
-					}, func(context.Context) *Promise {
-						return k(env)
-					}, func(context.Context) *Promise {
-						return Error(errors.New("three"))
-					})
-				})},
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: {
+				procedures: map[predicateIndicator]procedureEntry{
+					{name: NewAtom("foo"), arity: 0}: {procedure: Predicate0(func(_ *VM, k Cont, env *Env) *Promise {
+						return Delay(func(context.Context) *Promise {
+							return k(env)
+						}, func(context.Context) *Promise {
+							return k(env)
+						}, func(context.Context) *Promise {
+							return Error(errors.New("three"))
+						})
+					})},
+				},
 			},
 		},
 	}
@@ -971,12 +996,15 @@ func TestOp(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		t.Run("atom", func(t *testing.T) {
 			var ops operators
-			ops.define(900, operatorSpecifierXFX, NewAtom(`+++`), false)
-			ops.define(1100, operatorSpecifierXFX, NewAtom(`+`), false)
+			ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+			ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
 
 			vm := VM{
-				typeIn: &module{
-					operators: ops,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						operators: ops,
+					},
 				},
 			}
 
@@ -1006,25 +1034,28 @@ func TestOp(t *testing.T) {
 						name:      atomPlus,
 					},
 				},
-			}, vm.Module().operators)
+			}, vm.TypeInModule().operators)
 		})
 
 		t.Run("list", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					operators: operators{
-						NewAtom(`+++`): {
-							operatorClassInfix: {
-								priority:  900,
-								specifier: operatorSpecifierXFX,
-								name:      NewAtom("+++"),
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						operators: operators{
+							NewAtom(`+++`): {
+								operatorClassInfix: {
+									priority:  900,
+									specifier: operatorSpecifierXFX,
+									name:      NewAtom("+++"),
+								},
 							},
-						},
-						NewAtom(`+`): {
-							operatorClassInfix: {
-								priority:  1100,
-								specifier: operatorSpecifierXFX,
-								name:      atomPlus,
+							NewAtom(`+`): {
+								operatorClassInfix: {
+									priority:  1100,
+									specifier: operatorSpecifierXFX,
+									name:      atomPlus,
+								},
 							},
 						},
 					},
@@ -1056,33 +1087,36 @@ func TestOp(t *testing.T) {
 						name:      atomPlus,
 					},
 				},
-			}, vm.Module().operators)
+			}, vm.TypeInModule().operators)
 		})
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				operators: operators{
-					NewAtom(`+++`): {
-						operatorClassInfix: {
-							priority:  900,
-							specifier: operatorSpecifierXFX,
-							name:      NewAtom("+++"),
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					operators: operators{
+						NewAtom(`+++`): {
+							operatorClassInfix: {
+								priority:  900,
+								specifier: operatorSpecifierXFX,
+								name:      NewAtom("+++"),
+							},
 						},
-					},
-					NewAtom(`++`): {
-						operatorClassInfix: {
-							priority:  1000,
-							specifier: operatorSpecifierXFX,
-							name:      NewAtom("++"),
+						NewAtom(`++`): {
+							operatorClassInfix: {
+								priority:  1000,
+								specifier: operatorSpecifierXFX,
+								name:      NewAtom("++"),
+							},
 						},
-					},
-					NewAtom(`+`): {
-						operatorClassInfix: {
-							priority:  1100,
-							specifier: operatorSpecifierXFX,
-							name:      atomPlus,
+						NewAtom(`+`): {
+							operatorClassInfix: {
+								priority:  1100,
+								specifier: operatorSpecifierXFX,
+								name:      atomPlus,
+							},
 						},
 					},
 				},
@@ -1107,7 +1141,7 @@ func TestOp(t *testing.T) {
 					name:      atomPlus,
 				},
 			},
-		}, vm.Module().operators)
+		}, vm.TypeInModule().operators)
 	})
 
 	t.Run("priority is a variable", func(t *testing.T) {
@@ -1177,10 +1211,13 @@ func TestOp(t *testing.T) {
 
 	t.Run("operator is ','", func(t *testing.T) {
 		var ops operators
-		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
 		vm := VM{
-			typeIn: &module{
-				operators: ops,
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					operators: ops,
+				},
 			},
 		}
 		ok, err := Op(&vm, Integer(1000), atomXFY, atomComma, Success, nil).Force(context.Background())
@@ -1190,10 +1227,13 @@ func TestOp(t *testing.T) {
 
 	t.Run("an element of the operator list is ','", func(t *testing.T) {
 		var ops operators
-		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`), false)
+		ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
 		vm := VM{
-			typeIn: &module{
-				operators: ops,
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					operators: ops,
+				},
 			},
 		}
 		ok, err := Op(&vm, Integer(1000), atomXFY, List(atomComma), Success, nil).Force(context.Background())
@@ -1218,7 +1258,15 @@ func TestOp(t *testing.T) {
 
 		t.Run("bar", func(t *testing.T) {
 			t.Run("create", func(t *testing.T) {
-				var vm VM
+				var ops operators
+				vm := VM{
+					typeIn: atomUser,
+					modules: map[Atom]*module{
+						atomUser: {
+							operators: ops,
+						},
+					},
+				}
 				ok, err := Op(&vm, Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
 				assert.Equal(t, permissionError(operationCreate, permissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
@@ -1226,10 +1274,13 @@ func TestOp(t *testing.T) {
 
 			t.Run("modify", func(t *testing.T) {
 				var ops operators
-				ops.define(1001, operatorSpecifierXFY, NewAtom(`|`), false)
+				ops.define(1001, operatorSpecifierXFY, NewAtom(`|`))
 				vm := VM{
-					typeIn: &module{
-						operators: ops,
+					typeIn: atomUser,
+					modules: map[Atom]*module{
+						atomUser: {
+							operators: ops,
+						},
 					},
 				}
 				ok, err := Op(&vm, Integer(1000), atomXFY, atomBar, Success, nil).Force(context.Background())
@@ -1256,7 +1307,15 @@ func TestOp(t *testing.T) {
 
 		t.Run("bar", func(t *testing.T) {
 			t.Run("create", func(t *testing.T) {
-				var vm VM
+				var ops operators
+				vm := VM{
+					typeIn: atomUser,
+					modules: map[Atom]*module{
+						atomUser: {
+							operators: ops,
+						},
+					},
+				}
 				ok, err := Op(&vm, Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
 				assert.Equal(t, permissionError(operationCreate, permissionTypeOperator, atomBar, nil), err)
 				assert.False(t, ok)
@@ -1264,10 +1323,13 @@ func TestOp(t *testing.T) {
 
 			t.Run("modify", func(t *testing.T) {
 				var ops operators
-				ops.define(101, operatorSpecifierXFY, NewAtom(`|`), false)
+				ops.define(101, operatorSpecifierXFY, NewAtom(`|`))
 				vm := VM{
-					typeIn: &module{
-						operators: ops,
+					typeIn: atomUser,
+					modules: map[Atom]*module{
+						atomUser: {
+							operators: ops,
+						},
 					},
 				}
 				ok, err := Op(&vm, Integer(1000), atomXFY, List(atomBar), Success, nil).Force(context.Background())
@@ -1280,10 +1342,13 @@ func TestOp(t *testing.T) {
 	t.Run("There shall not be an infix and a postfix operator with the same name.", func(t *testing.T) {
 		t.Run("infix", func(t *testing.T) {
 			var ops operators
-			ops.define(200, operatorSpecifierYF, NewAtom(`+`), false)
+			ops.define(200, operatorSpecifierYF, NewAtom(`+`))
 			vm := VM{
-				typeIn: &module{
-					operators: ops,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						operators: ops,
+					},
 				},
 			}
 			ok, err := Op(&vm, Integer(500), atomYFX, List(atomPlus), Success, nil).Force(context.Background())
@@ -1293,10 +1358,13 @@ func TestOp(t *testing.T) {
 
 		t.Run("postfix", func(t *testing.T) {
 			var ops operators
-			ops.define(500, operatorSpecifierYFX, NewAtom(`+`), false)
+			ops.define(500, operatorSpecifierYFX, NewAtom(`+`))
 			vm := VM{
-				typeIn: &module{
-					operators: ops,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						operators: ops,
+					},
 				},
 			}
 			ok, err := Op(&vm, Integer(200), atomYF, List(atomPlus), Success, nil).Force(context.Background())
@@ -1308,12 +1376,15 @@ func TestOp(t *testing.T) {
 
 func TestCurrentOp(t *testing.T) {
 	var ops operators
-	ops.define(900, operatorSpecifierXFX, NewAtom(`+++`), false)
-	ops.define(1000, operatorSpecifierXFX, NewAtom(`++`), false)
-	ops.define(1100, operatorSpecifierXFX, NewAtom(`+`), false)
+	ops.define(900, operatorSpecifierXFX, NewAtom(`+++`))
+	ops.define(1000, operatorSpecifierXFX, NewAtom(`++`))
+	ops.define(1100, operatorSpecifierXFX, NewAtom(`+`))
 	vm := VM{
-		typeIn: &module{
-			operators: ops,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: {
+				operators: ops,
+			},
 		},
 	}
 
@@ -1633,7 +1704,10 @@ func TestBagOf(t *testing.T) {
 		})
 	})
 	vm := VM{
-		typeIn: &m,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: &m,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2067,7 +2141,10 @@ func TestSetOf(t *testing.T) {
 	m.Register3("setof", SetOf)
 	m.Register3("bagof", BagOf)
 	vm := VM{
-		typeIn: &m,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: &m,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2148,7 +2225,10 @@ func TestFindAll(t *testing.T) {
 		return Bool(false)
 	})
 	vm := VM{
-		typeIn: &m,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: &m,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2481,7 +2561,10 @@ func TestCatch(t *testing.T) {
 		return Bool(false)
 	})
 	vm := VM{
-		typeIn: &m,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: &m,
+		},
 	}
 
 	t.Run("match", func(t *testing.T) {
@@ -2532,9 +2615,12 @@ func TestCatch(t *testing.T) {
 func TestCurrentPredicate(t *testing.T) {
 	t.Run("user defined predicate", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
+					},
 				},
 			},
 		}
@@ -2555,11 +2641,14 @@ func TestCurrentPredicate(t *testing.T) {
 		v := NewVariable()
 
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
-					{name: NewAtom("bar"), arity: 1}: {procedure: clauses{}},
-					{name: NewAtom("baz"), arity: 1}: {procedure: clauses{}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: {procedure: clauses{}},
+						{name: NewAtom("bar"), arity: 1}: {procedure: clauses{}},
+						{name: NewAtom("baz"), arity: 1}: {procedure: clauses{}},
+					},
 				},
 			},
 		}
@@ -2591,9 +2680,12 @@ func TestCurrentPredicate(t *testing.T) {
 
 	t.Run("builtin predicate", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: atomEqual, arity: 2}: {procedure: Predicate2(Unify)},
+					},
 				},
 			},
 		}
@@ -2679,7 +2771,7 @@ func TestAssertz(t *testing.T) {
 
 		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
-				pi: procedureIndicator{
+				pi: predicateIndicator{
 					name:  NewAtom("foo"),
 					arity: 1,
 				},
@@ -2693,7 +2785,7 @@ func TestAssertz(t *testing.T) {
 				},
 			},
 			{
-				pi: procedureIndicator{
+				pi: predicateIndicator{
 					name:  NewAtom("foo"),
 					arity: 1,
 				},
@@ -2706,7 +2798,7 @@ func TestAssertz(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, vm.Module().procedures[procedureIndicator{
+		}}, vm.TypeInModule().procedures[predicateIndicator{
 			name:  NewAtom("foo"),
 			arity: 1,
 		}])
@@ -2729,7 +2821,7 @@ func TestAssertz(t *testing.T) {
 	t.Run("head is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Assertz(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args:    []Term{NewVariable(), atomTrue},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -2739,7 +2831,7 @@ func TestAssertz(t *testing.T) {
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var vm VM
 		ok, err := Assertz(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args:    []Term{Integer(0), atomTrue},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeError(validTypeCallable, Integer(0), nil), err)
@@ -2749,7 +2841,7 @@ func TestAssertz(t *testing.T) {
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var vm VM
 		ok, err := Assertz(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args: []Term{
 				NewAtom("foo"),
 				&compound{
@@ -2773,9 +2865,12 @@ func TestAssertz(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+					},
 				},
 			},
 		}
@@ -2811,7 +2906,7 @@ func TestAsserta(t *testing.T) {
 
 		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
-				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
+				pi: predicateIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("b")},
@@ -2822,7 +2917,7 @@ func TestAsserta(t *testing.T) {
 				},
 			},
 			{
-				pi: procedureIndicator{name: NewAtom("foo"), arity: 1},
+				pi: predicateIndicator{name: NewAtom("foo"), arity: 1},
 				raw: &compound{
 					functor: NewAtom("foo"),
 					args:    []Term{NewAtom("a")},
@@ -2832,13 +2927,14 @@ func TestAsserta(t *testing.T) {
 					{opcode: opExit},
 				},
 			},
-		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
+		}}, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("rule", func(t *testing.T) {
 		var vm VM
+		vm.typeIn = atomUser
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args: []Term{
 				NewAtom("foo"),
 				&compound{
@@ -2850,7 +2946,7 @@ func TestAsserta(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		ok, err = Asserta(&vm, atomIf.Apply(
+		ok, err = Asserta(&vm, atomColonMinus.Apply(
 			NewAtom("foo"),
 			atomComma.Apply(
 				NewAtom("p").Apply(NewAtom("a")),
@@ -2862,9 +2958,9 @@ func TestAsserta(t *testing.T) {
 
 		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{
-				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
+				pi: predicateIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{
-					functor: atomIf,
+					functor: atomColonMinus,
 					args: []Term{
 						NewAtom("foo"),
 						&compound{
@@ -2882,15 +2978,18 @@ func TestAsserta(t *testing.T) {
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opPutConst, operand: NewAtom("a")},
-					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
+					{opcode: opCall, operand: qualifiedPredicateIndicator{
+						module:             atomUser,
+						predicateIndicator: predicateIndicator{name: NewAtom("p"), arity: 1},
+					}},
 					{opcode: opCut},
 					{opcode: opExit},
 				},
 			},
 			{
-				pi: procedureIndicator{name: NewAtom("foo"), arity: 0},
+				pi: predicateIndicator{name: NewAtom("foo"), arity: 0},
 				raw: &compound{
-					functor: atomIf,
+					functor: atomColonMinus,
 					args: []Term{
 						NewAtom("foo"),
 						&compound{
@@ -2902,11 +3001,14 @@ func TestAsserta(t *testing.T) {
 				bytecode: bytecode{
 					{opcode: opEnter},
 					{opcode: opPutConst, operand: NewAtom("b")},
-					{opcode: opCall, operand: procedureIndicator{name: NewAtom("p"), arity: 1}},
+					{opcode: opCall, operand: qualifiedPredicateIndicator{
+						module:             atomUser,
+						predicateIndicator: predicateIndicator{name: NewAtom("p"), arity: 1},
+					}},
 					{opcode: opExit},
 				},
 			},
-		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 0}])
+		}}, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 0}])
 	})
 
 	t.Run("clause is a variable", func(t *testing.T) {
@@ -2926,7 +3028,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("head is a variable", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args:    []Term{NewVariable(), atomTrue},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, InstantiationError(nil), err)
@@ -2936,7 +3038,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("head is neither a variable, nor callable", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args:    []Term{Integer(0), atomTrue},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeError(validTypeCallable, Integer(0), nil), err)
@@ -2946,7 +3048,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("body is not callable", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args:    []Term{NewAtom("foo"), Integer(0)},
 		}, Success, nil).Force(context.Background())
 		assert.Equal(t, typeError(validTypeCallable, Integer(0), nil), err)
@@ -2956,7 +3058,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("body contains a term which is not callable", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args: []Term{
 				NewAtom("foo"),
 				&compound{
@@ -2978,9 +3080,12 @@ func TestAsserta(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+					},
 				},
 			},
 		}
@@ -2999,7 +3104,7 @@ func TestAsserta(t *testing.T) {
 	t.Run("cut", func(t *testing.T) {
 		var vm VM
 		ok, err := Asserta(&vm, &compound{
-			functor: atomIf,
+			functor: atomColonMinus,
 			args: []Term{
 				NewAtom("foo"),
 				atomCut,
@@ -3013,13 +3118,16 @@ func TestAsserta(t *testing.T) {
 func TestRetract(t *testing.T) {
 	t.Run("retract the first one", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+						}},
+					},
 				},
 			},
 		}
@@ -3034,18 +3142,21 @@ func TestRetract(t *testing.T) {
 		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
+		}}, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("retract the specific one", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+						}},
+					},
 				},
 			},
 		}
@@ -3060,18 +3171,21 @@ func TestRetract(t *testing.T) {
 		assert.Equal(t, procedureEntry{dynamic: true, procedure: clauses{
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
 			{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-		}}, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}])
+		}}, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}])
 	})
 
 	t.Run("retract all", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: {dynamic: true, procedure: clauses{
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+						}},
+					},
 				},
 			},
 		}
@@ -3082,7 +3196,7 @@ func TestRetract(t *testing.T) {
 		}, Failure, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.False(t, ok)
-		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
+		assert.Empty(t, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
 	})
 
 	t.Run("variable", func(t *testing.T) {
@@ -3112,9 +3226,12 @@ func TestRetract(t *testing.T) {
 
 	t.Run("static", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 0}: {dynamic: false},
+					},
 				},
 			},
 		}
@@ -3129,11 +3246,14 @@ func TestRetract(t *testing.T) {
 
 	t.Run("exception in continuation", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+						}},
+					},
 				},
 			},
 		}
@@ -3148,20 +3268,23 @@ func TestRetract(t *testing.T) {
 		assert.False(t, ok)
 
 		// removed
-		assert.Empty(t, vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
+		assert.Empty(t, vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}].procedure.(clauses))
 	})
 }
 
 func TestAbolish(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
-						{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 1}: procedureEntry{dynamic: true, procedure: clauses{
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("a")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("b")}}},
+							{raw: &compound{functor: NewAtom("foo"), args: []Term{NewAtom("c")}}},
+						}},
+					},
 				},
 			},
 		}
@@ -3173,7 +3296,7 @@ func TestAbolish(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.Module().procedures[procedureIndicator{name: NewAtom("foo"), arity: 1}]
+		_, ok = vm.TypeInModule().procedures[predicateIndicator{name: NewAtom("foo"), arity: 1}]
 		assert.False(t, ok)
 	})
 
@@ -3254,9 +3377,12 @@ func TestAbolish(t *testing.T) {
 
 	t.Run("The predicate indicator pi is that of a static procedure", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("foo"), arity: 0}: procedureEntry{dynamic: false},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("foo"), arity: 0}: procedureEntry{dynamic: false},
+					},
 				},
 			},
 		}
@@ -4176,12 +4302,15 @@ func TestWriteTerm(t *testing.T) {
 	}
 
 	var ops operators
-	ops.define(500, operatorSpecifierYFX, atomPlus, false)
-	ops.define(200, operatorSpecifierFY, atomPlus, false)
-	ops.define(200, operatorSpecifierYF, atomMinus, false)
+	ops.define(500, operatorSpecifierYFX, atomPlus)
+	ops.define(200, operatorSpecifierFY, atomPlus)
+	ops.define(200, operatorSpecifierYF, atomMinus)
 	vm := VM{
-		typeIn: &module{
-			operators: ops,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: {
+				operators: ops,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -4822,7 +4951,7 @@ func TestReadTerm(t *testing.T) {
 
 		var vm VM
 		ok, err := ReadTerm(&vm, s, NewVariable(), List(), Success, nil).Force(context.Background())
-		assert.Equal(t, syntaxError(unexpectedTokenError{actual: Token{kind: tokenGraphic, val: "="}}, nil), err)
+		assert.Equal(t, syntaxError(unexpectedTokenError{actual: Token{kind: tokenGraphic, val: "***"}}, nil), err)
 		assert.False(t, ok)
 	})
 }
@@ -5523,17 +5652,20 @@ func TestClause(t *testing.T) {
 		var c int
 
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
-						{raw: &compound{
-							functor: atomIf, args: []Term{
-								&compound{functor: NewAtom("green"), args: []Term{x}},
-								&compound{functor: NewAtom("moldy"), args: []Term{x}},
-							},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
+							{raw: &compound{
+								functor: atomColonMinus, args: []Term{
+									&compound{functor: NewAtom("green"), args: []Term{x}},
+									&compound{functor: NewAtom("moldy"), args: []Term{x}},
+								},
+							}},
+							{raw: &compound{functor: NewAtom("green"), args: []Term{NewAtom("kermit")}}},
 						}},
-						{raw: &compound{functor: NewAtom("green"), args: []Term{NewAtom("kermit")}}},
-					}},
+					},
 				},
 			},
 		}
@@ -5585,11 +5717,14 @@ func TestClause(t *testing.T) {
 		what, body := NewVariable(), NewVariable()
 
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("green"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
-						return Bool(true)
-					})},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("green"), arity: 1}: {procedure: Predicate1(func(_ *VM, t Term, f Cont, env *Env) *Promise {
+							return Bool(true)
+						})},
+					},
 				},
 			},
 		}
@@ -5615,11 +5750,14 @@ func TestClause(t *testing.T) {
 		defer setMemFree(1)()
 
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("green"), arity: 1}: procedureEntry{public: true, procedure: clauses{
-						{raw: NewAtom("green").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())},
-					}},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("green"), arity: 1}: {public: true, procedure: clauses{
+							{raw: NewAtom("green").Apply(NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable(), NewVariable())},
+						}},
+					},
 				},
 			},
 		}
@@ -6392,14 +6530,17 @@ func TestCharConversion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		assert.Equal(t, 'b', vm.Module().charConversions['a'])
+		assert.Equal(t, 'b', vm.TypeInModule().charConversions['a'])
 	})
 
 	t.Run("remove", func(t *testing.T) {
 		vm := VM{
-			typeIn: &module{
-				charConversions: map[rune]rune{
-					'a': 'b',
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					charConversions: map[rune]rune{
+						'a': 'b',
+					},
 				},
 			},
 		}
@@ -6407,7 +6548,7 @@ func TestCharConversion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, ok)
 
-		_, ok = vm.Module().charConversions['a']
+		_, ok = vm.TypeInModule().charConversions['a']
 		assert.False(t, ok)
 	})
 
@@ -6469,9 +6610,12 @@ func TestCurrentCharConversion(t *testing.T) {
 
 		t.Run("converted", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					charConversions: map[rune]rune{
-						'a': 'b',
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						charConversions: map[rune]rune{
+							'a': 'b',
+						},
 					},
 				},
 			}
@@ -6577,25 +6721,31 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomCharConversion, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, vm.Module().charConvEnabled)
+			assert.True(t, vm.TypeInModule().charConvEnabled)
 		})
 
 		t.Run("off", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					charConvEnabled: true,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						charConvEnabled: true,
+					},
 				},
 			}
 			ok, err := SetPrologFlag(&vm, atomCharConversion, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, vm.Module().charConvEnabled)
+			assert.False(t, vm.TypeInModule().charConvEnabled)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					charConvEnabled: true,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						charConvEnabled: true,
+					},
 				},
 			}
 			ok, err := SetPrologFlag(&vm, atomCharConversion, NewAtom("foo"), Success, nil).Force(context.Background())
@@ -6610,25 +6760,31 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomDebug, atomOn, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.True(t, vm.Module().debug)
+			assert.True(t, vm.TypeInModule().debug)
 		})
 
 		t.Run("off", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					debug: true,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						debug: true,
+					},
 				},
 			}
 			ok, err := SetPrologFlag(&vm, atomDebug, atomOff, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.False(t, vm.Module().debug)
+			assert.False(t, vm.TypeInModule().debug)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					debug: true,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						debug: true,
+					},
 				},
 			}
 			ok, err := SetPrologFlag(&vm, atomDebug, NewAtom("foo"), Success, nil).Force(context.Background())
@@ -6647,14 +6803,17 @@ func TestSetPrologFlag(t *testing.T) {
 	t.Run("unknown", func(t *testing.T) {
 		t.Run("error", func(t *testing.T) {
 			vm := VM{
-				typeIn: &module{
-					unknown: unknownFail,
+				typeIn: atomUser,
+				modules: map[Atom]*module{
+					atomUser: {
+						unknown: unknownFail,
+					},
 				},
 			}
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomError, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownError, vm.Module().unknown)
+			assert.Equal(t, unknownError, vm.TypeInModule().unknown)
 		})
 
 		t.Run("warning", func(t *testing.T) {
@@ -6662,7 +6821,7 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomWarning, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownWarning, vm.Module().unknown)
+			assert.Equal(t, unknownWarning, vm.TypeInModule().unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
@@ -6670,7 +6829,7 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomUnknown, atomFail, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, unknownFail, vm.Module().unknown)
+			assert.Equal(t, unknownFail, vm.TypeInModule().unknown)
 		})
 
 		t.Run("fail", func(t *testing.T) {
@@ -6687,7 +6846,7 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomCodes, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesCodes, vm.Module().doubleQuotes)
+			assert.Equal(t, doubleQuotesCodes, vm.TypeInModule().doubleQuotes)
 		})
 
 		t.Run("chars", func(t *testing.T) {
@@ -6695,7 +6854,7 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomChars, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesChars, vm.Module().doubleQuotes)
+			assert.Equal(t, doubleQuotesChars, vm.TypeInModule().doubleQuotes)
 		})
 
 		t.Run("atom", func(t *testing.T) {
@@ -6703,7 +6862,7 @@ func TestSetPrologFlag(t *testing.T) {
 			ok, err := SetPrologFlag(&vm, atomDoubleQuotes, atomAtom, Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
-			assert.Equal(t, doubleQuotesAtom, vm.Module().doubleQuotes)
+			assert.Equal(t, doubleQuotesAtom, vm.TypeInModule().doubleQuotes)
 		})
 
 		t.Run("unknown", func(t *testing.T) {
@@ -6825,10 +6984,10 @@ func TestCurrentPrologFlag(t *testing.T) {
 				assert.Equal(t, atomUnbounded, env.Resolve(value))
 			case 7:
 				assert.Equal(t, atomUnknown, env.Resolve(flag))
-				assert.Equal(t, NewAtom(vm.Module().unknown.String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.TypeInModule().unknown.String()), env.Resolve(value))
 			case 8:
 				assert.Equal(t, atomDoubleQuotes, env.Resolve(flag))
-				assert.Equal(t, NewAtom(vm.Module().doubleQuotes.String()), env.Resolve(value))
+				assert.Equal(t, NewAtom(vm.TypeInModule().doubleQuotes.String()), env.Resolve(value))
 			default:
 				assert.Fail(t, "unreachable")
 			}
@@ -6863,9 +7022,10 @@ func TestExpandTerm(t *testing.T) {
 	x := NewVariable()
 
 	var vm VM
-	assert.NoError(t, vm.Compile(context.Background(), `
+	_, err := vm.Compile(context.Background(), `
 term_expansion(f(X), g(X)).
-`))
+`)
+	assert.NoError(t, err)
 
 	tests := []struct {
 		title string
@@ -6882,7 +7042,7 @@ term_expansion(f(X), g(X)).
 			title: "terminal sequence: empty",
 			in:    atomArrow.Apply(s.Apply(a), List()),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(a, lastVariable()+1, lastVariable()+3),
 					atomEqual.Apply(lastVariable()+1, lastVariable()+3),
 				)
@@ -6893,7 +7053,7 @@ term_expansion(f(X), g(X)).
 			title: "terminal sequence: ok",
 			in:    atomArrow.Apply(s.Apply(a), List(b)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(a, lastVariable()+1, lastVariable()+3),
 					atomEqual.Apply(lastVariable()+1, PartialList(lastVariable()+3, b)),
 				)
@@ -6910,7 +7070,7 @@ term_expansion(f(X), g(X)).
 			title: "terminal sequence: variable in body",
 			in:    atomArrow.Apply(s.Apply(a), x),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(a, lastVariable()+1, lastVariable()+3),
 					atomPhrase.Apply(x, lastVariable()+1, PartialList(lastVariable()+3, b)),
 				)
@@ -6921,7 +7081,7 @@ term_expansion(f(X), g(X)).
 			title: "concatenation: ok",
 			in:    atomArrow.Apply(s, seq(atomComma, a, b)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomComma,
 						a.Apply(lastVariable()+1, lastVariable()+4),
@@ -6947,7 +7107,7 @@ term_expansion(f(X), g(X)).
 			title: "alternative: ok",
 			in:    atomArrow.Apply(s, seq(atomSemiColon, a, b)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomSemiColon,
 						a.Apply(lastVariable()+1, lastVariable()+3),
@@ -6961,7 +7121,7 @@ term_expansion(f(X), g(X)).
 			title: "alternative: if-then-else",
 			in:    atomArrow.Apply(s, seq(atomSemiColon, atomThen.Apply(a, b), c)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomSemiColon,
 						atomThen.Apply(
@@ -6990,7 +7150,7 @@ term_expansion(f(X), g(X)).
 			title: "second form of alternative: ok",
 			in:    atomArrow.Apply(s, seq(atomBar, a, b)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomSemiColon,
 						a.Apply(lastVariable()+1, lastVariable()+3),
@@ -7016,7 +7176,7 @@ term_expansion(f(X), g(X)).
 			title: "grammar-body-goal",
 			in:    atomArrow.Apply(s, atomEmptyBlock.Apply(a)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomComma,
 						a,
@@ -7030,7 +7190,7 @@ term_expansion(f(X), g(X)).
 			title: "call",
 			in:    atomArrow.Apply(s, atomCall.Apply(a)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					atomCall.Apply(a, lastVariable()+1, lastVariable()+3),
 				)
@@ -7041,7 +7201,7 @@ term_expansion(f(X), g(X)).
 			title: "phrase",
 			in:    atomArrow.Apply(s, atomPhrase.Apply(a)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					atomPhrase.Apply(a, lastVariable()+1, lastVariable()+3),
 				)
@@ -7052,7 +7212,7 @@ term_expansion(f(X), g(X)).
 			title: "grammar-body-cut",
 			in:    atomArrow.Apply(s, atomCut),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomComma,
 						atomCut,
@@ -7066,7 +7226,7 @@ term_expansion(f(X), g(X)).
 			title: "grammar-body-not: ok",
 			in:    atomArrow.Apply(s, atomNegation.Apply(a)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					seq(atomComma,
 						atomNegation.Apply(a.Apply(lastVariable()+1, lastVariable()+4)),
@@ -7086,7 +7246,7 @@ term_expansion(f(X), g(X)).
 			title: "if-then: ok",
 			in:    atomArrow.Apply(s, atomThen.Apply(a, b)),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					s.Apply(lastVariable()+1, lastVariable()+3),
 					atomThen.Apply(
 						a.Apply(lastVariable()+1, lastVariable()+4),
@@ -7112,7 +7272,7 @@ term_expansion(f(X), g(X)).
 			title: "with semicontexts: ok",
 			in:    atomArrow.Apply(atomComma.Apply(NewAtom("phrase1"), List(NewAtom("word"))), atomComma.Apply(NewAtom("phrase2"), NewAtom("phrase3"))),
 			out: func() Term {
-				return atomIf.Apply(
+				return atomColonMinus.Apply(
 					NewAtom("phrase1").Apply(lastVariable()+1, lastVariable()+3),
 					atomComma.Apply(
 						atomComma.Apply(
@@ -7572,7 +7732,10 @@ func TestNot(t *testing.T) {
 		return Error(e)
 	})
 	vm := VM{
-		typeIn: &m,
+		typeIn: atomUser,
+		modules: map[Atom]*module{
+			atomUser: &m,
+		},
 	}
 
 	ok, err := Not(&vm, atomTrue, Success, nil).Force(context.Background())

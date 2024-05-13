@@ -11,12 +11,15 @@ func TestVM_Phrase(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
 		vm := VM{
-			typeIn: &module{
-				procedures: map[procedureIndicator]procedureEntry{
-					{name: NewAtom("a"), arity: 2}: {procedure: Predicate2(func(_ *VM, s0, s Term, k Cont, env *Env) *Promise {
-						called = true
-						return k(env)
-					})},
+			typeIn: atomUser,
+			modules: map[Atom]*module{
+				atomUser: {
+					procedures: map[predicateIndicator]procedureEntry{
+						{name: NewAtom("a"), arity: 2}: {procedure: Predicate2(func(_ *VM, s0, s Term, k Cont, env *Env) *Promise {
+							called = true
+							return k(env)
+						})},
+					},
 				},
 			},
 		}

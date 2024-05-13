@@ -31,7 +31,7 @@ func main() {
 	i.FS = prologTexts
 
 	// Then, define DCG rules with -->/2.
-	if err := i.Load(context.Background(), "prolog/sentence.pl"); err != nil {
+	if _, err := i.LoadFile(context.Background(), "prolog/sentence.pl"); err != nil {
 		panic(err)
 	}
 
