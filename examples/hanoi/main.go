@@ -20,7 +20,7 @@ func main() {
 
 	i := prolog.New(nil, nil)
 	i.FS = prologTexts
-	if _, err := i.LoadFile(context.Background(), "prolog/hanoi.pl"); err != nil {
+	if err := i.LoadFile(context.Background(), "prolog/hanoi.pl"); err != nil {
 		panic(err)
 	}
 

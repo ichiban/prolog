@@ -5,7 +5,6 @@ import (
 	"embed"
 	"flag"
 	"fmt"
-
 	"github.com/ichiban/prolog"
 )
 
@@ -28,10 +27,13 @@ func main() {
 
 	// First, create a Prolog interpreter.
 	i := prolog.New(nil, nil)
-	i.FS = prologTexts
+	i.FS = prolog.OverlayFS{
+		prologTexts,
+		i.FS,
+	}
 
 	// Then, define DCG rules with -->/2.
-	if _, err := i.LoadFile(context.Background(), "prolog/sentence.pl"); err != nil {
+	if err := i.LoadFile(context.Background(), "prolog/sentence.pl"); err != nil {
 		panic(err)
 	}
 

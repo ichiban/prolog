@@ -1,3 +1,4 @@
+:- use_module('libraries/dcg.pl').
 :- set_prolog_flag(double_quotes, atom).
 
 sentence --> noun_phrase, verb_phrase.

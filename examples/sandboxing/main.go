@@ -33,7 +33,7 @@ func main() {
 	// You can use p.Register0~5 to register any builtin/custom predicates of respective arity.
 
 	// Now you can load a Prolog program with infix `:-`.
-	if _, err := p.LoadFile(context.Background(), "prolog/main.pl"); err != nil {
+	if err := p.LoadFile(context.Background(), "prolog/main.pl"); err != nil {
 		panic(err)
 	}
 

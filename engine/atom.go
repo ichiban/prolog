@@ -60,6 +60,7 @@ var (
 	atomAccess                  = NewAtom("access")
 	atomAcos                    = NewAtom("acos")
 	atomAlias                   = NewAtom("alias")
+	atomAll                     = NewAtom("all")
 	atomAppend                  = NewAtom("append")
 	atomAsin                    = NewAtom("asin")
 	atomAt                      = NewAtom("at")

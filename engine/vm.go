@@ -250,32 +250,53 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	vm.output = s
 }
 
-type loadFileOptions struct {
-	ifChanged  bool
-	importList []string
+type LoadFileOptions struct {
+	condition  LoadFileCondition
+	importList []ImportSpec
 }
 
-type LoadFileOption func(*loadFileOptions)
+// LoadFileCondition denotes a condition to load a file.
+type LoadFileCondition int
 
-func LoadFileOptionIfChanged(opts *loadFileOptions) {
-	opts.ifChanged = true
+const (
+	// LoadFileConditionTrue is a condition which always loads a file.
+	LoadFileConditionTrue LoadFileCondition = iota
+	// LoadFileConditionChanged is a condition which loads a file if it's not loaded yet or the timestamp is updated.
+	LoadFileConditionChanged
+)
+
+type ImportSpec struct {
+	Name  string
+	Arity int
 }
 
-func LoadFileOptionImports(importList []string) func(options *loadFileOptions) {
-	return func(opts *loadFileOptions) {
+// LoadFileOption specifies how the VM loads the file.
+type LoadFileOption func(*LoadFileOptions)
+
+// LoadFileOptionIf specifies the condition of loading the file.
+func LoadFileOptionIf(cond LoadFileCondition) func(*LoadFileOptions) {
+	return func(opts *LoadFileOptions) {
+		opts.condition = cond
+	}
+}
+
+// LoadFileOptionImports specifies which predicates the type-in module imports from the loaded module.
+func LoadFileOptionImports(importList []ImportSpec) func(options *LoadFileOptions) {
+	return func(opts *LoadFileOptions) {
 		opts.importList = importList
 	}
 }
 
-func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFileOption) (Atom, error) {
-	var opts loadFileOptions
+// LoadFile loads a Prolog text from a file specified by filename.
+func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFileOption) error {
+	var opts LoadFileOptions
 	for _, f := range options {
 		f(&opts)
 	}
 
 	f, err := vm.FS.Open(filename)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer func() {
 		_ = f.Close()
@@ -283,26 +304,43 @@ func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFile
 
 	fi, err := f.Stat()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	r := vm.loaded[filename]
-	if !opts.ifChanged || fi.ModTime().After(r.loadedAt) {
+	r, ok := vm.loaded[filename]
+	loading := !ok // If it's not loaded yet
+	loading = loading || opts.condition == LoadFileConditionTrue
+	loading = loading || opts.condition == LoadFileConditionChanged && fi.ModTime().After(r.loadedAt)
+	loading = loading || fi.ModTime().IsZero() // If the fs.FS doesn't report mod times
+	if loading {
 		b, err := io.ReadAll(f)
 		if err != nil {
-			return 0, err
+			return err
 		}
 
 		module, err := vm.Compile(ctx, string(b))
 		if err != nil {
-			return 0, err
+			return err
 		}
 
 		r.module = module
 		r.loadedAt = time.Now()
 	}
 
-	return r.module, nil
+	if opts.importList == nil {
+		vm.importPredicates(vm.typeIn, r.module, nil)
+	} else {
+		pis := make([]predicateIndicator, len(opts.importList))
+		for i, spec := range opts.importList {
+			pis[i] = predicateIndicator{
+				name:  NewAtom(spec.Name),
+				arity: Integer(spec.Arity),
+			}
+		}
+		vm.importPredicates(vm.typeIn, r.module, pis)
+	}
+
+	return nil
 }
 
 func (vm *VM) importPredicates(to, from Atom, pis []predicateIndicator) {

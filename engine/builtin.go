@@ -3095,7 +3095,7 @@ func Include(vm *VM, file Term, k Cont, env *Env) *Promise {
 		return Error(err)
 	}
 	return Delay(func(ctx context.Context) *Promise {
-		if _, err := vm.LoadFile(ctx, f.String()); err != nil {
+		if err := vm.LoadFile(ctx, f.String()); err != nil {
 			return Error(err)
 		}
 		return k(env)
@@ -3116,25 +3116,31 @@ func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
 	}
 
 	var (
-		onlyIfChanged bool
-		importList    []predicateIndicator
+		condition  LoadFileCondition
+		importList []ImportSpec
 	)
 	iter := ListIterator{List: options, Env: env}
 	for iter.Next() {
 		opt := iter.Current()
 
 		if _, ok := env.Unify(opt, atomIf.Apply(atomTrue)); ok {
-			onlyIfChanged = false
+			condition = LoadFileConditionTrue
 			break
 		}
 
 		if _, ok := env.Unify(opt, atomIf.Apply(atomChanged)); ok {
-			onlyIfChanged = true
+			condition = LoadFileConditionChanged
+			break
+		}
+
+		if _, ok := env.Unify(opt, atomImports.Apply(atomAll)); ok {
+			importList = nil
 			break
 		}
 
 		imports := NewVariable()
 		if env, ok := env.Unify(opt, atomImports.Apply(imports)); ok {
+			importList = []ImportSpec{}
 			iter := ListIterator{List: imports, Env: env}
 			for iter.Next() {
 				i := iter.Current()
@@ -3143,7 +3149,10 @@ func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
 				if err != nil {
 					return Error(err)
 				}
-				importList = append(importList, pi)
+				importList = append(importList, ImportSpec{
+					Name:  pi.name.String(),
+					Arity: int(pi.arity),
+				})
 			}
 			if err := iter.Err(); err != nil {
 				return Error(err)
@@ -3151,12 +3160,10 @@ func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
 		}
 	}
 
-	var opts []LoadFileOption
-	if onlyIfChanged {
-		opts = append(opts, LoadFileOptionIfChanged)
-	}
-	module, err := vm.LoadFile(context.Background(), fn, opts...)
-	switch {
+	switch err := vm.LoadFile(context.Background(), fn,
+		LoadFileOptionIf(condition),
+		LoadFileOptionImports(importList),
+	); {
 	case err == nil:
 		break
 	case errors.Is(err, fs.ErrInvalid):
@@ -3166,8 +3173,6 @@ func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
 	default:
 		return Error(err)
 	}
-
-	vm.importPredicates(vm.typeIn, module, importList)
 
 	return k(env)
 }

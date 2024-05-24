@@ -8,7 +8,6 @@ import (
 	"github.com/ichiban/prolog/engine"
 	"io"
 	"strings"
-	"time"
 )
 
 //go:embed libraries
@@ -23,7 +22,7 @@ type Interpreter struct {
 func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.FS = OverlayFS{
-		FixedModTimeFS{FS: libraries, ModTime: time.Now()},
+		libraries,
 		RealFS{},
 	}
 	i.SetUserInput(engine.NewInputTextStream(in))
@@ -165,7 +164,7 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.SetPredicate2("module", engine.DefineModule)
 	i.SetPredicate1("meta_predicate", engine.MetaPredicate)
 
-	if _, err := i.LoadFile(context.Background(), "libraries/prolog.pl"); err != nil {
+	if err := i.LoadFile(context.Background(), "libraries/prolog.pl"); err != nil {
 		panic(err)
 	}
 
