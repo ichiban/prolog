@@ -363,12 +363,19 @@ current_char_conversion(In_char, Out_char) :- native:current_char_conversion(In_
 :- native:meta_predicate(once(0)).
 once(Term) :- Term, !.
 repeat :- native:repeat.
+:- native:meta_predicate(call(1, ?)).
 call(Closure, Arg1) :- native:call(Closure, Arg1).
+:- native:meta_predicate(call(2, ?, ?)).
 call(Closure, Arg1, Arg2) :- native:call(Closure, Arg1, Arg2).
+:- native:meta_predicate(call(3, ?, ?, ?)).
 call(Closure, Arg1, Arg2, Arg3) :- native:call(Closure, Arg1, Arg2, Arg3).
+:- native:meta_predicate(call(4, ?, ?, ?, ?)).
 call(Closure, Arg1, Arg2, Arg3, Arg4) :- native:call(Closure, Arg1, Arg2, Arg3, Arg4).
+:- native:meta_predicate(call(5, ?, ?, ?, ?, ?)).
 call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5) :- native:call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5).
+:- native:meta_predicate(call(6, ?, ?, ?, ?, ?, ?)).
 call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6) :- native:call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6).
+:- native:meta_predicate(call(7, ?, ?, ?, ?, ?, ?, ?)).
 call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7) :- native:call(Closure, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7).
 false :- fail.
 

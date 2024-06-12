@@ -59,6 +59,11 @@ func main() {
 
 			fmt.Printf("%s\n", s.Sentence)
 		}
+
+		if err := sols.Err(); err != nil {
+			panic(err)
+		}
+
 		return
 	}
 

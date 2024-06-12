@@ -50,12 +50,14 @@ func Call(vm *VM, goal Term, k Cont, env *Env) (promise *Promise) {
 		for i, fv := range fvs {
 			args[i] = fv
 		}
-		cs, err := compileTerm(vm.typeIn, atomColonMinus.Apply(tuple(args...), g), env)
-		if err != nil {
-			return Error(err)
-		}
+		return Delay(func(ctx context.Context) *Promise {
+			cs, err := vm.compileTerm(ctx, atomColonMinus.Apply(tuple(args...), g), env)
+			if err != nil {
+				return Error(err)
+			}
 
-		return cs.call(vm, args, k, env)
+			return cs.call(vm, args, k, env)
+		})
 	}
 }
 
@@ -95,6 +97,7 @@ func Call7(vm *VM, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term, k Con
 }
 
 func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
+	module, closure := qmut(vm.typeIn, closure, env)
 	pi, arg, err := piArg(closure, env)
 	if err != nil {
 		return Error(err)
@@ -108,7 +111,7 @@ func callN(vm *VM, closure Term, additional []Term, k Cont, env *Env) *Promise {
 		args[i] = arg(i)
 	}
 	args = append(args, additional...)
-	return Call(vm, pi.name.Apply(args...), k, env)
+	return Call(vm, atomColon.Apply(module, pi.name.Apply(args...)), k, env)
 }
 
 // CallNth succeeds iff goal succeeds and nth unifies with the number of re-execution.
@@ -714,7 +717,7 @@ func assertMerge(vm *VM, t Term, merge func([]clause, []clause) clauses, env *En
 		m.procedures[pi] = e
 	}
 
-	added, err := compileTerm(vm.typeIn, t, env)
+	added, err := vm.compileTerm(context.Background(), t, env)
 	if err != nil {
 		return err
 	}
@@ -2835,9 +2838,9 @@ func nth(vm *VM, base Integer, n, list, elem Term, k Cont, env *Env) *Promise {
 
 // Succ succeeds if s is the successor of non-negative integer x.
 func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
-	switch x := x.(type) {
+	switch x := env.Resolve(x).(type) {
 	case Variable:
-		switch s := s.(type) {
+		switch s := env.Resolve(s).(type) {
 		case Variable:
 			return Error(InstantiationError(env))
 		case Integer:
@@ -2866,7 +2869,7 @@ func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
 			return Error(err)
 		}
 
-		switch s := s.(type) {
+		switch s := env.Resolve(s).(type) {
 		case Variable:
 			return Unify(vm, s, r, k, env)
 		case Integer:

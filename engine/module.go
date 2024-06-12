@@ -295,6 +295,10 @@ type metaArgumentSpecifier struct {
 	integer Integer
 }
 
+func (m *metaArgumentSpecifier) needsModuleNameExpansion() bool {
+	return m.atom == atomColon || m.integer > 0
+}
+
 type procedure interface {
 	call(*VM, []Term, Cont, *Env) *Promise
 }

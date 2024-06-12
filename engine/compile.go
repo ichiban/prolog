@@ -71,7 +71,7 @@ func (vm *VM) Compile(ctx context.Context, text string) (Atom, error) {
 				}
 			}
 
-			cs, err := compileTerm(vm.typeIn, et, nil)
+			cs, err := vm.compileTerm(ctx, et, nil)
 			if err != nil {
 				return 0, err
 			}
@@ -128,14 +128,14 @@ func (cs clauses) call(vm *VM, args []Term, k Cont, env *Env) *Promise {
 	return p
 }
 
-func compileTerm(module Atom, t Term, env *Env) (clauses, error) {
+func (vm *VM) compileTerm(ctx context.Context, t Term, env *Env) (clauses, error) {
 	t = env.Resolve(t)
 	if t, ok := t.(Compound); ok && t.Functor() == atomColonMinus && t.Arity() == 2 {
 		var cs clauses
 		head, body := t.Arg(0), t.Arg(1)
 		iter := altIterator{Alt: body, Env: env}
 		for iter.Next() {
-			c, err := compileClause(module, head, iter.Current(), env)
+			c, err := vm.compileClause(ctx, head, iter.Current(), env)
 			if err != nil {
 				return nil, typeError(validTypeCallable, body, env)
 			}
@@ -145,16 +145,16 @@ func compileTerm(module Atom, t Term, env *Env) (clauses, error) {
 		return cs, nil
 	}
 
-	c, err := compileClause(module, t, nil, env)
+	c, err := vm.compileClause(ctx, t, nil, env)
 	c.raw = env.simplify(t)
 	return []clause{c}, err
 }
 
-func compileClause(module Atom, head Term, body Term, env *Env) (clause, error) {
+func (vm *VM) compileClause(ctx context.Context, head Term, body Term, env *Env) (clause, error) {
 	var c clause
-	c.compileHead(head, env)
+	vm.compileHead(&c, head, env)
 	if body != nil {
-		if err := c.compileBody(module, body, env); err != nil {
+		if err := vm.compileBody(ctx, &c, body, env); err != nil {
 			return c, typeError(validTypeCallable, body, env)
 		}
 	}
@@ -162,7 +162,7 @@ func compileClause(module Atom, head Term, body Term, env *Env) (clause, error) 
 	return c, nil
 }
 
-func (c *clause) compileHead(head Term, env *Env) {
+func (vm *VM) compileHead(c *clause, head Term, env *Env) {
 	switch head := env.Resolve(head).(type) {
 	case Atom:
 		c.pi = predicateIndicator{name: head, arity: 0}
@@ -174,11 +174,11 @@ func (c *clause) compileHead(head Term, env *Env) {
 	}
 }
 
-func (c *clause) compileBody(module Atom, body Term, env *Env) error {
+func (vm *VM) compileBody(ctx context.Context, c *clause, body Term, env *Env) error {
 	c.bytecode = append(c.bytecode, instruction{opcode: opEnter})
 	iter := seqIterator{Seq: body, Env: env}
 	for iter.Next() {
-		if err := c.compilePred(module, iter.Current(), env); err != nil {
+		if err := vm.compileGoal(ctx, c, iter.Current(), env); err != nil {
 			return err
 		}
 	}
@@ -187,34 +187,36 @@ func (c *clause) compileBody(module Atom, body Term, env *Env) error {
 
 var errNotCallable = errors.New("not callable")
 
-func (c *clause) compilePred(module Atom, p Term, env *Env) error {
-	switch p := env.Resolve(p).(type) {
+func (vm *VM) compileGoal(ctx context.Context, c *clause, goal Term, env *Env) error {
+	module, goal := qmut(vm.typeIn, goal, env)
+	switch g := env.Resolve(goal).(type) {
 	case Variable:
-		return c.compilePred(module, atomCall.Apply(p), env)
+		return vm.compileGoal(ctx, c, atomCall.Apply(g), env)
 	case Atom:
-		switch p {
+		switch g {
 		case atomCut:
 			c.bytecode = append(c.bytecode, instruction{opcode: opCut})
 			return nil
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: qualifiedPredicateIndicator{
 			module:             module,
-			predicateIndicator: predicateIndicator{name: p, arity: 0},
+			predicateIndicator: predicateIndicator{name: g, arity: 0},
 		}})
 		return nil
 	case Compound:
-		if pi, arg, _ := piArg(p, env); pi == (predicateIndicator{name: atomColon, arity: 2}) {
-			switch m := env.Resolve(arg(0)).(type) {
-			case Atom:
-				return c.compilePred(m, arg(1), env)
+		m := vm.modules[module]
+		pi := predicateIndicator{name: g.Functor(), arity: Integer(g.Arity())}
+		e := m.procedures[pi]
+		for i := 0; i < g.Arity(); i++ {
+			arg := g.Arg(i)
+			if e.metaPredicate != nil && e.metaPredicate[i].needsModuleNameExpansion() {
+				arg = atomColon.Apply(vm.typeIn, arg)
 			}
-		}
-		for i := 0; i < p.Arity(); i++ {
-			c.compileBodyArg(p.Arg(i), env)
+			c.compileBodyArg(arg, env)
 		}
 		c.bytecode = append(c.bytecode, instruction{opcode: opCall, operand: qualifiedPredicateIndicator{
 			module:             module,
-			predicateIndicator: predicateIndicator{name: p.Functor(), arity: Integer(p.Arity())},
+			predicateIndicator: pi,
 		}})
 		return nil
 	default:

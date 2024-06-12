@@ -104,3 +104,23 @@ func id(t Term) termID {
 		return t // Assuming it's comparable.
 	}
 }
+
+// Qualifying Module and Unqualified Term.
+func qmut(m Atom, t Term, env *Env) (Atom, Term) {
+	c, ok := env.Resolve(t).(Compound)
+	if !ok {
+		return m, t
+	}
+
+	if c.Functor() != atomColon || c.Arity() != 2 {
+		return m, t
+	}
+
+	mm, ok := env.Resolve(c.Arg(0)).(Atom)
+	if !ok {
+		return m, t
+	}
+	tt := c.Arg(1)
+
+	return qmut(mm, tt, env)
+}

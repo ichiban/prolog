@@ -1,3 +1,4 @@
+:- use_module('libraries/prologue.pl', [append/3]).
 :- use_module('libraries/dcg.pl').
 :- set_prolog_flag(double_quotes, atom).
 
