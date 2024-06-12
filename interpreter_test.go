@@ -308,8 +308,11 @@ func TestNew_variableNames(t *testing.T) {
 		{name: "55", query: `S=1+T,N=' /*r*/V',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1+ /*r*/V`},
 		{name: "58", query: `S=1+T,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1++`},
 		{name: "59", query: `S=T+1,N=(+),write_term(S,[quoted(true), variable_names([N=T])]).`, output: `++1`},
+		{name: "73", query: `S=(1 is T),N='X',write_term(S,[quoted(true), variable_names([N=T])]).`, output: `1 is X`},
 		{name: "69", query: `read_term(T, [singletons(1)]).`, waits: true},
 		{name: "70", input: `a.`, query: `\+read_term(T, [singletons(1)]).`},
+		{name: "71", query: `write_term(T,[variable_names(['Bad'=T]),variable_names(['Good'=T])]).`, output: `Good`},
+		{name: "72", query: `read_term(T,[singletons([])]).`, waits: true},
 	}
 
 	for _, tt := range tests {
