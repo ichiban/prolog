@@ -2817,9 +2817,9 @@ func nth(vm *VM, base Integer, n, list, elem Term, k Cont, env *Env) *Promise {
 
 // Succ succeeds if s is the successor of non-negative integer x.
 func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
-	switch x := x.(type) {
+	switch x := env.Resolve(x).(type) {
 	case Variable:
-		switch s := s.(type) {
+		switch s := env.Resolve(s).(type) {
 		case Variable:
 			return Error(InstantiationError(env))
 		case Integer:
@@ -2848,7 +2848,7 @@ func Succ(vm *VM, x, s Term, k Cont, env *Env) *Promise {
 			return Error(err)
 		}
 
-		switch s := s.(type) {
+		switch s := env.Resolve(s).(type) {
 		case Variable:
 			return Unify(vm, s, r, k, env)
 		case Integer:
