@@ -21,6 +21,8 @@ func TestVariable_WriteTerm(t *testing.T) {
 	}{
 		{title: "unnamed", v: x, output: fmt.Sprintf("_%d", x)},
 		{title: "variable_names", v: x, opts: WriteOptions{variableNames: map[Variable]Atom{x: NewAtom("Foo")}}, output: `Foo`},
+		{title: "following a letter-digit operator", v: x, opts: WriteOptions{left: operator{name: NewAtom("is")}}, output: fmt.Sprintf(" _%d", x)},
+		{title: "followed by a letter-digit operator", v: x, opts: WriteOptions{right: operator{name: NewAtom("is")}}, output: fmt.Sprintf("_%d ", x)},
 	}
 
 	var buf bytes.Buffer

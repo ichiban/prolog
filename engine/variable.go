@@ -28,11 +28,21 @@ func (v Variable) WriteTerm(w io.Writer, opts *WriteOptions, env *Env) error {
 		return x.WriteTerm(w, opts, env)
 	}
 
-	if a, ok := opts.variableNames[v]; ok {
-		return a.WriteTerm(w, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
+	ew := errWriter{w: w}
+
+	if letterDigit(opts.left.name) {
+		_, _ = ew.Write([]byte(" "))
 	}
-	_, err := w.Write([]byte(fmt.Sprintf("_%d", v)))
-	return err
+	if a, ok := opts.variableNames[v]; ok {
+		_ = a.WriteTerm(&ew, opts.withQuoted(false).withLeft(operator{}).withRight(operator{}), env)
+	} else {
+		_, _ = ew.Write([]byte(fmt.Sprintf("_%d", v)))
+	}
+	if letterDigit(opts.right.name) {
+		_, _ = ew.Write([]byte(" "))
+	}
+
+	return ew.err
 }
 
 func (v Variable) Compare(t Term, env *Env) int {
