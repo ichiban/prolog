@@ -202,7 +202,26 @@ load_files([File|Files], Options) :-
   load_files(File, Options),
   load_files(Files, Options).
 load_files(File, Options) :-
-  native:load_file(File, Options).
+  load_file(File, Options).
+
+load_file(FileSpec, Options) :-
+  file_spec_path(FileSpec, Path),
+  native:load_file(Path, Options).
+
+file_spec_path(FileSpec, FileSpec) :- atom(FileSpec), !.
+file_spec_path(FileSpec, Path) :- % Converts foo(bar) to 'foo/bar' for compatibility.
+  FileSpec =.. [PathAlias, DirSpec],
+  atom(PathAlias),
+  catch(file_spec_path(DirSpec, Path1), _, false), !,
+  atom_concat(PathAlias, /, X),
+  atom_concat(X, Path1, Path).
+file_spec_path(FileSpec1/FileSpec2, Path) :- % Converts foo/bar to 'foo/bar'
+  catch(file_spec_path(FileSpec1, Path1), _, false),
+  atom(FileSpec2), !,
+  atom_concat(Path1, /, X),
+  atom_concat(X, FileSpec2, Path).
+file_spec_path(FileSpec, _) :-
+  throw(error(domain_error(file_spec, FileSpec), file_spec_path/2)).
 
 % 7.8 Control constructs
 true.

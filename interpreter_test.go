@@ -85,7 +85,7 @@ func TestNew(t *testing.T) {
 	t.Run("length", func(t *testing.T) {
 		// http://www.complang.tuwien.ac.at/ulrich/iso-prolog/length_quad.pl
 		p := New(nil, os.Stdout)
-		require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
+		require.NoError(t, p.QuerySolution(`use_module(library(prologue)).`).Err())
 
 		var s struct {
 			L []interface{}
@@ -167,7 +167,7 @@ func TestNew(t *testing.T) {
 		}
 
 		p := New(nil, nil)
-		require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
+		require.NoError(t, p.QuerySolution(`use_module(library(prologue)).`).Err())
 
 		assert.NoError(t, p.QuerySolution(`call_nth(true, Nth), Nth = 1.`).Err())
 
@@ -220,7 +220,7 @@ func TestNew_variableNames(t *testing.T) {
 
 	var out bytes.Buffer
 	p := New(nil, &out)
-	require.NoError(t, p.QuerySolution(`use_module('libraries/prologue.pl').`).Err())
+	require.NoError(t, p.QuerySolution(`use_module(library(prologue)).`).Err())
 
 	defer func() {
 		_ = os.Remove("f") // Some test cases open a file 'f'.
@@ -1258,7 +1258,7 @@ foo(c, d).
 
 func ExampleInterpreter_Query_placeholders() {
 	p := New(nil, os.Stdout)
-	_ = p.QuerySolution(`use_module('libraries/prologue.pl').`)
+	_ = p.QuerySolution(`use_module(library(prologue)).`)
 	sols, _ := p.Query(`A = ?, maplist(atom, A), write(A), nl.`, "foo")
 	sols.Next()
 	_ = sols.Close()
@@ -1289,7 +1289,7 @@ func ExampleInterpreter_Query_placeholders() {
 
 func ExampleNew_phrase() {
 	p := New(nil, nil)
-	_ = p.QuerySolution(`use_module('libraries/dcg.pl').`)
+	_ = p.QuerySolution(`use_module(library(dcg)).`)
 	_, _ = p.Compile(context.Background(), `
 determiner --> [the].
 determiner --> [a].
@@ -1573,13 +1573,6 @@ func ExampleNew_arg() {
 	// error(instantiation_error,arg/3)
 	// error(type_error(compound,atom),arg/3)
 	// error(type_error(compound,3),arg/3)
-}
-
-func TestDefaultFS_Open(t *testing.T) {
-	var fs RealFS
-	f, err := fs.Open("interpreter.go")
-	assert.NoError(t, err)
-	assert.NotNil(t, f)
 }
 
 type readFn func(p []byte) (n int, err error)

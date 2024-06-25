@@ -21,6 +21,11 @@ type Lexer struct {
 
 // Token returns the next token.
 func (l *Lexer) Token() (Token, error) {
+	if l.module == nil {
+		l.module = func() *module {
+			return &module{}
+		}
+	}
 	l.offset = l.buf.Len()
 	return l.layoutTextSequence(false)
 }

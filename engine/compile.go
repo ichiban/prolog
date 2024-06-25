@@ -204,9 +204,11 @@ func (vm *VM) compileGoal(ctx context.Context, c *clause, goal Term, env *Env) e
 		}})
 		return nil
 	case Compound:
-		m := vm.modules[module]
 		pi := predicateIndicator{name: g.Functor(), arity: Integer(g.Arity())}
-		e := m.procedures[pi]
+		var e procedureEntry
+		if m, ok := vm.modules[module]; ok {
+			e = m.procedures[pi]
+		}
 		for i := 0; i < g.Arity(); i++ {
 			arg := g.Arg(i)
 			if e.metaPredicate != nil && e.metaPredicate[i].needsModuleNameExpansion() {

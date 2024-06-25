@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -250,6 +251,11 @@ func (vm *VM) SetUserOutput(s *Stream) {
 	vm.output = s
 }
 
+type ImportSpec struct {
+	Name  string
+	Arity int
+}
+
 type LoadFileOptions struct {
 	condition  LoadFileCondition
 	importList []ImportSpec
@@ -264,11 +270,6 @@ const (
 	// LoadFileConditionChanged is a condition which loads a file if it's not loaded yet or the timestamp is updated.
 	LoadFileConditionChanged
 )
-
-type ImportSpec struct {
-	Name  string
-	Arity int
-}
 
 // LoadFileOption specifies how the VM loads the file.
 type LoadFileOption func(*LoadFileOptions)
@@ -294,7 +295,11 @@ func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFile
 		f(&opts)
 	}
 
-	f, err := vm.FS.Open(filename)
+	fs := extFS{
+		fs:         vm.FS,
+		extensions: []string{"", ".pl"},
+	}
+	f, err := fs.Open(filename)
 	if err != nil {
 		return err
 	}
@@ -327,30 +332,61 @@ func (vm *VM) LoadFile(ctx context.Context, filename string, options ...LoadFile
 		r.loadedAt = time.Now()
 	}
 
-	if opts.importList == nil {
-		vm.importPredicates(vm.typeIn, r.module, nil)
+	vm.importPredicates(vm.typeIn, r.module, opts.importList)
+
+	return nil
+}
+
+type LoadOptions struct {
+	importList []ImportSpec
+}
+
+// LoadOption specifies how the VM loads the prolog text.
+type LoadOption func(*LoadOptions)
+
+// LoadOptionImports specifies which predicates the type-in module imports from the loaded module.
+func LoadOptionImports(importList []ImportSpec) func(options *LoadOptions) {
+	return func(opts *LoadOptions) {
+		opts.importList = importList
+	}
+}
+
+// LoadText loads a Prolog text.
+func (vm *VM) LoadText(ctx context.Context, text string, options ...LoadOption) error {
+	var opts LoadOptions
+	for _, f := range options {
+		f(&opts)
+	}
+
+	module, err := vm.Compile(ctx, text)
+	if err != nil {
+		return err
+	}
+
+	vm.importPredicates(vm.typeIn, module, opts.importList)
+
+	return nil
+}
+
+func (vm *VM) importPredicates(to, from Atom, importList []ImportSpec) {
+	dst, src := vm.module(to), vm.module(from)
+
+	var pis []predicateIndicator
+	if importList == nil {
+		pis = make([]predicateIndicator, 0, len(src.procedures))
+		for pi := range src.procedures {
+			pis = append(pis, pi)
+		}
 	} else {
-		pis := make([]predicateIndicator, len(opts.importList))
-		for i, spec := range opts.importList {
+		pis = make([]predicateIndicator, len(importList))
+		for i, spec := range importList {
 			pis[i] = predicateIndicator{
 				name:  NewAtom(spec.Name),
 				arity: Integer(spec.Arity),
 			}
 		}
-		vm.importPredicates(vm.typeIn, r.module, pis)
 	}
 
-	return nil
-}
-
-func (vm *VM) importPredicates(to, from Atom, pis []predicateIndicator) {
-	dst, src := vm.module(to), vm.module(from)
-	if pis == nil {
-		pis = make([]predicateIndicator, 0, len(src.procedures))
-		for pi := range src.procedures {
-			pis = append(pis, pi)
-		}
-	}
 	if dst.procedures == nil {
 		dst.procedures = map[predicateIndicator]procedureEntry{}
 	}
@@ -538,4 +574,40 @@ type wrongNumberOfArgumentsError struct {
 
 func (e *wrongNumberOfArgumentsError) Error() string {
 	return fmt.Sprintf("wrong number of arguments: expected=%d, actual=%s", e.expected, e.actual)
+}
+
+// extFS is a file system that fills in file extensions if omitted.
+type extFS struct {
+	fs         fs.FS
+	extensions []string
+}
+
+var (
+	_ fs.FS     = extFS{}
+	_ fs.StatFS = extFS{}
+)
+
+func (e extFS) Open(name string) (fs.File, error) {
+	if ext := filepath.Ext(name); ext != "" {
+		return e.fs.Open(name)
+	}
+	for _, ext := range e.extensions {
+		f, err := e.fs.Open(name + ext)
+		if err != nil {
+			continue
+		}
+		return f, nil
+	}
+	return nil, fs.ErrNotExist
+}
+
+func (e extFS) Stat(name string) (fs.FileInfo, error) {
+	for _, ext := range e.extensions {
+		fi, err := fs.Stat(e.fs, name+ext)
+		if err != nil {
+			continue
+		}
+		return fi, nil
+	}
+	return nil, fs.ErrNotExist
 }

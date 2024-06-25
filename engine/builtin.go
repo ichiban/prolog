@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -3106,17 +3105,12 @@ func Include(vm *VM, file Term, k Cont, env *Env) *Promise {
 }
 
 // LoadFile loads a Prolog text from a file.
-func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
-	filename, err := mustBeAtom(file, env)
+func LoadFile(vm *VM, path, options Term, k Cont, env *Env) *Promise {
+	filename, err := mustBeAtom(path, env)
 	if err != nil {
 		return Error(err)
 	}
 	fn := filename.String()
-
-	// TODO: implement absolute_file_name/[2, 3]?
-	if ext := filepath.Ext(fn); ext == "" {
-		fn += ".pl"
-	}
 
 	var (
 		condition  LoadFileCondition
@@ -3172,7 +3166,7 @@ func LoadFile(vm *VM, file, options Term, k Cont, env *Env) *Promise {
 	case errors.Is(err, fs.ErrInvalid):
 		fallthrough
 	case errors.Is(err, fs.ErrNotExist):
-		return Error(existenceError(objectTypeSourceSink, file, env))
+		return Error(existenceError(objectTypeSourceSink, path, env))
 	default:
 		return Error(err)
 	}

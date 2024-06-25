@@ -7,23 +7,24 @@ import (
 	"errors"
 	"github.com/ichiban/prolog/engine"
 	"io"
+	"os"
 	"strings"
 )
 
-//go:embed libraries
-var libraries embed.FS
+//go:embed library
+var library embed.FS
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
 	engine.VM
 }
 
-// New creates a new Prolog interpreter with predefined predicates/operators.
+// New creates a new Prolog interpreter with predefined fs.FS/predicates.
 func New(in io.Reader, out io.Writer) *Interpreter {
 	var i Interpreter
 	i.FS = OverlayFS{
-		libraries,
-		RealFS{},
+		library,
+		os.DirFS("."),
 	}
 	i.SetUserInput(engine.NewInputTextStream(in))
 	i.SetUserOutput(engine.NewOutputTextStream(out))
@@ -34,8 +35,6 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	i.SetPredicate1("discontiguous", engine.Discontiguous)
 	i.SetPredicate1("initialization", engine.Initialization)
 	i.SetPredicate1("include", engine.Include)
-
-	i.SetPredicate2("load_file", engine.LoadFile)
 
 	// Control constructs
 	i.SetPredicate1("call", engine.Call)
@@ -163,8 +162,9 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 	// SICStus Prolog compatibility
 	i.SetPredicate2("module", engine.DefineModule)
 	i.SetPredicate1("meta_predicate", engine.MetaPredicate)
+	i.SetPredicate2("load_file", engine.LoadFile)
 
-	if err := i.LoadFile(context.Background(), "libraries/prolog.pl"); err != nil {
+	if err := i.LoadFile(context.Background(), "library/prolog.pl"); err != nil {
 		panic(err)
 	}
 

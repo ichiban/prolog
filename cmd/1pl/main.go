@@ -69,7 +69,7 @@ Type Ctrl-C or 'halt.' to exit.
 	log.SetOutput(t)
 
 	i := prolog.New(&userInput{t: t}, t)
-	if err := i.QuerySolution(`use_module('libraries/prologue.pl').`).Err(); err != nil {
+	if err := i.QuerySolution(`use_module(library(prologue)).`).Err(); err != nil {
 		log.Panic(err)
 	}
 	i.SetPredicate1("cd", func(vm *engine.VM, path engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
@@ -99,32 +99,22 @@ Type Ctrl-C or 'halt.' to exit.
 		log.Printf("UNKNOWN %s", &sb)
 	}
 
-	sols, err := i.Query(`current_ops(P, S, N).`)
-	if err != nil {
-		panic(err)
-	}
-	for sols.Next() {
-		var s struct {
-			P int
-			S string
-			N string
-		}
-		if err := sols.Scan(&s); err != nil {
-			panic(err)
-		}
-		log.Printf("%d %s %s", s.P, s.S, s.N)
-	}
-	if err := sols.Close(); err != nil {
-		panic(err)
-	}
-
-	// Consult arguments.
-	if err := i.QuerySolution(`findall(F, (member(X, ?), atom_chars(F, X)), Fs), consult(Fs).`, flag.Args()).Err(); err != nil {
-		log.Panic(err)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+
+	for _, arg := range flag.Args() {
+		f, err := os.Open(arg)
+		if err != nil {
+			log.Panicf("open file error: %v", err)
+		}
+		b, err := io.ReadAll(f)
+		if err != nil {
+			log.Panicf("read file error: %v", err)
+		}
+		if err := i.LoadText(ctx, string(b)); err != nil {
+			log.Panicf("load text error: %v", err)
+		}
+	}
 
 	var buf strings.Builder
 	keys := bufio.NewReader(os.Stdin)

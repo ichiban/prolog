@@ -1,5 +1,5 @@
-:- use_module('libraries/prologue.pl', [append/3]).
-:- use_module('libraries/dcg.pl').
+:- use_module(library(prologue), [append/3]).
+:- use_module(library(dcg)).
 :- set_prolog_flag(double_quotes, atom).
 
 sentence --> noun_phrase, verb_phrase.
