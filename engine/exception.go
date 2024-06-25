@@ -259,6 +259,8 @@ const (
 	flagMaxArity
 	flagMaxInteger
 	flagMinInteger
+	flagInvalidDec
+	flagInfiniteDec
 )
 
 var flagAtoms = [...]Atom{
@@ -268,6 +270,8 @@ var flagAtoms = [...]Atom{
 	flagMaxArity:        atomMaxArity,
 	flagMaxInteger:      atomMaxInteger,
 	flagMinInteger:      atomMinInteger,
+	flagInvalidDec:      atomInvalidDec,
+	flagInfiniteDec:     atomInfiniteDec,
 }
 
 // Term returns an Atom for the flag.
