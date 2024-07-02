@@ -51,7 +51,7 @@ func TestAtom_Compare(t *testing.T) {
 		o     int
 	}{
 		{title: `a > X`, a: NewAtom("a"), t: x, o: 1},
-		{title: `a > 1.0`, a: NewAtom("a"), t: Float(1), o: 1},
+		{title: `a > 1.0`, a: NewAtom("a"), t: NewFloatFromInt64(1), o: 1},
 		{title: `a > 1`, a: NewAtom("a"), t: Integer(1), o: 1},
 		{title: `a > 'Z'`, a: NewAtom("a"), t: NewAtom("Z"), o: 1},
 		{title: `a = a`, a: NewAtom("a"), t: NewAtom("a"), o: 0},

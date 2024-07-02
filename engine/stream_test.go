@@ -79,7 +79,7 @@ func TestStream_Compare(t *testing.T) {
 		o     int
 	}{
 		{title: `s > X`, s: &ss[1], t: x, o: 1},
-		{title: `s > 1.0`, s: &ss[1], t: Float(1), o: 1},
+		{title: `s > 1.0`, s: &ss[1], t: NewFloatFromInt64(1), o: 1},
 		{title: `s > 1`, s: &ss[1], t: Integer(2), o: 1},
 		{title: `s > a`, s: &ss[1], t: NewAtom("a"), o: 1},
 		{title: `s > s`, s: &ss[1], t: &ss[0], o: 1},

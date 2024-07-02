@@ -46,7 +46,7 @@ func TestCompareAtomic(t *testing.T) {
 		o   int
 	}{
 		{a: &y{}, t: NewVariable(), o: 1},
-		{a: &y{}, t: Float(0), o: 1},
+		{a: &y{}, t: NewFloatFromInt64(0), o: 1},
 		{a: &y{}, t: Integer(0), o: 1},
 		{a: &y{}, t: Atom(0), o: 1},
 		{a: &y{}, t: &x{}, o: 1},

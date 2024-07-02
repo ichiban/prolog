@@ -73,7 +73,7 @@ func TestCompareCompound(t *testing.T) {
 		o     int
 	}{
 		{title: `f(a) > X`, x: NewAtom("f").Apply(NewAtom("a")), y: x, o: 1},
-		{title: `f(a) > 1.0`, x: NewAtom("f").Apply(NewAtom("a")), y: Float(1), o: 1},
+		{title: `f(a) > 1.0`, x: NewAtom("f").Apply(NewAtom("a")), y: NewFloatFromInt64(1), o: 1},
 		{title: `f(a) > 1`, x: NewAtom("f").Apply(NewAtom("a")), y: Integer(1), o: 1},
 		{title: `f(a) > a`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("a"), o: 1}, {title: `f(a) > f('Z')`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("f").Apply(NewAtom("Z")), o: 1},
 		{title: `f(a) > e(a)`, x: NewAtom("f").Apply(NewAtom("a")), y: NewAtom("e").Apply(NewAtom("a")), o: 1},

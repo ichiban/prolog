@@ -45,7 +45,7 @@ func TestVariable_Compare(t *testing.T) {
 		{title: `X > W`, v: x, t: w, o: 1},
 		{title: `X = X`, v: x, t: x, o: 0},
 		{title: `X < Y`, v: x, t: y, o: -1},
-		{title: `X < 0.0`, v: x, t: Float(0), o: -1},
+		{title: `X < 0.0`, v: x, t: NewFloatFromInt64(0), o: -1},
 		{title: `X < 0`, v: x, t: Integer(0), o: -1},
 		{title: `X < a`, v: x, t: NewAtom("a"), o: -1},
 		{title: `X < f(a)`, v: x, t: NewAtom("f").Apply(NewAtom("a")), o: -1},

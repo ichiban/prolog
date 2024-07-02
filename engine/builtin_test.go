@@ -399,7 +399,7 @@ func TestUnify(t *testing.T) {
 			y: NewAtom("def"),
 		}},
 		{title: `'='(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
-		{title: `'='(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `'='(1, 1.0).`, x: Integer(1), y: NewFloatFromInt64(1), ok: false},
 		{title: `'='(g(X), f(f(X))).`, x: NewAtom("g").Apply(x), y: NewAtom("f").Apply(NewAtom("f").Apply(x)), ok: false},
 		{title: `'='(f(X, 1), f(a(X))).`, x: NewAtom("f").Apply(x, Integer(1)), y: NewAtom("f").Apply(NewAtom("a").Apply(x)), ok: false},
 		{title: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: NewAtom("f").Apply(x, y, x), y: NewAtom("f").Apply(NewAtom("a").Apply(x), NewAtom("a").Apply(y), y, Integer(2)), ok: false},
@@ -453,7 +453,7 @@ func TestUnifyWithOccursCheck(t *testing.T) {
 			y: NewAtom("def"),
 		}},
 		{title: `unify_with_occurs_check(1, 2).`, x: Integer(1), y: Integer(2), ok: false},
-		{title: `unify_with_occurs_check(1, 1.0).`, x: Integer(1), y: Float(1), ok: false},
+		{title: `unify_with_occurs_check(1, 1.0).`, x: Integer(1), y: NewFloatFromInt64(1), ok: false},
 		{title: `unify_with_occurs_check(g(X), f(f(X))).`, x: NewAtom("g").Apply(x), y: NewAtom("f").Apply(NewAtom("f").Apply(x)), ok: false},
 		{title: `unify_with_occurs_check(f(X, 1), f(a(X))).`, x: NewAtom("f").Apply(x, Integer(1)), y: NewAtom("f").Apply(NewAtom("a").Apply(x)), ok: false},
 		{title: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, x: NewAtom("f").Apply(x, y, x), y: NewAtom("f").Apply(NewAtom("a").Apply(x), NewAtom("a").Apply(y), y, Integer(2)), ok: false},
@@ -515,7 +515,7 @@ func TestTypeVar(t *testing.T) {
 
 func TestTypeFloat(t *testing.T) {
 	t.Run("float", func(t *testing.T) {
-		ok, err := TypeFloat(nil, Float(1.0), Success, nil).Force(context.Background())
+		ok, err := TypeFloat(nil, newFloatFromFloat64Must(1.0), Success, nil).Force(context.Background())
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
@@ -632,15 +632,15 @@ func TestFunctor(t *testing.T) {
 			x: Integer(1),
 			y: Integer(0),
 		}},
-		{title: `functor(X, 1.1, 0).`, term: x, name: Float(1.1), arity: Integer(0), ok: true, env: map[Variable]Term{
-			x: Float(1.1),
+		{title: `functor(X, 1.1, 0).`, term: x, name: newFloatFromFloat64Must(1.1), arity: Integer(0), ok: true, env: map[Variable]Term{
+			x: newFloatFromFloat64Must(1.1),
 		}},
 		{title: `functor([_|_], '.', 2).`, term: Cons(NewVariable(), NewVariable()), name: atomDot, arity: Integer(2), ok: true},
 		{title: `functor([], [], 0).`, term: atomEmptyList, name: atomEmptyList, arity: Integer(0), ok: true},
 		{title: `functor(X, Y, 3).`, term: x, name: y, arity: Integer(3), err: InstantiationError(nil)},
 		{title: `functor(X, foo, N).`, term: x, name: NewAtom("foo"), arity: n, err: InstantiationError(nil)},
 		{title: `functor(X, foo, a).`, term: x, name: NewAtom("foo"), arity: NewAtom("a"), err: typeError(validTypeInteger, NewAtom("a"), nil)},
-		{title: `functor(F, 1.5, 1).`, term: f, name: Float(1.5), arity: Integer(1), err: typeError(validTypeAtom, Float(1.5), nil)},
+		{title: `functor(F, 1.5, 1).`, term: f, name: newFloatFromFloat64Must(1.5), arity: Integer(1), err: typeError(validTypeAtom, newFloatFromFloat64Must(1.5), nil)},
 		{title: `functor(F, foo(a), 1).`, term: f, name: NewAtom("foo").Apply(NewAtom("a")), arity: Integer(1), err: typeError(validTypeAtomic, NewAtom("foo").Apply(NewAtom("a")), nil)},
 		// {title: `current_prolog_flag(max_arity, A), X is A + 1, functor(T, foo, X).`}
 		{title: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, term: f, name: NewAtom("foo"), arity: Integer(-1), err: domainError(validDomainNotLessThanZero, Integer(-1), nil)},
@@ -782,7 +782,7 @@ func TestUniv(t *testing.T) {
 		{title: "9", term: x, list: PartialList(NewAtom("bar"), NewAtom("foo")), err: typeError(validTypeList, PartialList(NewAtom("bar"), NewAtom("foo")), nil)},
 		{title: "10", term: x, list: List(foo, NewAtom("bar")), err: InstantiationError(nil)},
 		{title: "11", term: x, list: List(Integer(3), Integer(1)), err: typeError(validTypeAtom, Integer(3), nil)},
-		{title: "12", term: x, list: List(Float(1.1), NewAtom("foo")), err: typeError(validTypeAtom, Float(1.1), nil)},
+		{title: "12", term: x, list: List(newFloatFromFloat64Must(1.1), NewAtom("foo")), err: typeError(validTypeAtom, newFloatFromFloat64Must(1.1), nil)},
 		{title: "13", term: x, list: List(NewAtom("a").Apply(NewAtom("b")), Integer(1)), err: typeError(validTypeAtom, NewAtom("a").Apply(NewAtom("b")), nil)},
 		{title: "14", term: x, list: Integer(4), err: typeError(validTypeList, Integer(4), nil)},
 		{title: "15", term: NewAtom("f").Apply(x), list: List(NewAtom("f"), NewAtom("u").Apply(x)), ok: true, env: map[Variable]Term{
@@ -2104,8 +2104,8 @@ func TestCompare(t *testing.T) {
 			order: atomLessThan,
 		}},
 		{title: `compare(<, <, <).`, order: atomLessThan, x: atomLessThan, y: atomLessThan, ok: false},
-		{title: `compare(1+2, 3, 3.0).`, order: atomPlus.Apply(Integer(1), Integer(2)), x: Integer(3), y: Float(3.0), ok: false, err: typeError(validTypeAtom, atomPlus.Apply(Integer(1), Integer(2)), nil)},
-		{title: `compare(>=, 3, 3.0).`, order: NewAtom(">="), x: Integer(3), y: Float(3.0), ok: false, err: domainError(validDomainOrder, NewAtom(">="), nil)},
+		{title: `compare(1+2, 3, 3.0).`, order: atomPlus.Apply(Integer(1), Integer(2)), x: Integer(3), y: newFloatFromFloat64Must(3.0), ok: false, err: typeError(validTypeAtom, atomPlus.Apply(Integer(1), Integer(2)), nil)},
+		{title: `compare(>=, 3, 3.0).`, order: NewAtom(">="), x: Integer(3), y: newFloatFromFloat64Must(3.0), ok: false, err: domainError(validDomainOrder, NewAtom(">="), nil)},
 
 		{title: `missing case for >`, order: atomGreaterThan, x: Integer(2), y: Integer(1), ok: true},
 	}
@@ -5523,7 +5523,7 @@ func TestAtomLength(t *testing.T) {
 		}},
 		{title: "atom_length('scarlet', 5).", atom: NewAtom("scarlet"), length: Integer(5), ok: false},
 		{title: "atom_length(Atom, 4).", atom: NewVariable(), length: Integer(4), err: InstantiationError(nil)},
-		{title: "atom_length(1.23, 4).", atom: Float(1.23), length: Integer(4), err: typeError(validTypeAtom, Float(1.23), nil)},
+		{title: "atom_length(1.23, 4).", atom: newFloatFromFloat64Must(1.23), length: Integer(4), err: typeError(validTypeAtom, newFloatFromFloat64Must(1.23), nil)},
 		{title: "atom_length(atom, '4').", atom: NewAtom("atom"), length: NewAtom("4"), err: typeError(validTypeInteger, NewAtom("4"), nil)},
 
 		// 8.16.1.3 Errors
@@ -5868,7 +5868,7 @@ func TestNumberChars(t *testing.T) {
 		t.Run("chars is a partial list", func(t *testing.T) {
 			chars := NewVariable()
 
-			ok, err := NumberChars(nil, Float(23.4), chars, func(env *Env) *Promise {
+			ok, err := NumberChars(nil, newFloatFromFloat64Must(23.4), chars, func(env *Env) *Promise {
 				assert.Equal(t, List(NewAtom("2"), NewAtom("3"), atomDot, NewAtom("4")), env.Resolve(chars))
 				return Bool(true)
 			}, nil).Force(context.Background())
@@ -5879,7 +5879,7 @@ func TestNumberChars(t *testing.T) {
 		t.Run("chars is a list with variables", func(t *testing.T) {
 			char := NewVariable()
 
-			ok, err := NumberChars(nil, Float(23.4), List(char, NewAtom("3"), atomDot, NewAtom("4")), func(env *Env) *Promise {
+			ok, err := NumberChars(nil, newFloatFromFloat64Must(23.4), List(char, NewAtom("3"), atomDot, NewAtom("4")), func(env *Env) *Promise {
 				assert.Equal(t, NewAtom("2"), env.Resolve(char))
 				return Bool(true)
 			}, nil).Force(context.Background())
@@ -5892,7 +5892,7 @@ func TestNumberChars(t *testing.T) {
 		num := NewVariable()
 
 		ok, err := NumberChars(nil, num, List(NewAtom("2"), NewAtom("3"), atomDot, NewAtom("4")), func(env *Env) *Promise {
-			assert.Equal(t, Float(23.4), env.Resolve(num))
+			assert.Equal(t, newFloatFromFloat64Must(23.4), env.Resolve(num))
 			return Bool(true)
 		}, nil).Force(context.Background())
 		assert.NoError(t, err)
@@ -5901,13 +5901,13 @@ func TestNumberChars(t *testing.T) {
 
 	t.Run("both provided", func(t *testing.T) {
 		t.Run("3.3", func(t *testing.T) {
-			ok, err := NumberChars(nil, Float(3.3), List(NewAtom("3"), atomDot, NewAtom("3")), Success, nil).Force(context.Background())
+			ok, err := NumberChars(nil, newFloatFromFloat64Must(3.3), List(NewAtom("3"), atomDot, NewAtom("3")), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
 
 		t.Run("3.3E+0", func(t *testing.T) {
-			ok, err := NumberChars(nil, Float(3.3), List(NewAtom("3"), atomDot, NewAtom("3"), NewAtom("E"), atomPlus, NewAtom("0")), Success, nil).Force(context.Background())
+			ok, err := NumberChars(nil, newFloatFromFloat64Must(3.3), List(NewAtom("3"), atomDot, NewAtom("3"), NewAtom("E"), atomPlus, NewAtom("0")), Success, nil).Force(context.Background())
 			assert.NoError(t, err)
 			assert.True(t, ok)
 		})
@@ -6017,10 +6017,10 @@ func TestNumberCodes(t *testing.T) {
 			l: List(Integer('3'), Integer('3')),
 		}},
 		{title: "number_codes(33, [0'3, 0'3]).", number: Integer(33), list: List(Integer('3'), Integer('3')), ok: true},
-		{title: "number_codes(33.0, L).", number: Float(33.0), list: l, ok: true, env: map[Variable]Term{
+		{title: "number_codes(33.0, L).", number: newFloatFromFloat64Must(33.0), list: l, ok: true, env: map[Variable]Term{
 			l: List(Integer('3'), Integer('3'), Integer('.'), Integer('0')),
 		}},
-		{title: "number_codes(33.0, [0'3, 0'., 0'3, 0'E, 0'+, 0'0, 0'1]).", number: Float(33.0), list: List(Integer('3'), Integer('.'), Integer('3'), Integer('E'), Integer('+'), Integer('0'), Integer('1')), ok: true},
+		{title: "number_codes(33.0, [0'3, 0'., 0'3, 0'E, 0'+, 0'0, 0'1]).", number: newFloatFromFloat64Must(33.0), list: List(Integer('3'), Integer('.'), Integer('3'), Integer('E'), Integer('+'), Integer('0'), Integer('1')), ok: true},
 		{title: "number_codes(A, [0'-, 0'2, 0'5]).", number: a, list: List(Integer('-'), Integer('2'), Integer('5')), ok: true, env: map[Variable]Term{
 			a: Integer(-25),
 		}},
@@ -6034,10 +6034,10 @@ func TestNumberCodes(t *testing.T) {
 			a: Integer('a'),
 		}},
 		{title: "number_codes(A, [0'4, 0'., 0'2]).", number: a, list: List(Integer('4'), Integer('.'), Integer('2')), ok: true, env: map[Variable]Term{
-			a: Float(4.2),
+			a: newFloatFromFloat64Must(4.2),
 		}},
 		{title: "number_codes(A, [0'4, 0'2, 0'., 0'0, 0'e, 0'-, 0'1]).", number: a, list: List(Integer('4'), Integer('2'), Integer('.'), Integer('0'), Integer('e'), Integer('-'), Integer('1')), ok: true, env: map[Variable]Term{
-			a: Float(4.2),
+			a: newFloatFromFloat64Must(4.2),
 		}},
 
 		// 8.16.8.3 Errors
@@ -7162,8 +7162,8 @@ func TestSucc(t *testing.T) {
 		})
 
 		t.Run("s is neither a variable nor an integer", func(t *testing.T) {
-			_, err := Succ(nil, NewVariable(), Float(1), Success, nil).Force(context.Background())
-			assert.Equal(t, typeError(validTypeInteger, Float(1), nil), err)
+			_, err := Succ(nil, NewVariable(), NewFloatFromInt64(1), Success, nil).Force(context.Background())
+			assert.Equal(t, typeError(validTypeInteger, NewFloatFromInt64(1), nil), err)
 		})
 	})
 
@@ -7185,8 +7185,8 @@ func TestSucc(t *testing.T) {
 		})
 
 		t.Run("s is neither a variable nor an integer", func(t *testing.T) {
-			_, err := Succ(nil, Integer(0), Float(1), Success, nil).Force(context.Background())
-			assert.Equal(t, typeError(validTypeInteger, Float(1), nil), err)
+			_, err := Succ(nil, Integer(0), NewFloatFromInt64(1), Success, nil).Force(context.Background())
+			assert.Equal(t, typeError(validTypeInteger, NewFloatFromInt64(1), nil), err)
 		})
 
 		t.Run("x is negative", func(t *testing.T) {
@@ -7206,8 +7206,8 @@ func TestSucc(t *testing.T) {
 	})
 
 	t.Run("x is neither a variable nor an integer", func(t *testing.T) {
-		_, err := Succ(nil, Float(0), NewVariable(), Success, nil).Force(context.Background())
-		assert.Equal(t, typeError(validTypeInteger, Float(0), nil), err)
+		_, err := Succ(nil, newFloatFromFloat64Must(0), NewVariable(), Success, nil).Force(context.Background())
+		assert.Equal(t, typeError(validTypeInteger, newFloatFromFloat64Must(0), nil), err)
 	})
 }
 

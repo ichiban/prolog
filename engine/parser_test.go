@@ -9,6 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertEqualFloatAware(t *testing.T, expected interface{}, actual interface{}) {
+	if x, ok := expected.(Float); ok {
+		if y, ok := actual.(Float); ok {
+			if x.dec.Cmp(y.dec) == 0 {
+				return
+			}
+		}
+		assert.Fail(t, "Not equal", expected, actual)
+	}
+	assert.Equal(t, expected, actual)
+}
+
 func TestParser_Term(t *testing.T) {
 	ops := operators{}
 	ops.define(1000, operatorSpecifierXFY, NewAtom(`,`))
@@ -69,10 +81,10 @@ func TestParser_Term(t *testing.T) {
 		{input: `-`, err: io.EOF},
 		{input: `- -`, err: io.EOF},
 
-		{input: `1.0.`, term: Float(1)},
-		{input: `-1.0.`, term: Float(-1)},
-		{input: `- 1.0.`, term: Float(-1)},
-		{input: `'-'1.0.`, term: Float(-1)},
+		{input: `1.0.`, term: NewFloatFromInt64(1)},
+		{input: `-1.0.`, term: NewFloatFromInt64(-1)},
+		{input: `- 1.0.`, term: NewFloatFromInt64(-1)},
+		{input: `'-'1.0.`, term: NewFloatFromInt64(-1)},
 
 		{input: `_.`, termLazy: func() Term {
 			return lastVariable()
@@ -167,16 +179,16 @@ func TestParser_Term(t *testing.T) {
 				doubleQuotes: tc.doubleQuotes,
 			}
 			term, err := p.Term()
-			assert.Equal(t, tc.err, err)
+			assertEqualFloatAware(t, tc.err, err)
 			if tc.termLazy == nil {
-				assert.Equal(t, tc.term, term)
+				assertEqualFloatAware(t, tc.term, term)
 			} else {
-				assert.Equal(t, tc.termLazy(), term)
+				assertEqualFloatAware(t, tc.termLazy(), term)
 			}
 			if tc.vars == nil {
 				assert.Empty(t, p.Vars)
 			} else {
-				assert.Equal(t, tc.vars(), p.Vars)
+				assertEqualFloatAware(t, tc.vars(), p.Vars)
 			}
 		})
 	}
@@ -195,22 +207,22 @@ func TestParser_Replace(t *testing.T) {
 			title:        "chars",
 			doubleQuotes: doubleQuotesChars,
 			input:        `[?, ?, ?, ?].`,
-			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
-			term:         List(Float(1.0), Integer(2), CharList("foo"), List(CharList("a"), CharList("b"), CharList("c"))),
+			args:         []interface{}{1, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Integer(1), Integer(2), CharList("foo"), List(CharList("a"), CharList("b"), CharList("c"))),
 		},
 		{
 			title:        "codes",
 			doubleQuotes: doubleQuotesCodes,
 			input:        `[?, ?, ?, ?].`,
-			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
-			term:         List(Float(1.0), Integer(2), CodeList("foo"), List(CodeList("a"), CodeList("b"), CodeList("c"))),
+			args:         []interface{}{1, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Integer(1), Integer(2), CodeList("foo"), List(CodeList("a"), CodeList("b"), CodeList("c"))),
 		},
 		{
 			title:        "atom",
 			doubleQuotes: doubleQuotesAtom,
 			input:        `[?, ?, ?, ?].`,
-			args:         []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
-			term:         List(Float(1.0), Integer(2), NewAtom("foo"), List(NewAtom("a"), NewAtom("b"), NewAtom("c"))),
+			args:         []interface{}{1, 2, "foo", []string{"a", "b", "c"}},
+			term:         List(Integer(1), Integer(2), NewAtom("foo"), List(NewAtom("a"), NewAtom("b"), NewAtom("c"))),
 		},
 		{
 			title: "invalid argument",
@@ -221,13 +233,13 @@ func TestParser_Replace(t *testing.T) {
 		{
 			title:   "too few arguments",
 			input:   `[?, ?, ?, ?, ?].`,
-			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}},
+			args:    []interface{}{1, 2, "foo", []string{"a", "b", "c"}},
 			termErr: errors.New("not enough arguments for placeholders"),
 		},
 		{
 			title:   "too many arguments",
 			input:   `[?, ?, ?, ?].`,
-			args:    []interface{}{1.0, 2, "foo", []string{"a", "b", "c"}, "extra"},
+			args:    []interface{}{1, 2, "foo", []string{"a", "b", "c"}, "extra"},
 			termErr: errors.New("too many arguments for placeholders: [extra]"),
 		},
 	}
@@ -277,10 +289,10 @@ func TestParser_Number(t *testing.T) {
 		{input: `0o1`, number: Integer(1)},
 		{input: `0x1`, number: Integer(1)},
 
-		{input: `3.3`, number: Float(3.3)},
-		{input: `-3.3`, number: Float(-3.3)},
-		{input: `- 3.3`, number: Float(-3.3)},
-		{input: `'-'3.3`, number: Float(-3.3)},
+		{input: `3.3`, number: newFloatFromFloat64Must(3.3)},
+		{input: `-3.3`, number: newFloatFromFloat64Must(-3.3)},
+		{input: `- 3.3`, number: newFloatFromFloat64Must(-3.3)},
+		{input: `'-'3.3`, number: newFloatFromFloat64Must(-3.3)},
 
 		{input: ``, err: io.EOF},
 		{input: `X`, err: errNotANumber},

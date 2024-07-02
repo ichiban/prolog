@@ -46,7 +46,7 @@ func TestInteger_Compare(t *testing.T) {
 		o     int
 	}{
 		{title: `1 > X`, i: 1, t: x, o: 1},
-		{title: `1 > 1.0`, i: 1, t: Float(1), o: 1},
+		{title: `1 > 1.0`, i: 1, t: NewFloatFromInt64(1), o: 1},
 		{title: `1 > 0`, i: 1, t: Integer(0), o: 1},
 		{title: `1 = 1`, i: 1, t: Integer(1), o: 0},
 		{title: `1 < 2`, i: 1, t: Integer(2), o: -1},

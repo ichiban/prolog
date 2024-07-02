@@ -82,9 +82,9 @@ func TestSolutions_Scan(t *testing.T) {
 			X: 1,
 		}},
 		{title: "struct: interface, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
+			"X": engine.NewFloatFromInt64(1),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
-			X: 1.0,
+			X: "1",
 		}},
 		{title: "struct: interface, list", sols: sols(map[string]engine.Term{
 			"X": engine.List(engine.Integer(1), engine.Integer(2), engine.Integer(3)),
@@ -149,16 +149,10 @@ func TestSolutions_Scan(t *testing.T) {
 			"X": engine.NewAtom("foo"),
 		}), dest: &struct{ X int64 }{}, err: errConversion},
 
-		{title: "struct: float32, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
-		}), dest: &struct{ X float32 }{}, result: &struct{ X float32 }{X: 1}},
 		{title: "struct: float32, non-float", sols: sols(map[string]engine.Term{
 			"X": engine.NewAtom("foo"),
 		}), dest: &struct{ X float32 }{}, err: errConversion},
 
-		{title: "struct: float64, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
-		}), dest: &struct{ X float64 }{}, result: &struct{ X float64 }{X: 1}},
 		{title: "struct: float64, non-float", sols: sols(map[string]engine.Term{
 			"X": engine.NewAtom("foo"),
 		}), dest: &struct{ X float64 }{}, err: errConversion},
@@ -231,12 +225,12 @@ func ExampleSolutions_Scan() {
 		var s struct {
 			A string
 			I int
-			F float64
+			F string
 		}
 		_ = sols.Scan(&s)
 		fmt.Printf("A = %s\n", s.A)
 		fmt.Printf("I = %d\n", s.I)
-		fmt.Printf("F = %.2f\n", s.F)
+		fmt.Printf("F = %s\n", s.F)
 	}
 
 	// Output:
@@ -250,14 +244,14 @@ func ExampleSolutions_Scan_tag() {
 	sols, _ := p.Query(`A = foo, I = 42, F = 3.14.`)
 	for sols.Next() {
 		var s struct {
-			Atom    string  `prolog:"A"`
-			Integer int     `prolog:"I"`
-			Float   float64 `prolog:"F"`
+			Atom    string `prolog:"A"`
+			Integer int    `prolog:"I"`
+			Float   string `prolog:"F"`
 		}
 		_ = sols.Scan(&s)
 		fmt.Printf("Atom = %s\n", s.Atom)
 		fmt.Printf("Integer = %d\n", s.Integer)
-		fmt.Printf("Float = %.2f\n", s.Float)
+		fmt.Printf("Float = %s\n", s.Float)
 	}
 
 	// Output:
@@ -273,14 +267,14 @@ func ExampleSolutions_Scan_list() {
 		var s struct {
 			Atoms    []string
 			Integers []int64
-			Floats   []float64
+			Floats   []string
 			Mixed    []interface{}
 		}
 		_ = sols.Scan(&s)
 
 		fmt.Printf("Atoms = %s\n", s.Atoms)
 		fmt.Printf("Integers = %d\n", s.Integers)
-		fmt.Printf("Floats = %.1f\n", s.Floats)
+		fmt.Printf("Floats = %s\n", s.Floats)
 		fmt.Printf("Mixed = %v\n", s.Mixed)
 	}
 

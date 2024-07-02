@@ -721,7 +721,7 @@ func TestInterpreter_Exec(t *testing.T) {
 		{query: `0.`, err: true},
 		{query: `append(cons(X, L1), L2, cons(X, L3)) :- append(L1, L2, L3).`},
 
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2, []string{"abc", "def"}}},
 		{query: `foo(?).`, args: []interface{}{nil}, err: true},
 
 		{query: `#!/usr/bin/env 1pl
@@ -766,7 +766,7 @@ func TestInterpreter_Query(t *testing.T) {
 	type result struct {
 		A    string
 		B    int
-		C    float64
+		C    string
 		List []string `prolog:"D"`
 	}
 
@@ -785,12 +785,11 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `append([a, b], [c], X).`, scan: map[string]TermString{}, result: map[string]TermString{
 			"X": "[a,b,c]",
 		}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{"a", 1, 2.0, []string{"abc", "def"}}, scan: map[string]interface{}{}, result: map[string]interface{}{}},
-		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, 2.0, []string{"abc", "def"}}, queryErr: true, result: nil},
+		{query: `foo(?, ?, ?, ?).`, args: []interface{}{nil, 1, "2.0", []string{"abc", "def"}}, queryErr: true, result: nil},
 		{query: `foo(A, B, C, D).`, scan: &result{}, result: &result{
 			A:    "a",
 			B:    1,
-			C:    2.0,
+			C:    "2.0",
 			List: []string{"abc", "def"},
 		}},
 	}
@@ -1253,11 +1252,6 @@ func ExampleInterpreter_Exec_placeholders() {
 	sols.Next()
 	_ = sols.Close()
 
-	_ = p.Exec(`my_float(?, ?).`, float32(1), float64(1))
-	sols, _ = p.Query(`my_float(F, F), float(F), write(F), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
 	_ = p.Exec(`my_atom_list(?).`, []string{"foo", "bar", "baz"})
 	sols, _ = p.Query(`my_atom_list(As), maplist(maplist(atom), As), write(As), nl.`)
 	sols.Next()
@@ -1268,18 +1262,11 @@ func ExampleInterpreter_Exec_placeholders() {
 	sols.Next()
 	_ = sols.Close()
 
-	_ = p.Exec(`my_float_list(?).`, []float64{1, 2, 3})
-	sols, _ = p.Query(`my_float_list(Fs), maplist(float, Fs), write(Fs), nl.`)
-	sols.Next()
-	_ = sols.Close()
-
 	// Output:
 	// [f,o,o]
 	// 1
-	// 1.0
 	// [[f,o,o],[b,a,r],[b,a,z]]
 	// [1,2,3]
-	// [1.0,2.0,3.0]
 }
 
 func ExampleInterpreter_Query_placeholders() {
@@ -1290,26 +1277,18 @@ func ExampleInterpreter_Query_placeholders() {
 	sols, _ = p.Query(`(I, I, I, I, I) = (?, ?, ?, ?, ?), integer(I), write(I), nl.`, int8(1), int16(1), int32(1), int64(1), 1)
 	sols.Next()
 	_ = sols.Close()
-	sols, _ = p.Query(`(F, F) = (?, ?), float(F), write(F), nl.`, float32(1), float64(1))
-	sols.Next()
-	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(maplist(atom), L), write(L), nl.`, []string{"foo", "bar", "baz"})
 	sols.Next()
 	_ = sols.Close()
 	sols, _ = p.Query(`L = ?, maplist(integer, L), write(L), nl.`, []int{1, 2, 3})
 	sols.Next()
 	_ = sols.Close()
-	sols, _ = p.Query(`L = ?, maplist(float, L), write(L), nl.`, []float64{1, 2, 3})
-	sols.Next()
-	_ = sols.Close()
 
 	// Output:
 	// [f,o,o]
 	// 1
-	// 1.0
 	// [[f,o,o],[b,a,r],[b,a,z]]
 	// [1,2,3]
-	// [1.0,2.0,3.0]
 }
 
 func ExampleNew_phrase() {
