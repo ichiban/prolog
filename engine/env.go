@@ -306,6 +306,16 @@ func (e *Env) unify(x, y Term, occursCheck bool) (*Env, bool) {
 		switch y := y.(type) {
 		case Variable:
 			return e.unify(y, x, occursCheck)
+		case Float:
+			if x, ok := x.(Float); ok {
+				return e, y.Eq(x)
+			}
+			return e, false
+		case Integer:
+			if x, ok := x.(Integer); ok {
+				return e, y == x
+			}
+			return e, false
 		default:
 			return e, x == y
 		}
