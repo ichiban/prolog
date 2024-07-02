@@ -118,10 +118,6 @@ func convertAssign(dest interface{}, vm *engine.VM, t engine.Term, env *engine.E
 		return convertAssignInt32(d, t, env)
 	case *int64:
 		return convertAssignInt64(d, t, env)
-	case *float32:
-		return convertAssignFloat32(d, t, env)
-	case *float64:
-		return convertAssignFloat64(d, t, env)
 	case Scanner:
 		return d.Scan(vm, t, env)
 	default:
@@ -145,7 +141,11 @@ func convertAssignAny(d *interface{}, vm *engine.VM, t engine.Term, env *engine.
 		*d = int(t)
 		return nil
 	case engine.Float:
-		*d = float64(t)
+		var s string
+		if err := convertAssignString(&s, t, env); err != nil {
+			return err
+		}
+		*d = s
 		return nil
 	case engine.Compound:
 		var s []interface{}
@@ -220,26 +220,6 @@ func convertAssignInt64(d *int64, t engine.Term, env *engine.Env) error {
 	switch t := env.Resolve(t).(type) {
 	case engine.Integer:
 		*d = int64(t)
-		return nil
-	default:
-		return errConversion
-	}
-}
-
-func convertAssignFloat32(d *float32, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
-	case engine.Float:
-		*d = float32(t)
-		return nil
-	default:
-		return errConversion
-	}
-}
-
-func convertAssignFloat64(d *float64, t engine.Term, env *engine.Env) error {
-	switch t := env.Resolve(t).(type) {
-	case engine.Float:
-		*d = float64(t)
 		return nil
 	default:
 		return errConversion
