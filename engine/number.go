@@ -2,16 +2,26 @@ package engine
 
 import (
 	"errors"
+	"github.com/cockroachdb/apd"
 	"math"
 )
 
 var (
-	maxInt = Integer(math.MaxInt64)
-	minInt = Integer(math.MinInt64)
+	maxInt        = Integer(math.MaxInt64)
+	minInt        = Integer(math.MinInt64)
+	oneFloat      = NewFloatFromInt64(1)
+	minusOneFloat = NewFloatFromInt64(-1)
 )
 
 var constants = map[Atom]Number{
-	atomPi: Float(math.Pi),
+	atomPi: func() Number {
+		f, err := NewFloatFromString("3.14159265358979323846264338327950288419716939937510582097494459")
+		// should not occur
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}(),
 }
 
 var unaryFunctors = map[Atom]func(Number) (Number, error){
@@ -25,17 +35,11 @@ var unaryFunctors = map[Atom]func(Number) (Number, error){
 	atomTruncate:            truncate,
 	atomRound:               round,
 	atomCeiling:             ceiling,
-	atomSin:                 sin,
-	atomCos:                 cos,
-	atomAtan:                atan,
 	atomExp:                 exp,
 	atomLog:                 log,
 	atomSqrt:                sqrt,
 	atomBackSlash:           bitwiseComplement,
 	atomPlus:                pos,
-	atomAsin:                asin,
-	atomAcos:                acos,
-	atomTan:                 tan,
 }
 
 var binaryFunctors = map[Atom]func(Number, Number) (Number, error){
@@ -55,7 +59,6 @@ var binaryFunctors = map[Atom]func(Number, Number) (Number, error){
 	atomMax:               max,
 	atomMin:               min,
 	atomCaret:             integerPower,
-	atomAtan2:             atan2,
 	atomXor:               xor,
 }
 
@@ -472,7 +475,7 @@ func neg(x Number) (Number, error) {
 	case Integer:
 		return negI(x)
 	case Float:
-		return negF(x), nil
+		return negF(x)
 	default:
 		return nil, exceptionalValueUndefined
 	}
@@ -506,7 +509,7 @@ func sign(x Number) (Number, error) {
 func floatIntegerPart(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
-		return intPartF(x), nil
+		return intPartF(x)
 	default:
 		return nil, typeError(validTypeFloat, x, nil)
 	}
@@ -516,7 +519,7 @@ func floatIntegerPart(x Number) (Number, error) {
 func floatFractionalPart(x Number) (Number, error) {
 	switch x := x.(type) {
 	case Float:
-		return fractPartF(x), nil
+		return fractPartF(x)
 	default:
 		return nil, typeError(validTypeFloat, x, nil)
 	}
@@ -576,147 +579,94 @@ func ceiling(x Number) (Number, error) {
 
 // power returns the base-x exponential of y.
 func power(x, y Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
+	vx, err := numberToFloat(x)
+	if err != nil {
+		return nil, err
 	}
 
-	var vy float64
-	switch y := y.(type) {
-	case Integer:
-		vy = float64(y)
-	case Float:
-		vy = float64(y)
-	default:
-		return nil, exceptionalValueUndefined
+	vy, err := numberToFloat(y)
+	if err != nil {
+		return nil, err
 	}
 
 	// 9.3.1.3 d) special case
-	if vx == 0 && vy < 0 {
+	if vx.Zero() && vy.Negative() {
 		return nil, exceptionalValueUndefined
 	}
 
-	r := Float(math.Pow(vx, vy))
-
-	switch {
-	case math.IsInf(float64(r), 0):
-		return nil, exceptionalValueFloatOverflow
-	case r == 0 && vx != 0: // Underflow: r can be 0 iff x = 0.
-		return nil, exceptionalValueUnderflow
-	case math.IsNaN(float64(r)):
-		return nil, exceptionalValueUndefined
-	default:
-		return r, nil
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Pow(&dec, vx.dec, vy.dec)
+	if err != nil {
+		return nil, mapDecimalConditionErr(c)
 	}
-}
 
-// sin returns the sine of x.
-func sin(x Number) (Number, error) {
-	switch x := x.(type) {
-	case Integer:
-		return Float(math.Sin(float64(x))), nil
-	case Float:
-		return Float(math.Sin(float64(x))), nil
-	default:
-		return nil, exceptionalValueUndefined
-	}
-}
-
-// cos returns the cosine of x.
-func cos(x Number) (Number, error) {
-	switch x := x.(type) {
-	case Integer:
-		return Float(math.Cos(float64(x))), nil
-	case Float:
-		return Float(math.Cos(float64(x))), nil
-	default:
-		return nil, exceptionalValueUndefined
-	}
-}
-
-// atan returns the arctangent of x.
-func atan(x Number) (Number, error) {
-	switch x := x.(type) {
-	case Integer:
-		return Float(math.Atan(float64(x))), nil
-	case Float:
-		return Float(math.Atan(float64(x))), nil
-	default:
-		return nil, exceptionalValueUndefined
-	}
+	return Float{dec: &dec}, nil
 }
 
 // exp returns the base-e exponential of x.
 func exp(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
+	f, err := numberToFloat(x)
+	if err != nil {
+		return nil, err
 	}
 
-	// Positive overflow:
-	//        e^x > max
-	//   log(e^x) > log(max)
-	// x * log(e) > log(max)
-	//          x > log(max)
-	if vx > math.Log(math.MaxFloat64) {
-		return nil, exceptionalValueFloatOverflow
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Exp(&dec, f.dec)
+	if err != nil {
+		return nil, mapDecimalConditionErr(c)
 	}
 
-	r := Float(math.Exp(vx))
+	return Float{dec: &dec}, nil
 
-	if r == 0 { // e^x != 0.
-		return nil, exceptionalValueUnderflow
-	}
-
-	return r, nil
+	//dec := decimal.WithContext(decimal.Context128)
+	//r := Float{
+	//	dec: decimal.Context128.Exp(dec, f.dec),
+	//}
+	//if !dec.IsFinite() {
+	//	return Float{}, exceptionalValueUnderflow
+	//}
+	//
+	//return r, r.Err()
 }
 
 // log returns the natural logarithm of x.
 func log(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
+	f, err := numberToFloat(x)
+	if err != nil {
+		return nil, err
+	}
+
+	if f.Negative() || f.Zero() {
 		return nil, exceptionalValueUndefined
 	}
 
-	if vx <= 0 {
-		return nil, exceptionalValueUndefined
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Ln(&dec, f.dec)
+	if err != nil {
+		return nil, mapDecimalConditionErr(c)
 	}
 
-	return Float(math.Log(vx)), nil
+	return Float{dec: &dec}, nil
 }
 
 // sqrt returns the square root of x.
 func sqrt(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
+	f, err := numberToFloat(x)
+	if err != nil {
+		return nil, err
+	}
+
+	if f.Negative() {
 		return nil, exceptionalValueUndefined
 	}
 
-	if vx < 0 {
-		return nil, exceptionalValueUndefined
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Sqrt(&dec, f.dec)
+	if err != nil {
+		return nil, mapDecimalConditionErr(c)
 	}
 
-	return Float(math.Sqrt(vx)), nil
+	return Float{dec: &dec}, nil
 }
 
 // bitwiseRightShift returns n bit-shifted by s to the right.
@@ -827,7 +777,7 @@ func max(x, y Number) (Number, error) {
 			}
 			return x, nil
 		case Float:
-			if floatItoF(x) < y {
+			if NewFloatFromInt64(int64(x)).Lt(y) {
 				return y, nil
 			}
 			return x, nil
@@ -837,12 +787,12 @@ func max(x, y Number) (Number, error) {
 	case Float:
 		switch y := y.(type) {
 		case Integer:
-			if x < floatItoF(y) {
+			if x.Lt(NewFloatFromInt64(int64(y))) {
 				return y, nil
 			}
 			return x, nil
 		case Float:
-			if x < y {
+			if x.Lt(y) {
 				return y, nil
 			}
 			return x, nil
@@ -865,7 +815,7 @@ func min(x, y Number) (Number, error) {
 			}
 			return x, nil
 		case Float:
-			if floatItoF(x) > y {
+			if NewFloatFromInt64(int64(x)).Gt(y) {
 				return y, nil
 			}
 			return x, nil
@@ -875,12 +825,12 @@ func min(x, y Number) (Number, error) {
 	case Float:
 		switch y := y.(type) {
 		case Integer:
-			if x > floatItoF(y) {
+			if x.Gt(NewFloatFromInt64(int64(y))) {
 				return y, nil
 			}
 			return x, nil
 		case Float:
-			if x > y {
+			if x.Gt(y) {
 				return y, nil
 			}
 			return x, nil
@@ -950,88 +900,6 @@ func intPow(a, b Integer) (Integer, error) {
 	return r, nil
 }
 
-// asin returns the arc sine of x.
-func asin(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
-	}
-
-	if vx > 1 || vx < -1 {
-		return nil, exceptionalValueUndefined
-	}
-
-	return Float(math.Asin(vx)), nil
-}
-
-// acos returns the arc cosine of x.
-func acos(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
-	}
-
-	if vx > 1 || vx < -1 {
-		return nil, exceptionalValueUndefined
-	}
-
-	return Float(math.Acos(vx)), nil
-}
-
-// atan2 returns the arc tangent of y/x.
-func atan2(y, x Number) (Number, error) {
-	var vy float64
-	switch y := y.(type) {
-	case Integer:
-		vy = float64(y)
-	case Float:
-		vy = float64(y)
-	default:
-		return nil, exceptionalValueUndefined
-	}
-
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
-	}
-
-	if vx == 0 && vy == 0 {
-		return nil, exceptionalValueUndefined
-	}
-
-	return Float(math.Atan2(vy, vx)), nil
-}
-
-// tan returns the tangent of x.
-func tan(x Number) (Number, error) {
-	var vx float64
-	switch x := x.(type) {
-	case Integer:
-		vx = float64(x)
-	case Float:
-		vx = float64(x)
-	default:
-		return nil, exceptionalValueUndefined
-	}
-
-	return Float(math.Tan(vx)), nil
-}
-
 // xor returns the bitwise exclusive or of x and y.
 func xor(x, y Number) (Number, error) {
 	vx, ok := x.(Integer)
@@ -1050,7 +918,7 @@ func xor(x, y Number) (Number, error) {
 // Comparison
 
 func eqF(x, y Float) bool {
-	return x == y
+	return x.Eq(y)
 }
 
 func eqI(m, n Integer) bool {
@@ -1067,7 +935,7 @@ func eqIF(n Integer, y Float) bool {
 }
 
 func neqF(x, y Float) bool {
-	return x != y
+	return !x.Eq(y)
 }
 
 func neqI(m, n Integer) bool {
@@ -1084,7 +952,7 @@ func neqIF(n Integer, y Float) bool {
 }
 
 func lssF(x, y Float) bool {
-	return x < y
+	return x.Lt(y)
 }
 
 func lssI(m, n Integer) bool {
@@ -1101,7 +969,7 @@ func lssIF(n Integer, y Float) bool {
 }
 
 func leqF(x, y Float) bool {
-	return x <= y
+	return x.Lte(y)
 }
 
 func leqI(m, n Integer) bool {
@@ -1118,7 +986,7 @@ func leqIF(n Integer, y Float) bool {
 }
 
 func gtrF(x, y Float) bool {
-	return x > y
+	return x.Gt(y)
 }
 
 func gtrI(m, n Integer) bool {
@@ -1135,7 +1003,7 @@ func gtrIF(n Integer, y Float) bool {
 }
 
 func geqF(x, y Float) bool {
-	return x >= y
+	return x.Gte(y)
 }
 
 func geqI(m, n Integer) bool {
@@ -1154,7 +1022,7 @@ func geqIF(n Integer, y Float) bool {
 // Type conversion operations
 
 func floatItoF(n Integer) Float {
-	return Float(n)
+	return NewFloatFromInt64(int64(n))
 }
 
 func floatFtoF(x Float) Float {
@@ -1162,35 +1030,55 @@ func floatFtoF(x Float) Float {
 }
 
 func floorFtoI(x Float) (Integer, error) {
-	f := math.Floor(float64(x))
-	if f > float64(maxInt) || f < float64(minInt) {
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Floor(&dec, x.dec)
+	if err != nil {
+		return 0, mapDecimalConditionErr(c)
+	}
+
+	i64, err := dec.Int64()
+	if err != nil {
 		return 0, exceptionalValueIntOverflow
 	}
-	return Integer(f), nil
+
+	return Integer(i64), nil
 }
 
 func truncateFtoI(x Float) (Integer, error) {
-	t := math.Trunc(float64(x))
-	if t > float64(maxInt) || t < float64(minInt) {
-		return 0, exceptionalValueIntOverflow
+	if x.Negative() {
+		return ceilingFtoI(x)
 	}
-	return Integer(t), nil
+	return floorFtoI(x)
 }
 
 func roundFtoI(x Float) (Integer, error) {
-	r := math.Round(float64(x))
-	if r > float64(maxInt) || r < float64(minInt) {
+	var dec apd.Decimal
+	c, err := decimal128Ctx.RoundToIntegralExact(&dec, x.dec)
+	if err != nil {
+		return 0, mapDecimalConditionErr(c)
+	}
+
+	i64, err := dec.Int64()
+	if err != nil {
 		return 0, exceptionalValueIntOverflow
 	}
-	return Integer(r), nil
+
+	return Integer(i64), nil
 }
 
 func ceilingFtoI(x Float) (Integer, error) {
-	c := math.Ceil(float64(x))
-	if c > float64(maxInt) || c < float64(minInt) {
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Ceil(&dec, x.dec)
+	if err != nil {
+		return 0, mapDecimalConditionErr(c)
+	}
+
+	i64, err := dec.Int64()
+	if err != nil {
 		return 0, exceptionalValueIntOverflow
 	}
-	return Integer(c), nil
+
+	return Integer(i64), nil
 }
 
 // Integer operations
@@ -1308,85 +1196,81 @@ func intFloorDivI(x, y Integer) (Integer, error) {
 // Float operations
 
 func addF(x, y Float) (Float, error) {
-	switch {
-	case y > 0 && x > math.MaxFloat64-y:
-		return 0, exceptionalValueFloatOverflow
-	case y < 0 && x < -math.MaxFloat64-y:
-		return 0, exceptionalValueFloatOverflow
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Add(&dec, x.dec, y.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
 	}
 
-	return x + y, nil
+	return Float{dec: &dec}, nil
 }
 
 func subF(x, y Float) (Float, error) {
-	return addF(x, -y)
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Sub(&dec, x.dec, y.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
+	}
+
+	return Float{dec: &dec}, nil
 }
 
 func mulF(x, y Float) (Float, error) {
-	switch {
-	case y != 0 && x > math.MaxFloat64/y:
-		return 0, exceptionalValueFloatOverflow
-	case y != 0 && x < -math.MaxFloat64/y:
-		return 0, exceptionalValueFloatOverflow
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Mul(&dec, x.dec, y.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
 	}
 
-	r := x * y
-
-	// Underflow: x*y = 0 iff x = 0 or y = 0.
-	if r == 0 && x != 0 && y != 0 {
-		return 0, exceptionalValueUnderflow
-	}
-
-	return r, nil
+	return Float{dec: &dec}, nil
 }
 
 func divF(x, y Float) (Float, error) {
-	switch {
-	case y == 0:
-		return 0, exceptionalValueZeroDivisor
-	case x > math.MaxFloat64*y:
-		return 0, exceptionalValueFloatOverflow
-	case x < -math.MaxFloat64*y:
-		return 0, exceptionalValueFloatOverflow
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Quo(&dec, x.dec, y.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
 	}
 
-	r := x / y
-
-	// Underflow: x/y = 0 iff x = 0 and y != 0.
-	if r == 0 && x != 0 {
-		return 0, exceptionalValueUnderflow
-	}
-
-	return r, nil
+	return Float{dec: &dec}, nil
 }
 
-func negF(x Float) Float {
-	return -x
+func negF(x Float) (Float, error) {
+	return mulF(x, minusOneFloat)
 }
 
 func absF(x Float) Float {
-	return Float(math.Abs(float64(x)))
+	var dec apd.Decimal
+	return Float{dec: dec.Abs(x.dec)}
 }
 
 func signF(x Float) Float {
-	switch {
-	case x > 0:
-		return 1
-	case x < 0:
-		return -1
-	default:
-		return 0
+	return NewFloatFromInt64(int64(x.dec.Sign()))
+}
+
+func intPartF(x Float) (Float, error) {
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Floor(&dec, x.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
 	}
+
+	return Float{dec: &dec}, nil
 }
 
-func intPartF(x Float) Float {
-	s := signF(x)
-	return s * Float(math.Floor(math.Abs(float64(x))))
-}
+func fractPartF(x Float) (Float, error) {
+	i, err := intPartF(x)
+	if err != nil {
+		return Float{}, err
+	}
 
-func fractPartF(x Float) Float {
-	i := intPartF(x)
-	return x - i
+	var dec apd.Decimal
+	c, err := decimal128Ctx.Sub(&dec, x.dec, i.dec)
+	if err != nil {
+		return Float{}, mapDecimalConditionErr(c)
+	}
+
+	return Float{dec: &dec}, nil
 }
 
 func posF(x Float) (Float, error) {
@@ -1396,37 +1280,49 @@ func posF(x Float) (Float, error) {
 // Mixed mode operations
 
 func addFI(x Float, n Integer) (Float, error) {
-	return addF(x, Float(n))
+	return addF(x, NewFloatFromInt64(int64(n)))
 }
 
 func addIF(n Integer, x Float) (Float, error) {
-	return addF(Float(n), x)
+	return addF(NewFloatFromInt64(int64(n)), x)
 }
 
 func subFI(x Float, n Integer) (Float, error) {
-	return subF(x, Float(n))
+	return subF(x, NewFloatFromInt64(int64(n)))
 }
 
 func subIF(n Integer, x Float) (Float, error) {
-	return subF(Float(n), x)
+	return subF(NewFloatFromInt64(int64(n)), x)
 }
 
 func mulFI(x Float, n Integer) (Float, error) {
-	return mulF(x, Float(n))
+	return mulF(x, NewFloatFromInt64(int64(n)))
 }
 
 func mulIF(n Integer, x Float) (Float, error) {
-	return mulF(Float(n), x)
+	return mulF(NewFloatFromInt64(int64(n)), x)
 }
 
 func divFI(x Float, n Integer) (Float, error) {
-	return divF(x, Float(n))
+	return divF(x, NewFloatFromInt64(int64(n)))
 }
 
 func divIF(n Integer, x Float) (Float, error) {
-	return divF(Float(n), x)
+	return divF(NewFloatFromInt64(int64(n)), x)
 }
 
 func divII(n, m Integer) (Float, error) {
-	return divF(Float(n), Float(m))
+	return divF(NewFloatFromInt64(int64(n)), NewFloatFromInt64(int64(m)))
+}
+
+// Utility function to cast a Number to a Float
+func numberToFloat(x Number) (Float, error) {
+	switch x := x.(type) {
+	case Integer:
+		return NewFloatFromInt64(int64(x)), nil
+	case Float:
+		return x, nil
+	default:
+		return Float{}, exceptionalValueUndefined
+	}
 }
