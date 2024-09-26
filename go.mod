@@ -1,6 +1,6 @@
 module github.com/ichiban/prolog
 
-go 1.19
+go 1.23
 
 require (
 	github.com/stretchr/testify v1.7.0

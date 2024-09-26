@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/internal"
 )
 
 //go:embed prolog
@@ -25,7 +25,7 @@ func main() {
 	}
 
 	m := i.TypeInModule()
-	m.Register2("actuate", func(_ *engine.VM, x engine.Term, y engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	m.SetPredicate2("actuate", func(_ *internal.VM, x internal.Term, y internal.Term, k internal.Cont, env *internal.Env) *internal.Promise {
 		fmt.Printf("move a disk from %s to %s.\n", env.Resolve(x), env.Resolve(y))
 		return k(env)
 	})

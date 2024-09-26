@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/internal"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -19,16 +19,16 @@ func TestSolutions_Close(t *testing.T) {
 
 func TestSolutions_Next(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		v := engine.NewVariable()
-		env, _ := engine.NewEnv().Unify(v, engine.NewAtom("foo"))
+		v := internal.NewVariable()
+		env, _ := internal.NewEnv().Unify(v, internal.NewAtom("foo"))
 		more := make(chan bool, 1)
 		defer close(more)
-		next := make(chan *engine.Env, 1)
+		next := make(chan *internal.Env, 1)
 		defer close(next)
 		next <- env
 		sols := Solutions{more: more, next: next}
 		assert.True(t, sols.Next())
-		assert.Equal(t, engine.NewAtom("foo"), sols.env.Resolve(v))
+		assert.Equal(t, internal.NewAtom("foo"), sols.env.Resolve(v))
 	})
 
 	t.Run("closed", func(t *testing.T) {
@@ -38,13 +38,13 @@ func TestSolutions_Next(t *testing.T) {
 }
 
 func TestSolutions_Scan(t *testing.T) {
-	sols := func(m map[string]engine.Term) Solutions {
-		env := engine.NewEnv()
-		var vars []engine.ParsedVariable
+	sols := func(m map[string]internal.Term) Solutions {
+		env := internal.NewEnv()
+		var vars []internal.ParsedVariable
 		for n, t := range m {
-			v := engine.NewVariable()
+			v := internal.NewVariable()
 			env, _ = env.Unify(v, t)
-			vars = append(vars, engine.ParsedVariable{Name: engine.NewAtom(n), Variable: v})
+			vars = append(vars, internal.ParsedVariable{Name: internal.NewAtom(n), Variable: v})
 		}
 		return Solutions{
 			env:  env,
@@ -61,133 +61,133 @@ func TestSolutions_Scan(t *testing.T) {
 	}{
 		{title: "struct: empty", sols: Solutions{}, dest: &struct{}{}, result: &struct{}{}},
 
-		{title: "struct: interface, variable", sols: sols(map[string]engine.Term{
-			"X": engine.NewVariable(),
+		{title: "struct: interface, variable", sols: sols(map[string]internal.Term{
+			"X": internal.NewVariable(),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: nil,
 		}},
-		{title: "struct: interface, atom", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: interface, atom", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: "foo",
 		}},
-		{title: "struct: interface, empty list", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("[]"),
+		{title: "struct: interface, empty list", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("[]"),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: []interface{}{},
 		}},
-		{title: "struct: interface, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: interface, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: 1,
 		}},
-		{title: "struct: interface, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
+		{title: "struct: interface, float", sols: sols(map[string]internal.Term{
+			"X": internal.Float(1),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: 1.0,
 		}},
-		{title: "struct: interface, list", sols: sols(map[string]engine.Term{
-			"X": engine.List(engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		{title: "struct: interface, list", sols: sols(map[string]internal.Term{
+			"X": internal.List(internal.Integer(1), internal.Integer(2), internal.Integer(3)),
 		}), dest: &struct{ X interface{} }{}, result: &struct{ X interface{} }{
 			X: []interface{}{1, 2, 3},
 		}},
-		{title: "struct: interface, list with unknown", sols: sols(map[string]engine.Term{
-			"X": engine.List(engine.Integer(1), nil, engine.Integer(3)),
+		{title: "struct: interface, list with unknown", sols: sols(map[string]internal.Term{
+			"X": internal.List(internal.Integer(1), nil, internal.Integer(3)),
 		}), dest: &struct{ X interface{} }{}, err: errConversion},
-		{title: "struct: interface, not list", sols: sols(map[string]engine.Term{
-			"X": engine.PartialList(engine.NewVariable(), engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		{title: "struct: interface, not list", sols: sols(map[string]internal.Term{
+			"X": internal.PartialList(internal.NewVariable(), internal.Integer(1), internal.Integer(2), internal.Integer(3)),
 		}), dest: &struct{ X interface{} }{}, err: errConversion},
-		{title: "struct: interface, unknown", sols: sols(map[string]engine.Term{
+		{title: "struct: interface, unknown", sols: sols(map[string]internal.Term{
 			"X": nil,
 		}), dest: &struct{ X interface{} }{}, err: errConversion},
 
-		{title: "struct: string, atom", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: string, atom", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
-		{title: "struct: string, character list", sols: sols(map[string]engine.Term{
-			"X": engine.CharList("foo"),
+		{title: "struct: string, character list", sols: sols(map[string]internal.Term{
+			"X": internal.CharList("foo"),
 		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
-		{title: "struct: string, code list", sols: sols(map[string]engine.Term{
-			"X": engine.CodeList("foo"),
+		{title: "struct: string, code list", sols: sols(map[string]internal.Term{
+			"X": internal.CodeList("foo"),
 		}), dest: &struct{ X string }{}, result: &struct{ X string }{X: "foo"}},
-		{title: "struct: string, non-atom", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: string, non-atom", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X string }{}, err: errConversion},
 
-		{title: "struct: int, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: int, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X int }{}, result: &struct{ X int }{X: 1}},
-		{title: "struct: int, non-integer", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: int, non-integer", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X int }{}, err: errConversion},
 
-		{title: "struct: int8, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: int8, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X int8 }{}, result: &struct{ X int8 }{X: 1}},
-		{title: "struct: int8, non-integer", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: int8, non-integer", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X int8 }{}, err: errConversion},
 
-		{title: "struct: int16, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: int16, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X int16 }{}, result: &struct{ X int16 }{X: 1}},
-		{title: "struct: int16, non-integer", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: int16, non-integer", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X int16 }{}, err: errConversion},
 
-		{title: "struct: int32, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: int32, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X int32 }{}, result: &struct{ X int32 }{X: 1}},
-		{title: "struct: int32, non-integer", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: int32, non-integer", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X int32 }{}, err: errConversion},
 
-		{title: "struct: int64, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: int64, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X int64 }{}, result: &struct{ X int64 }{X: 1}},
-		{title: "struct: int64, non-integer", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: int64, non-integer", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X int64 }{}, err: errConversion},
 
-		{title: "struct: float32, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
+		{title: "struct: float32, float", sols: sols(map[string]internal.Term{
+			"X": internal.Float(1),
 		}), dest: &struct{ X float32 }{}, result: &struct{ X float32 }{X: 1}},
-		{title: "struct: float32, non-float", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: float32, non-float", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X float32 }{}, err: errConversion},
 
-		{title: "struct: float64, float", sols: sols(map[string]engine.Term{
-			"X": engine.Float(1),
+		{title: "struct: float64, float", sols: sols(map[string]internal.Term{
+			"X": internal.Float(1),
 		}), dest: &struct{ X float64 }{}, result: &struct{ X float64 }{X: 1}},
-		{title: "struct: float64, non-float", sols: sols(map[string]engine.Term{
-			"X": engine.NewAtom("foo"),
+		{title: "struct: float64, non-float", sols: sols(map[string]internal.Term{
+			"X": internal.NewAtom("foo"),
 		}), dest: &struct{ X float64 }{}, err: errConversion},
 
-		{title: "struct: slice, list", sols: sols(map[string]engine.Term{
-			"X": engine.List(engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		{title: "struct: slice, list", sols: sols(map[string]internal.Term{
+			"X": internal.List(internal.Integer(1), internal.Integer(2), internal.Integer(3)),
 		}), dest: &struct{ X []int }{}, result: &struct{ X []int }{X: []int{1, 2, 3}}},
-		{title: "struct: slice, list with unknown", sols: sols(map[string]engine.Term{
-			"X": engine.List(engine.Integer(1), nil, engine.Integer(3)),
+		{title: "struct: slice, list with unknown", sols: sols(map[string]internal.Term{
+			"X": internal.List(internal.Integer(1), nil, internal.Integer(3)),
 		}), dest: &struct{ X []int }{}, err: errConversion},
-		{title: "struct: slice, non-list", sols: sols(map[string]engine.Term{
-			"X": engine.PartialList(engine.NewVariable(), engine.Integer(1), engine.Integer(2), engine.Integer(3)),
+		{title: "struct: slice, non-list", sols: sols(map[string]internal.Term{
+			"X": internal.PartialList(internal.NewVariable(), internal.Integer(1), internal.Integer(2), internal.Integer(3)),
 		}), dest: &struct{ X []int }{}, err: errConversion},
 
-		{title: "struct: unsupported field type", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "struct: unsupported field type", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: &struct{ X bool }{}, err: errConversion},
 
-		{title: "struct: alias", sols: sols(map[string]engine.Term{
-			"Y": engine.Integer(1),
+		{title: "struct: alias", sols: sols(map[string]internal.Term{
+			"Y": internal.Integer(1),
 		}), dest: &struct {
 			X int `prolog:"Y"`
 		}{}, result: &struct {
 			X int `prolog:"Y"`
 		}{X: 1}},
 
-		{title: "struct: ignored variable", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
-			"Y": engine.Integer(2), // Y is not a field of the struct. Ignored.
+		{title: "struct: ignored variable", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
+			"Y": internal.Integer(2), // Y is not a field of the struct. Ignored.
 		}), dest: &struct {
 			X int
 		}{}, result: &struct {
@@ -195,13 +195,13 @@ func TestSolutions_Scan(t *testing.T) {
 		}{X: 1}},
 
 		{title: "map: empty", sols: Solutions{}, dest: map[string]interface{}{}, result: map[string]interface{}{}},
-		{title: "map: interface, integer", sols: sols(map[string]engine.Term{
-			"X": engine.Integer(1),
+		{title: "map: interface, integer", sols: sols(map[string]internal.Term{
+			"X": internal.Integer(1),
 		}), dest: map[string]interface{}{}, result: map[string]interface{}{
 			"X": 1,
 		}},
 		{title: "map: non-string key", sols: Solutions{}, dest: map[int]interface{}{}, err: errors.New("map key is not string")},
-		{title: "map: interface, unknown", sols: sols(map[string]engine.Term{
+		{title: "map: interface, unknown", sols: sols(map[string]internal.Term{
 			"X": nil,
 		}), dest: map[string]interface{}{}, err: errConversion},
 

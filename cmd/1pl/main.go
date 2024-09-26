@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/ichiban/prolog/internal"
 	"io"
 	"log"
 	"os"
@@ -17,7 +18,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/engine"
 )
 
 const (
@@ -46,7 +46,7 @@ See https://github.com/ichiban/prolog for more details.
 Type Ctrl-C or 'halt.' to exit.
 `, version)
 
-	halt := engine.Halt
+	halt := prolog.Halt
 	if terminal.IsTerminal(0) {
 		oldState, err := terminal.MakeRaw(0)
 		if err != nil {
@@ -57,9 +57,9 @@ Type Ctrl-C or 'halt.' to exit.
 		}
 		defer restore()
 
-		halt = func(vm *engine.VM, n engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+		halt = func(vm *internal.VM, n internal.Term, k internal.Cont, env *internal.Env) *internal.Promise {
 			restore()
-			return engine.Halt(vm, n, k, env)
+			return prolog.Halt(vm, n, k, env)
 		}
 	}
 
@@ -72,30 +72,30 @@ Type Ctrl-C or 'halt.' to exit.
 	if err := i.QuerySolution(`use_module(library(prologue)).`).Err(); err != nil {
 		log.Panic(err)
 	}
-	i.SetPredicate1("cd", func(vm *engine.VM, path engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	i.SetPredicate1("cd", func(vm *internal.VM, path internal.Term, k internal.Cont, env *internal.Env) *internal.Promise {
 		var p string
 		switch path := env.Resolve(path).(type) {
-		case engine.Variable:
-			return engine.Error(engine.InstantiationError(env))
-		case engine.Atom:
+		case internal.Variable:
+			return internal.Error(internal.InstantiationError(env))
+		case internal.Atom:
 			p = path.String()
 		default:
-			return engine.Error(engine.TypeError(engine.NewAtom("atom"), path, env))
+			return internal.Error(internal.TypeError(internal.NewAtom("atom"), path, env))
 		}
 		if err := os.Chdir(p); err != nil {
-			return engine.Error(err)
+			return internal.Error(err)
 		}
 		return k(env)
 	})
-	i.SetPredicate4("skip_max_list", engine.SkipMaxList)
-	i.SetPredicate2("go_string", func(vm *engine.VM, term, s engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
-		return engine.Unify(vm, s, engine.NewAtom(fmt.Sprintf("%#v", term)), k, env)
+	i.SetPredicate4("skip_max_list", prolog.SkipMaxList)
+	i.SetPredicate2("go_string", func(vm *internal.VM, term, s internal.Term, k internal.Cont, env *internal.Env) *internal.Promise {
+		return prolog.Unify(vm, s, internal.NewAtom(fmt.Sprintf("%#v", term)), k, env)
 	})
 	i.SetPredicate1("halt", halt)
-	i.Unknown = func(name engine.Atom, args []engine.Term, env *engine.Env) {
+	i.Unknown = func(name internal.Atom, args []internal.Term, env *internal.Env) {
 		var sb strings.Builder
-		s := engine.NewOutputTextStream(&sb)
-		_, _ = engine.WriteTerm(&i.VM, s, name.Apply(args...), engine.List(engine.NewAtom("quoted").Apply(engine.NewAtom("true"))), engine.Success, env).Force(context.Background())
+		s := internal.NewOutputTextStream(&sb)
+		_, _ = prolog.WriteTerm(&i.VM, s, name.Apply(args...), internal.List(internal.NewAtom("quoted").Apply(internal.NewAtom("true"))), internal.Success, env).Force(context.Background())
 		log.Printf("UNKNOWN %s", &sb)
 	}
 

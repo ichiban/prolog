@@ -5,7 +5,8 @@ import (
 	"embed"
 	_ "embed" // for go:embed
 	"errors"
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/builtin"
+	"github.com/ichiban/prolog/internal"
 	"io"
 	"os"
 	"strings"
@@ -16,7 +17,7 @@ var library embed.FS
 
 // Interpreter is a Prolog interpreter. The zero value is a valid interpreter without any predicates/operators defined.
 type Interpreter struct {
-	engine.VM
+	internal.VM
 }
 
 // New creates a new Prolog interpreter with predefined fs.FS/predicates.
@@ -26,143 +27,143 @@ func New(in io.Reader, out io.Writer) *Interpreter {
 		library,
 		os.DirFS("."),
 	}
-	i.SetUserInput(engine.NewInputTextStream(in))
-	i.SetUserOutput(engine.NewOutputTextStream(out))
+	i.SetUserInput(internal.NewInputTextStream(in))
+	i.SetUserOutput(internal.NewOutputTextStream(out))
 
 	// Directives
-	i.SetPredicate1("dynamic", engine.Dynamic)
-	i.SetPredicate1("multifile", engine.Multifile)
-	i.SetPredicate1("discontiguous", engine.Discontiguous)
-	i.SetPredicate1("initialization", engine.Initialization)
-	i.SetPredicate1("include", engine.Include)
+	i.SetPredicate1("dynamic", Dynamic)
+	i.SetPredicate1("multifile", Multifile)
+	i.SetPredicate1("discontiguous", Discontiguous)
+	i.SetPredicate1("initialization", Initialization)
+	i.SetPredicate1("include", Include)
 
 	// Control constructs
-	i.SetPredicate1("call", engine.Call)
-	i.SetPredicate3("catch", engine.Catch)
-	i.SetPredicate1("throw", engine.Throw)
+	i.SetPredicate1("call", Call)
+	i.SetPredicate3("catch", Catch)
+	i.SetPredicate1("throw", Throw)
 
 	// Term unification
-	i.SetPredicate2("=", engine.Unify)
-	i.SetPredicate2("unify_with_occurs_check", engine.UnifyWithOccursCheck)
-	i.SetPredicate2("subsumes_term", engine.SubsumesTerm)
+	i.SetPredicate2("=", Unify)
+	i.SetPredicate2("unify_with_occurs_check", UnifyWithOccursCheck)
+	i.SetPredicate2("subsumes_term", SubsumesTerm)
 
 	// Type testing
-	i.SetPredicate1("var", engine.TypeVar)
-	i.SetPredicate1("atom", engine.TypeAtom)
-	i.SetPredicate1("integer", engine.TypeInteger)
-	i.SetPredicate1("float", engine.TypeFloat)
-	i.SetPredicate1("compound", engine.TypeCompound)
-	i.SetPredicate1("acyclic_term", engine.AcyclicTerm)
+	i.SetPredicate1("var", TypeVar)
+	i.SetPredicate1("atom", TypeAtom)
+	i.SetPredicate1("integer", TypeInteger)
+	i.SetPredicate1("float", TypeFloat)
+	i.SetPredicate1("compound", TypeCompound)
+	i.SetPredicate1("acyclic_term", AcyclicTerm)
 
 	// Term comparison
-	i.SetPredicate3("compare", engine.Compare)
-	i.SetPredicate2("sort", engine.Sort)
-	i.SetPredicate2("keysort", engine.KeySort)
+	i.SetPredicate3("compare", Compare)
+	i.SetPredicate2("sort", Sort)
+	i.SetPredicate2("keysort", KeySort)
 
 	// Term creation and decomposition
-	i.SetPredicate3("functor", engine.Functor)
-	i.SetPredicate3("arg", engine.Arg)
-	i.SetPredicate2("univ", engine.Univ)
-	i.SetPredicate2("copy_term", engine.CopyTerm)
-	i.SetPredicate2("term_variables", engine.TermVariables)
+	i.SetPredicate3("functor", internal.Functor)
+	i.SetPredicate3("arg", Arg)
+	i.SetPredicate2("univ", Univ)
+	i.SetPredicate2("copy_term", CopyTerm)
+	i.SetPredicate2("term_variables", TermVariables)
 
 	// Arithmetic evaluation
-	i.SetPredicate2("is", engine.Is)
+	i.SetPredicate2("is", Is)
 
 	// Arithmetic comparison
-	i.SetPredicate2("equal", engine.Equal)
-	i.SetPredicate2("not_equal", engine.NotEqual)
-	i.SetPredicate2("less_than", engine.LessThan)
-	i.SetPredicate2("less_than_or_equal", engine.LessThanOrEqual)
-	i.SetPredicate2("greater_than", engine.GreaterThan)
-	i.SetPredicate2("greater_than_or_equal", engine.GreaterThanOrEqual)
+	i.SetPredicate2("equal", Equal)
+	i.SetPredicate2("not_equal", NotEqual)
+	i.SetPredicate2("less_than", LessThan)
+	i.SetPredicate2("less_than_or_equal", LessThanOrEqual)
+	i.SetPredicate2("greater_than", GreaterThan)
+	i.SetPredicate2("greater_than_or_equal", GreaterThanOrEqual)
 
 	// Clause retrieval and information
-	i.SetPredicate2("clause", engine.Clause)
-	i.SetPredicate1("current_predicate", engine.CurrentPredicate)
+	i.SetPredicate2("clause", Clause)
+	i.SetPredicate1("current_predicate", CurrentPredicate)
 
 	// Clause creation and destruction
-	i.SetPredicate1("asserta", engine.Asserta)
-	i.SetPredicate1("assertz", engine.Assertz)
-	i.SetPredicate1("retract", engine.Retract)
-	i.SetPredicate1("abolish", engine.Abolish)
+	i.SetPredicate1("asserta", Asserta)
+	i.SetPredicate1("assertz", Assertz)
+	i.SetPredicate1("retract", Retract)
+	i.SetPredicate1("abolish", Abolish)
 
 	// All solutions
-	i.SetPredicate3("findall", engine.FindAll)
-	i.SetPredicate3("bagof", engine.BagOf)
-	i.SetPredicate3("setof", engine.SetOf)
+	i.SetPredicate0("create_bag", CreateBag)
+	i.SetPredicate1("append_bag", AppendBag)
+	i.SetPredicate1("unify_bag", UnifyBag)
 
 	// Stream selection and control
-	i.SetPredicate1("current_input", engine.CurrentInput)
-	i.SetPredicate1("current_output", engine.CurrentOutput)
-	i.SetPredicate1("set_input", engine.SetInput)
-	i.SetPredicate1("set_output", engine.SetOutput)
-	i.SetPredicate4("open", engine.Open)
-	i.SetPredicate2("close", engine.Close)
-	i.SetPredicate1("flush_output", engine.FlushOutput)
-	i.SetPredicate2("stream_property", engine.StreamProperty)
-	i.SetPredicate2("set_stream_position", engine.SetStreamPosition)
+	i.SetPredicate1("current_input", CurrentInput)
+	i.SetPredicate1("current_output", CurrentOutput)
+	i.SetPredicate1("set_input", SetInput)
+	i.SetPredicate1("set_output", SetOutput)
+	i.SetPredicate4("open", Open)
+	i.SetPredicate2("close", Close)
+	i.SetPredicate1("flush_output", FlushOutput)
+	i.SetPredicate2("stream_property", StreamProperty)
+	i.SetPredicate2("set_stream_position", SetStreamPosition)
 
 	// Character input/output
-	i.SetPredicate2("get_char", engine.GetChar)
-	i.SetPredicate2("peek_char", engine.PeekChar)
-	i.SetPredicate2("put_char", engine.PutChar)
+	i.SetPredicate2("get_char", GetChar)
+	i.SetPredicate2("peek_char", PeekChar)
+	i.SetPredicate2("put_char", PutChar)
 
 	// Byte input/output
-	i.SetPredicate2("get_byte", engine.GetByte)
-	i.SetPredicate2("peek_byte", engine.PeekByte)
-	i.SetPredicate2("put_byte", engine.PutByte)
+	i.SetPredicate2("get_byte", GetByte)
+	i.SetPredicate2("peek_byte", PeekByte)
+	i.SetPredicate2("put_byte", PutByte)
 
 	// Term input/output
-	i.SetPredicate3("read_term", engine.ReadTerm)
-	i.SetPredicate3("write_term", engine.WriteTerm)
-	i.SetPredicate3("op", engine.Op)
-	i.SetPredicate3("current_op", engine.CurrentOp)
-	i.SetPredicate2("char_conversion", engine.CharConversion)
-	i.SetPredicate2("current_char_conversion", engine.CurrentCharConversion)
+	i.SetPredicate3("read_term", ReadTerm)
+	i.SetPredicate3("write_term", WriteTerm)
+	i.SetPredicate3("op", Op)
+	i.SetPredicate3("current_op", CurrentOp)
+	i.SetPredicate2("char_conversion", CharConversion)
+	i.SetPredicate2("current_char_conversion", CurrentCharConversion)
 
 	// Logic and control
-	i.SetPredicate1(`not`, engine.Not)
-	i.SetPredicate0("repeat", engine.Repeat)
-	i.SetPredicate2("call", engine.Call1)
-	i.SetPredicate3("call", engine.Call2)
-	i.SetPredicate4("call", engine.Call3)
-	i.SetPredicate5("call", engine.Call4)
-	i.SetPredicate6("call", engine.Call5)
-	i.SetPredicate7("call", engine.Call6)
-	i.SetPredicate8("call", engine.Call7)
+	i.SetPredicate1(`not`, Not)
+	i.SetPredicate0("repeat", builtin.Repeat)
+	i.SetPredicate2("call", Call1)
+	i.SetPredicate3("call", Call2)
+	i.SetPredicate4("call", Call3)
+	i.SetPredicate5("call", Call4)
+	i.SetPredicate6("call", Call5)
+	i.SetPredicate7("call", Call6)
+	i.SetPredicate8("call", Call7)
 
 	// Atomic term processing
-	i.SetPredicate2("atom_length", engine.AtomLength)
-	i.SetPredicate3("atom_concat", engine.AtomConcat)
-	i.SetPredicate5("sub_atom", engine.SubAtom)
-	i.SetPredicate2("atom_chars", engine.AtomChars)
-	i.SetPredicate2("atom_codes", engine.AtomCodes)
-	i.SetPredicate2("char_code", engine.CharCode)
-	i.SetPredicate2("number_chars", engine.NumberChars)
-	i.SetPredicate2("number_codes", engine.NumberCodes)
+	i.SetPredicate2("atom_length", AtomLength)
+	i.SetPredicate3("atom_concat", AtomConcat)
+	i.SetPredicate5("sub_atom", SubAtom)
+	i.SetPredicate2("atom_chars", AtomChars)
+	i.SetPredicate2("atom_codes", AtomCodes)
+	i.SetPredicate2("char_code", CharCode)
+	i.SetPredicate2("number_chars", NumberChars)
+	i.SetPredicate2("number_codes", NumberCodes)
 
 	// Implementation defined hooks
-	i.SetPredicate2("set_prolog_flag", engine.SetPrologFlag)
-	i.SetPredicate2("current_prolog_flag", engine.CurrentPrologFlag)
-	i.SetPredicate1("halt", engine.Halt)
+	i.SetPredicate2("set_prolog_flag", SetPrologFlag)
+	i.SetPredicate2("current_prolog_flag", CurrentPrologFlag)
+	i.SetPredicate1("halt", Halt)
 
 	// Definite clause grammar
-	i.SetPredicate3("phrase", engine.Phrase)
+	i.SetPredicate3("phrase", Phrase)
 
 	// A Prologue for Prolog
 	// https://www.complang.tuwien.ac.at/ulrich/iso-prolog/prologue
-	i.SetPredicate2("length", engine.Length)
-	i.SetPredicate3("between", engine.Between)
-	i.SetPredicate2("succ", engine.Succ)
-	i.SetPredicate3("nth0", engine.Nth0)
-	i.SetPredicate3("nth1", engine.Nth1)
-	i.SetPredicate2("call_nth", engine.CallNth)
+	i.SetPredicate2("length", Length)
+	i.SetPredicate3("between", Between)
+	i.SetPredicate2("succ", Succ)
+	i.SetPredicate3("nth0", Nth0)
+	i.SetPredicate3("nth1", Nth1)
+	i.SetPredicate2("call_nth", CallNth)
 
 	// SICStus Prolog compatibility
-	i.SetPredicate2("module", engine.DefineModule)
-	i.SetPredicate1("meta_predicate", engine.MetaPredicate)
-	i.SetPredicate2("load_file", engine.LoadFile)
+	i.SetPredicate2("module", DefineModule)
+	i.SetPredicate1("meta_predicate", MetaPredicate)
+	i.SetPredicate2("load_file", LoadFile)
 
 	if err := i.LoadFile(context.Background(), "library/prolog.pl"); err != nil {
 		panic(err)
@@ -181,7 +182,7 @@ func (i *Interpreter) Query(query string, args ...interface{}) (*Solutions, erro
 
 // QueryContext executes a prolog query and returns *Solutions with context.
 func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...interface{}) (*Solutions, error) {
-	p := engine.NewParser(i.VM.TypeInModule, strings.NewReader(query))
+	p := internal.NewParser(i.VM.TypeInModule, strings.NewReader(query))
 	if err := p.SetPlaceholder("?", args...); err != nil {
 		return nil, err
 	}
@@ -191,10 +192,10 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		return nil, err
 	}
 
-	var env *engine.Env
+	var env *internal.Env
 
 	more := make(chan bool, 1)
-	next := make(chan *engine.Env)
+	next := make(chan *internal.Env)
 	sols := Solutions{
 		vm:   &i.VM,
 		vars: p.Vars,
@@ -207,9 +208,9 @@ func (i *Interpreter) QueryContext(ctx context.Context, query string, args ...in
 		if !<-more {
 			return
 		}
-		if _, err := engine.Call(&i.VM, t, func(env *engine.Env) *engine.Promise {
+		if _, err := Call(&i.VM, t, func(env *internal.Env) *internal.Promise {
 			next <- env
-			return engine.Bool(!<-more)
+			return internal.Bool(!<-more)
 		}, env).Force(ctx); err != nil {
 			sols.err = err
 		}
@@ -245,68 +246,68 @@ func (i *Interpreter) QuerySolutionContext(ctx context.Context, query string, ar
 
 // SetModule sets the type-in module.
 func (i *Interpreter) SetModule(name string) {
-	n := engine.NewAtom(name)
+	n := internal.NewAtom(name)
 	i.VM.SetModule(n)
 }
 
 // SetSystemModule sets the system module.
 func (i *Interpreter) SetSystemModule(name string) {
-	n := engine.NewAtom(name)
+	n := internal.NewAtom(name)
 	i.VM.SetSystemModule(n)
 }
 
 const moduleNameNative = "native"
 
 // SetPredicate0 registers a native predicate of arity 0.
-func (i *Interpreter) SetPredicate0(name string, p engine.Predicate0) {
+func (i *Interpreter) SetPredicate0(name string, p Predicate0) {
 	m := i.Module(moduleNameNative)
-	m.Register0(name, p)
+	m.SetPredicate0(name, p)
 }
 
 // SetPredicate1 registers a native predicate of arity 1.
-func (i *Interpreter) SetPredicate1(name string, p engine.Predicate1) {
+func (i *Interpreter) SetPredicate1(name string, p Predicate1) {
 	m := i.Module(moduleNameNative)
-	m.Register1(name, p)
+	m.SetPredicate1(name, p)
 }
 
 // SetPredicate2 registers a native predicate of arity 2.
-func (i *Interpreter) SetPredicate2(name string, p engine.Predicate2) {
+func (i *Interpreter) SetPredicate2(name string, p Predicate2) {
 	m := i.Module(moduleNameNative)
-	m.Register2(name, p)
+	m.SetPredicate2(name, p)
 }
 
 // SetPredicate3 registers a native predicate of arity 3.
-func (i *Interpreter) SetPredicate3(name string, p engine.Predicate3) {
+func (i *Interpreter) SetPredicate3(name string, p Predicate3) {
 	m := i.Module(moduleNameNative)
-	m.Register3(name, p)
+	m.SetPredicate3(name, p)
 }
 
 // SetPredicate4 registers a native predicate of arity 4.
-func (i *Interpreter) SetPredicate4(name string, p engine.Predicate4) {
+func (i *Interpreter) SetPredicate4(name string, p Predicate4) {
 	m := i.Module(moduleNameNative)
-	m.Register4(name, p)
+	m.SetPredicate4(name, p)
 }
 
 // SetPredicate5 registers a native predicate of arity 5.
-func (i *Interpreter) SetPredicate5(name string, p engine.Predicate5) {
+func (i *Interpreter) SetPredicate5(name string, p Predicate5) {
 	m := i.Module(moduleNameNative)
-	m.Register5(name, p)
+	m.SetPredicate5(name, p)
 }
 
 // SetPredicate6 registers a native predicate of arity 6.
-func (i *Interpreter) SetPredicate6(name string, p engine.Predicate6) {
+func (i *Interpreter) SetPredicate6(name string, p Predicate6) {
 	m := i.Module(moduleNameNative)
-	m.Register6(name, p)
+	m.SetPredicate6(name, p)
 }
 
 // SetPredicate7 registers a native predicate of arity 7.
-func (i *Interpreter) SetPredicate7(name string, p engine.Predicate7) {
+func (i *Interpreter) SetPredicate7(name string, p Predicate7) {
 	m := i.Module(moduleNameNative)
-	m.Register7(name, p)
+	m.SetPredicate7(name, p)
 }
 
 // SetPredicate8 registers a native predicate of arity 8.
-func (i *Interpreter) SetPredicate8(name string, p engine.Predicate8) {
+func (i *Interpreter) SetPredicate8(name string, p Predicate8) {
 	m := i.Module(moduleNameNative)
-	m.Register8(name, p)
+	m.SetPredicate8(name, p)
 }

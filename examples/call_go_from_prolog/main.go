@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ichiban/prolog"
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/internal"
 )
 
 func main() {
@@ -13,23 +13,23 @@ func main() {
 
 	// Define a custom predicate of arity 2.
 	m := p.TypeInModule()
-	m.Register2("get_status", func(_ *engine.VM, url, status engine.Term, k engine.Cont, env *engine.Env) *engine.Promise {
+	m.SetPredicate2("get_status", func(_ *internal.VM, url, status internal.Term, k internal.Cont, env *internal.Env) *internal.Promise {
 		// Check if the input arguments are of the types you expected.
-		u, ok := env.Resolve(url).(engine.Atom)
+		u, ok := env.Resolve(url).(internal.Atom)
 		if !ok {
-			return engine.Error(engine.TypeError(engine.NewAtom("atom"), url, env))
+			return internal.Error(internal.TypeError(internal.NewAtom("atom"), url, env))
 		}
 
 		// Do whatever you want with the given inputs.
 		resp, err := http.Get(u.String())
 		if err != nil {
-			return engine.Error(err)
+			return internal.Error(err)
 		}
 
 		// Return values by unification with the output arguments.
-		env, ok = env.Unify(status, engine.Integer(resp.StatusCode))
+		env, ok = env.Unify(status, internal.Integer(resp.StatusCode))
 		if !ok {
-			return engine.Bool(false)
+			return internal.Bool(false)
 		}
 
 		// Tell Prolog to continue with the given continuation and environment.

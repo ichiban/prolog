@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ichiban/prolog/engine"
+	"github.com/ichiban/prolog/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -322,12 +322,12 @@ func TestNew_variableNames(t *testing.T) {
 			defer cancel()
 
 			if tt.input == "" {
-				p.SetUserInput(engine.NewInputTextStream(readFn(func(p []byte) (n int, err error) {
+				p.SetUserInput(internal.NewInputTextStream(readFn(func(p []byte) (n int, err error) {
 					<-ctx.Done()
 					return 0, io.EOF
 				})))
 			} else {
-				p.SetUserInput(engine.NewInputTextStream(bytes.NewBufferString(tt.input)))
+				p.SetUserInput(internal.NewInputTextStream(bytes.NewBufferString(tt.input)))
 			}
 			out.Reset()
 			assert.Equal(t, tt.err, p.QuerySolutionContext(ctx, tt.query).Err())
@@ -743,14 +743,14 @@ append(nil, L, L).`},
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
 			m := i.TypeInModule()
-			m.Register0("true", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+			m.SetPredicate0("true", func(_ *internal.VM, k internal.Cont, env *internal.Env) *internal.Promise {
 				return k(env)
 			})
-			m.Register0("fail", func(*engine.VM, engine.Cont, *engine.Env) *engine.Promise {
-				return engine.Bool(false)
+			m.SetPredicate0("fail", func(*internal.VM, internal.Cont, *internal.Env) *internal.Promise {
+				return internal.Bool(false)
 			})
-			m.Register3("op", engine.Op)
-			m.Register1("initialization", engine.Initialization)
+			m.SetPredicate3("op", Op)
+			m.SetPredicate1("initialization", Initialization)
 			_, err := i.Compile(context.Background(), `:-(op(1200, xfx, :-)).`)
 			assert.NoError(t, err)
 			_, err = i.Compile(context.Background(), `:-(op(1200, fx, :-)).`)
@@ -805,8 +805,8 @@ func TestInterpreter_Query(t *testing.T) {
 		t.Run(tt.query, func(t *testing.T) {
 			var i Interpreter
 			m := i.TypeInModule()
-			m.Register3("op", engine.Op)
-			m.Register2("set_prolog_flag", engine.SetPrologFlag)
+			m.SetPredicate3("op", Op)
+			m.SetPredicate2("set_prolog_flag", SetPrologFlag)
 			_, err := i.Compile(context.Background(), `
 :-(op(1200, xfx, :-)).
 :-(set_prolog_flag(double_quotes, atom)).
@@ -841,7 +841,7 @@ foo(a, 1, 2.0, [abc, def]).
 func TestInterpreter_Query_close(t *testing.T) {
 	var i Interpreter
 	m := i.TypeInModule()
-	m.Register0("do_not_call", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
+	m.SetPredicate0("do_not_call", func(_ *internal.VM, k internal.Cont, env *internal.Env) *internal.Promise {
 		assert.Fail(t, "unreachable")
 		return k(env)
 	})
@@ -1245,8 +1245,8 @@ foo(c, d).
 		err := errors.New("something went wrong")
 
 		m := i.TypeInModule()
-		m.Register0("error", func(_ *engine.VM, k engine.Cont, env *engine.Env) *engine.Promise {
-			return engine.Error(err)
+		m.SetPredicate0("error", func(_ *internal.VM, k internal.Cont, env *internal.Env) *internal.Promise {
+			return internal.Error(err)
 		})
 		sol := i.QuerySolution(`error.`)
 		assert.Equal(t, err, sol.Err())

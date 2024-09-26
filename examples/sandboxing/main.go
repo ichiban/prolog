@@ -4,8 +4,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/ichiban/prolog/engine"
-
 	"github.com/ichiban/prolog"
 )
 
@@ -22,7 +20,7 @@ func main() {
 
 	// To define operators, register op/3.
 	m := p.TypeInModule()
-	m.Register3("op", engine.Op)
+	m.SetPredicate3("op", prolog.Op)
 
 	// Then, define the infix operator with priority 1200 and specifier XFX.
 	if err := p.QuerySolution(`op(1200, xfx, :-).`).Err(); err != nil {
@@ -30,7 +28,7 @@ func main() {
 	}
 
 	// You may also want to register other predicates or define other operators to match your use case.
-	// You can use p.Register0~5 to register any builtin/custom predicates of respective arity.
+	// You can use p.SetPredicate0~5 to register any builtin/custom predicates of respective arity.
 
 	// Now you can load a Prolog program with infix `:-`.
 	if err := p.LoadFile(context.Background(), "prolog/main.pl"); err != nil {

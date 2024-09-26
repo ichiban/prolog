@@ -308,10 +308,23 @@ retractall(Head) :-
 retractall(_).
 
 % 8.10 All solutions
-:- native:meta_predicate(findall(+, 0, -)).
-findall(Template, Goal, Instances) :- native:findall(Template, Goal, Instances).
+
+:- meta_predicate(findall(+, 0, -)).
+findall(Template, Goal, Instances) :-
+  native:create_bag,
+  findall_loop(Template, Goal),
+  native:unify_bag(Instances).
+
+findall_loop(Template, Goal) :-
+  Goal,
+  copy_term(Template, CT),
+  native:append_bag(CT),
+  fail.
+findall_loop(_, _).
+
 :- native:meta_predicate(bagof(+, 0, -)).
 bagof(Template, Goal, Instances) :- native:bagof(Template, Goal, Instances).
+
 :- native:meta_predicate(setof(+, 0, -)).
 setof(Template, Goal, Instances) :- native:setof(Template, Goal, Instances).
 
