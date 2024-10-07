@@ -296,6 +296,8 @@ func (l *Lexer) commentClose() (Token, error) {
 		return Token{}, err
 	case r == '/':
 		return l.layoutTextSequence(true)
+	case r == '*':
+		return l.commentClose()
 	default:
 		return l.commentText(true)
 	}
