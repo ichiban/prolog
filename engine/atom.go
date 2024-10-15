@@ -153,7 +153,7 @@ var (
 	atomOutput                  = NewAtom("output")
 	atomPair                    = NewAtom("pair")
 	atomPast                    = NewAtom("past")
-	atomPastEndOfStream         = NewAtom("past_enf_of_stream")
+	atomPastEndOfStream         = NewAtom("past_end_of_stream")
 	atomPermissionError         = NewAtom("permission_error")
 	atomPhrase                  = NewAtom("phrase")
 	atomPi                      = NewAtom("pi")
