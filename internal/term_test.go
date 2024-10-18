@@ -8,7 +8,7 @@ import (
 )
 
 func TestTermPool_Compound(t *testing.T) {
-	pool := NewTermPool(2 * 1024)
+	pool := NewHeap(2 * 1024)
 
 	must := func(id Term, err error) Term {
 		if err != nil {
@@ -81,7 +81,7 @@ func TestTermPool_Compound(t *testing.T) {
 }
 
 func TestTermPool_Write(t *testing.T) {
-	pool := NewTermPool(1024 * 1024)
+	pool := NewHeap(1024 * 1024)
 	must := func(id Term, err error) Term {
 		if err != nil {
 			t.Fatal(err)
@@ -478,7 +478,7 @@ func TestTermPool_Write(t *testing.T) {
 }
 
 func TestTermPool_Compare(t *testing.T) {
-	pool := NewTermPool(1024 * 1024)
+	pool := NewHeap(1024 * 1024)
 
 	w, err := pool.PutVariable(NewVariable(&pool))
 	if err != nil {

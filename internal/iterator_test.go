@@ -7,7 +7,7 @@ import (
 
 func TestListIterator_Next(t *testing.T) {
 	t.Run("proper list", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(NewAtom("a"))
 		if err != nil {
@@ -61,7 +61,7 @@ func TestListIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			rest, err := pool.PutVariable(NewVariable(&pool))
 			if err != nil {
@@ -108,7 +108,7 @@ func TestListIterator_Next(t *testing.T) {
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			foo, err := pool.PutAtom(NewAtom("foo"))
 			if err != nil {
@@ -154,7 +154,7 @@ func TestListIterator_Next(t *testing.T) {
 		})
 
 		t.Run("compound", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			i0, err := pool.PutInteger(0)
 			if err != nil {
@@ -205,7 +205,7 @@ func TestListIterator_Next(t *testing.T) {
 		})
 
 		t.Run("circular list", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			l, err := pool.PutVariable(NewVariable(&pool))
 			if err != nil {
@@ -244,7 +244,7 @@ func TestListIterator_Next(t *testing.T) {
 }
 
 func TestListIterator_Suffix(t *testing.T) {
-	pool := NewTermPool(1024)
+	pool := NewHeap(1024)
 
 	a, err := pool.PutAtom(Atom('a'))
 	if err != nil {
@@ -295,7 +295,7 @@ func TestListIterator_Suffix(t *testing.T) {
 
 func TestSeqIterator_Next(t *testing.T) {
 	t.Run("sequence", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -342,7 +342,7 @@ func TestSeqIterator_Next(t *testing.T) {
 	})
 
 	t.Run("sequence with a trailing compound", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -396,7 +396,7 @@ func TestSeqIterator_Next(t *testing.T) {
 
 func TestAltIterator_Next(t *testing.T) {
 	t.Run("alternatives", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -443,7 +443,7 @@ func TestAltIterator_Next(t *testing.T) {
 	})
 
 	t.Run("alternatives with a trailing compound", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -495,7 +495,7 @@ func TestAltIterator_Next(t *testing.T) {
 	})
 
 	t.Run("if then else", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -537,7 +537,7 @@ func TestAltIterator_Next(t *testing.T) {
 
 func TestAnyIterator_Next(t *testing.T) {
 	t.Run("proper list", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -588,7 +588,7 @@ func TestAnyIterator_Next(t *testing.T) {
 
 	t.Run("improper list", func(t *testing.T) {
 		t.Run("variable", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			x, err := pool.PutVariable(NewVariable(&pool))
 			if err != nil {
@@ -632,7 +632,7 @@ func TestAnyIterator_Next(t *testing.T) {
 		})
 
 		t.Run("atom", func(t *testing.T) {
-			pool := NewTermPool(1024)
+			pool := NewHeap(1024)
 
 			foo, err := pool.PutAtom(NewAtom("foo"))
 			if err != nil {
@@ -677,7 +677,7 @@ func TestAnyIterator_Next(t *testing.T) {
 	})
 
 	t.Run("sequence", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {
@@ -727,7 +727,7 @@ func TestAnyIterator_Next(t *testing.T) {
 	})
 
 	t.Run("single", func(t *testing.T) {
-		pool := NewTermPool(1024)
+		pool := NewHeap(1024)
 
 		a, err := pool.PutAtom(Atom('a'))
 		if err != nil {

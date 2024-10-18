@@ -19,7 +19,7 @@ func TestParser_Term(t *testing.T) {
 	ops.define(200, OperatorSpecifierFY, NewAtom(`-`))
 	ops.define(200, OperatorSpecifierYF, NewAtom(`--`))
 
-	pool := NewTermPool(1024 * 1024)
+	pool := NewHeap(1024 * 1024)
 
 	must := func(id Term, err error) Term {
 		if err != nil {
@@ -241,7 +241,7 @@ func TestParser_Term(t *testing.T) {
 }
 
 func TestParser_Replace(t *testing.T) {
-	pool := NewTermPool(8 * 1024)
+	pool := NewHeap(8 * 1024)
 
 	must := func(id Term, err error) Term {
 		if err != nil {
@@ -365,7 +365,7 @@ func TestParser_Replace(t *testing.T) {
 }
 
 func TestParser_More(t *testing.T) {
-	pool := NewTermPool(1024)
+	pool := NewHeap(1024)
 	p := Parser{
 		Lexer: Lexer{
 			module: func() *Module {

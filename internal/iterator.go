@@ -8,7 +8,7 @@ var (
 
 // ListIterator is an iterator for a list.
 type ListIterator struct {
-	TermPool     *TermPool
+	TermPool     *Heap
 	List         Term
 	AllowPartial bool
 	AllowCycle   bool
@@ -102,7 +102,7 @@ func (i *ListIterator) Suffix() Term {
 
 // seqIterator is an iterator for a sequence.
 type seqIterator struct {
-	TermPool *TermPool
+	TermPool *Heap
 	Seq      Term
 
 	current Term
@@ -133,7 +133,7 @@ func (i *seqIterator) Current() Term {
 
 // altIterator is an iterator for alternatives.
 type altIterator struct {
-	TermPool *TermPool
+	TermPool *Heap
 	Alt      Term
 
 	current Term
@@ -173,7 +173,7 @@ func (i *altIterator) Current() Term {
 
 // anyIterator is an iterator for a list or a sequence.
 type anyIterator struct {
-	TermPool *TermPool
+	TermPool *Heap
 	Any      Term
 
 	backend interface {

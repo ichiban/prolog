@@ -25,7 +25,7 @@ var (
 type Parser struct {
 	Lexer
 
-	pool *TermPool
+	pool *Heap
 
 	Vars []ParsedVariable
 
@@ -43,7 +43,7 @@ type ParsedVariable struct {
 }
 
 // NewParser creates a new parser from the Module and io.RuneReader.
-func NewParser(pool *TermPool, m func() *Module, r io.RuneReader) *Parser {
+func NewParser(pool *Heap, m func() *Module, r io.RuneReader) *Parser {
 	return &Parser{
 		Lexer: Lexer{
 			module: m,

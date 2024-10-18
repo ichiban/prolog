@@ -6,67 +6,23 @@ import (
 	"github.com/ichiban/prolog/internal/ring"
 	"regexp"
 	"strings"
-	"sync"
-	"unicode/utf8"
 )
 
 var (
 	quotedAtomEscapePattern = regexp.MustCompile(`[[:cntrl:]]|\\|'`)
 )
 
-var (
-	atomTable = struct {
-		sync.RWMutex
-		names []string
-		atoms map[string]Atom
-	}{
-		atoms: map[string]Atom{},
-	}
-)
-
 // Well-known atoms.
 var (
-	atomEmptyList  = NewAtom("[]")
-	atomEmptyBlock = NewAtom("{}")
-	atomEllipsis   = NewAtom(`...`)
+	atomEmptyList  = "[]"
+	atomEmptyBlock = "{}"
+	atomEllipsis   = `...`
 )
 
-// Atom is either a rune or an ID for interned string.
-type Atom int64
-
-func NewAtom(name string) Atom {
-	// A one-char atom is just a rune.
-	if r, n := utf8.DecodeLastRuneInString(name); r != utf8.RuneError && n == len(name) {
-		return Atom(r)
-	}
-
-	atomTable.Lock()
-	defer atomTable.Unlock()
-
-	a, ok := atomTable.atoms[name]
-	if ok {
-		return a
-	}
-
-	a = Atom(len(atomTable.names) + (utf8.MaxRune + 1))
-	atomTable.atoms[name] = a
-	atomTable.names = append(atomTable.names, name)
-	return a
-}
-
-func (a Atom) String() string {
-	if a <= utf8.MaxRune {
-		return string(rune(a))
-	}
-	atomTable.RLock()
-	defer atomTable.RUnlock()
-	return atomTable.names[a-(utf8.MaxRune+1)]
-}
-
-func needQuoted(a Atom) bool {
+func needQuoted(a string) bool {
 	p := Parser{
 		Lexer: Lexer{
-			input: newRuneRingBuffer(strings.NewReader(a.String())),
+			input: newRuneRingBuffer(strings.NewReader(a)),
 		},
 		buf: ring.NewBuffer[Token](4),
 	}
@@ -107,25 +63,23 @@ func quotedIdentEscape(s string) string {
 	}
 }
 
-func letterDigit(a Atom) bool {
-	s := a.String()
+func letterDigit(s string) bool {
 	return len(s) > 0 && isSmallLetterChar([]rune(s)[0])
 }
 
-func graphic(a Atom) bool {
-	s := a.String()
+func graphic(s string) bool {
 	return len(s) > 0 && (isGraphicChar([]rune(s)[0]) || []rune(s)[0] == '\\')
 }
 
 type atomID int32
 
-type SymbolTable struct {
+type AtomTable struct {
 	lastID atomID
 	ids    rbtree.Map[string, atomID]
 	names  rbtree.Map[atomID, string]
 }
 
-func (s *SymbolTable) Put(name string) (atomID, bool) {
+func (s *AtomTable) Put(name string) (atomID, bool) {
 	if id, ok := s.ids.Get(name); ok {
 		return id, true
 	}
@@ -140,7 +94,7 @@ func (s *SymbolTable) Put(name string) (atomID, bool) {
 	return id, true
 }
 
-func (s *SymbolTable) Grow(size int) {
+func (s *AtomTable) Grow(size int) {
 	s.ids.Grow(size)
 	s.names.Grow(size)
 }

@@ -15,7 +15,7 @@ var (
 
 type Variable int32
 
-func NewVariable(t *TermPool) Variable {
+func NewVariable(t *Heap) Variable {
 	t.env.lastVariable++
 	return t.env.lastVariable
 }
@@ -61,7 +61,7 @@ func (e *Env) Bind(v Variable, t Term) error {
 // So if you look at the value it's a multi set of variable occurrences and if you ignore the value it's a set of occurrences (witness).
 type VariableSet map[Variable]int
 
-func newVariableSet(t *TermPool, id Term) (VariableSet, error) {
+func newVariableSet(t *Heap, id Term) (VariableSet, error) {
 	s := VariableSet{}
 	for ids := []Term{id}; len(ids) > 0; ids, id = ids[:len(ids)-1], ids[len(ids)-1] {
 		if v, ok := t.Variable(id); ok {
@@ -81,7 +81,7 @@ func newVariableSet(t *TermPool, id Term) (VariableSet, error) {
 	return s, nil
 }
 
-func newExistentialVariablesSet(t *TermPool, id Term) (VariableSet, error) {
+func newExistentialVariablesSet(t *Heap, id Term) (VariableSet, error) {
 	ev := VariableSet{}
 	for ids := []Term{id}; len(ids) > 0; ids, id = ids[:len(ids)-1], ids[len(ids)-1] {
 		if f, arg, ok := t.Compound(id); ok && f == (Functor{Name: Atom('^'), Arity: 2}) {
@@ -109,7 +109,7 @@ func newExistentialVariablesSet(t *TermPool, id Term) (VariableSet, error) {
 	return ev, nil
 }
 
-func NewFreeVariablesSet(p *TermPool, t, v Term) (VariableSet, error) {
+func NewFreeVariablesSet(p *Heap, t, v Term) (VariableSet, error) {
 	s, err := newVariableSet(p, t)
 	if err != nil {
 		return nil, err
@@ -138,11 +138,11 @@ func NewFreeVariablesSet(p *TermPool, t, v Term) (VariableSet, error) {
 	return fv, nil
 }
 
-func freeVariables(p TermPool, t Term) ([]Variable, error) {
+func freeVariables(p Heap, t Term) ([]Variable, error) {
 	return appendFreeVariables(p, nil, t)
 }
 
-func appendFreeVariables(p TermPool, fvs []Variable, t Term) ([]Variable, error) {
+func appendFreeVariables(p Heap, fvs []Variable, t Term) ([]Variable, error) {
 	if t, ok := p.Variable(t); ok {
 		for _, v := range fvs {
 			if v == t {

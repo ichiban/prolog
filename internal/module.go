@@ -298,7 +298,7 @@ func (m *Module) Import(from *Module, importList []Functor) {
 	}
 }
 
-func (m *Module) flushClauseBuf(p *TermPool) error {
+func (m *Module) flushClauseBuf(p *Heap) error {
 	if len(m.buf) == 0 {
 		return nil
 	}

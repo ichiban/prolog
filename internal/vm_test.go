@@ -37,7 +37,7 @@ func TestVM_Arrive(t *testing.T) {
 						unknown: unknownError,
 					},
 				},
-				Terms: NewTermPool(1024),
+				Terms: NewHeap(1024),
 			}
 			ok, err := vm.Arrive(context.Background(), NewAtom("user"), NewAtom("foo"), []Term{1}, Success).Force(Stack{})
 			var existenceError *ExistenceError

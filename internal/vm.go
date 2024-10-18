@@ -55,7 +55,7 @@ type VM struct {
 	system  Atom
 	typeIn  Atom
 
-	Terms TermPool
+	Terms Heap
 	Stack Stack
 
 	// I/O
