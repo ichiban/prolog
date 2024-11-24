@@ -1,11 +1,9 @@
 package prolog
 
 import (
-	"iter"
 	"maps"
 	"math"
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/ichiban/prolog/v2/internal/rbtree"
@@ -296,7 +294,7 @@ func TestNewList(t *testing.T) {
 	tests := []struct {
 		title string
 		heap  *Heap
-		elems iter.Seq[Term]
+		elems []Term
 		term  Term
 		err   error
 	}{
@@ -310,7 +308,7 @@ func TestNewList(t *testing.T) {
 					Names: make([]string, 0, 1),
 				},
 			},
-			elems: slices.Values([]Term{}),
+			elems: []Term{},
 			term:  Term{tag: termTagAtom, payload: 0},
 		},
 		{
@@ -325,10 +323,10 @@ func TestNewList(t *testing.T) {
 				},
 				integers: make([]int64, 0, 2),
 			},
-			elems: slices.Values([]Term{
+			elems: []Term{
 				{tag: termTagCharacter, payload: 'a'},
 				{tag: termTagCharacter, payload: 'b'},
-			}),
+			},
 			term: Term{tag: termTagReference, payload: 0},
 		},
 		{
@@ -340,10 +338,10 @@ func TestNewList(t *testing.T) {
 				},
 				integers: make([]int64, 0, 2),
 			},
-			elems: slices.Values([]Term{
+			elems: []Term{
 				{tag: termTagCharacter, payload: 'a'},
 				{tag: termTagCharacter, payload: 'b'},
-			}),
+			},
 			err: &ResourceError{Resource: "atoms"},
 		},
 		{
@@ -358,10 +356,10 @@ func TestNewList(t *testing.T) {
 				},
 				integers: make([]int64, 0, 2),
 			},
-			elems: slices.Values([]Term{
+			elems: []Term{
 				{tag: termTagCharacter, payload: 'a'},
 				{tag: termTagCharacter, payload: 'b'},
-			}),
+			},
 			err: &ResourceError{Resource: "terms"},
 		},
 		{
@@ -376,10 +374,10 @@ func TestNewList(t *testing.T) {
 				},
 				integers: make([]int64, 0, 2),
 			},
-			elems: slices.Values([]Term{
+			elems: []Term{
 				{tag: termTagCharacter, payload: 'a'},
 				{tag: termTagCharacter, payload: 'b'},
-			}),
+			},
 			err: &ResourceError{Resource: "terms"},
 		},
 		{
@@ -394,17 +392,17 @@ func TestNewList(t *testing.T) {
 				},
 				integers: make([]int64, 0, 2),
 			},
-			elems: slices.Values([]Term{
+			elems: []Term{
 				{tag: termTagCharacter, payload: 'a'},
 				{tag: termTagCharacter, payload: 'b'},
-			}),
+			},
 			err: &ResourceError{Resource: "terms"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			l, err := NewList(tt.heap, tt.elems)
+			l, err := NewList(tt.heap, tt.elems...)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -470,12 +468,6 @@ func TestNewCharList(t *testing.T) {
 			}
 		})
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-
-		})
-	}
 }
 
 func TestTerm_Variable(t *testing.T) {
@@ -502,7 +494,7 @@ func TestTerm_Variable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			err := tt.term.Variable(h)
+			_, err := tt.term.Variable(h)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -722,22 +714,22 @@ func TestTerm_List(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	l, err := NewList(h, slices.Values([]Term{a, b}))
+	l, err := NewList(h, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	nl, err := NewPartialList(h, slices.Values([]Term{a, b}), a)
+	nl, err := NewPartialList(h, a, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	nl2, err := NewPartialList(h, slices.Values([]Term{a, b}), one)
+	nl2, err := NewPartialList(h, one, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pl, err := NewPartialList(h, slices.Values([]Term{a, b}), v)
+	pl, err := NewPartialList(h, v, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -746,7 +738,7 @@ func TestTerm_List(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cl, err := NewPartialList(h, slices.Values([]Term{a, b}), tail)
+	cl, err := NewPartialList(h, tail, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -780,28 +772,28 @@ func TestTerm_List(t *testing.T) {
 		{title: "[a, b|a]", term: nl, results: []result{
 			{term: a},
 			{term: b},
-			{err: &TypeError{ValidType: "list", Culprit: nl}},
+			{term: a, err: &TypeError{ValidType: "list", Culprit: nl}},
 		}},
 		{title: "[a, b|1]", term: nl2, results: []result{
 			{term: a},
 			{term: b},
-			{err: &TypeError{ValidType: "list", Culprit: nl2}},
+			{term: one, err: &TypeError{ValidType: "list", Culprit: nl2}},
 		}},
 		{title: "[a, b|_]", term: pl, results: []result{
 			{term: a},
 			{term: b},
-			{err: ErrInstantiation},
+			{term: Term{tag: termTagVariable, payload: 1}, err: ErrInstantiation},
 		}},
-		{title: "[a, b|_] with AllowPartial", term: pl, options: []ListOption{AllowPartial}, results: []result{
+		{title: "[a, b|_] with AllowPartial", term: pl, options: []ListOption{AllowPartial(true)}, results: []result{
 			{term: a},
 			{term: b},
 		}},
 		{title: "[a, b, a, b|...]", term: cl, results: []result{
 			{term: a},
 			{term: b},
-			{err: &TypeError{ValidType: "list", Culprit: cl}},
+			{term: cl, err: &TypeError{ValidType: "list", Culprit: cl}},
 		}},
-		{title: "[a, b, a, b|...] with AllowCyclic", term: cl, options: []ListOption{AllowCycle}, count: 8, results: []result{
+		{title: "[a, b, a, b|...] with AllowCyclic", term: cl, options: []ListOption{AllowCycle(true)}, count: 8, results: []result{
 			{term: a},
 			{term: b},
 			{term: a},
@@ -849,7 +841,7 @@ func TestTerm_CharList(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	list, err := NewList(h, slices.Values([]Term{a, b, c}))
+	list, err := NewList(h, a, b, c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -979,21 +971,21 @@ func TestTerm_Unify(t *testing.T) {
 		x, y  Term
 		ok    bool
 		err   error
-		env   map[variable]Term
+		env   map[Variable]Term
 	}{
 		{title: "a = a", heap: h, x: a, y: a, ok: true},
 		{title: "V = V", heap: h, x: v, y: v, ok: true},
-		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[variable]Term{
-			variable(v.payload): w,
+		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
+			Variable(v.payload): w,
 		}},
 		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
 		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
-		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[variable]Term{
-			variable(v.payload): a,
+		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
+			Variable(v.payload): a,
 		}},
 		{title: "a = b", heap: h, x: a, y: b, ok: false},
-		{title: "X = f(X)", heap: h, x: x, y: fx, ok: true, env: map[variable]Term{
-			variable(x.payload): fx,
+		{title: "X = f(X)", heap: h, x: x, y: fx, ok: true, env: map[Variable]Term{
+			Variable(x.payload): fx,
 		}},
 		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
 	}
@@ -1014,7 +1006,7 @@ func TestTerm_Unify(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tt.ok, ok)
 			}
 
-			env := map[variable]Term{}
+			env := map[Variable]Term{}
 			for k, v := range h.env.Values.All() {
 				env[k] = v
 			}
@@ -1080,17 +1072,17 @@ func TestTerm_UnifyWithOccursCheck(t *testing.T) {
 		x, y  Term
 		ok    bool
 		err   error
-		env   map[variable]Term
+		env   map[Variable]Term
 	}{
 		{title: "a = a", heap: h, x: a, y: a, ok: true},
 		{title: "V = V", heap: h, x: v, y: v, ok: true},
-		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[variable]Term{
-			variable(v.payload): w,
+		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
+			Variable(v.payload): w,
 		}},
 		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
 		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
-		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[variable]Term{
-			variable(v.payload): a,
+		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
+			Variable(v.payload): a,
 		}},
 		{title: "a = b", heap: h, x: a, y: b, ok: false},
 		{title: "X = f(X)", heap: h, x: x, y: fx, ok: false},
@@ -1113,7 +1105,7 @@ func TestTerm_UnifyWithOccursCheck(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tt.ok, ok)
 			}
 
-			env := map[variable]Term{}
+			env := map[Variable]Term{}
 			for k, v := range h.env.Values.All() {
 				env[k] = v
 			}
@@ -1519,12 +1511,12 @@ func TestCompound_Arg(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listAB, err := NewList(h, slices.Values([]Term{a, b}))
+	listAB, err := NewList(h, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listB, err := NewList(h, slices.Values([]Term{b}))
+	listB, err := NewList(h, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1570,6 +1562,33 @@ func TestCompound_Arg(t *testing.T) {
 	}
 }
 
-func indirect[T any](t T) *T {
-	return &t
+func TestStringPool_First(t *testing.T) {
+	h := NewHeap(1024)
+	if _, err := h.strings.Put("ab", Term{tag: termTagVariable, payload: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.strings.Put("cd", Term{tag: termTagVariable, payload: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		title string
+		id    stringID
+		term  Term
+	}{
+		{title: "0", id: 0, term: Term{tag: termTagCharacter, payload: 'a'}},
+		{title: "1", id: 1, term: Term{tag: termTagCharacter, payload: 'b'}},
+		{title: "2", id: 2, term: Term{tag: termTagCharacter, payload: 'c'}},
+		{title: "3", id: 3, term: Term{tag: termTagCharacter, payload: 'd'}},
+		{title: "4", id: 4, term: Term{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			term := h.strings.First(tt.id)
+			if o := term.Compare(h, tt.term); o != 0 {
+				t.Errorf("expected %v, got %v", tt.term, term)
+			}
+		})
+	}
 }

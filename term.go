@@ -67,7 +67,7 @@ func NewHeap(bytes int) *Heap {
 		atomBytes    = int(unsafe.Sizeof(rbtree.Map[string, atomID]{})) // TODO: ?
 		integerBytes = int(unsafe.Sizeof(int64(0)))
 		floatBytes   = int(unsafe.Sizeof(float64(0)))
-		bindingBytes = int(unsafe.Sizeof(rbtree.Node[variable, Term]{}))
+		bindingBytes = int(unsafe.Sizeof(rbtree.Node[Variable, Term]{}))
 		stringBytes  = int(unsafe.Sizeof(stringEntry{}))
 	)
 
@@ -95,8 +95,8 @@ func NewHeap(bytes int) *Heap {
 		terms: make([]Term, 0, MaxTerms),
 
 		env: env{
-			Values: rbtree.Map[variable, Term]{
-				Nodes: make([]rbtree.Node[variable, Term], 0, MaxBindings),
+			Values: rbtree.Map[Variable, Term]{
+				Nodes: make([]rbtree.Node[Variable, Term], 0, MaxBindings),
 			},
 		},
 		atoms: atomTable{
@@ -161,12 +161,12 @@ func NewVariable(h *Heap) (Term, error) {
 }
 
 // Variable returns an error if it's not a variable term.
-func (t Term) Variable(h *Heap) error {
+func (t Term) Variable(h *Heap) (Variable, error) {
 	t = t.resolve(h)
 	if t.tag != termTagVariable {
-		return &UninstantiationError{Culprit: t}
+		return 0, &UninstantiationError{Culprit: t}
 	}
-	return nil
+	return Variable(t.payload), nil
 }
 
 func (t Term) resolve(h *Heap) Term {
@@ -175,7 +175,7 @@ func (t Term) resolve(h *Heap) Term {
 			return t
 		}
 
-		val, ok := h.env.Values.Get(variable(t.payload))
+		val, ok := h.env.Values.Get(Variable(t.payload))
 		if !ok {
 			return t
 		}
@@ -306,21 +306,21 @@ func NewCompound(h *Heap, name string, args ...Term) (Term, error) {
 }
 
 // NewList creates a series of compound terms for a list.
-func NewList(h *Heap, elems iter.Seq[Term]) (Term, error) {
+func NewList(h *Heap, elems ...Term) (Term, error) {
 	tail, err := NewAtom(h, "[]")
 	if err != nil {
 		return Term{}, err
 	}
-	return NewPartialList(h, elems, tail)
+	return NewPartialList(h, tail, elems...)
 }
 
 // NewPartialList creates a series of compound terms for a partial list with the specified tail term.
-func NewPartialList(h *Heap, elems iter.Seq[Term], tail Term) (Term, error) {
+func NewPartialList(h *Heap, tail Term, elems ...Term) (Term, error) {
 	id := int32(len(h.terms))
 
 	// CDR coding
 	empty := true
-	for t := range elems {
+	for _, t := range elems {
 		empty = false
 		if _, err := h.putFunctor(Functor{Name: ".", Arity: 2}); err != nil {
 			return Term{}, err
@@ -354,6 +354,27 @@ func NewPartialCharList(h *Heap, str string, tail Term) (Term, error) {
 		return Term{}, &ResourceError{Resource: "strings"}
 	}
 	return Term{tag: termTagString, payload: int32(id)}, nil
+}
+
+// NewCodeList creates a list of single-character atoms.
+func NewCodeList(h *Heap, str string) (Term, error) {
+	tail, err := NewAtom(h, "[]")
+	if err != nil {
+		return Term{}, err
+	}
+	return NewPartialCodeList(h, str, tail)
+}
+
+func NewPartialCodeList(h *Heap, str string, tail Term) (Term, error) {
+	var elems []Term
+	for _, r := range str {
+		i, err := NewInteger(h, int64(r))
+		if err != nil {
+			return Term{}, err
+		}
+		elems = append(elems, i)
+	}
+	return NewPartialList(h, tail, elems...)
 }
 
 // Functor is a Name with Arity.
@@ -439,13 +460,17 @@ type ListOptions struct {
 type ListOption func(*ListOptions)
 
 // AllowCycle configures the list iterator to allow cyclic lists.
-func AllowCycle(opts *ListOptions) {
-	opts.allowCycle = true
+func AllowCycle(ok bool) func(*ListOptions) {
+	return func(opts *ListOptions) {
+		opts.allowCycle = ok
+	}
 }
 
 // AllowPartial configures the list iterator to allow partial lists.
-func AllowPartial(opts *ListOptions) {
-	opts.allowPartial = true
+func AllowPartial(ok bool) func(*ListOptions) {
+	return func(opts *ListOptions) {
+		opts.allowPartial = ok
+	}
 }
 
 // List returns an iterator iterates over the elements of a list.
@@ -465,7 +490,7 @@ func (t Term) List(h *Heap, opts ...ListOption) iter.Seq2[Term, error] {
 	return func(yield func(Term, error) bool) {
 		for {
 			if tortoise == hare && !o.allowCycle { // Detected a cycle.
-				_ = yield(Term{}, &TypeError{ValidType: "list", Culprit: t})
+				_ = yield(hare, &TypeError{ValidType: "list", Culprit: t})
 				return
 			}
 
@@ -475,23 +500,23 @@ func (t Term) List(h *Heap, opts ...ListOption) iter.Seq2[Term, error] {
 				lam = 0
 			}
 
-			if err := hare.Variable(h); err == nil {
+			if _, err := hare.Variable(h); err == nil {
 				if !o.allowPartial {
-					_ = yield(Term{}, ErrInstantiation)
+					_ = yield(hare, ErrInstantiation)
 				}
 				return
 			}
 
 			if a, err := hare.Atom(h); err == nil {
 				if a != "[]" {
-					_ = yield(Term{}, &TypeError{ValidType: "list", Culprit: t})
+					_ = yield(hare, &TypeError{ValidType: "list", Culprit: t})
 				}
 				return
 			}
 
 			c, err := hare.Compound(h)
 			if err != nil || c.Functor != (Functor{Name: ".", Arity: 2}) {
-				_ = yield(Term{}, &TypeError{ValidType: "list", Culprit: t})
+				_ = yield(hare, &TypeError{ValidType: "list", Culprit: t})
 				return
 			}
 
@@ -560,13 +585,13 @@ func unify(h *Heap, x, y Term, occursCheck bool) (bool, error) {
 		return true, nil
 	}
 
-	if err := x.Variable(h); err == nil {
+	if _, err := x.Variable(h); err == nil {
 		if _, err := y.Compound(h); err == nil && occursCheck {
 			if y.Contains(h, x) {
 				return false, nil
 			}
 		}
-		if err := h.env.Values.Set(variable(x.payload), y); err != nil {
+		if err := h.env.Values.Set(Variable(x.payload), y); err != nil {
 			return false, &ResourceError{Resource: "variables"}
 		}
 		return true, nil
@@ -589,7 +614,7 @@ func unify(h *Heap, x, y Term, occursCheck bool) (bool, error) {
 		}
 	}
 
-	if err := y.Variable(h); err == nil {
+	if _, err := y.Variable(h); err == nil {
 		return unify(h, y, x, occursCheck)
 	}
 
@@ -634,7 +659,7 @@ func renamedCopy(h *Heap, t Term, copied map[Term]Term) (Term, error) {
 		return c, nil
 	}
 
-	if err := t.Variable(h); err == nil {
+	if _, err := t.Variable(h); err == nil {
 		c, err := NewVariable(h)
 		if err != nil {
 			return Term{}, err
@@ -719,16 +744,16 @@ func (t Term) Compare(h *Heap, u Term) int {
 		return 0
 	}
 
-	if err := x.Variable(h); err == nil {
-		if err := y.Variable(h); err == nil {
-			return int(x.payload) - int(y.payload)
+	if vx, err := x.Variable(h); err == nil {
+		if vy, err := y.Variable(h); err == nil {
+			return int(vx) - int(vy)
 		}
 
 		return -1
 	}
 
 	if x, err := x.Float(h); err == nil {
-		if err := y.Variable(h); err == nil {
+		if _, err := y.Variable(h); err == nil {
 			return 1
 		}
 
@@ -738,6 +763,8 @@ func (t Term) Compare(h *Heap, u Term) int {
 				return 1
 			case x < y:
 				return -1
+			default:
+				return 0
 			}
 		}
 
@@ -745,7 +772,7 @@ func (t Term) Compare(h *Heap, u Term) int {
 	}
 
 	if x, err := x.Integer(h); err == nil {
-		if err := y.Variable(h); err == nil {
+		if _, err := y.Variable(h); err == nil {
 			return 1
 		}
 
@@ -759,6 +786,8 @@ func (t Term) Compare(h *Heap, u Term) int {
 				return 1
 			case x < y:
 				return -1
+			default:
+				return 0
 			}
 		}
 
@@ -766,7 +795,7 @@ func (t Term) Compare(h *Heap, u Term) int {
 	}
 
 	if x, err := x.Atom(h); err == nil {
-		if err := y.Variable(h); err == nil {
+		if _, err := y.Variable(h); err == nil {
 			return 1
 		}
 
@@ -810,14 +839,14 @@ func (t Term) Compare(h *Heap, u Term) int {
 	return 0
 }
 
-type variable int32
+type Variable int32
 
 type env struct {
-	lastVariable variable
-	Values       rbtree.Map[variable, Term]
+	lastVariable Variable
+	Values       rbtree.Map[Variable, Term]
 }
 
-func (e *env) Generate() (variable, error) {
+func (e *env) Generate() (Variable, error) {
 	if e.lastVariable == math.MaxInt32 {
 		return 0, &ResourceError{Resource: "variables"}
 	}
@@ -838,12 +867,6 @@ func (a *atomTable) Put(name string) (atomID, error) {
 	}
 
 	id := atomID(len(a.Names))
-
-	// A hack to improve performance.
-	if id%2 == 0 {
-		id *= -1
-	}
-
 	if err := a.IDs.Set(name, id); err != nil {
 		return 0, err
 	}
@@ -882,13 +905,16 @@ func (s *stringPool) Put(str string, tail Term) (stringID, error) {
 	if !ok {
 		return 0, &ResourceError{Resource: "strings"}
 	}
-	return stringID(len(*s) - 1), nil
+	return e.offset, nil
 }
 
 func (s *stringPool) First(id stringID) Term {
 	i := slices.IndexFunc(*s, func(e stringEntry) bool {
-		return e.offset+stringID(len(e.string)) >= id
+		return e.offset+stringID(len(e.string)) > id
 	})
+	if i == -1 {
+		return Term{}
+	}
 	e := (*s)[i]
 	str := e.string[id-e.offset:]
 	r, _ := utf8.DecodeRuneInString(str)
@@ -897,8 +923,11 @@ func (s *stringPool) First(id stringID) Term {
 
 func (s *stringPool) Rest(id stringID) Term {
 	i := slices.IndexFunc(*s, func(e stringEntry) bool {
-		return e.offset+stringID(len(e.string)) >= id
+		return e.offset+stringID(len(e.string)) > id
 	})
+	if i == -1 {
+		return Term{}
+	}
 	e := (*s)[i]
 	str := e.string[id-e.offset:]
 	_, n := utf8.DecodeRuneInString(str)
