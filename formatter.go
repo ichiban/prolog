@@ -3,9 +3,11 @@ package prolog
 import (
 	"fmt"
 	"io"
+	"iter"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type formatState struct {
@@ -22,7 +24,7 @@ type Formatter struct {
 
 	IgnoreOps    bool
 	Quoted       bool
-	VariableName map[Variable]string
+	VariableName map[Variable]Atom
 	NumberVars   bool
 
 	Ops       Operators
@@ -59,25 +61,25 @@ func (f *Formatter) WriteTo(w io.Writer) (int64, error) {
 }
 
 func writeTerm(w io.Writer, h *Heap, t Term, opts *Formatter, state formatState) (int64, error) {
-	t = t.resolve(h)
+	t = h.Deref(t)
 
 	if _, ok := state.visited[t]; ok || (opts.MaxDepth > 0 && state.depth > opts.MaxDepth) {
 		return writeAtom(w, "...", opts, state)
 	}
 
-	if v, err := t.Variable(h); err == nil {
+	if v, err := h.Variable(t); err == nil {
 		return writeVariable(w, v, opts, state)
 	}
 
-	if name, err := t.Atom(h); err == nil {
+	if name, err := h.Atom(t); err == nil {
 		return writeAtom(w, name, opts, state)
 	}
 
-	if i, err := t.Integer(h); err == nil {
+	if i, err := h.Integer(t); err == nil {
 		return writeInteger(w, i, opts, state)
 	}
 
-	if f, err := t.Float(h); err == nil {
+	if f, err := h.Float(t); err == nil {
 		return writeFloat(w, f, opts, state)
 	}
 
@@ -86,12 +88,7 @@ func writeTerm(w io.Writer, h *Heap, t Term, opts *Formatter, state formatState)
 	}
 	state.visited[t] = struct{}{}
 
-	c, err := t.Compound(h)
-	if err != nil {
-		return 0, err
-	}
-
-	return writeCompound(w, h, c, opts, state)
+	return writeCompound(w, h, t, opts, state)
 }
 
 func writeVariable(w io.Writer, v Variable, opts *Formatter, state formatState) (int64, error) {
@@ -112,7 +109,7 @@ func writeVariable(w io.Writer, v Variable, opts *Formatter, state formatState) 
 	return ew.Result()
 }
 
-func writeAtom(w io.Writer, name string, opts *Formatter, state formatState) (int64, error) {
+func writeAtom(w io.Writer, name Atom, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	openClose := (state.left != (operator{}) || state.right != (operator{})) && opts.Ops.defined(name)
 
@@ -149,8 +146,8 @@ func writeAtom(w io.Writer, name string, opts *Formatter, state formatState) (in
 	return ew.Result()
 }
 
-func needQuoted(name string) bool {
-	p := NewParser(strings.NewReader(name), Operators{}, doubleQuotesChars)
+func needQuoted(name Atom) bool {
+	p := NewParser(strings.NewReader(string(name)), nil)
 	parsed, ok, err := p.atom()
 	return err != nil || !ok || parsed != name
 }
@@ -188,16 +185,17 @@ func quotedIdentEscape(s string) string {
 	}
 }
 
-func quote(s string) string {
-	return fmt.Sprintf("'%s'", quotedAtomEscapePattern.ReplaceAllStringFunc(s, quotedIdentEscape))
+func quote(s Atom) string {
+	return fmt.Sprintf("'%s'", quotedAtomEscapePattern.ReplaceAllStringFunc(string(s), quotedIdentEscape))
 }
 
-func letterDigit(s string) bool {
+func letterDigit(s Atom) bool {
 	return len(s) > 0 && isSmallLetterChar([]rune(s)[0])
 }
 
-func graphic(s string) bool {
-	return len(s) > 0 && (isGraphicChar([]rune(s)[0]) || []rune(s)[0] == '\\')
+func graphic(s Atom) bool {
+	r, _ := utf8.DecodeRuneInString(string(s))
+	return r != utf8.RuneError && (isGraphicChar(r) || r == '\\')
 }
 
 func writeInteger(w io.Writer, i int64, _ *Formatter, state formatState) (int64, error) {
@@ -262,39 +260,43 @@ func writeFloat(w io.Writer, f float64, opts *Formatter, state formatState) (int
 	return ew.Result()
 }
 
-func writeCompound(w io.Writer, h *Heap, c *Compound, opts *Formatter, state formatState) (int64, error) {
-	if c.Functor == (Functor{Name: "$VAR", Arity: 1}) && opts.NumberVars {
-		a := c.Arg(h, 0)
-		if n, err := a.Integer(h); err == nil {
+func writeCompound(w io.Writer, h *Heap, t Term, opts *Formatter, state formatState) (int64, error) {
+	f, err := h.Functor(t)
+	if err != nil {
+		return 0, err
+	}
+	if f == (Functor{Name: "$VAR", Arity: 1}) && opts.NumberVars {
+		a := h.Arg(t, 0)
+		if n, err := h.Integer(a); err == nil {
 			return writeCompoundNumberVars(w, n)
 		}
 	}
 
 	if !opts.IgnoreOps {
-		switch c.Functor {
+		switch f {
 		case Functor{Name: ".", Arity: 2}:
-			return writeCompoundList(w, h, c, opts, state)
+			return writeCompoundList(w, h, t, opts, state)
 		case Functor{Name: "{}", Arity: 1}:
-			return writeCompoundCurlyBracketed(w, h, c, opts, state)
+			return writeCompoundCurlyBracketed(w, h, t, opts, state)
 		}
 
 		ops := opts.Ops.ops
-		switch c.Arity {
+		switch f.Arity {
 		case 1:
-			if op, ok := ops[opKey{name: c.Name, opClass: operatorClassPrefix}]; ok {
-				return writeCompoundOpPrefix(w, h, c, &op, opts, state)
+			if op, ok := ops[opKey{name: f.Name, opClass: operatorClassPrefix}]; ok {
+				return writeCompoundOpPrefix(w, h, f.Name, h.Arg(t, 0), &op, opts, state)
 			}
-			if op, ok := ops[opKey{name: c.Name, opClass: operatorClassPostfix}]; ok {
-				return writeCompoundOpPostfix(w, h, c, &op, opts, state)
+			if op, ok := ops[opKey{name: f.Name, opClass: operatorClassPostfix}]; ok {
+				return writeCompoundOpPostfix(w, h, f.Name, h.Arg(t, 0), &op, opts, state)
 			}
 		case 2:
-			if op, ok := ops[opKey{name: c.Name, opClass: operatorClassInfix}]; ok {
-				return writeCompoundOpInfix(w, h, c, &op, opts, state)
+			if op, ok := ops[opKey{name: f.Name, opClass: operatorClassInfix}]; ok {
+				return writeCompoundOpInfix(w, h, h.Arg(t, 0), f.Name, h.Arg(t, 1), &op, opts, state)
 			}
 		}
 	}
 
-	return writeCompoundFunctionalNotation(w, h, c, opts, state)
+	return writeCompoundFunctionalNotation(w, h, f.Name, h.Args(t), opts, state)
 }
 
 func writeCompoundNumberVars(w io.Writer, n int64) (int64, error) {
@@ -308,17 +310,17 @@ func writeCompoundNumberVars(w io.Writer, n int64) (int64, error) {
 	return ew.Result()
 }
 
-func writeCompoundList(w io.Writer, h *Heap, c *Compound, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundList(w io.Writer, h *Heap, t Term, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	state.priority = 999
 	state.left = operator{}
 	state.right = operator{}
 	_, _ = fmt.Fprint(&ew, "[")
-	_, _ = writeTerm(&ew, h, c.Arg(h, 0), opts, state)
-	for elem, err := range c.Arg(h, 1).List(h, AllowCycle(opts.MaxDepth > state.depth)) {
+	_, _ = writeTerm(&ew, h, h.Arg(t, 0), opts, state)
+	for elem, err := range h.List(h.Arg(t, 1), AllowCycle(opts.MaxDepth > state.depth)) {
 		if err != nil {
 			_, _ = fmt.Fprint(&ew, "|")
-			if c, err := elem.Compound(h); err == nil && c.Functor == (Functor{Name: ".", Arity: 2}) {
+			if f, err := h.Functor(elem); err == nil && f == (Functor{Name: ".", Arity: 2}) {
 				_, _ = writeAtom(&ew, "...", opts, state)
 			} else {
 				_, _ = writeTerm(&ew, h, elem, opts, state)
@@ -334,16 +336,16 @@ func writeCompoundList(w io.Writer, h *Heap, c *Compound, opts *Formatter, state
 	return ew.Result()
 }
 
-func writeCompoundCurlyBracketed(w io.Writer, h *Heap, c *Compound, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundCurlyBracketed(w io.Writer, h *Heap, t Term, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	state.left = operator{}
 	_, _ = fmt.Fprint(&ew, "{")
-	_, _ = writeTerm(&ew, h, c.Arg(h, 0), opts, state)
+	_, _ = writeTerm(&ew, h, h.Arg(t, 0), opts, state)
 	_, _ = fmt.Fprint(&ew, "}")
 	return ew.Result()
 }
 
-func writeCompoundOpPrefix(w io.Writer, h *Heap, c *Compound, op *operator, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundOpPrefix(w io.Writer, h *Heap, name Atom, arg Term, op *operator, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	_, r := op.bindingPriorities()
 	openClose := state.priority < op.priority || (state.right != operator{} && r >= state.right.priority)
@@ -360,14 +362,14 @@ func writeCompoundOpPrefix(w io.Writer, h *Heap, c *Compound, op *operator, opts
 		state := state
 		state.left = operator{}
 		state.right = operator{}
-		_, _ = writeAtom(&ew, c.Name, opts, state)
+		_, _ = writeAtom(&ew, name, opts, state)
 	}
 	{
 		state := state
 		state.priority = r
 		state.left = *op
 		state.depth++
-		_, _ = writeTerm(&ew, h, c.Arg(h, 0), opts, state)
+		_, _ = writeTerm(&ew, h, arg, opts, state)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -375,7 +377,7 @@ func writeCompoundOpPrefix(w io.Writer, h *Heap, c *Compound, op *operator, opts
 	return ew.Result()
 }
 
-func writeCompoundOpPostfix(w io.Writer, h *Heap, c *Compound, op *operator, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundOpPostfix(w io.Writer, h *Heap, name Atom, arg Term, op *operator, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	l, _ := op.bindingPriorities()
 	openClose := state.priority < op.priority || (state.left.name == "-" && state.left.specifier.class() == operatorClassPrefix)
@@ -393,13 +395,13 @@ func writeCompoundOpPostfix(w io.Writer, h *Heap, c *Compound, op *operator, opt
 		state.priority = l
 		state.right = *op
 		state.depth++
-		_, _ = writeTerm(&ew, h, c.Arg(h, 0), opts, state)
+		_, _ = writeTerm(&ew, h, arg, opts, state)
 	}
 	{
 		state := state
 		state.left = operator{}
 		state.right = operator{}
-		_, _ = writeAtom(&ew, c.Name, opts, state)
+		_, _ = writeAtom(&ew, name, opts, state)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -409,7 +411,7 @@ func writeCompoundOpPostfix(w io.Writer, h *Heap, c *Compound, op *operator, opt
 	return ew.Result()
 }
 
-func writeCompoundOpInfix(w io.Writer, h *Heap, c *Compound, op *operator, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundOpInfix(w io.Writer, h *Heap, left Term, name Atom, right Term, op *operator, opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	l, r := op.bindingPriorities()
 	openClose := state.priority < op.priority ||
@@ -429,9 +431,9 @@ func writeCompoundOpInfix(w io.Writer, h *Heap, c *Compound, op *operator, opts 
 		state.priority = l
 		state.right = *op
 		state.depth++
-		_, _ = writeTerm(&ew, h, c.Arg(h, 0), opts, state)
+		_, _ = writeTerm(&ew, h, left, opts, state)
 	}
-	switch name := c.Name; name {
+	switch name {
 	case ",", "|":
 		_, _ = fmt.Fprint(&ew, name)
 	default:
@@ -445,7 +447,7 @@ func writeCompoundOpInfix(w io.Writer, h *Heap, c *Compound, op *operator, opts 
 		state.priority = r
 		state.left = *op
 		state.depth++
-		_, _ = writeTerm(&ew, h, c.Arg(h, 1), opts, state)
+		_, _ = writeTerm(&ew, h, right, opts, state)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -453,15 +455,15 @@ func writeCompoundOpInfix(w io.Writer, h *Heap, c *Compound, op *operator, opts 
 	return ew.Result()
 }
 
-func writeCompoundFunctionalNotation(w io.Writer, h *Heap, c *Compound, opts *Formatter, state formatState) (int64, error) {
+func writeCompoundFunctionalNotation(w io.Writer, h *Heap, name Atom, args iter.Seq[Term], opts *Formatter, state formatState) (int64, error) {
 	ew := errWriter{w: w}
 	state.right = operator{}
-	_, _ = writeAtom(&ew, c.Name, opts, state)
+	_, _ = writeAtom(&ew, name, opts, state)
 	_, _ = fmt.Fprint(&ew, "(")
 	state.left = operator{}
 	state.priority = 999
 	state.depth++
-	for i, a := range c.Args(h) {
+	for i, a := range withIndex(args) {
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
 		}
@@ -469,6 +471,18 @@ func writeCompoundFunctionalNotation(w io.Writer, h *Heap, c *Compound, opts *Fo
 	}
 	_, _ = fmt.Fprint(&ew, ")")
 	return ew.Result()
+}
+
+func withIndex[T any](seq iter.Seq[T]) iter.Seq2[int, T] {
+	return func(yield func(int, T) bool) {
+		var i int
+		for v := range seq {
+			if !yield(i, v) {
+				return
+			}
+			i++
+		}
+	}
 }
 
 // https://go.dev/blog/errors-are-values

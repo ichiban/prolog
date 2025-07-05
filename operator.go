@@ -10,7 +10,7 @@ type Operators struct {
 }
 
 // Define defines an operator.
-func (o *Operators) Define(priority int, spec OperatorSpecifier, name string) {
+func (o *Operators) Define(priority int, spec OperatorSpecifier, name Atom) {
 	if o.ops == nil {
 		o.ops = map[opKey]operator{}
 	}
@@ -24,19 +24,19 @@ func (o *Operators) Define(priority int, spec OperatorSpecifier, name string) {
 	}
 }
 
-func (o *Operators) definedIn(name string, opClass operatorClass) bool {
+func (o *Operators) definedIn(name Atom, opClass operatorClass) bool {
 	_, ok := o.ops[opKey{name: name, opClass: opClass}]
 	return ok
 }
 
-func (o *Operators) defined(name string) bool {
+func (o *Operators) defined(name Atom) bool {
 	return o.definedIn(name, operatorClassPrefix) ||
 		o.definedIn(name, operatorClassPostfix) ||
 		o.definedIn(name, operatorClassInfix)
 }
 
 type opKey struct {
-	name    string
+	name    Atom
 	opClass operatorClass
 }
 
@@ -146,7 +146,7 @@ func (s OperatorSpecifier) arity() int {
 type operator struct {
 	priority  int // 1 ~ 1200
 	specifier OperatorSpecifier
-	name      string
+	name      Atom
 }
 
 // Pratt parser's binding powers but in Prolog priority.

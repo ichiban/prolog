@@ -1,6 +1,7 @@
 package prolog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -57,6 +58,27 @@ func (e *DomainError) Error() string {
 	return fmt.Sprintf("invalid domain: expected %s, got %s", e.ValidDomain, e.Culprit)
 }
 
+// PermissionError is an error that signifies a disallowed operation.
+type PermissionError struct {
+	Operation      string
+	PermissionType string
+	Culprit        Term
+}
+
+func (e *PermissionError) Error() string {
+	return fmt.Sprintf("disallowed operation %s on %s: %s", e.PermissionType, e.Operation, e.Culprit)
+}
+
+// ExistenceError is an error that signifies nonexistence of an object.
+type ExistenceError struct {
+	ObjectType string
+	Culprit    Term
+}
+
+func (e *ExistenceError) Error() string {
+	return fmt.Sprintf("%s does not exist: %s", e.ObjectType, e.Culprit)
+}
+
 // UninstantiationError is an error that signifies a term is non-variable.
 type UninstantiationError struct {
 	Culprit Term
@@ -64,4 +86,9 @@ type UninstantiationError struct {
 
 func (u *UninstantiationError) Error() string {
 	return fmt.Sprintf("uninstantiation error: %v", u.Culprit)
+}
+
+func Catch(ctx context.Context, proc *Processor, goal, catcher, recovery Term, k Promise) Promise {
+	// TODO: Call goal and catch errors.
+	return Eager(false, nil)
 }

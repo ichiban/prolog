@@ -3,451 +3,493 @@ package prolog
 import (
 	"fmt"
 	"iter"
-	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
 	"unsafe"
-
-	"github.com/ichiban/prolog/v2/internal/rbtree"
 )
 
-type termTag int8
+type Variable int32
+
+type termTag uint8
 
 const (
-	termTagVariable = iota + 1
+	termTagInvalid termTag = iota
+	termTagReference
 	termTagAtom
 	termTagCharacter
 	termTagInteger
 	termTagFloat
-	termTagReference
-	termTagCompound
-	termTagString
+	termTagStructure
+	termTagFunctor
+	termTagString0
+	termTagString1
+	termTagString2
+	termTagString3
+	termTagString4
+	termTagString5
+	termTagString6
+	termTagString7
 )
 
-func (t termTag) String() string {
-	switch t {
-	case termTagVariable:
-		return "variable"
-	case termTagCharacter:
-		return "character"
-	case termTagAtom:
-		return "atom"
-	case termTagInteger:
-		return "integer"
-	case termTagFloat:
-		return "float"
-	case termTagReference:
-		return "reference"
-	case termTagCompound:
-		return "compound"
-	case termTagString:
-		return "string"
-	default:
-		return "unknown"
-	}
+var termTagNames = map[termTag]string{
+	termTagInvalid:   "invalid",
+	termTagReference: "reference",
+	termTagAtom:      "atom",
+	termTagCharacter: "character",
+	termTagInteger:   "integer",
+	termTagFloat:     "float",
+	termTagStructure: "structure",
+	termTagFunctor:   "functor",
+	termTagString0:   "string(0)",
+	termTagString1:   "string(1)",
+	termTagString2:   "string(2)",
+	termTagString3:   "string(3)",
+	termTagString4:   "string(4)",
+	termTagString5:   "string(5)",
+	termTagString6:   "string(6)",
+	termTagString7:   "string(7)",
 }
+
+func (t termTag) String() string {
+	return termTagNames[t]
+}
+
+type HeapConfig struct {
+	MaxTerms int
+	MaxAtoms int
+}
+
+var DefaultHeapConfig = HeapConfig{
+	MaxTerms: 8 * 1024,
+	MaxAtoms: 1024,
+}
+
+type word uint64
 
 // Heap is a memory region to store Terms.
 type Heap struct {
-	terms []Term
-
-	env      env
-	atoms    atomTable
-	integers []int64
-	floats   []float64
-	strings  stringPool
+	terms []word
+	atoms AtomTable
 }
 
 // NewHeap creates a heap with given bytes.
 // Those bytes are distributed among several arrays of respective data types.
-func NewHeap(bytes int) *Heap {
-	var (
-		termBytes    = int(unsafe.Sizeof(Term{}))
-		atomBytes    = int(unsafe.Sizeof(rbtree.Map[string, atomID]{})) // TODO: ?
-		integerBytes = int(unsafe.Sizeof(int64(0)))
-		floatBytes   = int(unsafe.Sizeof(float64(0)))
-		bindingBytes = int(unsafe.Sizeof(rbtree.Node[Variable, Term]{}))
-		stringBytes  = int(unsafe.Sizeof(stringEntry{}))
-	)
-
-	const (
-		termRatio    = 5
-		atomRatio    = 2
-		integerRatio = 1
-		floatRatio   = 1
-		bindingRatio = 5
-		stringRatio  = 1
-	)
-
-	unit := bytes / (termRatio + atomRatio + integerRatio + floatRatio + bindingRatio + stringRatio)
-
-	var (
-		MaxTerms    = (termRatio * unit) / termBytes
-		MaxAtoms    = (atomRatio * unit) / atomBytes
-		MaxIntegers = (integerRatio * unit) / integerBytes
-		MaxFloats   = (floatRatio * unit) / floatBytes
-		MaxBindings = (bindingRatio * unit) / bindingBytes
-		MaxStrings  = (stringRatio * unit) / stringBytes
-	)
+func NewHeap(config *HeapConfig) *Heap {
+	if config == nil {
+		config = &DefaultHeapConfig
+	}
 
 	h := Heap{
-		terms: make([]Term, 0, MaxTerms),
-
-		env: env{
-			Values: rbtree.Map[Variable, Term]{
-				Nodes: make([]rbtree.Node[Variable, Term], 0, MaxBindings),
-			},
+		terms: make([]word, 0, config.MaxTerms),
+		atoms: AtomTable{
+			ids:     make(map[Atom]int32, config.MaxAtoms),
+			entries: make([]atomTableEntry, 0, config.MaxAtoms),
 		},
-		atoms: atomTable{
-			IDs: rbtree.Map[string, atomID]{
-				Nodes: make([]rbtree.Node[string, atomID], 0, MaxAtoms),
-			},
-			Names: make([]string, 0, MaxAtoms),
-		},
-		integers: make([]int64, 0, MaxIntegers),
-		floats:   make([]float64, 0, MaxFloats),
-		strings:  make(stringPool, 0, MaxStrings),
 	}
 
 	return &h
 }
 
-func (h *Heap) put(ts ...Term) (Term, error) {
-	id := len(h.terms)
-
-	var ok bool
-	h.terms, ok = cappend(h.terms, ts...)
-	if !ok {
-		return Term{}, &ResourceError{Resource: "terms"}
+func (h *Heap) Deref(t Term) Term {
+	var prev Term
+	for {
+		if t.tag != termTagReference {
+			return t
+		}
+		prev, t = t, cast[word, Term](h.terms[t.value])
+		if t == prev {
+			return prev
+		}
 	}
-
-	return Term{tag: termTagReference, payload: int32(id)}, nil
 }
 
-func (h *Heap) putFunctor(f Functor) (Term, error) {
-	n, err := NewAtom(h, f.Name)
-	if err != nil {
-		return Term{}, err
-	}
+func (h *Heap) Unify(trail *[]Variable, x, y Term) bool {
+	return h.unify(trail, x, y, false)
+}
 
-	a, err := NewInteger(h, int64(f.Arity))
-	if err != nil {
-		return Term{}, err
-	}
+func (h *Heap) UnifyWithOccursCheck(trail *[]Variable, x, y Term) bool {
+	return h.unify(trail, x, y, true)
+}
 
-	// TODO: Compact it!
-	return h.put(Term{tag: termTagCompound}, n, a)
+func (h *Heap) unify(trail *[]Variable, x, y Term, occursCheck bool) bool {
+	pdl := [][2]Term{{x, y}}
+	for len(pdl) > 0 {
+		var d [2]Term
+		d, pdl = pdl[len(pdl)-1], pdl[:len(pdl)-1]
+		d[0], d[1] = h.Deref(d[0]), h.Deref(d[1])
+		if d[0] == d[1] {
+			continue
+		}
+		if d[0].tag == termTagReference || d[1].tag == termTagReference {
+			if !h.bind(trail, d[0], d[1], occursCheck) {
+				return false
+			}
+			continue
+		}
+		f0, err := h.Functor(d[0])
+		if err != nil {
+			return false
+		}
+		f1, err := h.Functor(d[1])
+		if err != nil {
+			return false
+		}
+		if f0 != f1 {
+			return false
+		}
+		for i := 0; i < f0.Arity; i++ {
+			pdl = append(pdl, [2]Term{h.Arg(d[0], i), h.Arg(d[1], i)})
+		}
+	}
+	return true
+}
+
+func (h *Heap) bind(trail *[]Variable, x, y Term, occursCheck bool) bool {
+	if x.tag != termTagReference {
+		if y.tag != termTagReference || x.value > y.value {
+			return false
+		}
+		return h.bind(trail, y, x, occursCheck)
+	}
+	// TODO: occurs check
+	h.terms[x.value] = cast[Term, word](y)
+	*trail = append(*trail, Variable(x.value)) // TODO: Check for HB, H, and B.
+	return true
+}
+
+func (h *Heap) UnwindTrail(trail []Variable) {
+	for _, i := range trail {
+		h.terms[i] = cast[Term, word](Term{tag: termTagReference, value: int32(i)})
+	}
 }
 
 // Term is a Prolog datum.
 // It may refer to another Term in Heap.
 type Term struct {
-	tag     termTag
-	payload int32
+	tag   termTag
+	value int32
+}
+
+func init() {
+	if unsafe.Sizeof(Term{}) != 8 {
+		panic("term must be 8 bytes")
+	}
 }
 
 func (t Term) String() string {
-	return fmt.Sprintf("<%s %d>", t.tag, t.payload)
+	return fmt.Sprintf("<%s %d>", t.tag, t.value)
 }
 
-// NewVariable creates a variable term.
-func NewVariable(h *Heap) (Term, error) {
-	v, err := h.env.Generate()
-	if err != nil {
+func (h *Heap) put(words ...word) (int32, error) {
+	if cap(h.terms)-len(h.terms) < len(words) {
+		return 0, &ResourceError{Resource: "heap"}
+	}
+	id := int32(len(h.terms))
+	h.terms = append(h.terms, words...)
+	return id, nil
+}
+
+// PutVariable creates a variable term.
+func (h *Heap) PutVariable() (Term, error) {
+	id := int32(len(h.terms))
+	t := Term{tag: termTagReference, value: id}
+	if _, err := h.put(cast[Term, word](t)); err != nil {
 		return Term{}, err
 	}
-	return Term{tag: termTagVariable, payload: int32(v)}, nil
+	return t, nil
 }
 
 // Variable returns an error if it's not a variable term.
-func (t Term) Variable(h *Heap) (Variable, error) {
-	t = t.resolve(h)
-	if t.tag != termTagVariable {
+func (h *Heap) Variable(t Term) (Variable, error) {
+	t = h.Deref(t)
+	if t.tag != termTagReference {
 		return 0, &UninstantiationError{Culprit: t}
 	}
-	return Variable(t.payload), nil
-}
-
-func (t Term) resolve(h *Heap) Term {
-	for {
-		if t.tag != termTagVariable {
-			return t
-		}
-
-		val, ok := h.env.Values.Get(Variable(t.payload))
-		if !ok {
-			return t
-		}
-		t = val
+	if next := cast[word, Term](h.terms[t.value]); next != t {
+		return 0, &UninstantiationError{Culprit: t}
 	}
+	return Variable(t.value), nil
 }
 
-// NewAtom creates an atom term.
-func NewAtom(h *Heap, name string) (Term, error) {
+// PutAtom creates an atom term.
+func (h *Heap) PutAtom(name Atom) (Term, error) {
 	// A one-char atom is just a rune.
-	if r, n := utf8.DecodeLastRuneInString(name); r != utf8.RuneError && n == len(name) {
-		return Term{tag: termTagCharacter, payload: r}, nil
+	if r, n := utf8.DecodeLastRuneInString(string(name)); r != utf8.RuneError && n == len(name) {
+		return Term{tag: termTagCharacter, value: r}, nil
 	}
 
-	atom, err := h.atoms.Put(name)
+	id, err := h.atoms.Put(name)
 	if err != nil {
-		return Term{}, &ResourceError{Resource: "atoms"}
+		return Term{}, &ResourceError{Resource: "atom"}
 	}
-	return Term{tag: termTagAtom, payload: int32(atom)}, nil
+	return Term{tag: termTagAtom, value: id}, nil
 }
 
 // Atom returns the name if it's an atom term.
 // Otherwise, it returns an error.
-func (t Term) Atom(h *Heap) (string, error) {
-	t = t.resolve(h)
-
-	switch t.tag {
-	case termTagVariable:
+func (h *Heap) Atom(t Term) (Atom, error) {
+	switch t := h.Deref(t); t.tag {
+	case termTagReference:
 		return "", ErrInstantiation
 	case termTagCharacter:
-		return string(t.payload), nil
+		return Atom(t.value), nil
 	case termTagAtom:
-		break
+		return h.atoms.Get(t.value), nil
 	default:
 		return "", &TypeError{ValidType: "atom", Culprit: t}
 	}
-
-	a := h.atoms.Names[int(t.payload)]
-	return a, nil
 }
 
-func (t Term) Character(h *Heap) (rune, error) {
-	t = t.resolve(h)
-
-	switch t.tag {
-	case termTagVariable:
+// Character returns the rune if it's a single-character atom term.
+// Otherwise, it returns an error.
+func (h *Heap) Character(t Term) (rune, error) {
+	switch t := h.Deref(t); t.tag {
+	case termTagReference:
 		return 0, ErrInstantiation
 	case termTagCharacter:
-		return t.payload, nil
+		return t.value, nil
 	default:
 		return 0, &TypeError{ValidType: "character", Culprit: t}
 	}
 }
 
-// NewInteger creates an integer term.
-func NewInteger(h *Heap, n int64) (Term, error) {
+// PutInteger creates an integer term.
+func (h *Heap) PutInteger(n int64) (Term, error) {
 	// TODO: optimize for smaller/bigger integers.
-	var ok bool
-	h.integers, ok = cappend(h.integers, n)
-	if !ok {
-		return Term{}, &ResourceError{Resource: "integers"}
+	id, err := h.put(cast[int64, word](n))
+	if err != nil {
+		return Term{}, err
 	}
-
-	return Term{tag: termTagInteger, payload: int32(len(h.integers) - 1)}, nil
+	return Term{tag: termTagInteger, value: id}, nil
 }
 
 // Integer returns the integer if it's an integer term.
 // Otherwise, it returns an error.
-func (t Term) Integer(h *Heap) (int64, error) {
-	t = t.resolve(h)
-
-	switch t.tag {
-	case termTagVariable:
+func (h *Heap) Integer(t Term) (int64, error) {
+	switch t := h.Deref(t); t.tag {
+	case termTagReference:
 		return 0, ErrInstantiation
 	case termTagInteger:
-		break
+		return cast[word, int64](h.terms[t.value]), nil
 	default:
 		return 0, &TypeError{ValidType: "integer", Culprit: t}
 	}
-
-	return h.integers[t.payload], nil
 }
 
-// NewFloat creates a float term.
-func NewFloat(h *Heap, f float64) (Term, error) {
-	var ok bool
-	h.floats, ok = cappend(h.floats, f)
-	if !ok {
-		return Term{}, &ResourceError{Resource: "floats"}
+// PutFloat creates a float term.
+func (h *Heap) PutFloat(f float64) (Term, error) {
+	id, err := h.put(cast[float64, word](f))
+	if err != nil {
+		return Term{}, err
 	}
-
-	return Term{tag: termTagFloat, payload: int32(len(h.floats) - 1)}, nil
+	return Term{tag: termTagFloat, value: id}, nil
 }
 
 // Float returns a float value if it's a float term.
 // Otherwise, it returns an error.
-func (t Term) Float(h *Heap) (float64, error) {
-	t = t.resolve(h)
-
-	switch t.tag {
-	case termTagVariable:
+func (h *Heap) Float(t Term) (float64, error) {
+	switch t := h.Deref(t); t.tag {
+	case termTagReference:
 		return 0, ErrInstantiation
 	case termTagFloat:
-		break
+		return cast[word, float64](h.terms[t.value]), nil
 	default:
 		return 0, &TypeError{ValidType: "float", Culprit: t}
 	}
-
-	return h.floats[t.payload], nil
 }
 
-// NewCompound creates a compound term.
-func NewCompound(h *Heap, name string, args ...Term) (Term, error) {
+func (h *Heap) putFunctor(name Atom, arity int) (Term, error) {
+	n, err := h.PutAtom(name)
+	if err != nil {
+		return Term{}, err
+	}
+	a, err := h.PutInteger(int64(arity))
+	if err != nil {
+		return Term{}, err
+	}
+	id, err := h.put(cast[Term, word](n), cast[Term, word](a))
+	if err != nil {
+		return Term{}, err
+	}
+	return Term{tag: termTagFunctor, value: id}, nil
+}
+
+// PutCompound creates a compound term.
+func (h *Heap) PutCompound(name Atom, args ...Term) (Term, error) {
 	if len(args) == 0 {
-		return NewAtom(h, name)
+		return h.PutAtom(name)
 	}
 
-	ref, err := h.putFunctor(Functor{Name: name, Arity: len(args)})
+	f, err := h.putFunctor(name, len(args))
 	if err != nil {
 		return Term{}, err
 	}
-
-	if _, err := h.put(args...); err != nil {
-		return Term{}, err
-	}
-
-	return ref, nil
+	id, err := h.put(append([]word{cast[Term, word](f)}, cast[[]Term, []word](args)...)...)
+	return Term{tag: termTagStructure, value: id}, err
 }
 
-// NewList creates a series of compound terms for a list.
-func NewList(h *Heap, elems ...Term) (Term, error) {
-	tail, err := NewAtom(h, "[]")
+// PutList creates a series of compound terms for a list.
+func (h *Heap) PutList(elems ...Term) (Term, error) {
+	tail, err := h.PutAtom("[]")
 	if err != nil {
 		return Term{}, err
 	}
-	return NewPartialList(h, tail, elems...)
+	return h.PutPartialList(tail, elems...)
 }
 
-// NewPartialList creates a series of compound terms for a partial list with the specified tail term.
-func NewPartialList(h *Heap, tail Term, elems ...Term) (Term, error) {
-	id := int32(len(h.terms))
-
-	// CDR coding
-	empty := true
-	for _, t := range elems {
-		empty = false
-		if _, err := h.putFunctor(Functor{Name: ".", Arity: 2}); err != nil {
-			return Term{}, err
-		}
-		if _, err := h.put(t); err != nil {
-			return Term{}, err
-		}
-	}
-	if empty {
+// PutPartialList creates a series of compound terms for a partial list with the specified tail term.
+func (h *Heap) PutPartialList(tail Term, elems ...Term) (Term, error) {
+	if len(elems) == 0 {
 		return tail, nil
 	}
-	if _, err := h.put(tail); err != nil {
-		return Term{}, err
-	}
 
-	return Term{tag: termTagReference, payload: id}, nil
-}
-
-// NewCharList creates a list of single-character atoms.
-func NewCharList(h *Heap, str string) (Term, error) {
-	tail, err := NewAtom(h, "[]")
+	cons, err := h.putFunctor(".", 2)
 	if err != nil {
 		return Term{}, err
 	}
-	return NewPartialCharList(h, str, tail)
-}
 
-func NewPartialCharList(h *Heap, str string, tail Term) (Term, error) {
-	id, err := h.strings.Put(str, tail)
-	if err != nil {
-		return Term{}, &ResourceError{Resource: "strings"}
+	// CDR coding
+	id := int32(len(h.terms))
+	for _, elem := range elems {
+		if _, err := h.put(cast[Term, word](cons), cast[Term, word](elem)); err != nil {
+			return Term{}, err
+		}
 	}
-	return Term{tag: termTagString, payload: int32(id)}, nil
+	if _, err := h.put(cast[Term, word](tail)); err != nil {
+		return Term{}, err
+	}
+	return Term{tag: termTagStructure, value: id}, nil
 }
 
-// NewCodeList creates a list of single-character atoms.
-func NewCodeList(h *Heap, str string) (Term, error) {
-	tail, err := NewAtom(h, "[]")
+// PutCharList creates a list of single-character atoms.
+func (h *Heap) PutCharList(str string) (Term, error) {
+	tail, err := h.PutAtom("[]")
 	if err != nil {
 		return Term{}, err
 	}
-	return NewPartialCodeList(h, str, tail)
+	return h.PutPartialCharList(str, tail)
 }
 
-func NewPartialCodeList(h *Heap, str string, tail Term) (Term, error) {
+func (h *Heap) PutPartialCharList(str string, tail Term) (Term, error) {
+	id := int32(len(h.terms))
+
+	b := unsafe.Slice(unsafe.StringData(str), len(str))
+	for chunk := range slices.Chunk(b, 8) {
+		chunk = append(chunk, make([]byte, 8-len(chunk))...) // Fills with null chars.
+		var val [8]uint8
+		copy(val[:], chunk)
+		if _, err := h.put(cast[[8]uint8, word](val)); err != nil {
+			return Term{}, err
+		}
+	}
+
+	// Ensures null termination.
+	if len(b)%8 == 0 {
+		if _, err := h.put(cast[uint64, word](0)); err != nil {
+			return Term{}, err
+		}
+	}
+
+	if _, err := h.put(cast[Term, word](tail)); err != nil {
+		return Term{}, err
+	}
+	return Term{tag: termTagString0, value: id}, nil
+}
+
+// PutCodeList creates a list of single-character atoms.
+func (h *Heap) PutCodeList(str string) (Term, error) {
+	tail, err := h.PutAtom("[]")
+	if err != nil {
+		return Term{}, err
+	}
+	return h.PutPartialCodeList(str, tail)
+}
+
+func (h *Heap) PutPartialCodeList(str string, tail Term) (Term, error) {
+	// It's okay not to optimise this since CharList is the preferred representation of strings.
 	var elems []Term
 	for _, r := range str {
-		i, err := NewInteger(h, int64(r))
+		i, err := h.PutInteger(int64(r))
 		if err != nil {
 			return Term{}, err
 		}
 		elems = append(elems, i)
 	}
-	return NewPartialList(h, tail, elems...)
+	return h.PutPartialList(tail, elems...)
 }
 
-// Functor is a Name with Arity.
-type Functor struct {
-	Name  string
-	Arity int
-}
-
-func (f Functor) String() string {
-	return fmt.Sprintf("%s/%d", f.Name, f.Arity)
-}
-
-// Compound represents a compound term.
-type Compound struct {
-	Functor
-	ref Term
-}
-
-// Arg returns an argument of the compound term.
-func (c *Compound) Arg(h *Heap, n int) Term {
-	if c.ref.tag == termTagString {
-		if n == 0 {
-			return h.strings.First(stringID(c.ref.payload))
+func (h *Heap) Functor(t Term) (Functor, error) {
+	switch t := h.Deref(t); t.tag {
+	case termTagReference:
+		return Functor{}, ErrInstantiation
+	case termTagStructure:
+		f := cast[word, Term](h.terms[t.value])
+		n, err := h.Atom(cast[word, Term](h.terms[f.value]))
+		if err != nil {
+			return Functor{}, err
 		}
-		return h.strings.Rest(stringID(c.ref.payload))
+		a, err := h.Integer(cast[word, Term](h.terms[f.value+1]))
+		if err != nil {
+			return Functor{}, err
+		}
+		return Functor{Name: n, Arity: int(a)}, nil
+	case termTagString0, termTagString1, termTagString2, termTagString3,
+		termTagString4, termTagString5, termTagString6, termTagString7:
+		return Functor{Name: ".", Arity: 2}, nil
+	default:
+		return Functor{}, &TypeError{ValidType: "compound", Culprit: t}
 	}
-
-	// Assuming h.terms[c.ref.payload].tag is termTagCompound
-	id := int(c.ref.payload) + 3 + n
-	t := h.terms[id]
-	if t.tag == termTagCompound { // i.e. CDR coding
-		t = Term{tag: termTagReference, payload: int32(id)}
-	}
-	return t
 }
 
-// Args returns an iterator of the arguments of the compound term.
-func (c *Compound) Args(h *Heap) iter.Seq2[int, Term] {
-	return func(yield func(int, Term) bool) {
-		for i := range c.Arity {
-			a := c.Arg(h, i)
-			if !yield(i, a) {
-				break
+func (h *Heap) Arg(t Term, n int) Term {
+	switch t := h.Deref(t); t.tag {
+	case termTagStructure:
+		arg := cast[word, Term](h.terms[int(t.value)+1+n])
+		if arg.tag == termTagFunctor { // Possibly CDR coding.
+			return Term{tag: termTagStructure, value: t.value + 1 + int32(n)}
+		}
+		return arg
+	case termTagString0, termTagString1, termTagString2, termTagString3, termTagString4, termTagString5, termTagString6, termTagString7:
+		offset := int32(t.tag - termTagString0)
+		b := castSlice[word, byte](h.terms[t.value:])[offset:]
+		r, s := utf8.DecodeRune(b)
+		switch n {
+		case 0:
+			return Term{tag: termTagCharacter, value: r}
+		case 1:
+			if r, _ := utf8.DecodeRune(b[s:]); r == 0 { // tail
+				return cast[word, Term](h.terms[t.value+1])
+			}
+			offset += int32(s)
+			return Term{tag: termTagString0 + termTag(offset%8), value: t.value + offset/8}
+		default:
+			return Term{tag: termTagInvalid}
+		}
+	default:
+		return Term{tag: termTagInvalid}
+	}
+}
+
+func (h *Heap) Args(t Term) iter.Seq[Term] {
+	return func(yield func(Term) bool) {
+		f, _ := h.Functor(t)
+		for i := range f.Arity {
+			if !yield(h.Arg(t, i)) {
+				return
 			}
 		}
 	}
 }
 
-// Compound returns a Compound value if it's a compound term.
-// Otherwise, it returns an error.
-func (t Term) Compound(h *Heap) (*Compound, error) {
-	t = t.resolve(h)
+// Functor is a Name with Arity.
+type Functor struct {
+	Name  Atom
+	Arity int
+}
 
-	switch t.tag {
-	case termTagVariable:
-		return nil, ErrInstantiation
-	case termTagString:
-		return &Compound{Functor: Functor{Name: ".", Arity: 2}, ref: t}, nil
-	case termTagReference:
-		break
-	default:
-		return nil, &TypeError{ValidType: "compound", Culprit: t}
-	}
-
-	id := t.payload
-
-	// Assuming h.terms[id].tag == termTagCompound
-	name, _ := h.terms[id+1].Atom(h)
-	arity, _ := h.terms[id+2].Integer(h)
-	return &Compound{
-		Functor: Functor{Name: name, Arity: int(arity)},
-		ref:     t,
-	}, nil
+func (f Functor) String() string {
+	return fmt.Sprintf("%s/%d", f.Name, f.Arity)
 }
 
 // ListOptions is a set of options that configures how a list iterator behaves.
@@ -474,7 +516,7 @@ func AllowPartial(ok bool) func(*ListOptions) {
 }
 
 // List returns an iterator iterates over the elements of a list.
-func (t Term) List(h *Heap, opts ...ListOption) iter.Seq2[Term, error] {
+func (h *Heap) List(t Term, opts ...ListOption) iter.Seq2[Term, error] {
 	var o ListOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -483,7 +525,7 @@ func (t Term) List(h *Heap, opts ...ListOption) iter.Seq2[Term, error] {
 	// Brent's cycle detection algorithm
 	var (
 		tortoise Term
-		hare     = t.resolve(h)
+		hare     = h.Deref(t)
 		power    = 1
 		lam      = 1
 	)
@@ -500,56 +542,58 @@ func (t Term) List(h *Heap, opts ...ListOption) iter.Seq2[Term, error] {
 				lam = 0
 			}
 
-			if _, err := hare.Variable(h); err == nil {
+			if _, err := h.Variable(hare); err == nil {
 				if !o.allowPartial {
 					_ = yield(hare, ErrInstantiation)
 				}
 				return
 			}
 
-			if a, err := hare.Atom(h); err == nil {
+			if a, err := h.Atom(hare); err == nil {
 				if a != "[]" {
 					_ = yield(hare, &TypeError{ValidType: "list", Culprit: t})
 				}
 				return
 			}
 
-			c, err := hare.Compound(h)
-			if err != nil || c.Functor != (Functor{Name: ".", Arity: 2}) {
+			f, err := h.Functor(hare)
+			if err != nil || f != (Functor{Name: ".", Arity: 2}) {
 				_ = yield(hare, &TypeError{ValidType: "list", Culprit: t})
 				return
 			}
 
-			if !yield(c.Arg(h, 0), nil) {
+			if !yield(h.Arg(hare, 0), nil) {
 				return
 			}
 
-			hare = c.Arg(h, 1).resolve(h)
+			hare = h.Deref(h.Arg(hare, 1))
 			lam++
 		}
 	}
 }
 
 // CharList returns a string if the term is a list of single-character atoms.
-func (t Term) CharList(h *Heap) (string, error) {
-	t = t.resolve(h)
+func (h *Heap) CharList(t Term) (string, error) {
+	t = h.Deref(t)
 
-	if t.tag == termTagString {
-		e := h.strings[t.payload]
-		n, err := e.tail.Atom(h)
-		if err != nil || n != "[]" {
+	if t.tag >= termTagString0 && t.tag <= termTagString7 {
+		offset := int32(t.tag - termTagString0)
+		b := castSlice[word, byte](h.terms[t.value:])[offset:]
+		l := slices.Index(b, 0)
+		tail := cast[word, Term](h.terms[t.value+(offset+int32(l))/8+1])
+		if a, err := h.Atom(tail); err != nil || a != "[]" {
 			return "", &TypeError{ValidType: "list", Culprit: t}
 		}
-		return e.string, nil
+		return string(b[:l]), nil
 	}
 
 	var sb strings.Builder
-	for elem, err := range t.List(h) {
+	for elem, err := range h.List(t) {
 		if err != nil {
 			return "", err
 		}
 
-		c, err := elem.Character(h)
+		c, err := h.Character(elem)
 		if err != nil {
 			return "", err
 		}
@@ -559,87 +603,16 @@ func (t Term) CharList(h *Heap) (string, error) {
 	return sb.String(), nil
 }
 
-// Callable returns a compound value if the term is either an atom or a compound term.
-func (t Term) Callable(h *Heap) (*Compound, error) {
-	if a, err := t.Atom(h); err == nil {
-		return &Compound{Functor: Functor{Name: a}}, nil
-	}
-
-	return t.Compound(h)
-}
-
-// Unify unifies two terms.
-func (t Term) Unify(h *Heap, u Term) (bool, error) {
-	return unify(h, t, u, false)
-}
-
-// UnifyWithOccursCheck unifies two terms with occurs-check.
-func (t Term) UnifyWithOccursCheck(h *Heap, u Term) (bool, error) {
-	return unify(h, t, u, true)
-}
-
-func unify(h *Heap, x, y Term, occursCheck bool) (bool, error) {
-	x, y = x.resolve(h), y.resolve(h)
-
-	if x == y {
-		return true, nil
-	}
-
-	if _, err := x.Variable(h); err == nil {
-		if _, err := y.Compound(h); err == nil && occursCheck {
-			if y.Contains(h, x) {
-				return false, nil
-			}
-		}
-		if err := h.env.Values.Set(Variable(x.payload), y); err != nil {
-			return false, &ResourceError{Resource: "variables"}
-		}
-		return true, nil
-	}
-
-	if cx, err := x.Compound(h); err == nil {
-		if cy, err := y.Compound(h); err == nil {
-			if cx.Functor != cy.Functor {
-				return false, nil
-			}
-
-			for i := range cx.Arity {
-				x, y := cx.Arg(h, i), cy.Arg(h, i)
-
-				ok, err := unify(h, x, y, occursCheck)
-				if err != nil || !ok {
-					return ok, err
-				}
-			}
-		}
-	}
-
-	if _, err := y.Variable(h); err == nil {
-		return unify(h, y, x, occursCheck)
-	}
-
-	return false, nil
-}
-
 // Contains returns true if one term contains another.
-func (t Term) Contains(h *Heap, u Term) bool {
-	return contains(h, t, u)
-}
+func (h *Heap) Contains(t1 Term, t2 Term) bool {
+	t1, t2 = h.Deref(t1), h.Deref(t2)
 
-func contains(h *Heap, t, u Term) bool {
-	t, u = t.resolve(h), u.resolve(h)
-
-	if t == u {
+	if t1 == t2 {
 		return true
 	}
 
-	c, err := t.Compound(h)
-	if err != nil {
-		return false
-	}
-
-	for _, a := range c.Args(h) {
-		if a.Contains(h, u) {
+	for a := range h.Args(t1) {
+		if h.Contains(a, t2) {
 			return true
 		}
 	}
@@ -648,19 +621,19 @@ func contains(h *Heap, t, u Term) bool {
 }
 
 // RenamedCopy creates a copy of a term with fresh variables.
-func (t Term) RenamedCopy(h *Heap) (Term, error) {
+func (h *Heap) RenamedCopy(t Term) (Term, error) {
 	return renamedCopy(h, t, map[Term]Term{})
 }
 
 func renamedCopy(h *Heap, t Term, copied map[Term]Term) (Term, error) {
-	t = t.resolve(h)
+	t = h.Deref(t)
 
 	if c, ok := copied[t]; ok {
 		return c, nil
 	}
 
-	if _, err := t.Variable(h); err == nil {
-		c, err := NewVariable(h)
+	if _, err := h.Variable(t); err == nil {
+		c, err := h.PutVariable()
 		if err != nil {
 			return Term{}, err
 		}
@@ -668,16 +641,16 @@ func renamedCopy(h *Heap, t Term, copied map[Term]Term) (Term, error) {
 		return c, nil
 	}
 
-	if c, err := t.Compound(h); err == nil {
-		cs := make([]Term, c.Arity)
-		for i, a := range c.Args(h) {
+	if f, err := h.Functor(t); err == nil {
+		cs := make([]Term, 0, f.Arity)
+		for a := range h.Args(t) {
 			c, err := renamedCopy(h, a, copied)
 			if err != nil {
 				return Term{}, err
 			}
-			cs[i] = c
+			cs = append(cs, c)
 		}
-		c, err := NewCompound(h, c.Name, cs...)
+		c, err := h.PutCompound(f.Name, cs...)
 		if err != nil {
 			return Term{}, err
 		}
@@ -689,24 +662,19 @@ func renamedCopy(h *Heap, t Term, copied map[Term]Term) (Term, error) {
 }
 
 // Cyclic returns true if the term is cyclic.
-func (t Term) Cyclic(h *Heap) bool {
+func (h *Heap) Cyclic(t Term) bool {
 	return cyclic(h, t, map[Term]struct{}{})
 }
 
 func cyclic(h *Heap, t Term, visited map[Term]struct{}) bool {
-	t = t.resolve(h)
+	t = h.Deref(t)
 
 	if _, ok := visited[t]; ok {
 		return true
 	}
 	visited[t] = struct{}{}
 
-	c, err := t.Compound(h)
-	if err != nil {
-		return false
-	}
-
-	for _, a := range c.Args(h) {
+	for a := range h.Args(t) {
 		if cyclic(h, a, visited) {
 			return true
 		}
@@ -716,48 +684,48 @@ func cyclic(h *Heap, t Term, visited map[Term]struct{}) bool {
 }
 
 // Unqualify returns qualifying module and unqualified term.
-func (t Term) Unqualify(h *Heap, module string) (qualifyingModule string, unqualifiedTerm Term) {
-	c, err := t.Compound(h)
+func (h *Heap) Unqualify(t Term, module Atom) (qualifyingModule Atom, unqualifiedTerm Term) {
+	f, err := h.Functor(t)
 	if err != nil {
 		return module, t
 	}
 
-	if c.Functor != (Functor{Name: ":", Arity: 2}) {
+	if f != (Functor{Name: ":", Arity: 2}) {
 		return module, t
 	}
 
-	mm, tt := c.Arg(h, 0), c.Arg(h, 1)
+	mm, tt := h.Arg(t, 0), h.Arg(t, 1)
 
-	m, err := mm.Atom(h)
+	m, err := h.Atom(mm)
 	if err != nil {
 		return module, t
 	}
 
-	return tt.Unqualify(h, m)
+	return h.Unqualify(tt, m)
 }
 
 // Compare compares two Terms.
-func (t Term) Compare(h *Heap, u Term) int {
-	x, y := t.resolve(h), u.resolve(h)
+func (h *Heap) Compare(t1 Term, t2 Term) int {
+	x, y := h.Deref(t1), h.Deref(t2)
 
 	if x == y {
 		return 0
 	}
 
-	if vx, err := x.Variable(h); err == nil {
-		if vy, err := y.Variable(h); err == nil {
-			return int(vx) - int(vy)
+	if x, err := h.Variable(x); err == nil {
+		if y, err := h.Variable(y); err == nil {
+			return int(x) - int(y)
 		}
 
 		return -1
 	}
 
-	if x, err := x.Float(h); err == nil {
-		if _, err := y.Variable(h); err == nil {
+	if x, err := h.Float(x); err == nil {
+		if _, err := h.Variable(y); err == nil {
 			return 1
 		}
 
-		if y, err := y.Float(h); err == nil {
+		if y, err := h.Float(y); err == nil {
 			switch {
 			case x > y:
 				return 1
@@ -771,16 +739,16 @@ func (t Term) Compare(h *Heap, u Term) int {
 		return -1
 	}
 
-	if x, err := x.Integer(h); err == nil {
-		if _, err := y.Variable(h); err == nil {
+	if x, err := h.Integer(x); err == nil {
+		if _, err := h.Variable(y); err == nil {
 			return 1
 		}
 
-		if _, err := y.Float(h); err == nil {
+		if _, err := h.Float(y); err == nil {
 			return 1
 		}
 
-		if y, err := y.Integer(h); err == nil {
+		if y, err := h.Integer(y); err == nil {
 			switch {
 			case x > y:
 				return 1
@@ -794,44 +762,43 @@ func (t Term) Compare(h *Heap, u Term) int {
 		return -1
 	}
 
-	if x, err := x.Atom(h); err == nil {
-		if _, err := y.Variable(h); err == nil {
+	if x, err := h.Atom(x); err == nil {
+		if _, err := h.Variable(y); err == nil {
 			return 1
 		}
 
-		if _, err := y.Float(h); err == nil {
+		if _, err := h.Float(y); err == nil {
 			return 1
 		}
 
-		if _, err := y.Integer(h); err == nil {
+		if _, err := h.Integer(y); err == nil {
 			return 1
 		}
 
-		if y, err := y.Atom(h); err == nil {
-			return strings.Compare(x, y)
+		if y, err := h.Atom(y); err == nil {
+			return strings.Compare(string(x), string(y))
 		}
 
 		return -1
 	}
 
-	cx, _ := x.Compound(h)
-	cy, err := y.Compound(h)
+	fx, _ := h.Functor(x)
+	fy, err := h.Functor(y)
 	if err != nil {
 		return 1
 	}
 
-	if o := cx.Arity - cy.Arity; o != 0 {
+	if o := fx.Arity - fy.Arity; o != 0 {
 		return o
 	}
 
-	if o := strings.Compare(cx.Name, cy.Name); o != 0 {
+	if o := strings.Compare(string(fx.Name), string(fy.Name)); o != 0 {
 		return o
 	}
 
-	for i := range cx.Arity {
-		ax, ay := cx.Arg(h, i), cy.Arg(h, i)
-
-		if o := ax.Compare(h, ay); o != 0 {
+	for i := range fx.Arity {
+		x, y := h.Arg(x, i), h.Arg(y, i)
+		if o := h.Compare(x, y); o != 0 {
 			return o
 		}
 	}
@@ -839,100 +806,18 @@ func (t Term) Compare(h *Heap, u Term) int {
 	return 0
 }
 
-type Variable int32
-
-type env struct {
-	lastVariable Variable
-	Values       rbtree.Map[Variable, Term]
+func cast[F, T any](from F) T {
+	return *(*T)(unsafe.Pointer(&from))
 }
 
-func (e *env) Generate() (Variable, error) {
-	if e.lastVariable == math.MaxInt32 {
-		return 0, &ResourceError{Resource: "variables"}
-	}
-	e.lastVariable++
-	return e.lastVariable, nil
-}
-
-type atomID int32
-
-type atomTable struct {
-	IDs   rbtree.Map[string, atomID]
-	Names []string
-}
-
-func (a *atomTable) Put(name string) (atomID, error) {
-	if id, ok := a.IDs.Get(name); ok {
-		return id, nil
-	}
-
-	id := atomID(len(a.Names))
-	if err := a.IDs.Set(name, id); err != nil {
-		return 0, err
-	}
-
-	var ok bool
-	a.Names, ok = cappend(a.Names, name)
-	if !ok {
-		return 0, &ResourceError{Resource: "atoms"}
-	}
-
-	return id, nil
-}
-
-type stringID int32
-
-type stringPool []stringEntry
-
-type stringEntry struct {
-	offset stringID
-	string string
-	tail   Term
-}
-
-func (s *stringPool) Put(str string, tail Term) (stringID, error) {
-	e := stringEntry{
-		string: str,
-		tail:   tail,
-	}
-	if len(*s) > 0 {
-		last := (*s)[len(*s)-1]
-		e.offset = last.offset + stringID(len(last.string))
-	}
-
-	var ok bool
-	*s, ok = cappend(*s, e)
-	if !ok {
-		return 0, &ResourceError{Resource: "strings"}
-	}
-	return e.offset, nil
-}
-
-func (s *stringPool) First(id stringID) Term {
-	i := slices.IndexFunc(*s, func(e stringEntry) bool {
-		return e.offset+stringID(len(e.string)) > id
-	})
-	if i == -1 {
-		return Term{}
-	}
-	e := (*s)[i]
-	str := e.string[id-e.offset:]
-	r, _ := utf8.DecodeRuneInString(str)
-	return Term{tag: termTagCharacter, payload: r}
-}
-
-func (s *stringPool) Rest(id stringID) Term {
-	i := slices.IndexFunc(*s, func(e stringEntry) bool {
-		return e.offset+stringID(len(e.string)) > id
-	})
-	if i == -1 {
-		return Term{}
-	}
-	e := (*s)[i]
-	str := e.string[id-e.offset:]
-	_, n := utf8.DecodeRuneInString(str)
-	if str[n:] == "" {
-		return e.tail
-	}
-	return Term{tag: termTagString, payload: int32(int(id) + n)}
+func castSlice[F, T any](from []F) []T {
+	var (
+		zeroF F
+		zeroT T
+		sizeF = unsafe.Sizeof(zeroF)
+		sizeT = unsafe.Sizeof(zeroT)
+		n     = sizeF / sizeT
+		ptr   = unsafe.SliceData(from)
+	)
+	return unsafe.Slice((*T)(unsafe.Pointer(ptr)), n)
 }

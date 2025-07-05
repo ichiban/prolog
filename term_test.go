@@ -1,12 +1,8 @@
 package prolog
 
 import (
-	"maps"
-	"math"
 	"reflect"
 	"testing"
-
-	"github.com/ichiban/prolog/v2/internal/rbtree"
 )
 
 func TestTermTag_String(t *testing.T) {
@@ -14,15 +10,22 @@ func TestTermTag_String(t *testing.T) {
 		tag termTag
 		str string
 	}{
-		{str: "unknown"},
-		{tag: termTagVariable, str: "variable"},
+		{str: "invalid"},
+		{tag: termTagReference, str: "reference"},
 		{tag: termTagAtom, str: "atom"},
 		{tag: termTagCharacter, str: "character"},
 		{tag: termTagInteger, str: "integer"},
 		{tag: termTagFloat, str: "float"},
-		{tag: termTagReference, str: "reference"},
-		{tag: termTagCompound, str: "compound"},
-		{tag: termTagString, str: "string"},
+		{tag: termTagStructure, str: "structure"},
+		{tag: termTagFunctor, str: "functor"},
+		{tag: termTagString0, str: "string(0)"},
+		{tag: termTagString1, str: "string(1)"},
+		{tag: termTagString2, str: "string(2)"},
+		{tag: termTagString3, str: "string(3)"},
+		{tag: termTagString4, str: "string(4)"},
+		{tag: termTagString5, str: "string(5)"},
+		{tag: termTagString6, str: "string(6)"},
+		{tag: termTagString7, str: "string(7)"},
 	}
 
 	for _, tt := range tests {
@@ -52,13 +55,16 @@ func TestFunctor_String(t *testing.T) {
 }
 
 func TestNewHeap(t *testing.T) {
-	h := NewHeap(1024)
+	h := NewHeap(&HeapConfig{
+		MaxTerms: 1024,
+		MaxAtoms: 1024,
+	})
 	if h == nil {
 		t.Errorf("NewHeap() returned nil")
 	}
 }
 
-func TestNewVariable(t *testing.T) {
+func TestHeap_PutVariable(t *testing.T) {
 	tests := []struct {
 		title string
 		heap  *Heap
@@ -67,19 +73,19 @@ func TestNewVariable(t *testing.T) {
 	}{
 		{
 			title: "ok",
-			heap:  &Heap{},
-			term:  Term{tag: termTagVariable, payload: 1},
+			heap:  NewHeap(nil),
+			term:  Term{tag: termTagReference, value: 0},
 		},
 		{
 			title: "ng",
-			heap:  &Heap{env: env{lastVariable: math.MaxInt32}},
-			err:   &ResourceError{Resource: "variables"},
+			heap:  &Heap{},
+			err:   &ResourceError{Resource: "heap"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			v, err := NewVariable(tt.heap)
+			v, err := tt.heap.PutVariable()
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -91,394 +97,15 @@ func TestNewVariable(t *testing.T) {
 	}
 }
 
-func TestNewAtom(t *testing.T) {
-	tests := []struct {
-		title string
-		heap  *Heap
-		name  string
-		term  Term
-		err   error
-	}{
-		{
-			title: "single char",
-			name:  "a",
-			term:  Term{tag: termTagCharacter, payload: 'a'},
-		},
-		{
-			title: "multiple chars",
-			heap: &Heap{
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-			},
-			name: "foo",
-			term: Term{tag: termTagAtom, payload: 0},
-		},
-		{
-			title: "ng",
-			heap:  &Heap{},
-			err:   &ResourceError{Resource: "atoms"},
-		},
-	}
+func TestHeap_Variable(t *testing.T) {
+	h := NewHeap(nil)
 
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			a, err := NewAtom(tt.heap, tt.name)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-
-			if a != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, a)
-			}
-		})
-	}
-}
-
-func TestNewInteger(t *testing.T) {
-	tests := []struct {
-		title   string
-		heap    *Heap
-		integer int64
-		term    Term
-		err     error
-	}{
-		{
-			title:   "ok",
-			heap:    &Heap{integers: make([]int64, 0, 1)},
-			integer: 1,
-			term:    Term{tag: termTagInteger, payload: 0},
-		},
-		{
-			title: "ng",
-			heap:  &Heap{},
-			err:   &ResourceError{Resource: "integers"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			i, err := NewInteger(tt.heap, tt.integer)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-
-			if i != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, i)
-			}
-		})
-	}
-}
-
-func TestNewFloat(t *testing.T) {
-	tests := []struct {
-		title string
-		heap  *Heap
-		float float64
-		term  Term
-		err   error
-	}{
-		{
-			title: "ok",
-			heap:  &Heap{floats: make([]float64, 0, 1)},
-			float: 1,
-			term:  Term{tag: termTagFloat, payload: 0},
-		},
-		{
-			title: "ng",
-			heap:  &Heap{},
-			err:   &ResourceError{Resource: "floats"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			f, err := NewFloat(tt.heap, tt.float)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-
-			if f != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, f)
-			}
-		})
-	}
-}
-
-func TestNewCompound(t *testing.T) {
-	tests := []struct {
-		title string
-		heap  *Heap
-		name  string
-		args  []Term
-		term  Term
-		err   error
-	}{
-		{
-			title: "atom",
-			name:  "f",
-			term:  Term{tag: termTagCharacter, payload: 'f'},
-		},
-		{
-			title: "ok",
-			heap: &Heap{
-				terms:    make([]Term, 0, 5),
-				integers: make([]int64, 0, 1),
-			},
-			name: "f",
-			args: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			term: Term{tag: termTagReference, payload: 0},
-		},
-		{
-			title: "insufficient atoms",
-			heap: &Heap{
-				terms:    make([]Term, 0, 5),
-				integers: make([]int64, 0, 1),
-			},
-			name: "foo",
-			args: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "atoms"},
-		},
-		{
-			title: "insufficient integers",
-			heap: &Heap{
-				terms:    make([]Term, 0, 5),
-				integers: make([]int64, 0),
-			},
-			name: "f",
-			args: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "integers"},
-		},
-		{
-			title: "insufficient terms",
-			heap: &Heap{
-				terms:    make([]Term, 0, 4),
-				integers: make([]int64, 0, 1),
-			},
-			name: "f",
-			args: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "terms"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			c, err := NewCompound(tt.heap, tt.name, tt.args...)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-
-			if c != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, c)
-			}
-		})
-	}
-}
-
-func TestNewList(t *testing.T) {
-	tests := []struct {
-		title string
-		heap  *Heap
-		elems []Term
-		term  Term
-		err   error
-	}{
-		{
-			title: "empty",
-			heap: &Heap{
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-			},
-			elems: []Term{},
-			term:  Term{tag: termTagAtom, payload: 0},
-		},
-		{
-			title: "ok",
-			heap: &Heap{
-				terms: make([]Term, 0, 9),
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-				integers: make([]int64, 0, 2),
-			},
-			elems: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			term: Term{tag: termTagReference, payload: 0},
-		},
-		{
-			title: "insufficient atoms",
-			heap: &Heap{
-				terms: make([]Term, 0, 9),
-				atoms: atomTable{
-					Names: make([]string, 0),
-				},
-				integers: make([]int64, 0, 2),
-			},
-			elems: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "atoms"},
-		},
-		{
-			title: "insufficient terms: tail",
-			heap: &Heap{
-				terms: make([]Term, 0, 8),
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-				integers: make([]int64, 0, 2),
-			},
-			elems: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "terms"},
-		},
-		{
-			title: "insufficient terms: element",
-			heap: &Heap{
-				terms: make([]Term, 0, 7),
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-				integers: make([]int64, 0, 2),
-			},
-			elems: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "terms"},
-		},
-		{
-			title: "insufficient terms: list constructor",
-			heap: &Heap{
-				terms: make([]Term, 0, 6),
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-				integers: make([]int64, 0, 2),
-			},
-			elems: []Term{
-				{tag: termTagCharacter, payload: 'a'},
-				{tag: termTagCharacter, payload: 'b'},
-			},
-			err: &ResourceError{Resource: "terms"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			l, err := NewList(tt.heap, tt.elems...)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-
-			if l != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, l)
-			}
-		})
-	}
-}
-
-func TestNewCharList(t *testing.T) {
-	tests := []struct {
-		title string
-		heap  *Heap
-		str   string
-		term  Term
-		err   error
-	}{
-		{
-			title: "ok",
-			heap: &Heap{
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-				strings: make(stringPool, 0, 1),
-			},
-			str:  "foo",
-			term: Term{tag: termTagString, payload: 0},
-		},
-		{
-			title: "insufficient atoms",
-			heap:  &Heap{},
-			str:   "foo",
-			err:   &ResourceError{Resource: "atoms"},
-		},
-		{
-			title: "insufficient strings",
-			heap: &Heap{
-				atoms: atomTable{
-					IDs: rbtree.Map[string, atomID]{
-						Nodes: make([]rbtree.Node[string, atomID], 0, 4),
-					},
-					Names: make([]string, 0, 1),
-				},
-			},
-			str: "foo",
-			err: &ResourceError{Resource: "strings"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			term, err := NewCharList(tt.heap, tt.str)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-			if term != tt.term {
-				t.Errorf("expected: %v, got: %v", tt.term, term)
-			}
-		})
-	}
-}
-
-func TestTerm_Variable(t *testing.T) {
-	h := NewHeap(1024)
-
-	v, err := NewVariable(h)
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +121,7 @@ func TestTerm_Variable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			_, err := tt.term.Variable(h)
+			_, err := h.Variable(tt.term)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -502,25 +129,65 @@ func TestTerm_Variable(t *testing.T) {
 	}
 }
 
-func TestTerm_Atom(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_PutAtom(t *testing.T) {
+	tests := []struct {
+		title string
+		heap  *Heap
+		name  Atom
+		term  Term
+		err   error
+	}{
+		{
+			title: "single char",
+			name:  "a",
+			term:  Term{tag: termTagCharacter, value: 'a'},
+		},
+		{
+			title: "multiple chars",
+			heap:  NewHeap(nil),
+			name:  "foo",
+			term:  Term{tag: termTagAtom, value: 0},
+		},
+		{
+			title: "ng",
+			heap:  &Heap{},
+			err:   &ResourceError{Resource: "atom"},
+		},
+	}
 
-	v, err := NewVariable(h)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			a, err := tt.heap.PutAtom(tt.name)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+
+			if a != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, a)
+			}
+		})
+	}
+}
+
+func TestHeap_Atom(t *testing.T) {
+	h := NewHeap(nil)
+
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	foo, err := NewAtom(h, "foo")
+	foo, err := h.PutAtom("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewInteger(h, 1)
+	one, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -528,7 +195,7 @@ func TestTerm_Atom(t *testing.T) {
 	tests := []struct {
 		title string
 		term  Term
-		name  string
+		name  Atom
 		err   error
 	}{
 		{title: "atom", term: foo, name: "foo"},
@@ -539,7 +206,7 @@ func TestTerm_Atom(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			n, err := tt.term.Atom(h)
+			n, err := h.Atom(tt.term)
 			if n != tt.name {
 				t.Errorf("expected: %v, got: %v", tt.name, n)
 			}
@@ -550,20 +217,103 @@ func TestTerm_Atom(t *testing.T) {
 	}
 }
 
-func TestTerm_Integer(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_Character(t *testing.T) {
+	h := NewHeap(nil)
 
-	v, err := NewVariable(h)
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewInteger(h, 1)
+	foo, err := h.PutAtom("foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	one, err := h.PutInteger(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		title     string
+		term      Term
+		character rune
+		err       error
+	}{
+		{title: "atom", term: foo, err: &TypeError{ValidType: "character", Culprit: foo}},
+		{title: "single-character atom", term: a, character: 'a'},
+		{title: "variable", term: v, err: ErrInstantiation},
+		{title: "integer", term: one, err: &TypeError{ValidType: "character", Culprit: one}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			r, err := h.Character(tt.term)
+			if r != tt.character {
+				t.Errorf("expected: %v, got: %v", tt.character, r)
+			}
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+		})
+	}
+}
+
+func TestHeap_PutInteger(t *testing.T) {
+	tests := []struct {
+		title   string
+		heap    *Heap
+		integer int64
+		term    Term
+		err     error
+	}{
+		{
+			title:   "ok",
+			heap:    NewHeap(nil),
+			integer: 1,
+			term:    Term{tag: termTagInteger, value: 0},
+		},
+		{
+			title: "ng",
+			heap:  &Heap{},
+			err:   &ResourceError{Resource: "heap"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			i, err := tt.heap.PutInteger(tt.integer)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+
+			if i != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, i)
+			}
+		})
+	}
+}
+
+func TestHeap_Integer(t *testing.T) {
+	h := NewHeap(nil)
+
+	v, err := h.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := h.PutAtom("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	one, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,7 +331,7 @@ func TestTerm_Integer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			n, err := tt.term.Integer(h)
+			n, err := h.Integer(tt.term)
 			if n != tt.integer {
 				t.Errorf("expected: %v, got: %v", tt.integer, n)
 			}
@@ -592,20 +342,55 @@ func TestTerm_Integer(t *testing.T) {
 	}
 }
 
-func TestTerm_Float(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_PutFloat(t *testing.T) {
+	tests := []struct {
+		title string
+		heap  *Heap
+		float float64
+		term  Term
+		err   error
+	}{
+		{
+			title: "ok",
+			heap:  NewHeap(nil),
+			float: 1,
+			term:  Term{tag: termTagFloat, value: 0},
+		},
+		{
+			title: "ng",
+			heap:  &Heap{},
+			err:   &ResourceError{Resource: "heap"},
+		},
+	}
 
-	v, err := NewVariable(h)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			f, err := tt.heap.PutFloat(tt.float)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+
+			if f != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, f)
+			}
+		})
+	}
+}
+
+func TestHeap_Float(t *testing.T) {
+	h := NewHeap(nil)
+
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewFloat(h, 1)
+	one, err := h.PutFloat(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,7 +408,7 @@ func TestTerm_Float(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			f, err := tt.term.Float(h)
+			f, err := h.Float(tt.term)
 			if f != tt.float {
 				t.Errorf("expected: %v, got: %v", tt.float, f)
 			}
@@ -634,119 +419,311 @@ func TestTerm_Float(t *testing.T) {
 	}
 }
 
-func TestTerm_Compound(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_PutCompound(t *testing.T) {
+	tests := []struct {
+		title string
+		heap  *Heap
+		name  Atom
+		args  []Term
+		term  Term
+		err   error
+	}{
+		{
+			title: "atom",
+			name:  "f",
+			term:  Term{tag: termTagCharacter, value: 'f'},
+		},
+		{
+			title: "ok",
+			heap:  NewHeap(nil),
+			name:  "f",
+			args: []Term{
+				{tag: termTagCharacter, value: 'a'},
+				{tag: termTagCharacter, value: 'b'},
+			},
+			term: Term{tag: termTagStructure, value: 3},
+		},
+		{
+			title: "insufficient heap",
+			heap:  &Heap{},
+			name:  "foo",
+			args: []Term{
+				{tag: termTagCharacter, value: 'a'},
+				{tag: termTagCharacter, value: 'b'},
+			},
+			err: &ResourceError{Resource: "atom"},
+		},
+	}
 
-	v, err := NewVariable(h)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			c, err := tt.heap.PutCompound(tt.name, tt.args...)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+
+			if c != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, c)
+			}
+		})
+	}
+}
+
+func TestHeap_PutList(t *testing.T) {
+	tests := []struct {
+		title string
+		heap  *Heap
+		elems []Term
+		term  Term
+		err   error
+	}{
+		{
+			title: "empty",
+			heap:  NewHeap(nil),
+			elems: []Term{},
+			term:  Term{tag: termTagAtom, value: 0},
+		},
+		{
+			title: "ok",
+			heap:  NewHeap(nil),
+			elems: []Term{
+				{tag: termTagCharacter, value: 'a'},
+				{tag: termTagCharacter, value: 'b'},
+			},
+			term: Term{tag: termTagStructure, value: 3},
+		},
+		{
+			title: "insufficient heap",
+			heap:  &Heap{},
+			elems: []Term{
+				{tag: termTagCharacter, value: 'a'},
+				{tag: termTagCharacter, value: 'b'},
+			},
+			err: &ResourceError{Resource: "atom"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			l, err := tt.heap.PutList(tt.elems...)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+
+			if l != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, l)
+			}
+		})
+	}
+}
+
+func TestHeap_PutCharList(t *testing.T) {
+	tests := []struct {
+		title string
+		heap  *Heap
+		str   string
+		term  Term
+		err   error
+	}{
+		{
+			title: "ok",
+			heap:  NewHeap(nil),
+			str:   "foo",
+			term:  Term{tag: termTagString0, value: 0},
+		},
+		{
+			title: "insufficient atoms",
+			heap:  &Heap{},
+			str:   "foo",
+			err:   &ResourceError{Resource: "atom"},
+		},
+		{
+			title: "insufficient heap",
+			heap:  NewHeap(&HeapConfig{MaxAtoms: 1}),
+			str:   "foo",
+			err:   &ResourceError{Resource: "heap"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			term, err := tt.heap.PutCharList(tt.str)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+			}
+			if term != tt.term {
+				t.Errorf("expected: %v, got: %v", tt.term, term)
+			}
+		})
+	}
+}
+
+func TestHeap_Functor(t *testing.T) {
+	h := NewHeap(nil)
+
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	f, err := NewCompound(h, "f", a, b)
+	f, err := h.PutCompound("f", a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	s, err := NewCharList(h, "foo")
+	s, err := h.PutCharList("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
-		title    string
-		term     Term
-		compound Compound
-		err      error
+		title   string
+		term    Term
+		functor Functor
+		err     error
 	}{
-		{title: "compound", term: f, compound: Compound{Functor: Functor{Name: "f", Arity: 2}, ref: f}},
-		{title: "string", term: s, compound: Compound{Functor: Functor{Name: ".", Arity: 2}, ref: s}},
+		{title: "compound", term: f, functor: Functor{Name: "f", Arity: 2}},
+		{title: "string", term: s, functor: Functor{Name: ".", Arity: 2}},
 		{title: "variable", term: v, err: ErrInstantiation},
 		{title: "atom", term: a, err: &TypeError{ValidType: "compound", Culprit: a}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			c, err := tt.term.Compound(h)
+			f, err := h.Functor(tt.term)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
 
-			if c == nil {
-				return
-			}
-			if !reflect.DeepEqual(c, &tt.compound) {
-				t.Errorf("expected: %v, got: %v", &tt.compound, c)
+			if !reflect.DeepEqual(f, tt.functor) {
+				t.Errorf("expected: %v, got: %v", tt.functor, f)
 			}
 		})
 	}
 }
 
-func TestTerm_List(t *testing.T) {
-	h := NewHeap(2 * 1024)
+func TestHeap_Arg(t *testing.T) {
+	h := NewHeap(nil)
 
-	v, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewInteger(h, 1)
+	fab, err := h.PutCompound("f", a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	l, err := NewList(h, a, b)
+	listAB, err := h.PutList(a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	nl, err := NewPartialList(h, a, a, b)
+	listB, err := h.PutList(b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	nl2, err := NewPartialList(h, one, a, b)
+	stringAB, err := h.PutCharList("ab")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pl, err := NewPartialList(h, v, a, b)
+	tests := []struct {
+		title string
+		term  Term
+		heap  *Heap
+		n     int
+		arg   Term
+		err   error
+	}{
+		{title: "f(a, b), 0", term: fab, heap: h, n: 0, arg: a},
+		{title: "f(a, b), 1", term: fab, heap: h, n: 1, arg: b},
+		{title: "[a, b], 0", term: listAB, heap: h, n: 0, arg: a},
+		{title: "[a, b], 1", term: listAB, heap: h, n: 1, arg: listB},
+		{title: `"ab", 0`, term: stringAB, heap: h, n: 0, arg: Term{tag: termTagCharacter, value: 'a'}},
+		{title: `"ab", 1`, term: stringAB, heap: h, n: 1, arg: listB},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			term := tt.heap.Arg(tt.term, tt.n)
+			if tt.heap.Compare(term, tt.arg) != 0 {
+				t.Errorf("expected %v, got %v", tt.arg, term)
+			}
+		})
+	}
+}
+
+func TestHeap_List(t *testing.T) {
+	h := NewHeap(nil)
+
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tail, err := NewVariable(h)
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cl, err := NewPartialList(h, tail, a, b)
+
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok, err := tail.Unify(h, cl)
+
+	one, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok {
+
+	l, err := h.PutList(a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nl, err := h.PutPartialList(a, a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nl2, err := h.PutPartialList(one, a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pl, err := h.PutPartialList(v, a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tail, err := h.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cl, err := h.PutPartialList(tail, a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trail []Variable
+	if !h.unify(&trail, tail, cl, false) {
 		t.Fatal("tail unification failed")
 	}
 
@@ -782,7 +759,7 @@ func TestTerm_List(t *testing.T) {
 		{title: "[a, b|_]", term: pl, results: []result{
 			{term: a},
 			{term: b},
-			{term: Term{tag: termTagVariable, payload: 1}, err: ErrInstantiation},
+			{term: Term{tag: termTagReference, value: 0}, err: ErrInstantiation},
 		}},
 		{title: "[a, b|_] with AllowPartial", term: pl, options: []ListOption{AllowPartial(true)}, results: []result{
 			{term: a},
@@ -809,7 +786,7 @@ func TestTerm_List(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			count := 0
 			var results []result
-			for t, err := range tt.term.List(h, tt.options...) {
+			for t, err := range h.List(tt.term, tt.options...) {
 				if tt.count != 0 && count == tt.count {
 					break
 				}
@@ -824,29 +801,29 @@ func TestTerm_List(t *testing.T) {
 }
 
 func TestTerm_CharList(t *testing.T) {
-	h := NewHeap(2 * 1024)
+	h := NewHeap(nil)
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c, err := NewAtom(h, "c")
+	c, err := h.PutAtom("c")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	list, err := NewList(h, a, b, c)
+	list, err := h.PutList(a, b, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	str, err := NewCharList(h, "abc")
+	str, err := h.PutCharList("abc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -864,7 +841,7 @@ func TestTerm_CharList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			str, err := tt.term.CharList(tt.heap)
+			str, err := tt.heap.CharList(tt.term)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -875,262 +852,20 @@ func TestTerm_CharList(t *testing.T) {
 	}
 }
 
-func TestTerm_Callable(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_Contains(t *testing.T) {
+	h := NewHeap(nil)
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fab, err := NewCompound(h, "f", a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		title    string
-		term     Term
-		heap     *Heap
-		compound *Compound
-		err      error
-	}{
-		{title: "a", term: a, heap: h, compound: &Compound{Functor: Functor{Name: "a", Arity: 0}}},
-		{title: "f(a, b)", term: fab, heap: h, compound: &Compound{Functor: Functor{Name: "f", Arity: 2}, ref: fab}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			c, err := tt.term.Callable(tt.heap)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-			}
-			if *c != *tt.compound {
-				t.Errorf("expected: %v, got: %v", tt.compound, c)
-			}
-		})
-	}
-}
-
-func TestTerm_Unify(t *testing.T) {
-	h := NewHeap(2 * 1024)
-
-	a, err := NewAtom(h, "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	b, err := NewAtom(h, "b")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fa, err := NewCompound(h, "f", a)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ga, err := NewCompound(h, "g", a)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fb, err := NewCompound(h, "f", b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	v, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	x, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fx, err := NewCompound(h, "f", x)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		title string
-		heap  *Heap
-		x, y  Term
-		ok    bool
-		err   error
-		env   map[Variable]Term
-	}{
-		{title: "a = a", heap: h, x: a, y: a, ok: true},
-		{title: "V = V", heap: h, x: v, y: v, ok: true},
-		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
-			Variable(v.payload): w,
-		}},
-		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
-		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
-		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
-			Variable(v.payload): a,
-		}},
-		{title: "a = b", heap: h, x: a, y: b, ok: false},
-		{title: "X = f(X)", heap: h, x: x, y: fx, ok: true, env: map[Variable]Term{
-			Variable(x.payload): fx,
-		}},
-		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			snapshot := *tt.heap
-			defer func() {
-				*tt.heap = snapshot
-			}()
-
-			ok, err := tt.x.Unify(tt.heap, tt.y)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-				return
-			}
-			if ok != tt.ok {
-				t.Errorf("expected: %v, got: %v", tt.ok, ok)
-			}
-
-			env := map[Variable]Term{}
-			for k, v := range h.env.Values.All() {
-				env[k] = v
-			}
-
-			if !maps.Equal(env, tt.env) {
-				t.Errorf("expected: %+v, got: %+v", tt.env, env)
-			}
-		})
-	}
-}
-
-func TestTerm_UnifyWithOccursCheck(t *testing.T) {
-	h := NewHeap(2 * 1024)
-
-	a, err := NewAtom(h, "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	b, err := NewAtom(h, "b")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fa, err := NewCompound(h, "f", a)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ga, err := NewCompound(h, "g", a)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fb, err := NewCompound(h, "f", b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	v, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	x, err := NewVariable(h)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fx, err := NewCompound(h, "f", x)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		title string
-		heap  *Heap
-		x, y  Term
-		ok    bool
-		err   error
-		env   map[Variable]Term
-	}{
-		{title: "a = a", heap: h, x: a, y: a, ok: true},
-		{title: "V = V", heap: h, x: v, y: v, ok: true},
-		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
-			Variable(v.payload): w,
-		}},
-		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
-		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
-		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
-			Variable(v.payload): a,
-		}},
-		{title: "a = b", heap: h, x: a, y: b, ok: false},
-		{title: "X = f(X)", heap: h, x: x, y: fx, ok: false},
-		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			snapshot := *tt.heap
-			defer func() {
-				*tt.heap = snapshot
-			}()
-
-			ok, err := tt.x.UnifyWithOccursCheck(tt.heap, tt.y)
-			if !reflect.DeepEqual(err, tt.err) {
-				t.Errorf("expected: %v, got: %v", tt.err, err)
-				return
-			}
-			if ok != tt.ok {
-				t.Errorf("expected: %v, got: %v", tt.ok, ok)
-			}
-
-			env := map[Variable]Term{}
-			for k, v := range h.env.Values.All() {
-				env[k] = v
-			}
-
-			if !maps.Equal(env, tt.env) {
-				t.Errorf("expected: %+v, got: %+v", tt.env, env)
-			}
-		})
-	}
-}
-
-func TestTerm_Contains(t *testing.T) {
-	h := NewHeap(1024)
-
-	a, err := NewAtom(h, "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	b, err := NewAtom(h, "b")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fa, err := NewCompound(h, "f", a)
+	fa, err := h.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1148,7 +883,7 @@ func TestTerm_Contains(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			ok := tt.x.Contains(h, tt.y)
+			ok := h.Contains(tt.x, tt.y)
 			if ok != tt.ok {
 				t.Errorf("expected: %v, got: %v", tt.ok, ok)
 			}
@@ -1156,46 +891,35 @@ func TestTerm_Contains(t *testing.T) {
 	}
 }
 
-func TestTerm_RenamedCopy(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_RenamedCopy(t *testing.T) {
+	h := NewHeap(nil)
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fa, err := NewCompound(h, "f", a)
+	fa, err := h.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	gfafa, err := NewCompound(h, "g", fa, fa)
+	gfafa, err := h.PutCompound("g", fa, fa)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	x, err := NewVariable(h)
+	x, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Peek the next variable Y.
-	snapshot := *h
-	y, err := NewVariable(h)
+	smallHeap := NewHeap(&HeapConfig{MaxTerms: 10})
+	sfa, err := smallHeap.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	*h = snapshot
-
-	smallHeap := Heap{
-		terms:    make([]Term, 0, 8),
-		integers: make([]int64, 0, 3),
-	}
-	sfa, err := NewCompound(&smallHeap, "f", a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sffa, err := NewCompound(&smallHeap, "f", sfa)
+	sffa, err := smallHeap.PutCompound("f", sfa)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1209,48 +933,48 @@ func TestTerm_RenamedCopy(t *testing.T) {
 	}{
 		{title: "a", term: a, heap: h, result: a},
 		{title: "g(f(a), f(a))", term: gfafa, heap: h, result: gfafa},
-		{title: "X", term: x, heap: h, result: y},
-		{title: "X with insufficient variables", term: x, heap: &Heap{env: env{lastVariable: math.MaxInt32}}, err: &ResourceError{Resource: "variables"}},
-		{title: "f(f(a)) with insufficient terms", term: sffa, heap: &smallHeap, err: &ResourceError{Resource: "terms"}},
+		{title: "X", term: x, heap: h, result: Term{tag: termTagReference, value: 23}},
+		{title: "f(f(a)) with insufficient terms", term: sffa, heap: smallHeap, err: &ResourceError{Resource: "heap"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			result, err := tt.term.RenamedCopy(tt.heap)
+			result, err := tt.heap.RenamedCopy(tt.term)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
-			if o := result.Compare(tt.heap, tt.result); o != 0 {
+			if o := tt.heap.Compare(result, tt.result); o != 0 {
 				t.Errorf("expected: %v, got: %v", tt.result, result)
 			}
 		})
 	}
 }
 
-func TestTerm_Cyclic(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_Cyclic(t *testing.T) {
+	h := NewHeap(nil)
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fa, err := NewCompound(h, "f", a)
+	fa, err := h.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	x, err := NewVariable(h)
+	x, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fx, err := NewCompound(h, "f", x)
+	fx, err := h.PutCompound("f", x)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := x.Unify(h, fx); err != nil {
+	var trail []Variable
+	if !h.unify(&trail, x, fx, false) {
 		t.Fatal(err)
 	}
 
@@ -1267,7 +991,7 @@ func TestTerm_Cyclic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			ok := tt.term.Cyclic(tt.heap)
+			ok := tt.heap.Cyclic(tt.term)
 			if ok != tt.ok {
 				t.Errorf("expected: %v, got: %v", tt.ok, ok)
 			}
@@ -1275,35 +999,35 @@ func TestTerm_Cyclic(t *testing.T) {
 	}
 }
 
-func TestTerm_Unqualify(t *testing.T) {
-	h := NewHeap(1024)
+func TestHeap_Unqualify(t *testing.T) {
+	h := NewHeap(nil)
 
-	foo, err := NewAtom(h, "foo")
+	foo, err := h.PutAtom("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	bar, err := NewAtom(h, "bar")
+	bar, err := h.PutAtom("bar")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fooBar, err := NewCompound(h, "foo", bar)
+	fooBar, err := h.PutCompound("foo", bar)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fooColonBar, err := NewCompound(h, ":", foo, bar)
+	fooColonBar, err := h.PutCompound(":", foo, bar)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewInteger(h, 1)
+	one, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	oneColonFoo, err := NewCompound(h, ":", one, foo)
+	oneColonFoo, err := h.PutCompound(":", one, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1312,8 +1036,8 @@ func TestTerm_Unqualify(t *testing.T) {
 		title            string
 		term             Term
 		heap             *Heap
-		module           string
-		qualifyingModule string
+		module           Atom
+		qualifyingModule Atom
 		unqualifiedTerm  Term
 	}{
 		{title: "foo", term: foo, heap: h, module: "user", qualifyingModule: "user", unqualifiedTerm: foo},
@@ -1324,7 +1048,7 @@ func TestTerm_Unqualify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			module, term := tt.term.Unqualify(tt.heap, tt.module)
+			module, term := tt.heap.Unqualify(tt.term, tt.module)
 			if module != tt.qualifyingModule {
 				t.Errorf("expected: %v, got: %v", tt.qualifyingModule, module)
 			}
@@ -1335,95 +1059,95 @@ func TestTerm_Unqualify(t *testing.T) {
 	}
 }
 
-func TestTerm_Compare(t *testing.T) {
-	h := NewHeap(2 * 1024)
+func TestHeap_Compare(t *testing.T) {
+	h := NewHeap(nil)
 
-	w, err := NewVariable(h)
+	w, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	x, err := NewVariable(h)
+	x, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	y, err := NewVariable(h)
+	y, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	z, err := NewAtom(h, "Z")
+	z, err := h.PutAtom("Z")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i0, err := NewInteger(h, 0)
+	i0, err := h.PutInteger(0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i1, err := NewInteger(h, 1)
+	i1, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i2, err := NewInteger(h, 2)
+	i2, err := h.PutInteger(2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	f0, err := NewFloat(h, 0)
+	f0, err := h.PutFloat(0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	f1, err := NewFloat(h, 1)
+	f1, err := h.PutFloat(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	f2, err := NewFloat(h, 2)
+	f2, err := h.PutFloat(2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fa, err := NewCompound(h, "f", a)
+	fa, err := h.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fb, err := NewCompound(h, "f", b)
+	fb, err := h.PutCompound("f", b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fz, err := NewCompound(h, "f", z)
+	fz, err := h.PutCompound("f", z)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ea, err := NewCompound(h, "e", a)
+	ea, err := h.PutCompound("e", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ga, err := NewCompound(h, "g", a)
+	ga, err := h.PutCompound("g", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fab, err := NewCompound(h, "f", a, b)
+	fab, err := h.PutCompound("f", a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1480,7 +1204,7 @@ func TestTerm_Compare(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			o := test.lhs.Compare(h, test.rhs)
+			o := h.Compare(test.lhs, test.rhs)
 			if o != test.o {
 				t.Errorf("expected %d, got %d", test.o, o)
 			}
@@ -1488,107 +1212,205 @@ func TestTerm_Compare(t *testing.T) {
 	}
 }
 
-func TestCompound_Arg(t *testing.T) {
-	h := NewHeap(1024)
+/*
 
-	a, err := NewAtom(h, "a")
+func TestTerm_Unify(t *testing.T) {
+	h := NewHeap(2 * 1024)
+
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fab, err := NewCompound(h, "f", a, b)
+	fa, err := h.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cfab, err := fab.Compound(h)
+	ga, err := h.PutCompound("g", a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listAB, err := NewList(h, a, b)
+	fb, err := h.PutCompound("f", b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listB, err := NewList(h, b)
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cListAB, err := listAB.Compound(h)
+	w, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	stringAB, err := NewCharList(h, "ab")
+	x, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cStringAB, err := stringAB.Compound(h)
+	fx, err := h.PutCompound("f", x)
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		title    string
-		compound *Compound
-		heap     *Heap
-		n        int
-		term     Term
-		err      error
-	}{
-		{title: "f(a, b), 0", compound: cfab, heap: h, n: 0, term: a},
-		{title: "f(a, b), 1", compound: cfab, heap: h, n: 1, term: b},
-		{title: "[a, b], 0", compound: cListAB, heap: h, n: 0, term: a},
-		{title: "[a, b], 1", compound: cListAB, heap: h, n: 1, term: listB},
-		{title: `"ab", 0`, compound: cStringAB, heap: h, n: 0, term: Term{tag: termTagCharacter, payload: 'a'}},
-		{title: `"ab", 1`, compound: cStringAB, heap: h, n: 1, term: listB},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			term := tt.compound.Arg(tt.heap, tt.n)
-			if term.Compare(tt.heap, tt.term) != 0 {
-				t.Errorf("expected %v, got %v", tt.term, term)
-			}
-		})
-	}
-}
-
-func TestStringPool_First(t *testing.T) {
-	h := NewHeap(1024)
-	if _, err := h.strings.Put("ab", Term{tag: termTagVariable, payload: 0}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := h.strings.Put("cd", Term{tag: termTagVariable, payload: 1}); err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
 		title string
-		id    stringID
-		term  Term
+		heap  *Heap
+		x, y  Term
+		ok    bool
+		err   error
+		env   map[Variable]Term
 	}{
-		{title: "0", id: 0, term: Term{tag: termTagCharacter, payload: 'a'}},
-		{title: "1", id: 1, term: Term{tag: termTagCharacter, payload: 'b'}},
-		{title: "2", id: 2, term: Term{tag: termTagCharacter, payload: 'c'}},
-		{title: "3", id: 3, term: Term{tag: termTagCharacter, payload: 'd'}},
-		{title: "4", id: 4, term: Term{}},
+		{title: "a = a", heap: h, x: a, y: a, ok: true},
+		{title: "V = V", heap: h, x: v, y: v, ok: true},
+		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
+			Variable(v.value): w,
+		}},
+		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
+		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
+		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
+			Variable(v.value): a,
+		}},
+		{title: "a = b", heap: h, x: a, y: b, ok: false},
+		{title: "X = f(X)", heap: h, x: x, y: fx, ok: true, env: map[Variable]Term{
+			Variable(x.value): fx,
+		}},
+		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			term := h.strings.First(tt.id)
-			if o := term.Compare(h, tt.term); o != 0 {
-				t.Errorf("expected %v, got %v", tt.term, term)
+			snapshot := *tt.heap
+			defer func() {
+				*tt.heap = snapshot
+			}()
+
+			ok, err := tt.x.Unify(tt.heap, tt.y)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+				return
+			}
+			if ok != tt.ok {
+				t.Errorf("expected: %v, got: %v", tt.ok, ok)
+			}
+
+			env := map[Variable]Term{}
+			for k, v := range h.env.Values.All() {
+				env[k] = v
+			}
+
+			if !maps.Equal(env, tt.env) {
+				t.Errorf("expected: %+v, got: %+v", tt.env, env)
 			}
 		})
 	}
 }
+
+func TestTerm_UnifyWithOccursCheck(t *testing.T) {
+	h := NewHeap(2 * 1024)
+
+	a, err := h.PutAtom("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := h.PutAtom("b")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fa, err := h.PutCompound("f", a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ga, err := h.PutCompound("g", a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fb, err := h.PutCompound("f", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := h.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := h.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	x, err := h.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fx, err := h.PutCompound("f", x)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		title string
+		heap  *Heap
+		x, y  Term
+		ok    bool
+		err   error
+		env   map[Variable]Term
+	}{
+		{title: "a = a", heap: h, x: a, y: a, ok: true},
+		{title: "V = V", heap: h, x: v, y: v, ok: true},
+		{title: "V = W", heap: h, x: v, y: w, ok: true, env: map[Variable]Term{
+			Variable(v.value): w,
+		}},
+		{title: "f(a) = g(a)", heap: h, x: fa, y: ga, ok: false},
+		{title: "f(a) = f(b)", heap: h, x: fa, y: fb, ok: false},
+		{title: "a = V", heap: h, x: a, y: v, ok: true, env: map[Variable]Term{
+			Variable(v.value): a,
+		}},
+		{title: "a = b", heap: h, x: a, y: b, ok: false},
+		{title: "X = f(X)", heap: h, x: x, y: fx, ok: false},
+		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			snapshot := *tt.heap
+			defer func() {
+				*tt.heap = snapshot
+			}()
+
+			ok, err := tt.x.UnifyWithOccursCheck(tt.heap, tt.y)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("expected: %v, got: %v", tt.err, err)
+				return
+			}
+			if ok != tt.ok {
+				t.Errorf("expected: %v, got: %v", tt.ok, ok)
+			}
+
+			env := map[Variable]Term{}
+			for k, v := range h.env.Values.All() {
+				env[k] = v
+			}
+
+			if !maps.Equal(env, tt.env) {
+				t.Errorf("expected: %+v, got: %+v", tt.env, env)
+			}
+		})
+	}
+}
+*/

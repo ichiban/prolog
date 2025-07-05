@@ -8,382 +8,383 @@ import (
 )
 
 func TestFormatter_WriteTo(t *testing.T) {
-	h := NewHeap(30 * 1024)
+	h := NewHeap(nil)
 
-	x, err := NewVariable(h)
+	x, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	y, err := NewVariable(h)
+	y, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := NewAtom(h, "a")
+	a, err := h.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := NewAtom(h, "b")
+	b, err := h.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c, err := NewAtom(h, "c")
+	c, err := h.PutAtom("c")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	X, err := NewAtom(h, "X")
+	X, err := h.PutAtom("X")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rest, err := NewAtom(h, "rest")
+	rest, err := h.PutAtom("rest")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	escapeSequence, err := NewAtom(h, "\a\b\f\n\r\t\v\x00\\'\"`")
+	escapeSequence, err := h.PutAtom("\a\b\f\n\r\t\v\x00\\'\"`")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	comma, err := NewAtom(h, ",")
+	comma, err := h.PutAtom(",")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	emptyList, err := NewAtom(h, "[]")
+	emptyList, err := h.PutAtom("[]")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	emptyBlock, err := NewAtom(h, "{}")
+	emptyBlock, err := h.PutAtom("{}")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minus, err := NewAtom(h, "-")
+	minus, err := h.PutAtom("-")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	foo, err := NewAtom(h, "foo")
+	foo, err := h.PutAtom("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	bar, err := NewAtom(h, "bar")
+	bar, err := h.PutAtom("bar")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	baz, err := NewAtom(h, "baz")
+	baz, err := h.PutAtom("baz")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	thirtyThree, err := NewInteger(h, 33)
+	thirtyThree, err := h.PutInteger(33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusThirtyThree, err := NewInteger(h, -33)
+	minusThirtyThree, err := h.PutInteger(-33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	zero, err := NewInteger(h, 0)
+	zero, err := h.PutInteger(0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := NewInteger(h, 1)
+	one, err := h.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	two, err := NewInteger(h, 2)
+	two, err := h.PutInteger(2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentyFive, err := NewInteger(h, 25)
+	twentyFive, err := h.PutInteger(25)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentySix, err := NewInteger(h, 26)
+	twentySix, err := h.PutInteger(26)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentySeven, err := NewInteger(h, 27)
+	twentySeven, err := h.PutInteger(27)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusTwo, err := NewInteger(h, -2)
+	minusTwo, err := h.PutInteger(-2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatThirtyThree, err := NewFloat(h, 33)
+	floatThirtyThree, err := h.PutFloat(33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatWithE, err := NewFloat(h, 3.0e+100)
+	floatWithE, err := h.PutFloat(3.0e+100)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatMinusThirtyThree, err := NewFloat(h, -33)
+	floatMinusThirtyThree, err := h.PutFloat(-33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	list, err := NewList(h, a, b, c)
+	list, err := h.PutList(a, b, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listish, err := NewPartialList(h, rest, a, b)
+	listish, err := h.PutPartialList(rest, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	v, err := NewVariable(h)
+	v, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	circularList, err := NewPartialList(h, v, a, b)
+	circularList, err := h.PutPartialList(v, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.env.Values.Set(Variable(v.payload), circularList); err != nil {
+	var trail []Variable
+	if !h.bind(&trail, v, circularList, false) {
 		t.Fatal(err)
 	}
 
-	curlyBrackets, err := NewCompound(h, "{}", foo)
+	curlyBrackets, err := h.PutCompound("{}", foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ifFoo, err := NewCompound(h, ":-", foo)
+	ifFoo, err := h.PutCompound(":-", foo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ifIfFoo, err := NewCompound(h, ":-", ifFoo)
+	ifIfFoo, err := h.PutCompound(":-", ifFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	notFoo, err := NewCompound(h, `\+`, foo)
+	notFoo, err := h.PutCompound(`\+`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusNotFoo, err := NewCompound(h, `-`, notFoo)
+	minusNotFoo, err := h.PutCompound(`-`, notFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	notMinusNotFoo, err := NewCompound(h, `\+`, minusNotFoo)
+	notMinusNotFoo, err := h.PutCompound(`\+`, minusNotFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fiFoo, err := NewCompound(h, `-:`, foo)
+	fiFoo, err := h.PutCompound(`-:`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fiFiFoo, err := NewCompound(h, `-:`, fiFoo)
+	fiFiFoo, err := h.PutCompound(`-:`, fiFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonFoo, err := NewCompound(h, `+/`, foo)
+	tonFoo, err := h.PutCompound(`+/`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinusTonFoo, err := NewCompound(h, `--`, tonFoo)
+	minusMinusTonFoo, err := h.PutCompound(`--`, tonFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonMinusMinusTonFoo, err := NewCompound(h, `+/`, minusMinusTonFoo)
+	tonMinusMinusTonFoo, err := h.PutCompound(`+/`, minusMinusTonFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ifBarBaz, err := NewCompound(h, `:-`, bar, baz)
+	ifBarBaz, err := h.PutCompound(`:-`, bar, baz)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ifFooIfBarBaz, err := NewCompound(h, `:-`, foo, ifBarBaz)
+	ifFooIfBarBaz, err := h.PutCompound(`:-`, foo, ifBarBaz)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plusTwoTwo, err := NewCompound(h, `+`, two, two)
+	plusTwoTwo, err := h.PutCompound(`+`, two, two)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskTwoPlusTwoTwo, err := NewCompound(h, `*`, two, plusTwoTwo)
+	asteriskTwoPlusTwoTwo, err := h.PutCompound(`*`, two, plusTwoTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	barTwoTwo, err := NewCompound(h, `|`, two, two)
+	barTwoTwo, err := h.PutCompound(`|`, two, two)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	commaTwoBarTwoTwo, err := NewCompound(h, `,`, two, barTwoTwo)
+	commaTwoBarTwoTwo, err := h.PutCompound(`,`, two, barTwoTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plusTwoMinusTwo, err := NewCompound(h, `+`, two, minusTwo)
+	plusTwoMinusTwo, err := h.PutCompound(`+`, two, minusTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varZero, err := NewCompound(h, `$VAR`, zero)
+	varZero, err := h.PutCompound(`$VAR`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varOne, err := NewCompound(h, `$VAR`, one)
+	varOne, err := h.PutCompound(`$VAR`, one)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentyFive, err := NewCompound(h, `$VAR`, twentyFive)
+	varTwentyFive, err := h.PutCompound(`$VAR`, twentyFive)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentySix, err := NewCompound(h, `$VAR`, twentySix)
+	varTwentySix, err := h.PutCompound(`$VAR`, twentySix)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentySeven, err := NewCompound(h, `$VAR`, twentySeven)
+	varTwentySeven, err := h.PutCompound(`$VAR`, twentySeven)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fVars, err := NewCompound(h, `f`, varZero, varOne, varTwentyFive, varTwentySix, varTwentySeven)
+	fVars, err := h.PutCompound(`f`, varZero, varOne, varTwentyFive, varTwentySix, varTwentySeven)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusB, err := NewCompound(h, `-`, b)
+	minusB, err := h.PutCompound(`-`, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskAMinusB, err := NewCompound(h, `*`, a, minusB)
+	asteriskAMinusB, err := h.PutCompound(`*`, a, minusB)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonA, err := NewCompound(h, `+/`, a)
+	tonA, err := h.PutCompound(`+/`, a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusTonA, err := NewCompound(h, `-`, tonA)
+	minusTonA, err := h.PutCompound(`-`, tonA)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskAB, err := NewCompound(h, `*`, a, b)
+	asteriskAB, err := h.PutCompound(`*`, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusAsteriskAB, err := NewCompound(h, `-`, asteriskAB)
+	minusAsteriskAB, err := h.PutCompound(`-`, asteriskAB)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w, err := NewVariable(h)
+	w, err := h.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewCompound(h, "f", w)
+	r, err := h.PutCompound("f", w)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.env.Values.Set(Variable(w.payload), r); err != nil {
+	if !h.bind(&trail, w, r, false) {
 		t.Fatal(err)
 	}
 
-	isXY, err := NewCompound(h, "is", x, y)
+	isXY, err := h.PutCompound("is", x, y)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinus, err := NewCompound(h, "-", minus)
+	minusMinus, err := h.PutCompound("-", minus)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinusMinus, err := NewCompound(h, "--", minus)
+	minusMinusMinus, err := h.PutCompound("--", minus)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	FXX, err := NewCompound(h, `F`, X, X)
+	FXX, err := h.PutCompound(`F`, X, X)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	isFooFoo, err := NewCompound(h, `is`, foo, foo)
+	isFooFoo, err := h.PutCompound(`is`, foo, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	unaryMinusThirtyThree, err := NewCompound(h, `-`, thirtyThree)
+	unaryMinusThirtyThree, err := h.PutCompound(`-`, thirtyThree)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b0Zero, err := NewCompound(h, `b0`, zero)
+	b0Zero, err := h.PutCompound(`b0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	o0Zero, err := NewCompound(h, `o0`, zero)
+	o0Zero, err := h.PutCompound(`o0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	x0Zero, err := NewCompound(h, `x0`, zero)
+	x0Zero, err := h.PutCompound(`x0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	FooZero, err := NewCompound(h, `Foo`, zero)
+	FooZero, err := h.PutCompound(`Foo`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusFloatThirtyThree, err := NewCompound(h, `-`, floatThirtyThree)
+	minusFloatThirtyThree, err := h.PutCompound(`-`, floatThirtyThree)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	eFloatThirtyThree, err := NewCompound(h, `e`, floatThirtyThree)
+	eFloatThirtyThree, err := h.PutCompound(`e`, floatThirtyThree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,9 +416,9 @@ func TestFormatter_WriteTo(t *testing.T) {
 		output    string
 		err       error
 	}{
-		{title: "variable: unnamed", formatter: Formatter{Term: x, Heap: h}, output: fmt.Sprintf("_%d", x.payload)},
-		{title: "variable: variable_names", formatter: Formatter{Term: x, Heap: h, VariableName: map[Variable]string{
-			Variable(x.payload): "Foo",
+		{title: "variable: unnamed", formatter: Formatter{Term: x, Heap: h}, output: fmt.Sprintf("_%d", x.value)},
+		{title: "variable: variable_names", formatter: Formatter{Term: x, Heap: h, VariableName: map[Variable]Atom{
+			Variable(x.value): "Foo",
 		}}, output: `Foo`},
 
 		{title: "atom: a", formatter: Formatter{Term: a, Heap: h, Quoted: false}, output: `a`},
@@ -458,7 +459,7 @@ func TestFormatter_WriteTo(t *testing.T) {
 		{title: "compound: postfix: spacing between unary minus and open/close", formatter: Formatter{Term: minusTonA, Heap: h, Ops: ops}, output: `- (a+/)`},
 		{title: "compound: infix: spacing between unary minus and open/close", formatter: Formatter{Term: minusAsteriskAB, Heap: h, Ops: ops}, output: `- (a*b)`},
 		{title: "compound: recursive", formatter: Formatter{Term: r, Heap: h}, output: `f(...)`},
-		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Heap: h, Ops: ops}, output: fmt.Sprintf("_%d is _%d", x.payload, y.payload)},
+		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Heap: h, Ops: ops}, output: fmt.Sprintf("_%d is _%d", x.value, y.value)},
 		{title: "compound: atom minus right after an operator", formatter: Formatter{Term: minusMinus, Heap: h, Ops: ops}, output: `- (-)`},
 		{title: "compound: atom minus right before an operator", formatter: Formatter{Term: minusMinusMinus, Heap: h, Ops: ops}, output: `(-)--`},
 		{title: "compound: atom X right before/after an operator that requires quotes", formatter: Formatter{Term: FXX, Heap: h, Quoted: true, Ops: ops}, output: `'X' 'F' 'X'`},
