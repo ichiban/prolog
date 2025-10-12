@@ -54,38 +54,28 @@ func TestFunctor_String(t *testing.T) {
 	}
 }
 
-func TestNewHeap(t *testing.T) {
-	h := NewHeap(&HeapConfig{
-		MaxTerms: 1024,
-		MaxAtoms: 1024,
-	})
-	if h == nil {
-		t.Errorf("NewHeap() returned nil")
-	}
-}
-
-func TestHeap_PutVariable(t *testing.T) {
+func TestEngine_PutVariable(t *testing.T) {
 	tests := []struct {
-		title string
-		heap  *Heap
-		term  Term
-		err   error
+		title  string
+		engine *Engine
+		term   Term
+		err    error
 	}{
 		{
-			title: "ok",
-			heap:  NewHeap(nil),
-			term:  Term{tag: termTagReference, value: 0},
+			title:  "ok",
+			engine: NewEngine(),
+			term:   Term{tag: termTagReference, value: 0},
 		},
 		{
-			title: "ng",
-			heap:  &Heap{},
-			err:   &ResourceError{Resource: "heap"},
+			title:  "ng",
+			engine: NewEngine(WithHeapSize(0)),
+			err:    &ResourceError{Resource: "heap"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			v, err := tt.heap.PutVariable()
+			v, err := tt.engine.PutVariable()
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -97,8 +87,8 @@ func TestHeap_PutVariable(t *testing.T) {
 	}
 }
 
-func TestHeap_Variable(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Variable(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -129,13 +119,13 @@ func TestHeap_Variable(t *testing.T) {
 	}
 }
 
-func TestHeap_PutAtom(t *testing.T) {
+func TestEngine_PutAtom(t *testing.T) {
 	tests := []struct {
-		title string
-		heap  *Heap
-		name  Atom
-		term  Term
-		err   error
+		title  string
+		engine *Engine
+		name   Atom
+		term   Term
+		err    error
 	}{
 		{
 			title: "single char",
@@ -143,21 +133,21 @@ func TestHeap_PutAtom(t *testing.T) {
 			term:  Term{tag: termTagCharacter, value: 'a'},
 		},
 		{
-			title: "multiple chars",
-			heap:  NewHeap(nil),
-			name:  "foo",
-			term:  Term{tag: termTagAtom, value: 0},
+			title:  "multiple chars",
+			engine: NewEngine(),
+			name:   "foo",
+			term:   Term{tag: termTagAtom, value: 0},
 		},
 		{
-			title: "ng",
-			heap:  &Heap{},
-			err:   &ResourceError{Resource: "atom"},
+			title:  "ng",
+			engine: NewEngine(WithAtomTableSize(0)),
+			err:    &ResourceError{Resource: "atom"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			a, err := tt.heap.PutAtom(tt.name)
+			a, err := tt.engine.PutAtom(tt.name)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected: %v, got: %v", tt.err, err)
 			}
@@ -169,8 +159,8 @@ func TestHeap_PutAtom(t *testing.T) {
 	}
 }
 
-func TestHeap_Atom(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Atom(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -217,8 +207,8 @@ func TestHeap_Atom(t *testing.T) {
 	}
 }
 
-func TestHeap_Character(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Character(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -265,23 +255,23 @@ func TestHeap_Character(t *testing.T) {
 	}
 }
 
-func TestHeap_PutInteger(t *testing.T) {
+func TestEngine_PutInteger(t *testing.T) {
 	tests := []struct {
 		title   string
-		heap    *Heap
+		heap    *Engine
 		integer int64
 		term    Term
 		err     error
 	}{
 		{
 			title:   "ok",
-			heap:    NewHeap(nil),
+			heap:    NewEngine(),
 			integer: 1,
 			term:    Term{tag: termTagInteger, value: 0},
 		},
 		{
 			title: "ng",
-			heap:  &Heap{},
+			heap:  NewEngine(WithHeapSize(0)),
 			err:   &ResourceError{Resource: "heap"},
 		},
 	}
@@ -300,8 +290,8 @@ func TestHeap_PutInteger(t *testing.T) {
 	}
 }
 
-func TestHeap_Integer(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Integer(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -342,23 +332,23 @@ func TestHeap_Integer(t *testing.T) {
 	}
 }
 
-func TestHeap_PutFloat(t *testing.T) {
+func TestEngine_PutFloat(t *testing.T) {
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		float float64
 		term  Term
 		err   error
 	}{
 		{
 			title: "ok",
-			heap:  NewHeap(nil),
+			heap:  NewEngine(),
 			float: 1,
 			term:  Term{tag: termTagFloat, value: 0},
 		},
 		{
 			title: "ng",
-			heap:  &Heap{},
+			heap:  NewEngine(WithHeapSize(0)),
 			err:   &ResourceError{Resource: "heap"},
 		},
 	}
@@ -377,8 +367,8 @@ func TestHeap_PutFloat(t *testing.T) {
 	}
 }
 
-func TestHeap_Float(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Float(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -419,10 +409,10 @@ func TestHeap_Float(t *testing.T) {
 	}
 }
 
-func TestHeap_PutCompound(t *testing.T) {
+func TestEngine_PutCompound(t *testing.T) {
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		name  Atom
 		args  []Term
 		term  Term
@@ -435,7 +425,7 @@ func TestHeap_PutCompound(t *testing.T) {
 		},
 		{
 			title: "ok",
-			heap:  NewHeap(nil),
+			heap:  NewEngine(),
 			name:  "f",
 			args: []Term{
 				{tag: termTagCharacter, value: 'a'},
@@ -445,13 +435,13 @@ func TestHeap_PutCompound(t *testing.T) {
 		},
 		{
 			title: "insufficient heap",
-			heap:  &Heap{},
+			heap:  NewEngine(WithHeapSize(0)),
 			name:  "foo",
 			args: []Term{
 				{tag: termTagCharacter, value: 'a'},
 				{tag: termTagCharacter, value: 'b'},
 			},
-			err: &ResourceError{Resource: "atom"},
+			err: &ResourceError{Resource: "heap"},
 		},
 	}
 
@@ -469,23 +459,23 @@ func TestHeap_PutCompound(t *testing.T) {
 	}
 }
 
-func TestHeap_PutList(t *testing.T) {
+func TestEngine_PutList(t *testing.T) {
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		elems []Term
 		term  Term
 		err   error
 	}{
 		{
 			title: "empty",
-			heap:  NewHeap(nil),
+			heap:  NewEngine(),
 			elems: []Term{},
 			term:  Term{tag: termTagAtom, value: 0},
 		},
 		{
 			title: "ok",
-			heap:  NewHeap(nil),
+			heap:  NewEngine(),
 			elems: []Term{
 				{tag: termTagCharacter, value: 'a'},
 				{tag: termTagCharacter, value: 'b'},
@@ -494,12 +484,12 @@ func TestHeap_PutList(t *testing.T) {
 		},
 		{
 			title: "insufficient heap",
-			heap:  &Heap{},
+			heap:  NewEngine(WithHeapSize(0)),
 			elems: []Term{
 				{tag: termTagCharacter, value: 'a'},
 				{tag: termTagCharacter, value: 'b'},
 			},
-			err: &ResourceError{Resource: "atom"},
+			err: &ResourceError{Resource: "heap"},
 		},
 	}
 
@@ -517,29 +507,29 @@ func TestHeap_PutList(t *testing.T) {
 	}
 }
 
-func TestHeap_PutCharList(t *testing.T) {
+func TestEngine_PutCharList(t *testing.T) {
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		str   string
 		term  Term
 		err   error
 	}{
 		{
 			title: "ok",
-			heap:  NewHeap(nil),
+			heap:  NewEngine(),
 			str:   "foo",
 			term:  Term{tag: termTagString0, value: 0},
 		},
 		{
 			title: "insufficient atoms",
-			heap:  &Heap{},
+			heap:  NewEngine(WithAtomTableSize(0)),
 			str:   "foo",
 			err:   &ResourceError{Resource: "atom"},
 		},
 		{
 			title: "insufficient heap",
-			heap:  NewHeap(&HeapConfig{MaxAtoms: 1}),
+			heap:  NewEngine(WithHeapSize(0)),
 			str:   "foo",
 			err:   &ResourceError{Resource: "heap"},
 		},
@@ -558,8 +548,8 @@ func TestHeap_PutCharList(t *testing.T) {
 	}
 }
 
-func TestHeap_Functor(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Functor(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -612,67 +602,67 @@ func TestHeap_Functor(t *testing.T) {
 	}
 }
 
-func TestHeap_Arg(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Arg(t *testing.T) {
+	e := NewEngine()
 
-	a, err := h.PutAtom("a")
+	a, err := e.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := h.PutAtom("b")
+	b, err := e.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fab, err := h.PutCompound("f", a, b)
+	fab, err := e.PutCompound("f", a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listAB, err := h.PutList(a, b)
+	listAB, err := e.PutList(a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listB, err := h.PutList(b)
+	listB, err := e.PutList(b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	stringAB, err := h.PutCharList("ab")
+	stringAB, err := e.PutCharList("ab")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
-		title string
-		term  Term
-		heap  *Heap
-		n     int
-		arg   Term
-		err   error
+		title  string
+		term   Term
+		engine *Engine
+		n      int
+		arg    Term
+		err    error
 	}{
-		{title: "f(a, b), 0", term: fab, heap: h, n: 0, arg: a},
-		{title: "f(a, b), 1", term: fab, heap: h, n: 1, arg: b},
-		{title: "[a, b], 0", term: listAB, heap: h, n: 0, arg: a},
-		{title: "[a, b], 1", term: listAB, heap: h, n: 1, arg: listB},
-		{title: `"ab", 0`, term: stringAB, heap: h, n: 0, arg: Term{tag: termTagCharacter, value: 'a'}},
-		{title: `"ab", 1`, term: stringAB, heap: h, n: 1, arg: listB},
+		{title: "f(a, b), 0", term: fab, engine: e, n: 0, arg: a},
+		{title: "f(a, b), 1", term: fab, engine: e, n: 1, arg: b},
+		{title: "[a, b], 0", term: listAB, engine: e, n: 0, arg: a},
+		{title: "[a, b], 1", term: listAB, engine: e, n: 1, arg: listB},
+		{title: `"ab", 0`, term: stringAB, engine: e, n: 0, arg: Term{tag: termTagCharacter, value: 'a'}},
+		{title: `"ab", 1`, term: stringAB, engine: e, n: 1, arg: listB},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			term := tt.heap.Arg(tt.term, tt.n)
-			if tt.heap.Compare(term, tt.arg) != 0 {
+			term := tt.engine.Arg(tt.term, tt.n)
+			if tt.engine.Compare(term, tt.arg) != 0 {
 				t.Errorf("expected %v, got %v", tt.arg, term)
 			}
 		})
 	}
 }
 
-func TestHeap_List(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_List(t *testing.T) {
+	h := NewEngine()
 
 	v, err := h.PutVariable()
 	if err != nil {
@@ -723,7 +713,7 @@ func TestHeap_List(t *testing.T) {
 		t.Fatal(err)
 	}
 	var trail []Variable
-	if !h.unify(&trail, tail, cl, false) {
+	if !h.Unify(&trail, tail, cl) {
 		t.Fatal("tail unification failed")
 	}
 
@@ -801,7 +791,7 @@ func TestHeap_List(t *testing.T) {
 }
 
 func TestTerm_CharList(t *testing.T) {
-	h := NewHeap(nil)
+	h := NewEngine()
 
 	a, err := h.PutAtom("a")
 	if err != nil {
@@ -831,7 +821,7 @@ func TestTerm_CharList(t *testing.T) {
 	tests := []struct {
 		title string
 		term  Term
-		heap  *Heap
+		heap  *Engine
 		str   string
 		err   error
 	}{
@@ -852,8 +842,8 @@ func TestTerm_CharList(t *testing.T) {
 	}
 }
 
-func TestHeap_Contains(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Contains(t *testing.T) {
+	h := NewEngine()
 
 	a, err := h.PutAtom("a")
 	if err != nil {
@@ -891,8 +881,8 @@ func TestHeap_Contains(t *testing.T) {
 	}
 }
 
-func TestHeap_RenamedCopy(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_RenamedCopy(t *testing.T) {
+	h := NewEngine()
 
 	a, err := h.PutAtom("a")
 	if err != nil {
@@ -914,7 +904,7 @@ func TestHeap_RenamedCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	smallHeap := NewHeap(&HeapConfig{MaxTerms: 10})
+	smallHeap := NewEngine(WithHeapSize(10))
 	sfa, err := smallHeap.PutCompound("f", a)
 	if err != nil {
 		t.Fatal(err)
@@ -927,7 +917,7 @@ func TestHeap_RenamedCopy(t *testing.T) {
 	tests := []struct {
 		title  string
 		term   Term
-		heap   *Heap
+		heap   *Engine
 		result Term
 		err    error
 	}{
@@ -950,8 +940,8 @@ func TestHeap_RenamedCopy(t *testing.T) {
 	}
 }
 
-func TestHeap_Cyclic(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Cyclic(t *testing.T) {
+	h := NewEngine()
 
 	a, err := h.PutAtom("a")
 	if err != nil {
@@ -974,14 +964,14 @@ func TestHeap_Cyclic(t *testing.T) {
 	}
 
 	var trail []Variable
-	if !h.unify(&trail, x, fx, false) {
+	if !h.Unify(&trail, x, fx) {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
 		title string
 		term  Term
-		heap  *Heap
+		heap  *Engine
 		ok    bool
 	}{
 		{title: "a", term: a, heap: h, ok: false},
@@ -999,8 +989,8 @@ func TestHeap_Cyclic(t *testing.T) {
 	}
 }
 
-func TestHeap_Unqualify(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Unqualify(t *testing.T) {
+	h := NewEngine()
 
 	foo, err := h.PutAtom("foo")
 	if err != nil {
@@ -1035,7 +1025,7 @@ func TestHeap_Unqualify(t *testing.T) {
 	tests := []struct {
 		title            string
 		term             Term
-		heap             *Heap
+		heap             *Engine
 		module           Atom
 		qualifyingModule Atom
 		unqualifiedTerm  Term
@@ -1059,8 +1049,8 @@ func TestHeap_Unqualify(t *testing.T) {
 	}
 }
 
-func TestHeap_Compare(t *testing.T) {
-	h := NewHeap(nil)
+func TestEngine_Compare(t *testing.T) {
+	h := NewEngine()
 
 	w, err := h.PutVariable()
 	if err != nil {
@@ -1264,7 +1254,7 @@ func TestTerm_Unify(t *testing.T) {
 
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		x, y  Term
 		ok    bool
 		err   error
@@ -1284,7 +1274,7 @@ func TestTerm_Unify(t *testing.T) {
 		{title: "X = f(X)", heap: h, x: x, y: fx, ok: true, env: map[Variable]Term{
 			Variable(x.value): fx,
 		}},
-		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
+		{title: "insufficient variables", heap:  NewEngine(), x: v, y: a, err: &ResourceError{Resource: "variables"}},
 	}
 
 	for _, tt := range tests {
@@ -1365,7 +1355,7 @@ func TestTerm_UnifyWithOccursCheck(t *testing.T) {
 
 	tests := []struct {
 		title string
-		heap  *Heap
+		heap  *Engine
 		x, y  Term
 		ok    bool
 		err   error
@@ -1383,7 +1373,7 @@ func TestTerm_UnifyWithOccursCheck(t *testing.T) {
 		}},
 		{title: "a = b", heap: h, x: a, y: b, ok: false},
 		{title: "X = f(X)", heap: h, x: x, y: fx, ok: false},
-		{title: "insufficient variables", heap: &Heap{}, x: v, y: a, err: &ResourceError{Resource: "variables"}},
+		{title: "insufficient variables", heap:  NewEngine(), x: v, y: a, err: &ResourceError{Resource: "variables"}},
 	}
 
 	for _, tt := range tests {

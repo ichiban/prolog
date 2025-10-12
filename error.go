@@ -1,7 +1,6 @@
 package prolog
 
 import (
-	"context"
 	"errors"
 	"fmt"
 )
@@ -86,9 +85,4 @@ type UninstantiationError struct {
 
 func (u *UninstantiationError) Error() string {
 	return fmt.Sprintf("uninstantiation error: %v", u.Culprit)
-}
-
-func Catch(ctx context.Context, proc *Processor, goal, catcher, recovery Term, k Promise) Promise {
-	// TODO: Call goal and catch errors.
-	return Eager(false, nil)
 }

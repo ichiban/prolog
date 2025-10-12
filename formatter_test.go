@@ -8,383 +8,383 @@ import (
 )
 
 func TestFormatter_WriteTo(t *testing.T) {
-	h := NewHeap(nil)
+	e := NewEngine()
 
-	x, err := h.PutVariable()
+	x, err := e.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	y, err := h.PutVariable()
+	y, err := e.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a, err := h.PutAtom("a")
+	a, err := e.PutAtom("a")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b, err := h.PutAtom("b")
+	b, err := e.PutAtom("b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c, err := h.PutAtom("c")
+	c, err := e.PutAtom("c")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	X, err := h.PutAtom("X")
+	X, err := e.PutAtom("X")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rest, err := h.PutAtom("rest")
+	rest, err := e.PutAtom("rest")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	escapeSequence, err := h.PutAtom("\a\b\f\n\r\t\v\x00\\'\"`")
+	escapeSequence, err := e.PutAtom("\a\b\f\n\r\t\v\x00\\'\"`")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	comma, err := h.PutAtom(",")
+	comma, err := e.PutAtom(",")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	emptyList, err := h.PutAtom("[]")
+	emptyList, err := e.PutAtom("[]")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	emptyBlock, err := h.PutAtom("{}")
+	emptyBlock, err := e.PutAtom("{}")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minus, err := h.PutAtom("-")
+	minus, err := e.PutAtom("-")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	foo, err := h.PutAtom("foo")
+	foo, err := e.PutAtom("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	bar, err := h.PutAtom("bar")
+	bar, err := e.PutAtom("bar")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	baz, err := h.PutAtom("baz")
+	baz, err := e.PutAtom("baz")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	thirtyThree, err := h.PutInteger(33)
+	thirtyThree, err := e.PutInteger(33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusThirtyThree, err := h.PutInteger(-33)
+	minusThirtyThree, err := e.PutInteger(-33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	zero, err := h.PutInteger(0)
+	zero, err := e.PutInteger(0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	one, err := h.PutInteger(1)
+	one, err := e.PutInteger(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	two, err := h.PutInteger(2)
+	two, err := e.PutInteger(2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentyFive, err := h.PutInteger(25)
+	twentyFive, err := e.PutInteger(25)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentySix, err := h.PutInteger(26)
+	twentySix, err := e.PutInteger(26)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	twentySeven, err := h.PutInteger(27)
+	twentySeven, err := e.PutInteger(27)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusTwo, err := h.PutInteger(-2)
+	minusTwo, err := e.PutInteger(-2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatThirtyThree, err := h.PutFloat(33)
+	floatThirtyThree, err := e.PutFloat(33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatWithE, err := h.PutFloat(3.0e+100)
+	floatWithE, err := e.PutFloat(3.0e+100)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	floatMinusThirtyThree, err := h.PutFloat(-33)
+	floatMinusThirtyThree, err := e.PutFloat(-33)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	list, err := h.PutList(a, b, c)
+	list, err := e.PutList(a, b, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	listish, err := h.PutPartialList(rest, a, b)
+	listish, err := e.PutPartialList(rest, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	v, err := h.PutVariable()
+	v, err := e.PutVariable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	circularList, err := h.PutPartialList(v, a, b)
+	circularList, err := e.PutPartialList(v, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var trail []Variable
-	if !h.bind(&trail, v, circularList, false) {
+	if !e.bind(&trail, v, circularList, false) {
 		t.Fatal(err)
 	}
 
-	curlyBrackets, err := h.PutCompound("{}", foo)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ifFoo, err := h.PutCompound(":-", foo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ifIfFoo, err := h.PutCompound(":-", ifFoo)
+	curlyBrackets, err := e.PutCompound("{}", foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	notFoo, err := h.PutCompound(`\+`, foo)
+	ifFoo, err := e.PutCompound(":-", foo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ifIfFoo, err := e.PutCompound(":-", ifFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusNotFoo, err := h.PutCompound(`-`, notFoo)
+	notFoo, err := e.PutCompound(`\+`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	notMinusNotFoo, err := h.PutCompound(`\+`, minusNotFoo)
+	minusNotFoo, err := e.PutCompound(`-`, notFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fiFoo, err := h.PutCompound(`-:`, foo)
+	notMinusNotFoo, err := e.PutCompound(`\+`, minusNotFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fiFiFoo, err := h.PutCompound(`-:`, fiFoo)
+	fiFoo, err := e.PutCompound(`-:`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonFoo, err := h.PutCompound(`+/`, foo)
+	fiFiFoo, err := e.PutCompound(`-:`, fiFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinusTonFoo, err := h.PutCompound(`--`, tonFoo)
+	tonFoo, err := e.PutCompound(`+/`, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonMinusMinusTonFoo, err := h.PutCompound(`+/`, minusMinusTonFoo)
+	minusMinusTonFoo, err := e.PutCompound(`--`, tonFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ifBarBaz, err := h.PutCompound(`:-`, bar, baz)
+	tonMinusMinusTonFoo, err := e.PutCompound(`+/`, minusMinusTonFoo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ifFooIfBarBaz, err := h.PutCompound(`:-`, foo, ifBarBaz)
+	ifBarBaz, err := e.PutCompound(`:-`, bar, baz)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plusTwoTwo, err := h.PutCompound(`+`, two, two)
+	ifFooIfBarBaz, err := e.PutCompound(`:-`, foo, ifBarBaz)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskTwoPlusTwoTwo, err := h.PutCompound(`*`, two, plusTwoTwo)
+	plusTwoTwo, err := e.PutCompound(`+`, two, two)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	barTwoTwo, err := h.PutCompound(`|`, two, two)
+	asteriskTwoPlusTwoTwo, err := e.PutCompound(`*`, two, plusTwoTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	commaTwoBarTwoTwo, err := h.PutCompound(`,`, two, barTwoTwo)
+	barTwoTwo, err := e.PutCompound(`|`, two, two)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plusTwoMinusTwo, err := h.PutCompound(`+`, two, minusTwo)
+	commaTwoBarTwoTwo, err := e.PutCompound(`,`, two, barTwoTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varZero, err := h.PutCompound(`$VAR`, zero)
+	plusTwoMinusTwo, err := e.PutCompound(`+`, two, minusTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varOne, err := h.PutCompound(`$VAR`, one)
+	varZero, err := e.PutCompound(`$VAR`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentyFive, err := h.PutCompound(`$VAR`, twentyFive)
+	varOne, err := e.PutCompound(`$VAR`, one)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentySix, err := h.PutCompound(`$VAR`, twentySix)
+	varTwentyFive, err := e.PutCompound(`$VAR`, twentyFive)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	varTwentySeven, err := h.PutCompound(`$VAR`, twentySeven)
+	varTwentySix, err := e.PutCompound(`$VAR`, twentySix)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fVars, err := h.PutCompound(`f`, varZero, varOne, varTwentyFive, varTwentySix, varTwentySeven)
+	varTwentySeven, err := e.PutCompound(`$VAR`, twentySeven)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusB, err := h.PutCompound(`-`, b)
+	fVars, err := e.PutCompound(`f`, varZero, varOne, varTwentyFive, varTwentySix, varTwentySeven)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskAMinusB, err := h.PutCompound(`*`, a, minusB)
+	minusB, err := e.PutCompound(`-`, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tonA, err := h.PutCompound(`+/`, a)
+	asteriskAMinusB, err := e.PutCompound(`*`, a, minusB)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusTonA, err := h.PutCompound(`-`, tonA)
+	tonA, err := e.PutCompound(`+/`, a)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	asteriskAB, err := h.PutCompound(`*`, a, b)
+	minusTonA, err := e.PutCompound(`-`, tonA)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusAsteriskAB, err := h.PutCompound(`-`, asteriskAB)
+	asteriskAB, err := e.PutCompound(`*`, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w, err := h.PutVariable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := h.PutCompound("f", w)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !h.bind(&trail, w, r, false) {
-		t.Fatal(err)
-	}
-
-	isXY, err := h.PutCompound("is", x, y)
+	minusAsteriskAB, err := e.PutCompound(`-`, asteriskAB)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinus, err := h.PutCompound("-", minus)
+	w, err := e.PutVariable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := e.PutCompound("f", w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !e.bind(&trail, w, r, false) {
+		t.Fatal(err)
+	}
+
+	isXY, err := e.PutCompound("is", x, y)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusMinusMinus, err := h.PutCompound("--", minus)
+	minusMinus, err := e.PutCompound("-", minus)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	FXX, err := h.PutCompound(`F`, X, X)
+	minusMinusMinus, err := e.PutCompound("--", minus)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	isFooFoo, err := h.PutCompound(`is`, foo, foo)
+	FXX, err := e.PutCompound(`F`, X, X)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	unaryMinusThirtyThree, err := h.PutCompound(`-`, thirtyThree)
+	isFooFoo, err := e.PutCompound(`is`, foo, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	b0Zero, err := h.PutCompound(`b0`, zero)
+	unaryMinusThirtyThree, err := e.PutCompound(`-`, thirtyThree)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	o0Zero, err := h.PutCompound(`o0`, zero)
+	b0Zero, err := e.PutCompound(`b0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	x0Zero, err := h.PutCompound(`x0`, zero)
+	o0Zero, err := e.PutCompound(`o0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	FooZero, err := h.PutCompound(`Foo`, zero)
+	x0Zero, err := e.PutCompound(`x0`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	minusFloatThirtyThree, err := h.PutCompound(`-`, floatThirtyThree)
+	FooZero, err := e.PutCompound(`Foo`, zero)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	eFloatThirtyThree, err := h.PutCompound(`e`, floatThirtyThree)
+	minusFloatThirtyThree, err := e.PutCompound(`-`, floatThirtyThree)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	eFloatThirtyThree, err := e.PutCompound(`e`, floatThirtyThree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,61 +416,61 @@ func TestFormatter_WriteTo(t *testing.T) {
 		output    string
 		err       error
 	}{
-		{title: "variable: unnamed", formatter: Formatter{Term: x, Heap: h}, output: fmt.Sprintf("_%d", x.value)},
-		{title: "variable: variable_names", formatter: Formatter{Term: x, Heap: h, VariableName: map[Variable]Atom{
+		{title: "variable: unnamed", formatter: Formatter{Term: x, Engine: e}, output: fmt.Sprintf("_%d", x.value)},
+		{title: "variable: variable_names", formatter: Formatter{Term: x, Engine: e, VariableName: map[Variable]Atom{
 			Variable(x.value): "Foo",
 		}}, output: `Foo`},
 
-		{title: "atom: a", formatter: Formatter{Term: a, Heap: h, Quoted: false}, output: `a`},
-		{title: "atom: a with quoted", formatter: Formatter{Term: a, Heap: h, Quoted: true}, output: `a`},
-		{title: "atom: escape sequence", formatter: Formatter{Term: escapeSequence, Heap: h, Quoted: false}, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
-		{title: "atom: escape sequence with quoted", formatter: Formatter{Term: escapeSequence, Heap: h, Quoted: true}, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\"`'"},
-		{title: "atom: comma", formatter: Formatter{Term: comma, Heap: h, Quoted: false}, output: `,`},
-		{title: "atom: comma with quoted", formatter: Formatter{Term: comma, Heap: h, Quoted: true}, output: `','`},
-		{title: "atom: empty list", formatter: Formatter{Term: emptyList, Heap: h, Quoted: false}, output: `[]`},
-		{title: "atom: empty list with quoted", formatter: Formatter{Term: emptyList, Heap: h, Quoted: true}, output: `[]`},
-		{title: "atom: empty block", formatter: Formatter{Term: emptyBlock, Heap: h, Quoted: false}, output: `{}`},
-		{title: "atom: empty block with quoted", formatter: Formatter{Term: emptyBlock, Heap: h, Quoted: true}, output: `{}`},
-		{title: "atom: minus", formatter: Formatter{Term: minus, Heap: h}, output: `-`},
+		{title: "atom: a", formatter: Formatter{Term: a, Engine: e, Quoted: false}, output: `a`},
+		{title: "atom: a with quoted", formatter: Formatter{Term: a, Engine: e, Quoted: true}, output: `a`},
+		{title: "atom: escape sequence", formatter: Formatter{Term: escapeSequence, Engine: e, Quoted: false}, output: "\a\b\f\n\r\t\v\x00\\'\"`"},
+		{title: "atom: escape sequence with quoted", formatter: Formatter{Term: escapeSequence, Engine: e, Quoted: true}, output: "'\\a\\b\\f\\n\\r\\t\\v\\x0\\\\\\\\'\"`'"},
+		{title: "atom: comma", formatter: Formatter{Term: comma, Engine: e, Quoted: false}, output: `,`},
+		{title: "atom: comma with quoted", formatter: Formatter{Term: comma, Engine: e, Quoted: true}, output: `','`},
+		{title: "atom: empty list", formatter: Formatter{Term: emptyList, Engine: e, Quoted: false}, output: `[]`},
+		{title: "atom: empty list with quoted", formatter: Formatter{Term: emptyList, Engine: e, Quoted: true}, output: `[]`},
+		{title: "atom: empty block", formatter: Formatter{Term: emptyBlock, Engine: e, Quoted: false}, output: `{}`},
+		{title: "atom: empty block with quoted", formatter: Formatter{Term: emptyBlock, Engine: e, Quoted: true}, output: `{}`},
+		{title: "atom: minus", formatter: Formatter{Term: minus, Engine: e}, output: `-`},
 
-		{title: "integer: positive", formatter: Formatter{Term: thirtyThree, Heap: h}, output: `33`},
-		{title: "integer: negative", formatter: Formatter{Term: minusThirtyThree, Heap: h}, output: `-33`},
+		{title: "integer: positive", formatter: Formatter{Term: thirtyThree, Engine: e}, output: `33`},
+		{title: "integer: negative", formatter: Formatter{Term: minusThirtyThree, Engine: e}, output: `-33`},
 
-		{title: "float: positive", formatter: Formatter{Term: floatThirtyThree, Heap: h, Precision: -1}, output: `33.0`},
-		{title: "float: with e", formatter: Formatter{Term: floatWithE, Heap: h, Precision: -1}, output: `3.0e+100`},
-		{title: "float: negative", formatter: Formatter{Term: floatMinusThirtyThree, Heap: h, Precision: -1}, output: `-33.0`},
+		{title: "float: positive", formatter: Formatter{Term: floatThirtyThree, Engine: e, Precision: -1}, output: `33.0`},
+		{title: "float: with e", formatter: Formatter{Term: floatWithE, Engine: e, Precision: -1}, output: `3.0e+100`},
+		{title: "float: negative", formatter: Formatter{Term: floatMinusThirtyThree, Engine: e, Precision: -1}, output: `-33.0`},
 
-		{title: "compound: list", formatter: Formatter{Term: list, Heap: h}, output: `[a,b,c]`},
-		{title: "compound: list-ish", formatter: Formatter{Term: listish, Heap: h}, output: `[a,b|rest]`},
-		{title: "compound: circular list", formatter: Formatter{Term: circularList, Heap: h}, output: `[a,b,a|...]`},
-		{title: "compound: curly brackets", formatter: Formatter{Term: curlyBrackets, Heap: h}, output: `{foo}`},
-		{title: "compound: fx", formatter: Formatter{Term: ifIfFoo, Heap: h, Ops: ops}, output: `:- (:-foo)`},
-		{title: "compound: fy", formatter: Formatter{Term: notMinusNotFoo, Heap: h, Ops: ops}, output: `\+ - (\+foo)`},
-		{title: "compound: xf", formatter: Formatter{Term: fiFiFoo, Heap: h, Ops: ops}, output: `(foo-:)-:`},
-		{title: "compound: yf", formatter: Formatter{Term: tonMinusMinusTonFoo, Heap: h, Ops: ops}, output: `(foo+/)-- +/`},
-		{title: "compound: xfx", formatter: Formatter{Term: ifFooIfBarBaz, Heap: h, Ops: ops}, output: `foo:-(bar:-baz)`},
-		{title: "compound: yfx", formatter: Formatter{Term: asteriskTwoPlusTwoTwo, Heap: h, Ops: ops}, output: `2*(2+2)`},
-		{title: "compound: xfy", formatter: Formatter{Term: commaTwoBarTwoTwo, Heap: h, Ops: ops}, output: `2,(2|2)`},
-		{title: "compound: ignore_ops(false)", formatter: Formatter{Term: plusTwoMinusTwo, Heap: h, IgnoreOps: false, Ops: ops}, output: `2+ -2`},
-		{title: "compound: ignore_ops(true)", formatter: Formatter{Term: plusTwoMinusTwo, Heap: h, IgnoreOps: true, Ops: ops}, output: `+(2,-2)`},
-		{title: "compound: number_vars(false)", formatter: Formatter{Term: fVars, Heap: h, Quoted: true, NumberVars: false, Ops: ops}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
-		{title: "compound: number_vars(true)", formatter: Formatter{Term: fVars, Heap: h, Quoted: true, NumberVars: true, Ops: ops}, output: `f(A,B,Z,A1,B1)`},
-		{title: "compound: prefix: spacing between operators", formatter: Formatter{Term: asteriskAMinusB, Heap: h, Ops: ops}, output: `a* -b`},
-		{title: "compound: postfix: spacing between unary minus and open/close", formatter: Formatter{Term: minusTonA, Heap: h, Ops: ops}, output: `- (a+/)`},
-		{title: "compound: infix: spacing between unary minus and open/close", formatter: Formatter{Term: minusAsteriskAB, Heap: h, Ops: ops}, output: `- (a*b)`},
-		{title: "compound: recursive", formatter: Formatter{Term: r, Heap: h}, output: `f(...)`},
-		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Heap: h, Ops: ops}, output: fmt.Sprintf("_%d is _%d", x.value, y.value)},
-		{title: "compound: atom minus right after an operator", formatter: Formatter{Term: minusMinus, Heap: h, Ops: ops}, output: `- (-)`},
-		{title: "compound: atom minus right before an operator", formatter: Formatter{Term: minusMinusMinus, Heap: h, Ops: ops}, output: `(-)--`},
-		{title: "compound: atom X right before/after an operator that requires quotes", formatter: Formatter{Term: FXX, Heap: h, Quoted: true, Ops: ops}, output: `'X' 'F' 'X'`},
-		{title: "compound: atom foo right before/after a letter-digit operator", formatter: Formatter{Term: isFooFoo, Heap: h, Ops: ops}, output: `foo is foo`}, // So that it won't be barfoo.
-		{title: "compound: positive integer following unary minus", formatter: Formatter{Term: unaryMinusThirtyThree, Heap: h, Ops: ops}, output: `- (33)`},
-		{title: "compound: integer ambiguous 0b", formatter: Formatter{Term: b0Zero, Heap: h, Ops: ops}, output: `0 b0`},                   // So that it won't be 0b0.
-		{title: "compound: integer ambiguous 0o", formatter: Formatter{Term: o0Zero, Heap: h, Ops: ops}, output: `0 o0`},                   // So that it won't be 0o0.
-		{title: "compound: integer ambiguous 0x", formatter: Formatter{Term: x0Zero, Heap: h, Ops: ops}, output: `0 x0`},                   // So that it won't be 0x0.
-		{title: "compound: integer ambiguous 0'", formatter: Formatter{Term: FooZero, Heap: h, Quoted: true, Ops: ops}, output: `0 'Foo'`}, // So that it won't be 0'Foo'.
-		{title: "float: positive following unary minus", formatter: Formatter{Term: minusFloatThirtyThree, Heap: h, Ops: ops, Precision: -1}, output: `- (33.0)`},
-		{title: "float: ambiguous e", formatter: Formatter{Term: eFloatThirtyThree, Heap: h, Ops: ops, Precision: -1}, output: `33.0 e`}, // So that it won't be 33.0e.
+		{title: "compound: list", formatter: Formatter{Term: list, Engine: e}, output: `[a,b,c]`},
+		{title: "compound: list-ish", formatter: Formatter{Term: listish, Engine: e}, output: `[a,b|rest]`},
+		{title: "compound: circular list", formatter: Formatter{Term: circularList, Engine: e}, output: `[a,b,a|...]`},
+		{title: "compound: curly brackets", formatter: Formatter{Term: curlyBrackets, Engine: e}, output: `{foo}`},
+		{title: "compound: fx", formatter: Formatter{Term: ifIfFoo, Engine: e, Ops: ops}, output: `:- (:-foo)`},
+		{title: "compound: fy", formatter: Formatter{Term: notMinusNotFoo, Engine: e, Ops: ops}, output: `\+ - (\+foo)`},
+		{title: "compound: xf", formatter: Formatter{Term: fiFiFoo, Engine: e, Ops: ops}, output: `(foo-:)-:`},
+		{title: "compound: yf", formatter: Formatter{Term: tonMinusMinusTonFoo, Engine: e, Ops: ops}, output: `(foo+/)-- +/`},
+		{title: "compound: xfx", formatter: Formatter{Term: ifFooIfBarBaz, Engine: e, Ops: ops}, output: `foo:-(bar:-baz)`},
+		{title: "compound: yfx", formatter: Formatter{Term: asteriskTwoPlusTwoTwo, Engine: e, Ops: ops}, output: `2*(2+2)`},
+		{title: "compound: xfy", formatter: Formatter{Term: commaTwoBarTwoTwo, Engine: e, Ops: ops}, output: `2,(2|2)`},
+		{title: "compound: ignore_ops(false)", formatter: Formatter{Term: plusTwoMinusTwo, Engine: e, IgnoreOps: false, Ops: ops}, output: `2+ -2`},
+		{title: "compound: ignore_ops(true)", formatter: Formatter{Term: plusTwoMinusTwo, Engine: e, IgnoreOps: true, Ops: ops}, output: `+(2,-2)`},
+		{title: "compound: number_vars(false)", formatter: Formatter{Term: fVars, Engine: e, Quoted: true, NumberVars: false, Ops: ops}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "compound: number_vars(true)", formatter: Formatter{Term: fVars, Engine: e, Quoted: true, NumberVars: true, Ops: ops}, output: `f(A,B,Z,A1,B1)`},
+		{title: "compound: prefix: spacing between operators", formatter: Formatter{Term: asteriskAMinusB, Engine: e, Ops: ops}, output: `a* -b`},
+		{title: "compound: postfix: spacing between unary minus and open/close", formatter: Formatter{Term: minusTonA, Engine: e, Ops: ops}, output: `- (a+/)`},
+		{title: "compound: infix: spacing between unary minus and open/close", formatter: Formatter{Term: minusAsteriskAB, Engine: e, Ops: ops}, output: `- (a*b)`},
+		{title: "compound: recursive", formatter: Formatter{Term: r, Engine: e}, output: `f(...)`},
+		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Engine: e, Ops: ops}, output: fmt.Sprintf("_%d is _%d", x.value, y.value)},
+		{title: "compound: atom minus right after an operator", formatter: Formatter{Term: minusMinus, Engine: e, Ops: ops}, output: `- (-)`},
+		{title: "compound: atom minus right before an operator", formatter: Formatter{Term: minusMinusMinus, Engine: e, Ops: ops}, output: `(-)--`},
+		{title: "compound: atom X right before/after an operator that requires quotes", formatter: Formatter{Term: FXX, Engine: e, Quoted: true, Ops: ops}, output: `'X' 'F' 'X'`},
+		{title: "compound: atom foo right before/after a letter-digit operator", formatter: Formatter{Term: isFooFoo, Engine: e, Ops: ops}, output: `foo is foo`}, // So that it won't be barfoo.
+		{title: "compound: positive integer following unary minus", formatter: Formatter{Term: unaryMinusThirtyThree, Engine: e, Ops: ops}, output: `- (33)`},
+		{title: "compound: integer ambiguous 0b", formatter: Formatter{Term: b0Zero, Engine: e, Ops: ops}, output: `0 b0`},                   // So that it won't be 0b0.
+		{title: "compound: integer ambiguous 0o", formatter: Formatter{Term: o0Zero, Engine: e, Ops: ops}, output: `0 o0`},                   // So that it won't be 0o0.
+		{title: "compound: integer ambiguous 0x", formatter: Formatter{Term: x0Zero, Engine: e, Ops: ops}, output: `0 x0`},                   // So that it won't be 0x0.
+		{title: "compound: integer ambiguous 0'", formatter: Formatter{Term: FooZero, Engine: e, Quoted: true, Ops: ops}, output: `0 'Foo'`}, // So that it won't be 0'Foo'.
+		{title: "float: positive following unary minus", formatter: Formatter{Term: minusFloatThirtyThree, Engine: e, Ops: ops, Precision: -1}, output: `- (33.0)`},
+		{title: "float: ambiguous e", formatter: Formatter{Term: eFloatThirtyThree, Engine: e, Ops: ops, Precision: -1}, output: `33.0 e`}, // So that it won't be 33.0e.
 	}
 
 	for _, tt := range tests {

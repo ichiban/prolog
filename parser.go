@@ -56,16 +56,9 @@ func (p *Parser) current() token {
 }
 
 // Term parses a term followed by a full stop.
-func (p *Parser) Term(h *Heap) (_ Term, _ []ParsedVariable, err error) {
-	snapshot := *h
-	defer func() {
-		if err != nil {
-			*h = snapshot
-		}
-	}()
-
+func (p *Parser) Term(e *Engine) (_ Term, _ []ParsedVariable, err error) {
 	var pvs []ParsedVariable
-	t, ok, err := p.term(h, &pvs, 1201)
+	t, ok, err := p.term(e, &pvs, 1201)
 	if err != nil {
 		return Term{}, nil, err
 	}
@@ -85,14 +78,7 @@ func (p *Parser) Term(h *Heap) (_ Term, _ []ParsedVariable, err error) {
 }
 
 // Number parses a number term.
-func (p *Parser) Number(h *Heap) (_ Term, err error) {
-	snapshot := *h
-	defer func() {
-		if err != nil {
-			*h = snapshot
-		}
-	}()
-
+func (p *Parser) Number(e *Engine) (_ Term, err error) {
 	var n Term
 	t, err := p.next()
 	if err != nil {
@@ -100,9 +86,9 @@ func (p *Parser) Number(h *Heap) (_ Term, err error) {
 	}
 	switch t.kind {
 	case tokenInteger:
-		n, err = integer(h, 1, t.val)
+		n, err = integer(e, 1, t.val)
 	case tokenFloatNumber:
-		n, err = float(h, 1, t.val)
+		n, err = float(e, 1, t.val)
 	default:
 		p.backup()
 		var (
@@ -128,9 +114,9 @@ func (p *Parser) Number(h *Heap) (_ Term, err error) {
 		}
 		switch t.kind {
 		case tokenInteger:
-			n, err = integer(h, -1, t.val)
+			n, err = integer(e, -1, t.val)
 		case tokenFloatNumber:
-			n, err = float(h, -1, t.val)
+			n, err = float(e, -1, t.val)
 		default:
 			p.backup()
 			p.backup()
@@ -178,27 +164,27 @@ func (d doubleQuotes) String() string {
 }
 
 // Loosely based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) term(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
+func (p *Parser) term(e *Engine, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
 	var lhs Term
 	switch op, ok, err := p.prefix(maxPriority); {
 	case err != nil:
 		return Term{}, false, err
 	case !ok:
-		lhs, ok, err = p.term0(h, pvs, maxPriority)
+		lhs, ok, err = p.term0(e, pvs, maxPriority)
 		if err != nil || !ok {
 			return Term{}, ok, err
 		}
 	default:
 		_, rbp := op.bindingPriorities()
-		t, ok, err := p.term(h, pvs, rbp)
+		t, ok, err := p.term(e, pvs, rbp)
 		if err != nil {
 			return Term{}, false, err
 		}
 		if !ok {
 			p.backup()
-			return p.term0(h, pvs, maxPriority)
+			return p.term0(e, pvs, maxPriority)
 		}
-		lhs, err = h.PutCompound(op.name, t)
+		lhs, err = e.PutCompound(op.name, t)
 		if err != nil {
 			return Term{}, false, err
 		}
@@ -216,16 +202,16 @@ func (p *Parser) term(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, bo
 		switch _, rbp := op.bindingPriorities(); {
 		case rbp > 1200:
 			var err error
-			lhs, err = h.PutCompound(op.name, lhs)
+			lhs, err = e.PutCompound(op.name, lhs)
 			if err != nil {
 				return Term{}, false, err
 			}
 		default:
-			rhs, ok, err := p.term(h, pvs, rbp)
+			rhs, ok, err := p.term(e, pvs, rbp)
 			if err != nil || !ok {
 				return Term{}, ok, err
 			}
-			lhs, err = h.PutCompound(op.name, lhs, rhs)
+			lhs, err = e.PutCompound(op.name, lhs, rhs)
 			if err != nil {
 				return Term{}, false, err
 			}
@@ -343,28 +329,28 @@ func (p *Parser) op(maxPriority int) (Atom, bool, error) {
 	return "", false, nil
 }
 
-func (p *Parser) term0(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
+func (p *Parser) term0(e *Engine, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
 	t, err := p.next()
 	if err != nil {
 		return Term{}, false, err
 	}
 	switch t.kind {
 	case tokenOpen, tokenOpenCT:
-		return p.openClose(h, pvs)
+		return p.openClose(e, pvs)
 	case tokenInteger:
-		i, err := integer(h, 1, t.val)
+		i, err := integer(e, 1, t.val)
 		if err != nil {
 			return Term{}, false, err
 		}
 		return i, true, nil
 	case tokenFloatNumber:
-		f, err := float(h, 1, t.val)
+		f, err := float(e, 1, t.val)
 		if err != nil {
 			return Term{}, false, err
 		}
 		return f, true, nil
 	case tokenVariable:
-		v, err := p.variable(h, pvs, t.val)
+		v, err := p.variable(e, pvs, t.val)
 		if err != nil {
 			return Term{}, false, err
 		}
@@ -376,7 +362,7 @@ func (p *Parser) term0(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, b
 			break
 		}
 		p.backup()
-		return p.list(h, pvs)
+		return p.list(e, pvs)
 	case tokenOpenCurly:
 		if t, _ := p.next(); t.kind == tokenCloseCurly {
 			p.backup()
@@ -384,17 +370,17 @@ func (p *Parser) term0(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, b
 			break
 		}
 		p.backup()
-		return p.curlyBracketedTerm(h, pvs)
+		return p.curlyBracketedTerm(e, pvs)
 	case tokenDoubleQuotedList:
 		switch p.module.doubleQuotes {
 		case doubleQuotesChars:
-			cl, err := h.PutCharList(unDoubleQuote(t.val))
+			cl, err := e.PutCharList(unDoubleQuote(t.val))
 			if err != nil {
 				return Term{}, false, err
 			}
 			return cl, true, nil
 		case doubleQuotesCodes:
-			cl, err := h.PutCodeList(unDoubleQuote(t.val))
+			cl, err := e.PutCodeList(unDoubleQuote(t.val))
 			if err != nil {
 				return Term{}, false, err
 			}
@@ -407,10 +393,10 @@ func (p *Parser) term0(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, b
 		p.backup()
 	}
 
-	return p.term0Atom(h, pvs, maxPriority)
+	return p.term0Atom(e, pvs, maxPriority)
 }
 
-func (p *Parser) term0Atom(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
+func (p *Parser) term0Atom(e *Engine, pvs *[]ParsedVariable, maxPriority int) (Term, bool, error) {
 	a, ok, err := p.atom()
 	if err != nil || !ok {
 		return Term{}, ok, err
@@ -423,13 +409,13 @@ func (p *Parser) term0Atom(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Ter
 		}
 		switch t.kind {
 		case tokenInteger:
-			i, err := integer(h, -1, t.val)
+			i, err := integer(e, -1, t.val)
 			if err != nil {
 				return Term{}, false, err
 			}
 			return i, true, nil
 		case tokenFloatNumber:
-			f, err := float(h, -1, t.val)
+			f, err := float(e, -1, t.val)
 			if err != nil {
 				return Term{}, false, err
 			}
@@ -439,13 +425,13 @@ func (p *Parser) term0Atom(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Ter
 		}
 	}
 
-	t, ok, err := p.functionalNotation(h, pvs, a)
+	t, ok, err := p.functionalNotation(e, pvs, a)
 	if err != nil || !ok {
 		return Term{}, ok, err
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if a, err := h.Atom(t); err == nil && maxPriority < 1201 && p.module.operators.defined(a) {
+	if a, err := e.Atom(t); err == nil && maxPriority < 1201 && p.module.operators.defined(a) {
 		p.backup()
 		return Term{}, false, nil
 	}
@@ -453,9 +439,9 @@ func (p *Parser) term0Atom(h *Heap, pvs *[]ParsedVariable, maxPriority int) (Ter
 	return t, true, nil
 }
 
-func (p *Parser) variable(h *Heap, pvs *[]ParsedVariable, s string) (Term, error) {
+func (p *Parser) variable(e *Engine, pvs *[]ParsedVariable, s string) (Term, error) {
 	if s == "_" {
-		v, err := h.PutVariable()
+		v, err := e.PutVariable()
 		return v, err
 	}
 	for i, pv := range *pvs {
@@ -464,7 +450,7 @@ func (p *Parser) variable(h *Heap, pvs *[]ParsedVariable, s string) (Term, error
 			return Term{tag: termTagReference, value: int32(pv.Variable)}, nil
 		}
 	}
-	v, err := h.PutVariable()
+	v, err := e.PutVariable()
 	if err != nil {
 		return Term{}, err
 	}
@@ -472,8 +458,8 @@ func (p *Parser) variable(h *Heap, pvs *[]ParsedVariable, s string) (Term, error
 	return v, nil
 }
 
-func (p *Parser) openClose(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
-	t, ok, err := p.term(h, pvs, 1201)
+func (p *Parser) openClose(e *Engine, pvs *[]ParsedVariable) (Term, bool, error) {
+	t, ok, err := p.term(e, pvs, 1201)
 	if err != nil || !ok {
 		return Term{}, ok, err
 	}
@@ -550,9 +536,9 @@ func (p *Parser) name() (Atom, bool, error) {
 	}
 }
 
-func (p *Parser) list(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
+func (p *Parser) list(e *Engine, pvs *[]ParsedVariable) (Term, bool, error) {
 	var elems []Term
-	arg, err := p.arg(h, pvs)
+	arg, err := p.arg(e, pvs)
 	if err != nil {
 		return Term{}, false, err
 	}
@@ -560,20 +546,20 @@ func (p *Parser) list(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
 	for {
 		switch t, _ := p.next(); t.kind {
 		case tokenComma:
-			arg, err := p.arg(h, pvs)
+			arg, err := p.arg(e, pvs)
 			if err != nil {
 				return Term{}, false, err
 			}
 			elems = append(elems, arg)
 		case tokenBar:
-			tail, err := p.arg(h, pvs)
+			tail, err := p.arg(e, pvs)
 			if err != nil {
 				return Term{}, false, err
 			}
 
 			switch t, _ := p.next(); t.kind {
 			case tokenCloseList:
-				pl, err := h.PutPartialList(tail, elems...)
+				pl, err := e.PutPartialList(tail, elems...)
 				if err != nil {
 					return Term{}, false, err
 				}
@@ -584,7 +570,7 @@ func (p *Parser) list(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
 				return Term{}, false, nil
 			}
 		case tokenCloseList:
-			l, err := h.PutList(elems...)
+			l, err := e.PutList(elems...)
 			if err != nil {
 				return Term{}, false, err
 			}
@@ -597,8 +583,8 @@ func (p *Parser) list(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
 	}
 }
 
-func (p *Parser) curlyBracketedTerm(h *Heap, pvs *[]ParsedVariable) (Term, bool, error) {
-	t, ok, err := p.term(h, pvs, 1201)
+func (p *Parser) curlyBracketedTerm(e *Engine, pvs *[]ParsedVariable) (Term, bool, error) {
+	t, ok, err := p.term(e, pvs, 1201)
 	if err != nil || !ok {
 		return Term{}, ok, err
 	}
@@ -608,7 +594,7 @@ func (p *Parser) curlyBracketedTerm(h *Heap, pvs *[]ParsedVariable) (Term, bool,
 		return Term{}, false, nil
 	}
 
-	c, err := h.PutCompound("{}", t)
+	c, err := e.PutCompound("{}", t)
 	if err != nil {
 		return Term{}, false, err
 	}
@@ -616,10 +602,10 @@ func (p *Parser) curlyBracketedTerm(h *Heap, pvs *[]ParsedVariable) (Term, bool,
 	return c, true, nil
 }
 
-func (p *Parser) functionalNotation(h *Heap, pvs *[]ParsedVariable, functor Atom) (Term, bool, error) {
+func (p *Parser) functionalNotation(e *Engine, pvs *[]ParsedVariable, functor Atom) (Term, bool, error) {
 	switch t, _ := p.next(); t.kind {
 	case tokenOpenCT:
-		arg, err := p.arg(h, pvs)
+		arg, err := p.arg(e, pvs)
 		if err != nil {
 			return Term{}, false, err
 		}
@@ -627,13 +613,13 @@ func (p *Parser) functionalNotation(h *Heap, pvs *[]ParsedVariable, functor Atom
 		for {
 			switch t, _ := p.next(); t.kind {
 			case tokenComma:
-				arg, err := p.arg(h, pvs)
+				arg, err := p.arg(e, pvs)
 				if err != nil {
 					return Term{}, false, err
 				}
 				args = append(args, arg)
 			case tokenClose:
-				c, err := h.PutCompound(functor, args...)
+				c, err := e.PutCompound(functor, args...)
 				if err != nil {
 					return Term{}, false, err
 				}
@@ -646,7 +632,7 @@ func (p *Parser) functionalNotation(h *Heap, pvs *[]ParsedVariable, functor Atom
 		}
 	default:
 		p.backup()
-		a, err := h.PutAtom(functor)
+		a, err := e.PutAtom(functor)
 		if err != nil {
 			return Term{}, false, err
 		}
@@ -654,7 +640,7 @@ func (p *Parser) functionalNotation(h *Heap, pvs *[]ParsedVariable, functor Atom
 	}
 }
 
-func (p *Parser) arg(h *Heap, pvs *[]ParsedVariable) (Term, error) {
+func (p *Parser) arg(e *Engine, pvs *[]ParsedVariable) (Term, error) {
 	arg, ok, err := p.atom()
 	if err != nil {
 		return Term{}, err
@@ -665,7 +651,7 @@ func (p *Parser) arg(h *Heap, pvs *[]ParsedVariable) (Term, error) {
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:
 				p.backup()
-				a, err := h.PutAtom(arg)
+				a, err := e.PutAtom(arg)
 				if err != nil {
 					return Term{}, err
 				}
@@ -680,7 +666,7 @@ func (p *Parser) arg(h *Heap, pvs *[]ParsedVariable) (Term, error) {
 		}
 	}
 
-	t, ok, err := p.term(h, pvs, 999)
+	t, ok, err := p.term(e, pvs, 999)
 	if err != nil {
 		return Term{}, err
 	}
@@ -690,13 +676,13 @@ func (p *Parser) arg(h *Heap, pvs *[]ParsedVariable) (Term, error) {
 	return t, nil
 }
 
-func integer(h *Heap, sign int64, s string) (Term, error) {
+func integer(e *Engine, sign int64, s string) (Term, error) {
 	base := 10
 	switch {
 	case strings.HasPrefix(s, "0'"):
 		s = s[2:]
 		s = quotedIdentEscapePattern.ReplaceAllStringFunc(s, quotedIdentUnescape)
-		return h.PutInteger(sign * int64([]rune(s)[0]))
+		return e.PutInteger(sign * int64([]rune(s)[0]))
 	case strings.HasPrefix(s, "0b"):
 		base = 2
 		s = s[2:]
@@ -717,16 +703,16 @@ func integer(h *Heap, sign int64, s string) (Term, error) {
 	case big.Below:
 		return Term{}, &RepresentationError{flag: "max_integer"}
 	default:
-		return h.PutInteger(i)
+		return e.PutInteger(i)
 	}
 }
 
-func float(h *Heap, sign float64, s string) (Term, error) {
+func float(e *Engine, sign float64, s string) (Term, error) {
 	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
 	bf.Mul(big.NewFloat(sign), bf)
 
 	f, _ := bf.Float64()
-	return h.PutFloat(f)
+	return e.PutFloat(f)
 }
 
 var (
