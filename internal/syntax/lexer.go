@@ -1,4 +1,4 @@
-package prolog
+package syntax
 
 import (
 	"bytes"

@@ -1,16 +1,18 @@
-package prolog
+package syntax
 
 import (
 	"math"
+
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-// Operators is a set of defined operators.
-type Operators struct {
+// OperatorSet is a set of defined operators.
+type OperatorSet struct {
 	ops map[opKey]operator
 }
 
 // Define defines an operator.
-func (o *Operators) Define(priority int, spec OperatorSpecifier, name Atom) {
+func (o *OperatorSet) Define(priority int, spec OperatorSpecifier, name term.Atom) {
 	if o.ops == nil {
 		o.ops = map[opKey]operator{}
 	}
@@ -24,19 +26,19 @@ func (o *Operators) Define(priority int, spec OperatorSpecifier, name Atom) {
 	}
 }
 
-func (o *Operators) definedIn(name Atom, opClass operatorClass) bool {
+func (o *OperatorSet) definedIn(name term.Atom, opClass operatorClass) bool {
 	_, ok := o.ops[opKey{name: name, opClass: opClass}]
 	return ok
 }
 
-func (o *Operators) defined(name Atom) bool {
+func (o *OperatorSet) defined(name term.Atom) bool {
 	return o.definedIn(name, operatorClassPrefix) ||
 		o.definedIn(name, operatorClassPostfix) ||
 		o.definedIn(name, operatorClassInfix)
 }
 
 type opKey struct {
-	name    Atom
+	name    term.Atom
 	opClass operatorClass
 }
 
@@ -146,7 +148,7 @@ func (s OperatorSpecifier) arity() int {
 type operator struct {
 	priority  int // 1 ~ 1200
 	specifier OperatorSpecifier
-	name      Atom
+	name      term.Atom
 }
 
 // Pratt parser's binding powers but in Prolog priority.

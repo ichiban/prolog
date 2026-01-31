@@ -1,13 +1,20 @@
-package prolog
+package runtime
 
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 var (
 	// ErrInstantiation is an error that signifies a term is variable.
 	ErrInstantiation = errors.New("instantiation error")
+
+	ErrResourceHeap  = &ResourceError{Resource: "heap"}
+	ErrResourceAtom  = &ResourceError{Resource: "atom"}
+	ErrResourceStack = &ResourceError{Resource: "stack"}
+	ErrResourceTrail = &ResourceError{Resource: "trail"}
 )
 
 // ResourceError is an error that signifies lack of a resource.
@@ -40,7 +47,7 @@ func (e *SyntaxError) Error() string {
 // TypeError is an error that signifies an incorrect type.
 type TypeError struct {
 	ValidType string
-	Culprit   Term
+	Culprit   term.Handle
 }
 
 func (e *TypeError) Error() string {
@@ -50,7 +57,7 @@ func (e *TypeError) Error() string {
 // DomainError is an error that signifies an incorrect value.
 type DomainError struct {
 	ValidDomain string
-	Culprit     Term
+	Culprit     term.Handle
 }
 
 func (e *DomainError) Error() string {
@@ -61,7 +68,7 @@ func (e *DomainError) Error() string {
 type PermissionError struct {
 	Operation      string
 	PermissionType string
-	Culprit        Term
+	Culprit        term.Handle
 }
 
 func (e *PermissionError) Error() string {
@@ -71,7 +78,7 @@ func (e *PermissionError) Error() string {
 // ExistenceError is an error that signifies nonexistence of an object.
 type ExistenceError struct {
 	ObjectType string
-	Culprit    Term
+	Culprit    term.Handle
 }
 
 func (e *ExistenceError) Error() string {
@@ -80,7 +87,7 @@ func (e *ExistenceError) Error() string {
 
 // UninstantiationError is an error that signifies a term is non-variable.
 type UninstantiationError struct {
-	Culprit Term
+	Culprit term.Handle
 }
 
 func (u *UninstantiationError) Error() string {
