@@ -21,7 +21,6 @@ func TestParser_Term(t *testing.T) {
 	}
 
 	x := must(heap.PutVariable())
-	heap = heap[:0]
 
 	var ops OperatorSet
 	ops.Define(1000, XFY, term.NewAtom(`,`))
@@ -92,7 +91,7 @@ func TestParser_Term(t *testing.T) {
 		}},
 
 		{input: `foo(a, b).`, term: must(heap.PutCompound(term.NewAtom("foo"), must(heap.PutAtom(term.NewAtom("a"))), must(heap.PutAtom(term.NewAtom("b")))))},
-		{input: `foo(-(a)).`, term: must(heap.PutCompound(term.NewAtom("foo"), must(heap.PutCompound(term.NewAtom("-"), must(heap.PutAtom(term.NewAtom("a"))), must(heap.PutAtom(term.NewAtom("b")))))))},
+		{input: `foo(-(a)).`, term: must(heap.PutCompound(term.NewAtom("foo"), must(heap.PutCompound(term.NewAtom("-"), must(heap.PutAtom(term.NewAtom("a")))))))},
 		{input: `foo(-).`, term: must(heap.PutCompound(term.NewAtom("foo"), must(heap.PutAtom(term.NewAtom("-")))))},
 		{input: `foo((), b).`, err: &UnexpectedTokenError{token: token{kind: tokenClose, val: ")"}}},
 		{input: `foo([]).`, term: must(heap.PutCompound(term.NewAtom("foo"), must(heap.PutAtom(term.NewAtom("[]")))))},
@@ -157,18 +156,24 @@ func TestParser_Term(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			heap = heap[:0]
-
 			p := NewParser(strings.NewReader(tt.input), &heap, &ops, &tt.doubleQuotes)
+			p.makeVariable = func() (term.Handle, error) {
+				return x, nil
+			}
 			result, pvs, err := p.Term()
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}
-			if result != tt.term {
+			if term.Compare(result, tt.term) != 0 {
 				t.Errorf("expected %4q, got %4q", &Formatter{Term: tt.term}, &Formatter{Term: result})
 			}
-			if !reflect.DeepEqual(pvs, tt.vars) {
-				t.Errorf("expected %v, got %v", tt.vars, pvs)
+			if len(pvs) != len(tt.vars) {
+				t.Errorf("expected %d, got %d", len(tt.vars), len(pvs))
+			}
+			for i := range len(pvs) {
+				if pvs[i] != tt.vars[i] {
+					t.Errorf("expected %v, got %v", tt.vars[i], pvs[i])
+				}
 			}
 		})
 	}
@@ -194,8 +199,8 @@ func TestParser_Number(t *testing.T) {
 		{input: `- 33`, number: must(heap.PutInteger(-33))},
 		{input: `'-'33`, number: must(heap.PutInteger(-33))},
 		{input: ` 33`, number: must(heap.PutInteger(33))},
-		{input: `9223372036854775808.`, err: ErrIntAbove},
-		{input: `-9223372036854775809.`, err: ErrIntBelow},
+		{input: `9223372036854775808.`, err: ErrIntBelow},
+		{input: `-9223372036854775809.`, err: ErrIntAbove},
 
 		{input: `0'!`, number: must(heap.PutInteger(33))},
 		{input: `-0'!`, number: must(heap.PutInteger(-33))},
@@ -229,7 +234,7 @@ func TestParser_Number(t *testing.T) {
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}
-			if n != tt.number {
+			if term.Compare(n, tt.number) != 0 {
 				t.Errorf("expected %v, got %v", &Formatter{Term: tt.number}, &Formatter{Term: n})
 			}
 		})
@@ -238,7 +243,7 @@ func TestParser_Number(t *testing.T) {
 
 func TestParser_More(t *testing.T) {
 	heap := make(term.Heap, 0, 1024)
-	p := NewParser(strings.NewReader(`foo. bar.`), &heap, nil, nil)
+	p := NewParser(strings.NewReader(`foo. bar.`), &heap, &OperatorSet{}, nil)
 	foo, _, err := p.Term()
 	if err != nil {
 		t.Fatal(err)

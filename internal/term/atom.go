@@ -16,6 +16,7 @@ type Atom struct {
 	value int32
 }
 
+// NewAtom returns an atom.
 func NewAtom(ident string) Atom {
 	// A one-char atom has an economic representation.
 	if r, n := utf8.DecodeLastRuneInString(ident); r != utf8.RuneError && n == len(ident) {
@@ -37,6 +38,7 @@ func NewAtom(ident string) Atom {
 	return a
 }
 
+// NewAtomRune returns an atom.
 func NewAtomRune(r rune) Atom {
 	return Atom{kind: atomKindRune, value: r}
 }

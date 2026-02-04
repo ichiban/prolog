@@ -40,6 +40,7 @@ type Parser struct {
 	doubleQuotes *doubleQuotes
 	lexer        lexer
 	buf          *ring.Buffer[token]
+	makeVariable func() (term.Handle, error)
 }
 
 // ParsedVariable is a set of information regarding a variable in a parsed term.
@@ -466,8 +467,11 @@ func (p *Parser) term0Atom(pvs *[]ParsedVariable, maxPriority int) (term.Handle,
 }
 
 func (p *Parser) variable(pvs *[]ParsedVariable, s string) (term.Handle, error) {
+	if p.makeVariable == nil {
+		p.makeVariable = p.heap.PutVariable
+	}
 	if s == "_" {
-		v, err := p.heap.PutVariable()
+		v, err := p.makeVariable()
 		return v, err
 	}
 	for i, pv := range *pvs {
@@ -476,7 +480,7 @@ func (p *Parser) variable(pvs *[]ParsedVariable, s string) (term.Handle, error) 
 			return pv.Variable, nil
 		}
 	}
-	v, err := p.heap.PutVariable()
+	v, err := p.makeVariable()
 	if err != nil {
 		return term.Handle{}, err
 	}

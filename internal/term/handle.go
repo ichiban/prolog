@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -21,7 +22,10 @@ type Handle struct {
 
 // Variable returns the address it points to if it's a variable term.
 func (h Handle) Variable() (int, bool) {
-	return int(h.cell.value), h.cell.tag == cellTagReference
+	if h.cell.tag != cellTagReference {
+		return 0, false
+	}
+	return int(h.cell.value), true
 }
 
 func (h Handle) Deref() Handle {
@@ -103,7 +107,9 @@ func (h Handle) Functor() (Functor, bool) {
 	}
 }
 
+// Arg returns the n-th argument of the term.
 func (h Handle) Arg(n int) Handle {
+
 	switch h.cell.tag {
 	case cellTagStructure:
 		arg := unpack((*h.heap)[int(h.cell.value)+1+n])
@@ -131,10 +137,9 @@ func (h Handle) Arg(n int) Handle {
 			}
 		case 1:
 			if r, _ := utf8.DecodeRune(b[s:]); r == 0 { // tail
-				c := unpack((*h.heap)[h.cell.value+1])
 				return Handle{
 					heap: h.heap,
-					cell: c,
+					cell: unpack((*h.heap)[h.cell.value+1]),
 				}
 			}
 			offset += int32(s)
@@ -142,12 +147,9 @@ func (h Handle) Arg(n int) Handle {
 				heap: h.heap,
 				cell: cell{tag: cellTagString0 + cellTag(offset%8), value: h.cell.value + offset/8},
 			}
-		default:
-			return Handle{}
 		}
-	default:
-		return Handle{}
 	}
+	return Handle{}
 }
 
 func (h Handle) Args() iter.Seq[Handle] {
@@ -171,7 +173,7 @@ func (h Handle) List(opts ...ListOption) iter.Seq2[Handle, bool] {
 	// Brent's cycle detection algorithm
 	var (
 		tortoise Handle
-		hare     = h.Deref()
+		hare     = h
 		power    = 1
 		lam      = 1
 	)
@@ -220,8 +222,6 @@ func (h Handle) List(opts ...ListOption) iter.Seq2[Handle, bool] {
 
 // CharList returns a string if the term is a list of single-character atoms.
 func (h Handle) CharList() (string, bool) {
-	h = h.Deref()
-
 	if h.cell.tag >= cellTagString0 && h.cell.tag <= cellTagString7 {
 		offset := int32(h.cell.tag - cellTagString0)
 		b := castSlice[word, byte]((*h.heap)[h.cell.value:])[offset:]
@@ -354,4 +354,86 @@ func AllowPartial(ok bool) ListOption {
 	return func(opts *ListOptions) {
 		opts.allowPartial = ok
 	}
+}
+
+func Compare(x, y Handle) int {
+	x, y = x.Deref(), y.Deref()
+	if x == y {
+		return 0
+	}
+
+	if x, ok := x.Variable(); ok {
+		if y, ok := y.Variable(); ok {
+			return x - y
+		}
+		return -1
+	}
+
+	if x, ok := x.Float(); ok {
+		if _, ok := y.Variable(); ok {
+			return 1
+		}
+
+		if y, ok := y.Float(); ok {
+			o := x - y
+			if o > 0 {
+				return int(math.Ceil(o))
+			}
+			return int(math.Floor(o))
+		}
+
+		return -1
+	}
+
+	if x, ok := x.Integer(); ok {
+		if _, ok := y.Variable(); ok {
+			return 1
+		}
+		if _, ok := y.Float(); ok {
+			return 1
+		}
+		if y, ok := y.Integer(); ok {
+			return int(x - y)
+		}
+		return -1
+	}
+
+	if x, ok := x.Atom(); ok {
+		if _, ok := y.Variable(); ok {
+			return 1
+		}
+		if _, ok := y.Float(); ok {
+			return 1
+		}
+		if _, ok := y.Integer(); ok {
+			return 1
+		}
+		if y, ok := y.Atom(); ok {
+			return strings.Compare(x.String(), y.String())
+		}
+		return -1
+	}
+
+	fx, _ := x.Functor()
+	fy, ok := y.Functor()
+	if !ok {
+		return 1
+	}
+
+	if o := fx.Arity() - fy.Arity(); o != 0 {
+		return o
+	}
+
+	if o := strings.Compare(fx.Name().String(), fy.Name().String()); o != 0 {
+		return o
+	}
+
+	for i := range fx.Arity() {
+		x, y := x.Arg(i), y.Arg(i)
+		if o := Compare(x, y); o != 0 {
+			return o
+		}
+	}
+
+	return 0
 }

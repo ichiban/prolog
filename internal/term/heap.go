@@ -81,13 +81,8 @@ func (h *Heap) PutCompound(name Atom, args ...Handle) (Handle, error) {
 	if err != nil {
 		return Handle{}, err
 	}
-	for _, a := range args {
-		if a.heap != nil && a.heap != h {
-			return Handle{}, ErrIncompatibleHandle
-		}
-		if _, err := h.put(pack(a.cell)); err != nil {
-			return Handle{}, err
-		}
+	if _, err := h.putTerms(args...); err != nil {
+		return Handle{}, err
 	}
 	return Handle{
 		heap: h,
@@ -97,10 +92,7 @@ func (h *Heap) PutCompound(name Atom, args ...Handle) (Handle, error) {
 
 // PutList creates a series of compound terms for a list.
 func (h *Heap) PutList(elems ...Handle) (Handle, error) {
-	tail, err := h.PutAtom(atomEmptyList)
-	if err != nil {
-		return Handle{}, err
-	}
+	tail, _ := h.PutAtom(atomEmptyList) // Always succeeds.
 	return h.PutPartialList(tail, elems...)
 }
 
@@ -110,22 +102,17 @@ func (h *Heap) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 		return tail, nil
 	}
 
-	cons := functorCons
-
 	// CDR coding
 	addr := int32(len(*h))
 	for _, elem := range elems {
-		if elem.heap != nil && elem.heap != h {
-			return Handle{}, ErrIncompatibleHandle
-		}
-		if _, err := h.put(pack(cell{tag: cellTagFunctor, value: int32(cons)}), pack(elem.cell)); err != nil {
+		if _, err := h.putTerms(
+			Handle{cell: cell{tag: cellTagFunctor, value: int32(functorCons)}},
+			elem,
+		); err != nil {
 			return Handle{}, err
 		}
 	}
-	if tail.heap != nil && tail.heap != h {
-		return Handle{}, ErrIncompatibleHandle
-	}
-	if _, err := h.put(pack(tail.cell)); err != nil {
+	if _, err := h.putTerms(tail); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -136,10 +123,7 @@ func (h *Heap) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 
 // PutCharList creates a list of single-character atoms.
 func (h *Heap) PutCharList(str string) (Handle, error) {
-	tail, err := h.PutAtom(atomEmptyList)
-	if err != nil {
-		return Handle{}, err
-	}
+	tail, _ := h.PutAtom(atomEmptyList) // Always succeeds.
 	return h.PutPartialCharList(str, tail)
 }
 
@@ -157,16 +141,14 @@ func (h *Heap) PutPartialCharList(str string, tail Handle) (Handle, error) {
 	}
 
 	// Ensures null termination.
+	// If the last cell is packed with characters, append a word of null characters.
 	if len(b)%8 == 0 {
-		if _, err := h.put(cast[uint64, word](0)); err != nil {
+		if _, err := h.put(0); err != nil {
 			return Handle{}, err
 		}
 	}
 
-	if tail.heap != nil && tail.heap != h {
-		return Handle{}, ErrIncompatibleHandle
-	}
-	if _, err := h.put(pack(tail.cell)); err != nil {
+	if _, err := h.putTerms(tail); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -177,24 +159,29 @@ func (h *Heap) PutPartialCharList(str string, tail Handle) (Handle, error) {
 
 // PutCodeList creates a list of single-character atoms.
 func (h *Heap) PutCodeList(str string) (Handle, error) {
-	tail, err := h.PutAtom(atomEmptyList)
-	if err != nil {
-		return Handle{}, err
-	}
+	tail, _ := h.PutAtom(atomEmptyList) // Always succeeds.
 	return h.PutPartialCodeList(str, tail)
 }
 
 func (h *Heap) PutPartialCodeList(str string, tail Handle) (Handle, error) {
 	// It's okay not to optimize this since CharList is the preferred representation of strings.
-	var elems []Handle
+	elems := make([]Handle, 0, len(str))
 	for _, r := range str {
-		i, err := h.PutInteger(int64(r))
-		if err != nil {
-			return Handle{}, err
-		}
+		i, _ := h.PutInteger(int64(r)) // Since a rune is int32, this always succeeds.
 		elems = append(elems, i)
 	}
 	return h.PutPartialList(tail, elems...)
+}
+
+func (h *Heap) putTerms(terms ...Handle) (int, error) {
+	words := make([]word, len(terms))
+	for i, t := range terms {
+		if t.heap != nil && t.heap != h {
+			return 0, ErrIncompatibleHandle
+		}
+		words[i] = pack(t.cell)
+	}
+	return h.put(words...)
 }
 
 func (h *Heap) put(words ...word) (int, error) {
