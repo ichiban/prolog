@@ -44,7 +44,7 @@ type Formatter struct {
 	VariableName map[term.Handle]term.Atom
 	NumberVars   bool
 
-	Ops       OperatorSet
+	Ops       *OperatorSet
 	MaxDepth  int
 	Precision int
 }
@@ -71,6 +71,9 @@ func (f *Formatter) Format(s fmt.State, verb rune) {
 }
 
 func (f *Formatter) WriteTo(w io.Writer) (int64, error) {
+	if f.Ops == nil {
+		f.Ops = NewOperatorSet()
+	}
 	state := formatState{
 		priority: 1201,
 	}
@@ -165,7 +168,7 @@ func writeAtom(w io.Writer, name term.Atom, opts *Formatter, state formatState) 
 }
 
 func needQuoted(name term.Atom) bool {
-	p := NewParser(strings.NewReader(name.String()), nil, nil, nil)
+	p := newParser(name.String())
 	parsed, ok, err := p.atom()
 	return err != nil || !ok || parsed != name
 }

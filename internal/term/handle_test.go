@@ -105,7 +105,7 @@ func TestHandle_Deref(t *testing.T) {
 }
 
 func TestHandle_Bind(t *testing.T) {
-	heap := make(Heap, 0, 1)
+	heap := make(Heap, 0, 2)
 	another := make(Heap, 0, 2)
 
 	must := func(term Handle, err error) Handle {
@@ -116,6 +116,7 @@ func TestHandle_Bind(t *testing.T) {
 	}
 
 	x := must(heap.PutVariable())
+	y := must(heap.PutVariable())
 	i := must(heap.PutInteger(1))
 	foo := must(another.PutCompound(NewAtom("foo"), must(another.PutAtom(NewAtomRune('a')))))
 
@@ -137,7 +138,7 @@ func TestHandle_Bind(t *testing.T) {
 		},
 		{
 			title: "different heap",
-			x:     x,
+			x:     y,
 			y:     foo,
 			err:   ErrIncompatibleHandle,
 		},

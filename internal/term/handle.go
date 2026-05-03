@@ -47,7 +47,11 @@ func (h Handle) Deref() Handle {
 
 // Bind binds a variable term to another term.
 func (h Handle) Bind(t Handle) error {
-	if h.cell.tag != cellTagReference {
+	if h == t {
+		return nil
+	}
+
+	if h.cell.tag != cellTagReference || unpack((*h.heap)[h.cell.value]) != h.cell {
 		return ErrUnsupportedOperation
 	}
 
@@ -93,8 +97,24 @@ func (h Handle) Float() (float64, bool) {
 	}
 }
 
+type FunctorOptions struct {
+	allowAtom bool
+}
+
+type FunctorOption func(*FunctorOptions)
+
+func AllowAtom(ok bool) FunctorOption {
+	return func(o *FunctorOptions) {
+		o.allowAtom = ok
+	}
+}
+
 // Functor returns a functor value if it's a compound term.
-func (h Handle) Functor() (Functor, bool) {
+func (h Handle) Functor(opts ...FunctorOption) (Functor, bool) {
+	var opt FunctorOptions
+	for _, o := range opts {
+		o(&opt)
+	}
 	switch h.cell.tag {
 	case cellTagStructure:
 		f := unpack((*h.heap)[h.cell.value])
@@ -103,13 +123,15 @@ func (h Handle) Functor() (Functor, bool) {
 		cellTagString4, cellTagString5, cellTagString6, cellTagString7:
 		return functorCons, true
 	default:
+		if a, ok := h.Atom(); ok && opt.allowAtom {
+			return NewFunctor(a, 0), true
+		}
 		return 0, false
 	}
 }
 
 // Arg returns the n-th argument of the term.
 func (h Handle) Arg(n int) Handle {
-
 	switch h.cell.tag {
 	case cellTagStructure:
 		arg := unpack((*h.heap)[int(h.cell.value)+1+n])
@@ -147,20 +169,38 @@ func (h Handle) Arg(n int) Handle {
 				heap: h.heap,
 				cell: cell{tag: cellTagString0 + cellTag(offset%8), value: h.cell.value + offset/8},
 			}
+		default:
+			return Handle{}
 		}
+	default:
+		return Handle{}
 	}
-	return Handle{}
 }
 
 func (h Handle) Args() iter.Seq[Handle] {
 	return func(yield func(Handle) bool) {
-		f, _ := h.Functor()
+		f, ok := h.Functor()
+		if !ok {
+			return
+		}
 		for i := range f.Arity() {
 			if !yield(h.Arg(i)) {
 				return
 			}
 		}
 	}
+}
+
+func (h Handle) WithArgs(args ...Handle) (Handle, error) {
+	f, ok := h.Functor()
+	if !ok || f.Arity() != len(args) {
+		return Handle{}, ErrUnsupportedOperation
+	}
+	existing := slices.Collect(h.Args())
+	if slices.Equal(existing, args) {
+		return h, nil
+	}
+	return h.heap.PutCompound(f.Name(), args...)
 }
 
 // List returns an iterator iterates over the elements of a list.
@@ -283,6 +323,7 @@ const (
 	cellTagString5
 	cellTagString6
 	cellTagString7
+	_cellTagLen
 )
 
 var cellTagNames = [...]string{
@@ -326,11 +367,14 @@ var cellTagImmediate = [...]bool{
 }
 
 func (t cellTag) String() string {
+	if 0 > t || t >= _cellTagLen {
+		return "invalid"
+	}
 	return cellTagNames[t]
 }
 
 func (t cellTag) Immediate() bool {
-	return cellTagImmediate[t]
+	return int(t) < len(cellTagImmediate) && cellTagImmediate[t]
 }
 
 // ListOptions is a set of options that configures how a list iterator behaves.

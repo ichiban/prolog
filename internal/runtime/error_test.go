@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/ichiban/prolog/v2"
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 func TestResourceError_Error(t *testing.T) {
@@ -14,15 +14,29 @@ func TestResourceError_Error(t *testing.T) {
 }
 
 func TestTypeError_Error(t *testing.T) {
-	err := &TypeError{ValidType: "integer", Culprit: prolog.Term{tag: prolog.termTagCharacter, value: 'a'}}
-	if got, want := err.Error(), "invalid type: expected integer, got <character 97>"; got != want {
+	heap := make(term.Heap, 0)
+	must := func(h term.Handle, err error) term.Handle {
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	err := &TypeError{ValidType: "integer", Culprit: must(heap.PutAtom(term.NewAtomRune('a')))}
+	if got, want := err.Error(), "invalid type: expected integer, got a"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }
 
 func TestUninstantiationError_Error(t *testing.T) {
-	err := &UninstantiationError{Culprit: prolog.Term{tag: prolog.termTagCharacter, value: 'a'}}
-	if got, want := err.Error(), "uninstantiation error: <character 97>"; got != want {
+	heap := make(term.Heap, 0)
+	must := func(h term.Handle, err error) term.Handle {
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	err := &UninstantiationError{Culprit: must(heap.PutAtom(term.NewAtomRune('a')))}
+	if got, want := err.Error(), "uninstantiation error: a"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }

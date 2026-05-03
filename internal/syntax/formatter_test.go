@@ -156,33 +156,33 @@ func TestFormatter_WriteTo(t *testing.T) {
 		{title: "compound: list-ish", formatter: Formatter{Term: listish}, output: `[a,b|rest]`},
 		{title: "compound: circular list", formatter: Formatter{Term: circularList}, output: `[a,b,a|...]`},
 		{title: "compound: curly brackets", formatter: Formatter{Term: curlyBrackets}, output: `{foo}`},
-		{title: "compound: fx", formatter: Formatter{Term: ifIfFoo, Ops: ops}, output: `:- (:-foo)`},
-		{title: "compound: fy", formatter: Formatter{Term: notMinusNotFoo, Ops: ops}, output: `\+ - (\+foo)`},
-		{title: "compound: xf", formatter: Formatter{Term: fiFiFoo, Ops: ops}, output: `(foo-:)-:`},
-		{title: "compound: yf", formatter: Formatter{Term: tonMinusMinusTonFoo, Ops: ops}, output: `(foo+/)-- +/`},
-		{title: "compound: xfx", formatter: Formatter{Term: ifFooIfBarBaz, Ops: ops}, output: `foo:-(bar:-baz)`},
-		{title: "compound: yfx", formatter: Formatter{Term: asteriskTwoPlusTwoTwo, Ops: ops}, output: `2*(2+2)`},
-		{title: "compound: xfy", formatter: Formatter{Term: commaTwoBarTwoTwo, Ops: ops}, output: `2,(2|2)`},
-		{title: "compound: ignore_ops(false)", formatter: Formatter{Term: plusTwoMinusTwo, IgnoreOps: false, Ops: ops}, output: `2+ -2`},
-		{title: "compound: ignore_ops(true)", formatter: Formatter{Term: plusTwoMinusTwo, IgnoreOps: true, Ops: ops}, output: `+(2,-2)`},
-		{title: "compound: number_vars(false)", formatter: Formatter{Term: fVars, Quoted: true, NumberVars: false, Ops: ops}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
-		{title: "compound: number_vars(true)", formatter: Formatter{Term: fVars, Quoted: true, NumberVars: true, Ops: ops}, output: `f(A,B,Z,A1,B1)`},
-		{title: "compound: prefix: spacing between operators", formatter: Formatter{Term: asteriskAMinusB, Ops: ops}, output: `a* -b`},
-		{title: "compound: postfix: spacing between unary minus and open/close", formatter: Formatter{Term: minusTonA, Ops: ops}, output: `- (a+/)`},
-		{title: "compound: infix: spacing between unary minus and open/close", formatter: Formatter{Term: minusAsteriskAB, Ops: ops}, output: `- (a*b)`},
+		{title: "compound: fx", formatter: Formatter{Term: ifIfFoo, Ops: &ops}, output: `:- (:-foo)`},
+		{title: "compound: fy", formatter: Formatter{Term: notMinusNotFoo, Ops: &ops}, output: `\+ - (\+foo)`},
+		{title: "compound: xf", formatter: Formatter{Term: fiFiFoo, Ops: &ops}, output: `(foo-:)-:`},
+		{title: "compound: yf", formatter: Formatter{Term: tonMinusMinusTonFoo, Ops: &ops}, output: `(foo+/)-- +/`},
+		{title: "compound: xfx", formatter: Formatter{Term: ifFooIfBarBaz, Ops: &ops}, output: `foo:-(bar:-baz)`},
+		{title: "compound: yfx", formatter: Formatter{Term: asteriskTwoPlusTwoTwo, Ops: &ops}, output: `2*(2+2)`},
+		{title: "compound: xfy", formatter: Formatter{Term: commaTwoBarTwoTwo, Ops: &ops}, output: `2,(2|2)`},
+		{title: "compound: ignore_ops(false)", formatter: Formatter{Term: plusTwoMinusTwo, IgnoreOps: false, Ops: &ops}, output: `2+ -2`},
+		{title: "compound: ignore_ops(true)", formatter: Formatter{Term: plusTwoMinusTwo, IgnoreOps: true, Ops: &ops}, output: `+(2,-2)`},
+		{title: "compound: number_vars(false)", formatter: Formatter{Term: fVars, Quoted: true, NumberVars: false, Ops: &ops}, output: `f('$VAR'(0),'$VAR'(1),'$VAR'(25),'$VAR'(26),'$VAR'(27))`},
+		{title: "compound: number_vars(true)", formatter: Formatter{Term: fVars, Quoted: true, NumberVars: true, Ops: &ops}, output: `f(A,B,Z,A1,B1)`},
+		{title: "compound: prefix: spacing between operators", formatter: Formatter{Term: asteriskAMinusB, Ops: &ops}, output: `a* -b`},
+		{title: "compound: postfix: spacing between unary minus and open/close", formatter: Formatter{Term: minusTonA, Ops: &ops}, output: `- (a+/)`},
+		{title: "compound: infix: spacing between unary minus and open/close", formatter: Formatter{Term: minusAsteriskAB, Ops: &ops}, output: `- (a*b)`},
 		{title: "compound: recursive", formatter: Formatter{Term: r}, output: `f(...)`},
-		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Ops: ops}, output: "_0 is _1"},
-		{title: "compound: atom minus right after an operator", formatter: Formatter{Term: minusMinus, Ops: ops}, output: `- (-)`},
-		{title: "compound: atom minus right before an operator", formatter: Formatter{Term: minusMinusMinus, Ops: ops}, output: `(-)--`},
-		{title: "compound: atom X right before/after an operator that requires quotes", formatter: Formatter{Term: FXX, Quoted: true, Ops: ops}, output: `'X' 'F' 'X'`},
-		{title: "compound: atom foo right before/after a letter-digit operator", formatter: Formatter{Term: isFooFoo, Ops: ops}, output: `foo is foo`}, // So that it won't be barfoo.
-		{title: "compound: positive integer following unary minus", formatter: Formatter{Term: unaryMinusThirtyThree, Ops: ops}, output: `- (33)`},
-		{title: "compound: integer ambiguous 0b", formatter: Formatter{Term: b0Zero, Ops: ops}, output: `0 b0`},                   // So that it won't be 0b0.
-		{title: "compound: integer ambiguous 0o", formatter: Formatter{Term: o0Zero, Ops: ops}, output: `0 o0`},                   // So that it won't be 0o0.
-		{title: "compound: integer ambiguous 0x", formatter: Formatter{Term: x0Zero, Ops: ops}, output: `0 x0`},                   // So that it won't be 0x0.
-		{title: "compound: integer ambiguous 0'", formatter: Formatter{Term: FooZero, Quoted: true, Ops: ops}, output: `0 'Foo'`}, // So that it won't be 0'Foo'.
-		{title: "float: positive following unary minus", formatter: Formatter{Term: minusFloatThirtyThree, Ops: ops, Precision: -1}, output: `- (33.0)`},
-		{title: "float: ambiguous e", formatter: Formatter{Term: eFloatThirtyThree, Ops: ops, Precision: -1}, output: `33.0 e`}, // So that it won't be 33.0e.
+		{title: "compound: variable following/followed by a letter-digit operator", formatter: Formatter{Term: isXY, Ops: &ops}, output: "_0 is _1"},
+		{title: "compound: atom minus right after an operator", formatter: Formatter{Term: minusMinus, Ops: &ops}, output: `- (-)`},
+		{title: "compound: atom minus right before an operator", formatter: Formatter{Term: minusMinusMinus, Ops: &ops}, output: `(-)--`},
+		{title: "compound: atom X right before/after an operator that requires quotes", formatter: Formatter{Term: FXX, Quoted: true, Ops: &ops}, output: `'X' 'F' 'X'`},
+		{title: "compound: atom foo right before/after a letter-digit operator", formatter: Formatter{Term: isFooFoo, Ops: &ops}, output: `foo is foo`}, // So that it won't be barfoo.
+		{title: "compound: positive integer following unary minus", formatter: Formatter{Term: unaryMinusThirtyThree, Ops: &ops}, output: `- (33)`},
+		{title: "compound: integer ambiguous 0b", formatter: Formatter{Term: b0Zero, Ops: &ops}, output: `0 b0`},                   // So that it won't be 0b0.
+		{title: "compound: integer ambiguous 0o", formatter: Formatter{Term: o0Zero, Ops: &ops}, output: `0 o0`},                   // So that it won't be 0o0.
+		{title: "compound: integer ambiguous 0x", formatter: Formatter{Term: x0Zero, Ops: &ops}, output: `0 x0`},                   // So that it won't be 0x0.
+		{title: "compound: integer ambiguous 0'", formatter: Formatter{Term: FooZero, Quoted: true, Ops: &ops}, output: `0 'Foo'`}, // So that it won't be 0'Foo'.
+		{title: "float: positive following unary minus", formatter: Formatter{Term: minusFloatThirtyThree, Ops: &ops, Precision: -1}, output: `- (33.0)`},
+		{title: "float: ambiguous e", formatter: Formatter{Term: eFloatThirtyThree, Ops: &ops, Precision: -1}, output: `33.0 e`}, // So that it won't be 33.0e.
 	}
 
 	for _, tt := range tests {

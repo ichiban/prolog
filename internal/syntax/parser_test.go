@@ -3,13 +3,12 @@ package syntax
 import (
 	"io"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-func TestParser_Term(t *testing.T) {
+func Test_ParseTerm(t *testing.T) {
 	heap := make(term.Heap, 0, 1024)
 
 	must := func(term term.Handle, err error) term.Handle {
@@ -31,10 +30,10 @@ func TestParser_Term(t *testing.T) {
 
 	tests := []struct {
 		input        string
-		doubleQuotes doubleQuotes
+		doubleQuotes DoubleQuotes
 		term         term.Handle
-		vars         []ParsedVariable
 		err          error
+		vars         []ParsedVariable
 	}{
 		{input: ``, err: io.EOF},
 		{input: `foo`, err: io.EOF},
@@ -130,24 +129,24 @@ func TestParser_Term(t *testing.T) {
 		{input: `a, b.`, term: must(heap.PutCompound(term.NewAtom(","), must(heap.PutAtom(term.NewAtom("a"))), must(heap.PutAtom(term.NewAtom("b")))))},
 		{input: `+ * + .`, err: &UnexpectedTokenError{token: token{kind: tokenGraphic, val: "+"}}},
 
-		{input: `"abc".`, doubleQuotes: doubleQuotesChars, term: must(heap.PutCharList("abc"))},
-		{input: `"abc".`, doubleQuotes: doubleQuotesCodes, term: must(heap.PutCodeList("abc"))},
-		{input: `"abc".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("abc")))},
-		{input: `"don""t panic".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("don\"t panic")))},
-		{input: "\"this is \\\na double-quoted string\".", doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("this is a double-quoted string")))},
-		{input: `"\a".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\a")))},
-		{input: `"\b".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\b")))},
-		{input: `"\f".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\f")))},
-		{input: `"\n".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\n")))},
-		{input: `"\r".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\r")))},
-		{input: `"\t".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\t")))},
-		{input: `"\v".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\v")))},
-		{input: `"\xa3\".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("£")))},
-		{input: `"\43\".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("#")))},
-		{input: `"\\".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`\`)))},
-		{input: `"\'".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`'`)))},
-		{input: `"\"".`, doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`"`)))},
-		{input: "\"\\`\".", doubleQuotes: doubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("`")))},
+		{input: `"abc".`, doubleQuotes: DoubleQuotesChars, term: must(heap.PutCharList("abc"))},
+		{input: `"abc".`, doubleQuotes: DoubleQuotesCodes, term: must(heap.PutCodeList("abc"))},
+		{input: `"abc".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("abc")))},
+		{input: `"don""t panic".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("don\"t panic")))},
+		{input: "\"this is \\\na double-quoted string\".", doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("this is a double-quoted string")))},
+		{input: `"\a".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\a")))},
+		{input: `"\b".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\b")))},
+		{input: `"\f".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\f")))},
+		{input: `"\n".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\n")))},
+		{input: `"\r".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\r")))},
+		{input: `"\t".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\t")))},
+		{input: `"\v".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("\v")))},
+		{input: `"\xa3\".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("£")))},
+		{input: `"\43\".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("#")))},
+		{input: `"\\".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`\`)))},
+		{input: `"\'".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`'`)))},
+		{input: `"\"".`, doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom(`"`)))},
+		{input: "\"\\`\".", doubleQuotes: DoubleQuotesAtom, term: must(heap.PutAtom(term.NewAtom("`")))},
 
 		// https://github.com/ichiban/prolog/issues/219#issuecomment-1200489336
 		{input: `write('[]').`, term: must(heap.PutCompound(term.NewAtom("write"), must(heap.PutAtom(term.NewAtom("[]")))))},
@@ -156,11 +155,16 @@ func TestParser_Term(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			p := NewParser(strings.NewReader(tt.input), &heap, &ops, &tt.doubleQuotes)
-			p.makeVariable = func() (term.Handle, error) {
-				return x, nil
-			}
-			result, pvs, err := p.Term()
+			var pvs []ParsedVariable
+			result, err := ParseTerm(tt.input,
+				Heap(&heap),
+				Operators(&ops),
+				DoubleQuote(&tt.doubleQuotes),
+				Variables(&pvs),
+				MakeVariable(func() (term.Handle, error) {
+					return x, nil
+				}),
+			)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}
@@ -179,7 +183,7 @@ func TestParser_Term(t *testing.T) {
 	}
 }
 
-func TestParser_Number(t *testing.T) {
+func Test_ParseNumber(t *testing.T) {
 	heap := make(term.Heap, 0, 1024)
 
 	must := func(term term.Handle, err error) term.Handle {
@@ -229,8 +233,7 @@ func TestParser_Number(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			p := NewParser(strings.NewReader(tt.input), &heap, nil, nil)
-			n, err := p.Number()
+			n, err := ParseNumber(tt.input, Heap(&heap))
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}
@@ -238,34 +241,5 @@ func TestParser_Number(t *testing.T) {
 				t.Errorf("expected %v, got %v", &Formatter{Term: tt.number}, &Formatter{Term: n})
 			}
 		})
-	}
-}
-
-func TestParser_More(t *testing.T) {
-	heap := make(term.Heap, 0, 1024)
-	p := NewParser(strings.NewReader(`foo. bar.`), &heap, &OperatorSet{}, nil)
-	foo, _, err := p.Term()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if a, ok := foo.Atom(); !ok || a != term.NewAtom("foo") {
-		t.Errorf("expected foo, got %v", a)
-	}
-
-	if !p.More() {
-		t.Fatal("expected more")
-	}
-
-	bar, _, err := p.Term()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if a, ok := bar.Atom(); !ok || a != term.NewAtom("bar") {
-		t.Errorf("expected bar, got %v", a)
-	}
-
-	if p.More() {
-		t.Fatal("expected no more")
 	}
 }

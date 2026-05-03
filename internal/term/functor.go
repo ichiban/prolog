@@ -1,5 +1,7 @@
 package term
 
+import "fmt"
+
 var (
 	functorCons = NewFunctor(atomDot, 2)
 )
@@ -7,11 +9,7 @@ var (
 type Functor int32
 
 func NewFunctor(name Atom, arity int) Functor {
-	return NewFunctorQualified(Atom{}, name, arity)
-}
-
-func NewFunctorQualified(module, name Atom, arity int) Functor {
-	ident := functorIdentifier{module: module, name: name, arity: arity}
+	ident := functorIdentifier{name: name, arity: arity}
 	if id, ok := functorTable.ids[ident]; ok {
 		return id
 	}
@@ -27,6 +25,10 @@ func NewFunctorQualified(module, name Atom, arity int) Functor {
 	return id
 }
 
+func (f Functor) String() string {
+	return fmt.Sprintf("%s/%d", f.Name(), f.Arity())
+}
+
 func (f Functor) Name() Atom {
 	return functorTable.entries[f].ident.name
 }
@@ -36,9 +38,8 @@ func (f Functor) Arity() int {
 }
 
 type functorIdentifier struct {
-	module Atom
-	name   Atom
-	arity  int
+	name  Atom
+	arity int
 }
 
 var functorTable struct {

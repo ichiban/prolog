@@ -1,0 +1,579 @@
+package ir
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"iter"
+	"slices"
+
+	"github.com/ichiban/prolog/v2/internal/builtin"
+	"github.com/ichiban/prolog/v2/internal/syntax"
+	"github.com/ichiban/prolog/v2/internal/term"
+)
+
+var (
+	errUnhandled = errors.New("unhandled syntax")
+)
+
+var (
+	atomNeck    = term.NewAtom(":-")
+	atomTrue    = term.NewAtom("true")
+	atomFail    = term.NewAtom("fail")
+	atomCall    = term.NewAtom("call")
+	atomCut     = term.NewAtomRune('!')
+	atomOr      = term.NewAtomRune(';')
+	atomAnd     = term.NewAtomRune(',')
+	atomIfThen  = term.NewAtom("->")
+	atomCutTo   = term.NewAtom("$cut_to")
+	atomCompare = term.NewAtom("compare")
+
+	atomCutSentinel = term.NewAtom("$cut")
+)
+
+var (
+	functorRule   = term.NewFunctor(atomNeck, 2)
+	functorAnd    = term.NewFunctor(atomAnd, 2)
+	functorOr     = term.NewFunctor(atomOr, 2)
+	functorIfThen = term.NewFunctor(atomIfThen, 2)
+)
+
+type Compiler struct {
+	Heap          *term.Heap
+	OperatorSet   *syntax.OperatorSet
+	DoubleQuotes  *syntax.DoubleQuotes
+	ExpandTerm    func(context.Context, term.Handle) iter.Seq2[term.Handle, error]
+	ExpandGoal    func(context.Context, term.Handle) (term.Handle, error)
+	ExecDirective func(context.Context, term.Handle) error
+	ModuleName    func() term.Atom
+	MetaArgs      func(term.Atom, term.Functor) []term.Atom
+	Builtins      *builtin.Registry
+}
+
+// Compile compiles a sequence of binarized clauses into an intermediate representation of module.
+func (c *Compiler) Compile(ctx context.Context, text string) (*Module, error) {
+	if c.ModuleName == nil {
+		c.ModuleName = func() term.Atom {
+			return term.NewAtom("user")
+		}
+	}
+	var (
+		h    = c.Heap
+		m    Module
+		todo []term.Handle
+	)
+	for t, err := range c.clauses(ctx, text, &todo) {
+		if err != nil {
+			return nil, err
+		}
+		// TODO: Handling of already binarized clauses H ::- B ?
+		head, body, err := Rule(h, t)
+		if err != nil {
+			return nil, err
+		}
+		var counter int
+		body, err = ReplaceBody(h, &counter, body, &todo)
+		if err != nil {
+			return nil, err
+		}
+		cont, err := h.PutVariable()
+		if err != nil {
+			return nil, err
+		}
+		head, body, err = Binarize(h, head, body, cont)
+		if err != nil {
+			return nil, err
+		}
+
+		var c Clause
+		if err := c.Compile(h, head, body); err != nil {
+			return nil, err
+		}
+
+	}
+	m.Name = c.ModuleName()
+	return &m, nil
+}
+
+func (c *Compiler) clauses(ctx context.Context, text string, todo *[]term.Handle) iter.Seq2[term.Handle, error] {
+	if c.ExpandTerm == nil {
+		c.ExpandTerm = func(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
+			return func(yield func(term.Handle, error) bool) {
+				_ = yield(t, nil)
+			}
+		}
+	}
+	if c.ExpandGoal == nil {
+		c.ExpandGoal = func(_ context.Context, t term.Handle) (term.Handle, error) {
+			return t, nil
+		}
+	}
+	return func(yield func(term.Handle, error) bool) {
+		for clause, err := range syntax.Parse(text,
+			syntax.Heap(c.Heap),
+			syntax.Operators(c.OperatorSet),
+			syntax.DoubleQuote(c.DoubleQuotes),
+		) {
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			for clause, err := range c.ExpandTerm(ctx, clause) {
+				if err != nil {
+					_ = yield(term.Handle{}, err)
+					return
+				}
+				clause, err = c.ExpandGoal(ctx, clause)
+				if !yield(clause, err) {
+					return
+				}
+			}
+
+			for _, clause := range *todo {
+				if !yield(clause, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Rule turns a term to a form of H :- B.
+func Rule(h *term.Heap, t term.Handle) (head, body term.Handle, err error) {
+	f, ok := t.Functor()
+	if ok && f == functorRule {
+		return t.Arg(0), t.Arg(1), nil
+	}
+	b, _ := h.PutAtom(atomTrue) // Always succeeds.
+	return t, b, nil
+}
+
+func ReplaceBody(h *term.Heap, counter *int, goal term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// X -> call(X)
+	if _, ok := goal.Variable(); ok {
+		return h.PutCompound(atomCall, goal)
+	}
+
+	switch goal, err := replaceMacro(h, counter, goal, todo); {
+	case errors.Is(err, errUnhandled):
+		break
+	case err != nil:
+		return term.Handle{}, err
+	default:
+		return goal, nil
+	}
+
+	// TODO: implement the rest!
+	// meta expansion?
+
+	return goal, nil
+}
+
+func replaceMacro(h *term.Heap, counter *int, goal term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// ! -> '$cut_to'('$cut')
+	// TODO: I don't know what it does. Do we really need this?
+	if a, ok := goal.Atom(); ok && a == atomCut {
+		sentinel, _ := h.PutAtom(atomCutSentinel) // Always succeeds.
+		return h.PutCompound(atomCutTo, sentinel)
+	}
+
+	// var(X) -> fail if known
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("var"), 1) {
+		x := goal.Arg(0)
+		if _, ok := x.Variable(); ok {
+			return goal, nil
+		}
+		return h.PutAtom(atomFail)
+	}
+
+	// nonvar(X) -> true if known
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("nonvar"), 1) {
+		x := goal.Arg(0)
+		if _, ok := x.Variable(); ok {
+			return goal, nil
+		}
+		return h.PutAtom(atomTrue)
+	}
+
+	// atomic(X) -> true/fail if known
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("atomic"), 1) {
+		x := goal.Arg(0)
+		if _, ok := x.Variable(); ok {
+			return goal, nil
+		}
+		a := atomTrue
+		if _, ok := x.Functor(); ok {
+			a = atomFail
+		}
+		return h.PutAtom(a)
+	}
+
+	// TODO: No compound(X)/atom(X)/integer(X)/float(X) -> true/fail if known?
+
+	// A,B -> traverseConjunction
+	if f, ok := goal.Functor(); ok && f == functorAnd {
+		a, b := goal.Arg(0), goal.Arg(1)
+		return traverseConjunction(h, counter, a, b, todo)
+	}
+
+	// A;B -> replaceDisjunction
+	if f, ok := goal.Functor(); ok && f == functorOr {
+		a, b := goal.Arg(0), goal.Arg(1)
+		return replaceDisjunction(h, counter, a, b, todo)
+	}
+
+	// A->B -> ReplaceBody(A)->ReplaceBody(B)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(atomIfThen, 2) {
+		a, b := goal.Arg(0), goal.Arg(1)
+		a, err := ReplaceBody(h, counter, a, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		b, err = ReplaceBody(h, counter, b, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(a, b)
+	}
+
+	// A==B -> compare(=, A, B)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("=="), 2) {
+		a, b := goal.Arg(0), goal.Arg(1)
+		r, _ := h.PutAtom(term.NewAtomRune('=')) // Always succeeds.
+		return h.PutCompound(atomCompare, r, a, b)
+	}
+
+	// A@<B -> compare(<, A, B)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("@<"), 2) {
+		a, b := goal.Arg(0), goal.Arg(1)
+		r, _ := h.PutAtom(term.NewAtomRune('<')) // Always succeeds.
+		return h.PutCompound(atomCompare, r, a, b)
+	}
+
+	// A@>B -> compare(>, A, B)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("@>"), 2) {
+		a, b := goal.Arg(0), goal.Arg(1)
+		r, _ := h.PutAtom(term.NewAtomRune('>')) // Always succeeds.
+		return h.PutCompound(atomCompare, r, a, b)
+	}
+
+	// M:X -> module_call(M, X)
+	// TODO: Do we really need to implement this?
+
+	// findall(X, G, Xs) -> findall(X, replaceGoal(G), Xs)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("findall"), 3) {
+		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+		g, err := replaceGoal(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(x, g, xs)
+	}
+
+	// bagof(X, G, Xs) -> bagof(X, replaceGoalWithEV(G), Xs)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("bagof"), 3) {
+		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+		g, err := replaceGoalWithEV(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(x, g, xs)
+	}
+
+	// setof(X, G, Xs) -> setof(X, replaceGoalWithEV(G), Xs)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("setof"), 3) {
+		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+		g, err := replaceGoalWithEV(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(x, g, xs)
+	}
+
+	// call(G) -> call(ReplaceBody(G))
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("call"), 1) {
+		g := goal.Arg(0)
+		g, err := ReplaceBody(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(g)
+	}
+
+	// \+G -> \+ReplaceBody(G)
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom(`\+`), 1) {
+		g := goal.Arg(0)
+		g, err := ReplaceBody(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(g)
+	}
+
+	return term.Handle{}, errUnhandled
+}
+
+func replaceGoal(h *term.Heap, counter *int, goal term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// X -> call(X)
+	if _, ok := goal.Variable(); ok {
+		return h.PutCompound(atomCall, goal)
+	}
+
+	// A,B ->
+	if f, ok := goal.Functor(); ok && f == functorAnd {
+		a, b := goal.Arg(0), goal.Arg(1)
+		g, err := traverseConjunction(h, counter, a, b, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		head, err := makeNewHead(h, counter, g)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		if err := compileLater(h, head, g, todo); err != nil {
+			return term.Handle{}, err
+		}
+		return head, nil
+	}
+
+	// A;B ->
+	if f, ok := goal.Functor(); ok && f == functorOr {
+		a, b := goal.Arg(0), goal.Arg(1)
+		return replaceDisjunction1(h, counter, a, b, todo)
+	}
+
+	// G -> ReplaceBody(G)
+	return ReplaceBody(h, counter, goal, todo)
+}
+
+func replaceGoalWithEV(h *term.Heap, counter *int, goal term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// X^G where X is an Existential Variable.
+	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtomRune('^'), 2) {
+		x, g := goal.Arg(0), goal.Arg(1)
+		g, err := replaceGoalWithEV(h, counter, g, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return goal.WithArgs(x, g)
+	}
+
+	return replaceGoal(h, counter, goal, todo)
+}
+
+func traverseConjunction(h *term.Heap, counter *int, a, b term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// TODO: split_op
+	a, err := ReplaceBody(h, counter, a, todo)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	b, err = ReplaceBody(h, counter, b, todo)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return h.PutCompound(atomAnd, a, b)
+}
+
+func replaceDisjunction(h *term.Heap, counter *int, a, b term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// Avoid replacing cut.
+	if !cutFree(a) || !cutFree(b) {
+		return traverseDisjunction(h, counter, a, b, todo)
+	}
+
+	return replaceDisjunction1(h, counter, a, b, todo)
+}
+
+func replaceDisjunction1(h *term.Heap, counter *int, a term.Handle, b term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	t, err := h.PutCompound(term.NewAtom("$or"), a, b)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	head, err := makeNewHead(h, counter, t)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	g, err := h.PutCompound(atomOr, a, b)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	for body := range disjunctionSeq(h, counter, g, todo) {
+		if err := compileLater(h, head, body, todo); err != nil {
+			return term.Handle{}, err
+		}
+	}
+	return head, nil
+}
+
+func compileLater(h *term.Heap, head term.Handle, body term.Handle, todo *[]term.Handle) error {
+	c, err := h.PutCompound(atomNeck, head, body)
+	if err != nil {
+		return err
+	}
+	*todo = append(*todo, c)
+	return nil
+}
+
+func cutFree(t term.Handle) bool {
+	if a, ok := t.Atom(); ok && a == term.NewAtomRune('!') {
+		return false
+	}
+	switch f, _ := t.Functor(); f {
+	case functorAnd,
+		functorOr,
+		functorIfThen:
+		l, r := t.Arg(0), t.Arg(1)
+		return cutFree(l) && cutFree(r)
+	}
+	return true
+}
+
+func traverseDisjunction(h *term.Heap, counter *int, a, b term.Handle, todo *[]term.Handle) (term.Handle, error) {
+	// A->C;B -> $if(A, C, B)
+	if f, ok := a.Functor(); ok && f == functorIfThen {
+		a, c := a.Arg(0), a.Arg(1)
+		a, err := ReplaceBody(h, counter, a, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		c, err = ReplaceBody(h, counter, c, todo)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return h.PutCompound(term.NewAtom("$if"), a, c, b)
+	}
+
+	// A;B -> $or(A, B)
+	a, err := ReplaceBody(h, counter, a, todo)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	b, err = ReplaceBody(h, counter, b, todo)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return h.PutCompound(term.NewAtom("$or"), a, b)
+}
+
+func makeNewHead(h *term.Heap, counter *int, t term.Handle) (term.Handle, error) {
+	vs := term.VariableSet(t)
+	*counter++
+	return h.PutCompound(term.NewAtom(fmt.Sprintf("$aux%d", *counter)), vs...)
+}
+
+func disjunctionSeq(h *term.Heap, counter *int, t term.Handle, todo *[]term.Handle) iter.Seq2[term.Handle, error] {
+	return func(yield func(term.Handle, error) bool) {
+		switch f, _ := t.Functor(); f {
+		case functorOr:
+			a, b := t.Arg(0), t.Arg(1)
+			var err error
+			if _, ok := a.Variable(); ok {
+				a, err = h.PutCompound(term.NewAtom("call"), a)
+				if err != nil {
+					_ = yield(term.Handle{}, err)
+					return
+				}
+			}
+			if _, ok := b.Variable(); ok {
+				b, err = h.PutCompound(term.NewAtom("call"), b)
+				if err != nil {
+					_ = yield(term.Handle{}, err)
+					return
+				}
+			}
+			for t, err := range disjunctionSeq(h, counter, a, todo) {
+				if !yield(t, err) {
+					return
+				}
+			}
+			for t, err := range disjunctionSeq(h, counter, b, todo) {
+				if !yield(t, err) {
+					return
+				}
+			}
+		case functorAnd:
+			a, b := t.Arg(0), t.Arg(1)
+			var err error
+			a, err = ReplaceBody(h, counter, a, todo)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			cut, _ := h.PutAtom(term.NewAtomRune('!')) // Always succeeds.
+			b, err = ReplaceBody(h, counter, b, todo)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			t, err := h.PutCompound(atomAnd, cut, b)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			t, err = h.PutCompound(atomAnd, a, t)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(t, nil) {
+				return
+			}
+		default:
+			t, err := ReplaceBody(h, counter, t, todo)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(t, nil) {
+				return
+			}
+		}
+	}
+}
+
+// Binarize turns a clause p :- q, r into p(C) :- q(r(C)).
+func Binarize(h *term.Heap, head, body, cont term.Handle) (neaHead term.Handle, neaBody term.Handle, _ error) {
+	var err error
+	hf, ok := head.Functor(term.AllowAtom(true))
+	if !ok {
+		return term.Handle{}, term.Handle{}, errUnhandled
+	}
+	args := slices.Collect(head.Args())
+	args = append(args, cont)
+	head, err = h.PutCompound(hf.Name(), args...)
+	if err != nil {
+		return term.Handle{}, term.Handle{}, err
+	}
+	body, err = addCont(h, body, cont)
+	return head, body, err
+}
+
+func addCont(h *term.Heap, goal, cont term.Handle) (term.Handle, error) {
+	if f, ok := goal.Functor(); ok && f == functorAnd {
+		x, y := goal.Arg(0), goal.Arg(1)
+		if a, ok := x.Atom(); ok {
+			switch a {
+			case atomTrue:
+				return addCont(h, y, cont)
+			case atomFail:
+				return h.PutCompound(atomFail, cont)
+			}
+		}
+		y, err := addCont(h, y, cont)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		f, ok := x.Functor(term.AllowAtom(true))
+		if !ok {
+			return term.Handle{}, errUnhandled
+		}
+		args := slices.Collect(x.Args())
+		args = append(args, y)
+		return h.PutCompound(f.Name(), args...)
+	}
+	f, ok := goal.Functor(term.AllowAtom(true))
+	if !ok {
+		return term.Handle{}, errUnhandled
+	}
+	args := slices.Collect(goal.Args())
+	args = append(args, cont)
+	return h.PutCompound(f.Name(), args...)
+}

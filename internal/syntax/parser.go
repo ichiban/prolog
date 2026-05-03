@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"math/big"
 	"regexp"
 	"strconv"
@@ -33,14 +34,65 @@ func (e *UnexpectedTokenError) Error() string {
 	return fmt.Sprintf("unexpected token %q", e.token)
 }
 
-// Parser turns bytes into Term.
-type Parser struct {
+type ParseOptions struct {
 	heap         *term.Heap
-	ops          *OperatorSet
-	doubleQuotes *doubleQuotes
-	lexer        lexer
-	buf          *ring.Buffer[token]
+	operatorSet  *OperatorSet
+	doubleQuotes *DoubleQuotes
+	variables    *[]ParsedVariable
 	makeVariable func() (term.Handle, error)
+}
+
+type ParseOption func(*ParseOptions)
+
+func Heap(heap *term.Heap) ParseOption {
+	return func(o *ParseOptions) {
+		o.heap = heap
+	}
+}
+
+func DoubleQuote(doubleQuotes *DoubleQuotes) ParseOption {
+	return func(o *ParseOptions) {
+		o.doubleQuotes = doubleQuotes
+	}
+}
+
+func Variables(variables *[]ParsedVariable) ParseOption {
+	return func(o *ParseOptions) {
+		o.variables = variables
+	}
+}
+
+func Operators(ops *OperatorSet) ParseOption {
+	return func(o *ParseOptions) {
+		o.operatorSet = ops
+	}
+}
+
+func MakeVariable(makeVariable func() (term.Handle, error)) ParseOption {
+	return func(o *ParseOptions) {
+		o.makeVariable = makeVariable
+	}
+}
+
+func Parse(text string, opts ...ParseOption) iter.Seq2[term.Handle, error] {
+	p := newParser(text, opts...)
+	return func(yield func(term.Handle, error) bool) {
+		for p.More() {
+			if !yield(p.Term()) {
+				return
+			}
+		}
+	}
+}
+
+func ParseTerm(text string, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(text, opts...)
+	return p.Term()
+}
+
+func ParseNumber(text string, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(text, opts...)
+	return p.Number()
 }
 
 // ParsedVariable is a set of information regarding a variable in a parsed term.
@@ -50,20 +102,30 @@ type ParsedVariable struct {
 	Count    int
 }
 
-// NewParser creates a new parser from the current VM and io.RuneReader.
-func NewParser(r io.RuneReader, heap *term.Heap, ops *OperatorSet, doubleQuotes *doubleQuotes) *Parser {
-	return &Parser{
-		heap:         heap,
-		ops:          ops,
-		doubleQuotes: doubleQuotes,
+// parser turns bytes into Term.
+type parser struct {
+	ParseOptions
+	lexer lexer
+	buf   *ring.Buffer[token]
+}
+
+func newParser(text string, opts ...ParseOption) parser {
+	p := parser{
 		lexer: lexer{
-			input: ring.NewRuneReader(r, 4),
+			input: ring.NewRuneReader(strings.NewReader(text), 4),
 		},
 		buf: ring.NewBuffer[token](4),
 	}
+	for _, o := range opts {
+		o(&p.ParseOptions)
+	}
+	if p.operatorSet == nil {
+		p.operatorSet = NewOperatorSet()
+	}
+	return p
 }
 
-func (p *Parser) next() (token, error) {
+func (p *parser) next() (token, error) {
 	if p.buf.Empty() {
 		t, err := p.lexer.Token()
 		if err != nil {
@@ -74,23 +136,22 @@ func (p *Parser) next() (token, error) {
 	return p.buf.Get(), nil
 }
 
-func (p *Parser) backup() {
+func (p *parser) backup() {
 	p.buf.Backup()
 }
 
-func (p *Parser) current() token {
+func (p *parser) current() token {
 	return p.buf.Current()
 }
 
 // Term parses a term followed by a full stop.
-func (p *Parser) Term() (_ term.Handle, _ []ParsedVariable, err error) {
-	var pvs []ParsedVariable
-	t, ok, err := p.term(&pvs, 1201)
+func (p *parser) Term() (_ term.Handle, err error) {
+	t, ok, err := p.term(1201)
 	if err != nil {
-		return term.Handle{}, nil, err
+		return term.Handle{}, err
 	}
 	if !ok {
-		return term.Handle{}, nil, &UnexpectedTokenError{token: p.current()}
+		return term.Handle{}, &UnexpectedTokenError{token: p.current()}
 	}
 
 	switch t, _ := p.next(); t.kind {
@@ -98,14 +159,14 @@ func (p *Parser) Term() (_ term.Handle, _ []ParsedVariable, err error) {
 		break
 	default:
 		p.backup()
-		return term.Handle{}, nil, &UnexpectedTokenError{token: p.current()}
+		return term.Handle{}, &UnexpectedTokenError{token: p.current()}
 	}
 
-	return t, pvs, nil
+	return t, nil
 }
 
 // Number parses a number term.
-func (p *Parser) Number() (_ term.Handle, err error) {
+func (p *parser) Number() (_ term.Handle, err error) {
 	var n term.Handle
 	t, err := p.next()
 	if err != nil {
@@ -164,7 +225,7 @@ func (p *Parser) Number() (_ term.Handle, err error) {
 }
 
 // More checks if the parser has more tokens to read.
-func (p *Parser) More() bool {
+func (p *parser) More() bool {
 	if _, err := p.next(); err != nil {
 		return false
 	}
@@ -172,44 +233,44 @@ func (p *Parser) More() bool {
 	return true
 }
 
-type doubleQuotes int
+type DoubleQuotes int
 
 const (
-	doubleQuotesChars doubleQuotes = iota
-	doubleQuotesCodes
-	doubleQuotesAtom
+	DoubleQuotesChars DoubleQuotes = iota
+	DoubleQuotesCodes
+	DoubleQuotesAtom
 )
 
 var doubleQuoteNames = [...]string{
-	doubleQuotesCodes: "codes",
-	doubleQuotesChars: "chars",
-	doubleQuotesAtom:  "atom",
+	DoubleQuotesCodes: "codes",
+	DoubleQuotesChars: "chars",
+	DoubleQuotesAtom:  "atom",
 }
 
-func (d doubleQuotes) String() string {
+func (d DoubleQuotes) String() string {
 	return doubleQuoteNames[d]
 }
 
 // Loosely based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *Parser) term(pvs *[]ParsedVariable, maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 	var lhs term.Handle
 	switch op, ok, err := p.prefix(maxPriority); {
 	case err != nil:
 		return term.Handle{}, false, err
 	case !ok:
-		lhs, ok, err = p.term0(pvs, maxPriority)
+		lhs, ok, err = p.term0(maxPriority)
 		if err != nil || !ok {
 			return term.Handle{}, ok, err
 		}
 	default:
 		_, rbp := op.bindingPriorities()
-		t, ok, err := p.term(pvs, rbp)
+		t, ok, err := p.term(rbp)
 		if err != nil {
 			return term.Handle{}, false, err
 		}
 		if !ok {
 			p.backup()
-			return p.term0(pvs, maxPriority)
+			return p.term0(maxPriority)
 		}
 		lhs, err = p.heap.PutCompound(op.name, t)
 		if err != nil {
@@ -234,7 +295,7 @@ func (p *Parser) term(pvs *[]ParsedVariable, maxPriority int) (term.Handle, bool
 				return term.Handle{}, false, err
 			}
 		default:
-			rhs, ok, err := p.term(pvs, rbp)
+			rhs, ok, err := p.term(rbp)
 			if err != nil || !ok {
 				return term.Handle{}, ok, err
 			}
@@ -248,7 +309,7 @@ func (p *Parser) term(pvs *[]ParsedVariable, maxPriority int) (term.Handle, bool
 	return lhs, true, nil
 }
 
-func (p *Parser) prefix(maxPriority int) (operator, bool, error) {
+func (p *parser) prefix(maxPriority int) (operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
 	if err != nil || !ok {
 		return operator{}, ok, err
@@ -282,7 +343,7 @@ func (p *Parser) prefix(maxPriority int) (operator, bool, error) {
 		p.backup()
 	}
 
-	op, ok := p.ops.ops[opKey{name: a, opClass: operatorClassPrefix}]
+	op, ok := p.operatorSet.ops[opKey{name: a, opClass: operatorClassPrefix}]
 	if !ok || op.priority > maxPriority {
 		p.backup()
 		return operator{}, false, nil
@@ -290,19 +351,19 @@ func (p *Parser) prefix(maxPriority int) (operator, bool, error) {
 	return op, true, nil
 }
 
-func (p *Parser) infix(maxPriority int) (operator, bool, error) {
+func (p *parser) infix(maxPriority int) (operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
 	if err != nil || !ok {
 		return operator{}, ok, err
 	}
 
-	if op := p.ops.ops[opKey{name: a, opClass: operatorClassInfix}]; op != (operator{}) {
+	if op := p.operatorSet.ops[opKey{name: a, opClass: operatorClassInfix}]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, true, nil
 		}
 	}
-	if op := p.ops.ops[opKey{name: a, opClass: operatorClassPostfix}]; op != (operator{}) {
+	if op := p.operatorSet.ops[opKey{name: a, opClass: operatorClassPostfix}]; op != (operator{}) {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, true, nil
@@ -313,7 +374,7 @@ func (p *Parser) infix(maxPriority int) (operator, bool, error) {
 	return operator{}, false, nil
 }
 
-func (p *Parser) op(maxPriority int) (term.Atom, bool, error) {
+func (p *parser) op(maxPriority int) (term.Atom, bool, error) {
 	a, ok, err := p.atom()
 	if err != nil {
 		return term.Atom{}, false, err
@@ -356,14 +417,14 @@ func (p *Parser) op(maxPriority int) (term.Atom, bool, error) {
 	return term.Atom{}, false, nil
 }
 
-func (p *Parser) term0(pvs *[]ParsedVariable, maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 	t, err := p.next()
 	if err != nil {
 		return term.Handle{}, false, err
 	}
 	switch t.kind {
 	case tokenOpen, tokenOpenCT:
-		return p.openClose(pvs)
+		return p.openClose()
 	case tokenInteger:
 		i, err := p.integer(1, t.val)
 		if err != nil {
@@ -377,7 +438,7 @@ func (p *Parser) term0(pvs *[]ParsedVariable, maxPriority int) (term.Handle, boo
 		}
 		return f, true, nil
 	case tokenVariable:
-		v, err := p.variable(pvs, t.val)
+		v, err := p.variable(t.val)
 		if err != nil {
 			return term.Handle{}, false, err
 		}
@@ -389,7 +450,7 @@ func (p *Parser) term0(pvs *[]ParsedVariable, maxPriority int) (term.Handle, boo
 			break
 		}
 		p.backup()
-		return p.list(pvs)
+		return p.list()
 	case tokenOpenCurly:
 		if t, _ := p.next(); t.kind == tokenCloseCurly {
 			p.backup()
@@ -397,16 +458,16 @@ func (p *Parser) term0(pvs *[]ParsedVariable, maxPriority int) (term.Handle, boo
 			break
 		}
 		p.backup()
-		return p.curlyBracketedTerm(pvs)
+		return p.curlyBracketedTerm()
 	case tokenDoubleQuotedList:
 		switch *p.doubleQuotes {
-		case doubleQuotesChars:
+		case DoubleQuotesChars:
 			cl, err := p.heap.PutCharList(unDoubleQuote(t.val))
 			if err != nil {
 				return term.Handle{}, false, err
 			}
 			return cl, true, nil
-		case doubleQuotesCodes:
+		case DoubleQuotesCodes:
 			cl, err := p.heap.PutCodeList(unDoubleQuote(t.val))
 			if err != nil {
 				return term.Handle{}, false, err
@@ -420,10 +481,10 @@ func (p *Parser) term0(pvs *[]ParsedVariable, maxPriority int) (term.Handle, boo
 		p.backup()
 	}
 
-	return p.term0Atom(pvs, maxPriority)
+	return p.term0Atom(maxPriority)
 }
 
-func (p *Parser) term0Atom(pvs *[]ParsedVariable, maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
 	a, ok, err := p.atom()
 	if err != nil || !ok {
 		return term.Handle{}, ok, err
@@ -452,13 +513,13 @@ func (p *Parser) term0Atom(pvs *[]ParsedVariable, maxPriority int) (term.Handle,
 		}
 	}
 
-	t, ok, err := p.functionalNotation(pvs, a)
+	t, ok, err := p.functionalNotation(a)
 	if err != nil || !ok {
 		return term.Handle{}, ok, err
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if a, ok := t.Atom(); ok && maxPriority < 1201 && p.ops.defined(a) {
+	if a, ok := t.Atom(); ok && maxPriority < 1201 && p.operatorSet.defined(a) {
 		p.backup()
 		return term.Handle{}, false, nil
 	}
@@ -466,7 +527,7 @@ func (p *Parser) term0Atom(pvs *[]ParsedVariable, maxPriority int) (term.Handle,
 	return t, true, nil
 }
 
-func (p *Parser) variable(pvs *[]ParsedVariable, s string) (term.Handle, error) {
+func (p *parser) variable(s string) (term.Handle, error) {
 	if p.makeVariable == nil {
 		p.makeVariable = p.heap.PutVariable
 	}
@@ -474,22 +535,26 @@ func (p *Parser) variable(pvs *[]ParsedVariable, s string) (term.Handle, error) 
 		v, err := p.makeVariable()
 		return v, err
 	}
-	for i, pv := range *pvs {
-		if pv.Name == s {
-			(*pvs)[i].Count++
-			return pv.Variable, nil
+	if p.variables != nil {
+		for i, pv := range *p.variables {
+			if pv.Name == s {
+				(*p.variables)[i].Count++
+				return pv.Variable, nil
+			}
 		}
 	}
 	v, err := p.makeVariable()
 	if err != nil {
 		return term.Handle{}, err
 	}
-	*pvs = append(*pvs, ParsedVariable{Name: s, Variable: v, Count: 1})
+	if p.variables != nil {
+		*p.variables = append(*p.variables, ParsedVariable{Name: s, Variable: v, Count: 1})
+	}
 	return v, nil
 }
 
-func (p *Parser) openClose(pvs *[]ParsedVariable) (term.Handle, bool, error) {
-	t, ok, err := p.term(pvs, 1201)
+func (p *parser) openClose() (term.Handle, bool, error) {
+	t, ok, err := p.term(1201)
 	if err != nil || !ok {
 		return term.Handle{}, ok, err
 	}
@@ -500,7 +565,7 @@ func (p *Parser) openClose(pvs *[]ParsedVariable) (term.Handle, bool, error) {
 	return t, true, nil
 }
 
-func (p *Parser) atom() (term.Atom, bool, error) {
+func (p *parser) atom() (term.Atom, bool, error) {
 	if a, ok, err := p.name(); err != nil || ok {
 		return a, ok, err
 	}
@@ -538,7 +603,7 @@ func (p *Parser) atom() (term.Atom, bool, error) {
 		}
 	case tokenDoubleQuotedList:
 		switch *p.doubleQuotes {
-		case doubleQuotesAtom:
+		case DoubleQuotesAtom:
 			return term.NewAtom(unDoubleQuote(t.val)), true, nil
 		default:
 			p.backup()
@@ -550,7 +615,7 @@ func (p *Parser) atom() (term.Atom, bool, error) {
 	}
 }
 
-func (p *Parser) name() (term.Atom, bool, error) {
+func (p *parser) name() (term.Atom, bool, error) {
 	t, err := p.next()
 	if err != nil {
 		return term.Atom{}, false, err
@@ -566,9 +631,9 @@ func (p *Parser) name() (term.Atom, bool, error) {
 	}
 }
 
-func (p *Parser) list(pvs *[]ParsedVariable) (term.Handle, bool, error) {
+func (p *parser) list() (term.Handle, bool, error) {
 	var elems []term.Handle
-	arg, err := p.arg(pvs)
+	arg, err := p.arg()
 	if err != nil {
 		return term.Handle{}, false, err
 	}
@@ -576,13 +641,13 @@ func (p *Parser) list(pvs *[]ParsedVariable) (term.Handle, bool, error) {
 	for {
 		switch t, _ := p.next(); t.kind {
 		case tokenComma:
-			arg, err := p.arg(pvs)
+			arg, err := p.arg()
 			if err != nil {
 				return term.Handle{}, false, err
 			}
 			elems = append(elems, arg)
 		case tokenBar:
-			tail, err := p.arg(pvs)
+			tail, err := p.arg()
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -613,8 +678,8 @@ func (p *Parser) list(pvs *[]ParsedVariable) (term.Handle, bool, error) {
 	}
 }
 
-func (p *Parser) curlyBracketedTerm(pvs *[]ParsedVariable) (term.Handle, bool, error) {
-	t, ok, err := p.term(pvs, 1201)
+func (p *parser) curlyBracketedTerm() (term.Handle, bool, error) {
+	t, ok, err := p.term(1201)
 	if err != nil || !ok {
 		return term.Handle{}, ok, err
 	}
@@ -632,10 +697,10 @@ func (p *Parser) curlyBracketedTerm(pvs *[]ParsedVariable) (term.Handle, bool, e
 	return c, true, nil
 }
 
-func (p *Parser) functionalNotation(pvs *[]ParsedVariable, functor term.Atom) (term.Handle, bool, error) {
+func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error) {
 	switch t, _ := p.next(); t.kind {
 	case tokenOpenCT:
-		arg, err := p.arg(pvs)
+		arg, err := p.arg()
 		if err != nil {
 			return term.Handle{}, false, err
 		}
@@ -643,7 +708,7 @@ func (p *Parser) functionalNotation(pvs *[]ParsedVariable, functor term.Atom) (t
 		for {
 			switch t, _ := p.next(); t.kind {
 			case tokenComma:
-				arg, err := p.arg(pvs)
+				arg, err := p.arg()
 				if err != nil {
 					return term.Handle{}, false, err
 				}
@@ -670,13 +735,13 @@ func (p *Parser) functionalNotation(pvs *[]ParsedVariable, functor term.Atom) (t
 	}
 }
 
-func (p *Parser) arg(pvs *[]ParsedVariable) (term.Handle, error) {
+func (p *parser) arg() (term.Handle, error) {
 	arg, ok, err := p.atom()
 	if err != nil {
 		return term.Handle{}, err
 	}
 	if ok {
-		if p.ops.defined(arg) {
+		if p.operatorSet.defined(arg) {
 			// Check if this atom is not followed by its own arguments.
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:
@@ -696,7 +761,7 @@ func (p *Parser) arg(pvs *[]ParsedVariable) (term.Handle, error) {
 		}
 	}
 
-	t, ok, err := p.term(pvs, 999)
+	t, ok, err := p.term(999)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -706,7 +771,7 @@ func (p *Parser) arg(pvs *[]ParsedVariable) (term.Handle, error) {
 	return t, nil
 }
 
-func (p *Parser) integer(sign int64, s string) (term.Handle, error) {
+func (p *parser) integer(sign int64, s string) (term.Handle, error) {
 	base := 10
 	switch {
 	case strings.HasPrefix(s, "0'"):
@@ -737,7 +802,7 @@ func (p *Parser) integer(sign int64, s string) (term.Handle, error) {
 	}
 }
 
-func (p *Parser) float(sign float64, s string) (term.Handle, error) {
+func (p *parser) float(sign float64, s string) (term.Handle, error) {
 	bf, _, _ := big.ParseFloat(s, 10, 0, big.ToZero)
 	bf.Mul(big.NewFloat(sign), bf)
 

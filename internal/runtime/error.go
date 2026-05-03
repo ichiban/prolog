@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
@@ -51,7 +52,7 @@ type TypeError struct {
 }
 
 func (e *TypeError) Error() string {
-	return fmt.Sprintf("invalid type: expected %s, got %s", e.ValidType, e.Culprit)
+	return fmt.Sprintf("invalid type: expected %s, got %s", e.ValidType, &syntax.Formatter{Term: e.Culprit})
 }
 
 // DomainError is an error that signifies an incorrect value.
@@ -61,7 +62,7 @@ type DomainError struct {
 }
 
 func (e *DomainError) Error() string {
-	return fmt.Sprintf("invalid domain: expected %s, got %s", e.ValidDomain, e.Culprit)
+	return fmt.Sprintf("invalid domain: expected %s, got %s", e.ValidDomain, &syntax.Formatter{Term: e.Culprit})
 }
 
 // PermissionError is an error that signifies a disallowed operation.
@@ -72,7 +73,7 @@ type PermissionError struct {
 }
 
 func (e *PermissionError) Error() string {
-	return fmt.Sprintf("disallowed operation %s on %s: %s", e.PermissionType, e.Operation, e.Culprit)
+	return fmt.Sprintf("disallowed operation %s on %s: %s", e.PermissionType, e.Operation, &syntax.Formatter{Term: e.Culprit})
 }
 
 // ExistenceError is an error that signifies nonexistence of an object.
@@ -82,7 +83,7 @@ type ExistenceError struct {
 }
 
 func (e *ExistenceError) Error() string {
-	return fmt.Sprintf("%s does not exist: %s", e.ObjectType, e.Culprit)
+	return fmt.Sprintf("%s does not exist: %s", e.ObjectType, &syntax.Formatter{Term: e.Culprit})
 }
 
 // UninstantiationError is an error that signifies a term is non-variable.
@@ -91,5 +92,5 @@ type UninstantiationError struct {
 }
 
 func (u *UninstantiationError) Error() string {
-	return fmt.Sprintf("uninstantiation error: %v", u.Culprit)
+	return fmt.Sprintf("uninstantiation error: %s", &syntax.Formatter{Term: u.Culprit})
 }

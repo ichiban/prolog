@@ -11,18 +11,61 @@ type OperatorSet struct {
 	ops map[opKey]operator
 }
 
+func NewOperatorSet() *OperatorSet {
+	var ops OperatorSet
+
+	// :- op(1200, xfx, [:-, -->]).
+	ops.Define(1200, XFX, term.NewAtom(":-"), term.NewAtom("-->"))
+	// :- op(1200, fx, [:-, ?-]).
+	ops.Define(1200, FX, term.NewAtom(":-"), term.NewAtom("?-"))
+	// :- op(1105, xfy, '|').
+	ops.Define(1105, XFY, term.NewAtomRune('|'))
+	// :- op(1100, xfy, ;).
+	ops.Define(1100, XFY, term.NewAtomRune(';'))
+	// :- op(1050, xfy, ->).
+	ops.Define(1050, XFY, term.NewAtom("->"))
+	// :- op(1000, xfy, ',').
+	ops.Define(1000, XFY, term.NewAtomRune(','))
+	// :- op(900, fy, \+).
+	ops.Define(900, FY, term.NewAtom(`\+`))
+	// :- op(700, xfx, [=, \=]).
+	ops.Define(700, XFX, term.NewAtomRune('='), term.NewAtom(`\=`))
+	// :- op(700, xfx, [==, \==, @<, @=<, @>, @>=]).
+	ops.Define(700, XFX, term.NewAtom("=="), term.NewAtom(`\==`), term.NewAtom(`@<`), term.NewAtom(`@=<`), term.NewAtom(`@>`), term.NewAtom(`@>=`))
+	// :- op(700, xfx, =..).
+	ops.Define(700, XFX, term.NewAtom("=.."))
+	// :- op(700, xfx, [is, =:=, =\=, <, =<, >, >=]).
+	ops.Define(700, XFX, term.NewAtom("is"), term.NewAtom("=:="), term.NewAtom(`=\=`), term.NewAtomRune('<'), term.NewAtom("=<"), term.NewAtomRune('>'), term.NewAtom(">="))
+	// :- op(600, xfy, :).
+	ops.Define(600, XFY, term.NewAtomRune(':'))
+	// :- op(500, yfx, [+, -, /\, \/]).
+	ops.Define(500, YFX, term.NewAtomRune('+'), term.NewAtomRune('-'), term.NewAtom(`/\`), term.NewAtom(`\/`))
+	// :- op(400, yfx, [*, /, //, div, rem, mod, <<, >>]).
+	ops.Define(400, YFX, term.NewAtomRune('*'), term.NewAtomRune('/'), term.NewAtom("//"), term.NewAtom("div"), term.NewAtom("rem"), term.NewAtom("mod"), term.NewAtom("<<"), term.NewAtom(">>"))
+	// :- op(200, xfx, **).
+	ops.Define(200, XFX, term.NewAtom("**"))
+	// :- op(200, xfy, ^).
+	ops.Define(200, XFY, term.NewAtomRune('^'))
+	// :- op(200, fy, [+, -, \]).
+	ops.Define(200, FY, term.NewAtomRune('+'), term.NewAtomRune('-'), term.NewAtomRune('\\'))
+
+	return &ops
+}
+
 // Define defines an operator.
-func (o *OperatorSet) Define(priority int, spec OperatorSpecifier, name term.Atom) {
+func (o *OperatorSet) Define(priority int, spec OperatorSpecifier, names ...term.Atom) {
 	if o.ops == nil {
 		o.ops = map[opKey]operator{}
 	}
-	o.ops[opKey{
-		name:    name,
-		opClass: operatorSpecifiers[spec].opClass,
-	}] = operator{
-		priority:  priority,
-		specifier: spec,
-		name:      name,
+	for _, name := range names {
+		o.ops[opKey{
+			name:    name,
+			opClass: operatorSpecifiers[spec].opClass,
+		}] = operator{
+			priority:  priority,
+			specifier: spec,
+			name:      name,
+		}
 	}
 }
 

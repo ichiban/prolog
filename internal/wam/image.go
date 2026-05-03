@@ -1,12 +1,14 @@
 package wam
 
+import "github.com/ichiban/prolog/v2/internal/term"
+
 type Image struct {
 	Predicates map[PredicateIndicator]int
 	Code       []Instruction
-	Atoms      []string
+	Atoms      []term.Atom
 	Integers   []int
 	Floats     []float64
-	Functors   []Functor
+	Functors   []term.Functor
 }
 
 type PredicateIndicator struct {

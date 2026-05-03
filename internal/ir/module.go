@@ -1,5 +1,8 @@
 package ir
 
+import "github.com/ichiban/prolog/v2/internal/term"
+
 type Module struct {
-	predicates []Predicate
+	Name       term.Atom
+	Predicates []Predicate
 }

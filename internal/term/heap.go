@@ -2,8 +2,10 @@ package term
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"unsafe"
 )
 
@@ -15,6 +17,15 @@ var (
 // Heap is a memory arena where Prolog terms reside.
 type Heap []word
 
+func (h Heap) String() string {
+	var sb strings.Builder
+	for i, w := range h {
+		c := unpack(w)
+		_, _ = fmt.Fprintf(&sb, "%4d: %s\n", i, c)
+	}
+	return sb.String()
+}
+
 // PutVariable creates a variable term and returns its reference.
 func (h *Heap) PutVariable() (Handle, error) {
 	addr := int32(len(*h))
@@ -24,7 +35,7 @@ func (h *Heap) PutVariable() (Handle, error) {
 	}
 	return Handle{
 		heap: h,
-		cell: cell{tag: cellTagReference, value: addr},
+		cell: c,
 	}, nil
 }
 
@@ -77,11 +88,44 @@ func (h *Heap) PutCompound(name Atom, args ...Handle) (Handle, error) {
 	}
 
 	f := NewFunctor(name, len(args))
-	addr, err := h.put(pack(cell{tag: cellTagFunctor, value: int32(f)}))
+	ret, err := h.putFunctor(f)
 	if err != nil {
 		return Handle{}, err
 	}
 	if _, err := h.putTerms(args...); err != nil {
+		return Handle{}, err
+	}
+	return ret, nil
+}
+
+func (h *Heap) PutCompoundWithFreshVars(f Functor) (Handle, error) {
+	ret, err := h.putFunctor(f)
+	if err != nil {
+		return Handle{}, err
+	}
+	for range f.Arity() {
+		if _, err := h.PutVariable(); err != nil {
+			return Handle{}, err
+		}
+	}
+	return ret, nil
+}
+
+func (h *Heap) PutFunctor(f Functor) (Handle, error) {
+	n, err := h.PutAtom(f.Name())
+	if err != nil {
+		return Handle{}, err
+	}
+	a, err := h.PutInteger(int64(f.Arity()))
+	if err != nil {
+		return Handle{}, err
+	}
+	return h.PutCompound(NewAtomRune('/'), n, a)
+}
+
+func (h *Heap) putFunctor(f Functor) (Handle, error) {
+	addr, err := h.put(pack(cell{tag: cellTagFunctor, value: int32(f)}))
+	if err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -105,10 +149,10 @@ func (h *Heap) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 	// CDR coding
 	addr := int32(len(*h))
 	for _, elem := range elems {
-		if _, err := h.putTerms(
-			Handle{cell: cell{tag: cellTagFunctor, value: int32(functorCons)}},
-			elem,
-		); err != nil {
+		if _, err := h.putFunctor(functorCons); err != nil {
+			return Handle{}, err
+		}
+		if _, err := h.putTerms(elem); err != nil {
 			return Handle{}, err
 		}
 	}
