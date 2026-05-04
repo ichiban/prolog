@@ -11,14 +11,16 @@ import (
 func TestClause_Compile(t *testing.T) {
 	heap := make(term.Heap, 0, 1024)
 	tests := []struct {
+		title  string
 		head   string
 		body   string
 		clause Clause
 		err    error
 	}{
 		{
-			head: `p(Cont).`,
-			body: `q(Cont).`,
+			title: "simplest",
+			head:  `p(Cont).`,
+			body:  `q(Cont).`,
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -28,8 +30,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: `p(a, Cont).`,
-			body: `q(Cont).`,
+			title: "atomic in head",
+			head:  `p(a, Cont).`,
+			body:  `q(Cont).`,
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('a')))},
@@ -42,8 +45,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(X, X, Cont).",
-			body: "q(Cont).",
+			title: "repeated head variable",
+			head:  "p(X, X, Cont).",
+			body:  "q(Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -56,8 +60,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(Cont).",
-			body: "q(a, Cont).",
+			title: "atomic in body",
+			head:  "p(Cont).",
+			body:  "q(a, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -70,8 +75,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(f(X), Cont).",
-			body: "q(X, Cont).",
+			title: "structure in head",
+			head:  "p(f(X), Cont).",
+			body:  "q(X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('f'))), Arity: 1},
@@ -84,8 +90,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(X, Cont).",
-			body: "q(f(X), Cont).",
+			title: "structures in body",
+			head:  "p(X, Cont).",
+			body:  "q(f(X), Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -99,8 +106,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(X, Y, Cont).",
-			body: "q(Y, X, Cont).",
+			title: "argument shuffling",
+			head:  "p(X, Y, Cont).",
+			body:  "q(Y, X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -114,8 +122,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(f(g(X)), Cont).",
-			body: "q(X, Cont).",
+			title: "nested structure in head",
+			head:  "p(f(g(X)), Cont).",
+			body:  "q(X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('f'))), Arity: 1},
@@ -130,8 +139,9 @@ func TestClause_Compile(t *testing.T) {
 			},
 		},
 		{
-			head: "p(X, Cont).",
-			body: "q(f(g(X)), Cont).",
+			title: "nested structure in body",
+			head:  "p(X, Cont).",
+			body:  "q(f(g(X)), Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
 				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
@@ -146,9 +156,39 @@ func TestClause_Compile(t *testing.T) {
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
 			},
 		},
+		{
+			title: "cut",
+			head:  "p(Cont).",
+			body:  "'$cut_to'('$cut', q(Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  2,
+				Code: []Instruction{
+					{OpCode: OpPut, Type: TypeConstant, A: Operand{Kind: OperandKindCutArg, Index: 1}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtom("$cut")))}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
+		{
+			title: "equal",
+			head:  "p(X, Cont).",
+			body:  "'='(X, a, q(Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  3,
+				Code: []Instruction{
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
+					{OpCode: OpGet, Type: TypeConstant, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtomRune('a')))}},
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 1}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
 	}
 	for _, test := range tests {
-		t.Run(test.head, func(t *testing.T) {
+		t.Run(test.title, func(t *testing.T) {
 			heap = heap[:0]
 			var vars []syntax.ParsedVariable
 			h, err := syntax.ParseTerm(test.head, syntax.Heap(&heap), syntax.Variables(&vars))

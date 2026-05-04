@@ -119,7 +119,6 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 
 	c.PI = h
 	c.FirstArg = index
-	c.Execute = b
 
 	if err := c.compileHead(heap, head); err != nil {
 		return err
@@ -138,6 +137,7 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 	for i := range args {
 		args[i].HeadVarID = -1
 		args[i].BodyVarID = -1
+		args[i].Death = math.MaxInt
 	}
 
 	fmt.Printf("raw:\n%s\n", c)
@@ -162,8 +162,7 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 	}
 	fmt.Printf("\n")
 
-	//
-	if err := c.fillInfo(heap, args, vars); err != nil {
+	if err := c.fillInfo(args, vars); err != nil {
 		return err
 	}
 
@@ -380,6 +379,14 @@ func (c *Clause) compileTerm(heap *term.Heap, op OpCode, x, t term.Handle) error
 }
 
 func (c *Clause) compileBody(heap *term.Heap, body term.Handle) error {
+	if _, ok := body.Variable(); ok {
+		var err error
+		body, err = heap.PutCompound(term.NewAtom("true"), body)
+		if err != nil {
+			return err
+		}
+	}
+
 	if a, ok := body.Atom(); ok && a == term.NewAtom("true") {
 		return nil
 	}
@@ -408,6 +415,8 @@ func (c *Clause) compileBody(heap *term.Heap, body term.Handle) error {
 	}
 
 	// TODO: builtins
+
+	c.Execute = f
 
 	ct, err := heap.PutCompoundWithFreshVars(f)
 	if err != nil {
@@ -508,42 +517,35 @@ func (c *Clause) findOccurrences(vars Variables) {
 	}
 }
 
-func (c *Clause) fillInfo(heap *term.Heap, args []Argument, vars map[int]Variable) error {
+func (c *Clause) fillInfo(args []Argument, vars map[int]Variable) error {
 	for i := range c.Code {
 		inst := &c.Code[i]
-
 		c.fillVarType(inst, vars)
 
-		if inst.A.Kind != OperandKindArgument || inst.B.Kind != OperandKindOccurrence {
+		if inst.A.Kind != OperandKindArgument {
 			continue
-		}
-
-		t := inst.B.Term
-
-		var varID int
-		if v, ok := t.Variable(); ok {
-			varID = v
-		} else {
-			v, err := heap.PutVariable()
-			if err != nil {
-				return err
-			}
-			varID, _ = v.Variable()
-			vars[varID] = Variable{
-				Count:    1,
-				Reg:      -1,
-				LifeTime: LifeTime{Birth: i, Death: i},
-			}
 		}
 
 		a := &args[inst.A.Index]
 		switch inst.OpCode {
 		case OpGet:
-			a.HeadVarID = varID
 			a.Birth = i
 		case OpPut:
-			a.BodyVarID = varID
 			a.Death = i
+		default:
+			// Do nothing.
+		}
+
+		if inst.B.Kind != OperandKindOccurrence {
+			continue
+		}
+
+		varID, _ := inst.B.Term.Variable()
+		switch inst.OpCode {
+		case OpGet:
+			a.HeadVarID = varID
+		case OpPut:
+			a.BodyVarID = varID
 		default:
 			// Do nothing.
 		}
@@ -555,6 +557,13 @@ func (c *Clause) fillVarType(inst *Instruction, vars map[int]Variable) {
 	if inst.Type != TypeUnknown {
 		return
 	}
+
+	defer func() {
+		if inst.Type != TypeUnknown {
+			return
+		}
+		inst.Type = TypeConstant
+	}()
 
 	if inst.B.Kind != OperandKindOccurrence {
 		return
