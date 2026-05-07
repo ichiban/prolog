@@ -54,6 +54,7 @@ type Type int8
 
 const (
 	TypeUnknown Type = iota
+	TypeNotApplicable
 	TypeVoid
 	TypeVariable
 	TypeValue
@@ -63,13 +64,14 @@ const (
 )
 
 var typeNames = [...]string{
-	TypeUnknown:   "?",
-	TypeVoid:      "void",
-	TypeVariable:  "variable",
-	TypeValue:     "value",
-	TypeConstant:  "constant",
-	TypeStructure: "structure",
-	TypeCut:       "cut",
+	TypeUnknown:       "unknown",
+	TypeNotApplicable: "?",
+	TypeVoid:          "void",
+	TypeVariable:      "variable",
+	TypeValue:         "value",
+	TypeConstant:      "constant",
+	TypeStructure:     "structure",
+	TypeCut:           "cut",
 }
 
 func (o Type) String() string {

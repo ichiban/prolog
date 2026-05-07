@@ -7,7 +7,7 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/ichiban/prolog/v2/internal/builtin"
+	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
@@ -39,28 +39,16 @@ var (
 )
 
 type Compiler struct {
-	Heap          *term.Heap
-	OperatorSet   *syntax.OperatorSet
-	DoubleQuotes  *syntax.DoubleQuotes
-	ExpandTerm    func(context.Context, term.Handle) iter.Seq2[term.Handle, error]
-	ExpandGoal    func(context.Context, term.Handle) (term.Handle, error)
-	ExecDirective func(context.Context, term.Handle) error
-	ModuleName    func() term.Atom
-	MetaArgs      func(term.Atom, term.Functor) []term.Atom
-	Builtins      *builtin.Registry
+	Engine *runtime.Engine
 }
 
 // Compile compiles a sequence of binarized clauses into an intermediate representation of module.
 func (c *Compiler) Compile(ctx context.Context, text string) (*Module, error) {
-	if c.ModuleName == nil {
-		c.ModuleName = func() term.Atom {
-			return term.NewAtom("user")
-		}
-	}
 	var (
-		h    = c.Heap
-		m    Module
-		todo []term.Handle
+		engine = c.Engine
+		h      = &engine.Heap
+		m      Module
+		todo   []term.Handle
 	)
 	for t, err := range c.clauses(ctx, text, &todo) {
 		if err != nil {
@@ -86,44 +74,60 @@ func (c *Compiler) Compile(ctx context.Context, text string) (*Module, error) {
 		}
 
 		var c Clause
-		if err := c.Compile(h, head, body); err != nil {
+		if err := c.Compile(engine, head, body); err != nil {
 			return nil, err
 		}
 
 	}
-	m.Name = c.ModuleName()
+	m.Name = engine.Module
 	return &m, nil
 }
 
 func (c *Compiler) clauses(ctx context.Context, text string, todo *[]term.Handle) iter.Seq2[term.Handle, error] {
-	if c.ExpandTerm == nil {
-		c.ExpandTerm = func(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
-			return func(yield func(term.Handle, error) bool) {
-				_ = yield(t, nil)
+	return func(yield func(term.Handle, error) bool) {
+		engine := c.Engine
+
+		for _, b := range engine.BuiltIns {
+			head, err := engine.PutCompoundWithFreshVars(b.PI)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			var body term.Handle
+			if b.Inline {
+				body = head
+			} else {
+				body, err = engine.PutAtom(term.NewAtom("true"))
+				if err != nil {
+					_ = yield(term.Handle{}, err)
+					return
+				}
+			}
+			c, err := engine.PutCompound(term.NewAtom(":-"), head, body)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
 			}
 		}
-	}
-	if c.ExpandGoal == nil {
-		c.ExpandGoal = func(_ context.Context, t term.Handle) (term.Handle, error) {
-			return t, nil
-		}
-	}
-	return func(yield func(term.Handle, error) bool) {
+
 		for clause, err := range syntax.Parse(text,
-			syntax.Heap(c.Heap),
-			syntax.Operators(c.OperatorSet),
-			syntax.DoubleQuote(c.DoubleQuotes),
+			syntax.Heap(&engine.Heap),
+			syntax.Operators(&engine.Ops),
+			syntax.DoubleQuote(&engine.DoubleQuotes),
 		) {
 			if err != nil {
 				_ = yield(term.Handle{}, err)
 				return
 			}
-			for clause, err := range c.ExpandTerm(ctx, clause) {
+			for clause, err := range c.Engine.ExpandTerm(ctx, clause) {
 				if err != nil {
 					_ = yield(term.Handle{}, err)
 					return
 				}
-				clause, err = c.ExpandGoal(ctx, clause)
+				clause, err = c.Engine.ExpandGoal(ctx, clause)
 				if !yield(clause, err) {
 					return
 				}

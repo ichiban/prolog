@@ -1,11 +1,13 @@
 package ir
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
 
+	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
@@ -100,7 +102,7 @@ func (c *Clause) String() string {
 	return sb.String()
 }
 
-func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
+func (c *Clause) Compile(engine *runtime.Engine, head, body term.Handle) error {
 	h, ok := head.Functor()
 	if !ok {
 		return errUnhandled
@@ -112,7 +114,7 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 
 	// Turns the first argument into a functor for indexing.
 	fa := head.Arg(0)
-	index, err := index(heap, fa)
+	index, err := index(engine, fa)
 	if err != nil {
 		return err
 	}
@@ -120,10 +122,10 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 	c.PI = h
 	c.FirstArg = index
 
-	if err := c.compileHead(heap, head); err != nil {
+	if err := c.compileHead(engine, head); err != nil {
 		return err
 	}
-	if err := c.compileBody(heap, body); err != nil {
+	if err := c.compileBody(engine, body); err != nil {
 		return err
 	}
 
@@ -199,9 +201,9 @@ func (c *Clause) Compile(heap *term.Heap, head, body term.Handle) error {
 	return nil
 }
 
-func index(heap *term.Heap, t term.Handle) (Index, error) {
+func index(engine *runtime.Engine, t term.Handle) (Index, error) {
 	if _, ok := t.Variable(); ok {
-		a, err := heap.PutAtom(term.NewAtomRune('_'))
+		a, err := engine.PutAtom(term.NewAtomRune('_'))
 		if err != nil {
 			return Index{}, err
 		}
@@ -211,7 +213,7 @@ func index(heap *term.Heap, t term.Handle) (Index, error) {
 		}, nil
 	}
 	if f, ok := t.Functor(); ok {
-		a, err := heap.PutAtom(f.Name())
+		a, err := engine.PutAtom(f.Name())
 		if err != nil {
 			return Index{}, err
 		}
@@ -225,11 +227,23 @@ func index(heap *term.Heap, t term.Handle) (Index, error) {
 	}, nil
 }
 
-func (c *Clause) compileHead(heap *term.Heap, head term.Handle) error {
-	// TODO: builtins
-
+func (c *Clause) compileHead(engine *runtime.Engine, head term.Handle) error {
 	f, _ := head.Functor()
-	ct, err := heap.PutCompoundWithFreshVars(f)
+
+	if i := slices.IndexFunc(engine.BuiltIns, func(b runtime.BuiltIn) bool {
+		return !b.Inline && b.PI.Name() == f.Name() && b.PI.Arity() == f.Arity()-1
+	}); i >= 0 {
+		cont := head.Arg(f.Arity() - 1)
+		c.emit(Instruction{
+			OpCode: OpBuiltin,
+			Type:   TypeNotApplicable,
+			A:      Operand{Kind: OperandKindBuiltin, Index: i},
+			B:      Operand{Kind: OperandKindTerm, Term: cont},
+		})
+		return nil
+	}
+
+	ct, err := engine.PutCompoundWithFreshVars(f)
 	if err != nil {
 		return err
 	}
@@ -238,7 +252,7 @@ func (c *Clause) compileHead(heap *term.Heap, head term.Handle) error {
 		return err
 	}
 
-	return c.compileTopArg(OpGet, heap, head, ct)
+	return c.compileTopArg(OpGet, engine, head, ct)
 }
 
 func (c *Clause) emitTopArgs(op OpCode, t, ct term.Handle) error {
@@ -264,21 +278,21 @@ func (c *Clause) emitTopArgs(op OpCode, t, ct term.Handle) error {
 	return nil
 }
 
-func (c *Clause) compileTopArg(op OpCode, heap *term.Heap, t, ct term.Handle) error {
+func (c *Clause) compileTopArg(op OpCode, engine *runtime.Engine, t, ct term.Handle) error {
 	f, ok := t.Functor()
 	if !ok {
 		return errUnhandled
 	}
 	for i := 0; i < f.Arity(); i++ {
 		a, x := t.Arg(i), ct.Arg(i)
-		if err := c.compileTopTerm(heap, op, x, a); err != nil {
+		if err := c.compileTopTerm(engine, op, x, a); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *Clause) compileTopTerm(heap *term.Heap, op OpCode, x, t term.Handle) error {
+func (c *Clause) compileTopTerm(engine *runtime.Engine, op OpCode, x, t term.Handle) error {
 	if _, ok := t.Variable(); ok {
 		return x.Bind(t)
 	}
@@ -295,7 +309,7 @@ func (c *Clause) compileTopTerm(heap *term.Heap, op OpCode, x, t term.Handle) er
 		B:      Operand{Kind: OperandKindTerm, Term: x},
 	})
 
-	ct, err := heap.PutCompoundWithFreshVars(f)
+	ct, err := engine.PutCompoundWithFreshVars(f)
 	if err != nil {
 		return err
 	}
@@ -304,7 +318,7 @@ func (c *Clause) compileTopTerm(heap *term.Heap, op OpCode, x, t term.Handle) er
 		return err
 	}
 
-	return c.compileArgs(heap, op, t, ct)
+	return c.compileArgs(engine, op, t, ct)
 }
 
 func (c *Clause) emitArgs(op OpCode, t, ct term.Handle) error {
@@ -339,17 +353,17 @@ func (c *Clause) emitArgs(op OpCode, t, ct term.Handle) error {
 	return nil
 }
 
-func (c *Clause) compileArgs(heap *term.Heap, op OpCode, t, ct term.Handle) error {
+func (c *Clause) compileArgs(engine *runtime.Engine, op OpCode, t, ct term.Handle) error {
 	f, _ := t.Functor()
 	for i := 0; i < f.Arity(); i++ {
-		if err := c.compileTerm(heap, op, ct.Arg(i), t.Arg(i)); err != nil {
+		if err := c.compileTerm(engine, op, ct.Arg(i), t.Arg(i)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *Clause) compileTerm(heap *term.Heap, op OpCode, x, t term.Handle) error {
+func (c *Clause) compileTerm(engine *runtime.Engine, op OpCode, x, t term.Handle) error {
 	if _, ok := t.Variable(); ok {
 		return x.Bind(t)
 	}
@@ -370,7 +384,7 @@ func (c *Clause) compileTerm(heap *term.Heap, op OpCode, x, t term.Handle) error
 		B:      Operand{Kind: OperandKindTerm, Term: x},
 	})
 
-	ct, err := heap.PutCompoundWithFreshVars(f)
+	ct, err := engine.PutCompoundWithFreshVars(f)
 	if err != nil {
 		return err
 	}
@@ -378,10 +392,10 @@ func (c *Clause) compileTerm(heap *term.Heap, op OpCode, x, t term.Handle) error
 	return c.emitArgs(op, t, ct)
 }
 
-func (c *Clause) compileBody(heap *term.Heap, body term.Handle) error {
+func (c *Clause) compileBody(engine *runtime.Engine, body term.Handle) error {
 	if _, ok := body.Variable(); ok {
 		var err error
-		body, err = heap.PutCompound(term.NewAtom("true"), body)
+		body, err = engine.PutCompound(term.NewAtom("true"), body)
 		if err != nil {
 			return err
 		}
@@ -405,44 +419,79 @@ func (c *Clause) compileBody(heap *term.Heap, body term.Handle) error {
 			A:      Operand{Kind: OperandKindCutArg, Index: 1},
 			B:      Operand{Kind: OperandKindTerm, Term: cut}, // Always `$cut`
 		})
-		return c.compileBody(heap, cont)
+		return c.compileBody(engine, cont)
 	case term.NewFunctor(term.NewAtomRune('='), 3):
 		a, b, cont := body.Arg(0), body.Arg(1), body.Arg(2)
-		if err := c.compileEqual(heap, a, b); err != nil {
+		if err := c.compileEqual(engine, a, b); err != nil {
 			return err
 		}
-		return c.compileBody(heap, cont)
+		return c.compileBody(engine, cont)
 	}
 
-	// TODO: builtins
+	if i := slices.IndexFunc(engine.BuiltIns, func(b runtime.BuiltIn) bool {
+		return b.Inline && b.PI.Name() == f.Name() && b.PI.Arity() == f.Arity()-1
+	}); i >= 0 {
+		var cont term.Handle
+		switch f.Arity() {
+		case 1:
+			cont = body.Arg(0)
+		case 2:
+			cont = body.Arg(1)
+			arg := body.Arg(0)
+			v, err := engine.PutVariable()
+			if err != nil {
+				return err
+			}
+			if err := c.compileTopTerm(engine, OpPut, v, arg); err != nil {
+				return err
+			}
+			c.emit(Instruction{
+				OpCode: OpPut,
+				A:      Operand{Kind: OperandKindTemp, Index: 0},
+				B:      Operand{Kind: OperandKindTerm, Term: v},
+			})
+		default:
+			return errors.New("can't inline a builtin with arity more than 1")
+		}
+		x, err := engine.PutVariable()
+		if err != nil {
+			return err
+		}
+		c.emit(Instruction{
+			OpCode: OpInline,
+			A:      Operand{Kind: OperandKindBuiltin, Index: i},
+			B:      Operand{Kind: OperandKindTerm, Term: x},
+		})
+		return c.compileBody(engine, cont)
+	}
 
 	c.Execute = f
 
-	ct, err := heap.PutCompoundWithFreshVars(f)
+	ct, err := engine.PutCompoundWithFreshVars(f)
 	if err != nil {
 		return err
 	}
-	return c.emitBodyTopTerm(heap, body, ct)
+	return c.emitBodyTopTerm(engine, body, ct)
 }
 
-func (c *Clause) compileEqual(heap *term.Heap, a, b term.Handle) error {
+func (c *Clause) compileEqual(engine *runtime.Engine, a, b term.Handle) error {
 	if _, ok := b.Variable(); ok {
 		if _, ok := a.Functor(); !ok {
 			a, b = b, a
 		}
 	}
 
-	v1, err := heap.PutVariable()
+	v1, err := engine.PutVariable()
 	if err != nil {
 		return err
 	}
 
-	v2, err := heap.PutVariable()
+	v2, err := engine.PutVariable()
 	if err != nil {
 		return err
 	}
 
-	if err := c.compileTopTerm(heap, OpGet, v1, a); err != nil {
+	if err := c.compileTopTerm(engine, OpGet, v1, a); err != nil {
 		return err
 	}
 
@@ -457,11 +506,11 @@ func (c *Clause) compileEqual(heap *term.Heap, a, b term.Handle) error {
 		B:      Operand{Kind: OperandKindTerm, Term: v2},
 	})
 
-	return c.compileTopTerm(heap, OpPut, v2, b)
+	return c.compileTopTerm(engine, OpPut, v2, b)
 }
 
-func (c *Clause) emitBodyTopTerm(heap *term.Heap, t, ct term.Handle) error {
-	if err := c.compileTopArg(OpPut, heap, t, ct); err != nil {
+func (c *Clause) emitBodyTopTerm(engine *runtime.Engine, t, ct term.Handle) error {
+	if err := c.compileTopArg(OpPut, engine, t, ct); err != nil {
 		return err
 	}
 	return c.emitTopArgs(OpPut, t, ct)

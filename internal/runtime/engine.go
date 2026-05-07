@@ -1,28 +1,32 @@
 package runtime
 
 import (
+	"context"
+	"iter"
+
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
 )
 
 type Engine struct {
-	image        *wam.Image
-	heap         *term.Heap
-	ops          syntax.OperatorSet
-	doubleQuotes syntax.DoubleQuotes
+	term.Heap
+	Image        *wam.Image
+	Ops          syntax.OperatorSet
+	DoubleQuotes syntax.DoubleQuotes
+	Module       term.Atom
+	BuiltIns     []BuiltIn
 }
 
-func (e *Engine) Heap() *term.Heap {
-	return e.heap
+func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
+	// TODO: Implement this!
+	return func(yield func(term.Handle, error) bool) {
+		_ = yield(t, nil)
+	}
 }
 
-func (e *Engine) OperatorSet() *syntax.OperatorSet {
-	return &e.ops
-}
-
-func (e *Engine) DoubleQuotes() syntax.DoubleQuotes {
-	return e.doubleQuotes
+func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, error) {
+	return t, nil // TODO: Implement this!
 }
 
 /*

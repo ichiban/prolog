@@ -4,12 +4,23 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 func TestClause_Compile(t *testing.T) {
-	heap := make(term.Heap, 0, 1024)
+	engine := runtime.Engine{
+		Heap: make(term.Heap, 0, 1024),
+		BuiltIns: []runtime.BuiltIn{
+			{},
+			{PI: term.NewFunctor(term.NewAtom("functor"), 3)},
+			{},
+			{PI: term.NewFunctor(term.NewAtom("fail"), 0), Inline: true},
+			{PI: term.NewFunctor(term.NewAtom("var"), 1), Inline: true},
+		},
+	}
+	heap := &engine.Heap
 	tests := []struct {
 		title  string
 		head   string
@@ -186,21 +197,65 @@ func TestClause_Compile(t *testing.T) {
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
 			},
 		},
+		{
+			title: "builtin",
+			head:  "functor(T, F, N, Cont).",
+			body:  "true(Cont).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtom("functor"), 4),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  4,
+				Code: []Instruction{
+					{OpCode: OpBuiltin, Type: TypeNotApplicable, A: Operand{Kind: OperandKindBuiltin, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 0}},
+				},
+				Execute: term.NewFunctor(term.NewAtom("true"), 1),
+			},
+		},
+		{
+			title: "inline with arity 0",
+			head:  "p(Cont).",
+			body:  "fail(q(Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  2,
+				Code: []Instruction{
+					{OpCode: OpInline, Type: TypeVariable, A: Operand{Kind: OperandKindBuiltin, Index: 3}, B: Operand{Kind: OperandKindRegister, Index: 1}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
+		{
+			title: "inline with arity 1",
+			head:  "p(X, Cont).",
+			body:  "var(X, q(Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  3,
+				Code: []Instruction{
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
+					{OpCode: OpInline, Type: TypeVariable, A: Operand{Kind: OperandKindBuiltin, Index: 4}, B: Operand{Kind: OperandKindRegister, Index: 2}},
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 1}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			heap = heap[:0]
+			*heap = (*heap)[:0]
 			var vars []syntax.ParsedVariable
-			h, err := syntax.ParseTerm(test.head, syntax.Heap(&heap), syntax.Variables(&vars))
+			h, err := syntax.ParseTerm(test.head, syntax.Heap(heap), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.head, err)
 			}
-			b, err := syntax.ParseTerm(test.body, syntax.Heap(&heap), syntax.Variables(&vars))
+			b, err := syntax.ParseTerm(test.body, syntax.Heap(heap), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}
 			var c Clause
-			err = c.Compile(&heap, h, b)
+			err = c.Compile(&engine, h, b)
 			if !errors.Is(err, test.err) {
 				t.Errorf("Compile(%q): got %v, want %v", test.head, err, test.err)
 			}
