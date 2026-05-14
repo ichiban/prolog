@@ -2,6 +2,7 @@ package ir
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestCompile(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.text, func(t *testing.T) {
-			result, err := test.c.Compile(t.Context(), test.text)
+			result, err := test.c.Compile(t.Context(), test.text, nil)
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
@@ -39,30 +40,60 @@ func TestReplaceBody(t *testing.T) {
 		todo   []string
 		err    error
 	}{
-		{goal: `X.`, result: `call(X).`},
-		{goal: `!.`, result: `'$cut_to'('$cut').`},
-		{goal: `var(foo).`, result: `fail.`},
-		{goal: `var(X).`, result: `var(X).`},
-		{goal: `nonvar(foo).`, result: `true.`},
-		{goal: `nonvar(X).`, result: `nonvar(X).`},
-		{goal: `atomic(foo).`, result: `true.`},
-		{goal: `atomic(foo(bar)).`, result: `fail.`},
-		{goal: `atomic(X).`, result: `atomic(X).`},
-		// TODO: split_op.
-		{goal: `X, Y.`, result: `call(X), call(Y).`},
-		{goal: `!; X.`, result: `'$or'('$cut_to'('$cut'), call(X)).`},
-		{goal: `X; !.`, result: `'$or'(call(X), '$cut_to'('$cut')).`},
-		{goal: `X -> Y.`, result: `call(X) -> call(Y).`},
-		{goal: `X == Y.`, result: `compare(=, X, Y).`},
-		{goal: `X @< Y.`, result: `compare(<, X, Y).`},
-		{goal: `X @> Y.`, result: `compare(>, X, Y).`},
+		{goal: `X.`, result: `call(X)`},
+		{goal: `!.`, result: `$cut_to($cut)`},
+		{goal: `var(foo).`, result: `fail`},
+		{goal: `var(X).`, result: `var(X)`},
+		{goal: `nonvar(foo).`, result: `true`},
+		{goal: `nonvar(X).`, result: `nonvar(X)`},
+		{goal: `atomic(foo).`, result: `true`},
+		{goal: `atomic(foo(bar)).`, result: `fail`},
+		{goal: `atomic(X).`, result: `atomic(X)`},
+		{goal: `X is A.`, result: `$expr(A,X)`},
+		{goal: `X < Y.`, result: `$expr(X,A),$expr(Y,B),$less(A,B)`},
+		{goal: `X > Y.`, result: `$expr(X,A),$expr(Y,B),$greater(A,B)`},
+		{goal: `X =< Y.`, result: `$expr(X,A),$expr(Y,B),$less_eq(A,B)`},
+		{goal: `X >= Y.`, result: `$expr(X,A),$expr(Y,B),$greater_eq(A,B)`},
+		{goal: `X =:= Y.`, result: `$expr(X,A),$expr(Y,B),$arith_eq(A,B)`},
+		{goal: `X =\= Y.`, result: `$expr(X,A),$expr(Y,B),$arith_dif(A,B)`},
+		{goal: `X is 1.`, result: `$+(1,0,X)`},
+		{goal: `X is pi.`, result: `$pi(X)`},
+		{goal: `X is abs(Y).`, result: `$expr(Y,A),$abs(A,X)`},
+		{goal: `X is rem(Y, Z).`, result: `$expr(Y,A),$expr(Z,B),$rem(A,B,X)`},
+		{goal: `X, Y.`, result: `call(X),call(Y)`},
+		{goal: `!; X.`, result: `$or($cut_to($cut),call(X))`},
+		{goal: `X; !.`, result: `$or(call(X),$cut_to($cut))`},
+		{goal: `X -> Y.`, result: `call(X)->call(Y)`},
+		{goal: `X == Y.`, result: `compare(=,X,Y)`},
+		{goal: `X @< Y.`, result: `compare(<,X,Y)`},
+		{goal: `X @> Y.`, result: `compare(>,X,Y)`},
 	}
 	for _, test := range tests {
 		t.Run(test.goal, func(t *testing.T) {
 			var (
-				h   = make(term.Heap, 0, 1024)
-				pvs []syntax.ParsedVariable
+				h = make(term.Heap, 0, 1024)
 			)
+
+			a, err := h.PutVariable()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			b, err := h.PutVariable()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c, err := h.PutVariable()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var (
+				vars = []term.Handle{a, b, c}
+				pvs  []syntax.ParsedVariable
+			)
+
 			goal, err := syntax.ParseTerm(test.goal,
 				syntax.Heap(&h),
 				syntax.Variables(&pvs),
@@ -74,19 +105,32 @@ func TestReplaceBody(t *testing.T) {
 				counter int
 				todo    []term.Handle
 			)
-			got, err := ReplaceBody(&h, &counter, goal, &todo)
+			goal, err = ReplaceBody(&h, &counter, goal, &todo, func() (term.Handle, error) {
+				var v term.Handle
+				v, vars = vars[0], vars[1:]
+				return v, nil
+			})
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
-			expected, err := syntax.ParseTerm(test.result,
-				syntax.Heap(&h),
-				syntax.Variables(&pvs),
-			)
-			if err != nil {
-				t.Fatal(err)
+
+			varNames := map[term.Handle]term.Atom{
+				a: term.NewAtomRune('A'),
+				b: term.NewAtomRune('B'),
+				c: term.NewAtomRune('C'),
 			}
-			if term.Compare(got, expected) != 0 {
-				t.Errorf("got %s, want %s", &syntax.Formatter{Term: got}, &syntax.Formatter{Term: expected})
+			for _, pv := range pvs {
+				varNames[pv.Variable] = term.NewAtom(pv.Name)
+			}
+
+			got := fmt.Sprintf("%s", &syntax.Formatter{
+				Term:         goal,
+				Quoted:       true,
+				VariableName: varNames,
+			})
+
+			if got != test.result {
+				t.Errorf("got %v, want %v", got, test.result)
 			}
 		})
 	}

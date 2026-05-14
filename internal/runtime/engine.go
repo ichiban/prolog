@@ -15,7 +15,8 @@ type Engine struct {
 	Ops          syntax.OperatorSet
 	DoubleQuotes syntax.DoubleQuotes
 	Module       term.Atom
-	BuiltIns     []BuiltIn
+	BuiltinIndex map[term.Functor]int
+	Builtins     []Builtin
 }
 
 func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {

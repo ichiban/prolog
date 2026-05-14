@@ -165,6 +165,34 @@ func (h *Heap) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 	}, nil
 }
 
+func (h *Heap) PutSpine(r Atom, elems ...Handle) (Handle, error) {
+	switch len(elems) {
+	case 0:
+		return Handle{}, ErrUnsupportedOperation
+	case 1:
+		return elems[0], nil
+	}
+
+	// CDR coding
+	cons := NewFunctor(r, 2)
+	addr := int32(len(*h))
+	for _, elem := range elems[:len(elems)-1] {
+		if _, err := h.putFunctor(cons); err != nil {
+			return Handle{}, err
+		}
+		if _, err := h.putTerms(elem); err != nil {
+			return Handle{}, err
+		}
+	}
+	if _, err := h.putTerms(elems[len(elems)-1]); err != nil {
+		return Handle{}, err
+	}
+	return Handle{
+		heap: h,
+		cell: cell{tag: cellTagStructure, value: addr},
+	}, nil
+}
+
 // PutCharList creates a list of single-character atoms.
 func (h *Heap) PutCharList(str string) (Handle, error) {
 	tail, _ := h.PutAtom(atomEmptyList) // Always succeeds.

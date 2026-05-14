@@ -1,9 +1,15 @@
 package runtime
 
-import "github.com/ichiban/prolog/v2/internal/term"
+type BuiltinType int8
 
-type BuiltIn struct {
-	PI     term.Functor
-	Inline bool
+const (
+	BuiltinTypeInHead BuiltinType = iota
+	BuiltinTypeInline
+	BuiltinTypeArithmetic0
+	BuiltinTypeArithmetic1
+)
+
+type Builtin struct {
+	Type BuiltinType
 	// TODO: Implement the rest.
 }

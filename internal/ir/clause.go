@@ -230,17 +230,19 @@ func index(engine *runtime.Engine, t term.Handle) (Index, error) {
 func (c *Clause) compileHead(engine *runtime.Engine, head term.Handle) error {
 	f, _ := head.Functor()
 
-	if i := slices.IndexFunc(engine.BuiltIns, func(b runtime.BuiltIn) bool {
-		return !b.Inline && b.PI.Name() == f.Name() && b.PI.Arity() == f.Arity()-1
-	}); i >= 0 {
-		cont := head.Arg(f.Arity() - 1)
-		c.emit(Instruction{
-			OpCode: OpBuiltin,
-			Type:   TypeNotApplicable,
-			A:      Operand{Kind: OperandKindBuiltin, Index: i},
-			B:      Operand{Kind: OperandKindTerm, Term: cont},
-		})
-		return nil
+	pi := term.NewFunctor(f.Name(), f.Arity()-1)
+	if i, ok := engine.BuiltinIndex[pi]; ok {
+		b := engine.Builtins[i]
+		if b.Type == runtime.BuiltinTypeInHead {
+			cont := head.Arg(f.Arity() - 1)
+			c.emit(Instruction{
+				OpCode: OpBuiltin,
+				Type:   TypeNotApplicable,
+				A:      Operand{Kind: OperandKindBuiltin, Index: i},
+				B:      Operand{Kind: OperandKindTerm, Term: cont},
+			})
+			return nil
+		}
 	}
 
 	ct, err := engine.PutCompoundWithFreshVars(f)
@@ -428,41 +430,116 @@ func (c *Clause) compileBody(engine *runtime.Engine, body term.Handle) error {
 		return c.compileBody(engine, cont)
 	}
 
-	if i := slices.IndexFunc(engine.BuiltIns, func(b runtime.BuiltIn) bool {
-		return b.Inline && b.PI.Name() == f.Name() && b.PI.Arity() == f.Arity()-1
-	}); i >= 0 {
-		var cont term.Handle
-		switch f.Arity() {
-		case 1:
-			cont = body.Arg(0)
-		case 2:
-			cont = body.Arg(1)
-			arg := body.Arg(0)
-			v, err := engine.PutVariable()
+	pi := term.NewFunctor(f.Name(), f.Arity()-1)
+	if i, ok := engine.BuiltinIndex[pi]; ok {
+		var (
+			b = engine.Builtins[i]
+		)
+		switch b.Type {
+		case runtime.BuiltinTypeInHead:
+			break
+		case runtime.BuiltinTypeArithmetic0:
+			var (
+				cont = body.Arg(f.Arity() - 1)
+				pi   = term.NewFunctor(f.Name(), f.Arity()-1)
+			)
+			newOpArgs, err := engine.PutCompoundWithFreshVars(pi)
 			if err != nil {
 				return err
 			}
-			if err := c.compileTopTerm(engine, OpPut, v, arg); err != nil {
+			for i := range pi.Arity() {
+				a, x := body.Arg(i), newOpArgs.Arg(i)
+				typ, err := c.classifyLoad(engine, x, a)
+				if err != nil {
+					return err
+				}
+				c.emit(Instruction{
+					OpCode: OpLoad,
+					Type:   typ,
+					A:      Operand{Kind: OperandKindArgument, Index: i},
+					B:      Operand{Kind: OperandKindTerm, Term: x},
+				})
+			}
+			zero, err := engine.PutInteger(0)
+			if err != nil {
 				return err
 			}
 			c.emit(Instruction{
-				OpCode: OpPut,
-				A:      Operand{Kind: OperandKindTemp, Index: 0},
-				B:      Operand{Kind: OperandKindTerm, Term: v},
+				OpCode: OpArithmetic,
+				A:      Operand{Kind: OperandKindBuiltin, Index: i},
+				B:      Operand{Kind: OperandKindTerm, Term: zero},
 			})
-		default:
-			return errors.New("can't inline a builtin with arity more than 1")
+			return c.compileBody(engine, cont)
+		case runtime.BuiltinTypeArithmetic1:
+			var (
+				cont = body.Arg(f.Arity() - 1)
+				pi   = term.NewFunctor(f.Name(), f.Arity()-2)
+				res  = body.Arg(f.Arity() - 2)
+			)
+			varRes, err := engine.PutVariable()
+			if err != nil {
+				return err
+			}
+			if err := c.handleConstantRes(engine, varRes, res); err != nil {
+				return err
+			}
+			newOpArgs, err := engine.PutCompoundWithFreshVars(pi)
+			if err != nil {
+				return err
+			}
+			for i := range pi.Arity() {
+				a, x := body.Arg(i), newOpArgs.Arg(i)
+				typ, err := c.classifyLoad(engine, x, a)
+				if err != nil {
+					return err
+				}
+				c.emit(Instruction{
+					OpCode: OpLoad,
+					Type:   typ,
+					A:      Operand{Kind: OperandKindArgument, Index: i},
+					B:      Operand{Kind: OperandKindTerm, Term: x},
+				})
+			}
+			c.emit(Instruction{
+				OpCode: OpArithmetic,
+				A:      Operand{Kind: OperandKindBuiltin, Index: i},
+				B:      Operand{Kind: OperandKindTerm, Term: varRes},
+			})
+			return c.compileBody(engine, cont)
+		case runtime.BuiltinTypeInline:
+			var cont term.Handle
+			switch f.Arity() {
+			case 1:
+				cont = body.Arg(0)
+			case 2:
+				cont = body.Arg(1)
+				arg := body.Arg(0)
+				v, err := engine.PutVariable()
+				if err != nil {
+					return err
+				}
+				if err := c.compileTopTerm(engine, OpPut, v, arg); err != nil {
+					return err
+				}
+				c.emit(Instruction{
+					OpCode: OpPut,
+					A:      Operand{Kind: OperandKindTemp, Index: 0},
+					B:      Operand{Kind: OperandKindTerm, Term: v},
+				})
+			default:
+				return errors.New("can't inline a builtin with arity more than 1")
+			}
+			x, err := engine.PutVariable()
+			if err != nil {
+				return err
+			}
+			c.emit(Instruction{
+				OpCode: OpInline,
+				A:      Operand{Kind: OperandKindBuiltin, Index: i},
+				B:      Operand{Kind: OperandKindTerm, Term: x},
+			})
+			return c.compileBody(engine, cont)
 		}
-		x, err := engine.PutVariable()
-		if err != nil {
-			return err
-		}
-		c.emit(Instruction{
-			OpCode: OpInline,
-			A:      Operand{Kind: OperandKindBuiltin, Index: i},
-			B:      Operand{Kind: OperandKindTerm, Term: x},
-		})
-		return c.compileBody(engine, cont)
 	}
 
 	c.Execute = f
@@ -720,4 +797,36 @@ func (c *Clause) compact() {
 		)
 		return (getVariable || putValue) && sameRegister
 	})
+}
+
+func (c *Clause) classifyLoad(engine *runtime.Engine, x, a term.Handle) (Type, error) {
+	if _, ok := a.Variable(); ok {
+		return TypeUnknown, x.Bind(a)
+	}
+
+	if _, ok := a.Functor(); !ok {
+		return TypeConstant, x.Bind(a)
+	}
+
+	return TypeUnknown, c.compileTopTerm(engine, OpPut, x, a)
+}
+
+func (c *Clause) handleConstantRes(engine *runtime.Engine, x, res term.Handle) error {
+	if _, ok := res.Variable(); ok {
+		return x.Bind(res)
+	}
+	if _, ok := res.Functor(); !ok {
+		c.emit(Instruction{
+			OpCode: OpPut,
+			A:      Operand{Kind: OperandKindTemp, Index: 0},
+			B:      Operand{Kind: OperandKindTerm, Term: res},
+		})
+		c.emit(Instruction{
+			OpCode: OpGet,
+			A:      Operand{Kind: OperandKindTemp, Index: 0},
+			B:      Operand{Kind: OperandKindTerm, Term: x},
+		})
+		return nil
+	}
+	return c.compileTopTerm(engine, OpPut, x, res)
 }

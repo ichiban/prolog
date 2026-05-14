@@ -12,12 +12,21 @@ import (
 func TestClause_Compile(t *testing.T) {
 	engine := runtime.Engine{
 		Heap: make(term.Heap, 0, 1024),
-		BuiltIns: []runtime.BuiltIn{
+		BuiltinIndex: map[term.Functor]int{
+			term.NewFunctor(term.NewAtom("functor"), 3): 1,
+			term.NewFunctor(term.NewAtom("fail"), 0):    3,
+			term.NewFunctor(term.NewAtom("var"), 1):     4,
+			term.NewFunctor(term.NewAtom("$less"), 2):   5,
+			term.NewFunctor(term.NewAtom("$+"), 3):      6,
+		},
+		Builtins: []runtime.Builtin{
 			{},
-			{PI: term.NewFunctor(term.NewAtom("functor"), 3)},
+			{Type: runtime.BuiltinTypeInHead},
 			{},
-			{PI: term.NewFunctor(term.NewAtom("fail"), 0), Inline: true},
-			{PI: term.NewFunctor(term.NewAtom("var"), 1), Inline: true},
+			{Type: runtime.BuiltinTypeInline},
+			{Type: runtime.BuiltinTypeInline},
+			{Type: runtime.BuiltinTypeArithmetic0},
+			{Type: runtime.BuiltinTypeArithmetic1},
 		},
 	}
 	heap := &engine.Heap
@@ -239,6 +248,41 @@ func TestClause_Compile(t *testing.T) {
 					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 1}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
+		{
+			title: "arithmetic",
+			head:  "p(X, Y, Cont).",
+			body:  "'$less'(X, Y, q(Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  3,
+				Code: []Instruction{
+					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
+					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 1}},
+					{OpCode: OpArithmetic, Type: TypeConstant, A: Operand{Kind: OperandKindBuiltin, Index: 5}, B: Operand{Kind: OperandKindTerm, Term: must(engine.PutInteger(0))}},
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 2}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
+			},
+		},
+		{
+			title: "arithmetic with output",
+			head:  "p(X, Y, Z, Cont).",
+			body:  "$+(X, Y, Z, q(Z, Cont)).",
+			clause: Clause{
+				PI:       term.NewFunctor(term.NewAtomRune('p'), 4),
+				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				MaxRegs:  4,
+				Code: []Instruction{
+					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
+					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 1}},
+					{OpCode: OpArithmetic, Type: TypeValue, A: Operand{Kind: OperandKindBuiltin, Index: 6}, B: Operand{Kind: OperandKindRegister, Index: 2}},
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 2}},
+					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 3}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
 			},
 		},
 	}
