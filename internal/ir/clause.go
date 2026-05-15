@@ -142,60 +142,18 @@ func (c *Clause) Compile(engine *runtime.Engine, head, body term.Handle) error {
 		args[i].Death = math.MaxInt
 	}
 
-	fmt.Printf("raw:\n%s\n", c)
-	fmt.Printf("vars:\n%s\n", vars)
-	fmt.Printf("args:\n")
-	for i, arg := range args {
-		fmt.Printf("%4d: %s\n", i, arg)
-	}
-	fmt.Printf("\n")
-
 	// Replace variables with its variable occurrence.
 	// This is where we diverge from the original binprolog.
 	// Instead of recording variable occurrences first and deriving lifetime from it later,
 	// we record lifetimes at the same time.
 	c.findOccurrences(vars)
 
-	fmt.Printf("findOccurrences:\n%s\n", c)
-	fmt.Printf("vars:\n%s\n", vars)
-	fmt.Printf("args:\n")
-	for i, arg := range args {
-		fmt.Printf("%4d: %s\n", i, arg)
-	}
-	fmt.Printf("\n")
-
 	if err := c.fillInfo(args, vars); err != nil {
 		return err
 	}
 
-	fmt.Printf("fillInfo:\n%s\n", c)
-	fmt.Printf("vars:\n%s\n", vars)
-	fmt.Printf("args:\n")
-	for i, arg := range args {
-		fmt.Printf("%4d: %s\n", i, arg)
-	}
-	fmt.Printf("\n")
-
 	c.collapseArgs(args, vars)
-
-	fmt.Printf("collapseArgs:\n%s\n", c)
-	fmt.Printf("vars:\n%s\n", vars)
-	fmt.Printf("args:\n")
-	for i, arg := range args {
-		fmt.Printf("%4d: %s\n", i, arg)
-	}
-	fmt.Printf("\n")
-
 	c.allocateRegs(args, vars)
-
-	fmt.Printf("allocateRegs:\n%s\n", c)
-	fmt.Printf("vars:\n%s\n", vars)
-	fmt.Printf("args:\n")
-	for i, arg := range args {
-		fmt.Printf("%4d: %s\n", i, arg)
-	}
-	fmt.Printf("\n")
-
 	c.compact()
 
 	return nil
