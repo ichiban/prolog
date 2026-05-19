@@ -3,31 +3,63 @@ package ir
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
+	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 func TestCompile(t *testing.T) {
+	h := make(term.Heap, 0, 1024)
 	tests := []struct {
-		c      Compiler
+		title  string
 		text   string
 		result *Module
 		err    error
 	}{
-		// TODO
+		{
+			title: "empty",
+			text:  ``,
+			result: &Module{
+				Name: term.NewAtom("user"),
+			},
+		},
+		{
+			title: "empty",
+			text:  `p :- q.`,
+			result: &Module{
+				Name: term.NewAtom("user"),
+				Clauses: []Clause{
+					{
+						PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
+						FirstArg: Index{Term: must(h.PutAtom(term.NewAtomRune('_')))},
+						MaxRegs:  1,
+						Code:     []Instruction{},
+						Execute:  term.NewFunctor(term.NewAtomRune('q'), 1),
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.text, func(t *testing.T) {
-			result, err := test.c.Compile(t.Context(), test.text, nil)
+		t.Run(test.title, func(t *testing.T) {
+			h = h[:0]
+			c := Compiler{
+				Engine: &runtime.Engine{
+					Module: term.NewAtom("user"),
+					Heap:   &h,
+					Ops:    syntax.NewOperatorSet(),
+				},
+			}
+			m, err := c.Compile(t.Context(), test.text)
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
-			if !reflect.DeepEqual(result, test.result) {
-				t.Errorf("got %v, want %v", result, test.result)
+			got, want := m.String(), test.result.String()
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -71,27 +103,20 @@ func TestReplaceBody(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.goal, func(t *testing.T) {
 			var (
-				h = make(term.Heap, 0, 1024)
-			)
-
-			a, err := h.PutVariable()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			b, err := h.PutVariable()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := h.PutVariable()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			var (
-				vars = []term.Handle{a, b, c}
-				pvs  []syntax.ParsedVariable
+				h        = make(term.Heap, 0, 1024)
+				a        = must(h.PutVariable())
+				b        = must(h.PutVariable())
+				c        = must(h.PutVariable())
+				vars     = []term.Handle{a, b, c}
+				pvs      []syntax.ParsedVariable
+				compiler = Compiler{
+					Engine: &runtime.Engine{Heap: &h},
+					makeVariable: func() (term.Handle, error) {
+						var v term.Handle
+						v, vars = vars[0], vars[1:]
+						return v, nil
+					},
+				}
 			)
 
 			goal, err := syntax.ParseTerm(test.goal,
@@ -101,15 +126,7 @@ func TestReplaceBody(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var (
-				counter int
-				todo    []term.Handle
-			)
-			goal, err = ReplaceBody(&h, &counter, goal, &todo, func() (term.Handle, error) {
-				var v term.Handle
-				v, vars = vars[0], vars[1:]
-				return v, nil
-			})
+			goal, err = compiler.ReplaceBody(goal)
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
@@ -174,8 +191,11 @@ func TestBinarize(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.head, func(t *testing.T) {
 			var (
-				h   = make(term.Heap, 0, 1024)
-				pvs []syntax.ParsedVariable
+				h        = make(term.Heap, 0, 1024)
+				pvs      []syntax.ParsedVariable
+				compiler = Compiler{
+					Engine: &runtime.Engine{Heap: &h},
+				}
 			)
 			cont, err := h.PutVariable()
 			if err != nil {
@@ -199,7 +219,7 @@ func TestBinarize(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			newHead, newBody, err := Binarize(&h, head, body, cont)
+			newHead, newBody, err := compiler.Binarize(head, body, cont)
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}

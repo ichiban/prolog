@@ -10,9 +10,9 @@ import (
 )
 
 type Engine struct {
-	term.Heap
+	*term.Heap
 	Image        *wam.Image
-	Ops          syntax.OperatorSet
+	Ops          *syntax.OperatorSet
 	DoubleQuotes syntax.DoubleQuotes
 	Module       term.Atom
 	BuiltinIndex map[term.Functor]int

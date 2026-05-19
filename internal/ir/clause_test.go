@@ -10,8 +10,9 @@ import (
 )
 
 func TestClause_Compile(t *testing.T) {
+	heap := make(term.Heap, 0, 1024)
 	engine := runtime.Engine{
-		Heap: make(term.Heap, 0, 1024),
+		Heap: &heap,
 		BuiltinIndex: map[term.Functor]int{
 			term.NewFunctor(term.NewAtom("functor"), 3): 1,
 			term.NewFunctor(term.NewAtom("fail"), 0):    3,
@@ -29,7 +30,7 @@ func TestClause_Compile(t *testing.T) {
 			{Type: runtime.BuiltinTypeArithmetic1},
 		},
 	}
-	heap := &engine.Heap
+	compiler := Compiler{Engine: &engine}
 	tests := []struct {
 		title  string
 		head   string
@@ -288,18 +289,18 @@ func TestClause_Compile(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			*heap = (*heap)[:0]
+			heap = heap[:0]
 			var vars []syntax.ParsedVariable
-			h, err := syntax.ParseTerm(test.head, syntax.Heap(heap), syntax.Variables(&vars))
+			h, err := syntax.ParseTerm(test.head, syntax.Heap(&heap), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.head, err)
 			}
-			b, err := syntax.ParseTerm(test.body, syntax.Heap(heap), syntax.Variables(&vars))
+			b, err := syntax.ParseTerm(test.body, syntax.Heap(&heap), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}
 			var c Clause
-			err = c.Compile(&engine, h, b)
+			err = c.Compile(&compiler, h, b)
 			if !errors.Is(err, test.err) {
 				t.Errorf("Compile(%q): got %v, want %v", test.head, err, test.err)
 			}
