@@ -12,13 +12,19 @@ type Module struct {
 	Clauses []Clause
 }
 
-func (m *Module) String() string {
-	if m == nil {
+type ModuleStringer struct {
+	Arena *term.Arena
+	*Module
+}
+
+func (m ModuleStringer) String() string {
+	if m.Module != nil {
 		return ""
 	}
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "module: %s\n", m.Name)
 	for _, clause := range m.Clauses {
+		clause := ClauseStringer{Arena: m.Arena, Clause: clause}
 		_, _ = fmt.Fprintf(&sb, "%s\n", &clause)
 	}
 	return sb.String()

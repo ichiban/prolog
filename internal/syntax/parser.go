@@ -35,7 +35,7 @@ func (e *UnexpectedTokenError) Error() string {
 }
 
 type ParseOptions struct {
-	heap         *term.Heap
+	arena        *term.Arena
 	operatorSet  *OperatorSet
 	doubleQuotes *DoubleQuotes
 	variables    *[]ParsedVariable
@@ -44,9 +44,9 @@ type ParseOptions struct {
 
 type ParseOption func(*ParseOptions)
 
-func Heap(heap *term.Heap) ParseOption {
+func Arena(arena *term.Arena) ParseOption {
 	return func(o *ParseOptions) {
-		o.heap = heap
+		o.arena = arena
 	}
 }
 
@@ -272,7 +272,7 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 			p.backup()
 			return p.term0(maxPriority)
 		}
-		lhs, err = p.heap.PutCompound(op.name, t)
+		lhs, err = p.arena.PutCompound(op.name, t)
 		if err != nil {
 			return term.Handle{}, false, err
 		}
@@ -290,7 +290,7 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 		switch _, rbp := op.bindingPriorities(); {
 		case rbp > 1200:
 			var err error
-			lhs, err = p.heap.PutCompound(op.name, lhs)
+			lhs, err = p.arena.PutCompound(op.name, lhs)
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -299,7 +299,7 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 			if err != nil || !ok {
 				return term.Handle{}, ok, err
 			}
-			lhs, err = p.heap.PutCompound(op.name, lhs, rhs)
+			lhs, err = p.arena.PutCompound(op.name, lhs, rhs)
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -462,13 +462,13 @@ func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 	case tokenDoubleQuotedList:
 		switch *p.doubleQuotes {
 		case DoubleQuotesChars:
-			cl, err := p.heap.PutCharList(unDoubleQuote(t.val))
+			cl, err := p.arena.PutCharList(unDoubleQuote(t.val))
 			if err != nil {
 				return term.Handle{}, false, err
 			}
 			return cl, true, nil
 		case DoubleQuotesCodes:
-			cl, err := p.heap.PutCodeList(unDoubleQuote(t.val))
+			cl, err := p.arena.PutCodeList(unDoubleQuote(t.val))
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -519,7 +519,7 @@ func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
-	if a, ok := t.Atom(); ok && maxPriority < 1201 && p.operatorSet.defined(a) {
+	if a, ok := p.arena.Atom(t); ok && maxPriority < 1201 && p.operatorSet.defined(a) {
 		p.backup()
 		return term.Handle{}, false, nil
 	}
@@ -529,7 +529,7 @@ func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
 
 func (p *parser) variable(s string) (term.Handle, error) {
 	if p.makeVariable == nil {
-		p.makeVariable = p.heap.PutVariable
+		p.makeVariable = p.arena.PutVariable
 	}
 	if s == "_" {
 		v, err := p.makeVariable()
@@ -654,7 +654,7 @@ func (p *parser) list() (term.Handle, bool, error) {
 
 			switch t, _ := p.next(); t.kind {
 			case tokenCloseList:
-				pl, err := p.heap.PutPartialList(tail, elems...)
+				pl, err := p.arena.PutPartialList(tail, elems...)
 				if err != nil {
 					return term.Handle{}, false, err
 				}
@@ -665,7 +665,7 @@ func (p *parser) list() (term.Handle, bool, error) {
 				return term.Handle{}, false, nil
 			}
 		case tokenCloseList:
-			l, err := p.heap.PutList(elems...)
+			l, err := p.arena.PutList(elems...)
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -689,7 +689,7 @@ func (p *parser) curlyBracketedTerm() (term.Handle, bool, error) {
 		return term.Handle{}, false, nil
 	}
 
-	c, err := p.heap.PutCompound(atomEmptyBlock, t)
+	c, err := p.arena.PutCompound(atomEmptyBlock, t)
 	if err != nil {
 		return term.Handle{}, false, err
 	}
@@ -714,7 +714,7 @@ func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error
 				}
 				args = append(args, arg)
 			case tokenClose:
-				c, err := p.heap.PutCompound(functor, args...)
+				c, err := p.arena.PutCompound(functor, args...)
 				if err != nil {
 					return term.Handle{}, false, err
 				}
@@ -727,7 +727,7 @@ func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error
 		}
 	default:
 		p.backup()
-		a, err := p.heap.PutAtom(functor)
+		a, err := p.arena.PutAtom(functor)
 		if err != nil {
 			return term.Handle{}, false, err
 		}
@@ -746,7 +746,7 @@ func (p *parser) arg() (term.Handle, error) {
 			switch t, _ := p.next(); t.kind {
 			case tokenComma, tokenClose, tokenBar, tokenCloseList:
 				p.backup()
-				a, err := p.heap.PutAtom(arg)
+				a, err := p.arena.PutAtom(arg)
 				if err != nil {
 					return term.Handle{}, err
 				}
@@ -777,7 +777,7 @@ func (p *parser) integer(sign int64, s string) (term.Handle, error) {
 	case strings.HasPrefix(s, "0'"):
 		s = s[2:]
 		s = quotedIdentEscapePattern.ReplaceAllStringFunc(s, quotedIdentUnescape)
-		return p.heap.PutInteger(sign * int64([]rune(s)[0]))
+		return p.arena.PutInteger(sign * int64([]rune(s)[0]))
 	case strings.HasPrefix(s, "0b"):
 		base = 2
 		s = s[2:]
@@ -798,7 +798,7 @@ func (p *parser) integer(sign int64, s string) (term.Handle, error) {
 	case big.Below:
 		return term.Handle{}, ErrIntBelow
 	default:
-		return p.heap.PutInteger(i)
+		return p.arena.PutInteger(i)
 	}
 }
 
@@ -807,7 +807,7 @@ func (p *parser) float(sign float64, s string) (term.Handle, error) {
 	bf.Mul(big.NewFloat(sign), bf)
 
 	f, _ := bf.Float64()
-	return p.heap.PutFloat(f)
+	return p.arena.PutFloat(f)
 }
 
 var (

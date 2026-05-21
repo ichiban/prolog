@@ -4,44 +4,44 @@ import (
 	"slices"
 )
 
-func VariableSet(t Handle) []Handle {
+func (a *Arena) VariableSet(t Handle) []Handle {
 	// 7.1.1.1 Variable set of a term.
-	t = t.Deref()
-	if _, ok := t.Variable(); ok {
+	t = a.Deref(t)
+	if _, ok := a.Variable(t); ok {
 		return []Handle{t}
 	}
 
-	if _, ok := t.Functor(); !ok {
+	if _, ok := a.Functor(t); !ok {
 		return nil
 	}
 
 	var vs []Handle
-	for arg := range t.Args() {
-		vs = append(vs, VariableSet(arg)...)
+	for arg := range a.Args(t) {
+		vs = append(vs, a.VariableSet(arg)...)
 	}
-	slices.SortFunc(vs, Compare)
+	slices.SortFunc(vs, a.Compare)
 	return slices.Compact(vs)
 }
 
-func ExistentialVariableSet(t Handle) []Handle {
+func (a *Arena) ExistentialVariableSet(t Handle) []Handle {
 	// 7.1.1.3 Existential variables set of a term
-	t = t.Deref()
-	if f, ok := t.Functor(); !ok || f != NewFunctor(NewAtomRune('^'), 2) {
+	t = a.Deref(t)
+	if f, ok := a.Functor(t); !ok || f != NewFunctor(NewAtomRune('^'), 2) {
 		return nil
 	}
-	v, g := t.Arg(0), t.Arg(1)
-	evs := VariableSet(v)
-	evs = append(evs, ExistentialVariableSet(g)...)
-	slices.SortFunc(evs, Compare)
+	v, g := a.Arg(t, 0), a.Arg(t, 1)
+	evs := a.VariableSet(v)
+	evs = append(evs, a.ExistentialVariableSet(g)...)
+	slices.SortFunc(evs, a.Compare)
 	return slices.Compact(evs)
 }
 
-func FreeVariableSet(t, v Handle) []Handle {
+func (a *Arena) FreeVariableSet(t, v Handle) []Handle {
 	// 7.1.1.4 Free variables set of a term
-	vs := VariableSet(t)
-	bv := VariableSet(v)
-	bv = append(bv, ExistentialVariableSet(t)...)
-	slices.SortFunc(bv, Compare)
+	vs := a.VariableSet(t)
+	bv := a.VariableSet(v)
+	bv = append(bv, a.ExistentialVariableSet(t)...)
+	slices.SortFunc(bv, a.Compare)
 	bv = slices.Compact(bv)
 	return slices.DeleteFunc(vs, func(v Handle) bool {
 		return slices.Contains(bv, v)

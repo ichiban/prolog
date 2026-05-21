@@ -14,8 +14,13 @@ type Instruction struct {
 	B      Operand
 }
 
-func (i Instruction) String() string {
-	return fmt.Sprintf("%s_%s %s %s", i.OpCode, i.Type, i.A, i.B)
+type InstructionStringer struct {
+	*term.Arena
+	Instruction
+}
+
+func (i InstructionStringer) String() string {
+	return fmt.Sprintf("%s_%s %s %s", i.OpCode, i.Type, OperandStringer{Arena: i.Arena, Operand: i.A}, OperandStringer{Arena: i.Arena, Operand: i.B})
 }
 
 type OpCode int8
@@ -85,14 +90,19 @@ type Operand struct {
 	Term    term.Handle
 }
 
-func (o Operand) String() string {
+type OperandStringer struct {
+	Arena *term.Arena
+	Operand
+}
+
+func (o OperandStringer) String() string {
 	switch o.Kind {
 	case OperandKindArgument:
 		return fmt.Sprintf("arg(%d)", o.Index)
 	case OperandKindTerm:
-		return fmt.Sprintf("%s", &syntax.Formatter{Term: o.Term})
+		return fmt.Sprintf("%s", &syntax.Formatter{Arena: o.Arena, Term: o.Term})
 	case OperandKindOccurrence:
-		return fmt.Sprintf("occ(%s, %d)", &syntax.Formatter{Term: o.Term}, o.Index)
+		return fmt.Sprintf("occ(%s, %d)", &syntax.Formatter{Arena: o.Arena, Term: o.Term}, o.Index)
 	case OperandKindFunctor:
 		f := o.Functor
 		return fmt.Sprintf("%s/%d", f.Name(), f.Arity())

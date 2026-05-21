@@ -10,7 +10,7 @@ import (
 )
 
 type Engine struct {
-	*term.Heap
+	*term.Arena
 	Image        *wam.Image
 	Ops          *syntax.OperatorSet
 	DoubleQuotes syntax.DoubleQuotes

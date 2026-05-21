@@ -14,28 +14,32 @@ func TestResourceError_Error(t *testing.T) {
 }
 
 func TestTypeError_Error(t *testing.T) {
-	heap := make(term.Heap, 0)
+	arena := term.Arena{
+		Heap: make(term.Heap, 0),
+	}
 	must := func(h term.Handle, err error) term.Handle {
 		if err != nil {
 			t.Fatal(err)
 		}
 		return h
 	}
-	err := &TypeError{ValidType: "integer", Culprit: must(heap.PutAtom(term.NewAtomRune('a')))}
+	err := &TypeError{ValidType: "integer", Culprit: must(arena.PutAtom(term.NewAtomRune('a')))}
 	if got, want := err.Error(), "invalid type: expected integer, got a"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }
 
 func TestUninstantiationError_Error(t *testing.T) {
-	heap := make(term.Heap, 0)
+	arena := term.Arena{
+		Heap: make(term.Heap, 0),
+	}
 	must := func(h term.Handle, err error) term.Handle {
 		if err != nil {
 			t.Fatal(err)
 		}
 		return h
 	}
-	err := &UninstantiationError{Culprit: must(heap.PutAtom(term.NewAtomRune('a')))}
+	err := &UninstantiationError{Culprit: must(arena.PutAtom(term.NewAtomRune('a')))}
 	if got, want := err.Error(), "uninstantiation error: a"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}

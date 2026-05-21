@@ -89,31 +89,18 @@ type Clause struct {
 	Execute  term.Functor
 }
 
-func (c *Clause) String() string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "\tPI: %s\n", c.PI)
-	_, _ = fmt.Fprintf(&sb, "\tfirst_arg: %s\n", c.FirstArg)
-	_, _ = fmt.Fprintf(&sb, "\tmax_regs: %d\n", c.MaxRegs)
-	_, _ = fmt.Fprintf(&sb, "\tcode:\n")
-	for i, inst := range c.Code {
-		_, _ = fmt.Fprintf(&sb, "\t%4d: %s\n", i, inst.String())
-	}
-	_, _ = fmt.Fprintf(&sb, "\texecute: %s\n", c.Execute)
-	return sb.String()
-}
-
 func (c *Clause) Compile(compiler *Compiler, head, body term.Handle) error {
-	h, ok := head.Functor()
+	h, ok := compiler.Functor(head)
 	if !ok {
 		return errUnhandled
 	}
-	b, ok := body.Functor()
+	b, ok := compiler.Functor(body)
 	if !ok {
 		return errUnhandled
 	}
 
 	// Turns the first argument into a functor for indexing.
-	fa := head.Arg(0)
+	fa := compiler.Arg(head, 0)
 	index, err := index(compiler, fa)
 	if err != nil {
 		return err
@@ -146,21 +133,21 @@ func (c *Clause) Compile(compiler *Compiler, head, body term.Handle) error {
 	// This is where we diverge from the original binprolog.
 	// Instead of recording variable occurrences first and deriving lifetime from it later,
 	// we record lifetimes at the same time.
-	c.findOccurrences(vars)
+	c.findOccurrences(compiler, vars)
 
-	if err := c.fillInfo(args, vars); err != nil {
+	if err := c.fillInfo(compiler, args, vars); err != nil {
 		return err
 	}
 
 	c.collapseArgs(args, vars)
-	c.allocateRegs(args, vars)
+	c.allocateRegs(compiler, args, vars)
 	c.compact()
 
 	return nil
 }
 
 func index(compiler *Compiler, t term.Handle) (Index, error) {
-	if _, ok := t.Variable(); ok {
+	if _, ok := compiler.Variable(t); ok {
 		a, err := compiler.PutAtom(term.NewAtomRune('_'))
 		if err != nil {
 			return Index{}, err
@@ -170,7 +157,7 @@ func index(compiler *Compiler, t term.Handle) (Index, error) {
 			Arity: 0,
 		}, nil
 	}
-	if f, ok := t.Functor(); ok {
+	if f, ok := compiler.Functor(t); ok {
 		a, err := compiler.PutAtom(f.Name())
 		if err != nil {
 			return Index{}, err
@@ -186,13 +173,13 @@ func index(compiler *Compiler, t term.Handle) (Index, error) {
 }
 
 func (c *Clause) compileHead(compiler *Compiler, head term.Handle) error {
-	f, _ := head.Functor()
+	f, _ := compiler.Functor(head)
 
 	pi := term.NewFunctor(f.Name(), f.Arity()-1)
 	if i, ok := compiler.BuiltinIndex[pi]; ok {
 		b := compiler.Builtins[i]
 		if b.Type == runtime.BuiltinTypeInHead {
-			cont := head.Arg(f.Arity() - 1)
+			cont := compiler.Arg(head, f.Arity()-1)
 			c.emit(Instruction{
 				OpCode: OpBuiltin,
 				Type:   TypeNotApplicable,
@@ -208,22 +195,22 @@ func (c *Clause) compileHead(compiler *Compiler, head term.Handle) error {
 		return err
 	}
 
-	if err := c.emitTopArgs(OpGet, head, ct); err != nil {
+	if err := c.emitTopArgs(compiler, OpGet, head, ct); err != nil {
 		return err
 	}
 
-	return c.compileTopArg(OpGet, compiler, head, ct)
+	return c.compileTopArg(compiler, OpGet, head, ct)
 }
 
-func (c *Clause) emitTopArgs(op OpCode, t, ct term.Handle) error {
-	f, ok := t.Functor()
+func (c *Clause) emitTopArgs(compiler *Compiler, op OpCode, t, ct term.Handle) error {
+	f, ok := compiler.Functor(t)
 	if !ok {
 		return errUnhandled
 	}
 	for i := 0; i < f.Arity(); i++ {
-		a, x := t.Arg(i), ct.Arg(i)
+		a, x := compiler.Arg(t, i), compiler.Arg(ct, i)
 
-		typ, err := classifyArg(x, a)
+		typ, err := classifyArg(compiler, x, a)
 		if err != nil {
 			return err
 		}
@@ -238,13 +225,13 @@ func (c *Clause) emitTopArgs(op OpCode, t, ct term.Handle) error {
 	return nil
 }
 
-func (c *Clause) compileTopArg(op OpCode, compiler *Compiler, t, ct term.Handle) error {
-	f, ok := t.Functor()
+func (c *Clause) compileTopArg(compiler *Compiler, op OpCode, t, ct term.Handle) error {
+	f, ok := compiler.Functor(t)
 	if !ok {
 		return errUnhandled
 	}
 	for i := 0; i < f.Arity(); i++ {
-		a, x := t.Arg(i), ct.Arg(i)
+		a, x := compiler.Arg(t, i), compiler.Arg(ct, i)
 		if err := c.compileTopTerm(compiler, op, x, a); err != nil {
 			return err
 		}
@@ -253,13 +240,13 @@ func (c *Clause) compileTopArg(op OpCode, compiler *Compiler, t, ct term.Handle)
 }
 
 func (c *Clause) compileTopTerm(compiler *Compiler, op OpCode, x, t term.Handle) error {
-	if _, ok := t.Variable(); ok {
-		return x.Bind(t)
+	if _, ok := compiler.Variable(t); ok {
+		return compiler.Bind(x, t)
 	}
 
-	f, ok := t.Functor()
+	f, ok := compiler.Functor(t)
 	if !ok {
-		return x.Bind(t)
+		return compiler.Bind(x, t)
 	}
 
 	c.emit(Instruction{
@@ -274,18 +261,18 @@ func (c *Clause) compileTopTerm(compiler *Compiler, op OpCode, x, t term.Handle)
 		return err
 	}
 
-	if err := c.emitArgs(op, t, ct); err != nil {
+	if err := c.emitArgs(compiler, op, t, ct); err != nil {
 		return err
 	}
 
 	return c.compileArgs(compiler, op, t, ct)
 }
 
-func (c *Clause) emitArgs(op OpCode, t, ct term.Handle) error {
-	f, _ := t.Functor()
+func (c *Clause) emitArgs(compiler *Compiler, op OpCode, t, ct term.Handle) error {
+	f, _ := compiler.Functor(t)
 	for i := range f.Arity() {
-		a, x := t.Arg(i), ct.Arg(i)
-		typ, err := classifyArg(x, a)
+		a, x := compiler.Arg(t, i), compiler.Arg(ct, i)
+		typ, err := classifyArg(compiler, x, a)
 		if err != nil {
 			return err
 		}
@@ -294,7 +281,7 @@ func (c *Clause) emitArgs(op OpCode, t, ct term.Handle) error {
 		case OpGet:
 			op = OpUnify
 		case OpPut:
-			if _, ok := a.Functor(); ok {
+			if _, ok := compiler.Functor(a); ok {
 				op = OpPush
 			} else {
 				op = OpWrite
@@ -314,9 +301,9 @@ func (c *Clause) emitArgs(op OpCode, t, ct term.Handle) error {
 }
 
 func (c *Clause) compileArgs(compiler *Compiler, op OpCode, t, ct term.Handle) error {
-	f, _ := t.Functor()
+	f, _ := compiler.Functor(t)
 	for i := 0; i < f.Arity(); i++ {
-		if err := c.compileTerm(compiler, op, ct.Arg(i), t.Arg(i)); err != nil {
+		if err := c.compileTerm(compiler, op, compiler.Arg(ct, i), compiler.Arg(t, i)); err != nil {
 			return err
 		}
 	}
@@ -324,13 +311,13 @@ func (c *Clause) compileArgs(compiler *Compiler, op OpCode, t, ct term.Handle) e
 }
 
 func (c *Clause) compileTerm(compiler *Compiler, op OpCode, x, t term.Handle) error {
-	if _, ok := t.Variable(); ok {
-		return x.Bind(t)
+	if _, ok := compiler.Variable(t); ok {
+		return compiler.Bind(x, t)
 	}
 
-	f, ok := t.Functor()
+	f, ok := compiler.Functor(t)
 	if !ok {
-		return x.Bind(t)
+		return compiler.Bind(x, t)
 	}
 
 	newOp := op
@@ -349,11 +336,11 @@ func (c *Clause) compileTerm(compiler *Compiler, op OpCode, x, t term.Handle) er
 		return err
 	}
 
-	return c.emitArgs(op, t, ct)
+	return c.emitArgs(compiler, op, t, ct)
 }
 
 func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
-	if _, ok := body.Variable(); ok {
+	if _, ok := compiler.Variable(body); ok {
 		var err error
 		body, err = compiler.PutCompound(term.NewAtom("true"), body)
 		if err != nil {
@@ -361,18 +348,18 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 		}
 	}
 
-	if a, ok := body.Atom(); ok && a == term.NewAtom("true") {
+	if a, ok := compiler.Atom(body); ok && a == term.NewAtom("true") {
 		return nil
 	}
 
-	f, ok := body.Functor()
+	f, ok := compiler.Functor(body)
 	if !ok {
 		return errUnhandled
 	}
 
 	switch f {
 	case term.NewFunctor(term.NewAtom("$cut_to"), 2):
-		cut, cont := body.Arg(0), body.Arg(1)
+		cut, cont := compiler.Arg(body, 0), compiler.Arg(body, 1)
 
 		c.emit(Instruction{
 			OpCode: OpPut,
@@ -381,7 +368,7 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 		})
 		return c.compileBody(compiler, cont)
 	case term.NewFunctor(term.NewAtomRune('='), 3):
-		a, b, cont := body.Arg(0), body.Arg(1), body.Arg(2)
+		a, b, cont := compiler.Arg(body, 0), compiler.Arg(body, 1), compiler.Arg(body, 2)
 		if err := c.compileEqual(compiler, a, b); err != nil {
 			return err
 		}
@@ -398,7 +385,7 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 			break
 		case runtime.BuiltinTypeArithmetic0:
 			var (
-				cont = body.Arg(f.Arity() - 1)
+				cont = compiler.Arg(body, f.Arity()-1)
 				pi   = term.NewFunctor(f.Name(), f.Arity()-1)
 			)
 			newOpArgs, err := compiler.PutCompoundWithFreshVars(pi)
@@ -406,7 +393,7 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 				return err
 			}
 			for i := range pi.Arity() {
-				a, x := body.Arg(i), newOpArgs.Arg(i)
+				a, x := compiler.Arg(body, i), compiler.Arg(newOpArgs, i)
 				typ, err := c.classifyLoad(compiler, x, a)
 				if err != nil {
 					return err
@@ -430,9 +417,9 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 			return c.compileBody(compiler, cont)
 		case runtime.BuiltinTypeArithmetic1:
 			var (
-				cont = body.Arg(f.Arity() - 1)
+				cont = compiler.Arg(body, f.Arity()-1)
 				pi   = term.NewFunctor(f.Name(), f.Arity()-2)
-				res  = body.Arg(f.Arity() - 2)
+				res  = compiler.Arg(body, f.Arity()-2)
 			)
 			varRes, err := compiler.PutVariable()
 			if err != nil {
@@ -446,7 +433,7 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 				return err
 			}
 			for i := range pi.Arity() {
-				a, x := body.Arg(i), newOpArgs.Arg(i)
+				a, x := compiler.Arg(body, i), compiler.Arg(newOpArgs, i)
 				typ, err := c.classifyLoad(compiler, x, a)
 				if err != nil {
 					return err
@@ -468,10 +455,10 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 			var cont term.Handle
 			switch f.Arity() {
 			case 1:
-				cont = body.Arg(0)
+				cont = compiler.Arg(body, 0)
 			case 2:
-				cont = body.Arg(1)
-				arg := body.Arg(0)
+				cont = compiler.Arg(body, 1)
+				arg := compiler.Arg(body, 0)
 				v, err := compiler.PutVariable()
 				if err != nil {
 					return err
@@ -510,8 +497,8 @@ func (c *Clause) compileBody(compiler *Compiler, body term.Handle) error {
 }
 
 func (c *Clause) compileEqual(compiler *Compiler, a, b term.Handle) error {
-	if _, ok := b.Variable(); ok {
-		if _, ok := a.Functor(); !ok {
+	if _, ok := compiler.Variable(b); ok {
+		if _, ok := compiler.Functor(a); !ok {
 			a, b = b, a
 		}
 	}
@@ -545,31 +532,31 @@ func (c *Clause) compileEqual(compiler *Compiler, a, b term.Handle) error {
 }
 
 func (c *Clause) emitBodyTopTerm(compiler *Compiler, t, ct term.Handle) error {
-	if err := c.compileTopArg(OpPut, compiler, t, ct); err != nil {
+	if err := c.compileTopArg(compiler, OpPut, t, ct); err != nil {
 		return err
 	}
-	return c.emitTopArgs(OpPut, t, ct)
+	return c.emitTopArgs(compiler, OpPut, t, ct)
 }
 
 func (c *Clause) emit(inst Instruction) {
 	c.Code = append(c.Code, inst)
 }
 
-func classifyArg(x, a term.Handle) (Type, error) {
-	if _, ok := a.Variable(); ok {
-		err := x.Bind(a)
+func classifyArg(compiler *Compiler, x, a term.Handle) (Type, error) {
+	if _, ok := compiler.Variable(a); ok {
+		err := compiler.Bind(x, a)
 		return TypeUnknown, err
 	}
 
-	if _, ok := a.Functor(); !ok {
-		err := x.Bind(a)
+	if _, ok := compiler.Functor(a); !ok {
+		err := compiler.Bind(x, a)
 		return TypeConstant, err
 	}
 
 	return TypeUnknown, nil
 }
 
-func (c *Clause) findOccurrences(vars Variables) {
+func (c *Clause) findOccurrences(compiler *Compiler, vars Variables) {
 	for i := range c.Code {
 		inst := &c.Code[i]
 
@@ -578,8 +565,8 @@ func (c *Clause) findOccurrences(vars Variables) {
 		}
 
 		t := inst.B.Term
-		t = t.Deref()
-		varID, ok := t.Variable()
+		t = compiler.Deref(t)
+		varID, ok := compiler.Variable(t)
 		if !ok {
 			continue
 		}
@@ -601,10 +588,10 @@ func (c *Clause) findOccurrences(vars Variables) {
 	}
 }
 
-func (c *Clause) fillInfo(args []Argument, vars map[int]Variable) error {
+func (c *Clause) fillInfo(compiler *Compiler, args []Argument, vars map[int]Variable) error {
 	for i := range c.Code {
 		inst := &c.Code[i]
-		c.fillVarType(inst, vars)
+		c.fillVarType(compiler, inst, vars)
 
 		if inst.A.Kind != OperandKindArgument {
 			continue
@@ -624,7 +611,7 @@ func (c *Clause) fillInfo(args []Argument, vars map[int]Variable) error {
 			continue
 		}
 
-		varID, _ := inst.B.Term.Variable()
+		varID, _ := compiler.Variable(inst.B.Term)
 		switch inst.OpCode {
 		case OpGet:
 			a.HeadVarID = varID
@@ -637,7 +624,7 @@ func (c *Clause) fillInfo(args []Argument, vars map[int]Variable) error {
 	return nil
 }
 
-func (c *Clause) fillVarType(inst *Instruction, vars map[int]Variable) {
+func (c *Clause) fillVarType(compiler *Compiler, inst *Instruction, vars map[int]Variable) {
 	if inst.Type != TypeUnknown {
 		return
 	}
@@ -655,7 +642,7 @@ func (c *Clause) fillVarType(inst *Instruction, vars map[int]Variable) {
 
 	o := inst.B
 	t := o.Term
-	varID, ok := t.Variable()
+	varID, ok := compiler.Variable(t)
 	if !ok {
 		return
 	}
@@ -701,7 +688,7 @@ func (c *Clause) collapseArgs(args []Argument, vars map[int]Variable) {
 	}
 }
 
-func (c *Clause) allocateRegs(args []Argument, vars map[int]Variable) {
+func (c *Clause) allocateRegs(compiler *Compiler, args []Argument, vars map[int]Variable) {
 	var (
 		n        = len(args)
 		freeList []int
@@ -715,7 +702,7 @@ func (c *Clause) allocateRegs(args []Argument, vars map[int]Variable) {
 
 		o := inst.B
 		t := o.Term
-		varID, ok := t.Variable()
+		varID, ok := compiler.Variable(t)
 		if !ok {
 			continue
 		}
@@ -758,22 +745,22 @@ func (c *Clause) compact() {
 }
 
 func (c *Clause) classifyLoad(compiler *Compiler, x, a term.Handle) (Type, error) {
-	if _, ok := a.Variable(); ok {
-		return TypeUnknown, x.Bind(a)
+	if _, ok := compiler.Variable(a); ok {
+		return TypeUnknown, compiler.Bind(x, a)
 	}
 
-	if _, ok := a.Functor(); !ok {
-		return TypeConstant, x.Bind(a)
+	if _, ok := compiler.Functor(a); !ok {
+		return TypeConstant, compiler.Bind(x, a)
 	}
 
 	return TypeUnknown, c.compileTopTerm(compiler, OpPut, x, a)
 }
 
 func (c *Clause) handleConstantRes(compiler *Compiler, x, res term.Handle) error {
-	if _, ok := res.Variable(); ok {
-		return x.Bind(res)
+	if _, ok := compiler.Variable(res); ok {
+		return compiler.Bind(x, res)
 	}
-	if _, ok := res.Functor(); !ok {
+	if _, ok := compiler.Functor(res); !ok {
 		c.emit(Instruction{
 			OpCode: OpPut,
 			A:      Operand{Kind: OperandKindTemp, Index: 0},
@@ -787,4 +774,26 @@ func (c *Clause) handleConstantRes(compiler *Compiler, x, res term.Handle) error
 		return nil
 	}
 	return c.compileTopTerm(compiler, OpPut, x, res)
+}
+
+type ClauseStringer struct {
+	Arena *term.Arena
+	Clause
+}
+
+func (c ClauseStringer) String() string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "\tPI: %s\n", c.PI)
+	_, _ = fmt.Fprintf(&sb, "\tfirst_arg: %s\n", c.FirstArg)
+	_, _ = fmt.Fprintf(&sb, "\tmax_regs: %d\n", c.MaxRegs)
+	_, _ = fmt.Fprintf(&sb, "\tcode:\n")
+	for i, inst := range c.Code {
+		inst := InstructionStringer{
+			Arena:       c.Arena,
+			Instruction: inst,
+		}
+		_, _ = fmt.Fprintf(&sb, "\t%4d: %s\n", i, inst.String())
+	}
+	_, _ = fmt.Fprintf(&sb, "\texecute: %s\n", c.Execute)
+	return sb.String()
 }

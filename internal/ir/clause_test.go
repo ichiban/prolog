@@ -10,9 +10,11 @@ import (
 )
 
 func TestClause_Compile(t *testing.T) {
-	heap := make(term.Heap, 0, 1024)
+	arena := term.Arena{
+		Heap: make(term.Heap, 0, 1024),
+	}
 	engine := runtime.Engine{
-		Heap: &heap,
+		Arena: &arena,
 		BuiltinIndex: map[term.Functor]int{
 			term.NewFunctor(term.NewAtom("functor"), 3): 1,
 			term.NewFunctor(term.NewAtom("fail"), 0):    3,
@@ -44,7 +46,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  `q(Cont).`,
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  1,
 				Code:     []Instruction{},
 				Execute:  term.NewFunctor(term.NewAtomRune('q'), 1),
@@ -56,10 +58,10 @@ func TestClause_Compile(t *testing.T) {
 			body:  `q(Cont).`,
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('a')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('a')))},
 				MaxRegs:  2,
 				Code: []Instruction{
-					{OpCode: OpGet, Type: TypeConstant, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtomRune('a')))}},
+					{OpCode: OpGet, Type: TypeConstant, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(arena.PutAtom(term.NewAtomRune('a')))}},
 					{OpCode: OpGet, Type: TypeVariable, A: Operand{Kind: OperandKindArgument, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 0}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
@@ -71,7 +73,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpGet, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -86,11 +88,11 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(a, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  2,
 				Code: []Instruction{
 					{OpCode: OpGet, Type: TypeVariable, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 1}},
-					{OpCode: OpPut, Type: TypeConstant, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtomRune('a')))}},
+					{OpCode: OpPut, Type: TypeConstant, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(arena.PutAtom(term.NewAtomRune('a')))}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
 			},
@@ -101,7 +103,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('f'))), Arity: 1},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('f'))), Arity: 1},
 				MaxRegs:  2,
 				Code: []Instruction{
 					{OpCode: OpGet, Type: TypeStructure, A: Operand{Kind: OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -116,7 +118,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(f(X), Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpPut, Type: TypeStructure, A: Operand{Kind: OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: Operand{Kind: OperandKindRegister, Index: 2}},
@@ -132,7 +134,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(Y, X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  4,
 				Code: []Instruction{
 					{OpCode: OpGet, Type: TypeVariable, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 3}},
@@ -148,7 +150,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(X, Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('f'))), Arity: 1},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('f'))), Arity: 1},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpGet, Type: TypeStructure, A: Operand{Kind: OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -165,7 +167,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "q(f(g(X)), Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  4,
 				Code: []Instruction{
 					{OpCode: OpPut, Type: TypeStructure, A: Operand{Kind: OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: Operand{Kind: OperandKindRegister, Index: 2}},
@@ -183,10 +185,10 @@ func TestClause_Compile(t *testing.T) {
 			body:  "'$cut_to'('$cut', q(Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  2,
 				Code: []Instruction{
-					{OpCode: OpPut, Type: TypeConstant, A: Operand{Kind: OperandKindCutArg, Index: 1}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtom("$cut")))}},
+					{OpCode: OpPut, Type: TypeConstant, A: Operand{Kind: OperandKindCutArg, Index: 1}, B: Operand{Kind: OperandKindTerm, Term: must(arena.PutAtom(term.NewAtom("$cut")))}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
 			},
@@ -197,11 +199,11 @@ func TestClause_Compile(t *testing.T) {
 			body:  "'='(X, a, q(Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
-					{OpCode: OpGet, Type: TypeConstant, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(heap.PutAtom(term.NewAtomRune('a')))}},
+					{OpCode: OpGet, Type: TypeConstant, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindTerm, Term: must(arena.PutAtom(term.NewAtomRune('a')))}},
 					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 1}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
@@ -213,7 +215,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "true(Cont).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtom("functor"), 4),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  4,
 				Code: []Instruction{
 					{OpCode: OpBuiltin, Type: TypeNotApplicable, A: Operand{Kind: OperandKindBuiltin, Index: 1}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -227,7 +229,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "fail(q(Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 1),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  2,
 				Code: []Instruction{
 					{OpCode: OpInline, Type: TypeVariable, A: Operand{Kind: OperandKindBuiltin, Index: 3}, B: Operand{Kind: OperandKindRegister, Index: 1}},
@@ -241,7 +243,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "var(X, q(Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 2),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpPut, Type: TypeValue, A: Operand{Kind: OperandKindTemp, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -257,7 +259,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "'$less'(X, Y, q(Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 3),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  3,
 				Code: []Instruction{
 					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -274,7 +276,7 @@ func TestClause_Compile(t *testing.T) {
 			body:  "$+(X, Y, Z, q(Z, Cont)).",
 			clause: Clause{
 				PI:       term.NewFunctor(term.NewAtomRune('p'), 4),
-				FirstArg: Index{Term: must(heap.PutAtom(term.NewAtomRune('_')))},
+				FirstArg: Index{Term: must(arena.PutAtom(term.NewAtomRune('_')))},
 				MaxRegs:  4,
 				Code: []Instruction{
 					{OpCode: OpLoad, Type: TypeValue, A: Operand{Kind: OperandKindArgument, Index: 0}, B: Operand{Kind: OperandKindRegister, Index: 0}},
@@ -289,13 +291,13 @@ func TestClause_Compile(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			heap = heap[:0]
+			arena.Heap = arena.Heap[:0]
 			var vars []syntax.ParsedVariable
-			h, err := syntax.ParseTerm(test.head, syntax.Heap(&heap), syntax.Variables(&vars))
+			h, err := syntax.ParseTerm(test.head, syntax.Arena(&arena), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.head, err)
 			}
-			b, err := syntax.ParseTerm(test.body, syntax.Heap(&heap), syntax.Variables(&vars))
+			b, err := syntax.ParseTerm(test.body, syntax.Arena(&arena), syntax.Variables(&vars))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}
@@ -305,7 +307,7 @@ func TestClause_Compile(t *testing.T) {
 				t.Errorf("Compile(%q): got %v, want %v", test.head, err, test.err)
 			}
 
-			if got, want := c.String(), test.clause.String(); got != want {
+			if got, want := (ClauseStringer{Arena: &arena, Clause: c}).String(), (ClauseStringer{Arena: &arena, Clause: test.clause}).String(); got != want {
 				t.Errorf("Compile(%q): got %v, want %v", test.head, got, want)
 			}
 		})

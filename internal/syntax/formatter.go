@@ -28,16 +28,9 @@ var (
 	functorBlock     = term.NewFunctor(atomEmptyBlock, 1)
 )
 
-type formatState struct {
-	priority    int
-	visited     map[term.Handle]struct{}
-	prefixMinus bool
-	left, right operator
-	depth       int
-}
-
 type Formatter struct {
-	Term term.Handle
+	Arena *term.Arena
+	Term  term.Handle
 
 	IgnoreOps    bool
 	Quoted       bool
@@ -74,88 +67,99 @@ func (f *Formatter) WriteTo(w io.Writer) (int64, error) {
 	if f.Ops == nil {
 		f.Ops = NewOperatorSet()
 	}
-	state := formatState{
-		priority: 1201,
+	fm := formatter{
+		Formatter: *f,
+		priority:  1201,
 	}
-	return writeTerm(w, f.Term, f, state)
+	return fm.writeTerm(w, f.Term)
 }
 
-func writeTerm(w io.Writer, t term.Handle, opts *Formatter, state formatState) (int64, error) {
-	t = t.Deref()
-
-	if _, ok := state.visited[t]; ok || (opts.MaxDepth > 0 && state.depth > opts.MaxDepth) {
-		return writeAtom(w, atomEllipses, opts, state)
-	}
-
-	if _, ok := t.Variable(); ok {
-		return writeVariable(w, t, opts, state)
-	}
-
-	if name, ok := t.Atom(); ok {
-		return writeAtom(w, name, opts, state)
-	}
-
-	if i, ok := t.Integer(); ok {
-		return writeInteger(w, i, opts, state)
-	}
-
-	if f, ok := t.Float(); ok {
-		return writeFloat(w, f, opts, state)
-	}
-
-	if state.visited == nil {
-		state.visited = map[term.Handle]struct{}{}
-	}
-	state.visited[t] = struct{}{}
-
-	return writeCompound(w, t, opts, state)
+type formatter struct {
+	Formatter
+	priority    int
+	visited     map[term.Handle]struct{}
+	prefixMinus bool
+	left, right operator
+	depth       int
 }
 
-func writeVariable(w io.Writer, v term.Handle, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
+	arena := f.Arena
+	t = arena.Deref(t)
+
+	if _, ok := f.visited[t]; ok || (f.MaxDepth > 0 && f.depth > f.MaxDepth) {
+		return f.writeAtom(w, atomEllipses)
+	}
+
+	if _, ok := arena.Variable(t); ok {
+		return f.writeVariable(w, t)
+	}
+
+	if name, ok := arena.Atom(t); ok {
+		return f.writeAtom(w, name)
+	}
+
+	if i, ok := arena.Integer(t); ok {
+		return f.writeInteger(w, i)
+	}
+
+	if fl, ok := arena.Float(t); ok {
+		return f.writeFloat(w, fl)
+	}
+
+	if f.visited == nil {
+		f.visited = map[term.Handle]struct{}{}
+	}
+	f.visited[t] = struct{}{}
+
+	return f.writeCompound(w, t)
+}
+
+func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
+	arena := f.Arena
 	ew := errWriter{w: w}
-	if letterDigit(state.left.name) {
+	if letterDigit(f.left.name) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
-	if name, ok := opts.VariableName[v]; ok {
-		f := *opts
+	if name, ok := f.VariableName[v]; ok {
 		f.Quoted = false
-		_, _ = writeAtom(&ew, name, opts, state)
+		_, _ = f.writeAtom(&ew, name)
 	} else {
-		addr, _ := v.Variable()
+		addr, _ := arena.Variable(v)
 		_, _ = fmt.Fprintf(&ew, "_%d", addr)
 	}
-	if letterDigit(state.right.name) {
+	if letterDigit(f.right.name) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	return ew.Result()
 }
 
-func writeAtom(w io.Writer, name term.Atom, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeAtom(w io.Writer, name term.Atom) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := (state.left != (operator{}) || state.right != (operator{})) && opts.Ops.defined(name)
+	openClose := (f.left != (operator{}) || f.right != (operator{})) && f.Ops.defined(name)
 
 	if openClose {
-		if state.left.name != (term.Atom{}) && state.left.specifier.class() == operatorClassPrefix {
+		if f.left.name != (term.Atom{}) && f.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		state.left, state.right = operator{}, operator{}
+		f.left, f.right = operator{}, operator{}
 	}
 
-	if opts.Quoted && needQuoted(name) {
-		if state.left != (operator{}) && needQuoted(state.left.name) { // Avoid 'FOO''BAR'.
+	if f.Quoted && needQuoted(name) {
+		if f.left != (operator{}) && needQuoted(f.left.name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = ew.Write([]byte(quote(name)))
-		if state.right != (operator{}) && needQuoted(state.right.name) { // Avoid 'FOO''BAR'.
+		if f.right != (operator{}) && needQuoted(f.right.name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 	} else {
-		if (letterDigit(state.left.name) && letterDigit(name)) || (graphic(state.left.name) && graphic(name)) {
+		if (letterDigit(f.left.name) && letterDigit(name)) || (graphic(f.left.name) && graphic(name)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, name)
-		if (letterDigit(state.right.name) && letterDigit(name)) || (graphic(state.right.name) && graphic(name)) {
+		if (letterDigit(f.right.name) && letterDigit(name)) || (graphic(f.right.name) && graphic(name)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 	}
@@ -220,16 +224,16 @@ func graphic(s term.Atom) bool {
 	return r != utf8.RuneError && (isGraphicChar(r) || r == '\\')
 }
 
-func writeInteger(w io.Writer, i int64, _ *Formatter, state formatState) (int64, error) {
+func (f formatter) writeInteger(w io.Writer, i int64) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := state.left.name == atomMinus && state.left.specifier.class() == operatorClassPrefix && i > 0
+	openClose := f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix && i > 0
 
 	if openClose {
 		_, _ = ew.Write([]byte(" ("))
-		state.left = operator{}
-		state.right = operator{}
+		f.left = operator{}
+		f.right = operator{}
 	} else {
-		if state.left != (operator{}) && (letterDigit(state.left.name) || (i < 0 && graphic(state.left.name))) {
+		if f.left != (operator{}) && (letterDigit(f.left.name) || (i < 0 && graphic(f.left.name))) {
 			_, _ = ew.Write([]byte(" "))
 		}
 	}
@@ -242,18 +246,18 @@ func writeInteger(w io.Writer, i int64, _ *Formatter, state formatState) (int64,
 	}
 
 	// Avoid ambiguous 0b, 0o, 0x or 0'.
-	if !openClose && state.right != (operator{}) && (letterDigit(state.right.name) || (needQuoted(state.right.name) && state.right.name != atomComma && state.right.name != atomBar)) {
+	if !openClose && f.right != (operator{}) && (letterDigit(f.right.name) || (needQuoted(f.right.name) && f.right.name != atomComma && f.right.name != atomBar)) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
 	return ew.Result()
 }
 
-func writeFloat(w io.Writer, f float64, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeFloat(w io.Writer, fl float64) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := state.left.name == atomMinus && state.left.specifier.class() == operatorClassPrefix && f > 0
+	openClose := f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix && fl > 0
 
-	if openClose || (f < 0 && state.left != operator{}) {
+	if openClose || (fl < 0 && f.left != operator{}) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
@@ -261,7 +265,7 @@ func writeFloat(w io.Writer, f float64, opts *Formatter, state formatState) (int
 		_, _ = ew.Write([]byte("("))
 	}
 
-	s := strconv.FormatFloat(f, 'g', opts.Precision, 64)
+	s := strconv.FormatFloat(fl, 'g', f.Precision, 64)
 	if !strings.ContainsRune(s, '.') {
 		if strings.ContainsRune(s, 'e') {
 			s = strings.Replace(s, "e", ".0e", 1)
@@ -275,50 +279,51 @@ func writeFloat(w io.Writer, f float64, opts *Formatter, state formatState) (int
 		_, _ = ew.Write([]byte(")"))
 	}
 
-	if !openClose && state.right != (operator{}) && (state.right.name == atomSmallE || state.right.name == atomLargeE) {
+	if !openClose && f.right != (operator{}) && (f.right.name == atomSmallE || f.right.name == atomLargeE) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
 	return ew.Result()
 }
 
-func writeCompound(w io.Writer, t term.Handle, opts *Formatter, state formatState) (int64, error) {
-	f, _ := t.Functor()
-	if f == functorNumberVar && opts.NumberVars {
-		a := t.Arg(0)
-		if n, ok := a.Integer(); ok {
-			return writeCompoundNumberVars(w, n)
+func (f formatter) writeCompound(w io.Writer, t term.Handle) (int64, error) {
+	arena := f.Arena
+	fn, _ := arena.Functor(t)
+	if fn == functorNumberVar && f.NumberVars {
+		a := arena.Arg(t, 0)
+		if n, ok := arena.Integer(a); ok {
+			return f.writeCompoundNumberVars(w, n)
 		}
 	}
 
-	if !opts.IgnoreOps {
-		switch f {
+	if !f.IgnoreOps {
+		switch fn {
 		case functorCons:
-			return writeCompoundList(w, t, opts, state)
+			return f.writeCompoundList(w, t)
 		case functorBlock:
-			return writeCompoundCurlyBracketed(w, t, opts, state)
+			return f.writeCompoundCurlyBracketed(w, t)
 		}
 
-		ops := opts.Ops.ops
-		switch f.Arity() {
+		ops := f.Ops.ops
+		switch fn.Arity() {
 		case 1:
-			if op, ok := ops[opKey{name: f.Name(), opClass: operatorClassPrefix}]; ok {
-				return writeCompoundOpPrefix(w, f.Name(), t.Arg(0), &op, opts, state)
+			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassPrefix}]; ok {
+				return f.writeCompoundOpPrefix(w, fn.Name(), arena.Arg(t, 0), &op)
 			}
-			if op, ok := ops[opKey{name: f.Name(), opClass: operatorClassPostfix}]; ok {
-				return writeCompoundOpPostfix(w, f.Name(), t.Arg(0), &op, opts, state)
+			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassPostfix}]; ok {
+				return f.writeCompoundOpPostfix(w, fn.Name(), arena.Arg(t, 0), &op)
 			}
 		case 2:
-			if op, ok := ops[opKey{name: f.Name(), opClass: operatorClassInfix}]; ok {
-				return writeCompoundOpInfix(w, t.Arg(0), f.Name(), t.Arg(1), &op, opts, state)
+			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassInfix}]; ok {
+				return f.writeCompoundOpInfix(w, arena.Arg(t, 0), fn.Name(), arena.Arg(t, 1), &op)
 			}
 		}
 	}
 
-	return writeCompoundFunctionalNotation(w, f.Name(), t.Args(), opts, state)
+	return f.writeCompoundFunctionalNotation(w, fn.Name(), arena.Args(t))
 }
 
-func writeCompoundNumberVars(w io.Writer, n int64) (int64, error) {
+func (f formatter) writeCompoundNumberVars(w io.Writer, n int64) (int64, error) {
 	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	ew := errWriter{w: w}
 	i, j := int(n)%len(letters), int(n)/len(letters)
@@ -329,66 +334,72 @@ func writeCompoundNumberVars(w io.Writer, n int64) (int64, error) {
 	return ew.Result()
 }
 
-func writeCompoundList(w io.Writer, t term.Handle, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundList(w io.Writer, t term.Handle) (int64, error) {
+	arena := f.Arena
 	ew := errWriter{w: w}
-	state.priority = 999
-	state.left = operator{}
-	state.right = operator{}
+	f.priority = 999
+	f.left = operator{}
+	f.right = operator{}
 	_, _ = fmt.Fprint(&ew, "[")
-	_, _ = writeTerm(&ew, t.Arg(0), opts, state)
-	for elem, ok := range t.Arg(1).List(term.AllowCycle(opts.MaxDepth > state.depth)) {
+	var (
+		car = arena.Arg(t, 0)
+		cdr = arena.Arg(t, 1)
+	)
+	_, _ = f.writeTerm(&ew, car)
+	for elem, ok := range arena.List(cdr, term.AllowCycle(f.MaxDepth > f.depth)) {
 		if !ok {
 			_, _ = fmt.Fprint(&ew, "|")
-			if f, ok := elem.Functor(); ok && f == functorCons {
-				_, _ = writeAtom(&ew, atomEllipses, opts, state)
+			if fn, ok := arena.Functor(elem); ok && fn == functorCons {
+				_, _ = f.writeAtom(&ew, atomEllipses)
 			} else {
-				_, _ = writeTerm(&ew, elem, opts, state)
+				_, _ = f.writeTerm(&ew, elem)
 			}
 			break
 		}
 
-		state.depth++
+		f.depth++
 		_, _ = fmt.Fprint(&ew, ",")
-		_, _ = writeTerm(&ew, elem, opts, state)
+		_, _ = f.writeTerm(&ew, elem)
 	}
 	_, _ = fmt.Fprint(&ew, "]")
 	return ew.Result()
 }
 
-func writeCompoundCurlyBracketed(w io.Writer, t term.Handle, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundCurlyBracketed(w io.Writer, t term.Handle) (int64, error) {
+	arena := f.Arena
 	ew := errWriter{w: w}
-	state.left = operator{}
+	f.left = operator{}
 	_, _ = fmt.Fprint(&ew, "{")
-	_, _ = writeTerm(&ew, t.Arg(0), opts, state)
+	_, _ = f.writeTerm(&ew, arena.Arg(t, 0))
 	_, _ = fmt.Fprint(&ew, "}")
 	return ew.Result()
 }
 
-func writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *operator, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *operator) (int64, error) {
 	ew := errWriter{w: w}
 	_, r := op.bindingPriorities()
-	openClose := state.priority < op.priority || (state.right != operator{} && r >= state.right.priority)
+	openClose := f.priority < op.priority || (f.right != operator{} && r >= f.right.priority)
 
-	if state.left != (operator{}) {
+	if f.left != (operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, "(")
-		state.left = operator{}
-		state.right = operator{}
+		f.left = operator{}
+		f.right = operator{}
 	}
 	{
-		state := state
-		state.left = operator{}
-		state.right = operator{}
-		_, _ = writeAtom(&ew, name, opts, state)
+		f := f
+		f.left = operator{}
+		f.right = operator{}
+		_, _ = f.writeAtom(&ew, name)
 	}
 	{
-		state := state
-		state.priority = r
-		state.left = *op
-		state.depth++
-		_, _ = writeTerm(&ew, arg, opts, state)
+		f := f
+		f.priority = r
+		f.left = *op
+		f.depth++
+		_, _ = f.writeTerm(&ew, arg)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -396,77 +407,77 @@ func writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *ope
 	return ew.Result()
 }
 
-func writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Handle, op *operator, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Handle, op *operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, _ := op.bindingPriorities()
-	openClose := state.priority < op.priority || (state.left.name == atomMinus && state.left.specifier.class() == operatorClassPrefix)
+	openClose := f.priority < op.priority || (f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix)
 
 	if openClose {
-		if state.left != (operator{}) {
+		if f.left != (operator{}) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		state.left = operator{}
-		state.right = operator{}
+		f.left = operator{}
+		f.right = operator{}
 	}
 	{
-		state := state
-		state.priority = l
-		state.right = *op
-		state.depth++
-		_, _ = writeTerm(&ew, arg, opts, state)
+		f := f
+		f.priority = l
+		f.right = *op
+		f.depth++
+		_, _ = f.writeTerm(&ew, arg)
 	}
 	{
-		state := state
-		state.left = operator{}
-		state.right = operator{}
-		_, _ = writeAtom(&ew, name, opts, state)
+		f := f
+		f.left = operator{}
+		f.right = operator{}
+		_, _ = f.writeAtom(&ew, name)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
-	} else if state.right != (operator{}) {
+	} else if f.right != (operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	return ew.Result()
 }
 
-func writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right term.Handle, op *operator, opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right term.Handle, op *operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, r := op.bindingPriorities()
-	openClose := state.priority < op.priority ||
-		(state.left.name == atomMinus && state.left.specifier.class() == operatorClassPrefix) ||
-		(state.right != operator{} && r >= state.right.priority)
+	openClose := f.priority < op.priority ||
+		(f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix) ||
+		(f.right != operator{} && r >= f.right.priority)
 
 	if openClose {
-		if state.left != (operator{}) && state.left.specifier.class() == operatorClassPrefix {
+		if f.left != (operator{}) && f.left.specifier.class() == operatorClassPrefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		state.left = operator{}
-		state.right = operator{}
+		f.left = operator{}
+		f.right = operator{}
 	}
 	{
-		state := state
-		state.priority = l
-		state.right = *op
-		state.depth++
-		_, _ = writeTerm(&ew, left, opts, state)
+		f := f
+		f.priority = l
+		f.right = *op
+		f.depth++
+		_, _ = f.writeTerm(&ew, left)
 	}
 	switch name {
 	case atomComma, atomBar:
 		_, _ = fmt.Fprint(&ew, name)
 	default:
-		state := state
-		state.left = operator{}
-		state.right = operator{}
-		_, _ = writeAtom(&ew, name, opts, state)
+		f := f
+		f.left = operator{}
+		f.right = operator{}
+		_, _ = f.writeAtom(&ew, name)
 	}
 	{
-		state := state
-		state.priority = r
-		state.left = *op
-		state.depth++
-		_, _ = writeTerm(&ew, right, opts, state)
+		f := f
+		f.priority = r
+		f.left = *op
+		f.depth++
+		_, _ = f.writeTerm(&ew, right)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
@@ -474,19 +485,19 @@ func writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right t
 	return ew.Result()
 }
 
-func writeCompoundFunctionalNotation(w io.Writer, name term.Atom, args iter.Seq[term.Handle], opts *Formatter, state formatState) (int64, error) {
+func (f formatter) writeCompoundFunctionalNotation(w io.Writer, name term.Atom, args iter.Seq[term.Handle]) (int64, error) {
 	ew := errWriter{w: w}
-	state.right = operator{}
-	_, _ = writeAtom(&ew, name, opts, state)
+	f.right = operator{}
+	_, _ = f.writeAtom(&ew, name)
 	_, _ = fmt.Fprint(&ew, "(")
-	state.left = operator{}
-	state.priority = 999
-	state.depth++
+	f.left = operator{}
+	f.priority = 999
+	f.depth++
 	for i, a := range withIndex(args) {
 		if i != 0 {
 			_, _ = fmt.Fprint(&ew, ",")
 		}
-		_, _ = writeTerm(&ew, a, opts, state)
+		_, _ = f.writeTerm(&ew, a)
 	}
 	_, _ = fmt.Fprint(&ew, ")")
 	return ew.Result()

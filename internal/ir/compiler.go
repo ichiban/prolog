@@ -48,8 +48,8 @@ type Compiler struct {
 // Compile compiles a sequence of binarized clauses into an intermediate representation of module.
 func (c *Compiler) Compile(ctx context.Context, text string) (*Module, error) {
 	var (
-		h = c.Heap
-		m Module
+		arena = c.Arena
+		m     Module
 	)
 	for t, err := range c.clauses(ctx, text) {
 		if err != nil {
@@ -64,7 +64,7 @@ func (c *Compiler) Compile(ctx context.Context, text string) (*Module, error) {
 		if err != nil {
 			return nil, err
 		}
-		cont, err := h.PutVariable()
+		cont, err := arena.PutVariable()
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +115,7 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 		}
 
 		for clause, err := range syntax.Parse(text,
-			syntax.Heap(c.Heap),
+			syntax.Arena(c.Arena),
 			syntax.Operators(c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),
 		) {
@@ -145,9 +145,9 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 
 // Rule turns a term to a form of H :- B.
 func (c *Compiler) Rule(t term.Handle) (head, body term.Handle, err error) {
-	f, ok := t.Functor()
+	f, ok := c.Functor(t)
 	if ok && f == functorRule {
-		return t.Arg(0), t.Arg(1), nil
+		return c.Arg(t, 0), c.Arg(t, 1), nil
 	}
 	b, _ := c.PutAtom(atomTrue) // Always succeeds.
 	return t, b, nil
@@ -160,7 +160,7 @@ func (c *Compiler) ReplaceBody(goal term.Handle) (term.Handle, error) {
 	}
 
 	// X -> call(X)
-	if _, ok := goal.Variable(); ok {
+	if _, ok := c.Variable(goal); ok {
 		return c.PutCompound(atomCall, goal)
 	}
 
@@ -192,37 +192,37 @@ func (c *Compiler) ReplaceBody(goal term.Handle) (term.Handle, error) {
 func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 	// ! -> '$cut_to'('$cut')
 	// TODO: I don't know what it does. Do we really need this?
-	if a, ok := goal.Atom(); ok && a == atomCut {
+	if a, ok := c.Atom(goal); ok && a == atomCut {
 		sentinel, _ := c.PutAtom(atomCutSentinel) // Always succeeds.
 		return c.PutCompound(atomCutTo, sentinel)
 	}
 
 	// var(X) -> fail if known
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("var"), 1) {
-		x := goal.Arg(0)
-		if _, ok := x.Variable(); ok {
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("var"), 1) {
+		x := c.Arg(goal, 0)
+		if _, ok := c.Variable(x); ok {
 			return goal, nil
 		}
 		return c.PutAtom(atomFail)
 	}
 
 	// nonvar(X) -> true if known
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("nonvar"), 1) {
-		x := goal.Arg(0)
-		if _, ok := x.Variable(); ok {
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("nonvar"), 1) {
+		x := c.Arg(goal, 0)
+		if _, ok := c.Variable(x); ok {
 			return goal, nil
 		}
 		return c.PutAtom(atomTrue)
 	}
 
 	// atomic(X) -> true/fail if known
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("atomic"), 1) {
-		x := goal.Arg(0)
-		if _, ok := x.Variable(); ok {
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("atomic"), 1) {
+		x := c.Arg(goal, 0)
+		if _, ok := c.Variable(x); ok {
 			return goal, nil
 		}
 		a := atomTrue
-		if _, ok := x.Functor(); ok {
+		if _, ok := c.Functor(x); ok {
 			a = atomFail
 		}
 		return c.PutAtom(a)
@@ -231,20 +231,20 @@ func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 	// TODO: No compound(X)/atom(X)/integer(X)/float(X) -> true/fail if known?
 
 	// A,B -> traverseConjunction
-	if f, ok := goal.Functor(); ok && f == functorAnd {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == functorAnd {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		return c.traverseConjunction(a, b)
 	}
 
 	// A;B -> replaceDisjunction
-	if f, ok := goal.Functor(); ok && f == functorOr {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == functorOr {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		return c.replaceDisjunction(a, b)
 	}
 
 	// A->B -> ReplaceBody(A)->ReplaceBody(B)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(atomIfThen, 2) {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(atomIfThen, 2) {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		a, err := c.ReplaceBody(a)
 		if err != nil {
 			return term.Handle{}, err
@@ -253,26 +253,26 @@ func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(a, b)
+		return c.WithArgs(goal, a, b)
 	}
 
 	// A==B -> compare(=, A, B)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("=="), 2) {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("=="), 2) {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		r, _ := c.PutAtom(term.NewAtomRune('=')) // Always succeeds.
 		return c.PutCompound(atomCompare, r, a, b)
 	}
 
 	// A@<B -> compare(<, A, B)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("@<"), 2) {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("@<"), 2) {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		r, _ := c.PutAtom(term.NewAtomRune('<')) // Always succeeds.
 		return c.PutCompound(atomCompare, r, a, b)
 	}
 
 	// A@>B -> compare(>, A, B)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("@>"), 2) {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("@>"), 2) {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		r, _ := c.PutAtom(term.NewAtomRune('>')) // Always succeeds.
 		return c.PutCompound(atomCompare, r, a, b)
 	}
@@ -281,53 +281,53 @@ func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 	// TODO: Do we really need to implement this?
 
 	// findall(X, G, Xs) -> findall(X, replaceGoal(G), Xs)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("findall"), 3) {
-		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("findall"), 3) {
+		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoal(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(x, g, xs)
+		return c.WithArgs(goal, x, g, xs)
 	}
 
 	// bagof(X, G, Xs) -> bagof(X, replaceGoalWithEV(G), Xs)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("bagof"), 3) {
-		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("bagof"), 3) {
+		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoalWithEV(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(x, g, xs)
+		return c.WithArgs(goal, x, g, xs)
 	}
 
 	// setof(X, G, Xs) -> setof(X, replaceGoalWithEV(G), Xs)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("setof"), 3) {
-		x, g, xs := goal.Arg(0), goal.Arg(1), goal.Arg(2)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("setof"), 3) {
+		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoalWithEV(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(x, g, xs)
+		return c.WithArgs(goal, x, g, xs)
 	}
 
 	// call(G) -> call(ReplaceBody(G))
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom("call"), 1) {
-		g := goal.Arg(0)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("call"), 1) {
+		g := c.Arg(goal, 0)
 		g, err := c.ReplaceBody(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(g)
+		return c.WithArgs(goal, g)
 	}
 
 	// \+G -> \+ReplaceBody(G)
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtom(`\+`), 1) {
-		g := goal.Arg(0)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom(`\+`), 1) {
+		g := c.Arg(goal, 0)
 		g, err := c.ReplaceBody(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(g)
+		return c.WithArgs(goal, g)
 	}
 
 	return term.Handle{}, errUnhandled
@@ -335,13 +335,13 @@ func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 
 func (c *Compiler) replaceGoal(goal term.Handle) (term.Handle, error) {
 	// X -> call(X)
-	if _, ok := goal.Variable(); ok {
+	if _, ok := c.Variable(goal); ok {
 		return c.PutCompound(atomCall, goal)
 	}
 
 	// A,B ->
-	if f, ok := goal.Functor(); ok && f == functorAnd {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == functorAnd {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		g, err := c.traverseConjunction(a, b)
 		if err != nil {
 			return term.Handle{}, err
@@ -357,8 +357,8 @@ func (c *Compiler) replaceGoal(goal term.Handle) (term.Handle, error) {
 	}
 
 	// A;B ->
-	if f, ok := goal.Functor(); ok && f == functorOr {
-		a, b := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == functorOr {
+		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		return c.replaceDisjunction1(a, b)
 	}
 
@@ -368,13 +368,13 @@ func (c *Compiler) replaceGoal(goal term.Handle) (term.Handle, error) {
 
 func (c *Compiler) replaceGoalWithEV(goal term.Handle) (term.Handle, error) {
 	// X^G where X is an Existential Variable.
-	if f, ok := goal.Functor(); ok && f == term.NewFunctor(term.NewAtomRune('^'), 2) {
-		x, g := goal.Arg(0), goal.Arg(1)
+	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtomRune('^'), 2) {
+		x, g := c.Arg(goal, 0), c.Arg(goal, 1)
 		g, err := c.replaceGoalWithEV(g)
 		if err != nil {
 			return term.Handle{}, err
 		}
-		return goal.WithArgs(x, g)
+		return c.WithArgs(goal, x, g)
 	}
 
 	return c.replaceGoal(goal)
@@ -382,7 +382,7 @@ func (c *Compiler) replaceGoalWithEV(goal term.Handle) (term.Handle, error) {
 
 func (c *Compiler) traverseConjunction(a, b term.Handle) (term.Handle, error) {
 	var err error
-	if _, ok := a.Variable(); ok {
+	if _, ok := c.Variable(a); ok {
 		a, err = c.ReplaceBody(a)
 		if err != nil {
 			return term.Handle{}, err
@@ -413,7 +413,7 @@ func (c *Compiler) traverseConjunction(a, b term.Handle) (term.Handle, error) {
 
 func (c *Compiler) replaceDisjunction(a, b term.Handle) (term.Handle, error) {
 	// Avoid replacing cut.
-	if !cutFree(a) || !cutFree(b) {
+	if !c.cutFree(a) || !c.cutFree(b) {
 		return c.traverseDisjunction(a, b)
 	}
 
@@ -450,24 +450,24 @@ func (c *Compiler) compileLater(head, body term.Handle) error {
 	return nil
 }
 
-func cutFree(t term.Handle) bool {
-	if a, ok := t.Atom(); ok && a == term.NewAtomRune('!') {
+func (c *Compiler) cutFree(t term.Handle) bool {
+	if a, ok := c.Atom(t); ok && a == term.NewAtomRune('!') {
 		return false
 	}
-	switch f, _ := t.Functor(); f {
+	switch f, _ := c.Functor(t); f {
 	case functorAnd,
 		functorOr,
 		functorIfThen:
-		l, r := t.Arg(0), t.Arg(1)
-		return cutFree(l) && cutFree(r)
+		l, r := c.Arg(t, 0), c.Arg(t, 1)
+		return c.cutFree(l) && c.cutFree(r)
 	}
 	return true
 }
 
 func (c *Compiler) traverseDisjunction(a, b term.Handle) (term.Handle, error) {
 	// A->C;B -> $if(A, C, B)
-	if f, ok := a.Functor(); ok && f == functorIfThen {
-		a, d := a.Arg(0), a.Arg(1)
+	if f, ok := c.Functor(a); ok && f == functorIfThen {
+		a, d := c.Arg(a, 0), c.Arg(a, 1)
 		a, err := c.ReplaceBody(a)
 		if err != nil {
 			return term.Handle{}, err
@@ -492,25 +492,25 @@ func (c *Compiler) traverseDisjunction(a, b term.Handle) (term.Handle, error) {
 }
 
 func (c *Compiler) makeNewHead(t term.Handle) (term.Handle, error) {
-	vs := term.VariableSet(t)
+	vs := c.VariableSet(t)
 	c.counter++
 	return c.PutCompound(term.NewAtom(fmt.Sprintf("$aux%d", c.counter)), vs...)
 }
 
 func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 	return func(yield func(term.Handle, error) bool) {
-		switch f, _ := t.Functor(); f {
+		switch f, _ := c.Functor(t); f {
 		case functorOr:
-			a, b := t.Arg(0), t.Arg(1)
+			a, b := c.Arg(t, 0), c.Arg(t, 1)
 			var err error
-			if _, ok := a.Variable(); ok {
+			if _, ok := c.Variable(a); ok {
 				a, err = c.PutCompound(term.NewAtom("call"), a)
 				if err != nil {
 					_ = yield(term.Handle{}, err)
 					return
 				}
 			}
-			if _, ok := b.Variable(); ok {
+			if _, ok := c.Variable(b); ok {
 				b, err = c.PutCompound(term.NewAtom("call"), b)
 				if err != nil {
 					_ = yield(term.Handle{}, err)
@@ -528,7 +528,7 @@ func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 				}
 			}
 		case functorAnd:
-			a, b := t.Arg(0), t.Arg(1)
+			a, b := c.Arg(t, 0), c.Arg(t, 1)
 			var err error
 			a, err = c.ReplaceBody(a)
 			if err != nil {
@@ -570,11 +570,11 @@ func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 // Binarize turns a clause p :- q, r into p(C) :- q(r(C)).
 func (c *Compiler) Binarize(head, body, cont term.Handle) (neaHead term.Handle, neaBody term.Handle, _ error) {
 	var err error
-	hf, ok := head.Functor(term.AllowAtom(true))
+	hf, ok := c.Functor(head, term.AllowAtom(true))
 	if !ok {
 		return term.Handle{}, term.Handle{}, errUnhandled
 	}
-	args := slices.Collect(head.Args())
+	args := slices.Collect(c.Args(head))
 	args = append(args, cont)
 	head, err = c.PutCompound(hf.Name(), args...)
 	if err != nil {
@@ -585,9 +585,9 @@ func (c *Compiler) Binarize(head, body, cont term.Handle) (neaHead term.Handle, 
 }
 
 func (c *Compiler) addCont(goal, cont term.Handle) (term.Handle, error) {
-	if f, ok := goal.Functor(); ok && f == functorAnd {
-		x, y := goal.Arg(0), goal.Arg(1)
-		if a, ok := x.Atom(); ok {
+	if f, ok := c.Functor(goal); ok && f == functorAnd {
+		x, y := c.Arg(goal, 0), c.Arg(goal, 1)
+		if a, ok := c.Atom(x); ok {
 			switch a {
 			case atomTrue:
 				return c.addCont(y, cont)
@@ -599,30 +599,30 @@ func (c *Compiler) addCont(goal, cont term.Handle) (term.Handle, error) {
 		if err != nil {
 			return term.Handle{}, err
 		}
-		f, ok := x.Functor(term.AllowAtom(true))
+		f, ok := c.Functor(x, term.AllowAtom(true))
 		if !ok {
 			return term.Handle{}, errUnhandled
 		}
-		args := slices.Collect(x.Args())
+		args := slices.Collect(c.Args(x))
 		args = append(args, y)
 		return c.PutCompound(f.Name(), args...)
 	}
-	f, ok := goal.Functor(term.AllowAtom(true))
+	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		return term.Handle{}, errUnhandled
 	}
-	args := slices.Collect(goal.Args())
+	args := slices.Collect(c.Args(goal))
 	args = append(args, cont)
 	return c.PutCompound(f.Name(), args...)
 }
 
 func (c *Compiler) splitOp(out *[]term.Handle, goal term.Handle) error {
-	f, ok := goal.Functor(term.AllowAtom(true))
+	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		return errUnhandled
 	}
 
-	a, b := goal.Arg(0), goal.Arg(1)
+	a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 
 	switch f {
 	case term.NewFunctor(term.NewAtom("is"), 2):
@@ -645,7 +645,7 @@ func (c *Compiler) splitOp(out *[]term.Handle, goal term.Handle) error {
 }
 
 func (c *Compiler) splitIsRel(out *[]term.Handle, x, b term.Handle) error {
-	if _, ok := b.Variable(); ok {
+	if _, ok := c.Variable(b); ok {
 		t, err := c.PutCompound(term.NewAtom("$expr"), b, x)
 		if err != nil {
 			return err
@@ -655,7 +655,7 @@ func (c *Compiler) splitIsRel(out *[]term.Handle, x, b term.Handle) error {
 		return nil
 	}
 
-	if _, ok := b.Functor(term.AllowAtom(true)); !ok {
+	if _, ok := c.Functor(b, term.AllowAtom(true)); !ok {
 		zero, err := c.PutInteger(0)
 		if err != nil {
 			return err
@@ -672,7 +672,7 @@ func (c *Compiler) splitIsRel(out *[]term.Handle, x, b term.Handle) error {
 }
 
 func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
-	if _, ok := a.Variable(); ok {
+	if _, ok := c.Variable(a); ok {
 		t, err := c.PutCompound(term.NewAtom("$expr"), a, x)
 		if err != nil {
 			return err
@@ -681,7 +681,7 @@ func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
 		return nil
 	}
 
-	f, ok := a.Functor(term.AllowAtom(true))
+	f, ok := c.Functor(a, term.AllowAtom(true))
 	if !ok {
 		t, err := c.PutCompound(term.NewAtomRune('='), x, a)
 		if err != nil {
@@ -698,7 +698,7 @@ func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
 			return err
 		}
 		args[i] = v
-		if err := c.splitIs(out, v, a.Arg(i)); err != nil {
+		if err := c.splitIs(out, v, c.Arg(a, i)); err != nil {
 			return err
 		}
 	}
