@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -86,6 +87,10 @@ type formatter struct {
 func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
 	arena := f.Arena
 	t = arena.Deref(t)
+
+	if t == (term.Handle{}) {
+		return 0, errors.New("invalid term")
+	}
 
 	if _, ok := f.visited[t]; ok || (f.MaxDepth > 0 && f.depth > f.MaxDepth) {
 		return f.writeAtom(w, atomEllipses)

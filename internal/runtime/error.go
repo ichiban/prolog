@@ -47,50 +47,55 @@ func (e *SyntaxError) Error() string {
 
 // TypeError is an error that signifies an incorrect type.
 type TypeError struct {
+	Arena     *term.Arena
 	ValidType string
 	Culprit   term.Handle
 }
 
 func (e *TypeError) Error() string {
-	return fmt.Sprintf("invalid type: expected %s, got %s", e.ValidType, &syntax.Formatter{Term: e.Culprit})
+	return fmt.Sprintf("invalid type: expected %s, got %s", e.ValidType, &syntax.Formatter{Arena: e.Arena, Term: e.Culprit})
 }
 
 // DomainError is an error that signifies an incorrect value.
 type DomainError struct {
+	Arena       *term.Arena
 	ValidDomain string
 	Culprit     term.Handle
 }
 
 func (e *DomainError) Error() string {
-	return fmt.Sprintf("invalid domain: expected %s, got %s", e.ValidDomain, &syntax.Formatter{Term: e.Culprit})
+	return fmt.Sprintf("invalid domain: expected %s, got %s", e.ValidDomain, &syntax.Formatter{Arena: e.Arena, Term: e.Culprit})
 }
 
 // PermissionError is an error that signifies a disallowed operation.
 type PermissionError struct {
+	Arena          *term.Arena
 	Operation      string
 	PermissionType string
 	Culprit        term.Handle
 }
 
 func (e *PermissionError) Error() string {
-	return fmt.Sprintf("disallowed operation %s on %s: %s", e.PermissionType, e.Operation, &syntax.Formatter{Term: e.Culprit})
+	return fmt.Sprintf("disallowed operation %s on %s: %s", e.PermissionType, e.Operation, &syntax.Formatter{Arena: e.Arena, Term: e.Culprit})
 }
 
 // ExistenceError is an error that signifies nonexistence of an object.
 type ExistenceError struct {
+	Arena      *term.Arena
 	ObjectType string
 	Culprit    term.Handle
 }
 
 func (e *ExistenceError) Error() string {
-	return fmt.Sprintf("%s does not exist: %s", e.ObjectType, &syntax.Formatter{Term: e.Culprit})
+	return fmt.Sprintf("%s does not exist: %s", e.ObjectType, &syntax.Formatter{Arena: e.Arena, Term: e.Culprit})
 }
 
 // UninstantiationError is an error that signifies a term is non-variable.
 type UninstantiationError struct {
+	Arena   *term.Arena
 	Culprit term.Handle
 }
 
 func (u *UninstantiationError) Error() string {
-	return fmt.Sprintf("uninstantiation error: %s", &syntax.Formatter{Term: u.Culprit})
+	return fmt.Sprintf("uninstantiation error: %s", &syntax.Formatter{Arena: u.Arena, Term: u.Culprit})
 }

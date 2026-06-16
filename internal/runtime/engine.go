@@ -2,8 +2,10 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"iter"
 
+	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
@@ -11,12 +13,14 @@ import (
 
 type Engine struct {
 	*term.Arena
-	Image        *wam.Image
-	Ops          *syntax.OperatorSet
-	DoubleQuotes syntax.DoubleQuotes
+	wam.Image
+	BuiltinSet
+
 	Module       term.Atom
-	BuiltinIndex map[term.Functor]int
-	Builtins     []Builtin
+	DoubleQuotes syntax.DoubleQuotes
+	Ops          *syntax.OperatorSet
+
+	OnDiscontiguous func(pi term.Functor) error
 }
 
 func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
@@ -30,205 +34,246 @@ func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, erro
 	return t, nil // TODO: Implement this!
 }
 
-/*
-	func (e *Engine) Run(ctx context.Context) iter.Seq[error] {
-		return func(yield func(error) bool) {
-			for e.programPointer < len(e.image.Code) {
-				switch inst := e.image.Code[e.programPointer]; inst.OpCode {
-				case wam.OpNop: // nop
-					e.programPointer++
-				case wam.OpPutVariable:
-
-				case wam.OpPutStructure: // put_structure f/n, Xi
-					f := e.image.Functors[inst.N]
-					s, err := e.heap.putFunctor(f)
-					if err != nil {
-						_ = yield(err)
-						return
-					}
-					e.tempVars[inst.I] = s
-					e.programPointer++
-				case wam.OpGetStructure: // get_structure f/n, Xi
-					f := e.image.Functors[inst.N]
-					t := e.tempVars[inst.I].Deref()
-					if _, ok := t.Variable(); ok {
-						s, err := e.heap.putFunctor(f)
-						if err != nil {
-							_ = yield(err)
-							return
-						}
-						if err := t.Bind(s); err != nil {
-							_ = yield(err)
-							return
-						}
-						e.mode = wam.ModeWrite
-					}
-					switch t.tag {
-					case termTagReference:
-						id, err := e.put(cast[Term, word](f))
-						if err != nil {
-							_ = yield(err)
-							return
-						}
-						ok, err := e.bind(t, Term{tag: termTagStructure, value: id}, false)
-						if err != nil {
-							_ = yield(err)
-							return
-						}
-						if !ok {
-							return
-						}
-						e.mode = wam.ModeWrite
-					case termTagStructure:
-						e.structurePointer = int(t.value + 1)
-						e.mode = wam.ModeRead
-						fallthrough
-					default: // Atomic term.
-						if cast[word, Term](e.heap[t.value]) != f {
-							return
-						}
-					}
-					e.programPointer++
-				case wam.OpUnifyVariable: // unify_variable Xi
-					if e.mode == wam.ModeRead {
-						e.tempVars[inst.i] = cast[word, Term](e.heap[e.structurePointer])
-						e.structurePointer++
-						e.programPointer++
-						break
-					}
-					fallthrough
-				case wam.OpWriteVariable: // write_variable Xi
-					t, _ := e.PutVariable()
-					e.tempVars[inst.i] = t
-					e.programPointer++
-				case wam.OpUnifyValue: // unify_value Xi
-					if e.mode == wam.ModeRead {
-						ok, err := e.Unify(e.tempVars[inst.i], cast[word, Term](e.heap[e.structurePointer]))
-						if err != nil {
-							_ = yield(err)
-							return
-						}
-						if !ok {
-							if err := e.backtrack(); err != nil {
-								_ = yield(err)
-								return
-							}
-						}
-						e.structurePointer++
-						e.programPointer++
-						break
-					}
-					fallthrough
-				case wam.OpWriteValue: // write_value Xi
-					if _, err := e.put(cast[Term, word](e.tempVars[inst.i])); err != nil {
-						_ = yield(err)
-						return
-					}
-					e.programPointer++
-				case wam.OpExecute: // execute P
-					e.b0 = len(e.stack) - 1
-					e.programPointer = int(inst.n)
-				case wam.OpBuiltin: // builtin ID
-					e.execBuiltin(ctx, int(inst.n))
-				case wam.OpProceed: // proceed
-					if !yield(nil) {
-						return
-					}
-					if err := e.backtrack(); err != nil {
-						_ = yield(err)
-						return
-					}
-				case wam.OpTryMeElse: // try_me_else L
-					f := stackFrame{
-						programPointer: int(inst.n),
-						heapTop:        len(e.heap),
-						trailTop:       e.TrailTop(),
-						numOfArgs:      e.numOfArgs,
-					}
-					copy(f.args(), e.args())
-					e.stack = append(e.stack, f)
-					e.heapBacktrackPoint = len(e.heap)
-					e.programPointer++
-				case wam.OpRetryMeElse: // retry_me_else L
-					frame := &e.stack[len(e.stack)-1]
-					e.numOfArgs = frame.numOfArgs
-					copy(e.args(), frame.args())
-					frame.programPointer = int(inst.n)
-					e.Unwind(frame.trailTop)
-					e.heap = e.heap[:frame.heapTop]
-					e.heapBacktrackPoint = len(e.heap)
-					e.programPointer++
-				case wam.OpTrustMe: // trust_me
-					frame := &e.stack[len(e.stack)-1]
-					e.numOfArgs = frame.numOfArgs
-					copy(e.args(), frame.args())
-					e.Unwind(frame.trailTop)
-					e.heap = e.heap[:frame.heapTop]
-					e.heapBacktrackPoint = frame.heapTop
-					e.programPointer++
-				case wam.OpMove: // move Xi<-Xn
-					e.tempVars[inst.i] = e.tempVars[inst.n]
-					e.programPointer++
-				case wam.OpNondet: // nondet
-					// TODO: Don't know what to do. No-op for now.
-					e.programPointer++
-				case wam.OpSwitch: // switch
-					// TODO: Implement later.
-					e.programPointer++
-				case wam.OpPushCut: // push_cut
-					if _, err := e.PutInteger(int64(e.cutB)); err != nil {
-						_ = yield(err)
-						return
-					}
-					e.programPointer++
-				case wam.OpPutCut: // put_cut
-					e.stack = e.stack[:e.cutB]
-					e.programPointer++
-				case wam.OpGetCut: // get_cut Xi
-					t := e.Deref(e.tempVars[inst.i])
-					n, err := e.Integer(t)
-					if err != nil {
-						_ = yield(err)
-						return
-					}
-					e.stack = e.stack[:n]
-					e.programPointer++
-				}
-			}
-			_ = yield(errors.New("invalid end of code"))
-			return
+func (e *Engine) LoadModule(module *ir.Module) error {
+	if e.OnDiscontiguous == nil {
+		e.OnDiscontiguous = func(pi term.Functor) error {
+			return nil
 		}
 	}
-*/
 
-type State struct {
-	programPointer int // P
+	if len(e.Code) == 0 {
+		e.Predicates = map[term.Functor]wam.Predicate{
+			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
+		}
+		e.Code = append(e.Code, []wam.Instruction{
+			{Op: wam.OpProceed},
+		}...)
+	}
 
-	stack []stackFrame // A
+	var (
+		current term.Functor
+		last    int
+	)
+	for i, clause := range module.Clauses {
+		pi := clause.PI
+		switch _, ok := e.Predicates[pi]; {
+		case !ok: // The 1st clause.
+			current = pi
+			e.Predicates[pi] = wam.Predicate{
+				Offset: len(e.Code),
+			}
 
-	trail []term.Handle // TR
-	heap  *term.Heap    // H
+			if i > 0 {
+				// The last predicate needs to be closed.
+				if err := e.closePredicate(last); err != nil {
+					return err
+				}
+			}
 
-	heapBacktrackPoint int // HB
-	structurePointer   int // S
+			// First argument index.
+			fa := clause.FirstArg
+			key := wam.FirstArgKey{
+				PI:    pi,
+				Term:  fa.Term,
+				Arity: fa.Arity,
+			}
+			if _, ok := e.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
+				e.Code = append(e.Code, wam.Instruction{
+					Op: wam.OpNondet,
+				})
+			} else {
+				e.FirstArgIndex[key] = len(e.Code)
+				e.Code = append(e.Code, wam.Instruction{
+					Op: wam.OpSwitch,
+					N:  uint16(pi),
+				})
+			}
 
-	tempVars  [256]term.Handle // Xn
-	numOfArgs int              // An = tempVars[:numOfArgs]
+			e.Code = append(e.Code, wam.Instruction{
+				Op: wam.OpTryMeElse,
+				I:  uint8(pi.Arity()),
+			})
+		case pi != current: // A discontiguous clause.
+			if err := e.OnDiscontiguous(pi); err != nil {
+				return err
+			}
+			current = pi
+			fallthrough
+		default:
+			e.Code = append(e.Code, wam.Instruction{
+				Op: wam.OpRetryMeElse,
+				I:  uint8(pi.Arity()),
+			})
+		}
+		last = len(e.Code) - 1
 
-	mode wam.Mode
+		if clause.MaxRegs >= maxRegisters {
+			return errors.New("not enough registers")
+		}
+
+		for _, inst := range clause.Code {
+			switch op := convertOp(inst); op {
+			case wam.OpLoadVariable, wam.OpPutVariable, wam.OpGetValue, wam.OpLoadValue:
+				e.Code = append(e.Code, wam.Instruction{
+					Op: op,
+					I:  uint8(inst.A.Index),
+					N:  uint16(inst.B.Index),
+				})
+			case wam.OpGetStructure, wam.OpPutStructure, wam.OpPushStructure:
+				fid := len(e.Functors)
+				e.Functors = append(e.Functors, term.Functor(inst.B.Index))
+				e.Code = append(e.Code, wam.Instruction{
+					Op: op,
+					I:  uint8(inst.A.Index),
+					N:  uint16(fid),
+				})
+			case wam.OpUnifyVariable, wam.OpUnifyValue, wam.OpWriteVariable, wam.OpWriteValue:
+				e.Code = append(e.Code, wam.Instruction{
+					Op: op,
+					I:  uint8(inst.A.Index),
+				})
+			case wam.OpLoadConstant, wam.OpGetConstant, wam.OpPutConstant, wam.OpUnifyConstant, wam.OpWriteConstant:
+				cid := len(e.Constants)
+				e.Constants = append(e.Constants, inst.B.Term)
+				e.Code = append(e.Code, wam.Instruction{
+					Op: op,
+					I:  uint8(inst.A.Index),
+					N:  uint16(cid),
+				})
+			case wam.OpGetVariable:
+				e.Code = append(e.Code, wam.Instruction{
+					Op: wam.OpMove,
+					I:  uint8(inst.A.Index),
+					N:  uint16(inst.B.Index),
+				})
+			case wam.OpPutValue:
+				e.Code = append(e.Code, wam.Instruction{
+					Op: wam.OpMove,
+					I:  uint8(inst.B.Index),
+					N:  uint16(inst.A.Index),
+				})
+			default:
+				e.Code = append(e.Code, wam.Instruction{
+					Op: op,
+					N:  uint16(inst.A.Index),
+				})
+			}
+		}
+
+		fid := len(e.Functors)
+		e.Functors = append(e.Functors, clause.Execute)
+		e.Code = append(e.Code, wam.Instruction{
+			Op: wam.OpExecute,
+			N:  uint16(fid),
+		})
+	}
+
+	return e.closePredicate(last)
 }
 
-type stackFrame struct {
-	programPointer int              // P, next clause address
-	heapTop        int              // H, saved top of the heap
-	trailTop       int              // TR, saved top of the trail
-	tempVars       [256]term.Handle // The backing array to save An
-	numOfArgs      int
-
-	next func() (error, bool) // for built-in predicates
-	stop func()               // for built-in predicates
+func (e *Engine) closePredicate(last int) error {
+	switch e.Code[last].Op {
+	case wam.OpTryMeElse: // The last predicate has only one clause.
+		copy(e.Code[last-1:last+1], []wam.Instruction{
+			{Op: wam.OpNop}, // Replacing wam.OpSwitch/wam.OpNondet
+			{Op: wam.OpNop}, // Replacing wam.OpTryMeElse
+		})
+	case wam.OpRetryMeElse:
+		e.Code[last].Op = wam.OpTrustMe
+	default:
+		return errors.New("invalid instruction")
+	}
+	return nil
 }
 
-func (f *stackFrame) args() []term.Handle {
-	return f.tempVars[:f.numOfArgs:f.numOfArgs]
+func convertOp(inst ir.Instruction) wam.OpCode {
+	type key struct {
+		op  ir.OpCode
+		typ ir.Type
+	}
+	switch (key{op: inst.OpCode, typ: inst.Type}) {
+	case key{op: ir.OpPut, typ: ir.TypeVariable}:
+		return wam.OpPutVariable
+	case key{op: ir.OpPut, typ: ir.TypeValue}:
+		return wam.OpPutValue
+	case key{op: ir.OpPut, typ: ir.TypeStructure}:
+		return wam.OpPutStructure
+	case key{op: ir.OpPut, typ: ir.TypeConstant}:
+		return wam.OpPutConstant
+	case key{op: ir.OpPut, typ: ir.TypeCut}:
+		return wam.OpPutCut
+	case key{op: ir.OpGet, typ: ir.TypeVariable}:
+		return wam.OpGetVariable
+	case key{op: ir.OpGet, typ: ir.TypeValue}:
+		return wam.OpGetValue
+	case key{op: ir.OpGet, typ: ir.TypeStructure}:
+		return wam.OpGetStructure
+	case key{op: ir.OpGet, typ: ir.TypeConstant}:
+		return wam.OpGetConstant
+	case key{op: ir.OpGet, typ: ir.TypeCut}:
+		return wam.OpGetCut
+	case key{op: ir.OpUnify, typ: ir.TypeVariable}:
+		return wam.OpUnifyVariable
+	case key{op: ir.OpUnify, typ: ir.TypeValue}:
+		return wam.OpUnifyValue
+	case key{op: ir.OpUnify, typ: ir.TypeConstant}:
+		return wam.OpUnifyConstant
+	case key{op: ir.OpWrite, typ: ir.TypeVariable}:
+		return wam.OpWriteVariable
+	case key{op: ir.OpWrite, typ: ir.TypeValue}:
+		return wam.OpWriteValue
+	case key{op: ir.OpWrite, typ: ir.TypeConstant}:
+		return wam.OpWriteConstant
+	case key{op: ir.OpLoad, typ: ir.TypeVariable}:
+		return wam.OpLoadVariable
+	case key{op: ir.OpLoad, typ: ir.TypeValue}:
+		return wam.OpLoadValue
+	case key{op: ir.OpLoad, typ: ir.TypeConstant}:
+		return wam.OpLoadConstant
+	case key{op: ir.OpPush, typ: ir.TypeStructure}:
+		return wam.OpPushStructure
+	case key{op: ir.OpPush, typ: ir.TypeCut}:
+		return wam.OpPushCut
+	case key{op: ir.OpBuiltin, typ: ir.TypeNotApplicable}, key{op: ir.OpInline, typ: ir.TypeNotApplicable}, key{op: ir.OpArithmetic, typ: ir.TypeNotApplicable}:
+		return wam.OpBuiltin0 + wam.OpCode(inst.A.Index)
+	default:
+		return wam.OpNop
+	}
+}
+
+func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Seq[error]) {
+
+}
+
+func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
+	pi := term.NewFunctor(term.NewAtom("call"), 2)
+	t, err := e.PutAtom(term.NewAtom("true"))
+	if err != nil {
+		return func(yield func(error) bool) {
+			_ = yield(err)
+		}
+	}
+	p, ok := e.Predicates[pi]
+	if !ok {
+		return func(yield func(error) bool) {
+			pi := term.NewFunctor(pi.Name(), pi.Arity()-1)
+			culprit, err := e.PutFunctor(pi)
+			if err != nil {
+				_ = yield(err)
+				return
+			}
+			_ = yield(&ExistenceError{
+				Arena:      e.Arena,
+				ObjectType: "procedure",
+				Culprit:    culprit,
+			})
+		}
+	}
+	exec := Execution{
+		Engine:         e,
+		programPointer: p.Offset,
+	}
+	exec.tempVars[0] = goal
+	exec.tempVars[1] = t
+	return exec.run(ctx)
 }

@@ -167,18 +167,21 @@ func (a *Arena) PutCompound(name Atom, args ...Handle) (Handle, error) {
 	}
 
 	f := NewFunctor(name, len(args))
-	ret, err := a.putFunctor(f)
+	ret, err := a.PutStructure(f)
 	if err != nil {
 		return Handle{}, err
 	}
-	if _, err := a.putTerms(args...); err != nil {
+	if _, err := a.Put(args...); err != nil {
 		return Handle{}, err
 	}
 	return ret, nil
 }
 
 func (a *Arena) PutCompoundWithFreshVars(f Functor) (Handle, error) {
-	ret, err := a.putFunctor(f)
+	if f.Arity() == 0 {
+		return a.PutAtom(f.Name())
+	}
+	ret, err := a.PutStructure(f)
 	if err != nil {
 		return Handle{}, err
 	}
@@ -188,6 +191,18 @@ func (a *Arena) PutCompoundWithFreshVars(f Functor) (Handle, error) {
 		}
 	}
 	return ret, nil
+}
+
+func (a *Arena) PutFunctor(f Functor) (Handle, error) {
+	name, err := a.PutAtom(f.Name())
+	if err != nil {
+		return Handle{}, err
+	}
+	arity, err := a.PutInteger(int64(f.Arity()))
+	if err != nil {
+		return Handle{}, err
+	}
+	return a.PutCompound(NewAtomRune('/'), name, arity)
 }
 
 // PutList creates a series of compound terms for a list.
@@ -205,14 +220,14 @@ func (a *Arena) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 	// CDR coding
 	addr := int32(len(a.Heap))
 	for _, elem := range elems {
-		if _, err := a.putFunctor(functorCons); err != nil {
+		if _, err := a.PutStructure(functorCons); err != nil {
 			return Handle{}, err
 		}
-		if _, err := a.putTerms(elem); err != nil {
+		if _, err := a.Put(elem); err != nil {
 			return Handle{}, err
 		}
 	}
-	if _, err := a.putTerms(tail); err != nil {
+	if _, err := a.Put(tail); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -232,14 +247,14 @@ func (a *Arena) PutSpine(r Atom, elems ...Handle) (Handle, error) {
 	cons := NewFunctor(r, 2)
 	addr := int32(len(a.Heap))
 	for _, elem := range elems[:len(elems)-1] {
-		if _, err := a.putFunctor(cons); err != nil {
+		if _, err := a.PutStructure(cons); err != nil {
 			return Handle{}, err
 		}
-		if _, err := a.putTerms(elem); err != nil {
+		if _, err := a.Put(elem); err != nil {
 			return Handle{}, err
 		}
 	}
-	if _, err := a.putTerms(elems[len(elems)-1]); err != nil {
+	if _, err := a.Put(elems[len(elems)-1]); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -274,7 +289,7 @@ func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
 		}
 	}
 
-	if _, err := a.putTerms(tail); err != nil {
+	if _, err := a.Put(tail); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -569,4 +584,59 @@ func (a *Arena) Compare(x, y Handle) int {
 	}
 
 	return 0
+}
+
+type UnifyOptions struct {
+	onBind func(Handle)
+}
+
+type UnifyOption func(*UnifyOptions)
+
+func OnBind(fn func(variable Handle)) UnifyOption {
+	return func(o *UnifyOptions) {
+		o.onBind = fn
+	}
+}
+
+func (a *Arena) Unify(x, y Handle, opts ...UnifyOption) (bool, error) {
+	var o UnifyOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.onBind == nil {
+		o.onBind = func(Handle) {}
+	}
+
+	stack := []Handle{x, y}
+	for len(stack) > 1 {
+		x, y, stack = stack[len(stack)-2], stack[len(stack)-1], stack[:len(stack)-2]
+		x, y = a.Deref(x), a.Deref(y)
+		if _, ok := a.Variable(x); ok {
+			o.onBind(x)
+			if err := a.Bind(x, y); err != nil {
+				return false, err
+			}
+			continue
+		}
+		if _, ok := a.Variable(y); ok {
+			o.onBind(y)
+			if err := a.Bind(y, x); err != nil {
+				return false, err
+			}
+			continue
+		}
+		if fx, ok := a.Functor(x); ok {
+			if fy, ok := a.Functor(y); ok && fx == fy {
+				for i := fx.Arity() - 1; i >= 0; i-- {
+					stack = append(stack, a.Arg(x, i), a.Arg(y, i))
+				}
+				continue
+			}
+			return false, nil
+		}
+		if a.Compare(x, y) != 0 {
+			return false, nil
+		}
+	}
+	return true, nil
 }

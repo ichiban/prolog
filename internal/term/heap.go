@@ -23,7 +23,7 @@ func (h *Heap) String() string {
 	return sb.String()
 }
 
-func (h *Heap) putFunctor(f Functor) (Handle, error) {
+func (h *Heap) PutStructure(f Functor) (Handle, error) {
 	addr, err := h.put(pack(cell{tag: cellTagFunctor, value: int32(f)}))
 	if err != nil {
 		return Handle{}, err
@@ -33,12 +33,13 @@ func (h *Heap) putFunctor(f Functor) (Handle, error) {
 	}, nil
 }
 
-func (h *Heap) putTerms(terms ...Handle) (int, error) {
+func (h *Heap) Put(terms ...Handle) (Handle, error) {
 	words := make([]word, len(terms))
 	for i, t := range terms {
 		words[i] = pack(t.cell)
 	}
-	return h.put(words...)
+	addr, err := h.put(words...)
+	return Handle{cell: cell{tag: cellTagReference, value: int32(addr)}}, err
 }
 
 func (h *Heap) put(words ...word) (int, error) {
