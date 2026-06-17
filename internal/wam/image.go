@@ -42,7 +42,7 @@ func (i *Image) String() string {
 	var sb strings.Builder
 	for j, inst := range i.Code {
 		l, _ := labels[j]
-		_, _ = fmt.Fprintf(&sb, "%16s %s", l, inst.Op)
+		_, _ = fmt.Fprintf(&sb, "%4d %16s %s", j, l, inst.Op)
 		switch inst.Op {
 		case OpPutVariable:
 			_, _ = fmt.Fprintf(&sb, " X%d A%d\n", inst.N, inst.I)
@@ -51,6 +51,12 @@ func (i *Image) String() string {
 		case OpPutConstant:
 			_, _ = fmt.Fprintf(&sb, "%s A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
 		case OpExecute:
+			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
+		case OpTryMeElse:
+			_, _ = fmt.Fprintf(&sb, " %d\n", inst.N)
+		case OpRetryMeElse:
+			_, _ = fmt.Fprintf(&sb, " %d\n", inst.N)
+		case OpSwitch:
 			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
 		default:
 			_, _ = fmt.Fprintf(&sb, "\n")

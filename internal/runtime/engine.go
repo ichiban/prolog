@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
@@ -58,16 +59,16 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		pi := clause.PI
 		switch _, ok := e.Predicates[pi]; {
 		case !ok: // The 1st clause.
-			current = pi
-			e.Predicates[pi] = wam.Predicate{
-				Offset: len(e.Code),
-			}
-
 			if i > 0 {
 				// The last predicate needs to be closed.
 				if err := e.closePredicate(last); err != nil {
 					return err
 				}
+			}
+
+			current = pi
+			e.Predicates[pi] = wam.Predicate{
+				Offset: len(e.Code),
 			}
 
 			// First argument index.
@@ -98,8 +99,10 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				return err
 			}
 			current = pi
+			// TODO: Overwrite the previous chunk's `execute P` to an unconditional jump to this chunk.
 			fallthrough
 		default:
+			e.Code[last].N = uint16(len(e.Code))
 			e.Code = append(e.Code, wam.Instruction{
 				Op: wam.OpRetryMeElse,
 				I:  uint8(pi.Arity()),
@@ -174,12 +177,16 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 func (e *Engine) closePredicate(last int) error {
 	switch e.Code[last].Op {
 	case wam.OpTryMeElse: // The last predicate has only one clause.
-		copy(e.Code[last-1:last+1], []wam.Instruction{
-			{Op: wam.OpNop}, // Replacing wam.OpSwitch/wam.OpNondet
-			{Op: wam.OpNop}, // Replacing wam.OpTryMeElse
-		})
+		// TODO: What would happen if it's discontiguous?
+		e.Code = slices.Delete(e.Code, last-1, last+1)
+		/*
+			copy(e.Code[last-1:last+1], []wam.Instruction{
+				{Op: wam.OpNop}, // Replacing wam.OpSwitch/wam.OpNondet
+				{Op: wam.OpNop}, // Replacing wam.OpTryMeElse
+			})
+		*/
 	case wam.OpRetryMeElse:
-		e.Code[last].Op = wam.OpTrustMe
+		e.Code[last] = wam.Instruction{Op: wam.OpTrustMe}
 	default:
 		return errors.New("invalid instruction")
 	}

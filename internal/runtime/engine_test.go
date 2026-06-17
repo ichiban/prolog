@@ -29,6 +29,8 @@ func TestEngine_Call(t *testing.T) {
 	if err := c.CompileModule(t.Context(), &m, `
 p.
 p.
+p.
+p.
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +54,7 @@ p.
 		count++
 	}
 
-	if count != 2 {
-		t.Errorf("got %d, want 2", count)
+	if count != 4 {
+		t.Errorf("got %d, want 4", count)
 	}
 }

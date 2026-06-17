@@ -18,7 +18,7 @@ type stackFrame struct {
 	heapTop        int                       // H, saved top of the heap
 	trailTop       int                       // TR, saved top of the trail
 	tempVars       [maxRegisters]term.Handle // The backing array to save An
-	arity          int
+	cutB           int
 
 	next func() (error, bool) // for built-in predicates
 	stop func()               // for built-in predicates
@@ -42,11 +42,9 @@ type Execution struct {
 	structurePointer   structurePointer // S
 
 	tempVars [maxRegisters]term.Handle // Xn
-	arity    int                       // An = tempVars[:arity]
+	cutB     int
 
 	mode wam.Mode
-
-	cutB int
 }
 
 func (e *Execution) run(ctx context.Context) iter.Seq[error] {
@@ -217,28 +215,20 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					programPointer: int(inst.N),
 					heapTop:        len(e.Heap),
 					trailTop:       len(e.trail),
-					arity:          arity,
 				}
 				copy(f.tempVars[:arity], e.tempVars[:arity])
 				e.stack = append(e.stack, f)
 				e.heapBacktrackPoint = len(e.Heap)
 				e.Next()
 			case wam.OpRetryMeElse: // retry_me_else L
-				frame := &e.stack[len(e.stack)-1]
-				e.arity = frame.arity
-				copy(e.tempVars[:frame.arity], frame.tempVars[:frame.arity])
-				frame.programPointer = int(inst.N)
-				e.Unwind(frame.trailTop)
-				e.Heap = e.Heap[:frame.heapTop]
-				e.heapBacktrackPoint = len(e.Heap)
+				arity := int(inst.I)
+				e.stack[len(e.stack)-1].programPointer = int(inst.N)
+				e.RestoreState(arity)
+				e.stack = e.stack[:len(e.stack)+1]
 				e.Next()
 			case wam.OpTrustMe: // trust_me
-				frame := &e.stack[len(e.stack)-1]
-				e.arity = frame.arity
-				copy(e.tempVars[:frame.arity], frame.tempVars[:frame.arity])
-				e.Unwind(frame.trailTop)
-				e.Heap = e.Heap[:frame.heapTop]
-				e.heapBacktrackPoint = frame.heapTop
+				arity := int(inst.I)
+				e.RestoreState(arity)
 				e.Next()
 			case wam.OpMove: // move Xi<-Xn
 				e.tempVars[inst.I] = e.tempVars[inst.N]
@@ -285,8 +275,16 @@ func (e *Execution) Backtrack() bool {
 		return false
 	}
 	e.programPointer = e.stack[len(e.stack)-1].programPointer
-	e.stack = e.stack[:len(e.stack)-1]
 	return true
+}
+
+func (e *Execution) RestoreState(arity int) {
+	var f stackFrame
+	f, e.stack = e.stack[len(e.stack)-1], e.stack[:len(e.stack)-1]
+	e.Unwind(f.trailTop)
+	e.Heap = e.Heap[:f.heapTop]
+	copy(e.tempVars[:arity], f.tempVars[:arity])
+	e.cutB = f.cutB
 }
 
 func (e *Execution) Unwind(trailTop int) {
