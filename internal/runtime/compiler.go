@@ -70,6 +70,7 @@ func (c *Compiler) CompileModule(ctx context.Context, out *ir.Module, text strin
 		if err != nil {
 			return err
 		}
+
 		head, body, err = c.Binarize(head, body, cont)
 		if err != nil {
 			return err
@@ -92,17 +93,19 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 	return func(yield func(term.Handle, error) bool) {
 		c.todo = c.todo[:0]
 
-		for pi, id := range c.BuiltinSet.index {
+		if c.BuiltinSet == nil {
+			c.BuiltinSet = NewBuiltinSet()
+		}
+		for pi, b := range c.BuiltinSet.All() {
 			// BuiltinSet contains binarized PIs. Here we're adding non-binarized surrogate clauses.
 			pi := term.NewFunctor(pi.Name(), pi.Arity()-1)
-			b := c.BuiltinSet.entries[id]
 			head, err := c.PutCompoundWithFreshVars(pi)
 			if err != nil {
 				_ = yield(term.Handle{}, err)
 				return
 			}
 			var body term.Handle
-			if b.Type == BuiltinTypeInHead {
+			if b.Type == BuiltinTypeStandard {
 				body, err = c.PutAtom(term.NewAtom("true"))
 				if err != nil {
 					_ = yield(term.Handle{}, err)
@@ -800,13 +803,16 @@ func (c *Compiler) CompileClause(clause *ir.Clause, head, body term.Handle) erro
 	}
 
 	clause.CollapseArgs(args, vars)
+
 	c.allocateRegs(clause, args, vars)
+
 	clause.Compact()
 
 	return nil
 }
 
 func (c *Compiler) index(t term.Handle) (ir.Index, error) {
+	t = c.Deref(t)
 	if _, ok := c.Variable(t); ok {
 		// We use the zero value to represent a variable first argument instead of '_'/0.
 		return ir.Index{}, nil
@@ -833,7 +839,7 @@ func (c *Compiler) compileHead(clause *ir.Clause, head term.Handle) error {
 	pi := term.NewFunctor(f.Name(), f.Arity())
 	if i, ok := c.BuiltinSet.index[pi]; ok {
 		b := c.BuiltinSet.entries[i]
-		if b.Type == BuiltinTypeInHead {
+		if b.Type == BuiltinTypeStandard {
 			cont := c.Arg(head, f.Arity()-1)
 			clause.Emit(ir.Instruction{
 				OpCode: ir.OpBuiltin,
@@ -1035,7 +1041,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) error {
 			b = c.BuiltinSet.entries[i]
 		)
 		switch b.Type {
-		case BuiltinTypeInHead:
+		case BuiltinTypeStandard:
 			break
 		case BuiltinTypeArithmetic0:
 			var (

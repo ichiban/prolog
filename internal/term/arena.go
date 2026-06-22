@@ -86,6 +86,14 @@ func (a *Arena) Bind(x, t Handle) error {
 	return nil
 }
 
+func (a *Arena) Unbind(x Handle) error {
+	if x.cell.tag != cellTagReference {
+		return ErrUnsupportedOperation
+	}
+	a.Heap[x.cell.value] = pack(cell{tag: cellTagReference, value: x.cell.value})
+	return nil
+}
+
 // PutAtom creates an atom term and returns its address.
 func (a *Arena) PutAtom(atom Atom) (Handle, error) {
 	c := cell{value: atom.value}

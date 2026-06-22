@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/ichiban/prolog/v2/internal/term"
-)
-
-var (
-	True0 = Builtin{Type: BuiltinTypeInHead, Proc: true0}
-	Call1 = Builtin{Type: BuiltinTypeInHead, Proc: call1}
 )
 
 type BuiltinType int8
 
 const (
-	BuiltinTypeInHead BuiltinType = iota
+	BuiltinTypeStandard BuiltinType = iota
 	BuiltinTypeInline
 	BuiltinTypeArithmetic0
 	BuiltinTypeArithmetic1
@@ -30,6 +28,13 @@ type Builtin struct {
 type BuiltinSet struct {
 	index   map[term.Functor]int
 	entries []Builtin
+}
+
+func NewBuiltinSet() *BuiltinSet {
+	var b BuiltinSet
+	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0})
+	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
+	return &b
 }
 
 func (b *BuiltinSet) Get(id int) *Builtin {
@@ -49,8 +54,27 @@ func (b *BuiltinSet) Set(pi term.Functor, entry Builtin) error {
 	return nil
 }
 
+func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
+	keys := slices.Collect(maps.Keys(b.index))
+	slices.SortFunc(keys, func(a, b term.Functor) int {
+		return strings.Compare(a.String(), b.String())
+	})
+	return func(yield func(term.Functor, *Builtin) bool) {
+		for _, key := range keys {
+			id := b.index[key]
+			if !yield(key, &b.entries[id]) {
+				return
+			}
+		}
+	}
+}
+
 func true0(ctx context.Context, e *Execution) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	cont := e.tempVars[0]
+	cont = e.Deref(cont)
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
 		return &TypeError{
@@ -80,7 +104,11 @@ func true0(ctx context.Context, e *Execution) error {
 }
 
 func call1(ctx context.Context, e *Execution) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	goal, cont := e.tempVars[0], e.tempVars[1]
+	goal = e.Deref(goal)
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		return &TypeError{

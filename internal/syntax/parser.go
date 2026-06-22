@@ -535,12 +535,14 @@ func (p *parser) variable(s string) (term.Handle, error) {
 		v, err := p.makeVariable()
 		return v, err
 	}
-	if p.variables != nil {
-		for i, pv := range *p.variables {
-			if pv.Name == s {
-				(*p.variables)[i].Count++
-				return pv.Variable, nil
-			}
+	if p.variables == nil {
+		var pvs []ParsedVariable
+		p.variables = &pvs
+	}
+	for i, pv := range *p.variables {
+		if pv.Name == s {
+			(*p.variables)[i].Count++
+			return pv.Variable, nil
 		}
 	}
 	v, err := p.makeVariable()

@@ -74,6 +74,7 @@ const (
 	atomKindID
 )
 
+// TODO: reimplement with container.Pool[T].
 var atomTable struct {
 	ids     map[string]Atom
 	entries []atomTableEntry
@@ -81,5 +82,4 @@ var atomTable struct {
 
 type atomTableEntry struct {
 	ident string
-	// TODO: GC
 }

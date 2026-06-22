@@ -17,7 +17,7 @@ type stackFrame struct {
 	programPointer int                       // P, next clause address
 	heapTop        int                       // H, saved top of the heap
 	trailTop       int                       // TR, saved top of the trail
-	tempVars       [maxRegisters]term.Handle // The backing array to save An
+	tempVars       [maxRegisters]term.Handle // The backing array to save An TODO: Maybe store them in a sidecar array, or put $tempVars(...) to the heap?
 	cutB           int
 
 	next func() (error, bool) // for built-in predicates
@@ -223,21 +223,48 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpRetryMeElse: // retry_me_else L
 				arity := int(inst.I)
 				e.stack[len(e.stack)-1].programPointer = int(inst.N)
-				e.RestoreState(arity)
+				if err := e.restoreState(arity); err != nil {
+					_ = yield(err)
+					return
+				}
 				e.stack = e.stack[:len(e.stack)+1]
 				e.Next()
 			case wam.OpTrustMe: // trust_me
 				arity := int(inst.I)
-				e.RestoreState(arity)
+				if err := e.restoreState(arity); err != nil {
+					_ = yield(err)
+					return
+				}
 				e.Next()
-			case wam.OpMove: // move Xi<-Xn
-				e.tempVars[inst.I] = e.tempVars[inst.N]
+			case wam.OpMove: // move Xn<-Ai
+				e.tempVars[inst.N] = e.tempVars[inst.I]
 				e.Next()
 			case wam.OpNondet: // nondet
-				// TODO: Don't know what to do. No-op for now.
 				e.Next()
 			case wam.OpSwitch: // switch
-				// TODO: Implement later.
+				pi := e.Functors[inst.N]
+				var (
+					t     = e.tempVars[0]
+					arity int
+				)
+				t = e.Deref(t)
+				if f, ok := e.Functor(t); ok {
+					var err error
+					t, err = e.PutAtom(f.Name())
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					arity = f.Arity()
+				}
+				if i, ok := e.FirstArgIndex[wam.FirstArgKey{
+					PI:    pi,
+					Term:  t,
+					Arity: arity,
+				}]; ok {
+					e.jumpTo(i)
+					continue
+				}
 				e.Next()
 			case wam.OpPutCut: // put_cut
 				e.stack = e.stack[:e.cutB]
@@ -254,7 +281,8 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			default: // Builtins
-				b := e.BuiltinSet.Get(int(inst.Op - wam.OpBuiltin0))
+				bid := int(inst.Op - wam.OpBuiltin0)
+				b := e.BuiltinSet.Get(bid)
 				if err := b.Proc(ctx, e); err != nil {
 					_ = yield(err)
 					return
@@ -270,6 +298,10 @@ func (e *Execution) Next() {
 	e.programPointer++
 }
 
+func (e *Execution) jumpTo(addr int) {
+	e.programPointer = addr
+}
+
 func (e *Execution) Backtrack() bool {
 	if len(e.stack) == 0 {
 		return false
@@ -278,15 +310,25 @@ func (e *Execution) Backtrack() bool {
 	return true
 }
 
-func (e *Execution) RestoreState(arity int) {
+func (e *Execution) restoreState(arity int) error {
 	var f stackFrame
 	f, e.stack = e.stack[len(e.stack)-1], e.stack[:len(e.stack)-1]
-	e.Unwind(f.trailTop)
+	if err := e.unwindTrail(f.trailTop); err != nil {
+		return err
+	}
 	e.Heap = e.Heap[:f.heapTop]
 	copy(e.tempVars[:arity], f.tempVars[:arity])
 	e.cutB = f.cutB
+	return nil
 }
 
-func (e *Execution) Unwind(trailTop int) {
-	// TODO: Implement this!
+func (e *Execution) unwindTrail(trailTop int) error {
+	for i := len(e.trail) - 1; i >= trailTop; i-- {
+		v := e.trail[i]
+		if err := e.Unbind(v); err != nil {
+			return err
+		}
+	}
+	e.trail = e.trail[:trailTop]
+	return nil
 }

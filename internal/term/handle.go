@@ -14,6 +14,10 @@ type Handle struct {
 	cell
 }
 
+func (h *Handle) String() string {
+	return h.cell.String()
+}
+
 type cell struct {
 	tag   cellTag // TODO: NaN Boxing?
 	value int32

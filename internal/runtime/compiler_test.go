@@ -42,6 +42,46 @@ func TestCompile(t *testing.T) {
 				},
 			},
 		},
+		{
+			title: "rule",
+			text:  `r(X, Y) :- p(X), q(Y).`,
+			result: &ir.Module{
+				Name: term.NewAtom("user"),
+				Clauses: []ir.Clause{
+					{
+						PI:      term.NewFunctor(term.NewAtomRune('r'), 3),
+						MaxRegs: 4,
+						Code: []ir.Instruction{
+							{
+								OpCode: ir.OpPut,
+								Type:   ir.TypeStructure,
+								A:      ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('q'), 2)},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 3},
+							},
+							{
+								OpCode: ir.OpWrite,
+								Type:   ir.TypeValue,
+								A:      ir.Operand{Kind: ir.OperandKindGet},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 1},
+							},
+							{
+								OpCode: ir.OpWrite,
+								Type:   ir.TypeValue,
+								A:      ir.Operand{Kind: ir.OperandKindGet},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 2},
+							},
+							{
+								OpCode: ir.OpPut,
+								Type:   ir.TypeValue,
+								A:      ir.Operand{Kind: ir.OperandKindArgument, Index: 1},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 3},
+							},
+						},
+						Execute: term.NewFunctor(term.NewAtomRune('p'), 2),
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -49,9 +89,10 @@ func TestCompile(t *testing.T) {
 			arena.Heap = arena.Heap[:0]
 			c := Compiler{
 				Engine: &Engine{
-					Module: term.NewAtom("user"),
-					Arena:  &arena,
-					Ops:    syntax.NewOperatorSet(),
+					BuiltinSet: &BuiltinSet{},
+					Module:     term.NewAtom("user"),
+					Arena:      &arena,
+					Ops:        syntax.NewOperatorSet(),
 				},
 			}
 			var m ir.Module
@@ -277,7 +318,7 @@ func TestCompiler_CompileClause(t *testing.T) {
 	}
 	engine := Engine{
 		Arena: &arena,
-		BuiltinSet: BuiltinSet{
+		BuiltinSet: &BuiltinSet{
 			index: map[term.Functor]int{
 				term.NewFunctor(term.NewAtom("functor"), 4): 1,
 				term.NewFunctor(term.NewAtom("fail"), 1):    3,
@@ -287,7 +328,7 @@ func TestCompiler_CompileClause(t *testing.T) {
 			},
 			entries: []Builtin{
 				{},
-				{Type: BuiltinTypeInHead},
+				{Type: BuiltinTypeStandard},
 				{},
 				{Type: BuiltinTypeInline},
 				{Type: BuiltinTypeInline},

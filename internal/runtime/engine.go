@@ -15,7 +15,7 @@ import (
 type Engine struct {
 	*term.Arena
 	wam.Image
-	BuiltinSet
+	*BuiltinSet
 
 	Module       term.Atom
 	DoubleQuotes syntax.DoubleQuotes
@@ -71,26 +71,11 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				Offset: len(e.Code),
 			}
 
-			// First argument index.
-			fa := clause.FirstArg
-			key := wam.FirstArgKey{
-				PI:    pi,
-				Term:  fa.Term,
-				Arity: fa.Arity,
-			}
-			if _, ok := e.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
-				e.Code = append(e.Code, wam.Instruction{
-					Op: wam.OpNondet,
-				})
-			} else {
-				e.FirstArgIndex[key] = len(e.Code)
-				e.Code = append(e.Code, wam.Instruction{
-					Op: wam.OpSwitch,
-					N:  uint16(pi),
-				})
-			}
-
+			fid := e.EmbedFunctor(pi)
 			e.Code = append(e.Code, wam.Instruction{
+				Op: wam.OpSwitch,
+				N:  uint16(fid),
+			}, wam.Instruction{
 				Op: wam.OpTryMeElse,
 				I:  uint8(pi.Arity()),
 			})
@@ -114,6 +99,24 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			return errors.New("not enough registers")
 		}
 
+		// First argument index.
+		fa := clause.FirstArg
+		key := wam.FirstArgKey{
+			PI:    pi,
+			Term:  fa.Term,
+			Arity: fa.Arity,
+		}
+		if _, ok := e.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
+			e.Code[e.Predicates[pi].Offset] = wam.Instruction{
+				Op: wam.OpNondet,
+			}
+		} else {
+			if e.FirstArgIndex == nil {
+				e.FirstArgIndex = map[wam.FirstArgKey]int{}
+			}
+			e.FirstArgIndex[key] = len(e.Code)
+		}
+
 		for _, inst := range clause.Code {
 			switch op := convertOp(inst); op {
 			case wam.OpLoadVariable, wam.OpPutVariable, wam.OpGetValue, wam.OpLoadValue:
@@ -123,21 +126,21 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 					N:  uint16(inst.B.Index),
 				})
 			case wam.OpGetStructure, wam.OpPutStructure, wam.OpPushStructure:
-				fid := len(e.Functors)
-				e.Functors = append(e.Functors, term.Functor(inst.B.Index))
+				fid := e.EmbedFunctor(inst.A.Functor)
 				e.Code = append(e.Code, wam.Instruction{
 					Op: op,
-					I:  uint8(inst.A.Index),
+					I:  uint8(inst.B.Index),
 					N:  uint16(fid),
 				})
 			case wam.OpUnifyVariable, wam.OpUnifyValue, wam.OpWriteVariable, wam.OpWriteValue:
 				e.Code = append(e.Code, wam.Instruction{
 					Op: op,
-					I:  uint8(inst.A.Index),
+					I:  uint8(inst.B.Index),
 				})
 			case wam.OpLoadConstant, wam.OpGetConstant, wam.OpPutConstant, wam.OpUnifyConstant, wam.OpWriteConstant:
-				cid := len(e.Constants)
-				e.Constants = append(e.Constants, inst.B.Term)
+				c := inst.B.Term
+				c = e.Deref(c)
+				cid := e.EmbedConstants(c)
 				e.Code = append(e.Code, wam.Instruction{
 					Op: op,
 					I:  uint8(inst.A.Index),
@@ -163,8 +166,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			}
 		}
 
-		fid := len(e.Functors)
-		e.Functors = append(e.Functors, clause.Execute)
+		fid := e.EmbedFunctor(clause.Execute)
 		e.Code = append(e.Code, wam.Instruction{
 			Op: wam.OpExecute,
 			N:  uint16(fid),
@@ -179,14 +181,8 @@ func (e *Engine) closePredicate(last int) error {
 	case wam.OpTryMeElse: // The last predicate has only one clause.
 		// TODO: What would happen if it's discontiguous?
 		e.Code = slices.Delete(e.Code, last-1, last+1)
-		/*
-			copy(e.Code[last-1:last+1], []wam.Instruction{
-				{Op: wam.OpNop}, // Replacing wam.OpSwitch/wam.OpNondet
-				{Op: wam.OpNop}, // Replacing wam.OpTryMeElse
-			})
-		*/
 	case wam.OpRetryMeElse:
-		e.Code[last] = wam.Instruction{Op: wam.OpTrustMe}
+		e.Code[last].Op = wam.OpTrustMe
 	default:
 		return errors.New("invalid instruction")
 	}
