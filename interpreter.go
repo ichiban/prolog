@@ -15,7 +15,7 @@ import (
 // - Atom, as an atom,
 // - int/int8/int16/int32/int64, as an integer,
 // - float32/float64, as a float,
-// - string, as a char list, or
+// - string, as a char list (by default, can be code list or atom, too), or
 // - Raw, as an arbitrary term
 type Term any
 
@@ -145,9 +145,9 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 func (i *Interpreter) decodeResult(out any, pvs []syntax.ParsedVariable) error {
 	switch out := out.(type) {
-	case *map[string]Raw:
+	case *Result:
 		if *out == nil {
-			*out = map[string]Raw{}
+			*out = Result{}
 		}
 		for _, v := range pvs {
 			(*out)[v.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: v.Variable}))
