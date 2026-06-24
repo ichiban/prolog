@@ -140,19 +140,11 @@ p(a).
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			var b BuiltinSet
-			if err := b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0}); err != nil {
-				t.Fatal(err)
-			}
-			if err := b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1}); err != nil {
-				t.Fatal(err)
-			}
-
 			e := Engine{
 				Arena: &term.Arena{
 					Heap: make(term.Heap, 0, 1024),
 				},
-				BuiltinSet: &b,
+				BuiltinSet: NewBuiltinSet(),
 			}
 
 			c := Compiler{
@@ -202,7 +194,7 @@ func TestEngine_Call(t *testing.T) {
 			results: []string{``, ``, ``, ``},
 		},
 		{
-			title: "facts with arguments",
+			title: "facts with arguments (nondeterministic)",
 			text:  `p(a). p(b). p(c).`,
 			goal:  `p(X).`,
 			results: []string{
@@ -212,17 +204,19 @@ func TestEngine_Call(t *testing.T) {
 			},
 		},
 		{
-			title: "facts with arguments",
-			text:  `p(a). p(b). p(c).`,
-			goal:  `p(X).`,
-			results: []string{
-				`X = a`,
-				`X = b`,
-				`X = c`,
-			},
+			title:   "facts with arguments (deterministic)",
+			text:    `p(a). p(b). p(c).`,
+			goal:    `p(b).`,
+			results: []string{``},
 		},
 		{
-			title: "rules with arguments",
+			title:   "facts with arguments (failure)",
+			text:    `p(a). p(b). p(c).`,
+			goal:    `p(d).`,
+			results: []string{},
+		},
+		{
+			title: "rule and facts",
 			text:  `p(a). p(b). p(c). q(1). q(2). q(3). r(X, Y) :- p(X), q(Y).`,
 			goal:  `r(X, Y).`,
 			results: []string{
@@ -255,8 +249,6 @@ func TestEngine_Call(t *testing.T) {
 			if err := c.CompileModule(t.Context(), &m, test.text); err != nil {
 				t.Fatal(err)
 			}
-
-			fmt.Printf("m: %s\n", &ir.ModuleStringer{Arena: c.Arena, Module: &m})
 
 			if err := e.LoadModule(&m); err != nil {
 				t.Fatal(err)

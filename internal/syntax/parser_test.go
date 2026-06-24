@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -167,6 +168,7 @@ func Test_ParseTerm(t *testing.T) {
 					return x, nil
 				}),
 			)
+			err = cause(err)
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}
@@ -245,5 +247,19 @@ func Test_ParseNumber(t *testing.T) {
 				t.Errorf("expected %v, got %v", &Formatter{Term: tt.number}, &Formatter{Term: n})
 			}
 		})
+	}
+}
+
+func cause(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			return err
+		}
+		err = unwrapped
 	}
 }

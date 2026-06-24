@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"io"
+	"io/fs"
 	"iter"
 	"slices"
 
@@ -15,7 +17,10 @@ import (
 type Engine struct {
 	*term.Arena
 	wam.Image
-	*BuiltinSet
+	BuiltinSet *BuiltinSet
+
+	SourceFS fs.FS
+	Loaded   map[string]struct{}
 
 	Module       term.Atom
 	DoubleQuotes syntax.DoubleQuotes
@@ -33,6 +38,38 @@ func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Han
 
 func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, error) {
 	return t, nil // TODO: Implement this!
+}
+
+func (e *Engine) LoadFile(ctx context.Context, filename string) error {
+	f, err := e.SourceFS.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	var m ir.Module
+	c := Compiler{Engine: e}
+	if err := c.CompileModule(ctx, &m, string(b)); err != nil {
+		return err
+	}
+
+	if err := e.LoadModule(&m); err != nil {
+		return err
+	}
+
+	if e.Loaded == nil {
+		e.Loaded = map[string]struct{}{}
+	}
+	e.Loaded[filename] = struct{}{}
+
+	return nil
 }
 
 func (e *Engine) LoadModule(module *ir.Module) error {

@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -233,7 +234,7 @@ func (l *lexer) wasEndChar() bool {
 func (l *lexer) layoutTextSequence(afterLayout bool) (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return l.token(afterLayout)
 		case err != nil:
 			return token{}, err
@@ -266,7 +267,7 @@ func (l *lexer) commentText(bracketed bool) (token, error) {
 
 func (l *lexer) commentOpen() (token, error) {
 	switch r, err := l.next(); {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		l.accept('/')
 		return l.graphicToken()
 	case err != nil:
@@ -298,7 +299,7 @@ func (l *lexer) commentClose() (token, error) {
 func (l *lexer) letterDigitToken() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenLetterDigit, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -314,7 +315,7 @@ func (l *lexer) letterDigitToken() (token, error) {
 func (l *lexer) graphicToken() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenGraphic, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -338,7 +339,7 @@ func (l *lexer) quotedToken() (token, error) {
 		case r == '\'':
 			l.accept(r)
 			switch r, err := l.rawNext(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				break
 			case err != nil:
 				return token{}, err
@@ -360,7 +361,7 @@ func (l *lexer) quotedToken() (token, error) {
 		case r == '\\':
 			l.accept(r)
 			switch r, err := l.rawNext(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				break
 			case err != nil:
 				return token{}, err
@@ -449,7 +450,7 @@ func (l *lexer) hexadecimalEscapeSequence(cont func() (token, error)) (token, er
 func (l *lexer) variableToken() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenVariable, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -469,7 +470,7 @@ func (l *lexer) integerToken(first rune) (token, error) {
 	case '0':
 		l.accept(first)
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return l.integerConstant()
 		case err != nil:
 			return token{}, err
@@ -493,13 +494,13 @@ func (l *lexer) integerToken(first rune) (token, error) {
 
 func (l *lexer) integerTokenCharacterCode(r rune) (token, error) {
 	switch r, err := l.next(); {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		break
 	case err != nil:
 		return token{}, err
 	case r == '\'':
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			l.backup()
 			l.backup()
 			return token{kind: tokenInteger, val: l.chunk()}, nil // 0
@@ -516,7 +517,7 @@ func (l *lexer) integerTokenCharacterCode(r rune) (token, error) {
 		}
 	case r == '\\':
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			l.backup()
 		case err != nil:
 			return token{}, err
@@ -538,7 +539,7 @@ func (l *lexer) integerTokenCharacterCode(r rune) (token, error) {
 
 func (l *lexer) integerTokenBinary(r rune) (token, error) {
 	switch r, err := l.next(); {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		l.backup()
 		return token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
@@ -556,7 +557,7 @@ func (l *lexer) integerTokenBinary(r rune) (token, error) {
 
 func (l *lexer) integerTokenOctal(r rune) (token, error) {
 	switch r, err := l.next(); {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		l.backup()
 		return token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
@@ -574,7 +575,7 @@ func (l *lexer) integerTokenOctal(r rune) (token, error) {
 
 func (l *lexer) integerTokenHexadecimal(r rune) (token, error) {
 	switch r, err := l.next(); {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		l.backup()
 		return token{kind: tokenInteger, val: l.chunk()}, nil
 	case err != nil:
@@ -593,7 +594,7 @@ func (l *lexer) integerTokenHexadecimal(r rune) (token, error) {
 func (l *lexer) integerConstant() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -601,7 +602,7 @@ func (l *lexer) integerConstant() (token, error) {
 			l.accept(r)
 		case r == '.':
 			switch r, err := l.next(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				l.backup()
 				return token{kind: tokenInteger, val: l.chunk()}, nil
 			case err != nil:
@@ -648,7 +649,7 @@ func (l *lexer) characterCodeConstant() (token, error) {
 func (l *lexer) binaryConstant() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -664,7 +665,7 @@ func (l *lexer) binaryConstant() (token, error) {
 func (l *lexer) octalConstant() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -680,7 +681,7 @@ func (l *lexer) octalConstant() (token, error) {
 func (l *lexer) hexadecimalConstant() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenInteger, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -698,7 +699,7 @@ func (l *lexer) hexadecimalConstant() (token, error) {
 func (l *lexer) fraction() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -707,7 +708,7 @@ func (l *lexer) fraction() (token, error) {
 		case isExponentChar(r):
 			var sign rune
 			switch r, err := l.next(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				l.backup() // for 'e' or 'E'
 				return token{kind: tokenFloatNumber, val: l.chunk()}, nil
 			case err != nil:
@@ -719,7 +720,7 @@ func (l *lexer) fraction() (token, error) {
 			}
 
 			switch r, err := l.next(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				if sign != 0 {
 					l.backup()
 				}
@@ -754,7 +755,7 @@ func (l *lexer) fraction() (token, error) {
 func (l *lexer) exponent() (token, error) {
 	for {
 		switch r, err := l.next(); {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return token{kind: tokenFloatNumber, val: l.chunk()}, nil
 		case err != nil:
 			return token{}, err
@@ -777,7 +778,7 @@ func (l *lexer) doubleQuotedListToken() (token, error) {
 		case r == '"':
 			l.accept(r)
 			switch r, err := l.next(); {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				return token{kind: tokenDoubleQuotedList, val: l.chunk()}, nil
 			case err != nil:
 				return token{}, err

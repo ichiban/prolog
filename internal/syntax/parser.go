@@ -87,12 +87,21 @@ func Parse(text string, opts ...ParseOption) iter.Seq2[term.Handle, error] {
 
 func ParseTerm(text string, opts ...ParseOption) (term.Handle, error) {
 	p := newParser(text, opts...)
-	return p.Term()
+	t, err := p.Term()
+	if err != nil {
+		return term.Handle{}, fmt.Errorf("term(): %w", err)
+	}
+	return t, nil
 }
 
 func ParseNumber(text string, opts ...ParseOption) (term.Handle, error) {
 	p := newParser(text, opts...)
 	return p.Number()
+}
+
+func ParseVariable(text string, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(text, opts...)
+	return p.Variable()
 }
 
 // ParsedVariable is a set of information regarding a variable in a parsed term.
@@ -148,18 +157,18 @@ func (p *parser) current() token {
 func (p *parser) Term() (_ term.Handle, err error) {
 	t, ok, err := p.term(1201)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Handle{}, fmt.Errorf("term(1201): %w", err)
 	}
 	if !ok {
-		return term.Handle{}, &UnexpectedTokenError{token: p.current()}
+		return term.Handle{}, fmt.Errorf("term(1201): %w", &UnexpectedTokenError{token: p.current()})
 	}
 
-	switch t, _ := p.next(); t.kind {
-	case tokenEnd:
+	switch t, err := p.next(); {
+	case errors.Is(err, io.EOF), t.kind == tokenEnd:
 		break
 	default:
 		p.backup()
-		return term.Handle{}, &UnexpectedTokenError{token: p.current()}
+		return term.Handle{}, fmt.Errorf("next(): %w", &UnexpectedTokenError{token: p.current()})
 	}
 
 	return t, nil
@@ -224,6 +233,31 @@ func (p *parser) Number() (_ term.Handle, err error) {
 	}
 }
 
+// Variable parses a variable term.
+func (p *parser) Variable() (_ term.Handle, err error) {
+	var v term.Handle
+	t, err := p.next()
+	if err != nil {
+		return term.Handle{}, err
+	}
+	switch t.kind {
+	case tokenVariable:
+		v, err = p.variable(t.val)
+	default:
+	}
+	if err != nil {
+		return term.Handle{}, err
+	}
+
+	// No more runes after a variable.
+	switch _, err := p.lexer.rawNext(); err {
+	case io.EOF:
+		return v, nil
+	default:
+		return term.Handle{}, errors.New("unexpected rune")
+	}
+}
+
 // More checks if the parser has more tokens to read.
 func (p *parser) More() bool {
 	if _, err := p.next(); err != nil {
@@ -256,17 +290,20 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 	var lhs term.Handle
 	switch op, ok, err := p.prefix(maxPriority); {
 	case err != nil:
-		return term.Handle{}, false, err
+		return term.Handle{}, false, fmt.Errorf("prefix(%d): %w", maxPriority, err)
 	case !ok:
 		lhs, ok, err = p.term0(maxPriority)
-		if err != nil || !ok {
-			return term.Handle{}, ok, err
+		if err != nil {
+			return term.Handle{}, false, fmt.Errorf("term0(%d): %w", maxPriority, err)
+		}
+		if !ok {
+			return term.Handle{}, false, nil
 		}
 	default:
 		_, rbp := op.bindingPriorities()
 		t, ok, err := p.term(rbp)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("term(%d): %w", rbp, err)
 		}
 		if !ok {
 			p.backup()
@@ -274,14 +311,14 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 		}
 		lhs, err = p.arena.PutCompound(op.name, t)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("PutCompound(%s, %s): %w", op.name, &Formatter{Arena: p.arena, Term: t}, err)
 		}
 	}
 
 	for {
 		op, ok, err := p.infix(maxPriority)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("infix(%d): %w", maxPriority, err)
 		}
 		if !ok {
 			break
@@ -296,8 +333,11 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 			}
 		default:
 			rhs, ok, err := p.term(rbp)
-			if err != nil || !ok {
-				return term.Handle{}, ok, err
+			if err != nil {
+				return term.Handle{}, false, fmt.Errorf("term(%d): %w", rbp, err)
+			}
+			if !ok {
+				return term.Handle{}, false, nil
 			}
 			lhs, err = p.arena.PutCompound(op.name, lhs, rhs)
 			if err != nil {
@@ -311,8 +351,11 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 
 func (p *parser) prefix(maxPriority int) (operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
-	if err != nil || !ok {
-		return operator{}, ok, err
+	if err != nil {
+		return operator{}, false, fmt.Errorf("op(%d): %w", maxPriority, err)
+	}
+	if !ok {
+		return operator{}, false, nil
 	}
 
 	if a == atomMinus {
@@ -353,8 +396,11 @@ func (p *parser) prefix(maxPriority int) (operator, bool, error) {
 
 func (p *parser) infix(maxPriority int) (operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
-	if err != nil || !ok {
-		return operator{}, ok, err
+	if err != nil {
+		return operator{}, ok, fmt.Errorf("op(%d): %w", maxPriority, err)
+	}
+	if !ok {
+		return operator{}, false, nil
 	}
 
 	if op := p.operatorSet.ops[opKey{name: a, opClass: operatorClassInfix}]; op != (operator{}) {
@@ -420,27 +466,31 @@ func (p *parser) op(maxPriority int) (term.Atom, bool, error) {
 func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 	t, err := p.next()
 	if err != nil {
-		return term.Handle{}, false, err
+		return term.Handle{}, false, fmt.Errorf("next(): %w", err)
 	}
 	switch t.kind {
 	case tokenOpen, tokenOpenCT:
-		return p.openClose()
+		t, ok, err := p.openClose()
+		if err != nil {
+			return term.Handle{}, false, fmt.Errorf("openClose(): %w", err)
+		}
+		return t, ok, nil
 	case tokenInteger:
 		i, err := p.integer(1, t.val)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("integer(1, %s): %w", t.val, err)
 		}
 		return i, true, nil
 	case tokenFloatNumber:
 		f, err := p.float(1, t.val)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("float(1, %s): %w", t.val, err)
 		}
 		return f, true, nil
 	case tokenVariable:
 		v, err := p.variable(t.val)
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("variable(%s): %w", t.val, err)
 		}
 		return v, true, nil
 	case tokenOpenList:
@@ -450,7 +500,11 @@ func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 			break
 		}
 		p.backup()
-		return p.list()
+		t, ok, err := p.list()
+		if err != nil {
+			return term.Handle{}, false, fmt.Errorf("list(): %w", err)
+		}
+		return t, ok, nil
 	case tokenOpenCurly:
 		if t, _ := p.next(); t.kind == tokenCloseCurly {
 			p.backup()
@@ -458,7 +512,11 @@ func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 			break
 		}
 		p.backup()
-		return p.curlyBracketedTerm()
+		t, ok, err := p.curlyBracketedTerm()
+		if err != nil {
+			return term.Handle{}, false, fmt.Errorf("curlyBracketedTerm(): %w", err)
+		}
+		return t, ok, nil
 	case tokenDoubleQuotedList:
 		switch *p.doubleQuotes {
 		case DoubleQuotesChars:
@@ -481,31 +539,38 @@ func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 		p.backup()
 	}
 
-	return p.term0Atom(maxPriority)
+	a, ok, err := p.term0Atom(maxPriority)
+	if err != nil {
+		return term.Handle{}, false, fmt.Errorf("term0Atom(%d): %w", maxPriority, err)
+	}
+	return a, ok, nil
 }
 
 func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
 	a, ok, err := p.atom()
-	if err != nil || !ok {
-		return term.Handle{}, ok, err
+	if err != nil {
+		return term.Handle{}, false, fmt.Errorf("atom(): %w", err)
+	}
+	if !ok {
+		return term.Handle{}, false, nil
 	}
 
 	if a == atomMinus {
 		t, err := p.next()
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("next(): %w", err)
 		}
 		switch t.kind {
 		case tokenInteger:
 			i, err := p.integer(-1, t.val)
 			if err != nil {
-				return term.Handle{}, false, err
+				return term.Handle{}, false, fmt.Errorf("integer(-1, %s): %w", t.val, err)
 			}
 			return i, true, nil
 		case tokenFloatNumber:
 			f, err := p.float(-1, t.val)
 			if err != nil {
-				return term.Handle{}, false, err
+				return term.Handle{}, false, fmt.Errorf("float(-1, %s): %w", t.val, err)
 			}
 			return f, true, nil
 		default:
@@ -514,8 +579,11 @@ func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
 	}
 
 	t, ok, err := p.functionalNotation(a)
-	if err != nil || !ok {
-		return term.Handle{}, ok, err
+	if err != nil {
+		return term.Handle{}, false, fmt.Errorf("functionalNotation(%s): %w", a, err)
+	}
+	if !ok {
+		return term.Handle{}, false, nil
 	}
 
 	// 6.3.1.3 An atom which is an operator shall not be the immediate operand (3.120) of an operator.
@@ -557,8 +625,11 @@ func (p *parser) variable(s string) (term.Handle, error) {
 
 func (p *parser) openClose() (term.Handle, bool, error) {
 	t, ok, err := p.term(1201)
-	if err != nil || !ok {
-		return term.Handle{}, ok, err
+	if err != nil {
+		return term.Handle{}, false, fmt.Errorf("term(1201): %w", err)
+	}
+	if !ok {
+		return term.Handle{}, false, nil
 	}
 	if t, _ := p.next(); t.kind != tokenClose {
 		p.backup()
@@ -682,8 +753,11 @@ func (p *parser) list() (term.Handle, bool, error) {
 
 func (p *parser) curlyBracketedTerm() (term.Handle, bool, error) {
 	t, ok, err := p.term(1201)
-	if err != nil || !ok {
-		return term.Handle{}, ok, err
+	if err != nil {
+		return term.Handle{}, false, fmt.Errorf("term(1201): %w", err)
+	}
+	if !ok {
+		return term.Handle{}, false, nil
 	}
 
 	if t, _ := p.next(); t.kind != tokenCloseCurly {
@@ -704,7 +778,7 @@ func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error
 	case tokenOpenCT:
 		arg, err := p.arg()
 		if err != nil {
-			return term.Handle{}, false, err
+			return term.Handle{}, false, fmt.Errorf("arg(): %w", err)
 		}
 		args := []term.Handle{arg}
 		for {
@@ -712,7 +786,7 @@ func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error
 			case tokenComma:
 				arg, err := p.arg()
 				if err != nil {
-					return term.Handle{}, false, err
+					return term.Handle{}, false, fmt.Errorf("arg(): %w", err)
 				}
 				args = append(args, arg)
 			case tokenClose:
@@ -740,7 +814,7 @@ func (p *parser) functionalNotation(functor term.Atom) (term.Handle, bool, error
 func (p *parser) arg() (term.Handle, error) {
 	arg, ok, err := p.atom()
 	if err != nil {
-		return term.Handle{}, err
+		return term.Handle{}, fmt.Errorf("atom(): %w", err)
 	}
 	if ok {
 		if p.operatorSet.defined(arg) {
@@ -765,10 +839,10 @@ func (p *parser) arg() (term.Handle, error) {
 
 	t, ok, err := p.term(999)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Handle{}, fmt.Errorf("term(999): %w", err)
 	}
 	if !ok {
-		return term.Handle{}, &UnexpectedTokenError{token: p.current()}
+		return term.Handle{}, fmt.Errorf("term(999): %w", &UnexpectedTokenError{token: p.current()})
 	}
 	return t, nil
 }
