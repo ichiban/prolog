@@ -61,13 +61,12 @@ func TestCompile(t *testing.T) {
 							{
 								OpCode: ir.OpWrite,
 								Type:   ir.TypeValue,
-								A:      ir.Operand{Kind: ir.OperandKindGet},
+								A:      ir.Operand{Kind: ir.OperandKindPut},
 								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 1},
 							},
 							{
 								OpCode: ir.OpWrite,
 								Type:   ir.TypeValue,
-								A:      ir.Operand{Kind: ir.OperandKindGet},
 								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 2},
 							},
 							{
@@ -75,6 +74,60 @@ func TestCompile(t *testing.T) {
 								Type:   ir.TypeValue,
 								A:      ir.Operand{Kind: ir.OperandKindArgument, Index: 1},
 								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 3},
+							},
+						},
+						Execute: term.NewFunctor(term.NewAtomRune('p'), 2),
+					},
+				},
+			},
+		},
+		{
+			title: "deep cut",
+			text:  `deep_cut(X) :- p(X), !, q(X).`,
+			result: &ir.Module{
+				Name: term.NewAtom("user"),
+				Clauses: []ir.Clause{
+					{
+						PI:      term.NewFunctor(term.NewAtom("deep_cut"), 2),
+						MaxRegs: 4,
+						Code: []ir.Instruction{
+							{
+								OpCode: ir.OpPut,
+								Type:   ir.TypeStructure,
+								A:      ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtom("$cut_to"), 2)},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 2},
+							},
+							{
+								OpCode: ir.OpPush,
+								Type:   ir.TypeCut,
+							},
+							{
+								OpCode: ir.OpWrite,
+								Type:   ir.TypeVariable,
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 3},
+							},
+							{
+								OpCode: ir.OpPush,
+								Type:   ir.TypeStructure,
+								A:      ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('q'), 2)},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 3},
+							},
+							{
+								OpCode: ir.OpWrite,
+								Type:   ir.TypeValue,
+								A:      ir.Operand{Kind: ir.OperandKindPut},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 0},
+							},
+							{
+								OpCode: ir.OpWrite,
+								Type:   ir.TypeValue,
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 1},
+							},
+							{
+								OpCode: ir.OpPut,
+								Type:   ir.TypeValue,
+								A:      ir.Operand{Kind: ir.OperandKindArgument, Index: 1},
+								B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 2},
 							},
 						},
 						Execute: term.NewFunctor(term.NewAtomRune('p'), 2),
@@ -96,7 +149,7 @@ func TestCompile(t *testing.T) {
 				},
 			}
 			var m ir.Module
-			err := c.CompileModule(t.Context(), &m, test.text)
+			err := c.CompileText(t.Context(), &m, test.text)
 			if !errors.Is(err, test.err) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
@@ -423,7 +476,7 @@ func TestCompiler_CompileClause(t *testing.T) {
 				MaxRegs: 3,
 				Code: []ir.Instruction{
 					{OpCode: ir.OpPut, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
-					{OpCode: ir.OpWrite, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindGet}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 0}},
+					{OpCode: ir.OpWrite, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 0}},
 					{OpCode: ir.OpPut, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 0}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
@@ -470,9 +523,9 @@ func TestCompiler_CompileClause(t *testing.T) {
 				MaxRegs: 4,
 				Code: []ir.Instruction{
 					{OpCode: ir.OpPut, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
-					{OpCode: ir.OpPush, Type: ir.TypeVariable, A: ir.Operand{Kind: ir.OperandKindGet}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
+					{OpCode: ir.OpPush, Type: ir.TypeVariable, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
 					{OpCode: ir.OpPush, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('g'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
-					{OpCode: ir.OpWrite, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindGet}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 0}},
+					{OpCode: ir.OpWrite, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 0}},
 					{OpCode: ir.OpPut, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 0}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
@@ -486,7 +539,7 @@ func TestCompiler_CompileClause(t *testing.T) {
 				PI:      term.NewFunctor(term.NewAtomRune('p'), 1),
 				MaxRegs: 2,
 				Code: []ir.Instruction{
-					{OpCode: ir.OpPut, Type: ir.TypeConstant, A: ir.Operand{Kind: ir.OperandKindCutArg, Index: 1}, B: ir.Operand{Kind: ir.OperandKindTerm, Term: must(arena.PutAtom(term.NewAtom("$cut")))}},
+					{OpCode: ir.OpPut, Type: ir.TypeCut},
 				},
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
 			},
@@ -580,6 +633,29 @@ func TestCompiler_CompileClause(t *testing.T) {
 				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
 			},
 		},
+		{
+			title: "$cut_to",
+			head:  "'$cut_to'('$cut', Cont).",
+			body:  "true(Cont).",
+			clause: ir.Clause{
+				PI:       term.NewFunctor(term.NewAtom("$cut_to"), 2),
+				FirstArg: ir.Index{Term: must(engine.PutAtom(term.NewAtom("$cut"))), Arity: 0},
+				MaxRegs:  2,
+				Code: []ir.Instruction{
+					{
+						OpCode: ir.OpGet,
+						Type:   ir.TypeCut,
+					},
+					{
+						OpCode: ir.OpGet,
+						Type:   ir.TypeVariable,
+						A:      ir.Operand{Kind: ir.OperandKindArgument, Index: 1},
+						B:      ir.Operand{Kind: ir.OperandKindRegister, Index: 0},
+					},
+				},
+				Execute: term.NewFunctor(term.NewAtom("true"), 1),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
@@ -594,13 +670,13 @@ func TestCompiler_CompileClause(t *testing.T) {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}
 			var c ir.Clause
-			err = compiler.CompileClause(&c, h, b)
+			err = compiler.CompileBinaryClause(&c, h, b)
 			if !errors.Is(err, test.err) {
-				t.Errorf("CompileModule(%q): got %v, want %v", test.head, err, test.err)
+				t.Errorf("CompileText(%q): got %v, want %v", test.head, err, test.err)
 			}
 
 			if got, want := (ir.ClauseStringer{Arena: &arena, Clause: &c}).String(), (ir.ClauseStringer{Arena: &arena, Clause: &test.clause}).String(); got != want {
-				t.Errorf("CompileModule(%q): got %v, want %v", test.head, got, want)
+				t.Errorf("CompileText(%q): got %v, want %v", test.head, got, want)
 			}
 		})
 	}

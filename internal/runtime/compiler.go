@@ -50,48 +50,114 @@ type Compiler struct {
 	makeVariable func() (term.Handle, error)
 }
 
-// CompileModule compiles a Prolog text into a module.
-func (c *Compiler) CompileModule(ctx context.Context, out *ir.Module, text string) error {
-	for t, err := range c.clauses(ctx, text) {
-		if err != nil {
-			return err
-		}
-
-		// TODO: Handling of already binarized clauses H ::- B ?
-		head, body, err := c.Rule(t)
-		if err != nil {
-			return err
-		}
-		body, err = c.ReplaceBody(body)
-		if err != nil {
-			return err
-		}
-		cont, err := c.PutVariable()
-		if err != nil {
-			return err
-		}
-
-		head, body, err = c.Binarize(head, body, cont)
+func (c *Compiler) CompileSystem(out *ir.Module) error {
+	out.Name = term.NewAtom("prolog")
+	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
 		}
 
 		var cl ir.Clause
-		if err := c.CompileClause(&cl, head, body); err != nil {
+		if err := c.CompileClause(&cl, t); err != nil {
 			return err
 		}
 		out.Clauses = append(out.Clauses, cl)
 	}
-	if m := c.Module; m == (term.Atom{}) {
+	return nil
+}
+
+// CompileText compiles a Prolog text into a module.
+func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
+	c.todo = c.todo[:0]
+
+	for t, err := range c.clauses(ctx, text) {
+		if err != nil {
+			return err
+		}
+		// TODO: Process include/1 directive here?
+
+		for t, err := range c.Engine.ExpandTerm(ctx, t) {
+			if err != nil {
+				return err
+			}
+			t, err = c.Engine.ExpandGoal(ctx, t)
+			if err != nil {
+				return err
+			}
+
+			var cl ir.Clause
+			if err := c.CompileClause(&cl, t); err != nil {
+				return err
+			}
+			out.Clauses = append(out.Clauses, cl)
+
+		}
+
+		for _, t := range c.todo {
+			var cl ir.Clause
+			if err := c.CompileClause(&cl, t); err != nil {
+				return err
+			}
+			out.Clauses = append(out.Clauses, cl)
+		}
+		c.todo = c.todo[:0]
+	}
+	if c.Module == (term.Atom{}) {
 		c.Module = term.NewAtom("user")
 	}
 	out.Name = c.Module
 	return nil
 }
 
-func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Handle, error] {
+func (c *Compiler) CompileClause(cl *ir.Clause, t term.Handle) error {
+	head, body, err := c.Rule(t)
+	if err != nil {
+		return err
+	}
+	body, err = c.ReplaceBody(body)
+	if err != nil {
+		return err
+	}
+	cont, err := c.PutVariable()
+	if err != nil {
+		return err
+	}
+
+	head, body, err = c.Binarize(head, body, cont)
+	if err != nil {
+		return err
+	}
+
+	return c.CompileBinaryClause(cl, head, body)
+}
+
+func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 	return func(yield func(term.Handle, error) bool) {
-		c.todo = c.todo[:0]
+		{ // $cut_to(X) :- true
+			cut, err := c.PutAtom(term.NewAtom("$cut"))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			head, err := c.PutCompound(term.NewAtom("$cut_to"), cut)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			body, err := c.PutAtom(term.NewAtom("true"))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			t, err := c.PutCompound(term.NewAtom(":-"), head, body)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(t, nil) {
+				return
+			}
+		}
 
 		if c.BuiltinSet == nil {
 			c.BuiltinSet = NewBuiltinSet()
@@ -114,17 +180,21 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 			} else {
 				body = head
 			}
-			c, err := c.PutCompound(term.NewAtom(":-"), head, body)
+			t, err := c.PutCompound(term.NewAtom(":-"), head, body)
 			if err != nil {
 				_ = yield(term.Handle{}, err)
 				return
 			}
-			if !yield(c, nil) {
+			if !yield(t, nil) {
 				return
 			}
 		}
+	}
+}
 
-		for clause, err := range syntax.Parse(text,
+func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Handle, error] {
+	return func(yield func(term.Handle, error) bool) {
+		for t, err := range syntax.Parse(text,
 			syntax.Arena(c.Arena),
 			syntax.Operators(c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),
@@ -136,19 +206,19 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 
 			// TODO: Process include/1 directive here?
 
-			for clause, err := range c.Engine.ExpandTerm(ctx, clause) {
+			for t, err := range c.Engine.ExpandTerm(ctx, t) {
 				if err != nil {
 					_ = yield(term.Handle{}, err)
 					return
 				}
-				clause, err = c.Engine.ExpandGoal(ctx, clause) // FIXME:
-				if !yield(clause, err) {
+				t, err = c.Engine.ExpandGoal(ctx, t) // FIXME:
+				if !yield(t, err) {
 					return
 				}
 			}
 
-			for _, clause := range c.todo {
-				if !yield(clause, nil) {
+			for _, t := range c.todo {
+				if !yield(t, nil) {
 					return
 				}
 			}
@@ -752,7 +822,7 @@ func (c *Compiler) splitRel(out *[]term.Handle, op term.Atom, a, b term.Handle) 
 	return nil
 }
 
-func (c *Compiler) CompileClause(clause *ir.Clause, head, body term.Handle) error {
+func (c *Compiler) CompileBinaryClause(clause *ir.Clause, head, body term.Handle) error {
 	h, ok := c.Functor(head)
 	if !ok {
 		return errUnhandled
@@ -806,7 +876,7 @@ func (c *Compiler) CompileClause(clause *ir.Clause, head, body term.Handle) erro
 
 	c.allocateRegs(clause, args, vars)
 
-	clause.Compact()
+	c.Beautify(clause)
 
 	return nil
 }
@@ -837,7 +907,7 @@ func (c *Compiler) compileHead(clause *ir.Clause, head term.Handle) error {
 	f, _ := c.Functor(head)
 
 	pi := term.NewFunctor(f.Name(), f.Arity())
-	if i, ok := c.BuiltinSet.index[pi]; ok {
+	if i, ok := c.BuiltinSet.Lookup(pi); ok {
 		b := c.BuiltinSet.entries[i]
 		if b.Type == BuiltinTypeStandard {
 			cont := c.Arg(head, f.Arity()-1)
@@ -938,15 +1008,18 @@ func (c *Compiler) emitArgs(clause *ir.Clause, op ir.OpCode, t, ct term.Handle) 
 			return err
 		}
 
+		var k ir.OperandKind
 		switch op {
 		case ir.OpGet:
 			op = ir.OpUnify
+			k = ir.OperandKindGet
 		case ir.OpPut:
 			if _, ok := c.Functor(a); ok {
 				op = ir.OpPush
 			} else {
 				op = ir.OpWrite
 			}
+			k = ir.OperandKindPut
 		default:
 			// Do nothing.
 		}
@@ -954,7 +1027,7 @@ func (c *Compiler) emitArgs(clause *ir.Clause, op ir.OpCode, t, ct term.Handle) 
 		clause.Emit(ir.Instruction{
 			OpCode: op,
 			Type:   typ,
-			A:      ir.Operand{Kind: ir.OperandKindGet},
+			A:      ir.Operand{Kind: k},
 			B:      ir.Operand{Kind: ir.OperandKindTerm, Term: x},
 		})
 	}
@@ -1036,9 +1109,9 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) error {
 		return c.compileBody(clause, cont)
 	}
 
-	if i, ok := c.BuiltinSet.index[pi]; ok {
+	if i, ok := c.BuiltinSet.Lookup(pi); ok {
 		var (
-			b = c.BuiltinSet.entries[i]
+			b = c.BuiltinSet.Get(i)
 		)
 		switch b.Type {
 		case BuiltinTypeStandard:
@@ -1388,4 +1461,66 @@ func getReg(n *int, freeList *[]int) int {
 	r := *n
 	*n++
 	return r
+}
+
+func (c *Compiler) Beautify(clause *ir.Clause) {
+	clause.Code = rewriteSlice(clause.Code, func(inst ir.Instruction, w func(ir.Instruction)) {
+		var (
+			get          = inst.OpCode == ir.OpGet
+			put          = inst.OpCode == ir.OpPut
+			write        = inst.OpCode == ir.OpWrite
+			variable     = inst.Type == ir.TypeVariable
+			value        = inst.Type == ir.TypeValue
+			constant     = inst.Type == ir.TypeConstant
+			sameRegister = inst.A.Kind == ir.OperandKindArgument && inst.B.Kind == ir.OperandKindRegister && inst.A.Index == inst.B.Index
+			cutSentinel  = func(arena *term.Arena, operand ir.Operand) bool {
+				if operand.Kind != ir.OperandKindTerm {
+					return false
+				}
+				t := operand.Term
+				t = arena.Deref(t)
+				a, _ := arena.Atom(t)
+				return a == atomCutSentinel
+			}
+			operandPut = inst.A.Kind == ir.OperandKindPut
+			arg        = inst.A.Kind == ir.OperandKindArgument
+			temp       = inst.A.Kind == ir.OperandKindTemp
+			cutArg     = inst.A.Kind == ir.OperandKindCutArg
+		)
+		switch {
+		case arg, temp, cutArg:
+			switch {
+			case (get && variable || put && value) && sameRegister:
+				return // skip
+			case constant && cutSentinel(c.Arena, inst.B):
+				w(ir.Instruction{
+					OpCode: inst.OpCode,
+					Type:   ir.TypeCut,
+				})
+			default:
+				w(inst)
+			}
+		case write && constant && operandPut && cutSentinel(c.Arena, inst.B):
+			w(ir.Instruction{
+				OpCode: ir.OpPush,
+				Type:   ir.TypeCut,
+			})
+		default:
+			w(inst)
+		}
+	})
+}
+
+func rewriteSlice[S ~[]T, T any](s S, fn func(e T, write func(T))) S {
+	var (
+		j     int
+		write = func(t T) {
+			s[j] = t
+			j++
+		}
+	)
+	for _, e := range s {
+		fn(e, write)
+	}
+	return s[:j]
 }

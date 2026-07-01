@@ -3,9 +3,11 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
+	"math"
 	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/ir"
@@ -40,6 +42,17 @@ func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, erro
 	return t, nil // TODO: Implement this!
 }
 
+func (e *Engine) LoadSystem() error {
+	var (
+		c = Compiler{Engine: e}
+		m ir.Module
+	)
+	if err := c.CompileSystem(&m); err != nil {
+		return err
+	}
+	return e.LoadModule(&m)
+}
+
 func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 	f, err := e.SourceFS.Open(filename)
 	if err != nil {
@@ -54,12 +67,13 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 		return err
 	}
 
-	var m ir.Module
-	c := Compiler{Engine: e}
-	if err := c.CompileModule(ctx, &m, string(b)); err != nil {
+	var (
+		c = Compiler{Engine: e}
+		m ir.Module
+	)
+	if err := c.CompileText(ctx, &m, string(b)); err != nil {
 		return err
 	}
-
 	if err := e.LoadModule(&m); err != nil {
 		return err
 	}
@@ -79,13 +93,13 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		}
 	}
 
-	if len(e.Code) == 0 {
+	if e.Code == nil {
 		e.Predicates = map[term.Functor]wam.Predicate{
 			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
 		}
-		e.Code = append(e.Code, []wam.Instruction{
-			{Op: wam.OpProceed},
-		}...)
+		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
+			return err
+		}
 	}
 
 	var (
@@ -104,18 +118,21 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			}
 
 			current = pi
+			if e.Predicates == nil {
+				e.Predicates = map[term.Functor]wam.Predicate{}
+			}
 			e.Predicates[pi] = wam.Predicate{
 				Offset: len(e.Code),
 			}
 
 			fid := e.EmbedFunctor(pi)
-			e.Code = append(e.Code, wam.Instruction{
-				Op: wam.OpSwitch,
-				N:  uint16(fid),
-			}, wam.Instruction{
-				Op: wam.OpTryMeElse,
-				I:  uint8(pi.Arity()),
-			})
+			if err := e.emit(wam.OpSwitch, 0, fid); err != nil {
+				return err
+			}
+			last = len(e.Code)
+			if err := e.emit(wam.OpTryMeElse, pi.Arity(), 0); err != nil {
+				return err
+			}
 		case pi != current: // A discontiguous clause.
 			if err := e.OnDiscontiguous(pi); err != nil {
 				return err
@@ -124,13 +141,16 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			// TODO: Overwrite the previous chunk's `execute P` to an unconditional jump to this chunk.
 			fallthrough
 		default:
-			e.Code[last].N = uint16(len(e.Code))
-			e.Code = append(e.Code, wam.Instruction{
-				Op: wam.OpRetryMeElse,
-				I:  uint8(pi.Arity()),
-			})
+			if last > 0 {
+				if err := e.rewriteN(last, len(e.Code)); err != nil {
+					return err
+				}
+				last = len(e.Code)
+				if err := e.emit(wam.OpRetryMeElse, pi.Arity(), 0); err != nil {
+					return err
+				}
+			}
 		}
-		last = len(e.Code) - 1
 
 		if clause.MaxRegs >= maxRegisters {
 			return errors.New("not enough registers")
@@ -156,64 +176,81 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 
 		for _, inst := range clause.Code {
 			switch op := convertOp(inst); op {
+			case wam.OpUnifyVoid, wam.OpWriteVoid:
+				if err := e.emit(op, 0, 0); err != nil {
+					return err
+				}
 			case wam.OpLoadVariable, wam.OpPutVariable, wam.OpGetValue, wam.OpLoadValue:
-				e.Code = append(e.Code, wam.Instruction{
-					Op: op,
-					I:  uint8(inst.A.Index),
-					N:  uint16(inst.B.Index),
-				})
+				if err := e.emit(op, inst.A.Index, inst.B.Index); err != nil {
+					return err
+				}
 			case wam.OpGetStructure, wam.OpPutStructure, wam.OpPushStructure:
 				fid := e.EmbedFunctor(inst.A.Functor)
-				e.Code = append(e.Code, wam.Instruction{
-					Op: op,
-					I:  uint8(inst.B.Index),
-					N:  uint16(fid),
-				})
+				if err := e.emit(op, inst.B.Index, fid); err != nil {
+					return err
+				}
 			case wam.OpUnifyVariable, wam.OpUnifyValue, wam.OpWriteVariable, wam.OpWriteValue:
-				e.Code = append(e.Code, wam.Instruction{
-					Op: op,
-					I:  uint8(inst.B.Index),
-				})
+				if err := e.emit(op, inst.B.Index, 0); err != nil {
+					return err
+				}
 			case wam.OpLoadConstant, wam.OpGetConstant, wam.OpPutConstant, wam.OpUnifyConstant, wam.OpWriteConstant:
 				c := inst.B.Term
 				c = e.Deref(c)
 				cid := e.EmbedConstants(c)
-				e.Code = append(e.Code, wam.Instruction{
-					Op: op,
-					I:  uint8(inst.A.Index),
-					N:  uint16(cid),
-				})
+				if err := e.emit(op, inst.A.Index, cid); err != nil {
+					return err
+				}
 			case wam.OpGetVariable:
-				e.Code = append(e.Code, wam.Instruction{
-					Op: wam.OpMove,
-					I:  uint8(inst.A.Index),
-					N:  uint16(inst.B.Index),
-				})
+				if err := e.emit(wam.OpMove, inst.A.Index, inst.B.Index); err != nil {
+					return err
+				}
 			case wam.OpPutValue:
-				e.Code = append(e.Code, wam.Instruction{
-					Op: wam.OpMove,
-					I:  uint8(inst.B.Index),
-					N:  uint16(inst.A.Index),
-				})
+				if err := e.emit(wam.OpMove, inst.B.Index, inst.A.Index); err != nil {
+					return err
+				}
 			default:
-				e.Code = append(e.Code, wam.Instruction{
-					Op: op,
-					N:  uint16(inst.A.Index),
-				})
+				if err := e.emit(op, inst.A.Index, 0); err != nil {
+					return err
+				}
 			}
 		}
 
 		fid := e.EmbedFunctor(clause.Execute)
-		e.Code = append(e.Code, wam.Instruction{
-			Op: wam.OpExecute,
-			N:  uint16(fid),
-		})
+		if err := e.emit(wam.OpExecute, 0, fid); err != nil {
+			return err
+		}
 	}
 
 	return e.closePredicate(last)
 }
 
+func (e *Engine) emit(op wam.OpCode, i, n int) error {
+	if i > math.MaxUint16 {
+		return fmt.Errorf("operand out of range: i=%d", i)
+	}
+	if n > math.MaxUint32 {
+		return fmt.Errorf("operand out of range: n=%d", n)
+	}
+	e.Code = append(e.Code, wam.Instruction{
+		Op: op,
+		I:  uint16(i),
+		N:  uint32(n),
+	})
+	return nil
+}
+
+func (e *Engine) rewriteN(addr, n int) error {
+	if n > math.MaxUint32 {
+		return fmt.Errorf("operand out of range: n=%d", n)
+	}
+	e.Code[addr].N = uint32(n)
+	return nil
+}
+
 func (e *Engine) closePredicate(last int) error {
+	if last == 0 {
+		return nil
+	}
 	switch e.Code[last].Op {
 	case wam.OpTryMeElse: // The last predicate has only one clause.
 		// TODO: What would happen if it's discontiguous?
@@ -258,23 +295,29 @@ func convertOp(inst ir.Instruction) wam.OpCode {
 		return wam.OpUnifyValue
 	case key{op: ir.OpUnify, typ: ir.TypeConstant}:
 		return wam.OpUnifyConstant
+	case key{op: ir.OpUnify, typ: ir.TypeVoid}:
+		return wam.OpUnifyVoid
 	case key{op: ir.OpWrite, typ: ir.TypeVariable}:
 		return wam.OpWriteVariable
 	case key{op: ir.OpWrite, typ: ir.TypeValue}:
 		return wam.OpWriteValue
 	case key{op: ir.OpWrite, typ: ir.TypeConstant}:
 		return wam.OpWriteConstant
+	case key{op: ir.OpWrite, typ: ir.TypeVoid}:
+		return wam.OpWriteVoid
 	case key{op: ir.OpLoad, typ: ir.TypeVariable}:
 		return wam.OpLoadVariable
 	case key{op: ir.OpLoad, typ: ir.TypeValue}:
 		return wam.OpLoadValue
 	case key{op: ir.OpLoad, typ: ir.TypeConstant}:
 		return wam.OpLoadConstant
+	case key{op: ir.OpPush, typ: ir.TypeVariable}:
+		return wam.OpPushVariable
 	case key{op: ir.OpPush, typ: ir.TypeStructure}:
 		return wam.OpPushStructure
 	case key{op: ir.OpPush, typ: ir.TypeCut}:
 		return wam.OpPushCut
-	case key{op: ir.OpBuiltin, typ: ir.TypeNotApplicable}, key{op: ir.OpInline, typ: ir.TypeNotApplicable}, key{op: ir.OpArithmetic, typ: ir.TypeNotApplicable}:
+	case key{op: ir.OpBuiltin, typ: ir.TypeNotApplicable}, key{op: ir.OpInline, typ: ir.TypeVariable}, key{op: ir.OpArithmetic, typ: ir.TypeNotApplicable}:
 		return wam.OpBuiltin0 + wam.OpCode(inst.A.Index)
 	default:
 		return wam.OpNop

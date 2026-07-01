@@ -4,11 +4,12 @@ import "fmt"
 
 type Instruction struct {
 	Op OpCode
-	I  uint8  // Operand for Xi, Ai
-	N  uint16 // Operand for f/n, L
+	I  uint16 // Operand for Xi, Ai
+	N  uint32 // Operand for c, f/n, L, An
 }
 
-type OpCode uint8
+// OpCode tells what action to perform.
+type OpCode uint16
 
 func (o OpCode) String() string {
 	if o >= OpBuiltin0 {
@@ -33,11 +34,14 @@ const (
 	OpUnifyVariable
 	OpUnifyValue
 	OpUnifyConstant
+	OpUnifyVoid
 
 	OpWriteVariable
 	OpWriteValue
 	OpWriteConstant
+	OpWriteVoid
 
+	OpPushVariable
 	OpPushStructure
 
 	OpExecute
@@ -59,6 +63,8 @@ const (
 	OpLoadVariable
 	OpLoadValue
 	OpLoadConstant
+
+	// OpBuiltin0 marks the beginning of the builtin section.
 	OpBuiltin0
 
 	/* TODO: We're not going to define those specific opcodes but need to define Builtins for them.
@@ -123,9 +129,12 @@ var OpCodeNames = [...]string{
 	OpUnifyVariable: "unify_variable",
 	OpUnifyValue:    "unify_value",
 	OpUnifyConstant: "unify_constant",
+	OpUnifyVoid:     "unify_void",
 	OpWriteVariable: "write_variable",
 	OpWriteValue:    "write_value",
 	OpWriteConstant: "write_constant",
+	OpWriteVoid:     "write_void",
+	OpPushVariable:  "push_variable",
 	OpPushStructure: "push_structure",
 	OpExecute:       "execute",
 	OpProceed:       "proceed",

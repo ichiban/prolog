@@ -34,7 +34,16 @@ func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
 	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0})
 	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
 	return &b
+}
+
+func (b *BuiltinSet) Lookup(pi term.Functor) (int, bool) {
+	if b == nil {
+		return 0, false
+	}
+	id, ok := b.index[pi]
+	return id, ok
 }
 
 func (b *BuiltinSet) Get(id int) *Builtin {
@@ -134,6 +143,19 @@ func call1(ctx context.Context, e *Execution) error {
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
 		e.tempVars[i] = arg
 	}
+	return nil
+}
+
+func var1(ctx context.Context, e *Execution) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	v := e.tempVars[0]
+	if _, ok := e.Variable(v); !ok {
+		e.Backtrack()
+		return nil
+	}
+	e.Next()
 	return nil
 }
 

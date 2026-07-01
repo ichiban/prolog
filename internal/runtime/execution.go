@@ -3,14 +3,16 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
+	"math"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
 )
 
 const (
-	maxRegisters = 256
+	maxRegisters = 1024
 )
 
 type stackFrame struct {
@@ -49,9 +51,19 @@ type Execution struct {
 
 func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 	return func(yield func(error) bool) {
-		for e.programPointer < len(e.Image.Code) {
-			switch inst := e.Image.Code[e.programPointer]; inst.Op {
-			case wam.OpNop: // nop
+		var (
+			image = e.Engine.Image
+			code  = image.Code
+		)
+		for e.programPointer < len(code) {
+			var (
+				inst = code[e.programPointer]
+				op   = inst.Op
+				i    = inst.I
+				n    = inst.N
+			)
+			switch op {
+			case wam.OpNop, wam.OpNondet: // nop
 				e.Next()
 			case wam.OpPutVariable: // put_variable Xn, Ai
 				v, err := e.PutVariable()
@@ -59,32 +71,45 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
-				e.tempVars[inst.N] = v
-				e.tempVars[inst.I] = v
+				e.tempVars[n] = v
+				e.tempVars[i] = v
 				e.Next()
 			case wam.OpPutConstant: // put_constant c, Xi
-				k := e.Constants[inst.N]
-				e.tempVars[inst.I] = k
+				k := e.Constants[n]
+				e.tempVars[i] = k
 				e.Next()
 			case wam.OpPutStructure: // put_structure f/n, Xi
-				f := e.Engine.Image.Functors[inst.N]
+				f := image.Functors[n]
 				s, err := e.PutStructure(f)
 				if err != nil {
 					_ = yield(err)
 					return
 				}
-				e.tempVars[inst.I] = s
+				e.tempVars[i] = s
+				e.Next()
+			case wam.OpPushStructure: // push_structure f/n, Xi
+				f := image.Functors[n]
+				s, err := e.PutStructure(f)
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				v := e.tempVars[i]
+				if err := e.Bind(v, s); err != nil {
+					_ = yield(err)
+					return
+				}
 				e.Next()
 			case wam.OpWriteConstant: // write_constant c
-				k := e.Constants[inst.N]
+				k := e.Constants[n]
 				if _, err := e.Put(k); err != nil {
 					_ = yield(err)
 					return
 				}
 				e.Next()
 			case wam.OpGetValue: // get_value Xn, Ai
-				t := e.tempVars[inst.N]
-				s := e.tempVars[inst.I]
+				t := e.tempVars[n]
+				s := e.tempVars[i]
 				ok, err := e.Unify(t, s, term.OnBind(func(v term.Handle) {
 					e.trail = append(e.trail, v)
 				}))
@@ -100,8 +125,8 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			case wam.OpGetConstant: // get_constant c, Xi
-				k := e.Constants[inst.N]
-				t := e.tempVars[inst.I]
+				k := e.Constants[n]
+				t := e.Deref(e.tempVars[i])
 				if _, ok := e.Variable(t); ok {
 					if err := e.Bind(t, k); err != nil {
 						_ = yield(err)
@@ -116,8 +141,8 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			case wam.OpGetStructure: // get_structure f/n, Xi
-				f := e.Image.Functors[inst.N]
-				t := e.Deref(e.tempVars[inst.I])
+				f := image.Functors[n]
+				t := e.Deref(e.tempVars[i])
 				if _, ok := e.Variable(t); ok {
 					s, err := e.PutStructure(f)
 					if err != nil {
@@ -146,7 +171,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpUnifyVariable: // unify_variable Xi
 				if e.mode == wam.ModeRead {
 					s := e.structurePointer
-					e.tempVars[inst.I] = e.Arg(s.term, s.argNo)
+					e.tempVars[i] = e.Arg(s.term, s.argNo)
 					e.structurePointer.argNo++
 					e.Next()
 					break
@@ -158,12 +183,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
-				e.tempVars[inst.I] = t
+				e.tempVars[i] = t
 				e.Next()
 			case wam.OpUnifyValue: // unify_value Xi
 				if e.mode == wam.ModeRead {
 					s := e.structurePointer
-					ok, err := e.Unify(e.tempVars[inst.I], e.Arg(s.term, s.argNo))
+					ok, err := e.Unify(e.tempVars[i], e.Arg(s.term, s.argNo))
 					if err != nil {
 						_ = yield(err)
 						return
@@ -180,13 +205,26 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				fallthrough
 			case wam.OpWriteValue: // write_value Xi
-				if _, err := e.Put(e.tempVars[inst.I]); err != nil {
+				if _, err := e.Put(e.tempVars[i]); err != nil {
+					_ = yield(err)
+					return
+				}
+				e.Next()
+			case wam.OpUnifyVoid:
+				if e.mode == wam.ModeRead {
+					e.structurePointer.argNo++
+					e.Next()
+					break
+				}
+				fallthrough
+			case wam.OpWriteVoid:
+				if _, err := e.PutVariable(); err != nil {
 					_ = yield(err)
 					return
 				}
 				e.Next()
 			case wam.OpExecute: // execute P
-				pi := e.Functors[inst.N]
+				pi := e.Functors[n]
 				p, ok := e.Predicates[pi]
 				if !ok {
 					culprit, err := e.PutFunctor(pi)
@@ -212,7 +250,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpTryMeElse: // try_me_else L
 				arity := int(inst.I)
 				f := stackFrame{
-					programPointer: int(inst.N),
+					programPointer: int(n),
 					heapTop:        len(e.Heap),
 					trailTop:       len(e.trail),
 				}
@@ -222,7 +260,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				e.Next()
 			case wam.OpRetryMeElse: // retry_me_else L
 				arity := int(inst.I)
-				e.stack[len(e.stack)-1].programPointer = int(inst.N)
+				e.stack[len(e.stack)-1].programPointer = int(n)
 				if err := e.restoreState(arity); err != nil {
 					_ = yield(err)
 					return
@@ -237,12 +275,10 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			case wam.OpMove: // move Xn<-Ai
-				e.tempVars[inst.N] = e.tempVars[inst.I]
-				e.Next()
-			case wam.OpNondet: // nondet
+				e.tempVars[n] = e.tempVars[i]
 				e.Next()
 			case wam.OpSwitch: // switch
-				pi := e.Functors[inst.N]
+				pi := e.Functors[n]
 				var (
 					t     = e.tempVars[0]
 					arity int
@@ -269,13 +305,23 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpPutCut: // put_cut
 				e.stack = e.stack[:e.cutB]
 				e.Next()
-			case wam.OpGetCut: // get_cut Xi
-				t := e.Deref(e.tempVars[inst.I])
+			case wam.OpGetCut: // get_cut TODO: Do we really need this?
+				t := e.tempVars[0]
+				t = e.Deref(t)
 				n, _ := e.Integer(t)
 				e.stack = e.stack[:n]
 				e.Next()
 			case wam.OpPushCut: // push_cut
-				if _, err := e.PutInteger(int64(e.cutB)); err != nil {
+				if e.cutB > math.MaxInt32 {
+					_ = yield(fmt.Errorf("cut b is too large"))
+					return
+				}
+				cb, err := e.PutInteger(int64(e.cutB))
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				if _, err := e.Put(cb); err != nil {
 					_ = yield(err)
 					return
 				}

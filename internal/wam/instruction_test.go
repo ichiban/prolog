@@ -6,7 +6,7 @@ import (
 )
 
 func TestInstruction_size(t *testing.T) {
-	if size := unsafe.Sizeof(Instruction{}); size != 4 {
-		t.Fatalf("instruction must be 4 bytes: %d", size)
+	if size := unsafe.Sizeof(Instruction{}); size != 8 {
+		t.Fatalf("instruction must be 8 bytes: %d", size)
 	}
 }

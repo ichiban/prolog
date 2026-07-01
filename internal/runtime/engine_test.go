@@ -8,13 +8,15 @@ import (
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
+	"github.com/ichiban/prolog/v2/internal/wam"
 )
 
 func TestEngine_LoadModule(t *testing.T) {
 	tests := []struct {
-		title string
-		text  string
-		image string
+		title    string
+		text     string
+		builtins *BuiltinSet
+		image    string
 	}{
 		{
 			title: "simple facts",
@@ -24,18 +26,13 @@ p.
 p.
 `,
 			image: `
-   0          true/0: proceed
-   1          call/2: builtin 1
+   0             p/1: nondet
+   1                  try_me_else 3
    2                  execute true/1
-   3          true/1: builtin 0
+   3                  retry_me_else 5
    4                  execute true/1
-   5             p/1: nondet
-   6                  try_me_else 8
-   7                  execute true/1
-   8                  retry_me_else 10
-   9                  execute true/1
-  10                  trust_me
-  11                  execute true/1
+   5                  trust_me
+   6                  execute true/1
 `,
 		},
 		{
@@ -46,24 +43,19 @@ p(b).
 p(c).
 `,
 			image: `
-   0          true/0: proceed
-   1          call/2: builtin 1
-   2                  execute true/1
-   3          true/1: builtin 0
+   0             p/2: switch p/2
+   1                  try_me_else 5
+   2             (a): get_constant a, A0
+   3                  move X0, A1
    4                  execute true/1
-   5             p/2: switch p/2
-   6                  try_me_else 10
-   7             (a): get_constant a A0
-   8                  move X0 A1
-   9                  execute true/1
-  10                  retry_me_else 14
-  11             (b): get_constant b A0
-  12                  move X0 A1
-  13                  execute true/1
-  14                  trust_me
-  15             (c): get_constant c A0
-  16                  move X0 A1
-  17                  execute true/1
+   5                  retry_me_else 9
+   6             (b): get_constant b, A0
+   7                  move X0, A1
+   8                  execute true/1
+   9                  trust_me
+  10             (c): get_constant c, A0
+  11                  move X0, A1
+  12                  execute true/1
 `,
 		},
 		{
@@ -74,66 +66,115 @@ p(b).
 p(a).
 `,
 			image: `
-   0          true/0: proceed
-   1          call/2: builtin 1
-   2                  execute true/1
-   3          true/1: builtin 0
+   0             p/2: nondet
+   1                  try_me_else 5
+   2             (a): get_constant a, A0
+   3                  move X0, A1
    4                  execute true/1
-   5             p/2: nondet
-   6                  try_me_else 10
-   7             (a): get_constant a A0
-   8                  move X0 A1
-   9                  execute true/1
-  10                  retry_me_else 14
-  11             (b): get_constant b A0
-  12                  move X0 A1
-  13                  execute true/1
-  14                  trust_me
-  15                  get_constant a A0
-  16                  move X0 A1
-  17                  execute true/1
+   5                  retry_me_else 9
+   6             (b): get_constant b, A0
+   7                  move X0, A1
+   8                  execute true/1
+   9                  trust_me
+  10                  get_constant a, A0
+  11                  move X0, A1
+  12                  execute true/1
 `,
 		},
 		{
-			title: "rules",
-			text:  `p(a). p(b). p(c). q(1). q(2). q(3). r(X, Y) :- p(X), q(Y).`,
+			title: "repeated argument variables",
+			text:  `p(X, X).`,
 			image: `
-   0          true/0: proceed
-   1          call/2: builtin 1
+   0             p/3: get_value X0, A1
+   1                  move X0, A2
    2                  execute true/1
-   3          true/1: builtin 0
-   4                  execute true/1
-   5             p/2: switch p/2
-   6                  try_me_else 10
-   7             (a): get_constant a A0
-   8                  move X0 A1
-   9                  execute true/1
-  10                  retry_me_else 14
-  11             (b): get_constant b A0
-  12                  move X0 A1
-  13                  execute true/1
-  14                  trust_me
-  15             (c): get_constant c A0
-  16                  move X0 A1
-  17                  execute true/1
-  18             q/2: switch q/2
-  19                  try_me_else 23
-  20             (1): get_constant 1 A0
-  21                  move X0 A1
-  22                  execute true/1
-  23                  retry_me_else 27
-  24             (2): get_constant 2 A0
-  25                  move X0 A1
-  26                  execute true/1
-  27                  trust_me
-  28             (3): get_constant 3 A0
-  29                  move X0 A1
-  30                  execute true/1
-  31             r/3: put_structure q/2 A3
-  32                  write_value X1
-  33                  write_value X2
-  34                  move X1 A3
-  35                  execute p/2
+`,
+		},
+		{
+			title: "structure in head",
+			text:  `p(f(X, X, a, _)).`,
+			image: `
+   0             p/2: get_structure f/4, A0
+   1                  unify_variable X0, A2
+   2           (f/4): unify_value X0, A2
+   3                  unify_constant a, A0
+   4                  unify_void
+   5                  move X0, A1
+   6                  execute true/1
+`,
+		},
+		{
+			title: "body",
+			text:  `p(X) :- q(X, Y, Y, a, _).`,
+			image: `
+   0             p/2: move X5, A1
+   1                  put_variable X2, A1
+   2                  put_constant a, A3
+   3                  put_variable X4, A4
+   4                  execute q/6
+`,
+		},
+		{
+			title: "structure in body",
+			text:  `p(X) :- q(f(X, Y, Y, a, _)).`,
+			image: `
+   0             p/2: put_structure f/5, A2
+   1                  write_value X0
+   2                  write_variable X3
+   3                  write_value X3
+   4                  write_constant a
+   5                  write_void
+   6                  move X0, A2
+   7                  execute q/2
+`,
+		},
+		{
+			title: "simple conjunction",
+			text:  `p(X) :- q(X), r(X), s(X).`,
+			image: `
+   0             p/2: put_structure r/2, A2
+   1                  write_value X0
+   2                  write_variable X3
+   3                  push_structure s/2, A3
+   4                  write_value X0
+   5                  write_value X1
+   6                  move X1, A2
+   7                  execute q/2
+`,
+		},
+		{
+			title: "simple disjunction",
+			text:  `p(X) :- q(X); r(X); s(X).`,
+			image: `
+   0             p/2: execute $aux1/2
+   1         $aux1/2: nondet
+   2                  try_me_else 4
+   3                  execute q/2
+   4                  retry_me_else 6
+   5                  execute r/2
+   6                  trust_me
+   7                  execute s/2
+`,
+		},
+		{
+			title: "neck cut",
+			text:  `p :- !, q.`,
+			image: `
+   0             p/1: put_cut
+   1                  execute q/1
+`,
+		},
+		{
+			title: "deep cut",
+			text:  `p :- q, !, r.`,
+			image: `
+   0             p/1: put_structure $cut_to/2, A1
+   1                  push_cut
+   2                  write_variable X2
+   3                  push_structure r/1, A2
+   4                  write_value X0
+   5                  move X0, A1
+   6                  execute q/1
 `,
 		},
 	}
@@ -144,7 +185,10 @@ p(a).
 				Arena: &term.Arena{
 					Heap: make(term.Heap, 0, 1024),
 				},
-				BuiltinSet: NewBuiltinSet(),
+				Image: wam.Image{
+					Code: []wam.Instruction{},
+				},
+				BuiltinSet: &BuiltinSet{},
 			}
 
 			c := Compiler{
@@ -152,7 +196,7 @@ p(a).
 			}
 
 			var m ir.Module
-			if err := c.CompileModule(t.Context(), &m, test.text); err != nil {
+			if err := c.CompileText(t.Context(), &m, test.text); err != nil {
 				t.Fatal(err)
 			}
 
@@ -241,12 +285,16 @@ func TestEngine_Call(t *testing.T) {
 				},
 			}
 
+			if err := e.LoadSystem(); err != nil {
+				t.Fatal(err)
+			}
+
 			c := Compiler{
 				Engine: &e,
 			}
 
 			var m ir.Module
-			if err := c.CompileModule(t.Context(), &m, test.text); err != nil {
+			if err := c.CompileText(t.Context(), &m, test.text); err != nil {
 				t.Fatal(err)
 			}
 

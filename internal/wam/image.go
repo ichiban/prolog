@@ -19,12 +19,17 @@ type FirstArgKey struct {
 	Arity int
 }
 
+// Image is a compiled image of Prolog texts/modules.
 type Image struct {
-	Predicates    map[term.Functor]Predicate
-	FirstArgIndex map[FirstArgKey]int
-	Code          []Instruction
-	Constants     []term.Handle
-	Functors      []term.Functor
+	Predicates    map[term.Functor]Predicate // TODO: module?
+	FirstArgIndex map[FirstArgKey]int        // TODO: module?
+
+	// Code is a sequence of BinWAM instructions.
+	// Its operand may refer to sidecar tables Constants or Functors.
+	// This design choice, instead of holding the value inline, is because Go doesn't support union types.
+	Code      []Instruction
+	Constants []term.Handle
+	Functors  []term.Functor
 }
 
 func (i *Image) EmbedConstants(t term.Handle) int {
@@ -61,20 +66,20 @@ func (i *Image) String() string {
 		l, _ := labels[j]
 		_, _ = fmt.Fprintf(&sb, "%4d %16s %s", j, l, inst.Op)
 		switch inst.Op {
-		case OpWriteValue:
+		case OpWriteValue, OpWriteVariable:
 			_, _ = fmt.Fprintf(&sb, " X%d\n", inst.I)
-		case OpPutVariable, OpMove:
-			_, _ = fmt.Fprintf(&sb, " X%d A%d\n", inst.N, inst.I)
-		case OpPutStructure:
-			_, _ = fmt.Fprintf(&sb, " %s A%d\n", i.Functors[inst.N], inst.I)
-		case OpPutConstant, OpGetConstant:
-			_, _ = fmt.Fprintf(&sb, " %s A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
+		case OpWriteConstant:
+			_, _ = fmt.Fprintf(&sb, " %s\n", &syntax.Formatter{Term: i.Constants[inst.N]})
+		case OpPutVariable, OpPutValue, OpGetVariable, OpGetValue, OpUnifyValue, OpUnifyVariable, OpMove:
+			_, _ = fmt.Fprintf(&sb, " X%d, A%d\n", inst.N, inst.I)
+		case OpPutStructure, OpGetStructure, OpPushStructure:
+			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", i.Functors[inst.N], inst.I)
+		case OpPutConstant, OpGetConstant, OpUnifyConstant:
+			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
 		case OpExecute:
 			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
-		case OpTryMeElse:
-			_, _ = fmt.Fprintf(&sb, " %d\n", inst.N)
-		case OpRetryMeElse:
-			_, _ = fmt.Fprintf(&sb, " %d\n", inst.N)
+		case OpTryMeElse, OpRetryMeElse:
+			_, _ = fmt.Fprintf(&sb, " %d\n", int(inst.N))
 		case OpSwitch:
 			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
 		default:

@@ -11,13 +11,13 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-// Term is a Go type that can be converted into/from a Prolog type which is either:
+// Value is a Go type that can be converted into/from a Prolog type which is either:
 // - Atom, as an atom,
 // - int/int8/int16/int32/int64, as an integer,
 // - float32/float64, as a float,
 // - string, as a char list (by default, can be code list or atom, too), or
 // - Raw, as an arbitrary term
-type Term any
+type Value any
 
 // Atom is a type to annotate the given string represents an atom, not an actual string which is a list of single-character atoms.
 // Type conversion between Go and Prolog respects this annotation.
@@ -60,12 +60,17 @@ func New(config *Config) *Interpreter {
 // Load loads a Prolog text from file via SourceFS in Config.
 func (i *Interpreter) Load(ctx context.Context, filename string) error {
 	e := &i.engine
+	if e.Image.Code == nil {
+		if err := e.LoadSystem(); err != nil {
+			return err
+		}
+	}
 	return e.LoadFile(ctx, filename)
 }
 
 type binding struct {
 	variable string
-	value    Term
+	value    Value
 }
 
 // QueryOptions is a set of options for a query.
@@ -78,7 +83,7 @@ type QueryOption func(*QueryOptions)
 
 // Bind sets a variable value for a query.
 // TODO: Better interface?
-func Bind(variable string, value Term) QueryOption {
+func Bind(variable string, value Value) QueryOption {
 	return func(o *QueryOptions) {
 		o.bindings = append(o.bindings, binding{variable, value})
 	}
@@ -128,7 +133,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		for err := range i.engine.Call(ctx, g) {
 			if err != nil {
-				_ = yield(zero, err)
+				_ = yield(zero, fmt.Errorf("engine call: %w", err))
 				return
 			}
 
@@ -159,25 +164,25 @@ func (i *Interpreter) decodeResult(out any, pvs []syntax.ParsedVariable) error {
 	}
 }
 
-func (i *Interpreter) decodeTerm(t term.Handle) Term {
+func (i *Interpreter) decodeTerm(t term.Handle) Value {
 	e := i.engine
 	t = e.Deref(t)
 	if a, ok := e.Atom(t); ok {
-		return Term(Atom(a.String()))
+		return Value(Atom(a.String()))
 	}
 	if n, ok := e.Integer(t); ok {
-		return Term(n)
+		return Value(n)
 	}
 	if f, ok := e.Float(t); ok {
-		return Term(f)
+		return Value(f)
 	}
 	if s, ok := e.CharList(t); ok {
-		return Term(s)
+		return Value(s)
 	}
 	return Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t}))
 }
 
-func (i *Interpreter) encodeTerm(v Term) (term.Handle, error) {
+func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {
 	e := i.engine
 	switch v := v.(type) {
 	case Atom:

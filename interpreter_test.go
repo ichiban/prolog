@@ -36,6 +36,31 @@ func TestInterpreter_Query(t *testing.T) {
 				"X = c",
 			},
 		},
+		{
+			title:  "only cut",
+			loaded: []string{"testdata/cut.pl"},
+			query:  "only_cut(a).",
+			results: []string{
+				"",
+			},
+		},
+		{
+			title:  "neck cut",
+			loaded: []string{"testdata/cut.pl"},
+			query:  "neck_cut(X).",
+			results: []string{
+				"X = a",
+				"X = b",
+			},
+		},
+		{
+			title:  "deep cut",
+			loaded: []string{"testdata/cut.pl"},
+			query:  "deep_cut(X).",
+			results: []string{
+				"X = a",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -51,8 +76,8 @@ func TestInterpreter_Query(t *testing.T) {
 				}
 			}
 
-			var results []map[string]Raw
-			for result, err := range Query[map[string]Raw](t.Context(), i, test.query) {
+			var results []Result
+			for result, err := range Query[Result](t.Context(), i, test.query) {
 				if err != nil {
 					t.Fatal(err)
 				}
