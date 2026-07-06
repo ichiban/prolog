@@ -22,7 +22,7 @@ const (
 
 type Builtin struct {
 	Type BuiltinType
-	Proc func(context.Context, *Execution) error
+	Proc func(ctx context.Context, e *Execution) (bool, error)
 }
 
 type BuiltinSet struct {
@@ -33,6 +33,7 @@ type BuiltinSet struct {
 func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
 	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0})
+	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: BuiltinTypeStandard, Proc: fail0})
 	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
 	return &b
@@ -78,16 +79,18 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 	}
 }
 
-func true0(ctx context.Context, e *Execution) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
+func true0(ctx context.Context, e *Execution) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	cont := e.tempVars[0]
 	cont = e.Deref(cont)
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
-		return &TypeError{
-			Arena:     e.Arena,
+		return false, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
 			ValidType: "callable",
 			Culprit:   cont,
 		}
@@ -97,10 +100,12 @@ func true0(ctx context.Context, e *Execution) error {
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return &ExistenceError{
-			Arena:      e.Arena,
+		return false, &ExistenceError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
 			ObjectType: "procedure",
 			Culprit:    c,
 		}
@@ -109,19 +114,33 @@ func true0(ctx context.Context, e *Execution) error {
 	for i, arg := range indexed(e.Args(cont)) {
 		e.tempVars[i] = arg
 	}
-	return nil
+	return true, nil
 }
 
-func call1(ctx context.Context, e *Execution) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
+func fail0(ctx context.Context, e *Execution) (bool, error) {
+	err := ctx.Err()
+	return e.Backtrack(), err
+}
+
+func call1(ctx context.Context, e *Execution) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	goal, cont := e.tempVars[0], e.tempVars[1]
 	goal = e.Deref(goal)
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
-		return &TypeError{
-			Arena:     e.Arena,
+		if _, ok := e.Variable(goal); ok {
+			return false, &InstantiationError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+			}
+		}
+		return false, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
 			ValidType: "callable",
 			Culprit:   goal,
 		}
@@ -131,10 +150,12 @@ func call1(ctx context.Context, e *Execution) error {
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return &ExistenceError{
-			Arena:      e.Arena,
+		return false, &ExistenceError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
 			ObjectType: "procedure",
 			Culprit:    c,
 		}
@@ -143,20 +164,20 @@ func call1(ctx context.Context, e *Execution) error {
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
 		e.tempVars[i] = arg
 	}
-	return nil
+	return true, nil
 }
 
-func var1(ctx context.Context, e *Execution) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
+func var1(ctx context.Context, e *Execution) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	v := e.tempVars[0]
+	v = e.Deref(v)
 	if _, ok := e.Variable(v); !ok {
-		e.Backtrack()
-		return nil
+		return e.Backtrack(), nil
 	}
 	e.Next()
-	return nil
+	return true, nil
 }
 
 func indexed[T any](s iter.Seq[T]) iter.Seq2[int, T] {

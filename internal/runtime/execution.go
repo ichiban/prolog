@@ -34,6 +34,8 @@ type structurePointer struct {
 type Execution struct {
 	*Engine
 
+	location term.Functor
+
 	programPointer int // P
 
 	stack []stackFrame // A
@@ -223,7 +225,40 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					return
 				}
 				e.Next()
+			case wam.OpUnifyConstant:
+				c := e.Constants[n]
+				if e.mode == wam.ModeRead {
+					s := e.structurePointer
+					a := e.Arg(s.term, s.argNo)
+					a = e.Deref(a)
+					if _, ok := e.Variable(a); ok {
+						if err := e.Bind(a, c); err != nil {
+							_ = yield(err)
+							return
+						}
+						e.trail = append(e.trail, a)
+					}
+					_, ok := e.Functor(a)
+					if ok || e.Compare(a, c) != 0 {
+						if !e.Backtrack() {
+							return
+						}
+						continue
+					}
+					e.structurePointer.argNo++
+					e.Next()
+					break
+				}
+				if _, err := e.Put(c); err != nil {
+					_ = yield(err)
+					return
+				}
+				e.Next()
 			case wam.OpExecute: // execute P
+				if err := ctx.Err(); err != nil {
+					_ = yield(err)
+					return
+				}
 				pi := e.Functors[n]
 				p, ok := e.Predicates[pi]
 				if !ok {
@@ -233,12 +268,15 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 						return
 					}
 					_ = yield(&ExistenceError{
-						Arena:      e.Arena,
+						ErrorContext: ErrorContext{
+							Location: e.location,
+						},
 						ObjectType: "procedure",
 						Culprit:    culprit,
 					})
 					return
 				}
+				e.location = term.NewFunctor(pi.Name(), pi.Arity()-1)
 				e.programPointer = p.Offset
 			case wam.OpProceed: // proceed
 				if !yield(nil) {
@@ -327,10 +365,18 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			default: // Builtins
+				if inst.Op < wam.OpBuiltin0 {
+					_ = yield(fmt.Errorf("unknown op %v", inst.Op))
+					return
+				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				if err := b.Proc(ctx, e); err != nil {
+				ok, err := b.Proc(ctx, e)
+				if err != nil {
 					_ = yield(err)
+					return
+				}
+				if !ok {
 					return
 				}
 			}

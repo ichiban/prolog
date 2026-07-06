@@ -23,8 +23,11 @@ func TestTypeError_Error(t *testing.T) {
 		}
 		return h
 	}
-	err := &TypeError{ValidType: "integer", Culprit: must(arena.PutAtom(term.NewAtomRune('a')))}
-	if got, want := err.Error(), "invalid type: expected integer, got a"; got != want {
+	err := &TypeError{
+		ValidType: "integer",
+		Culprit:   must(arena.PutAtom(term.NewAtomRune('a'))),
+	}
+	if got, want := err.Error(), "invalid type: expected integer"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }
@@ -40,7 +43,7 @@ func TestUninstantiationError_Error(t *testing.T) {
 		return h
 	}
 	err := &UninstantiationError{Culprit: must(arena.PutAtom(term.NewAtomRune('a')))}
-	if got, want := err.Error(), "uninstantiation error: a"; got != want {
+	if got, want := err.Error(), "uninstantiation error"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }

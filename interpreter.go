@@ -29,44 +29,38 @@ type Raw string
 // Result is a generic result map. It contains variable names as keys and associated terms as values.
 type Result map[string]Raw
 
-// Config is configuration to instantiate an interpreter.
-type Config struct {
-	// HeapSize decides how much heap size will be allocated.
-	HeapSize int
-
-	// SourceFS is a file system fom which prolog files are loaded.
-	SourceFS fs.FS
-
-	// TODO: additional builtins?
-}
-
 // Interpreter is a Prolog processor. It loads prolog texts from files and takes queries.
 type Interpreter struct {
 	engine runtime.Engine
 }
 
 // New instantiates an interpreter.
-func New(config *Config) *Interpreter {
+func New(heapSize int) *Interpreter {
 	return &Interpreter{
 		engine: runtime.Engine{
 			Arena: &term.Arena{
-				Heap: make(term.Heap, 0, config.HeapSize),
+				Heap: make(term.Heap, 0, heapSize),
 			},
-			SourceFS: config.SourceFS,
 		},
 	}
+}
+
+func (i *Interpreter) SetSourceFS(fs fs.FS) {
+	i.engine.SourceFS = fs
 }
 
 // Load loads a Prolog text from file via SourceFS in Config.
 func (i *Interpreter) Load(ctx context.Context, filename string) error {
 	e := &i.engine
 	if e.Image.Code == nil {
-		if err := e.LoadSystem(); err != nil {
+		if err := e.LoadSystem(ctx); err != nil {
 			return err
 		}
 	}
 	return e.LoadFile(ctx, filename)
 }
+
+type ParsedVariables = []syntax.ParsedVariable
 
 type binding struct {
 	variable string
@@ -75,7 +69,8 @@ type binding struct {
 
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
-	bindings []binding
+	variables *ParsedVariables
+	bindings  []binding
 }
 
 // QueryOption is a single option for a query.
@@ -86,6 +81,12 @@ type QueryOption func(*QueryOptions)
 func Bind(variable string, value Value) QueryOption {
 	return func(o *QueryOptions) {
 		o.bindings = append(o.bindings, binding{variable, value})
+	}
+}
+
+func Variables(variables *ParsedVariables) QueryOption {
+	return func(o *QueryOptions) {
+		o.variables = variables
 	}
 }
 
@@ -100,12 +101,24 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 		var (
 			e    = &i.engine
 			zero T
-			pvs  []syntax.ParsedVariable
+			pvs  = options.variables
 		)
+
+		if pvs == nil {
+			var vs []syntax.ParsedVariable
+			pvs = &vs
+		}
+
+		if e.Code == nil {
+			if err := e.LoadSystem(ctx); err != nil {
+				_ = yield(zero, err)
+				return
+			}
+		}
 
 		for _, b := range options.bindings {
 			v, err := syntax.ParseVariable(b.variable,
-				syntax.Variables(&pvs),
+				syntax.Variables(pvs),
 			)
 			if err != nil {
 				_ = yield(zero, err)
@@ -124,7 +137,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		g, err := syntax.ParseTerm(query,
 			syntax.Arena(e.Arena),
-			syntax.Variables(&pvs),
+			syntax.Variables(pvs),
 		)
 		if err != nil {
 			_ = yield(zero, err)
@@ -133,13 +146,13 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		for err := range i.engine.Call(ctx, g) {
 			if err != nil {
-				_ = yield(zero, fmt.Errorf("engine call: %w", err))
+				_ = yield(zero, err)
 				return
 			}
 
 			var (
 				t   T
-				err = i.decodeResult(&t, pvs)
+				err = i.decodeResult(&t, *pvs)
 			)
 			if !yield(t, err) {
 				return

@@ -61,12 +61,10 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := prolog.New(&prolog.Config{
-		HeapSize: 1024,
-		SourceFS: os.DirFS("."),
-	})
+	i := prolog.New(1024)
+	i.SetSourceFS(os.DirFS("."))
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
 	for _, arg := range flag.Args() {
@@ -96,6 +94,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	}
 	_, _ = fmt.Fprintf(buf, "%s\n", line)
 
+	var resultShown bool
 	for result, err := range prolog.Query[prolog.Result](ctx, i, buf.String()) {
 		switch {
 		case err == nil:
@@ -122,7 +121,11 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 			sort.Strings(ls)
 			_, _ = fmt.Fprintf(t, "%s\n", strings.Join(ls, ",\n"))
 		}
+		resultShown = true
 	}
-	
+	if !resultShown {
+		_, _ = fmt.Fprintf(t, "%t\n", false)
+	}
+
 	return nil
 }

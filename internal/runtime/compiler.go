@@ -13,7 +13,7 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-// FIXME: Strings are a compound term but should be treated as a constant.
+// FIXME: String is a compound term but should be treated as a constant.
 
 var (
 	errUnhandled = errors.New("unhandled syntax")
@@ -68,8 +68,6 @@ func (c *Compiler) CompileSystem(out *ir.Module) error {
 
 // CompileText compiles a Prolog text into a module.
 func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
-	c.todo = c.todo[:0]
-
 	for t, err := range c.clauses(ctx, text) {
 		if err != nil {
 			return err
@@ -92,15 +90,6 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 			out.Clauses = append(out.Clauses, cl)
 
 		}
-
-		for _, t := range c.todo {
-			var cl ir.Clause
-			if err := c.CompileClause(&cl, t); err != nil {
-				return err
-			}
-			out.Clauses = append(out.Clauses, cl)
-		}
-		c.todo = c.todo[:0]
 	}
 	if c.Module == (term.Atom{}) {
 		c.Module = term.NewAtom("user")
@@ -133,32 +122,6 @@ func (c *Compiler) CompileClause(cl *ir.Clause, t term.Handle) error {
 
 func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 	return func(yield func(term.Handle, error) bool) {
-		{ // $cut_to(X) :- true
-			cut, err := c.PutAtom(term.NewAtom("$cut"))
-			if err != nil {
-				_ = yield(term.Handle{}, err)
-				return
-			}
-			head, err := c.PutCompound(term.NewAtom("$cut_to"), cut)
-			if err != nil {
-				_ = yield(term.Handle{}, err)
-				return
-			}
-			body, err := c.PutAtom(term.NewAtom("true"))
-			if err != nil {
-				_ = yield(term.Handle{}, err)
-				return
-			}
-			t, err := c.PutCompound(term.NewAtom(":-"), head, body)
-			if err != nil {
-				_ = yield(term.Handle{}, err)
-				return
-			}
-			if !yield(t, nil) {
-				return
-			}
-		}
-
 		if c.BuiltinSet == nil {
 			c.BuiltinSet = NewBuiltinSet()
 		}
@@ -193,6 +156,7 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 }
 
 func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Handle, error] {
+	c.todo = c.todo[:0]
 	return func(yield func(term.Handle, error) bool) {
 		for t, err := range syntax.Parse(text,
 			syntax.Arena(c.Arena),
@@ -222,6 +186,7 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 					return
 				}
 			}
+			c.todo = c.todo[:0]
 		}
 	}
 }
@@ -241,6 +206,8 @@ func (c *Compiler) ReplaceBody(goal term.Handle) (term.Handle, error) {
 	if c.makeVariable == nil {
 		c.makeVariable = c.PutVariable
 	}
+
+	goal = c.Deref(goal)
 
 	// X -> call(X)
 	if _, ok := c.Variable(goal); ok {
@@ -393,14 +360,10 @@ func (c *Compiler) replaceMacro(goal term.Handle) (term.Handle, error) {
 		return c.WithArgs(goal, x, g, xs)
 	}
 
-	// call(G) -> call(ReplaceBody(G))
+	// call(G) -> ReplaceBody(G)
 	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("call"), 1) {
 		g := c.Arg(goal, 0)
-		g, err := c.ReplaceBody(g)
-		if err != nil {
-			return term.Handle{}, err
-		}
-		return c.WithArgs(goal, g)
+		return c.ReplaceBody(g)
 	}
 
 	// \+G -> \+ReplaceBody(G)
@@ -496,11 +459,11 @@ func (c *Compiler) traverseConjunction(a, b term.Handle) (term.Handle, error) {
 
 func (c *Compiler) replaceDisjunction(a, b term.Handle) (term.Handle, error) {
 	// Avoid replacing cut.
-	if !c.cutFree(a) || !c.cutFree(b) {
-		return c.traverseDisjunction(a, b)
+	if c.cutFree(a) && c.cutFree(b) {
+		return c.replaceDisjunction1(a, b)
 	}
 
-	return c.replaceDisjunction1(a, b)
+	return c.traverseDisjunction(a, b)
 }
 
 func (c *Compiler) replaceDisjunction1(a, b term.Handle) (term.Handle, error) {
@@ -534,6 +497,10 @@ func (c *Compiler) compileLater(head, body term.Handle) error {
 }
 
 func (c *Compiler) cutFree(t term.Handle) bool {
+	t = c.Deref(t)
+	if _, ok := c.Variable(t); ok {
+		return true
+	}
 	if a, ok := c.Atom(t); ok && a == term.NewAtomRune('!') {
 		return false
 	}
@@ -542,7 +509,7 @@ func (c *Compiler) cutFree(t term.Handle) bool {
 		functorOr,
 		functorIfThen:
 		l, r := c.Arg(t, 0), c.Arg(t, 1)
-		return c.cutFree(l) && c.cutFree(r)
+		return c.cutFree(l) || c.cutFree(r)
 	}
 	return true
 }
@@ -582,9 +549,11 @@ func (c *Compiler) makeNewHead(t term.Handle) (term.Handle, error) {
 
 func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 	return func(yield func(term.Handle, error) bool) {
+		t = c.Deref(t)
 		switch f, _ := c.Functor(t); f {
 		case functorOr:
 			a, b := c.Arg(t, 0), c.Arg(t, 1)
+			a, b = c.Deref(a), c.Deref(b)
 			var err error
 			if _, ok := c.Variable(a); ok {
 				a, err = c.PutCompound(term.NewAtom("call"), a)
@@ -610,7 +579,7 @@ func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 					return
 				}
 			}
-		case functorAnd:
+		case functorIfThen:
 			a, b := c.Arg(t, 0), c.Arg(t, 1)
 			var err error
 			a, err = c.ReplaceBody(a)
@@ -618,18 +587,17 @@ func (c *Compiler) disjunctionSeq(t term.Handle) iter.Seq2[term.Handle, error] {
 				_ = yield(term.Handle{}, err)
 				return
 			}
-			cut, _ := c.PutAtom(term.NewAtomRune('!')) // Always succeeds.
+			cut, err := c.PutAtom(term.NewAtomRune('!'))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
 			b, err = c.ReplaceBody(b)
 			if err != nil {
 				_ = yield(term.Handle{}, err)
 				return
 			}
-			t, err := c.PutCompound(atomAnd, cut, b)
-			if err != nil {
-				_ = yield(term.Handle{}, err)
-				return
-			}
-			t, err = c.PutCompound(atomAnd, a, t)
+			t, err := c.PutSpine(term.NewAtomRune(','), a, cut, b)
 			if err != nil {
 				_ = yield(term.Handle{}, err)
 				return
@@ -1231,7 +1199,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) error {
 
 func (c *Compiler) compileEqual(clause *ir.Clause, a, b term.Handle) error {
 	if _, ok := c.Variable(b); ok {
-		if _, ok := c.Functor(a); !ok {
+		if _, ok := c.Variable(a); !ok {
 			a, b = b, a
 		}
 	}
@@ -1261,7 +1229,7 @@ func (c *Compiler) compileEqual(clause *ir.Clause, a, b term.Handle) error {
 		B:      ir.Operand{Kind: ir.OperandKindTerm, Term: v2},
 	})
 
-	return c.compileTopTerm(clause, ir.OpPut, v2, b)
+	return c.compileTopTerm(clause, ir.OpGet, v2, b)
 }
 
 func (c *Compiler) emitBodyTopTerm(clause *ir.Clause, t, ct term.Handle) error {
@@ -1464,6 +1432,13 @@ func getReg(n *int, freeList *[]int) int {
 }
 
 func (c *Compiler) Beautify(clause *ir.Clause) {
+	var needsTemp bool
+	defer func() {
+		if needsTemp {
+			clause.MaxRegs++
+		}
+	}()
+
 	clause.Code = rewriteSlice(clause.Code, func(inst ir.Instruction, w func(ir.Instruction)) {
 		var (
 			get          = inst.OpCode == ir.OpGet
@@ -1487,6 +1462,13 @@ func (c *Compiler) Beautify(clause *ir.Clause) {
 			temp       = inst.A.Kind == ir.OperandKindTemp
 			cutArg     = inst.A.Kind == ir.OperandKindCutArg
 		)
+		if temp {
+			// binprolog maps temp(0) to register 0 since its arguments are 1-origin, and it never uses register 0 for argument passing.
+			// Our arguments are 0-origin so we reserve the extra register at the end for temp(0). (TEMPS_AT_END)
+			inst.A.Kind = ir.OperandKindRegister
+			inst.A.Index = clause.MaxRegs
+			needsTemp = true
+		}
 		switch {
 		case arg, temp, cutArg:
 			switch {

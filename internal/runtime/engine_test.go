@@ -285,7 +285,7 @@ func TestEngine_Call(t *testing.T) {
 				},
 			}
 
-			if err := e.LoadSystem(); err != nil {
+			if err := e.LoadSystem(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 

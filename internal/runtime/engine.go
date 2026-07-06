@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,9 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
 )
+
+//go:embed bootstrap.pl
+var bootstrap string
 
 type Engine struct {
 	*term.Arena
@@ -31,6 +35,12 @@ type Engine struct {
 	OnDiscontiguous func(pi term.Functor) error
 }
 
+func (e *Engine) Inspect(t term.Handle) string {
+	return fmt.Sprintf("%s", &syntax.Formatter{Arena: e.Arena, Term: t})
+}
+
+var _ = (*Engine)(nil).Inspect
+
 func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
 	// TODO: Implement this!
 	return func(yield func(term.Handle, error) bool) {
@@ -42,12 +52,24 @@ func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, erro
 	return t, nil // TODO: Implement this!
 }
 
-func (e *Engine) LoadSystem() error {
+func (e *Engine) LoadSystem(ctx context.Context) error {
+	if e.Code == nil {
+		e.Predicates = map[term.Functor]wam.Predicate{
+			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
+		}
+		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
+			return err
+		}
+	}
+
 	var (
 		c = Compiler{Engine: e}
 		m ir.Module
 	)
 	if err := c.CompileSystem(&m); err != nil {
+		return err
+	}
+	if err := c.CompileText(ctx, &m, bootstrap); err != nil {
 		return err
 	}
 	return e.LoadModule(&m)
@@ -90,15 +112,6 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 	if e.OnDiscontiguous == nil {
 		e.OnDiscontiguous = func(pi term.Functor) error {
 			return nil
-		}
-	}
-
-	if e.Code == nil {
-		e.Predicates = map[term.Functor]wam.Predicate{
-			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
-		}
-		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
-			return err
 		}
 	}
 
@@ -346,7 +359,9 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 				return
 			}
 			_ = yield(&ExistenceError{
-				Arena:      e.Arena,
+				ErrorContext: ErrorContext{
+					Location: term.NewFunctor(term.NewAtom("user"), 0),
+				},
 				ObjectType: "procedure",
 				Culprit:    culprit,
 			})
@@ -354,6 +369,7 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 	}
 	exec := Execution{
 		Engine:         e,
+		location:       term.NewFunctor(term.NewAtom("call"), 1),
 		programPointer: p.Offset,
 	}
 	exec.tempVars[0] = goal
