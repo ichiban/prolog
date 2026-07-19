@@ -1,3 +1,5 @@
+% Ported to Go from BinProlog (github.com/ptarau/binprolog, src/lib.pl, src/extra.pl and related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
+% This file has been modified: non-ISO predicates are renamed and missing ISO predicates are added.
 
 '$cut_to'('$cut').
 
@@ -5,21 +7,41 @@
 
 A, B :- A, B.
 
+If -> Then :- If, !, Then.
+
+If -> Then; Else :- !, '$if'(If, Then, Else).
 A; B :- A; B.
+
 '$or'(A, _) :- A.
 '$or'(_, B) :- B.
 
-If -> Then; _ :- If, !, Then.
-If -> _; Else :- Else.
-If -> Then :- If, !, Then.
+'$if'(If, Then, _) :- If, !, Then.
+'$if'(_, _, Else) :- Else.
 
-X = Y :- X = Y.
+catch(Goal, Ball, Do) :-
+  '$get_neck_cut'(Choice),
+  '$cont'(Cont),
+  Goal,
+  '$to_catch'(Ball, Do, Choice, Cont).
+catch(_, _, _) :- fail.                 % '$get_neck_cut'(Choice) above requires this.
 
-% dummy
+% $to_catch/4 is a catch marker and does nothing per se.
+% catch/3 sneaks it into the continuation chain and throw/1 finds it for recovery.
+'$to_catch'(_, _, _, _).
+
+X = X.
+
+% stub
+'$expr'(5, 5).
+'$*'(5, 2, 10).
+
+% stub
 write(Term).
 
+% stub
+number_chars(_, _) :- throw(error(syntax_error(_), _)).
 
-\+(G) :- call(G), !, fail.
+\+(G) :- G, !, fail.
 \+(_).
 
 once(G) :- call(G), !.

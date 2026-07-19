@@ -1,6 +1,11 @@
+// Ported to Go from BinProlog (github.com/ptarau/binprolog, src/extra.pl and
+// related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
+// This file has been modified: translated to Go and adapted.
+
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"iter"
@@ -8,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
@@ -35,7 +41,11 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0})
 	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: BuiltinTypeStandard, Proc: fail0})
 	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: BuiltinTypeStandard, Proc: throw1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
 	return &b
 }
 
@@ -79,11 +89,9 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 	}
 }
 
-func true0(ctx context.Context, e *Execution) (bool, error) {
-	if err := ctx.Err(); err != nil {
-		return false, err
-	}
-	cont := e.tempVars[0]
+func true0(_ context.Context, e *Execution) (bool, error) {
+	cont := e.tempVars[1]
+	fmt.Printf("true(%s)\n", &syntax.Formatter{Arena: e.Arena, Term: cont})
 	cont = e.Deref(cont)
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
@@ -112,21 +120,18 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(e.Args(cont)) {
-		e.tempVars[i] = arg
+		e.tempVars[i+1] = arg
 	}
 	return true, nil
 }
 
-func fail0(ctx context.Context, e *Execution) (bool, error) {
-	err := ctx.Err()
-	return e.Backtrack(), err
+func fail0(_ context.Context, e *Execution) (bool, error) {
+	return e.Backtrack(), nil
 }
 
-func call1(ctx context.Context, e *Execution) (bool, error) {
-	if err := ctx.Err(); err != nil {
-		return false, err
-	}
-	goal, cont := e.tempVars[0], e.tempVars[1]
+func call1(_ context.Context, e *Execution) (bool, error) {
+	goal, cont := e.tempVars[1], e.tempVars[2]
+	fmt.Printf("call(%s, %s)\n", &syntax.Formatter{Arena: e.Arena, Term: goal}, &syntax.Formatter{Arena: e.Arena, Term: cont})
 	goal = e.Deref(goal)
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
@@ -162,15 +167,12 @@ func call1(ctx context.Context, e *Execution) (bool, error) {
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
-		e.tempVars[i] = arg
+		e.tempVars[i+1] = arg
 	}
 	return true, nil
 }
 
-func var1(ctx context.Context, e *Execution) (bool, error) {
-	if err := ctx.Err(); err != nil {
-		return false, err
-	}
+func var1(_ context.Context, e *Execution) (bool, error) {
 	v := e.tempVars[0]
 	v = e.Deref(v)
 	if _, ok := e.Variable(v); !ok {
@@ -178,6 +180,103 @@ func var1(ctx context.Context, e *Execution) (bool, error) {
 	}
 	e.Next()
 	return true, nil
+}
+
+func throw1(ctx context.Context, e *Execution) (bool, error) {
+	ball, cont := e.tempVars[1], e.tempVars[2]
+	ball = e.Deref(ball)
+	if _, ok := e.Variable(ball); ok {
+		var err error
+		err = &InstantiationError{
+			ErrorContext{
+				Location: e.location,
+			},
+		}
+		ball, err = ErrorTerm(e.Arena, err)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	var buf bytes.Buffer
+	_, _ = fmt.Fprintf(&buf, "%s.", &syntax.Formatter{Arena: e.Arena, Term: ball})
+
+	for cont := range contChain(e.Arena, cont) {
+		if pi, ok := e.Functor(cont); !ok || pi.Name() != term.NewAtom("$to_catch") || pi.Arity() != 5 {
+			continue
+		}
+
+		catcher, recovery, cutB, cont := e.Arg(cont, 0), e.Arg(cont, 1), e.Arg(cont, 2), e.Arg(cont, 3)
+
+		b, _ := e.Integer(cutB)
+		if err := e.unTrailTo(int(b)); err != nil {
+			return false, err
+		}
+
+		ball, err := syntax.ParseTerm(buf.String(),
+			syntax.Arena(e.Arena),
+		)
+		if err != nil {
+			return false, fmt.Errorf("parse serialized ball(%s): %w", buf.String(), err)
+		}
+
+		ok, err := e.Unify(catcher, ball)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			e.tempVars[1] = recovery
+			e.tempVars[2] = cont
+			return call1(ctx, e)
+		}
+	}
+	return false, fmt.Errorf("unhandled exception: %s", &syntax.Formatter{Arena: e.Arena, Term: ball})
+}
+
+func getNeckCut1(_ context.Context, e *Execution) (bool, error) {
+	cutB, err := e.PutInteger(int64(e.cutB))
+	if err != nil {
+		return false, err
+	}
+	e.tempVars[0] = cutB
+	e.Next()
+	return true, nil
+}
+
+func getCont1(_ context.Context, e *Execution) (bool, error) {
+	out, cont := e.tempVars[1], e.tempVars[2]
+	if ok, err := e.Unify(out, cont); !ok || err != nil {
+		return false, err
+	}
+	e.Next()
+	return true, nil
+}
+
+func callCont1(ctx context.Context, e *Execution) (bool, error) {
+	// No need to move arguments.
+	return true0(ctx, e)
+}
+
+func (e *Execution) unTrailTo(b int) error {
+	e.stack = e.stack[:b+1] // Makes the b-th frame stack top.
+	return e.unwindTrail(e.stack[len(e.stack)-1].trailTop)
+}
+
+func contChain(arena *term.Arena, cont term.Handle) iter.Seq[term.Handle] {
+	return func(yield func(term.Handle) bool) {
+		for {
+			if !yield(cont) {
+				return
+			}
+
+			pi, ok := arena.Functor(cont, term.AllowAtom(true))
+			if !ok || pi.Arity() == 0 {
+				return
+			}
+
+			cont = arena.Arg(cont, pi.Arity()-1)
+		}
+	}
 }
 
 func indexed[T any](s iter.Seq[T]) iter.Seq2[int, T] {

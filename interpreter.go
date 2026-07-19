@@ -168,7 +168,12 @@ func (i *Interpreter) decodeResult(out any, pvs []syntax.ParsedVariable) error {
 			*out = Result{}
 		}
 		for _, v := range pvs {
-			(*out)[v.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: v.Variable}))
+			t := v.Variable
+			t = i.engine.Deref(t)
+			if _, ok := i.engine.Variable(t); ok {
+				continue
+			}
+			(*out)[v.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t}))
 		}
 		return nil
 	default:
@@ -180,6 +185,9 @@ func (i *Interpreter) decodeResult(out any, pvs []syntax.ParsedVariable) error {
 func (i *Interpreter) decodeTerm(t term.Handle) Value {
 	e := i.engine
 	t = e.Deref(t)
+	if _, ok := e.Variable(t); ok {
+		return nil
+	}
 	if a, ok := e.Atom(t); ok {
 		return Value(Atom(a.String()))
 	}

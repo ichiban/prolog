@@ -20,6 +20,8 @@ func (h *Handle) String() string {
 
 type cell struct {
 	tag   cellTag // TODO: NaN Boxing?
+	flags uint8   // For GC.
+	aux   uint16  // TODO: Use this for functor arity and string offset.
 	value int32
 }
 

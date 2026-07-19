@@ -41,10 +41,7 @@ func (c *ErrorContext) Term(arena *term.Arena) (term.Handle, error) {
 		}
 	}
 	if c.Message == "" {
-		m, err = arena.PutVariable()
-		if err != nil {
-			return term.Handle{}, err
-		}
+		return l, nil
 	} else {
 		m, err = arena.PutCharList(c.Message)
 		if err != nil {

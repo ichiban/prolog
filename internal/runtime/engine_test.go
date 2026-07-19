@@ -45,16 +45,16 @@ p(c).
 			image: `
    0             p/2: switch p/2
    1                  try_me_else 5
-   2             (a): get_constant a, A0
-   3                  move X0, A1
+   2             (a): get_constant a, A1
+   3                  move X1, X2
    4                  execute true/1
    5                  retry_me_else 9
-   6             (b): get_constant b, A0
-   7                  move X0, A1
+   6             (b): get_constant b, A1
+   7                  move X1, X2
    8                  execute true/1
    9                  trust_me
-  10             (c): get_constant c, A0
-  11                  move X0, A1
+  10             (c): get_constant c, A1
+  11                  move X1, X2
   12                  execute true/1
 `,
 		},
@@ -68,16 +68,16 @@ p(a).
 			image: `
    0             p/2: nondet
    1                  try_me_else 5
-   2             (a): get_constant a, A0
-   3                  move X0, A1
+   2             (a): get_constant a, A1
+   3                  move X1, X2
    4                  execute true/1
    5                  retry_me_else 9
-   6             (b): get_constant b, A0
-   7                  move X0, A1
+   6             (b): get_constant b, A1
+   7                  move X1, X2
    8                  execute true/1
    9                  trust_me
-  10                  get_constant a, A0
-  11                  move X0, A1
+  10                  get_constant a, A1
+  11                  move X1, X2
   12                  execute true/1
 `,
 		},
@@ -85,8 +85,8 @@ p(a).
 			title: "repeated argument variables",
 			text:  `p(X, X).`,
 			image: `
-   0             p/3: get_value X0, A1
-   1                  move X0, A2
+   0             p/3: get_value X1, A2
+   1                  move X1, X3
    2                  execute true/1
 `,
 		},
@@ -94,12 +94,12 @@ p(a).
 			title: "structure in head",
 			text:  `p(f(X, X, a, _)).`,
 			image: `
-   0             p/2: get_structure f/4, A0
-   1                  unify_variable X0, A2
-   2           (f/4): unify_value X0, A2
-   3                  unify_constant a, A0
+   0             p/2: get_structure f/4, A1
+   1                  unify_variable X3
+   2           (f/4): unify_value X3
+   3                  unify_constant a
    4                  unify_void
-   5                  move X0, A1
+   5                  move X1, X2
    6                  execute true/1
 `,
 		},
@@ -107,10 +107,10 @@ p(a).
 			title: "body",
 			text:  `p(X) :- q(X, Y, Y, a, _).`,
 			image: `
-   0             p/2: move X5, A1
-   1                  put_variable X2, A1
-   2                  put_constant a, A3
-   3                  put_variable X4, A4
+   0             p/2: move X6, X2
+   1                  put_variable X3, A2
+   2                  put_constant a, A4
+   3                  put_variable X5, A5
    4                  execute q/6
 `,
 		},
@@ -118,13 +118,13 @@ p(a).
 			title: "structure in body",
 			text:  `p(X) :- q(f(X, Y, Y, a, _)).`,
 			image: `
-   0             p/2: put_structure f/5, A2
-   1                  write_value X0
-   2                  write_variable X3
-   3                  write_value X3
+   0             p/2: put_structure f/5, A3
+   1                  write_value X1
+   2                  write_variable X4
+   3                  write_value X4
    4                  write_constant a
    5                  write_void
-   6                  move X0, A2
+   6                  move X1, X3
    7                  execute q/2
 `,
 		},
@@ -132,13 +132,13 @@ p(a).
 			title: "simple conjunction",
 			text:  `p(X) :- q(X), r(X), s(X).`,
 			image: `
-   0             p/2: put_structure r/2, A2
-   1                  write_value X0
-   2                  write_variable X3
-   3                  push_structure s/2, A3
-   4                  write_value X0
-   5                  write_value X1
-   6                  move X1, A2
+   0             p/2: put_structure r/2, A3
+   1                  write_value X1
+   2                  write_variable X4
+   3                  push_structure s/2, A4
+   4                  write_value X1
+   5                  write_value X2
+   6                  move X2, X3
    7                  execute q/2
 `,
 		},
@@ -168,12 +168,12 @@ p(a).
 			title: "deep cut",
 			text:  `p :- q, !, r.`,
 			image: `
-   0             p/1: put_structure $cut_to/2, A1
+   0             p/1: put_structure $cut_to/2, A2
    1                  push_cut
-   2                  write_variable X2
-   3                  push_structure r/1, A2
-   4                  write_value X0
-   5                  move X0, A1
+   2                  write_variable X3
+   3                  push_structure r/1, A3
+   4                  write_value X1
+   5                  move X1, X2
    6                  execute q/1
 `,
 		},

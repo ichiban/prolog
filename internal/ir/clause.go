@@ -105,8 +105,8 @@ func (clause *Clause) CollapseArgs(args []Argument, vars map[int]Variable) {
 		a := &args[i]
 
 		var (
-			h = Variable{Reg: -1, LifeTime: LifeTime{Birth: 0, Death: math.MaxInt}}
-			b = Variable{Reg: -1, LifeTime: LifeTime{Birth: 0, Death: math.MaxInt}}
+			h = Variable{LifeTime: LifeTime{Birth: 0, Death: math.MaxInt}}
+			b = Variable{LifeTime: LifeTime{Birth: 0, Death: math.MaxInt}}
 		)
 		if a.HeadVarID >= 0 {
 			h = vars[a.HeadVarID]
@@ -116,16 +116,16 @@ func (clause *Clause) CollapseArgs(args []Argument, vars map[int]Variable) {
 		}
 
 		switch {
-		case a.LifeTime.Contains(h.LifeTime) && h.LifeTime.Precedes(b.LifeTime) && a.LifeTime.Contains(b.LifeTime) && h.Reg < 0 && b.Reg < 0:
-			h.Reg = i
-			b.Reg = i
+		case a.LifeTime.Contains(h.LifeTime) && h.LifeTime.Precedes(b.LifeTime) && a.LifeTime.Contains(b.LifeTime) && h.Reg == 0 && b.Reg == 0:
+			h.Reg = i + 1
+			b.Reg = i + 1
 			vars[a.HeadVarID] = h
 			vars[a.BodyVarID] = b
-		case a.LifeTime.Contains(h.LifeTime) && h.Reg < 0:
-			h.Reg = i
+		case a.LifeTime.Contains(h.LifeTime) && h.Reg == 0:
+			h.Reg = i + 1
 			vars[a.HeadVarID] = h
-		case a.LifeTime.Contains(b.LifeTime) && b.Reg < 0:
-			b.Reg = i
+		case a.LifeTime.Contains(b.LifeTime) && b.Reg == 0:
+			b.Reg = i + 1
 			vars[a.BodyVarID] = b
 		}
 	}

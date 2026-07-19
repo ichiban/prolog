@@ -325,7 +325,7 @@ func convertOp(inst ir.Instruction) wam.OpCode {
 	case key{op: ir.OpLoad, typ: ir.TypeConstant}:
 		return wam.OpLoadConstant
 	case key{op: ir.OpPush, typ: ir.TypeVariable}:
-		return wam.OpPushVariable
+		return wam.OpWriteVariable
 	case key{op: ir.OpPush, typ: ir.TypeStructure}:
 		return wam.OpPushStructure
 	case key{op: ir.OpPush, typ: ir.TypeCut}:
@@ -372,7 +372,7 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 		location:       term.NewFunctor(term.NewAtom("call"), 1),
 		programPointer: p.Offset,
 	}
-	exec.tempVars[0] = goal
-	exec.tempVars[1] = t
+	exec.tempVars[1] = goal
+	exec.tempVars[2] = t
 	return exec.run(ctx)
 }

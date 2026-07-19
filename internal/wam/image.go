@@ -66,15 +66,17 @@ func (i *Image) String() string {
 		l, _ := labels[j]
 		_, _ = fmt.Fprintf(&sb, "%4d %16s %s", j, l, inst.Op)
 		switch inst.Op {
-		case OpWriteValue, OpWriteVariable:
+		case OpWriteValue, OpWriteVariable, OpUnifyValue, OpUnifyVariable:
 			_, _ = fmt.Fprintf(&sb, " X%d\n", inst.I)
-		case OpWriteConstant:
+		case OpWriteConstant, OpUnifyConstant:
 			_, _ = fmt.Fprintf(&sb, " %s\n", &syntax.Formatter{Term: i.Constants[inst.N]})
-		case OpPutVariable, OpPutValue, OpGetVariable, OpGetValue, OpUnifyValue, OpUnifyVariable, OpMove:
+		case OpPutVariable, OpPutValue, OpGetVariable, OpGetValue:
 			_, _ = fmt.Fprintf(&sb, " X%d, A%d\n", inst.N, inst.I)
+		case OpMove:
+			_, _ = fmt.Fprintf(&sb, " X%d, X%d\n", inst.N, inst.I)
 		case OpPutStructure, OpGetStructure, OpPushStructure:
 			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", i.Functors[inst.N], inst.I)
-		case OpPutConstant, OpGetConstant, OpUnifyConstant:
+		case OpPutConstant, OpGetConstant:
 			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
 		case OpExecute:
 			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])

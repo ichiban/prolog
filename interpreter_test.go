@@ -83,6 +83,15 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `';'('->'(true, ';'(X=1, X=2)), true).`, results: []string{"X = 1", "X = 2"}},
 		{query: `';'('->'(';'(X=1, X=2), true), true).`, results: []string{"X = 1"}},
 		{query: `';'(('->'(!, fail), true), true).`, results: []string{""}},
+		// 7.8.9.4
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(foo(5), test(Y), true).`, results: []string{"Y = 10"}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(bar(3), Z, true).`, results: []string{"Z = 3"}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(true, _, 3).`, results: []string{""}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(true, C, write(demoen)), throw(bla).`, errTerm: `system_error`},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(car(X), Y, true).`, results: []string{"Y = 1"}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(number_chars(X, ['1', 'a', '0']), error(syntax_error(_), _), fail).`, results: []string{}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(g, C, write(h1)).`, results: []string{"C = c"}},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(coo(X), Y, true).`, results: []string{"Y = error(instantiation_error,throw/1)"}},
 		// TODO:
 		/*
 			Other test cases.
@@ -141,7 +150,7 @@ func TestInterpreter_Query(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
-			i := New(1024)
+			i := New(2 * 1024)
 			i.SetSourceFS(testdata)
 
 			if err := i.engine.LoadSystem(t.Context()); err != nil {

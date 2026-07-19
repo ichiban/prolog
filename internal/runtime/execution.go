@@ -1,3 +1,7 @@
+// Ported to Go from BinProlog (github.com/ptarau/binprolog, src/engine.c and
+// related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
+// This file has been modified: translated to Go and adapted.
+
 package runtime
 
 import (
@@ -101,6 +105,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
+				e.trail = append(e.trail, v)
 				e.Next()
 			case wam.OpWriteConstant: // write_constant c
 				k := e.Constants[n]
@@ -190,7 +195,9 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpUnifyValue: // unify_value Xi
 				if e.mode == wam.ModeRead {
 					s := e.structurePointer
-					ok, err := e.Unify(e.tempVars[i], e.Arg(s.term, s.argNo))
+					ok, err := e.Unify(e.tempVars[i], e.Arg(s.term, s.argNo), term.OnBind(func(v term.Handle) {
+						e.trail = append(e.trail, v)
+					}))
 					if err != nil {
 						_ = yield(err)
 						return
@@ -207,7 +214,9 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				fallthrough
 			case wam.OpWriteValue: // write_value Xi
-				if _, err := e.Put(e.tempVars[i]); err != nil {
+				t := e.tempVars[i]
+				t = e.Deref(t)
+				if _, err := e.Put(t); err != nil {
 					_ = yield(err)
 					return
 				}
@@ -292,7 +301,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					heapTop:        len(e.Heap),
 					trailTop:       len(e.trail),
 				}
-				copy(f.tempVars[:arity], e.tempVars[:arity])
+				copy(f.tempVars[:arity+1], e.tempVars[:arity+1])
 				e.stack = append(e.stack, f)
 				e.heapBacktrackPoint = len(e.Heap)
 				e.Next()
@@ -312,13 +321,13 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					return
 				}
 				e.Next()
-			case wam.OpMove: // move Xn<-Ai
+			case wam.OpMove: // move Xn<-Xi
 				e.tempVars[n] = e.tempVars[i]
 				e.Next()
 			case wam.OpSwitch: // switch
 				pi := e.Functors[n]
 				var (
-					t     = e.tempVars[0]
+					t     = e.tempVars[1]
 					arity int
 				)
 				t = e.Deref(t)
@@ -344,7 +353,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				e.stack = e.stack[:e.cutB]
 				e.Next()
 			case wam.OpGetCut: // get_cut TODO: Do we really need this?
-				t := e.tempVars[0]
+				t := e.tempVars[1]
 				t = e.Deref(t)
 				n, _ := e.Integer(t)
 				e.stack = e.stack[:n]
@@ -398,7 +407,9 @@ func (e *Execution) Backtrack() bool {
 	if len(e.stack) == 0 {
 		return false
 	}
-	e.programPointer = e.stack[len(e.stack)-1].programPointer
+	f := e.stack[len(e.stack)-1]
+	e.cutB = f.cutB
+	e.programPointer = f.programPointer
 	return true
 }
 
@@ -409,7 +420,7 @@ func (e *Execution) restoreState(arity int) error {
 		return err
 	}
 	e.Heap = e.Heap[:f.heapTop]
-	copy(e.tempVars[:arity], f.tempVars[:arity])
+	copy(e.tempVars[:arity+1], f.tempVars[:arity+1])
 	e.cutB = f.cutB
 	return nil
 }
