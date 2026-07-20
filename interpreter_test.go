@@ -126,6 +126,22 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
 		{query: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, results: []string{}},
 		{query: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
+		// 8.2.3.4
+		{query: `'\\='(1, 1).`, results: []string{}},
+		{query: `\=(X, 1).`, results: []string{}},
+		{query: `'\\='(X, Y).`, results: []string{}},
+		{query: `\=(_, _).`, results: []string{}},
+		{query: `\=(f(X, def), f(def, Y)).`, results: []string{}},
+		{query: `'\\='(1, 2).`, results: []string{""}},
+		{query: `\=(1, 1.0).`, results: []string{""}},
+		{query: `'\\='(g(X), f(f(X))).`, results: []string{""}},
+		{query: `\=(f(X, 1), f(a(X))).`, results: []string{""}},
+		{query: `'\\='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, results: []string{""}},
+		{query: `\=(X, a(X)).`, results: []string{}},
+		{query: `'\\='(f(X, 1), f(a(X), 2)).`, results: []string{}},
+		{query: `'\\='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
+		{query: `\=(f(2, X), f(2, a(X))).`, results: []string{}},
+		{query: `'\\='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.

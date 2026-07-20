@@ -35,6 +35,9 @@ unify_with_occurs_check(X, Y) :-
   X = Y,
   acyclic(X).
 
+X \= Y :- X = Y, !, fail.
+_ \= _.
+
 % stub
 '$expr'(5, 5).
 '$*'(5, 2, 10).
