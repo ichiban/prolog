@@ -92,6 +92,23 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(number_chars(X, ['1', 'a', '0']), error(syntax_error(_), _), fail).`, results: []string{}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(g, C, write(h1)).`, results: []string{"C = c"}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(coo(X), Y, true).`, results: []string{"Y = error(instantiation_error,throw/1)"}},
+		// 8.2.1.4
+		{query: `'='(1, 1).`, results: []string{""}},
+		{query: `'='(X, 1).`, results: []string{"X = 1"}},
+		{query: `'='(X, Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `'='(_, _).`, results: []string{""}},
+		{query: `'='(X, Y), '='(X, abc).`, results: []string{"X = abc, Y = abc"}},
+		{query: `'='(f(X, def), f(def, Y)).`, results: []string{"X = def, Y = def"}},
+		{query: `'='(1, 2).`, results: []string{}},
+		{query: `'='(1, 1.0).`, results: []string{}},
+		{query: `'='(g(X), f(f(X))).`, results: []string{}},
+		{query: `'='(f(X, 1), f(a(X))).`, results: []string{}},
+		{query: `'='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, results: []string{}},
+		{query: `'='(X, a(X)).`, results: []string{"X = a(...)"}},
+		{query: `'='(f(X, 1), f(a(X), 2)).`, results: []string{}},
+		{query: `'='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
+		{query: `'='(f(1, X), f(2, a(X))).`, results: []string{}},
+		{query: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.

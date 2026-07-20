@@ -117,9 +117,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpGetValue: // get_value Xn, Ai
 				t := e.tempVars[n]
 				s := e.tempVars[i]
-				ok, err := e.Unify(t, s, term.OnBind(func(v term.Handle) {
-					e.trail = append(e.trail, v)
-				}))
+				ok, err := e.Unify(t, s)
 				if err != nil {
 					_ = yield(err)
 					return
@@ -195,9 +193,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpUnifyValue: // unify_value Xi
 				if e.mode == wam.ModeRead {
 					s := e.structurePointer
-					ok, err := e.Unify(e.tempVars[i], e.Arg(s.term, s.argNo), term.OnBind(func(v term.Handle) {
-						e.trail = append(e.trail, v)
-					}))
+					ok, err := e.Unify(e.tempVars[i], e.Arg(s.term, s.argNo))
 					if err != nil {
 						_ = yield(err)
 						return
@@ -434,4 +430,47 @@ func (e *Execution) unwindTrail(trailTop int) error {
 	}
 	e.trail = e.trail[:trailTop]
 	return nil
+}
+
+func (e *Execution) Unify(x, y term.Handle) (bool, error) {
+	var (
+		stack   = []term.Handle{x, y}
+		visited = map[[2]term.Handle]struct{}{}
+	)
+	for len(stack) > 1 {
+		x, y, stack = stack[len(stack)-2], stack[len(stack)-1], stack[:len(stack)-2]
+		x, y = e.Deref(x), e.Deref(y)
+		if _, ok := e.Variable(x); ok {
+			e.trail = append(e.trail, x)
+			if err := e.Bind(x, y); err != nil {
+				return false, err
+			}
+			continue
+		}
+		if _, ok := e.Variable(y); ok {
+			e.trail = append(e.trail, y)
+			if err := e.Bind(y, x); err != nil {
+				return false, err
+			}
+			continue
+		}
+		if fx, ok := e.Functor(x); ok {
+			if fy, ok := e.Functor(y); ok && fx == fy {
+				if _, ok := visited[[2]term.Handle{x, y}]; ok {
+					continue
+				}
+				visited[[2]term.Handle{x, y}] = struct{}{}
+
+				for i := fx.Arity() - 1; i >= 0; i-- {
+					stack = append(stack, e.Arg(x, i), e.Arg(y, i))
+				}
+				continue
+			}
+			return false, nil
+		}
+		if e.Compare(x, y) != 0 {
+			return false, nil
+		}
+	}
+	return true, nil
 }
