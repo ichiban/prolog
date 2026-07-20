@@ -281,7 +281,7 @@ func TestEngine_Call(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			e := Engine{
 				Arena: &term.Arena{
-					Heap: make(term.Heap, 0, 1024),
+					Heap: make(term.Heap, 0, 2*1024),
 				},
 			}
 

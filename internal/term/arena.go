@@ -594,6 +594,23 @@ func (a *Arena) Compare(x, y Handle) int {
 	return 0
 }
 
-type UnifyOptions struct {
-	onBind func(Handle)
+func (a *Arena) Acyclic(t Handle) bool {
+	return !a.cyclic(t, map[Handle]struct{}{})
+}
+
+func (a *Arena) cyclic(t Handle, visited map[Handle]struct{}) bool {
+	t = a.Deref(t)
+	if _, ok := a.Functor(t); !ok {
+		return false
+	}
+	if _, ok := visited[t]; ok {
+		return true
+	}
+	visited[t] = struct{}{}
+	for t := range a.Args(t) {
+		if a.cyclic(t, visited) {
+			return true
+		}
+	}
+	return false
 }

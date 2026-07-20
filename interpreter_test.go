@@ -109,6 +109,23 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `'='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
 		{query: `'='(f(1, X), f(2, a(X))).`, results: []string{}},
 		{query: `'='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
+		// 8.2.2.4
+		{query: `unify_with_occurs_check(1, 1).`, results: []string{""}},
+		{query: `unify_with_occurs_check(X, 1).`, results: []string{"X = 1"}},
+		{query: `unify_with_occurs_check(X, Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `unify_with_occurs_check(_, _).`, results: []string{""}},
+		{query: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, results: []string{"X = abc, Y = abc"}},
+		{query: `unify_with_occurs_check(f(X, def), f(def, Y)).`, results: []string{"X = def, Y = def"}},
+		{query: `unify_with_occurs_check(1, 2).`, results: []string{}},
+		{query: `unify_with_occurs_check(1, 1.0).`, results: []string{}},
+		{query: `unify_with_occurs_check(g(X), f(f(X))).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(X, 1), f(a(X))).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, results: []string{}},
+		{query: `unify_with_occurs_check(X, a(X)).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(X, 1), f(a(X), 2)).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(1, X), f(2, a(X))).`, results: []string{}},
+		{query: `unify_with_occurs_check(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.

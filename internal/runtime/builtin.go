@@ -43,6 +43,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: BuiltinTypeStandard, Proc: throw1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclic1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -176,6 +177,16 @@ func var1(_ context.Context, e *Execution) (bool, error) {
 	v := e.tempVars[0]
 	v = e.Deref(v)
 	if _, ok := e.Variable(v); !ok {
+		return e.Backtrack(), nil
+	}
+	e.Next()
+	return true, nil
+}
+
+func acyclic1(_ context.Context, e *Execution) (bool, error) {
+	t := e.tempVars[0]
+	t = e.Deref(t)
+	if ok := e.Acyclic(t); !ok {
 		return e.Backtrack(), nil
 	}
 	e.Next()

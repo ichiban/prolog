@@ -31,6 +31,10 @@ catch(_, _, _) :- fail.                 % '$get_neck_cut'(Choice) above requires
 
 X = X.
 
+unify_with_occurs_check(X, Y) :-
+  X = Y,
+  acyclic(X).
+
 % stub
 '$expr'(5, 5).
 '$*'(5, 2, 10).

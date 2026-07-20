@@ -1124,6 +1124,35 @@ func TestCompare(t *testing.T) {
 	}
 }
 
+func TestAcyclic(t *testing.T) {
+	arena := Arena{
+		Heap: make(Heap, 0, 40),
+	}
+
+	a, _ := arena.PutAtom(NewAtomRune('a'))
+	fa, _ := arena.PutCompound(NewAtomRune('f'), a)
+	x, _ := arena.PutVariable()
+	fx, _ := arena.PutCompound(NewAtomRune('f'), x)
+	_ = arena.Bind(x, fx)
+
+	tests := []struct {
+		title  string
+		term   Handle
+		result bool
+	}{
+		{title: "atom", term: a, result: true},
+		{title: "compound", term: fa, result: true},
+		{title: "cyclic", term: fx, result: false},
+	}
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			if ok := arena.Acyclic(test.term); ok != test.result {
+				t.Errorf("expected %v, got %v", test.result, ok)
+			}
+		})
+	}
+}
+
 func must[T any](val T, err error) T {
 	if err != nil {
 		panic(err)
