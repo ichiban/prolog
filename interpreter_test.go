@@ -146,6 +146,14 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `var(Foo).`, results: []string{""}},
 		{query: `foo=Foo, var(Foo).`, results: []string{}},
 		{query: `var(_).`, results: []string{""}},
+		// 8.3.2.4
+		{query: `atom(atom).`, results: []string{""}},
+		{query: `atom('string').`, results: []string{""}}, // NOTE: This is technically not a string.
+		{query: `atom(a(b)).`, results: []string{}},
+		{query: `atom(Var).`, results: []string{}},
+		{query: `atom([]).`, results: []string{""}},
+		{query: `atom(6).`, results: []string{}},
+		{query: `atom(3.3).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.
