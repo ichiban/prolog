@@ -181,6 +181,13 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `compound(a(b)).`, results: []string{""}},
 		{query: `compound([]).`, results: []string{}},
 		{query: `compound([a]).`, results: []string{""}},
+		// 8.3.7.4
+		{query: `nonvar(33.3).`, results: []string{""}},
+		{query: `nonvar(foo).`, results: []string{""}},
+		{query: `nonvar(Foo).`, results: []string{}},
+		{query: `foo = Foo, nonvar(Foo).`, results: []string{"Foo = foo"}},
+		{query: `nonvar(_).`, results: []string{}},
+		{query: `nonvar(a(b)).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
