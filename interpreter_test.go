@@ -141,6 +141,11 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `'\\='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{""}},
 		{query: `\=(f(2, X), f(2, a(X))).`, results: []string{}},
 		{query: `'\\='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{""}},
+		// 8.3.1.4
+		{query: `var(foo).`, results: []string{}},
+		{query: `var(Foo).`, results: []string{""}},
+		{query: `foo=Foo, var(Foo).`, results: []string{}},
+		{query: `var(_).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
