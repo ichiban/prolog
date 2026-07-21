@@ -45,6 +45,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("atom"), 2), Builtin{Type: BuiltinTypeInline, Proc: atom1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("integer"), 2), Builtin{Type: BuiltinTypeInline, Proc: integer1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("float"), 2), Builtin{Type: BuiltinTypeInline, Proc: float1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclic1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
@@ -248,6 +249,16 @@ func integer1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Integer(t); !ok {
+		return e.Backtrack(), nil
+	}
+	e.Next()
+	return true, nil
+}
+
+func float1(_ context.Context, e *Execution) (bool, error) {
+	t := e.tempVars[0]
+	t = e.Deref(t)
+	if _, ok := e.Float(t); !ok {
 		return e.Backtrack(), nil
 	}
 	e.Next()
