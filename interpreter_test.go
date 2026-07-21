@@ -172,6 +172,15 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `atomic(Var).`, results: []string{}},
 		{query: `atomic(6).`, results: []string{""}},
 		{query: `atomic(3.3).`, results: []string{""}},
+		// 8.3.6.4
+		{query: `compound(33.3).`, results: []string{}},
+		{query: `compound(-33.3).`, results: []string{}},
+		{query: `compound(-a).`, results: []string{""}},
+		{query: `compound(_).`, results: []string{}},
+		{query: `compound(a).`, results: []string{}},
+		{query: `compound(a(b)).`, results: []string{""}},
+		{query: `compound([]).`, results: []string{}},
+		{query: `compound([a]).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
