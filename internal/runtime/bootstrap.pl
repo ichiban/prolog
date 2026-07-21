@@ -35,8 +35,13 @@ unify_with_occurs_check(X, Y) :-
   X = Y,
   acyclic(X).
 
-X \= Y :- X = Y, !, fail.
-_ \= _.
+X \= Y :- \+(X = Y).
+
+atomic(X) :-
+  nonvar(X),
+  \+compound(X).
+
+nonvar(X) :- \+var(X).
 
 % stub
 '$expr'(5, 5).

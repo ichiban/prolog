@@ -166,6 +166,12 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `float(3).`, results: []string{}},
 		{query: `float(atom).`, results: []string{}},
 		{query: `float(X).`, results: []string{}},
+		// 8.3.5.4
+		{query: `atomic(atom).`, results: []string{""}},
+		{query: `atomic(a(b)).`, results: []string{}},
+		{query: `atomic(Var).`, results: []string{}},
+		{query: `atomic(6).`, results: []string{""}},
+		{query: `atomic(3.3).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
