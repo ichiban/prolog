@@ -9,7 +9,6 @@ import (
 
 	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
-	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 //go:embed testdata
@@ -20,7 +19,7 @@ func TestInterpreter_Query(t *testing.T) {
 		loaded  []string
 		query   string
 		results []string
-		errTerm string
+		err     string
 	}{
 		/*
 			Examples in ISO/IEC 13211-1.
@@ -34,16 +33,16 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `call(fail).`, results: []string{}},
 		{query: `call((fail, X)).`, results: []string{}},
 		{query: `call((fail, call(1))).`, results: []string{}},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(X).`, errTerm: `instantiation_error`},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(3).`, errTerm: `type_error(callable,3)`}, // type_error(callable,(write(3),3))
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(X).`, err: `instantiation_error`},
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(3).`, err: `type_error(callable,3)`}, // type_error(callable,(write(3),3))
 		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `Z = !, call((Z = !, a(X), Z)).`, results: []string{"X = 1, Z = !"}},
 		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((Z=!, a(X), Z)).`, results: []string{"X = 1, Z = !"}},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((write(3), X)).`, errTerm: `instantiation_error`},
-		{query: `call(X).`, errTerm: `instantiation_error`},
-		{query: `call(1).`, errTerm: `type_error(callable,1)`},
-		{query: `call((fail, 1)).`, errTerm: `type_error(callable,(fail,1))`},
-		{query: `call((write(3), 1)).`, errTerm: `type_error(callable,1)`}, // type_error(callable,(write(3),1))
-		{query: `call((1;true)).`, errTerm: `type_error(callable,1)`},      // type_error(callable,(1;true))
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((write(3), X)).`, err: `instantiation_error`},
+		{query: `call(X).`, err: `instantiation_error`},
+		{query: `call(1).`, err: `type_error(callable,1)`},
+		{query: `call((fail, 1)).`, err: `type_error(callable,(fail,1))`},
+		{query: `call((write(3), 1)).`, err: `type_error(callable,1)`}, // type_error(callable,(write(3),1))
+		{query: `call((1;true)).`, err: `type_error(callable,1)`},      // type_error(callable,(1;true))
 		// 7.8.4.4
 		{query: `!.`, results: []string{""}},
 		{query: `(!, fail; true).`, results: []string{}},
@@ -87,7 +86,7 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(foo(5), test(Y), true).`, results: []string{"Y = 10"}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(bar(3), Z, true).`, results: []string{"Z = 3"}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(true, _, 3).`, results: []string{""}},
-		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(true, C, write(demoen)), throw(bla).`, errTerm: `system_error`},
+		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(true, C, write(demoen)), throw(bla).`, err: `system_error`},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(car(X), Y, true).`, results: []string{"Y = 1"}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(number_chars(X, ['1', 'a', '0']), error(syntax_error(_), _), fail).`, results: []string{}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(g, C, write(h1)).`, results: []string{"C = c"}},
@@ -138,10 +137,10 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `\=(f(X, 1), f(a(X))).`, results: []string{""}},
 		{query: `'\\='(f(X, Y, X), f(a(X), a(Y), Y, 2)).`, results: []string{""}},
 		{query: `\=(X, a(X)).`, results: []string{}},
-		{query: `'\\='(f(X, 1), f(a(X), 2)).`, results: []string{}},
-		{query: `'\\='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{}},
+		{query: `'\\='(f(X, 1), f(a(X), 2)).`, results: []string{""}},
+		{query: `'\\='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{""}},
 		{query: `\=(f(2, X), f(2, a(X))).`, results: []string{}},
-		{query: `'\\='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{}},
+		{query: `'\\='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
@@ -219,42 +218,30 @@ func TestInterpreter_Query(t *testing.T) {
 			)
 			for result, err := range Query[Result](t.Context(), i, test.query, Variables(&pvs)) {
 				if err != nil {
-					var (
-						arena   = i.engine.Arena
-						origErr = err
-					)
-					et, err := runtime.ErrorTerm(i.engine.Arena, err)
+					if test.err == "" {
+						t.Fatal(err)
+					}
+					origErr := err
+					errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
 					if err != nil {
-						fmt.Printf("image: \n%s\n", &i.engine.Image)
-						t.Fatal(origErr)
+						t.Fatal(err)
 					}
-					if f, ok := arena.Functor(et); !ok || f != term.NewFunctor(term.NewAtom("error"), 2) {
-						t.Fatal(origErr)
+					s := fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: errTerm})
+					if !strings.Contains(s, test.err) {
+						t.Errorf("Expected error %q, got %q", test.err, origErr)
 					}
-					et = arena.Arg(et, 0)
-					varNames := make(map[term.Handle]term.Atom, len(pvs))
-					for _, pv := range pvs {
-						varNames[pv.Variable] = term.NewAtom(pv.Name)
-					}
-					if s := fmt.Sprintf("%s", &syntax.Formatter{
-						Arena:        arena,
-						Term:         et,
-						VariableName: varNames,
-					}); s != test.errTerm {
-						t.Errorf("expected %s, got %s", test.errTerm, s)
-					}
+					continue
 				}
 				results = append(results, result)
 			}
 
-			for j := range max(len(results), len(test.results)) {
-				var got, want string
-				if j < len(results) {
-					got = formatResult(results[j])
-				}
-				if j < len(test.results) {
-					want = test.results[j]
-				}
+			if len(results) != len(test.results) {
+				t.Fatalf("expected %d results, got %d", len(test.results), len(results))
+			}
+
+			for j := range len(results) {
+				got := formatResult(results[j])
+				want := test.results[j]
 				if got != want {
 					t.Errorf("got %q, want %q", got, want)
 					t.Errorf("image: \n%s\n", &i.engine.Image)

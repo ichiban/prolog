@@ -24,7 +24,7 @@ type stackFrame struct {
 	heapTop        int                       // H, saved top of the heap
 	trailTop       int                       // TR, saved top of the trail
 	tempVars       [maxRegisters]term.Handle // The backing array to save An TODO: Maybe store them in a sidecar array, or put $tempVars(...) to the heap?
-	cutB           int
+	cutB           int                       // B0, cut pointer
 
 	next func() (error, bool) // for built-in predicates
 	stop func()               // for built-in predicates
@@ -42,7 +42,7 @@ type Execution struct {
 
 	programPointer int // P
 
-	stack []stackFrame // A
+	stack []stackFrame // B = len(stack)
 
 	trail []term.Handle // TR
 
@@ -50,7 +50,7 @@ type Execution struct {
 	structurePointer   structurePointer // S
 
 	tempVars [maxRegisters]term.Handle // Xn
-	cutB     int
+	cutB     int                       // B0
 
 	mode wam.Mode
 }
@@ -283,6 +283,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.location = term.NewFunctor(pi.Name(), pi.Arity()-1)
 				e.programPointer = p.Offset
+				e.cutB = len(e.stack)
 			case wam.OpProceed: // proceed
 				if !yield(nil) {
 					return
@@ -348,7 +349,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 			case wam.OpPutCut: // put_cut
 				e.stack = e.stack[:e.cutB]
 				e.Next()
-			case wam.OpGetCut: // get_cut TODO: Do we really need this?
+			case wam.OpGetCut: // get_cut
 				t := e.tempVars[1]
 				t = e.Deref(t)
 				n, _ := e.Integer(t)

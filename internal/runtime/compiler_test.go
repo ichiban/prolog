@@ -193,6 +193,7 @@ func TestReplaceBody(t *testing.T) {
 		{goal: `true.`, result: `true`},
 		{goal: `X.`, result: `call(X)`},
 		{goal: `!.`, result: `$cut_to($cut)`},
+		{goal: `call(!).`, result: `$cut_to($cut)`},
 		{goal: `var(foo).`, result: `fail`},
 		{goal: `var(X).`, result: `var(X)`},
 		{goal: `nonvar(foo).`, result: `true`},

@@ -92,7 +92,6 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 
 func true0(_ context.Context, e *Execution) (bool, error) {
 	cont := e.tempVars[1]
-	fmt.Printf("true(%s)\n", &syntax.Formatter{Arena: e.Arena, Term: cont})
 	cont = e.Deref(cont)
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
@@ -132,8 +131,14 @@ func fail0(_ context.Context, e *Execution) (bool, error) {
 
 func call1(_ context.Context, e *Execution) (bool, error) {
 	goal, cont := e.tempVars[1], e.tempVars[2]
-	fmt.Printf("call(%s, %s)\n", &syntax.Formatter{Arena: e.Arena, Term: goal}, &syntax.Formatter{Arena: e.Arena, Term: cont})
 	goal = e.Deref(goal)
+
+	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
+	goal, err := e.rewriteCutForCall(goal)
+	if err != nil {
+		return false, err
+	}
+
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		if _, ok := e.Variable(goal); ok {
@@ -151,6 +156,7 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 			Culprit:   goal,
 		}
 	}
+
 	pi = term.NewFunctor(pi.Name(), pi.Arity()+1)
 	p, ok := e.Predicates[pi]
 	if !ok {
@@ -171,6 +177,49 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 		e.tempVars[i+1] = arg
 	}
 	return true, nil
+}
+
+func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
+	body = e.Deref(body)
+	switch pi, _ := e.Functor(body, term.AllowAtom(true)); pi {
+	case term.NewFunctor(term.NewAtomRune(';'), 2):
+		x := e.Arg(body, 0)
+		if f, _ := e.Functor(x); f == term.NewFunctor(term.NewAtom("->"), 2) {
+			i, t := e.Arg(x, 0), e.Arg(x, 1)
+			i, err := e.rewriteCutForCall(i)
+			if err != nil {
+				return term.Handle{}, err
+			}
+			t, err = e.rewriteCutForCall(t)
+			if err != nil {
+				return term.Handle{}, err
+			}
+			x, err = e.PutCompound(term.NewAtom("->"), i, t)
+			if err != nil {
+				return term.Handle{}, err
+			}
+		}
+		fallthrough
+	case term.NewFunctor(term.NewAtomRune(','), 2):
+		x, y := e.Arg(body, 0), e.Arg(body, 1)
+		x, err := e.rewriteCutForCall(x)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		y, err = e.rewriteCutForCall(y)
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return e.PutCompound(pi.Name(), x, y)
+	case term.NewFunctor(term.NewAtomRune('!'), 0):
+		b, err := e.PutInteger(int64(len(e.stack)))
+		if err != nil {
+			return term.Handle{}, err
+		}
+		return e.PutCompound(term.NewAtom("$cut_to"), b)
+	default:
+		return body, nil
+	}
 }
 
 func var1(_ context.Context, e *Execution) (bool, error) {
@@ -269,8 +318,12 @@ func callCont1(ctx context.Context, e *Execution) (bool, error) {
 }
 
 func (e *Execution) unTrailTo(b int) error {
-	e.stack = e.stack[:b+1] // Makes the b-th frame stack top.
-	return e.unwindTrail(e.stack[len(e.stack)-1].trailTop)
+	e.stack = e.stack[:b]
+	trailTop := 0
+	if len(e.stack) > 0 {
+		trailTop = e.stack[len(e.stack)-1].trailTop
+	}
+	return e.unwindTrail(trailTop)
 }
 
 func contChain(arena *term.Arena, cont term.Handle) iter.Seq[term.Handle] {

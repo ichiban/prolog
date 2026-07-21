@@ -13,13 +13,13 @@ type Termer interface {
 
 type ErrorContext struct {
 	Location term.Functor
-	Message  string
+	Message  term.Handle
 }
 
 func (c *ErrorContext) Term(arena *term.Arena) (term.Handle, error) {
 	var (
-		l, m term.Handle
-		err  error
+		l   term.Handle
+		err error
 	)
 	if c.Location == 0 {
 		l, err = arena.PutVariable()
@@ -40,15 +40,10 @@ func (c *ErrorContext) Term(arena *term.Arena) (term.Handle, error) {
 			return term.Handle{}, err
 		}
 	}
-	if c.Message == "" {
+	if c.Message == (term.Handle{}) {
 		return l, nil
-	} else {
-		m, err = arena.PutCharList(c.Message)
-		if err != nil {
-			return term.Handle{}, err
-		}
 	}
-	return arena.PutCompound(term.NewAtom("context"), l, m)
+	return arena.PutCompound(term.NewAtom("context"), l, c.Message)
 }
 
 func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
