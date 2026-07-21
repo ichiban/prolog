@@ -43,6 +43,8 @@ atomic(X) :-
 
 nonvar(X) :- \+var(X).
 
+number(X) :- integer(X); float(X).
+
 % stub
 '$expr'(5, 5).
 '$*'(5, 2, 10).

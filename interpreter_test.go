@@ -188,6 +188,12 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `foo = Foo, nonvar(Foo).`, results: []string{"Foo = foo"}},
 		{query: `nonvar(_).`, results: []string{}},
 		{query: `nonvar(a(b)).`, results: []string{""}},
+		// 8.3.8.4
+		{query: `number(3).`, results: []string{""}},
+		{query: `number(3.3).`, results: []string{""}},
+		{query: `number(-3).`, results: []string{""}},
+		{query: `number(a).`, results: []string{}},
+		{query: `number(X).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.
