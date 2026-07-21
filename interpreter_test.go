@@ -154,6 +154,12 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `atom([]).`, results: []string{""}},
 		{query: `atom(6).`, results: []string{}},
 		{query: `atom(3.3).`, results: []string{}},
+		// 8.3.3.4
+		{query: `integer(3).`, results: []string{""}},
+		{query: `integer(-3).`, results: []string{""}},
+		{query: `integer(3.3).`, results: []string{}},
+		{query: `integer(X).`, results: []string{}},
+		{query: `integer(atom).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.
