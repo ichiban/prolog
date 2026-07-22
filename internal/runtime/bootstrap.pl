@@ -47,6 +47,20 @@ number(X) :- integer(X); float(X).
 
 callable(X) :- atom(X); compound(X).
 
+X @=< Y :- compare(=, X, Y).
+X @=< Y :- compare(<, X, Y).
+
+X == Y :- compare(=, X, Y).
+
+X \== Y :- \+(X == Y).
+
+X @< Y :- compare(<, X, Y).
+
+X @> Y :- compare(>, X, Y).
+
+X @>= Y :- compare(>, X, Y).
+X @>= Y :- compare(=, X, Y).
+
 % stub
 '$expr'(5, 5).
 '$*'(5, 2, 10).

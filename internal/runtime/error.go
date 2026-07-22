@@ -127,7 +127,6 @@ func (e *TypeError) Term(arena *term.Arena) (term.Handle, error) {
 // DomainError is an error that signifies an incorrect value.
 type DomainError struct {
 	ErrorContext
-	Arena       *term.Arena
 	ValidDomain string
 	Culprit     term.Handle
 }

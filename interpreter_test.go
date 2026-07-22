@@ -212,6 +212,32 @@ func TestInterpreter_Query(t *testing.T) {
 		// 8.3.11.4
 		{query: `acyclic_term(a(1, _)).`, results: []string{""}},
 		{query: `X = f(X), acyclic_term(X).`, results: []string{}},
+		// 8.4.1.4
+		{query: `'@=<'(1.0, 1).`, results: []string{""}},
+		{query: `'@<'(1.0, 1).`, results: []string{""}},
+		{query: `'\\=='(1, 1).`, results: []string{}},
+		{query: `'@=<'(aardvark, zebra).`, results: []string{""}},
+		{query: `'@=<'(short, short).`, results: []string{""}},
+		{query: `'@=<'(short, shorter).`, results: []string{""}},
+		{query: `'@<'(foo(a, b), north(a)).`, results: []string{}},
+		{query: `'@>'(foo(b), foo(a)).`, results: []string{""}},
+		{query: `'@<'(foo(a, X), foo(b, Y)).`, results: []string{""}},
+		{query: `'@<'(foo(X, a), foo(Y, b)).`, results: []string{""}},
+		{query: `'@=<'(X, X).`, results: []string{""}},
+		{query: `'=='(X, X).`, results: []string{""}},
+		{query: `'@=<'(X, Y).`, results: []string{""}},
+		{query: `'=='(X, Y).`, results: []string{}},
+		{query: `\==(_, _).`, results: []string{""}},
+		{query: `'=='(_, _).`, results: []string{}},
+		{query: `'@=<'(_, _).`, results: []string{""}},
+		{query: `'@=<'(foo(X, a), foo(Y, b)).`, results: []string{""}},
+		// 8.4.2.4
+		{query: `compare(Order, 3, 5).`, results: []string{"Order = <"}},
+		{query: `compare(Order, d, d).`, results: []string{"Order = ="}},
+		{query: `compare(Order, Order, <).`, results: []string{"Order = <"}},
+		{query: `compare(<, <, <).`, results: []string{}},
+		{query: `compare(1+2, 3, 3.0).`, err: "type_error(atom,1+2)"},
+		{query: `compare(>=, 3, 3.0).`, err: "domain_error(order,>=)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -292,14 +318,13 @@ func TestInterpreter_Query(t *testing.T) {
 					if test.err == "" {
 						t.Fatal(err)
 					}
-					origErr := err
 					errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
 					if err != nil {
 						t.Fatal(err)
 					}
 					s := fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: errTerm})
 					if !strings.Contains(s, test.err) {
-						t.Errorf("Expected error %q, got %q", test.err, origErr)
+						t.Errorf("Expected error %q, got %q", test.err, s)
 					}
 					continue
 				}

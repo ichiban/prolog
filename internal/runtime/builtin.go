@@ -50,6 +50,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("compound"), 2), Builtin{Type: BuiltinTypeInline, Proc: compound1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: BuiltinTypeInline, Proc: ground1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclicTerm1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: BuiltinTypeStandard, Proc: compare3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -372,6 +373,63 @@ func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
 		return false, err
 	}
 
+	if !ok {
+		return e.Backtrack(), nil
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func compare3(_ context.Context, e *Execution) (bool, error) {
+	order, x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	if _, ok := e.Variable(order); ok {
+		// Do nothing.
+	} else if a, ok := e.Atom(order); ok {
+		switch a {
+		case term.NewAtomRune('<'), term.NewAtomRune('>'), term.NewAtomRune('='):
+			break
+		default:
+			return false, &DomainError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+				ValidDomain: "order",
+				Culprit:     order,
+			}
+		}
+	} else {
+		return false, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidType: "atom",
+			Culprit:   order,
+		}
+	}
+
+	var (
+		a   term.Handle
+		err error
+	)
+	switch o := e.Compare(x, y); {
+	case o < 0:
+		a, err = e.PutAtom(term.NewAtomRune('<'))
+	case o > 0:
+		a, err = e.PutAtom(term.NewAtomRune('>'))
+	default:
+		a, err = e.PutAtom(term.NewAtomRune('='))
+	}
+	if err != nil {
+		return false, err
+	}
+
+	ok, err := e.Unify(order, a)
+	if err != nil {
+		return false, err
+	}
 	if !ok {
 		return e.Backtrack(), nil
 	}
