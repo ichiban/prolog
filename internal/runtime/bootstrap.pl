@@ -45,6 +45,8 @@ nonvar(X) :- \+var(X).
 
 number(X) :- integer(X); float(X).
 
+callable(X) :- atom(X); compound(X).
+
 % stub
 '$expr'(5, 5).
 '$*'(5, 2, 10).

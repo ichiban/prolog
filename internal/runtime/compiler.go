@@ -226,7 +226,6 @@ func (c *Compiler) Rule(t term.Handle) (head, body term.Handle, err error) {
 }
 
 func (c *Compiler) ReplaceBody(goal, cont term.Handle) (term.Handle, error) {
-	c.counter = 0
 	if c.makeVariable == nil {
 		c.makeVariable = c.PutVariable
 	}
@@ -571,6 +570,7 @@ func (c *Compiler) traverseDisjunction(a, b, cont term.Handle) (term.Handle, err
 }
 
 func (c *Compiler) makeNewHead(t term.Handle) (term.Handle, error) {
+	// TODO: A new auxiliary predicate name should be based on t.
 	vs := c.VariableSet(t)
 	c.counter++
 	return c.PutCompound(term.NewAtom(fmt.Sprintf("$aux%d", c.counter)), vs...)

@@ -194,6 +194,11 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `number(-3).`, results: []string{""}},
 		{query: `number(a).`, results: []string{}},
 		{query: `number(X).`, results: []string{}},
+		// 8.3.9.4
+		{query: `callable(a).`, results: []string{""}},
+		{query: `callable(3).`, results: []string{}},
+		{query: `callable(X).`, results: []string{}},
+		{query: `callable((1,2)).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
