@@ -69,8 +69,7 @@ type binding struct {
 
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
-	variables *ParsedVariables
-	bindings  []binding
+	bindings []binding
 }
 
 // QueryOption is a single option for a query.
@@ -81,12 +80,6 @@ type QueryOption func(*QueryOptions)
 func Bind(variable string, value Value) QueryOption {
 	return func(o *QueryOptions) {
 		o.bindings = append(o.bindings, binding{variable, value})
-	}
-}
-
-func Variables(variables *ParsedVariables) QueryOption {
-	return func(o *QueryOptions) {
-		o.variables = variables
 	}
 }
 
@@ -101,13 +94,8 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 		var (
 			e    = &i.engine
 			zero T
-			pvs  = options.variables
+			pvs  []syntax.ParsedVariable
 		)
-
-		if pvs == nil {
-			var vs []syntax.ParsedVariable
-			pvs = &vs
-		}
 
 		if e.Code == nil {
 			if err := e.LoadSystem(ctx); err != nil {
@@ -118,7 +106,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		for _, b := range options.bindings {
 			v, err := syntax.ParseVariable(b.variable,
-				syntax.Variables(pvs),
+				syntax.Variables(&pvs),
 			)
 			if err != nil {
 				_ = yield(zero, err)
@@ -137,7 +125,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		g, err := syntax.ParseTerm(query,
 			syntax.Arena(e.Arena),
-			syntax.Variables(pvs),
+			syntax.Variables(&pvs),
 		)
 		if err != nil {
 			_ = yield(zero, err)
@@ -152,7 +140,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 			var (
 				t   T
-				err = i.decodeResult(&t, *pvs)
+				err = i.decodeResult(&t, pvs)
 			)
 			if !yield(t, err) {
 				return

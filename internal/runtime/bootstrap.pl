@@ -62,6 +62,7 @@ X @>= Y :- compare(>, X, Y).
 X @>= Y :- compare(=, X, Y).
 
 % stub
+-1 is 0 - 1.
 '$expr'(5, 5).
 '$*'(5, 2, 10).
 

@@ -238,6 +238,24 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `compare(<, <, <).`, results: []string{}},
 		{query: `compare(1+2, 3, 3.0).`, err: "type_error(atom,1+2)"},
 		{query: `compare(>=, 3, 3.0).`, err: "domain_error(order,>=)"},
+		// TODO: sort/2, keysort/2
+		// 8.5.1.4
+		{query: `functor(foo(a, b, c), foo, 3).`, results: []string{""}},
+		{query: `functor(foo(a, b, c), X, Y).`, results: []string{"X = foo, Y = 3"}},
+		// {query: `functor(X, foo, 3).`, results: []string{"X = foo(_, _, _)"}}, TODO: X = foo(_1571,_1572,_1573)
+		{query: `functor(mats(A, B), A, B).`, results: []string{"A = mats, B = 2"}},
+		{query: `functor(foo(a), foo, 2).`, results: []string{}},
+		{query: `functor(foo(a), fo, 1).`, results: []string{}},
+		{query: `functor(1, X, Y).`, results: []string{"X = 1, Y = 0"}},
+		{query: `functor(X, 1.1, 0).`, results: []string{"X = 1.1"}},
+		{query: `functor([_|_], '.', 2).`, results: []string{""}},
+		{query: `functor([], [], 0).`, results: []string{""}},
+		{query: `functor(X, Y, 3).`, err: "instantiation_error"},
+		{query: `functor(X, foo, N).`, err: "instantiation_error"},
+		{query: `functor(F, 1.5, 1).`, err: "type_error(atom,1.5)"},
+		{query: `functor(F, foo(a), 1).`, err: "type_error(atomic,foo(a))"},
+		// {query: `current_prolog_flag(max_arity, A), X is A + 1, functor(T, foo, X).`, err: "representation_error(max_arity)"}, TODO: What is our max_arity?
+		{query: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, err: "domain_error(not_less_than_zero,-1)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -311,9 +329,8 @@ func TestInterpreter_Query(t *testing.T) {
 
 			var (
 				results []Result
-				pvs     ParsedVariables
 			)
-			for result, err := range Query[Result](t.Context(), i, test.query, Variables(&pvs)) {
+			for result, err := range Query[Result](t.Context(), i, test.query) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)

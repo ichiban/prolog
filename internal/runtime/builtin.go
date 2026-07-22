@@ -51,6 +51,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: BuiltinTypeInline, Proc: ground1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclicTerm1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: BuiltinTypeStandard, Proc: compare3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: BuiltinTypeStandard, Proc: functor3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -432,6 +433,119 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 	}
 	if !ok {
 		return e.Backtrack(), nil
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func functor3(_ context.Context, e *Execution) (bool, error) {
+	t, name, arity, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	t, name, arity = e.Deref(t), e.Deref(name), e.Deref(arity)
+
+	if _, ok := e.Variable(t); ok {
+		if _, ok := e.Variable(arity); ok {
+			return false, &InstantiationError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+			}
+		} else if a, ok := e.Integer(arity); ok {
+			if a < 0 {
+				return false, &DomainError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+					ValidDomain: "not_less_than_zero",
+					Culprit:     arity,
+				}
+			}
+
+			if _, ok := e.Variable(name); ok {
+				return false, &InstantiationError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+				}
+			} else if _, ok := e.Functor(name); ok {
+				return false, &TypeError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+					ValidType: "atomic",
+					Culprit:   name,
+				}
+			}
+
+			if a == 0 {
+				ok, err := e.Unify(t, name)
+				if !ok || err != nil {
+					return false, err
+				}
+			} else if n, ok := e.Atom(name); ok {
+				c, err := e.PutCompoundWithFreshVars(term.NewFunctor(n, int(a)))
+				if err != nil {
+					return false, err
+				}
+
+				ok, err = e.Unify(t, c)
+				if !ok || err != nil {
+					return false, err
+				}
+			} else {
+				return false, &TypeError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+					ValidType: "atom",
+					Culprit:   name,
+				}
+			}
+		} else {
+			return false, &TypeError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+				ValidType: "integer",
+				Culprit:   arity,
+			}
+		}
+	} else if f, ok := e.Functor(t); ok {
+		n, err := e.PutAtom(f.Name())
+		if err != nil {
+			return false, err
+		}
+
+		ok, err := e.Unify(name, n)
+		if !ok || err != nil {
+			return false, err
+		}
+
+		a, err := e.PutInteger(int64(f.Arity()))
+		if err != nil {
+			return false, err
+		}
+
+		ok, err = e.Unify(arity, a)
+		if !ok || err != nil {
+			return false, err
+		}
+	} else { // atomic
+		ok, err := e.Unify(name, t)
+		if !ok || err != nil {
+			return false, err
+		}
+
+		a, err := e.PutInteger(int64(0))
+		if err != nil {
+			return false, err
+		}
+
+		ok, err = e.Unify(arity, a)
+		if !ok || err != nil {
+			return false, err
+		}
 	}
 
 	e.tempVars[1] = cont
