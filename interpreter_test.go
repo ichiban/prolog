@@ -199,6 +199,9 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `callable(3).`, results: []string{}},
 		{query: `callable(X).`, results: []string{}},
 		{query: `callable((1,2)).`, results: []string{""}},
+		// 8.3.10.4
+		{query: `ground(3).`, results: []string{""}},
+		{query: `ground(a(1, _)).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.
