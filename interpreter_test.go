@@ -202,6 +202,9 @@ func TestInterpreter_Query(t *testing.T) {
 		// 8.3.10.4
 		{query: `ground(3).`, results: []string{""}},
 		{query: `ground(a(1, _)).`, results: []string{}},
+		// 8.3.11.4
+		{query: `acyclic_term(a(1, _)).`, results: []string{""}},
+		{query: `X = f(X), acyclic_term(X).`, results: []string{}},
 		// TODO:
 		/*
 			Other test cases.

@@ -48,7 +48,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("float"), 2), Builtin{Type: BuiltinTypeInline, Proc: float1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("compound"), 2), Builtin{Type: BuiltinTypeInline, Proc: compound1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: BuiltinTypeInline, Proc: ground1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclic1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclicTerm1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -288,7 +288,7 @@ func ground1(_ context.Context, e *Execution) (bool, error) {
 	return true, nil
 }
 
-func acyclic1(_ context.Context, e *Execution) (bool, error) {
+func acyclicTerm1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if ok := e.Acyclic(t); !ok {

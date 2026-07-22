@@ -33,7 +33,7 @@ X = X.
 
 unify_with_occurs_check(X, Y) :-
   X = Y,
-  acyclic(X).
+  acyclic_term(X).
 
 X \= Y :- \+(X = Y).
 
