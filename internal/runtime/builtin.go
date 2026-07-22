@@ -42,6 +42,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: BuiltinTypeStandard, Proc: fail0})
 	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: BuiltinTypeStandard, Proc: throw1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("subsumes_term"), 3), Builtin{Type: BuiltinTypeStandard, Proc: subsumesTerm2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("atom"), 2), Builtin{Type: BuiltinTypeInline, Proc: atom1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("integer"), 2), Builtin{Type: BuiltinTypeInline, Proc: integer1})
@@ -347,6 +348,37 @@ func throw1(ctx context.Context, e *Execution) (bool, error) {
 		}
 	}
 	return false, fmt.Errorf("unhandled exception: %s", &syntax.Formatter{Arena: e.Arena, Term: ball})
+}
+
+func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
+	general, specific, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	trailTop := len(e.trail)
+	vs := e.VariableSet(specific)
+
+	// Same as unify_with_occurs_check(General, Specific).
+	ok, err := e.Unify(general, specific)
+	if err != nil {
+		return false, err
+	}
+	ok = ok && e.Acyclic(general)
+
+	// Checks if the temporary bindings keep Specific intact.
+	for _, v := range vs {
+		w := e.Deref(v)
+		ok = ok && v == w
+	}
+
+	if err := e.unwindTrail(trailTop); err != nil {
+		return false, err
+	}
+
+	if !ok {
+		return e.Backtrack(), nil
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
 }
 
 func getNeckCut1(_ context.Context, e *Execution) (bool, error) {

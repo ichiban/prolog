@@ -141,6 +141,13 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `'\\='(f(1, X, 1), f(2, a(X), 2)).`, results: []string{""}},
 		{query: `\=(f(2, X), f(2, a(X))).`, results: []string{}},
 		{query: `'\\='(f(X, Y, X, 1), f(a(X), a(Y), Y, 2)).`, results: []string{""}},
+		// 8.2.4.4
+		{query: `subsumes_term(a, a).`, results: []string{""}},
+		{query: `subsumes_term(f(X, Y), f(Z, Z)).`, results: []string{""}},
+		{query: `subsumes_term(f(Z, Z), f(X, Y)).`, results: []string{}},
+		{query: `subsumes_term(g(X), g(f(X))).`, results: []string{}},
+		{query: `subsumes_term(X, f(X)).`, results: []string{}},
+		{query: `subsumes_term(X, Y), subsumes_term(Y, f(X)).`, results: []string{""}},
 		// 8.3.1.4
 		{query: `var(foo).`, results: []string{}},
 		{query: `var(Foo).`, results: []string{""}},
