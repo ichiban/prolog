@@ -382,6 +382,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
+				ok = ok || e.Backtrack()
 				if !ok {
 					return
 				}

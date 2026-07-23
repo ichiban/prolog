@@ -256,6 +256,19 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `functor(F, foo(a), 1).`, err: "type_error(atomic,foo(a))"},
 		// {query: `current_prolog_flag(max_arity, A), X is A + 1, functor(T, foo, X).`, err: "representation_error(max_arity)"}, TODO: What is our max_arity?
 		{query: `Minus_1 is 0 - 1, functor(F, foo, Minus_1).`, err: "domain_error(not_less_than_zero,-1)"},
+		// 8.5.2.4
+		{query: `arg(1, foo(a, b), a).`, results: []string{""}},
+		{query: `arg(1, foo(a, b), X).`, results: []string{"X = a"}},
+		{query: `arg(1, foo(X, b), a).`, results: []string{"X = a"}},
+		{query: `arg(1, foo(X, b), Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `arg(1, foo(a, b), b).`, results: []string{}},
+		{query: `arg(0, foo(a, b), foo).`, results: []string{}},
+		{query: `arg(3, foo(3, 4), N).`, results: []string{}},
+		{query: `arg(X, foo(a, b), a).`, err: "instantiation_error"},
+		{query: `arg(1, X, a).`, err: "instantiation_error"},
+		{query: `arg(0, atom, A).`, err: "type_error(compound,atom)"},
+		{query: `arg(0, 3, A).`, err: "type_error(compound,3)"},
+		{query: `arg(1, foo(X), u(X)).`, results: []string{"X = u(...)"}},
 		// TODO:
 		/*
 			Other test cases.

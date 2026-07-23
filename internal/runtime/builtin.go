@@ -52,6 +52,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclicTerm1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: BuiltinTypeStandard, Proc: compare3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: BuiltinTypeStandard, Proc: functor3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: BuiltinTypeStandard, Proc: arg3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -134,7 +135,7 @@ func true0(_ context.Context, e *Execution) (bool, error) {
 }
 
 func fail0(_ context.Context, e *Execution) (bool, error) {
-	return e.Backtrack(), nil
+	return false, nil
 }
 
 func call1(_ context.Context, e *Execution) (bool, error) {
@@ -234,7 +235,7 @@ func var1(_ context.Context, e *Execution) (bool, error) {
 	v := e.tempVars[0]
 	v = e.Deref(v)
 	if _, ok := e.Variable(v); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -244,7 +245,7 @@ func atom1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Atom(t); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -254,7 +255,7 @@ func integer1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Integer(t); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -264,7 +265,7 @@ func float1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Float(t); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -274,7 +275,7 @@ func compound1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Functor(t); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -285,7 +286,7 @@ func ground1(_ context.Context, e *Execution) (bool, error) {
 	t = e.Deref(t)
 	vs := e.VariableSet(t)
 	if len(vs) > 0 {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -295,7 +296,7 @@ func acyclicTerm1(_ context.Context, e *Execution) (bool, error) {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if ok := e.Acyclic(t); !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 	e.Next()
 	return true, nil
@@ -375,7 +376,7 @@ func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
 	}
 
 	if !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 
 	e.tempVars[1] = cont
@@ -432,7 +433,7 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 		return false, err
 	}
 	if !ok {
-		return e.Backtrack(), nil
+		return false, nil
 	}
 
 	e.tempVars[1] = cont
@@ -545,6 +546,67 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 		ok, err = e.Unify(arity, a)
 		if !ok || err != nil {
 			return false, err
+		}
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func arg3(_ context.Context, e *Execution) (bool, error) {
+	nth, t, arg, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	nth, t, arg = e.Deref(nth), e.Deref(t), e.Deref(arg)
+
+	if _, ok := e.Variable(t); ok {
+		return false, &InstantiationError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+		}
+	} else if f, ok := e.Functor(t); ok {
+		if _, ok := e.Variable(nth); ok {
+			return false, &InstantiationError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+			}
+		} else if n, ok := e.Integer(nth); ok {
+			switch {
+			case n == 0, int(n) > f.Arity():
+				return false, nil
+			case n < 0:
+				return false, &DomainError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+					ValidDomain: "not_less_than_zero",
+					Culprit:     nth,
+				}
+			default:
+				a := e.Arg(t, int(n)-1)
+				ok, err := e.Unify(arg, a)
+				if !ok || err != nil {
+					return false, err
+				}
+			}
+
+		} else {
+			return false, &TypeError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+				ValidType: "integer",
+				Culprit:   nth,
+			}
+		}
+	} else {
+		return false, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidType: "compound",
+			Culprit:   t,
 		}
 	}
 
