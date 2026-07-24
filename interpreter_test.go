@@ -269,6 +269,22 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `arg(0, atom, A).`, err: "type_error(compound,atom)"},
 		{query: `arg(0, 3, A).`, err: "type_error(compound,3)"},
 		{query: `arg(1, foo(X), u(X)).`, results: []string{"X = u(...)"}},
+		// 8.5.3.4
+		{query: `'=..'(foo(a, b), [foo, a, b]).`, results: []string{""}},
+		{query: `'=..'(X, [foo, a, b]).`, results: []string{"X = foo(a,b)"}},
+		{query: `'=..'(foo(a, b), L).`, results: []string{"L = [foo,a,b]"}},
+		{query: `'=..'(foo(X, b), [foo, a, Y]).`, results: []string{"X = a, Y = b"}},
+		{query: `'=..'(1, [1]).`, results: []string{""}},
+		{query: `'=..'(foo(a, b), [foo, b, a]).`, results: []string{}},
+		{query: `'=..'(X, Y).`, err: "instantiation_error"},
+		{query: `'=..'(X, [foo, a | Y]).`, err: "instantiation_error"},
+		{query: `'=..'(X, [foo | bar]).`, err: "type_error(list,[foo|bar])"},
+		{query: `'=..'(X, [Foo, bar]).`, err: "instantiation_error"},
+		{query: `'=..'(X, [3, 1]).`, err: "type_error(atom,3)"},
+		{query: `'=..'(X, [1.1, foo]).`, err: "type_error(atom,1.1)"},
+		{query: `'=..'(X, [a(b), 1]).`, err: "type_error(atom,a(b))"},
+		{query: `'=..'(X, 4).`, err: "type_error(list,4)"},
+		{query: `'=..'(f(X), [f, u(X)]).`, results: []string{"X = u(...)"}},
 		// TODO:
 		/*
 			Other test cases.

@@ -53,6 +53,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: BuiltinTypeStandard, Proc: compare3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: BuiltinTypeStandard, Proc: functor3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: BuiltinTypeStandard, Proc: arg3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: BuiltinTypeStandard, Proc: univ2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -386,6 +387,7 @@ func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
 
 func compare3(_ context.Context, e *Execution) (bool, error) {
 	order, x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	order, x, y = e.Deref(order), e.Deref(x), e.Deref(y)
 
 	if _, ok := e.Variable(order); ok {
 		// Do nothing.
@@ -615,6 +617,74 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 	return true, nil
 }
 
+func univ2(_ context.Context, e *Execution) (bool, error) {
+	t, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	t, list = e.Deref(t), e.Deref(list)
+
+	if _, ok := e.Variable(t); ok {
+		elems, err := e.mustBeNonEmptyList(list)
+		if err != nil {
+			return false, err
+		}
+
+		if len(elems) == 1 {
+			if err := e.mustBeAtomic(elems[0]); err != nil {
+				return false, err
+			}
+
+			ok, err := e.Unify(t, elems[0])
+			if !ok || err != nil {
+				return false, err
+			}
+		}
+
+		a, err := e.mustBeAtom(elems[0])
+		if err != nil {
+			return false, err
+		}
+
+		c, err := e.PutCompound(a, elems[1:]...)
+		if err != nil {
+			return false, err
+		}
+
+		ok, err = e.Unify(t, c)
+		if !ok || err != nil {
+			return false, err
+		}
+	} else if f, ok := e.Functor(t); ok {
+		if err := e.canBeList(list); err != nil {
+			return false, err
+		}
+
+		elems := make([]term.Handle, f.Arity()+1)
+		a, err := e.PutAtom(f.Name())
+		if err != nil {
+			return false, err
+		}
+		elems[0] = a
+		copy(elems[1:], slices.Collect(e.Args(t)))
+
+		l, err := e.PutList(elems...)
+		if err != nil {
+			return false, err
+		}
+
+		ok, err := e.Unify(list, l)
+		if !ok || err != nil {
+			return false, err
+		}
+	} else {
+		if err := e.canBeList(list); err != nil {
+			return false, err
+		}
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
 func getNeckCut1(_ context.Context, e *Execution) (bool, error) {
 	cutB, err := e.PutInteger(int64(e.cutB))
 	if err != nil {
@@ -696,4 +766,119 @@ func concat[T any](s1, s2 iter.Seq[T]) iter.Seq[T] {
 			}
 		}
 	}
+}
+
+func (e *Execution) canBeAtom(t term.Handle) (term.Atom, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return term.Atom{}, false, nil
+	}
+	a, ok := e.Atom(t)
+	if !ok {
+		return term.Atom{}, false, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidType: "atom",
+			Culprit:   t,
+		}
+	}
+	return a, true, nil
+}
+
+func (e *Execution) mustBeAtom(t term.Handle) (term.Atom, error) {
+	if _, ok := e.Variable(t); ok {
+		return term.Atom{}, &InstantiationError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+		}
+	}
+	a, ok := e.Atom(t)
+	if !ok {
+		return term.Atom{}, &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidType: "atom",
+			Culprit:   t,
+		}
+	}
+	return a, nil
+}
+
+func (e *Execution) canBeList(list term.Handle) error {
+	for _, ok := range e.List(list, term.AllowPartial(true)) {
+		if !ok {
+			return &TypeError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+				ValidType: "list",
+				Culprit:   list,
+			}
+		}
+	}
+	return nil
+}
+
+func (e *Execution) mustBeList(list term.Handle) ([]term.Handle, error) {
+	var elems []term.Handle
+	for elem, ok := range e.List(list) {
+		if !ok {
+			if _, ok := e.Variable(elem); ok {
+				return nil, &InstantiationError{
+					ErrorContext: ErrorContext{
+						Location: e.location,
+					},
+				}
+			}
+			return nil, &TypeError{
+				ErrorContext: ErrorContext{
+					Location: e.location,
+				},
+				ValidType: "list",
+				Culprit:   list,
+			}
+		}
+
+		elems = append(elems, elem)
+	}
+	return elems, nil
+}
+
+func (e *Execution) mustBeNonEmptyList(list term.Handle) ([]term.Handle, error) {
+	elems, err := e.mustBeList(list)
+	if err != nil {
+		return nil, err
+	}
+	if len(elems) == 0 {
+		return nil, &DomainError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidDomain: "non_empty_list",
+			Culprit:     list,
+		}
+	}
+	return elems, nil
+}
+
+func (e *Execution) mustBeAtomic(t term.Handle) error {
+	if _, ok := e.Variable(t); ok {
+		return &InstantiationError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+		}
+	}
+	if _, ok := e.Functor(t); ok {
+		return &TypeError{
+			ErrorContext: ErrorContext{
+				Location: e.location,
+			},
+			ValidType: "atomic",
+			Culprit:   t,
+		}
+	}
+	return nil
 }
