@@ -105,12 +105,17 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 				return err
 			}
 
-			var cl ir.Clause
-			if err := c.CompileClause(&cl, t); err != nil {
-				return err
-			}
-			out.Clauses = append(out.Clauses, cl)
+			switch f, _ := c.Functor(t, term.AllowAtom(true)); f {
+			case term.NewFunctor(term.NewAtom(":-"), 1): // Directive
 
+			case term.NewFunctor(term.NewAtom("?-"), 1): // Quad test case
+			default:
+				var cl ir.Clause
+				if err := c.CompileClause(&cl, t); err != nil {
+					return err
+				}
+				out.Clauses = append(out.Clauses, cl)
+			}
 		}
 	}
 	if c.Module == (term.Atom{}) {

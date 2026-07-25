@@ -1040,7 +1040,7 @@ func TestArena_CharList(t *testing.T) {
 	}
 }
 
-func TestCompare(t *testing.T) {
+func TestArena_Compare(t *testing.T) {
 	arena := Arena{
 		Heap: make(Heap, 0, 40),
 	}
@@ -1124,7 +1124,7 @@ func TestCompare(t *testing.T) {
 	}
 }
 
-func TestAcyclic(t *testing.T) {
+func TestArena_Acyclic(t *testing.T) {
 	arena := Arena{
 		Heap: make(Heap, 0, 40),
 	}
@@ -1148,6 +1148,47 @@ func TestAcyclic(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			if ok := arena.Acyclic(test.term); ok != test.result {
 				t.Errorf("expected %v, got %v", test.result, ok)
+			}
+		})
+	}
+}
+
+func TestArena_RenamedCopy(t *testing.T) {
+	arena := Arena{
+		Heap: make(Heap, 0, 40),
+	}
+
+	a := must(arena.PutAtom(NewAtomRune('a')))
+	b := must(arena.PutAtom(NewAtomRune('b')))
+	c := must(arena.PutAtom(NewAtomRune('c')))
+
+	three := must(arena.PutInteger(3))
+	threePointThree := must(arena.PutFloat(3.3))
+
+	fa := must(arena.PutCompound(NewAtomRune('f'), a))
+
+	abc := must(arena.PutList(a, b, c))
+
+	tests := []struct {
+		title  string
+		term   Handle
+		result Handle
+		err    error
+	}{
+		{title: "atom", term: a, result: a},
+		{title: "integer", term: three, result: three},
+		{title: "float", term: threePointThree, result: threePointThree},
+		{title: "compound", term: fa, result: fa},
+		{title: "list", term: abc, result: abc},
+	}
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			result, err := arena.RenamedCopy(test.term)
+			if !errors.Is(err, test.err) {
+				t.Errorf("expected %v, got %v", test.err, err)
+			}
+			if arena.Compare(result, test.result) != 0 {
+				t.Errorf("expected %v, got %v", test.result, result)
 			}
 		})
 	}

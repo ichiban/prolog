@@ -54,6 +54,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: BuiltinTypeStandard, Proc: functor3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: BuiltinTypeStandard, Proc: arg3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: BuiltinTypeStandard, Proc: univ2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("copy_term"), 3), Builtin{Type: BuiltinTypeStandard, Proc: copyTerm2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
@@ -678,6 +679,24 @@ func univ2(_ context.Context, e *Execution) (bool, error) {
 		if err := e.canBeList(list); err != nil {
 			return false, err
 		}
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func copyTerm2(_ context.Context, e *Execution) (bool, error) {
+	t1, t2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	c, err := e.RenamedCopy(t1)
+	if err != nil {
+		return false, err
+	}
+
+	ok, err := e.Unify(t2, c)
+	if !ok || err != nil {
+		return false, err
 	}
 
 	e.tempVars[1] = cont

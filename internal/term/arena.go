@@ -614,3 +614,45 @@ func (a *Arena) cyclic(t Handle, visited map[Handle]struct{}) bool {
 	}
 	return false
 }
+
+func (a *Arena) RenamedCopy(t Handle) (Handle, error) {
+	return a.renamedCopy(t, map[Handle]Handle{})
+}
+
+func (a *Arena) renamedCopy(t Handle, copied map[Handle]Handle) (Handle, error) {
+	t = a.Deref(t)
+	if t, ok := copied[t]; ok {
+		return t, nil
+	}
+
+	if _, ok := a.Variable(t); ok {
+		v, err := a.PutVariable()
+		if err != nil {
+			return Handle{}, err
+		}
+		copied[t] = v
+		return v, nil
+	}
+
+	// TODO: Specialize on list, partial list, and string.
+	if f, ok := a.Functor(t); ok {
+		args := make([]Handle, 0, f.Arity())
+		for arg := range a.Args(t) {
+			arg, err := a.renamedCopy(arg, copied)
+			if err != nil {
+				return Handle{}, err
+			}
+			args = append(args, arg)
+		}
+		c, err := a.PutCompound(f.Name(), args...)
+		if err != nil {
+			return Handle{}, err
+		}
+
+		copied[t] = c
+		return c, nil
+	}
+
+	copied[t] = t
+	return t, nil
+}

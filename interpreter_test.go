@@ -285,6 +285,16 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `'=..'(X, [a(b), 1]).`, err: "type_error(atom,a(b))"},
 		{query: `'=..'(X, 4).`, err: "type_error(list,4)"},
 		{query: `'=..'(f(X), [f, u(X)]).`, results: []string{"X = u(...)"}},
+		// 8.5.4.4
+		{query: `copy_term(X, Y).`, results: []string{""}},
+		{query: `copy_term(X, 3).`, results: []string{""}},
+		{query: `copy_term(_, a).`, results: []string{""}},
+		{query: `copy_term(a+X, X+b).`, results: []string{"X = a"}},
+		{query: `copy_term(_, _).`, results: []string{""}},
+		{query: `copy_term(X+X+Y, A+B+B).`, results: []string{""}}, // TODO: A = B
+		{query: `copy_term(a, b).`, results: []string{}},
+		{query: `copy_term(a+X, X+b), copy_term(a+X, X+b).`, results: []string{}},
+		{query: `copy_term(demoen(X, X), demoen(Y, f(Y))).`, results: []string{"Y = f(...)"}},
 		// TODO:
 		/*
 			Other test cases.
