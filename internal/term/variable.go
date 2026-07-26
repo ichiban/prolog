@@ -1,6 +1,7 @@
 package term
 
 import (
+	"iter"
 	"slices"
 )
 
@@ -46,4 +47,30 @@ func (a *Arena) FreeVariableSet(t, v Handle) []Handle {
 	return slices.DeleteFunc(vs, func(v Handle) bool {
 		return slices.Contains(bv, v)
 	})
+}
+
+func (a *Arena) WitnessVariables(t Handle) iter.Seq[Handle] {
+	// 7.1.1.5 Witness variable list of a term
+	return a.witnessVariables(t, map[Handle]struct{}{})
+}
+
+func (a *Arena) witnessVariables(t Handle, witness map[Handle]struct{}) iter.Seq[Handle] {
+	return func(yield func(Handle) bool) {
+		t = a.Deref(t)
+		if _, ok := a.Variable(t); ok {
+			if _, ok := witness[t]; !ok {
+				witness[t] = struct{}{}
+				_ = yield(t)
+			}
+			return
+		}
+
+		for arg := range a.Args(t) {
+			for w := range a.witnessVariables(arg, witness) {
+				if !yield(w) {
+					return
+				}
+			}
+		}
+	}
 }

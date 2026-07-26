@@ -62,24 +62,18 @@ func (i *Interpreter) Load(ctx context.Context, filename string) error {
 
 type ParsedVariables = []syntax.ParsedVariable
 
-type binding struct {
-	variable string
-	value    Value
-}
-
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
-	bindings []binding
+	bindings map[string]Value
 }
 
 // QueryOption is a single option for a query.
 type QueryOption func(*QueryOptions)
 
-// Bind sets a variable value for a query.
-// TODO: Better interface?
-func Bind(variable string, value Value) QueryOption {
+// Bindings sets variable values for a query.
+func Bindings(b map[string]Value) QueryOption {
 	return func(o *QueryOptions) {
-		o.bindings = append(o.bindings, binding{variable, value})
+		o.bindings = b
 	}
 }
 
@@ -104,15 +98,15 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 			}
 		}
 
-		for _, b := range options.bindings {
-			v, err := syntax.ParseVariable(b.variable,
+		for v, b := range options.bindings {
+			v, err := syntax.ParseVariable(v,
 				syntax.Variables(&pvs),
 			)
 			if err != nil {
 				_ = yield(zero, err)
 				return
 			}
-			param, err := i.encodeTerm(b.value)
+			param, err := i.encodeTerm(b)
 			if err != nil {
 				_ = yield(zero, err)
 				return
@@ -132,15 +126,20 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 			return
 		}
 
+		varNames := make(map[term.Handle]term.Atom, len(pvs))
+		for _, v := range pvs {
+			varNames[v.Variable] = term.NewAtom(v.Name)
+		}
+
 		for err := range i.engine.Call(ctx, g) {
 			if err != nil {
-				_ = yield(zero, err)
+				_ = yield(zero, i.wrapError(err, varNames))
 				return
 			}
 
 			var (
 				t   T
-				err = i.decodeResult(&t, pvs)
+				err = i.decodeResult(&t, varNames)
 			)
 			if !yield(t, err) {
 				return
@@ -149,19 +148,41 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 	}
 }
 
-func (i *Interpreter) decodeResult(out any, pvs []syntax.ParsedVariable) error {
+func (i *Interpreter) wrapError(err error, varNames map[term.Handle]term.Atom) error {
+	errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("%s: %w", &syntax.Formatter{
+		Arena:        i.engine.Arena,
+		Term:         errTerm,
+		VariableName: varNames,
+	}, err)
+}
+
+func (i *Interpreter) decodeResult(out any, varNames map[term.Handle]term.Atom) error {
 	switch out := out.(type) {
 	case *Result:
+
 		if *out == nil {
 			*out = Result{}
 		}
-		for _, v := range pvs {
-			t := v.Variable
+		for v, name := range varNames {
+			t := v
 			t = i.engine.Deref(t)
 			if _, ok := i.engine.Variable(t); ok {
-				continue
+				if t == v {
+					continue
+				}
+				if _, ok := varNames[t]; !ok {
+					continue
+				}
 			}
-			(*out)[v.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t}))
+			(*out)[name.String()] = Raw(fmt.Sprintf("%s", &syntax.Formatter{
+				Arena:        i.engine.Arena,
+				Term:         t,
+				VariableName: varNames,
+			}))
 		}
 		return nil
 	default:

@@ -6,9 +6,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/ichiban/prolog/v2/internal/runtime"
-	"github.com/ichiban/prolog/v2/internal/syntax"
 )
 
 //go:embed testdata
@@ -94,7 +91,7 @@ func TestInterpreter_Query(t *testing.T) {
 		// 8.2.1.4
 		{query: `'='(1, 1).`, results: []string{""}},
 		{query: `'='(X, 1).`, results: []string{"X = 1"}},
-		{query: `'='(X, Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `'='(X, Y).`, results: []string{"X = Y"}},
 		{query: `'='(_, _).`, results: []string{""}},
 		{query: `'='(X, Y), '='(X, abc).`, results: []string{"X = abc, Y = abc"}},
 		{query: `'='(f(X, def), f(def, Y)).`, results: []string{"X = def, Y = def"}},
@@ -111,7 +108,7 @@ func TestInterpreter_Query(t *testing.T) {
 		// 8.2.2.4
 		{query: `unify_with_occurs_check(1, 1).`, results: []string{""}},
 		{query: `unify_with_occurs_check(X, 1).`, results: []string{"X = 1"}},
-		{query: `unify_with_occurs_check(X, Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `unify_with_occurs_check(X, Y).`, results: []string{"Y = X"}},
 		{query: `unify_with_occurs_check(_, _).`, results: []string{""}},
 		{query: `unify_with_occurs_check(X, Y), unify_with_occurs_check(X, abc).`, results: []string{"X = abc, Y = abc"}},
 		{query: `unify_with_occurs_check(f(X, def), f(def, Y)).`, results: []string{"X = def, Y = def"}},
@@ -260,7 +257,7 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `arg(1, foo(a, b), a).`, results: []string{""}},
 		{query: `arg(1, foo(a, b), X).`, results: []string{"X = a"}},
 		{query: `arg(1, foo(X, b), a).`, results: []string{"X = a"}},
-		{query: `arg(1, foo(X, b), Y).`, results: []string{""}}, // TODO: Confirm actually X and Y are unified.
+		{query: `arg(1, foo(X, b), Y).`, results: []string{"Y = X"}},
 		{query: `arg(1, foo(a, b), b).`, results: []string{}},
 		{query: `arg(0, foo(a, b), foo).`, results: []string{}},
 		{query: `arg(3, foo(3, 4), N).`, results: []string{}},
@@ -295,6 +292,14 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `copy_term(a, b).`, results: []string{}},
 		{query: `copy_term(a+X, X+b), copy_term(a+X, X+b).`, results: []string{}},
 		{query: `copy_term(demoen(X, X), demoen(Y, f(Y))).`, results: []string{"Y = f(...)"}},
+		// 8.5.5.4
+		{query: `term_variables(t, Vars).`, results: []string{"Vars = []"}},
+		{query: `term_variables(A+B*C/B-D, Vars).`, results: []string{"Vars = [A,B,C,D]"}},
+		{query: `term_variables(t, [X, Y|a]).`, err: "type_error(list,[X,Y|a])"}, // Originally, term_variables(t, [_, _|a]).
+		{query: `S=B+T, T=A*B, term_variables(S, Vars).`, results: []string{"S = B+A*B, T = A*B, Vars = [B,A]"}},
+		{query: `T=A*B, S=B+T, term_variables(S, Vars).`, results: []string{"S = B+A*B, T = A*B, Vars = [B,A]"}},
+		{query: `term_variables(A+B+B, [B|Vars]).`, results: []string{"A = B, Vars = [B]"}},
+		{query: `term_variables(X+Vars, Vars), Vars = [X, Y].`, results: []string{"Vars = [X,...], Y = [X,...]"}}, // Originally, Vars = [_, _].
 		// TODO:
 		/*
 			Other test cases.
@@ -374,13 +379,8 @@ func TestInterpreter_Query(t *testing.T) {
 					if test.err == "" {
 						t.Fatal(err)
 					}
-					errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
-					if err != nil {
-						t.Fatal(err)
-					}
-					s := fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: errTerm})
-					if !strings.Contains(s, test.err) {
-						t.Errorf("Expected error %q, got %q", test.err, s)
+					if !strings.Contains(err.Error(), test.err) {
+						t.Errorf("Expected error %q, got %q", test.err, err)
 					}
 					continue
 				}
