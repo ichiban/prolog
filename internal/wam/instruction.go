@@ -60,10 +60,6 @@ const (
 	OpGetCut
 	OpPushCut
 
-	OpLoadVariable
-	OpLoadValue
-	OpLoadConstant
-
 	// OpBuiltin0 marks the beginning of the builtin section.
 	OpBuiltin0
 
@@ -147,9 +143,6 @@ var OpCodeNames = [...]string{
 	OpPutCut:        "put_cut",
 	OpGetCut:        "get_cut",
 	OpPushCut:       "push_cut",
-	OpLoadVariable:  "load_variable",
-	OpLoadValue:     "load_value",
-	OpLoadConstant:  "load_constant",
 }
 
 type Mode uint8

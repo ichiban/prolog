@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -17,17 +18,15 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-type BuiltinType int8
+type CallingConvention int8
 
 const (
-	BuiltinTypeStandard BuiltinType = iota
-	BuiltinTypeInline
-	BuiltinTypeArithmetic0
-	BuiltinTypeArithmetic1
+	InHead CallingConvention = iota
+	InBody
 )
 
 type Builtin struct {
-	Type BuiltinType
+	Type CallingConvention
 	Proc func(ctx context.Context, e *Execution) (bool, error)
 }
 
@@ -38,27 +37,32 @@ type BuiltinSet struct {
 
 func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
-	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: BuiltinTypeStandard, Proc: true0})
-	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: BuiltinTypeStandard, Proc: fail0})
-	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: BuiltinTypeStandard, Proc: call1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: BuiltinTypeStandard, Proc: throw1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("subsumes_term"), 3), Builtin{Type: BuiltinTypeStandard, Proc: subsumesTerm2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: BuiltinTypeInline, Proc: var1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("atom"), 2), Builtin{Type: BuiltinTypeInline, Proc: atom1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("integer"), 2), Builtin{Type: BuiltinTypeInline, Proc: integer1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("float"), 2), Builtin{Type: BuiltinTypeInline, Proc: float1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("compound"), 2), Builtin{Type: BuiltinTypeInline, Proc: compound1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: BuiltinTypeInline, Proc: ground1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: BuiltinTypeInline, Proc: acyclicTerm1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: BuiltinTypeStandard, Proc: compare3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: BuiltinTypeStandard, Proc: functor3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: BuiltinTypeStandard, Proc: arg3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: BuiltinTypeStandard, Proc: univ2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("copy_term"), 3), Builtin{Type: BuiltinTypeStandard, Proc: copyTerm2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("term_variables"), 3), Builtin{Type: BuiltinTypeStandard, Proc: termVariables2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: BuiltinTypeInline, Proc: getNeckCut1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: BuiltinTypeInline, Proc: getCont1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: BuiltinTypeStandard, Proc: callCont1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: InHead, Proc: true0})
+	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: InHead, Proc: fail0})
+	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: InHead, Proc: call1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: InHead, Proc: throw1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("subsumes_term"), 3), Builtin{Type: InHead, Proc: subsumesTerm2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: InBody, Proc: var1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("atom"), 2), Builtin{Type: InBody, Proc: atom1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("integer"), 2), Builtin{Type: InBody, Proc: integer1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("float"), 2), Builtin{Type: InBody, Proc: float1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("compound"), 2), Builtin{Type: InBody, Proc: compound1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: InBody, Proc: ground1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: InBody, Proc: acyclicTerm1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: InHead, Proc: compare3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: InHead, Proc: functor3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: InHead, Proc: arg3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: InHead, Proc: univ2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("copy_term"), 3), Builtin{Type: InHead, Proc: copyTerm2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("term_variables"), 3), Builtin{Type: InHead, Proc: termVariables2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: InBody, Proc: getNeckCut1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: InBody, Proc: getCont1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: InHead, Proc: callCont1})
+	// TODO: Implement optimized arithmetic calling convention in binprolog.
+	_ = b.Set(term.NewFunctor(term.NewAtom("$+"), 4), Builtin{Type: InHead, Proc: add3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$-"), 4), Builtin{Type: InHead, Proc: sub3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$*"), 4), Builtin{Type: InHead, Proc: mul3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$atom_concat"), 4), Builtin{Type: InHead, Proc: atomConcat3})
 	return &b
 }
 
@@ -102,17 +106,40 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 	}
 }
 
+type ExceptionalValue int8
+
+const (
+	FloatOverflow ExceptionalValue = iota
+	IntOverflow
+	Underflow
+	ZeroDivisor
+	Undefined
+)
+
+func (e ExceptionalValue) Error() string {
+	return exceptionalValueNames[e]
+}
+
+var exceptionalValueNames = [...]string{
+	FloatOverflow: "float_overflow",
+	IntOverflow:   "int_overflow",
+	Underflow:     "underflow",
+	ZeroDivisor:   "zero_divisor",
+	Undefined:     "undefined",
+}
+
 func true0(_ context.Context, e *Execution) (bool, error) {
 	cont := e.tempVars[1]
 	cont = e.Deref(cont)
+
+	fmt.Printf("true(%s)\n", &syntax.Formatter{Arena: e.Arena, Term: cont})
+
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
 		return false, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "callable",
-			Culprit:   cont,
+			ValidType: term.NewAtom("callable"),
+			Culprit:   Serialize(e.Arena, cont),
+			Location:  e.location,
 		}
 	}
 	pi = term.NewFunctor(pi.Name(), pi.Arity())
@@ -123,11 +150,9 @@ func true0(_ context.Context, e *Execution) (bool, error) {
 			return false, err
 		}
 		return false, &ExistenceError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ObjectType: "procedure",
-			Culprit:    c,
+			ObjectType: term.NewAtom("procedure"),
+			Culprit:    Serialize(e.Arena, c),
+			Location:   e.location,
 		}
 	}
 	e.programPointer = p.Offset
@@ -151,37 +176,33 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 		return false, err
 	}
 
+	fmt.Printf("call(%s, %s)\n", &syntax.Formatter{Arena: e.Arena, Term: goal}, &syntax.Formatter{Arena: e.Arena, Term: cont})
+
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		if _, ok := e.Variable(goal); ok {
 			return false, &InstantiationError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
+				Location: e.location,
 			}
 		}
 		return false, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "callable",
-			Culprit:   goal,
+			ValidType: term.NewAtom("callable"),
+			Culprit:   Serialize(e.Arena, goal),
+			Location:  e.location,
 		}
 	}
 
-	pi = term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := e.Predicates[pi]
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, ok := e.Predicates[bpi]
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
 			return false, err
 		}
 		return false, &ExistenceError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ObjectType: "procedure",
-			Culprit:    c,
+			ObjectType: term.NewAtom("procedure"),
+			Culprit:    Serialize(e.Arena, c),
+			Location:   e.location,
 		}
 	}
 	e.programPointer = p.Offset
@@ -311,9 +332,7 @@ func throw1(ctx context.Context, e *Execution) (bool, error) {
 	if _, ok := e.Variable(ball); ok {
 		var err error
 		err = &InstantiationError{
-			ErrorContext{
-				Location: e.location,
-			},
+			Location: e.location,
 		}
 		ball, err = ErrorTerm(e.Arena, err)
 		if err != nil {
@@ -399,20 +418,16 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 			break
 		default:
 			return false, &DomainError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
-				ValidDomain: "order",
-				Culprit:     order,
+				ValidDomain: term.NewAtom("order"),
+				Culprit:     Serialize(e.Arena, order),
+				Location:    e.location,
 			}
 		}
 	} else {
 		return false, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "atom",
-			Culprit:   order,
+			ValidType: term.NewAtom("atom"),
+			Culprit:   Serialize(e.Arena, order),
+			Location:  e.location,
 		}
 	}
 
@@ -452,34 +467,26 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 	if _, ok := e.Variable(t); ok {
 		if _, ok := e.Variable(arity); ok {
 			return false, &InstantiationError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
+				Location: e.location,
 			}
 		} else if a, ok := e.Integer(arity); ok {
 			if a < 0 {
 				return false, &DomainError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
-					ValidDomain: "not_less_than_zero",
-					Culprit:     arity,
+					ValidDomain: term.NewAtom("not_less_than_zero"),
+					Culprit:     Serialize(e.Arena, arity),
+					Location:    e.location,
 				}
 			}
 
 			if _, ok := e.Variable(name); ok {
 				return false, &InstantiationError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
+					Location: e.location,
 				}
 			} else if _, ok := e.Functor(name); ok {
 				return false, &TypeError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
-					ValidType: "atomic",
-					Culprit:   name,
+					ValidType: term.NewAtom("atomic"),
+					Culprit:   Serialize(e.Arena, name),
+					Location:  e.location,
 				}
 			}
 
@@ -500,20 +507,16 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 				}
 			} else {
 				return false, &TypeError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
-					ValidType: "atom",
-					Culprit:   name,
+					ValidType: term.NewAtom("atom"),
+					Culprit:   Serialize(e.Arena, name),
+					Location:  e.location,
 				}
 			}
 		} else {
 			return false, &TypeError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
-				ValidType: "integer",
-				Culprit:   arity,
+				ValidType: term.NewAtom("integer"),
+				Culprit:   Serialize(e.Arena, arity),
+				Location:  e.location,
 			}
 		}
 	} else if f, ok := e.Functor(t); ok {
@@ -564,16 +567,12 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 
 	if _, ok := e.Variable(t); ok {
 		return false, &InstantiationError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
+			Location: e.location,
 		}
 	} else if f, ok := e.Functor(t); ok {
 		if _, ok := e.Variable(nth); ok {
 			return false, &InstantiationError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
+				Location: e.location,
 			}
 		} else if n, ok := e.Integer(nth); ok {
 			switch {
@@ -581,11 +580,9 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 				return false, nil
 			case n < 0:
 				return false, &DomainError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
-					ValidDomain: "not_less_than_zero",
-					Culprit:     nth,
+					ValidDomain: term.NewAtom("not_less_than_zero"),
+					Culprit:     Serialize(e.Arena, nth),
+					Location:    e.location,
 				}
 			default:
 				a := e.Arg(t, int(n)-1)
@@ -597,20 +594,16 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 
 		} else {
 			return false, &TypeError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
-				ValidType: "integer",
-				Culprit:   nth,
+				ValidType: term.NewAtom("integer"),
+				Culprit:   Serialize(e.Arena, nth),
+				Location:  e.location,
 			}
 		}
 	} else {
 		return false, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "compound",
-			Culprit:   t,
+			ValidType: term.NewAtom("compound"),
+			Culprit:   Serialize(e.Arena, t),
+			Location:  e.location,
 		}
 	}
 
@@ -640,6 +633,7 @@ func univ2(_ context.Context, e *Execution) (bool, error) {
 			}
 		}
 
+		elems[0] = e.Deref(elems[0])
 		a, err := e.mustBeAtom(elems[0])
 		if err != nil {
 			return false, err
@@ -752,6 +746,279 @@ func callCont1(ctx context.Context, e *Execution) (bool, error) {
 	return true0(ctx, e)
 }
 
+func add3(ctx context.Context, e *Execution) (bool, error) {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := addI(x, y)
+			if err != nil {
+				return false, err
+			}
+			t, err := e.PutInteger(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := addIF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := addFI(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := addF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func sub3(ctx context.Context, e *Execution) (bool, error) {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := subI(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutInteger(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := subIF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := subFI(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := subF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func mul3(ctx context.Context, e *Execution) (bool, error) {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := mulI(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutInteger(r)
+			if err != nil {
+				return false, err
+			}
+			ok, err := e.Unify(out, t)
+			if !ok || err != nil {
+				return false, err
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := mulIF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			e.tempVars[0] = t
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			r, err := mulFI(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			e.tempVars[0] = t
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			r, err := mulF(x, y)
+			if err != nil {
+				return false, &EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}
+			}
+			t, err := e.PutFloat(r)
+			if err != nil {
+				return false, err
+			}
+			e.tempVars[0] = t
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func atomConcat3(ctx context.Context, e *Execution) (bool, error) {
+	// Simpler one-directional variant of atom_concat/3.
+	atom1, atom2, atom12, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
+
+	a1, err := e.mustBeAtom(atom1)
+	if err != nil {
+		return false, err
+	}
+
+	a2, err := e.mustBeAtom(atom2)
+	if err != nil {
+		return false, err
+	}
+
+	r, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
+	if err != nil {
+		return false, err
+	}
+
+	ok, err := e.Unify(atom12, r)
+	if !ok || err != nil {
+		return false, err
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
 func (e *Execution) unTrailTo(b int) error {
 	e.stack = e.stack[:b]
 	trailTop := 0
@@ -818,11 +1085,9 @@ func (e *Execution) canBeAtom(t term.Handle) (term.Atom, bool, error) {
 	a, ok := e.Atom(t)
 	if !ok {
 		return term.Atom{}, false, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "atom",
-			Culprit:   t,
+			ValidType: term.NewAtom("atom"),
+			Culprit:   Serialize(e.Arena, t),
+			Location:  e.location,
 		}
 	}
 	return a, true, nil
@@ -831,19 +1096,15 @@ func (e *Execution) canBeAtom(t term.Handle) (term.Atom, bool, error) {
 func (e *Execution) mustBeAtom(t term.Handle) (term.Atom, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Atom{}, &InstantiationError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
+			Location: e.location,
 		}
 	}
 	a, ok := e.Atom(t)
 	if !ok {
 		return term.Atom{}, &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "atom",
-			Culprit:   t,
+			ValidType: term.NewAtom("atom"),
+			Culprit:   Serialize(e.Arena, t),
+			Location:  e.location,
 		}
 	}
 	return a, nil
@@ -853,11 +1114,9 @@ func (e *Execution) canBeList(list term.Handle) error {
 	for _, ok := range e.List(list, term.AllowPartial(true)) {
 		if !ok {
 			return &TypeError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
-				ValidType: "list",
-				Culprit:   list,
+				ValidType: term.NewAtom("list"),
+				Culprit:   Serialize(e.Arena, list),
+				Location:  e.location,
 			}
 		}
 	}
@@ -870,17 +1129,13 @@ func (e *Execution) mustBeList(list term.Handle) ([]term.Handle, error) {
 		if !ok {
 			if _, ok := e.Variable(elem); ok {
 				return nil, &InstantiationError{
-					ErrorContext: ErrorContext{
-						Location: e.location,
-					},
+					Location: e.location,
 				}
 			}
 			return nil, &TypeError{
-				ErrorContext: ErrorContext{
-					Location: e.location,
-				},
-				ValidType: "list",
-				Culprit:   list,
+				ValidType: term.NewAtom("list"),
+				Culprit:   Serialize(e.Arena, list),
+				Location:  e.location,
 			}
 		}
 
@@ -896,11 +1151,9 @@ func (e *Execution) mustBeNonEmptyList(list term.Handle) ([]term.Handle, error) 
 	}
 	if len(elems) == 0 {
 		return nil, &DomainError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidDomain: "non_empty_list",
-			Culprit:     list,
+			ValidDomain: term.NewAtom("non_empty_list"),
+			Culprit:     Serialize(e.Arena, list),
+			Location:    e.location,
 		}
 	}
 	return elems, nil
@@ -909,19 +1162,271 @@ func (e *Execution) mustBeNonEmptyList(list term.Handle) ([]term.Handle, error) 
 func (e *Execution) mustBeAtomic(t term.Handle) error {
 	if _, ok := e.Variable(t); ok {
 		return &InstantiationError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
+			Location: e.location,
 		}
 	}
 	if _, ok := e.Functor(t); ok {
 		return &TypeError{
-			ErrorContext: ErrorContext{
-				Location: e.location,
-			},
-			ValidType: "atomic",
-			Culprit:   t,
+			ValidType: term.NewAtom("atomic"),
+			Culprit:   Serialize(e.Arena, t),
+			Location:  e.location,
 		}
 	}
 	return nil
+}
+
+func (e *Execution) mustBeNumber(t term.Handle, intFn func(e *Execution, i int64) (bool, error), floatFn func(e *Execution, f float64) (bool, error)) (bool, error) {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return false, &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	if i, ok := e.Integer(t); ok {
+		return intFn(e, i)
+	}
+
+	if f, ok := e.Float(t); ok {
+		return floatFn(e, f)
+	}
+
+	return false, &TypeError{
+		ValidType: term.NewAtom("number"),
+		Culprit:   Serialize(e.Arena, t),
+		Location:  e.location,
+	}
+}
+
+func addI(x, y int64) (int64, error) {
+	switch {
+	case y > 0 && x > math.MaxInt64-y:
+		return 0, IntOverflow
+	case y < 0 && x < math.MinInt64-y:
+		return 0, IntOverflow
+	default:
+		return x + y, nil
+	}
+}
+
+func addF(x, y float64) (float64, error) {
+	switch {
+	case y > 0 && x > math.MaxFloat64-y:
+		return 0, FloatOverflow
+	case y < 0 && x < -math.MaxFloat64-y:
+		return 0, FloatOverflow
+	default:
+		return x + y, nil
+	}
+}
+
+func addIF(x int64, y float64) (float64, error) {
+	return addF(float64(x), y)
+}
+
+func addFI(x float64, y int64) (float64, error) {
+	return addF(x, float64(y))
+}
+
+func subI(x, y int64) (int64, error) {
+	switch {
+	case y < 0 && x > math.MaxInt64+y:
+		return 0, IntOverflow
+	case y > 0 && x < math.MinInt64+y:
+		return 0, IntOverflow
+	default:
+		return x - y, nil
+	}
+}
+
+func subF(x, y float64) (float64, error) {
+	return addF(x, -y)
+}
+
+func subFI(x float64, n int64) (float64, error) {
+	return subF(x, float64(n))
+}
+
+func subIF(n int64, x float64) (float64, error) {
+	return subF(float64(n), x)
+}
+
+func mulI(x, y int64) (int64, error) {
+	switch {
+	case x == -1 && y == math.MinInt64:
+		return 0, IntOverflow
+	case x == math.MinInt64 && y == -1:
+		return 0, IntOverflow
+	case y == 0:
+		return 0, nil
+	default:
+		r := x * y
+		if r/y != x {
+			return 0, IntOverflow
+		}
+		return r, nil
+	}
+}
+
+func mulF(x, y float64) (float64, error) {
+	switch {
+	case y != 0 && x > math.MaxFloat64/y:
+		return 0, FloatOverflow
+	case y != 0 && x < -math.MaxFloat64/y:
+		return 0, FloatOverflow
+	}
+
+	r := x * y
+
+	// Underflow: x*y = 0 iff x = 0 or y = 0.
+	if r == 0 && x != 0 && y != 0 {
+		return 0, Underflow
+	}
+
+	return r, nil
+}
+
+func mulIF(n int64, x float64) (float64, error) {
+	return mulF(float64(n), x)
+}
+
+func mulFI(x float64, n int64) (float64, error) {
+	return mulF(x, float64(n))
+}
+
+func intDivI(x, y int64) (int64, error) {
+	switch {
+	case y == 0:
+		return 0, ZeroDivisor
+	case x == math.MinInt64 && y == -1:
+		// Two's complement special case
+		return 0, IntOverflow
+	default:
+		return x / y, nil
+	}
+}
+
+func divI(n, m int64) (float64, error) {
+	return divF(float64(n), float64(m))
+}
+
+func divF(x, y float64) (float64, error) {
+	switch {
+	case y == 0:
+		return 0, ZeroDivisor
+	case x > math.MaxFloat64*y:
+		return 0, FloatOverflow
+	case x < -math.MaxFloat64*y:
+		return 0, FloatOverflow
+	}
+
+	r := x / y
+
+	// Underflow: x/y = 0 iff x = 0 and y != 0.
+	if r == 0 && x != 0 {
+		return 0, Underflow
+	}
+
+	return r, nil
+}
+
+func divIF(n int64, x float64) (float64, error) {
+	return divF(float64(n), x)
+}
+
+func divFI(x float64, n int64) (float64, error) {
+	return divF(x, float64(n))
+}
+
+func remI(x, y int64) (int64, error) {
+	if y == 0 {
+		return 0, ZeroDivisor
+	}
+	return x - ((x / y) * y), nil
+}
+
+func modI(x, y int64) (int64, error) {
+	if y == 0 {
+		return 0, ZeroDivisor
+	}
+	return x - (int64(math.Floor(float64(x)/float64(y))) * y), nil
+}
+
+func negI(x int64) (int64, error) {
+	// Two's complement special case
+	if x == math.MinInt64 {
+		return 0, IntOverflow
+	}
+	return -x, nil
+}
+
+func negF(x float64) float64 {
+	return -x
+}
+
+func absI(x int64) (int64, error) {
+	switch {
+	case x == math.MinInt64:
+		return 0, IntOverflow
+	case x < 0:
+		return -x, nil
+	default:
+		return x, nil
+	}
+}
+
+func absF(x float64) float64 {
+	return math.Abs(float64(x))
+}
+
+func signI(x int64) int64 {
+	switch {
+	case x > 0:
+		return 1
+	case x < 0:
+		return -1
+	default:
+		return 0
+	}
+}
+
+func signF(x float64) float64 {
+	switch {
+	case x > 0:
+		return 1
+	case x < 0:
+		return -1
+	default:
+		return 0
+	}
+}
+
+func posI(x int64) (int64, error) {
+	return x, nil
+}
+
+func posF(x float64) (float64, error) {
+	return x, nil
+}
+
+func intFloorDivI(x, y int64) (int64, error) {
+	switch {
+	case x == math.MinInt64 && y == -1:
+		return 0, IntOverflow
+	case y == 0:
+		return 0, ZeroDivisor
+	default:
+		return int64(math.Floor(float64(x) / float64(y))), nil
+	}
+}
+
+func intPartF(x float64) float64 {
+	s := signF(x)
+	return s * math.Floor(math.Abs(x))
+}
+
+func fractPartF(x float64) float64 {
+	i := intPartF(x)
+	return x - i
 }

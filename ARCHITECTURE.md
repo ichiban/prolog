@@ -20,7 +20,7 @@ We based our virtual machine on BinWAM, a variant of WAM.
 
 ### Registers
 
-- $`X_0`$ Temporary for inline/arithmetic builtins
+- $`X_0`$ Temporary for inline builtins
 - $`X_1`$, $`A_1`$ First argument `p(X, _, _, ..., _)`
 - $`X_2`$, $`A_2`$ Second argument `p(_, X, _, ..., _)`
 - ...

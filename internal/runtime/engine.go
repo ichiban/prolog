@@ -193,7 +193,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				if err := e.emit(op, 0, 0); err != nil {
 					return err
 				}
-			case wam.OpLoadVariable, wam.OpPutVariable, wam.OpGetValue, wam.OpLoadValue:
+			case wam.OpPutVariable, wam.OpGetValue:
 				if err := e.emit(op, inst.A.Index, inst.B.Index); err != nil {
 					return err
 				}
@@ -206,7 +206,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				if err := e.emit(op, inst.B.Index, 0); err != nil {
 					return err
 				}
-			case wam.OpLoadConstant, wam.OpGetConstant, wam.OpPutConstant, wam.OpUnifyConstant, wam.OpWriteConstant:
+			case wam.OpGetConstant, wam.OpPutConstant, wam.OpUnifyConstant, wam.OpWriteConstant:
 				c := inst.B.Term
 				c = e.Deref(c)
 				cid := e.EmbedConstants(c)
@@ -318,19 +318,13 @@ func convertOp(inst ir.Instruction) wam.OpCode {
 		return wam.OpWriteConstant
 	case key{op: ir.OpWrite, typ: ir.TypeVoid}:
 		return wam.OpWriteVoid
-	case key{op: ir.OpLoad, typ: ir.TypeVariable}:
-		return wam.OpLoadVariable
-	case key{op: ir.OpLoad, typ: ir.TypeValue}:
-		return wam.OpLoadValue
-	case key{op: ir.OpLoad, typ: ir.TypeConstant}:
-		return wam.OpLoadConstant
 	case key{op: ir.OpPush, typ: ir.TypeVariable}:
 		return wam.OpWriteVariable
 	case key{op: ir.OpPush, typ: ir.TypeStructure}:
 		return wam.OpPushStructure
 	case key{op: ir.OpPush, typ: ir.TypeCut}:
 		return wam.OpPushCut
-	case key{op: ir.OpBuiltin, typ: ir.TypeNotApplicable}, key{op: ir.OpInline, typ: ir.TypeVariable}, key{op: ir.OpArithmetic, typ: ir.TypeNotApplicable}:
+	case key{op: ir.OpBuiltin, typ: ir.TypeNotApplicable}, key{op: ir.OpInline, typ: ir.TypeVariable}:
 		return wam.OpBuiltin0 + wam.OpCode(inst.A.Index)
 	default:
 		return wam.OpNop
@@ -359,11 +353,9 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 				return
 			}
 			_ = yield(&ExistenceError{
-				ErrorContext: ErrorContext{
-					Location: term.NewFunctor(term.NewAtom("user"), 0),
-				},
-				ObjectType: "procedure",
-				Culprit:    culprit,
+				ObjectType: term.NewAtom("procedure"),
+				Culprit:    Serialize(e.Arena, culprit),
+				Location:   term.NewFunctor(term.NewAtom("user"), 0),
 			})
 		}
 	}

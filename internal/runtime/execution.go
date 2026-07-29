@@ -273,11 +273,9 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 						return
 					}
 					_ = yield(&ExistenceError{
-						ErrorContext: ErrorContext{
-							Location: e.location,
-						},
-						ObjectType: "procedure",
-						Culprit:    culprit,
+						ObjectType: term.NewAtom("procedure"),
+						Culprit:    Serialize(e.Arena, culprit),
+						Location:   e.location,
 					})
 					return
 				}

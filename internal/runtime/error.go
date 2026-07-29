@@ -4,46 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 type Termer interface {
 	Term(arena *term.Arena) (term.Handle, error)
-}
-
-type ErrorContext struct {
-	Location term.Functor
-	Message  term.Handle
-}
-
-func (c *ErrorContext) Term(arena *term.Arena) (term.Handle, error) {
-	var (
-		l   term.Handle
-		err error
-	)
-	if c.Location == 0 {
-		l, err = arena.PutVariable()
-		if err != nil {
-			return term.Handle{}, err
-		}
-	} else {
-		n, err := arena.PutAtom(c.Location.Name())
-		if err != nil {
-			return term.Handle{}, err
-		}
-		a, err := arena.PutInteger(int64(c.Location.Arity()))
-		if err != nil {
-			return term.Handle{}, err
-		}
-		l, err = arena.PutCompound(term.NewAtomRune('/'), n, a)
-		if err != nil {
-			return term.Handle{}, err
-		}
-	}
-	if c.Message == (term.Handle{}) {
-		return l, nil
-	}
-	return arena.PutCompound(term.NewAtom("context"), l, c.Message)
 }
 
 func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
@@ -78,11 +44,11 @@ func cause(err error) error {
 
 // InstantiationError is an error that signifies a term is variable.
 type InstantiationError struct {
-	ErrorContext
+	Location term.Functor
 }
 
 func (e *InstantiationError) Error() string {
-	return fmt.Sprintf("instantiation error")
+	return fmt.Sprintf("instantiation error: location = %s", e.Location)
 }
 
 func (e *InstantiationError) Term(arena *term.Arena) (term.Handle, error) {
@@ -90,138 +56,154 @@ func (e *InstantiationError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // TypeError is an error that signifies an incorrect type.
 type TypeError struct {
-	ErrorContext
-	ValidType string
-	Culprit   term.Handle
+	ValidType term.Atom
+	Culprit   Serialized
+	Location  term.Functor
 }
 
 func (e *TypeError) Error() string {
-	return fmt.Sprintf("invalid type: expected %s", e.ValidType)
+	return fmt.Sprintf("invalid type: valid type = %s, culprit = %s, location = %s", e.ValidType, e.Culprit, e.Location)
 }
 
 func (e *TypeError) Term(arena *term.Arena) (term.Handle, error) {
-	v, err := arena.PutAtom(term.NewAtom(e.ValidType))
+	v, err := arena.PutAtom(e.ValidType)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	t, err := arena.PutCompound(term.NewAtom("type_error"), v, e.Culprit)
+	c, err := Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	t, err := arena.PutCompound(term.NewAtom("type_error"), v, c)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // DomainError is an error that signifies an incorrect value.
 type DomainError struct {
-	ErrorContext
-	ValidDomain string
-	Culprit     term.Handle
+	ValidDomain term.Atom
+	Culprit     Serialized
+	Location    term.Functor
 }
 
 func (e *DomainError) Error() string {
-	return fmt.Sprintf("invalid domain: expected %s", e.ValidDomain)
+	return fmt.Sprintf("invalid domain: valid domain = %s, culprit = %s, location = %s", e.ValidDomain, e.Culprit, e.Location)
 }
 
 func (e *DomainError) Term(arena *term.Arena) (term.Handle, error) {
-	v, err := arena.PutAtom(term.NewAtom(e.ValidDomain))
+	v, err := arena.PutAtom(e.ValidDomain)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	t, err := arena.PutCompound(term.NewAtom("domain_error"), v, e.Culprit)
+	c, err := Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	t, err := arena.PutCompound(term.NewAtom("domain_error"), v, c)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // ExistenceError is an error that signifies nonexistence of an object.
 type ExistenceError struct {
-	ErrorContext
-	ObjectType string
-	Culprit    term.Handle
+	ObjectType term.Atom
+	Culprit    Serialized
+	Location   term.Functor
 }
 
 func (e *ExistenceError) Error() string {
-	return fmt.Sprintf("%s does not exist", e.ObjectType)
+	return fmt.Sprintf("%s does not exist: culprit = %s, location = %s", e.ObjectType, e.Culprit, e.Location)
 }
 
 func (e *ExistenceError) Term(arena *term.Arena) (term.Handle, error) {
-	o, err := arena.PutAtom(term.NewAtom(e.ObjectType))
+	o, err := arena.PutAtom(e.ObjectType)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	t, err := arena.PutCompound(term.NewAtom("existence_error"), o, e.Culprit)
+	c, err := Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	t, err := arena.PutCompound(term.NewAtom("existence_error"), o, c)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // PermissionError is an error that signifies a disallowed operation.
 type PermissionError struct {
-	ErrorContext
-	Operation      string
-	PermissionType string
-	Culprit        term.Handle
+	Operation      term.Atom
+	PermissionType term.Atom
+	Culprit        Serialized
+	Location       term.Functor
 }
 
 func (e *PermissionError) Error() string {
-	return fmt.Sprintf("disallowed operation %s on %s", e.Operation, e.PermissionType)
+	return fmt.Sprintf("disallowed operation %s on %s: culprit = %s, location = %s", e.Operation, e.PermissionType, e.Culprit, e.Location)
 }
 
 func (e *PermissionError) Term(arena *term.Arena) (term.Handle, error) {
-	o, err := arena.PutAtom(term.NewAtom(e.Operation))
+	o, err := arena.PutAtom(e.Operation)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	p, err := arena.PutAtom(term.NewAtom(e.PermissionType))
+	p, err := arena.PutAtom(e.PermissionType)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	t, err := arena.PutCompound(term.NewAtom("permission_error"), o, p, e.Culprit)
+	c, err := Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	t, err := arena.PutCompound(term.NewAtom("permission_error"), o, p, c)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // RepresentationError is an error that signifies one of the implementation limits exceeded.
 type RepresentationError struct {
-	ErrorContext
-	flag string
+	Flag     term.Atom
+	Location term.Functor
 }
 
 func (e *RepresentationError) Error() string {
-	return fmt.Sprintf("implementation limit exceeded: %s", e.flag)
+	return fmt.Sprintf("implementation limit exceeded: %s, location = %s", e.Flag, e.Location)
 }
 
 func (e *RepresentationError) Term(arena *term.Arena) (term.Handle, error) {
-	f, err := arena.PutAtom(term.NewAtom(e.flag))
+	f, err := arena.PutAtom(e.Flag)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -229,19 +211,17 @@ func (e *RepresentationError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
-
-// TODO: evaluation_error
 
 // ResourceError is an error that signifies lack of a resource.
 type ResourceError struct {
-	ErrorContext
-	Resource string
+	Resource term.Atom
+	Location term.Functor
 }
 
 func (e *ResourceError) Error() string {
@@ -249,7 +229,7 @@ func (e *ResourceError) Error() string {
 }
 
 func (e *ResourceError) Term(arena *term.Arena) (term.Handle, error) {
-	r, err := arena.PutAtom(term.NewAtom(e.Resource))
+	r, err := arena.PutAtom(e.Resource)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -257,25 +237,25 @@ func (e *ResourceError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // SyntaxError is an error that signifies a syntax error.
 type SyntaxError struct {
-	ErrorContext
-	impDepAtom string
+	ImpDepAtom term.Atom
+	Location   term.Functor
 }
 
 func (e *SyntaxError) Error() string {
-	return fmt.Sprintf("syntax error: %s", e.impDepAtom)
+	return fmt.Sprintf("syntax error: %s", e.ImpDepAtom)
 }
 
 func (e *SyntaxError) Term(arena *term.Arena) (term.Handle, error) {
-	i, err := arena.PutAtom(term.NewAtom(e.impDepAtom))
+	i, err := arena.PutAtom(e.ImpDepAtom)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -283,17 +263,17 @@ func (e *SyntaxError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-
+		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
 
 // UninstantiationError is an error that signifies a term is non-variable.
 type UninstantiationError struct {
-	ErrorContext
-	Culprit term.Handle
+	Culprit  Serialized
+	Location term.Functor
 }
 
 func (e *UninstantiationError) Error() string {
@@ -301,13 +281,56 @@ func (e *UninstantiationError) Error() string {
 }
 
 func (e *UninstantiationError) Term(arena *term.Arena) (term.Handle, error) {
-	t, err := arena.PutCompound(term.NewAtom("uninstantiation_error"), e.Culprit)
+	c, err := Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := e.ErrorContext.Term(arena)
+	t, err := arena.PutCompound(term.NewAtom("uninstantiation_error"), c)
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, c)
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
+}
+
+type EvaluationError struct {
+	Cause    error
+	Location term.Functor
+}
+
+func (e *EvaluationError) Error() string {
+	return fmt.Sprintf("evaluation error: %s, location = %s", e.Cause, e.Location)
+}
+
+func (e *EvaluationError) Term(arena *term.Arena) (term.Handle, error) {
+	i, err := arena.PutAtom(term.NewAtom(e.Cause.Error()))
+	if err != nil {
+		return term.Handle{}, err
+	}
+	t, err := arena.PutCompound(term.NewAtom("evaluation_error"), i)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	l, err := arena.PutFunctor(e.Location)
+	if err != nil {
+		return term.Handle{}, err
+	}
+	return arena.PutCompound(term.NewAtom("error"), t, l)
+}
+
+type Serialized string
+
+func Serialize(arena *term.Arena, t term.Handle) Serialized {
+	return Serialized(fmt.Sprintf("%s .", &syntax.Formatter{
+		Arena:  arena,
+		Term:   t,
+		Quoted: true,
+	}))
+}
+
+func Deserialize(arena *term.Arena, s Serialized) (term.Handle, error) {
+	return syntax.ParseTerm(string(s), syntax.Arena(arena))
 }

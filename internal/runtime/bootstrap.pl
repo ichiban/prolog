@@ -61,10 +61,23 @@ X @> Y :- compare(>, X, Y).
 X @>= Y :- compare(>, X, Y).
 X @>= Y :- compare(=, X, Y).
 
-% stub
--1 is 0 - 1.
-'$expr'(5, 5).
-'$*'(5, 2, 10).
+R is E :- R is E.
+
+'$expr'(E, _) :- var(E), !,
+  throw(error(instantiation_error, '$expr'/2)).
+'$expr'(E, R) :- atomic(E), !,
+  E = R.
+'$expr'(E, R) :- E =.. [Op, E1, E2], !,
+  '$atom_concat'($, Op, NewOp),
+  '$expr'(E1, X1),
+  '$expr'(E2, X2),
+  G =.. [NewOp, X1, X2, R],
+  G.
+'$expr'(E, R) :- E =.. [Op, E1],
+  '$atom_concat'($, Op, NewOp),
+  '$expr'(E1, X1),
+  G =.. [NewOp, X1, R],
+  G.
 
 % stub
 write(Term).

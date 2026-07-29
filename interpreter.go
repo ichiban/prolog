@@ -149,6 +149,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 }
 
 func (i *Interpreter) wrapError(err error, varNames map[term.Handle]term.Atom) error {
+	origErr := err
 	errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
 	if err != nil {
 		return err
@@ -157,7 +158,7 @@ func (i *Interpreter) wrapError(err error, varNames map[term.Handle]term.Atom) e
 		Arena:        i.engine.Arena,
 		Term:         errTerm,
 		VariableName: varNames,
-	}, err)
+	}, origErr)
 }
 
 func (i *Interpreter) decodeResult(out any, varNames map[term.Handle]term.Atom) error {

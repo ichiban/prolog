@@ -411,12 +411,10 @@ func TestCompiler_CompileClause(t *testing.T) {
 			},
 			entries: []Builtin{
 				{},
-				{Type: BuiltinTypeStandard},
+				{Type: InHead},
 				{},
-				{Type: BuiltinTypeInline},
-				{Type: BuiltinTypeInline},
-				{Type: BuiltinTypeArithmetic0},
-				{Type: BuiltinTypeArithmetic1},
+				{Type: InBody},
+				{Type: InBody},
 			},
 		},
 	}
@@ -631,39 +629,6 @@ func TestCompiler_CompileClause(t *testing.T) {
 			},
 		},
 		{
-			title: "arithmetic",
-			head:  "p(X, Y, Cont).",
-			body:  "'$less'(X, Y, q(Cont)).",
-			clause: ir.Clause{
-				PI:      term.NewFunctor(term.NewAtomRune('p'), 3),
-				MaxRegs: 3,
-				Code: []ir.Instruction{
-					{OpCode: ir.OpLoad, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 1}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 1}},
-					{OpCode: ir.OpLoad, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 2}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
-					{OpCode: ir.OpArithmetic, Type: ir.TypeConstant, A: ir.Operand{Kind: ir.OperandKindBuiltin, Index: 5}, B: ir.Operand{Kind: ir.OperandKindTerm, Term: must(engine.PutInteger(0))}},
-					{OpCode: ir.OpPut, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 1}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
-				},
-				Execute: term.NewFunctor(term.NewAtomRune('q'), 1),
-			},
-		},
-		{
-			title: "arithmetic with output",
-			head:  "p(X, Y, Z, Cont).",
-			body:  "$+(X, Y, Z, q(Z, Cont)).",
-			clause: ir.Clause{
-				PI:      term.NewFunctor(term.NewAtomRune('p'), 4),
-				MaxRegs: 4,
-				Code: []ir.Instruction{
-					{OpCode: ir.OpLoad, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 1}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 1}},
-					{OpCode: ir.OpLoad, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 2}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
-					{OpCode: ir.OpArithmetic, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindBuiltin, Index: 6}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
-					{OpCode: ir.OpPut, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 1}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
-					{OpCode: ir.OpPut, Type: ir.TypeValue, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 2}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 4}},
-				},
-				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
-			},
-		},
-		{
 			title: "$cut_to",
 			head:  "'$cut_to'('$cut', Cont).",
 			body:  "true(Cont).",
@@ -684,6 +649,25 @@ func TestCompiler_CompileClause(t *testing.T) {
 					},
 				},
 				Execute: term.NewFunctor(term.NewAtom("true"), 1),
+			},
+		},
+		{
+			title: "deep nest",
+			head:  "p(Cont).",
+			body:  "q(f(g(h(x))), Cont).",
+			clause: ir.Clause{
+				PI:      term.NewFunctor(term.NewAtomRune('p'), 1),
+				MaxRegs: 3,
+				Code: []ir.Instruction{
+					{OpCode: ir.OpGet, Type: ir.TypeVariable, A: ir.Operand{Kind: ir.OperandKindArgument, Index: 1}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 2}},
+					{OpCode: ir.OpPut, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('f'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 1}},
+					{OpCode: ir.OpPush, Type: ir.TypeVariable, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
+					{OpCode: ir.OpPush, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('g'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
+					{OpCode: ir.OpPush, Type: ir.TypeVariable, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
+					{OpCode: ir.OpPush, Type: ir.TypeStructure, A: ir.Operand{Kind: ir.OperandKindFunctor, Functor: term.NewFunctor(term.NewAtomRune('h'), 1)}, B: ir.Operand{Kind: ir.OperandKindRegister, Index: 3}},
+					{OpCode: ir.OpWrite, Type: ir.TypeConstant, A: ir.Operand{Kind: ir.OperandKindPut}, B: ir.Operand{Kind: ir.OperandKindTerm, Term: must(arena.PutAtom(term.NewAtomRune('x')))}},
+				},
+				Execute: term.NewFunctor(term.NewAtomRune('q'), 2),
 			},
 		},
 	}

@@ -61,7 +61,7 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := prolog.New(1024)
+	i := prolog.New(4 * 1024)
 	i.SetSourceFS(os.DirFS("."))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)

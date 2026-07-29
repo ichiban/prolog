@@ -34,21 +34,17 @@ const (
 	OpUnify
 	OpPush
 	OpInline
-	OpLoad
-	OpArithmetic
 )
 
 var opCodeNames = [...]string{
-	OpInvalid:    "invalid",
-	OpBuiltin:    "builtin",
-	OpPut:        "put",
-	OpGet:        "get",
-	OpWrite:      "write",
-	OpUnify:      "unify",
-	OpPush:       "push",
-	OpInline:     "inline",
-	OpLoad:       "load",
-	OpArithmetic: "arith",
+	OpInvalid: "invalid",
+	OpBuiltin: "builtin",
+	OpPut:     "put",
+	OpGet:     "get",
+	OpWrite:   "write",
+	OpUnify:   "unify",
+	OpPush:    "push",
+	OpInline:  "inline",
 }
 
 func (o OpCode) String() string {

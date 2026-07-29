@@ -163,7 +163,7 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 				return
 			}
 			var body term.Handle
-			if b.Type == BuiltinTypeStandard {
+			if b.Type == InHead {
 				body, err = c.PutAtom(term.NewAtom("true"))
 				if err != nil {
 					_ = yield(term.Handle{}, err)
@@ -906,7 +906,7 @@ func (c *Compiler) compileHead(clause *ir.Clause, head term.Handle) (term.Functo
 	pi := term.NewFunctor(f.Name(), f.Arity())
 	if i, ok := c.BuiltinSet.Lookup(pi); ok {
 		b := c.BuiltinSet.entries[i]
-		if b.Type == BuiltinTypeStandard {
+		if b.Type == InHead {
 			cont := c.Arg(head, f.Arity()-1)
 			clause.Emit(ir.Instruction{
 				OpCode: ir.OpBuiltin,
@@ -1070,7 +1070,11 @@ func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Handle) e
 		return err
 	}
 
-	return c.emitArgs(clause, mode, t, ct)
+	if err := c.emitArgs(clause, mode, t, ct); err != nil {
+		return err
+	}
+
+	return c.compileArgs(clause, mode, t, ct)
 }
 
 func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functor, error) {
@@ -1114,77 +1118,9 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 			b = c.BuiltinSet.Get(i)
 		)
 		switch b.Type {
-		case BuiltinTypeStandard:
+		case InHead:
 			break
-		case BuiltinTypeArithmetic0:
-			var (
-				cont = c.Arg(body, pi.Arity()-1)
-				args = term.NewFunctor(pi.Name(), pi.Arity()-1)
-			)
-			newOpArgs, err := c.PutCompoundWithFreshVars(args)
-			if err != nil {
-				return 0, err
-			}
-			for i := range args.Arity() {
-				a, x := c.Arg(body, i), c.Arg(newOpArgs, i)
-				typ, err := c.classifyLoad(clause, x, a)
-				if err != nil {
-					return 0, err
-				}
-				clause.Emit(ir.Instruction{
-					OpCode: ir.OpLoad,
-					Type:   typ,
-					A:      ir.Operand{Kind: ir.OperandKindArgument, Index: i + 1},
-					B:      ir.Operand{Kind: ir.OperandKindTerm, Term: x},
-				})
-			}
-			zero, err := c.PutInteger(0)
-			if err != nil {
-				return 0, err
-			}
-			clause.Emit(ir.Instruction{
-				OpCode: ir.OpArithmetic,
-				A:      ir.Operand{Kind: ir.OperandKindBuiltin, Index: i},
-				B:      ir.Operand{Kind: ir.OperandKindTerm, Term: zero},
-			})
-			return c.compileBody(clause, cont)
-		case BuiltinTypeArithmetic1:
-			var (
-				cont = c.Arg(body, pi.Arity()-1)
-				args = term.NewFunctor(pi.Name(), pi.Arity()-2)
-				res  = c.Arg(body, pi.Arity()-2)
-			)
-			varRes, err := c.PutVariable()
-			if err != nil {
-				return 0, err
-			}
-			if err := c.handleConstantRes(clause, varRes, res); err != nil {
-				return 0, err
-			}
-			newOpArgs, err := c.PutCompoundWithFreshVars(args)
-			if err != nil {
-				return 0, err
-			}
-			for i := range args.Arity() {
-				a, x := c.Arg(body, i), c.Arg(newOpArgs, i)
-				typ, err := c.classifyLoad(clause, x, a)
-				if err != nil {
-					return 0, err
-				}
-				clause.Emit(ir.Instruction{
-					OpCode: ir.OpLoad,
-					Type:   typ,
-					A:      ir.Operand{Kind: ir.OperandKindArgument, Index: i + 1},
-					B:      ir.Operand{Kind: ir.OperandKindTerm, Term: x},
-				})
-			}
-			clause.Emit(ir.Instruction{
-				OpCode: ir.OpArithmetic,
-				A:      ir.Operand{Kind: ir.OperandKindBuiltin, Index: i},
-				B:      ir.Operand{Kind: ir.OperandKindTerm, Term: varRes},
-			})
-			return c.compileBody(clause, cont)
-		case BuiltinTypeInline:
+		case InBody:
 			var cont term.Handle
 			switch pi.Arity() {
 			case 1:
