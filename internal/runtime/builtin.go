@@ -62,6 +62,12 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("$+"), 4), Builtin{Type: InHead, Proc: add3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$-"), 4), Builtin{Type: InHead, Proc: sub3})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$*"), 4), Builtin{Type: InHead, Proc: mul3})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$arith_eq"), 3), Builtin{Type: InHead, Proc: arithEq2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$arith_dif"), 3), Builtin{Type: InHead, Proc: arithDif2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$less"), 3), Builtin{Type: InHead, Proc: less2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$less_eq"), 3), Builtin{Type: InHead, Proc: lessEq2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$greater"), 3), Builtin{Type: InHead, Proc: greater2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$greater_eq"), 3), Builtin{Type: InHead, Proc: greaterEq2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$atom_concat"), 4), Builtin{Type: InHead, Proc: atomConcat3})
 	return &b
 }
@@ -132,8 +138,6 @@ func true0(_ context.Context, e *Execution) (bool, error) {
 	cont := e.tempVars[1]
 	cont = e.Deref(cont)
 
-	fmt.Printf("true(%s)\n", &syntax.Formatter{Arena: e.Arena, Term: cont})
-
 	pi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
 		return false, &TypeError{
@@ -175,8 +179,6 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
-	fmt.Printf("call(%s, %s)\n", &syntax.Formatter{Arena: e.Arena, Term: goal}, &syntax.Formatter{Arena: e.Arena, Term: cont})
 
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
@@ -989,6 +991,240 @@ func mul3(ctx context.Context, e *Execution) (bool, error) {
 	})
 }
 
+func arithEq2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !eqI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !eqIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !eqFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !eqF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func arithDif2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !neqI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !neqIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !neqFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !neqF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func less2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !lssI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !lssIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !lssFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !lssF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func lessEq2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !leqI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !leqIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !leqFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !leqF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func greater2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !gtrI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !gtrIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !gtrFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !gtrF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
+func greaterEq2(ctx context.Context, e *Execution) (bool, error) {
+	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x, y = e.Deref(x), e.Deref(y)
+
+	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !geqI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !geqIF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	}, func(e *Execution, x float64) (bool, error) {
+		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
+			if !geqFI(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		}, func(e *Execution, y float64) (bool, error) {
+			if !geqF(x, y) {
+				return false, nil
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			return true, nil
+		})
+	})
+}
+
 func atomConcat3(ctx context.Context, e *Execution) (bool, error) {
 	// Simpler one-directional variant of atom_concat/3.
 	atom1, atom2, atom12, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
@@ -1429,4 +1665,148 @@ func intPartF(x float64) float64 {
 func fractPartF(x float64) float64 {
 	i := intPartF(x)
 	return x - i
+}
+
+func eqI(m, n int64) bool {
+	return m == n
+}
+
+func eqF(x, y float64) bool {
+	return x == y
+}
+
+func eqFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return eqF(x, y)
+}
+
+func eqIF(n int64, y float64) bool {
+	return eqFI(y, n)
+}
+
+func neqF(x, y float64) bool {
+	return x != y
+}
+
+func neqI(m, n int64) bool {
+	return m != n
+}
+
+func neqFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return neqF(x, y)
+}
+
+func neqIF(n int64, y float64) bool {
+	return neqFI(y, n)
+}
+
+func lssF(x, y float64) bool {
+	return x < y
+}
+
+func lssI(m, n int64) bool {
+	return m < n
+}
+
+func lssFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return lssF(x, y)
+}
+
+func lssIF(n int64, y float64) bool {
+	return gtrFI(y, n)
+}
+
+func leqF(x, y float64) bool {
+	return x <= y
+}
+
+func leqI(m, n int64) bool {
+	return m <= n
+}
+
+func leqFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return leqF(x, y)
+}
+
+func leqIF(n int64, y float64) bool {
+	return geqFI(y, n)
+}
+
+func gtrF(x, y float64) bool {
+	return x > y
+}
+
+func gtrI(m, n int64) bool {
+	return m > n
+}
+
+func gtrFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return gtrF(x, y)
+}
+
+func gtrIF(n int64, y float64) bool {
+	return lssFI(y, n)
+}
+
+func geqF(x, y float64) bool {
+	return x >= y
+}
+
+func geqI(m, n int64) bool {
+	return m >= n
+}
+
+func geqFI(x float64, n int64) bool {
+	y := floatItoF(n)
+	return geqF(x, y)
+}
+
+func geqIF(n int64, y float64) bool {
+	return leqFI(y, n)
+}
+
+// Type conversion operations
+
+func floatItoF(n int64) float64 {
+	return float64(n)
+}
+
+func floatFtoF(x float64) float64 {
+	return x
+}
+
+func floorFtoI(x float64) (int64, error) {
+	f := math.Floor(x)
+	if f > float64(math.MaxInt64) || f < float64(math.MinInt64) {
+		return 0, IntOverflow
+	}
+	return int64(f), nil
+}
+
+func truncateFtoI(x float64) (int64, error) {
+	t := math.Trunc(x)
+	if t > float64(math.MaxInt64) || t < float64(math.MinInt64) {
+		return 0, IntOverflow
+	}
+	return int64(t), nil
+}
+
+func roundFtoI(x float64) (int64, error) {
+	r := math.Round(x)
+	if r > float64(math.MaxInt64) || r < float64(math.MinInt64) {
+		return 0, IntOverflow
+	}
+	return int64(r), nil
+}
+
+func ceilingFtoI(x float64) (int64, error) {
+	c := math.Ceil(x)
+	if c > float64(math.MaxInt64) || c < float64(math.MinInt64) {
+		return 0, IntOverflow
+	}
+	return int64(c), nil
 }

@@ -79,6 +79,13 @@ R is E :- R is E.
   G =.. [NewOp, X1, R],
   G.
 
+X =:= Y :- X =:= Y.
+X =\= Y :- X =\= Y.
+X < Y :- X < Y.
+X =< Y :- X =< Y.
+X > Y :- X > Y.
+X >= Y :- X >= Y.
+
 % stub
 write(Term).
 

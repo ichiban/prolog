@@ -45,9 +45,9 @@ type Formatter struct {
 
 func (f *Formatter) Format(s fmt.State, verb rune) {
 	c := *f
-	c.Quoted = verb == 'q'
-	c.IgnoreOps = s.Flag('-')
-	c.NumberVars = s.Flag('#')
+	c.Quoted = c.Quoted || verb == 'q'
+	c.IgnoreOps = c.IgnoreOps || s.Flag('-')
+	c.NumberVars = c.NumberVars || s.Flag('#')
 
 	if w, ok := s.Width(); ok {
 		c.MaxDepth = w
