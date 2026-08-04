@@ -9,20 +9,32 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-type Predicate struct {
-	Offset int
-}
+type LogicalTime int
 
 type FirstArgKey struct {
-	PI    term.Functor
 	Term  term.Handle
 	Arity int
 }
 
+type Predicate struct {
+	// Offset points to an address in Code to execute this predicate.
+	Offset int
+
+	// Public means its clauses appear in DB.
+	Public bool
+
+	// Dynamic means its compiled code will be materialized from the clauses in DB.
+	Dynamic bool
+
+	LastModifiedAt     LogicalTime
+	LastMaterializedAt LogicalTime
+
+	FirstArgIndex map[FirstArgKey]int
+}
+
 // Image is a compiled image of Prolog texts/modules.
 type Image struct {
-	Predicates    map[term.Functor]Predicate // TODO: module?
-	FirstArgIndex map[FirstArgKey]int        // TODO: module?
+	Predicates map[term.Functor]Predicate // TODO: module?
 
 	// Code is a sequence of BinWAM instructions.
 	// Its operand may refer to sidecar tables Constants or Functors.
@@ -52,12 +64,12 @@ func (i *Image) String() string {
 	labels := map[int]string{}
 	for pi, p := range i.Predicates {
 		labels[p.Offset] = pi.String() + ":"
-	}
-	for k, i := range i.FirstArgIndex {
-		if k.Arity == 0 {
-			labels[i] = fmt.Sprintf("(%s):", &syntax.Formatter{Term: k.Term})
-		} else {
-			labels[i] = fmt.Sprintf("(%s/%d):", &syntax.Formatter{Term: k.Term}, k.Arity)
+		for k, i := range p.FirstArgIndex {
+			if k.Arity == 0 {
+				labels[i] = fmt.Sprintf("(%s):", &syntax.Formatter{Term: k.Term})
+			} else {
+				labels[i] = fmt.Sprintf("(%s/%d):", &syntax.Formatter{Term: k.Term}, k.Arity)
+			}
 		}
 	}
 

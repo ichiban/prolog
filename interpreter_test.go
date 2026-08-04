@@ -332,6 +332,18 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `'>'(X, 5).`, err: "instantiation_error"},
 		{query: `'>='(X, 5).`, err: "instantiation_error"},
 		{query: `'=<'(X, 5).`, err: "instantiation_error"},
+		// 8.8.1.4
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(cat, true).`, results: []string{""}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(dog, true).`, results: []string{""}},
+		// {loaded: []string{"testdata/8.8.pl"}, query: `clause(legs(I, 6), Body).`, results: []string{"Body = insect(I)"}}, TODO: match results with variables.
+		// {loaded: []string{"testdata/8.8.pl"}, query: `clause(legs(C, 7), Body).`, results: []string{"Body = (call(C), call(C))"}}, TODO: match results with variables.
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(insect(I), T).`, results: []string{"I = ant, T = true", "I = bee, T = true"}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(x, Body).`, results: []string{}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(_, B).`, err: "instantiation_error"},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(4, X).`, err: "type_error(callable,4)"},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(elk(N), Body).`, err: "permission_error(access,private_procedure,elk/1)"},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(atom(_), Body).`, err: "permission_error(access,private_procedure,atom/1)"},
+		{loaded: []string{"testdata/8.8.pl"}, query: `clause(legs(A, 6), insect(f(A))).`, results: []string{""}},
 		// TODO:
 		/*
 			Other test cases.
@@ -402,8 +414,6 @@ func TestInterpreter_Query(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-
-			//			t.Errorf("image: \n%s\n", &i.engine.Image)
 
 			var (
 				results []Result

@@ -14,8 +14,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
+	"github.com/ichiban/prolog/v2/internal/wam"
 )
 
 type CallingConvention int8
@@ -55,6 +57,9 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: InHead, Proc: univ2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("copy_term"), 3), Builtin{Type: InHead, Proc: copyTerm2})
 	_ = b.Set(term.NewFunctor(term.NewAtom("term_variables"), 3), Builtin{Type: InHead, Proc: termVariables2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("clause"), 3), Builtin{Type: InHead, Proc: clause2})
+	_ = b.Set(term.NewFunctor(term.NewAtom("assertz"), 2), Builtin{Type: InHead, Proc: assertz1})
+	_ = b.Set(term.NewFunctor(term.NewAtom("$dynamic"), 2), Builtin{Type: InHead, Proc: dynamic1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: InBody, Proc: getNeckCut1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: InBody, Proc: getCont1})
 	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: InHead, Proc: callCont1})
@@ -134,7 +139,7 @@ var exceptionalValueNames = [...]string{
 	Undefined:     "undefined",
 }
 
-func true0(_ context.Context, e *Execution) (bool, error) {
+func true0(ctx context.Context, e *Execution) (bool, error) {
 	cont := e.tempVars[1]
 	cont = e.Deref(cont)
 
@@ -142,11 +147,10 @@ func true0(_ context.Context, e *Execution) (bool, error) {
 	if !ok {
 		return false, &TypeError{
 			ValidType: term.NewAtom("callable"),
-			Culprit:   Serialize(e.Arena, cont),
+			Culprit:   syntax.Serialize(e.Arena, cont),
 			Location:  e.location,
 		}
 	}
-	pi = term.NewFunctor(pi.Name(), pi.Arity())
 	p, ok := e.Predicates[pi]
 	if !ok {
 		c, err := e.PutFunctor(pi)
@@ -155,9 +159,12 @@ func true0(_ context.Context, e *Execution) (bool, error) {
 		}
 		return false, &ExistenceError{
 			ObjectType: term.NewAtom("procedure"),
-			Culprit:    Serialize(e.Arena, c),
+			Culprit:    syntax.Serialize(e.Arena, c),
 			Location:   e.location,
 		}
+	}
+	if err := e.Materialize(ctx, pi, &p); err != nil {
+		return false, err
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(e.Args(cont)) {
@@ -170,7 +177,7 @@ func fail0(_ context.Context, e *Execution) (bool, error) {
 	return false, nil
 }
 
-func call1(_ context.Context, e *Execution) (bool, error) {
+func call1(ctx context.Context, e *Execution) (bool, error) {
 	goal, cont := e.tempVars[1], e.tempVars[2]
 	goal = e.Deref(goal)
 
@@ -189,7 +196,7 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 		}
 		return false, &TypeError{
 			ValidType: term.NewAtom("callable"),
-			Culprit:   Serialize(e.Arena, goal),
+			Culprit:   syntax.Serialize(e.Arena, goal),
 			Location:  e.location,
 		}
 	}
@@ -203,9 +210,12 @@ func call1(_ context.Context, e *Execution) (bool, error) {
 		}
 		return false, &ExistenceError{
 			ObjectType: term.NewAtom("procedure"),
-			Culprit:    Serialize(e.Arena, c),
+			Culprit:    syntax.Serialize(e.Arena, c),
 			Location:   e.location,
 		}
+	}
+	if err := e.Materialize(ctx, bpi, &p); err != nil {
+		return false, err
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
@@ -421,14 +431,14 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 		default:
 			return false, &DomainError{
 				ValidDomain: term.NewAtom("order"),
-				Culprit:     Serialize(e.Arena, order),
+				Culprit:     syntax.Serialize(e.Arena, order),
 				Location:    e.location,
 			}
 		}
 	} else {
 		return false, &TypeError{
 			ValidType: term.NewAtom("atom"),
-			Culprit:   Serialize(e.Arena, order),
+			Culprit:   syntax.Serialize(e.Arena, order),
 			Location:  e.location,
 		}
 	}
@@ -475,7 +485,7 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 			if a < 0 {
 				return false, &DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
-					Culprit:     Serialize(e.Arena, arity),
+					Culprit:     syntax.Serialize(e.Arena, arity),
 					Location:    e.location,
 				}
 			}
@@ -487,7 +497,7 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 			} else if _, ok := e.Functor(name); ok {
 				return false, &TypeError{
 					ValidType: term.NewAtom("atomic"),
-					Culprit:   Serialize(e.Arena, name),
+					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
 				}
 			}
@@ -510,14 +520,14 @@ func functor3(_ context.Context, e *Execution) (bool, error) {
 			} else {
 				return false, &TypeError{
 					ValidType: term.NewAtom("atom"),
-					Culprit:   Serialize(e.Arena, name),
+					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
 				}
 			}
 		} else {
 			return false, &TypeError{
 				ValidType: term.NewAtom("integer"),
-				Culprit:   Serialize(e.Arena, arity),
+				Culprit:   syntax.Serialize(e.Arena, arity),
 				Location:  e.location,
 			}
 		}
@@ -583,7 +593,7 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 			case n < 0:
 				return false, &DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
-					Culprit:     Serialize(e.Arena, nth),
+					Culprit:     syntax.Serialize(e.Arena, nth),
 					Location:    e.location,
 				}
 			default:
@@ -597,14 +607,14 @@ func arg3(_ context.Context, e *Execution) (bool, error) {
 		} else {
 			return false, &TypeError{
 				ValidType: term.NewAtom("integer"),
-				Culprit:   Serialize(e.Arena, nth),
+				Culprit:   syntax.Serialize(e.Arena, nth),
 				Location:  e.location,
 			}
 		}
 	} else {
 		return false, &TypeError{
 			ValidType: term.NewAtom("compound"),
-			Culprit:   Serialize(e.Arena, t),
+			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
 		}
 	}
@@ -716,6 +726,177 @@ func termVariables2(_ context.Context, e *Execution) (bool, error) {
 
 	ok, err := e.Unify(ret, vars)
 	if !ok || err != nil {
+		return false, err
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func clause2(_ context.Context, e *Execution) (bool, error) {
+	head, body := e.tempVars[1], e.tempVars[2]
+
+	pi, err := e.mustBeCallable(head)
+	if err != nil {
+		return false, err
+	}
+
+	if _, _, err := e.canBeCallable(body); err != nil {
+		return false, err
+	}
+
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, ok := e.Predicates[bpi]
+	if !ok {
+		return false, nil
+	}
+
+	if !p.Public {
+		f, err := e.PutFunctor(pi)
+		if err != nil {
+			return false, err
+		}
+
+		return false, &PermissionError{
+			Operation:      term.NewAtom("access"),
+			PermissionType: term.NewAtom("private_procedure"),
+			Culprit:        syntax.Serialize(e.Arena, f),
+			Location:       e.location,
+		}
+	}
+
+	// Set up a special choice point.
+	if err := e.pushSeqStackFrame(func(yield func(error) bool) {
+		for r, err := range e.DB.Select(e.Arena, pi, e.CurrentTime) {
+			if err != nil {
+				_ = yield(err)
+				return
+			}
+			head, body, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+			ok, err := e.Unify(head, r.Head)
+			if err != nil {
+				_ = yield(err)
+				return
+			}
+			if !ok {
+				continue
+			}
+
+			ok, err = e.Unify(body, r.Body)
+			if err != nil {
+				_ = yield(err)
+				return
+			}
+			if !ok {
+				continue
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(nil) {
+				return
+			}
+		}
+	}, 3); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func assertz1(_ context.Context, e *Execution) (bool, error) {
+	t, cont := e.tempVars[1], e.tempVars[2]
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return true, &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	var (
+		pi   term.Functor
+		head term.Handle
+		body term.Handle
+		err  error
+	)
+	pi, ok := e.Functor(t, term.AllowAtom(true))
+	if !ok {
+		return false, &TypeError{
+			ValidType: term.NewAtom("callable"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	if pi == term.NewFunctor(term.NewAtom(":-"), 2) {
+		head, body = e.Arg(t, 0), e.Arg(t, 1)
+		pi, ok = e.Functor(head, term.AllowAtom(true))
+		if !ok {
+			return false, &TypeError{
+				ValidType: term.NewAtom("callable"),
+				Culprit:   syntax.Serialize(e.Arena, t),
+				Location:  e.location,
+			}
+		}
+	} else {
+		head = t
+		body, err = e.PutAtom(term.NewAtom("true"))
+		if err != nil {
+			return false, err
+		}
+	}
+
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, ok := e.Predicates[bpi]
+	if !ok {
+		p = wam.Predicate{
+			Public:  true,
+			Dynamic: true,
+		}
+		if e.Predicates == nil {
+			e.Predicates = map[term.Functor]wam.Predicate{}
+		}
+		e.Predicates[bpi] = p
+	}
+	if !p.Dynamic {
+		return false, &PermissionError{
+			Operation:      term.NewAtom("modify"),
+			PermissionType: term.NewAtom("static_procedure"),
+			Culprit:        syntax.Serialize(e.Arena, t),
+			Location:       e.location,
+		}
+	}
+
+	if err := e.DB.Insert(e.Arena, db.Record{
+		Head:      head,
+		Body:      body,
+		CreatedAt: e.CurrentTime,
+	}); err != nil {
+		return false, err
+	}
+	e.CurrentTime++
+
+	e.tempVars[1] = cont
+	e.Next()
+	return true, nil
+}
+
+func dynamic1(ctx context.Context, e *Execution) (bool, error) {
+	t, cont := e.tempVars[1], e.tempVars[2]
+	t = e.Deref(t)
+
+	pi, err := e.mustBePredicateIndicator(t)
+	if err != nil {
+		return false, err
+	}
+
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, _ := e.Predicates[bpi]
+	p.Public = true
+	p.Dynamic = true
+	if err := e.Materialize(ctx, bpi, &p); err != nil {
 		return false, err
 	}
 
@@ -1256,6 +1437,15 @@ func atomConcat3(ctx context.Context, e *Execution) (bool, error) {
 }
 
 func (e *Execution) unTrailTo(b int) error {
+	//
+	for i := len(e.stack) - 1; i > b; i-- {
+		f := e.stack[i]
+		if f.stop == nil {
+			continue
+		}
+		f.stop()
+	}
+
 	e.stack = e.stack[:b]
 	trailTop := 0
 	if len(e.stack) > 0 {
@@ -1322,7 +1512,7 @@ func (e *Execution) canBeAtom(t term.Handle) (term.Atom, bool, error) {
 	if !ok {
 		return term.Atom{}, false, &TypeError{
 			ValidType: term.NewAtom("atom"),
-			Culprit:   Serialize(e.Arena, t),
+			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
 		}
 	}
@@ -1339,7 +1529,7 @@ func (e *Execution) mustBeAtom(t term.Handle) (term.Atom, error) {
 	if !ok {
 		return term.Atom{}, &TypeError{
 			ValidType: term.NewAtom("atom"),
-			Culprit:   Serialize(e.Arena, t),
+			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
 		}
 	}
@@ -1351,7 +1541,7 @@ func (e *Execution) canBeList(list term.Handle) error {
 		if !ok {
 			return &TypeError{
 				ValidType: term.NewAtom("list"),
-				Culprit:   Serialize(e.Arena, list),
+				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
 			}
 		}
@@ -1370,7 +1560,7 @@ func (e *Execution) mustBeList(list term.Handle) ([]term.Handle, error) {
 			}
 			return nil, &TypeError{
 				ValidType: term.NewAtom("list"),
-				Culprit:   Serialize(e.Arena, list),
+				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
 			}
 		}
@@ -1388,7 +1578,7 @@ func (e *Execution) mustBeNonEmptyList(list term.Handle) ([]term.Handle, error) 
 	if len(elems) == 0 {
 		return nil, &DomainError{
 			ValidDomain: term.NewAtom("non_empty_list"),
-			Culprit:     Serialize(e.Arena, list),
+			Culprit:     syntax.Serialize(e.Arena, list),
 			Location:    e.location,
 		}
 	}
@@ -1404,7 +1594,7 @@ func (e *Execution) mustBeAtomic(t term.Handle) error {
 	if _, ok := e.Functor(t); ok {
 		return &TypeError{
 			ValidType: term.NewAtom("atomic"),
-			Culprit:   Serialize(e.Arena, t),
+			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
 		}
 	}
@@ -1430,9 +1620,87 @@ func (e *Execution) mustBeNumber(t term.Handle, intFn func(e *Execution, i int64
 
 	return false, &TypeError{
 		ValidType: term.NewAtom("number"),
-		Culprit:   Serialize(e.Arena, t),
+		Culprit:   syntax.Serialize(e.Arena, t),
 		Location:  e.location,
 	}
+}
+
+func (e *Execution) canBeCallable(t term.Handle) (term.Functor, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+
+	f, ok := e.Functor(t, term.AllowAtom(true))
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("callable"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	return f, true, nil
+}
+
+func (e *Execution) mustBeCallable(t term.Handle) (term.Functor, error) {
+	f, ok, err := e.canBeCallable(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return f, nil
+}
+
+func (e *Execution) canBePredicateIndicator(t term.Handle) (term.Functor, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+
+	if f, ok := e.Functor(t, term.AllowAtom(true)); !ok || f != term.NewFunctor(term.NewAtomRune('/'), 2) {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("predicate_indicator"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	n, ok := e.Atom(e.Deref(e.Arg(t, 0)))
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("predicate_indicator"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	a, ok := e.Integer(e.Deref(e.Arg(t, 1)))
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("predicate_indicator"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	pi := term.NewFunctor(n, int(a))
+	return pi, true, nil
+}
+
+func (e *Execution) mustBePredicateIndicator(t term.Handle) (term.Functor, error) {
+	pi, ok, err := e.canBePredicateIndicator(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return pi, nil
 }
 
 func addI(x, y int64) (int64, error) {

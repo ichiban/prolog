@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"iter"
 
+	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -41,6 +42,7 @@ func New(heapSize int) *Interpreter {
 			Arena: &term.Arena{
 				Heap: make(term.Heap, 0, heapSize),
 			},
+			DB: &db.MemoryDB{},
 		},
 	}
 }

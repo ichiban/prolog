@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"slices"
 
+	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
 )
@@ -20,11 +22,11 @@ const (
 )
 
 type stackFrame struct {
-	programPointer int                       // P, next clause address
-	heapTop        int                       // H, saved top of the heap
-	trailTop       int                       // TR, saved top of the trail
-	tempVars       [maxRegisters]term.Handle // The backing array to save An TODO: Maybe store them in a sidecar array, or put $tempVars(...) to the heap?
-	cutB           int                       // B0, cut pointer
+	programPointer int         // P, next clause address
+	heapTop        int         // H, saved top of the heap
+	trailTop       int         // TR, saved top of the trail
+	tempVars       term.Handle // The backing array in the form of '$temp_vars'(A1, ..., An) to save An
+	cutB           int         // B0, cut pointer
 
 	next func() (error, bool) // for built-in predicates
 	stop func()               // for built-in predicates
@@ -123,7 +125,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					return
 				}
 				if !ok {
-					if !e.Backtrack() {
+					ok, err := e.Backtrack()
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
 						return
 					}
 					continue
@@ -139,7 +146,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					}
 					e.trail = append(e.trail, t)
 				} else if o := e.Compare(t, k); o != 0 {
-					if !e.Backtrack() {
+					ok, err := e.Backtrack()
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
 						return
 					}
 					continue
@@ -169,7 +181,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					e.mode = wam.ModeRead
 					e.Next()
 				} else {
-					if !e.Backtrack() {
+					ok, err := e.Backtrack()
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
 						return
 					}
 				}
@@ -199,7 +216,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 						return
 					}
 					if !ok {
-						if !e.Backtrack() {
+						ok, err := e.Backtrack()
+						if err != nil {
+							_ = yield(err)
+							return
+						}
+						if !ok {
 							return
 						}
 						continue
@@ -245,7 +267,12 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					}
 					_, ok := e.Functor(a)
 					if ok || e.Compare(a, c) != 0 {
-						if !e.Backtrack() {
+						ok, err := e.Backtrack()
+						if err != nil {
+							_ = yield(err)
+							return
+						}
+						if !ok {
 							return
 						}
 						continue
@@ -274,7 +301,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					}
 					_ = yield(&ExistenceError{
 						ObjectType: term.NewAtom("procedure"),
-						Culprit:    Serialize(e.Arena, culprit),
+						Culprit:    syntax.Serialize(e.Arena, culprit),
 						Location:   e.location,
 					})
 					return
@@ -286,32 +313,40 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				if !yield(nil) {
 					return
 				}
-				if !e.Backtrack() {
+				ok, err := e.Backtrack()
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				if !ok {
 					return
 				}
 			case wam.OpTryMeElse: // try_me_else L
 				arity := int(inst.I)
+				tvs, err := e.PutCompound(term.NewAtom("$temp_vars"), e.tempVars[1:arity+1]...)
+				if err != nil {
+					_ = yield(err)
+					return
+				}
 				f := stackFrame{
 					programPointer: int(n),
 					heapTop:        len(e.Heap),
 					trailTop:       len(e.trail),
+					tempVars:       tvs,
 				}
-				copy(f.tempVars[:arity+1], e.tempVars[:arity+1])
 				e.stack = append(e.stack, f)
 				e.heapBacktrackPoint = len(e.Heap)
 				e.Next()
 			case wam.OpRetryMeElse: // retry_me_else L
-				arity := int(inst.I)
 				e.stack[len(e.stack)-1].programPointer = int(n)
-				if err := e.restoreState(arity); err != nil {
+				if err := e.restoreState(); err != nil {
 					_ = yield(err)
 					return
 				}
 				e.stack = e.stack[:len(e.stack)+1]
 				e.Next()
 			case wam.OpTrustMe: // trust_me
-				arity := int(inst.I)
-				if err := e.restoreState(arity); err != nil {
+				if err := e.restoreState(); err != nil {
 					_ = yield(err)
 					return
 				}
@@ -335,8 +370,8 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					}
 					arity = f.Arity()
 				}
-				if i, ok := e.FirstArgIndex[wam.FirstArgKey{
-					PI:    pi,
+				p, _ := e.Predicates[pi]
+				if i, ok := p.FirstArgIndex[wam.FirstArgKey{
 					Term:  t,
 					Arity: arity,
 				}]; ok {
@@ -380,9 +415,15 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
-				ok = ok || e.Backtrack()
 				if !ok {
-					return
+					ok, err = e.Backtrack()
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
+						return
+					}
 				}
 			}
 		}
@@ -399,24 +440,43 @@ func (e *Execution) jumpTo(addr int) {
 	e.programPointer = addr
 }
 
-func (e *Execution) Backtrack() bool {
+func (e *Execution) Backtrack() (bool, error) {
 	if len(e.stack) == 0 {
-		return false
+		return false, nil
 	}
 	f := e.stack[len(e.stack)-1]
 	e.cutB = f.cutB
 	e.programPointer = f.programPointer
-	return true
+	if f.next != nil {
+		if err := e.restoreState(); err != nil {
+			return false, err
+		}
+		e.stack = e.stack[:len(e.stack)+1]
+		err, ok := f.next()
+		if !ok {
+			f.stop()
+			if len(e.stack) == 0 {
+				return false, nil
+			}
+			e.stack = e.stack[:len(e.stack)-1]
+			return e.Backtrack()
+		}
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
-func (e *Execution) restoreState(arity int) error {
+func (e *Execution) restoreState() error {
 	var f stackFrame
 	f, e.stack = e.stack[len(e.stack)-1], e.stack[:len(e.stack)-1]
 	if err := e.unwindTrail(f.trailTop); err != nil {
 		return err
 	}
+	tvs := slices.Collect(e.Args(f.tempVars))
+	copy(e.tempVars[1:len(tvs)+1], tvs)
 	e.Heap = e.Heap[:f.heapTop]
-	copy(e.tempVars[:arity+1], f.tempVars[:arity+1])
 	e.cutB = f.cutB
 	return nil
 }
@@ -473,4 +533,22 @@ func (e *Execution) Unify(x, y term.Handle) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (e *Execution) pushSeqStackFrame(seq iter.Seq[error], arity int) error {
+	next, stop := iter.Pull(seq)
+	tvs, err := e.PutCompound(term.NewAtom("$temp_vars"), e.tempVars[1:arity+1]...)
+	if err != nil {
+		return err
+	}
+	f := stackFrame{
+		programPointer: e.programPointer,
+		heapTop:        len(e.Heap),
+		trailTop:       len(e.trail),
+		tempVars:       tvs,
+		next:           next,
+		stop:           stop,
+	}
+	e.stack = append(e.stack, f)
+	return nil
 }

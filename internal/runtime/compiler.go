@@ -12,6 +12,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -72,51 +73,32 @@ type Compiler struct {
 	makeVariable func() (term.Handle, error)
 }
 
-func (c *Compiler) CompileSystem(out *ir.Module) error {
+func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
 	out.Name = term.NewAtom("prolog")
 	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
 		}
 
-		var cl ir.Clause
-		if err := c.CompileClause(&cl, t); err != nil {
-			return err
-		}
-		out.Clauses = append(out.Clauses, cl)
+		c.schedule(t)
 	}
-	return nil
+	return c.run(ctx, out)
 }
 
 // CompileText compiles a Prolog text into a module.
 func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
-	for t, err := range c.clauses(ctx, text) {
+	for t, err := range syntax.Parse(text,
+		syntax.Arena(c.Arena),
+		syntax.Operators(c.Ops),
+		syntax.DoubleQuote(&c.DoubleQuotes),
+	) {
 		if err != nil {
 			return err
 		}
-		// TODO: Process include/1 directive here?
-
-		for t, err := range c.Engine.ExpandTerm(ctx, t) {
-			if err != nil {
-				return err
-			}
-			t, err = c.Engine.ExpandGoal(ctx, t)
-			if err != nil {
-				return err
-			}
-
-			switch f, _ := c.Functor(t, term.AllowAtom(true)); f {
-			case term.NewFunctor(term.NewAtom(":-"), 1): // Directive
-
-			case term.NewFunctor(term.NewAtom("?-"), 1): // Quad test case
-			default:
-				var cl ir.Clause
-				if err := c.CompileClause(&cl, t); err != nil {
-					return err
-				}
-				out.Clauses = append(out.Clauses, cl)
-			}
-		}
+		c.schedule(t)
+	}
+	if err := c.run(ctx, out); err != nil {
+		return err
 	}
 	if c.Module == (term.Atom{}) {
 		c.Module = term.NewAtom("user")
@@ -125,12 +107,85 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 	return nil
 }
 
-func (c *Compiler) CompileClause(cl *ir.Clause, t term.Handle) error {
-	head, body, err := c.Rule(t)
-	if err != nil {
-		return err
-	}
+func (c *Compiler) CompileDynamic(ctx context.Context, out *ir.Module, pi term.Functor) error {
+	for r, err := range c.DB.Select(c.Arena, pi, c.CurrentTime) {
+		if err != nil {
+			return err
+		}
 
+		t, err := c.PutCompound(atomNeck, r.Head, r.Body)
+		if err != nil {
+			return err
+		}
+
+		c.schedule(t)
+	}
+	return c.run(ctx, out)
+}
+
+func (c *Compiler) schedule(t term.Handle) {
+	c.todo = append(c.todo, t)
+}
+
+func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
+	for len(c.todo) > 0 {
+		var (
+			t   term.Handle
+			err error
+		)
+		t, c.todo = c.todo[0], c.todo[1:]
+		t, err = c.Engine.ExpandGoal(ctx, t) // FIXME: Is this the right place?
+		if err != nil {
+			return err
+		}
+
+		f, _ := c.Functor(t, term.AllowAtom(true))
+
+		// Directive
+		if f == term.NewFunctor(term.NewAtom(":-"), 1) {
+			d := c.Arg(t, 0)
+			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
+			default:
+				for err := range c.Call(ctx, d) {
+					if err != nil {
+						return err
+					}
+					break
+				}
+			}
+			continue
+		}
+
+		bpi := term.NewFunctor(f.Name(), f.Arity()+1)
+		if p, _ := c.Predicates[bpi]; p.Dynamic {
+			a, err := c.PutCompound(term.NewAtom("assertz"), t)
+			if err != nil {
+				return err
+			}
+			for err := range c.Call(ctx, a) {
+				if err != nil {
+					return err
+				}
+				break
+			}
+			continue
+		}
+
+		head, body, err := c.rule(t)
+		if err != nil {
+			return err
+		}
+
+		var cl ir.Clause
+		if err := c.compileClause(&cl, head, body); err != nil {
+			return err
+		}
+		out.Clauses = append(out.Clauses, cl)
+	}
+	return nil
+}
+
+func (c *Compiler) compileClause(clause *ir.Clause, head, body term.Handle) error {
 	cont, err := c.PutVariable()
 	if err != nil {
 		return err
@@ -141,12 +196,23 @@ func (c *Compiler) CompileClause(cl *ir.Clause, t term.Handle) error {
 		return err
 	}
 
-	head, body, err = c.Binarize(head, body, cont)
+	binHead, binBody, err := c.Binarize(head, body, cont)
 	if err != nil {
 		return err
 	}
 
-	return c.CompileBinaryClause(cl, head, body)
+	bpi, _ := c.Functor(binHead)
+	if p, _ := c.Predicates[bpi]; p.Public {
+		if err := c.DB.Insert(c.Arena, db.Record{
+			Head:      head,
+			Body:      body,
+			CreatedAt: c.CurrentTime,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return c.CompileBinaryClause(clause, binHead, binBody)
 }
 
 func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
@@ -220,8 +286,8 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 	}
 }
 
-// Rule turns a term to a form of H :- B.
-func (c *Compiler) Rule(t term.Handle) (head, body term.Handle, err error) {
+// rule turns a term to a form of H :- B.
+func (c *Compiler) rule(t term.Handle) (head, body term.Handle, err error) {
 	f, ok := c.Functor(t)
 	if ok && f == functorRule {
 		return c.Arg(t, 0), c.Arg(t, 1), nil
@@ -500,7 +566,7 @@ func (c *Compiler) replaceDisjunction(a, b, cont term.Handle) (term.Handle, erro
 }
 
 func (c *Compiler) replaceDisjunction1(a, b, cont term.Handle) (term.Handle, error) {
-	t, err := c.PutCompound(term.NewAtom("$or"), a, b)
+	t, err := c.PutCompound(term.NewAtom("or"), a, b)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -873,7 +939,7 @@ func (c *Compiler) CompileBinaryClause(clause *ir.Clause, head, body term.Handle
 
 	c.allocateRegs(clause, args, vars)
 
-	c.Beautify(clause)
+	c.beautify(clause)
 
 	return nil
 }
@@ -1399,7 +1465,7 @@ func getReg(n *int, freeList *[]int) int {
 	return r
 }
 
-func (c *Compiler) Beautify(clause *ir.Clause) {
+func (c *Compiler) beautify(clause *ir.Clause) {
 	clause.Code = rewriteSlice(clause.Code, func(inst ir.Instruction, w func(ir.Instruction)) {
 		var (
 			get          = inst.OpCode == ir.OpGet

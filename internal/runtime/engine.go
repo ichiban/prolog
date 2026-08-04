@@ -11,6 +11,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -31,6 +32,8 @@ type Engine struct {
 	Module       term.Atom
 	DoubleQuotes syntax.DoubleQuotes
 	Ops          *syntax.OperatorSet
+	DB           db.DB
+	CurrentTime  wam.LogicalTime
 
 	OnDiscontiguous func(pi term.Functor) error
 }
@@ -53,20 +56,11 @@ func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, erro
 }
 
 func (e *Engine) LoadSystem(ctx context.Context) error {
-	if e.Code == nil {
-		e.Predicates = map[term.Functor]wam.Predicate{
-			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
-		}
-		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
-			return err
-		}
-	}
-
 	var (
 		c = Compiler{Engine: e}
 		m ir.Module
 	)
-	if err := c.CompileSystem(&m); err != nil {
+	if err := c.CompileSystem(ctx, &m); err != nil {
 		return err
 	}
 	if err := c.CompileText(ctx, &m, bootstrap); err != nil {
@@ -115,14 +109,24 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		}
 	}
 
+	if e.Code == nil {
+		e.Predicates = map[term.Functor]wam.Predicate{
+			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
+		}
+		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
+			return err
+		}
+	}
+
 	var (
 		current term.Functor
 		last    int
 	)
 	for i, clause := range module.Clauses {
 		pi := clause.PI
-		switch _, ok := e.Predicates[pi]; {
-		case !ok: // The 1st clause.
+
+		switch p, _ := e.Predicates[pi]; {
+		case p.Offset == 0: // The 1st clause.
 			if i > 0 {
 				// The last predicate needs to be closed.
 				if err := e.closePredicate(last); err != nil {
@@ -131,12 +135,11 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			}
 
 			current = pi
+			p.Offset = len(e.Code)
 			if e.Predicates == nil {
 				e.Predicates = map[term.Functor]wam.Predicate{}
 			}
-			e.Predicates[pi] = wam.Predicate{
-				Offset: len(e.Code),
-			}
+			e.Predicates[pi] = p
 
 			fid := e.EmbedFunctor(pi)
 			if err := e.emit(wam.OpSwitch, 0, fid); err != nil {
@@ -172,19 +175,18 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		// First argument index.
 		fa := clause.FirstArg
 		key := wam.FirstArgKey{
-			PI:    pi,
 			Term:  fa.Term,
 			Arity: fa.Arity,
 		}
-		if _, ok := e.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
-			e.Code[e.Predicates[pi].Offset] = wam.Instruction{
-				Op: wam.OpNondet,
-			}
+		p, _ := e.Predicates[pi]
+		if _, ok := p.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
+			e.Code[p.Offset] = wam.Instruction{Op: wam.OpNondet}
 		} else {
-			if e.FirstArgIndex == nil {
-				e.FirstArgIndex = map[wam.FirstArgKey]int{}
+			if p.FirstArgIndex == nil {
+				p.FirstArgIndex = map[wam.FirstArgKey]int{}
 			}
-			e.FirstArgIndex[key] = len(e.Code)
+			p.FirstArgIndex[key] = len(e.Code)
+			e.Predicates[pi] = p
 		}
 
 		for _, inst := range clause.Code {
@@ -354,7 +356,7 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 			}
 			_ = yield(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
-				Culprit:    Serialize(e.Arena, culprit),
+				Culprit:    syntax.Serialize(e.Arena, culprit),
 				Location:   term.NewFunctor(term.NewAtom("user"), 0),
 			})
 		}
@@ -367,4 +369,33 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 	exec.tempVars[1] = goal
 	exec.tempVars[2] = t
 	return exec.run(ctx)
+}
+
+// Materialize (re)compiles a dynamic predicate from DB.
+func (e *Engine) Materialize(ctx context.Context, pi term.Functor, p *wam.Predicate) error {
+	if !p.Dynamic || p.LastMaterializedAt > p.LastModifiedAt {
+		return nil
+	}
+
+	var (
+		m = ir.Module{
+			Name: e.Module,
+		}
+		c = Compiler{Engine: e}
+	)
+
+	if err := c.CompileDynamic(ctx, &m, pi); err != nil {
+		return err
+	}
+
+	if err := e.LoadModule(&m); err != nil {
+		return err
+	}
+
+	p.LastMaterializedAt = e.CurrentTime
+	if e.Predicates == nil {
+		e.Predicates = map[term.Functor]wam.Predicate{}
+	}
+	e.Predicates[pi] = *p
+	return nil
 }

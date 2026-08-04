@@ -1,6 +1,15 @@
 % Ported to Go from BinProlog (github.com/ptarau/binprolog, src/lib.pl, src/extra.pl and related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
 % This file has been modified: non-ISO predicates are renamed and missing ISO predicates are added.
 
+dynamic((PI1, PI2)) :- !,
+  dynamic(PI1),
+  dynamic(PI2).
+dynamic([PI|PIs]) :- !,
+  dynamic(PI),
+  dynamic(PIs).
+dynamic([]) :- !.
+dynamic(PI) :- '$dynamic'(PI).
+
 '$cut_to'('$cut').
 
 ! :- !.

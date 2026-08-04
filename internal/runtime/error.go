@@ -66,7 +66,7 @@ func (e *InstantiationError) Term(arena *term.Arena) (term.Handle, error) {
 // TypeError is an error that signifies an incorrect type.
 type TypeError struct {
 	ValidType term.Atom
-	Culprit   Serialized
+	Culprit   syntax.Serialized
 	Location  term.Functor
 }
 
@@ -79,7 +79,7 @@ func (e *TypeError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := Deserialize(arena, e.Culprit)
+	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -97,7 +97,7 @@ func (e *TypeError) Term(arena *term.Arena) (term.Handle, error) {
 // DomainError is an error that signifies an incorrect value.
 type DomainError struct {
 	ValidDomain term.Atom
-	Culprit     Serialized
+	Culprit     syntax.Serialized
 	Location    term.Functor
 }
 
@@ -110,7 +110,7 @@ func (e *DomainError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := Deserialize(arena, e.Culprit)
+	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -128,7 +128,7 @@ func (e *DomainError) Term(arena *term.Arena) (term.Handle, error) {
 // ExistenceError is an error that signifies nonexistence of an object.
 type ExistenceError struct {
 	ObjectType term.Atom
-	Culprit    Serialized
+	Culprit    syntax.Serialized
 	Location   term.Functor
 }
 
@@ -141,7 +141,7 @@ func (e *ExistenceError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := Deserialize(arena, e.Culprit)
+	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -160,7 +160,7 @@ func (e *ExistenceError) Term(arena *term.Arena) (term.Handle, error) {
 type PermissionError struct {
 	Operation      term.Atom
 	PermissionType term.Atom
-	Culprit        Serialized
+	Culprit        syntax.Serialized
 	Location       term.Functor
 }
 
@@ -177,7 +177,7 @@ func (e *PermissionError) Term(arena *term.Arena) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	c, err := Deserialize(arena, e.Culprit)
+	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -272,7 +272,7 @@ func (e *SyntaxError) Term(arena *term.Arena) (term.Handle, error) {
 
 // UninstantiationError is an error that signifies a term is non-variable.
 type UninstantiationError struct {
-	Culprit  Serialized
+	Culprit  syntax.Serialized
 	Location term.Functor
 }
 
@@ -281,7 +281,7 @@ func (e *UninstantiationError) Error() string {
 }
 
 func (e *UninstantiationError) Term(arena *term.Arena) (term.Handle, error) {
-	c, err := Deserialize(arena, e.Culprit)
+	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
 		return term.Handle{}, err
 	}
@@ -319,18 +319,4 @@ func (e *EvaluationError) Term(arena *term.Arena) (term.Handle, error) {
 		return term.Handle{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
-}
-
-type Serialized string
-
-func Serialize(arena *term.Arena, t term.Handle) Serialized {
-	return Serialized(fmt.Sprintf("%s .", &syntax.Formatter{
-		Arena:  arena,
-		Term:   t,
-		Quoted: true,
-	}))
-}
-
-func Deserialize(arena *term.Arena, s Serialized) (term.Handle, error) {
-	return syntax.ParseTerm(string(s), syntax.Arena(arena))
 }
