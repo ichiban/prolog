@@ -23,7 +23,7 @@ type Predicate struct {
 	// Public means its clauses appear in DB.
 	Public bool
 
-	// Dynamic means its compiled code will be materialized from the clauses in DB.
+	// Dynamic means it's not backed by BinWAM code but the clauses in DB.
 	Dynamic bool
 
 	LastModifiedAt     LogicalTime
@@ -63,6 +63,9 @@ func (i *Image) EmbedFunctor(f term.Functor) int {
 func (i *Image) String() string {
 	labels := map[int]string{}
 	for pi, p := range i.Predicates {
+		if p.Dynamic {
+			continue
+		}
 		labels[p.Offset] = pi.String() + ":"
 		for k, i := range p.FirstArgIndex {
 			if k.Arity == 0 {

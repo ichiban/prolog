@@ -339,7 +339,7 @@ func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Se
 
 func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 	pi := term.NewFunctor(term.NewAtom("call"), 2)
-	t, err := e.PutAtom(term.NewAtom("true"))
+	cont, err := e.PutAtom(term.NewAtom("true"))
 	if err != nil {
 		return func(yield func(error) bool) {
 			_ = yield(err)
@@ -367,35 +367,6 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 		programPointer: p.Offset,
 	}
 	exec.tempVars[1] = goal
-	exec.tempVars[2] = t
+	exec.tempVars[2] = cont
 	return exec.run(ctx)
-}
-
-// Materialize (re)compiles a dynamic predicate from DB.
-func (e *Engine) Materialize(ctx context.Context, pi term.Functor, p *wam.Predicate) error {
-	if !p.Dynamic || p.LastMaterializedAt > p.LastModifiedAt {
-		return nil
-	}
-
-	var (
-		m = ir.Module{
-			Name: e.Module,
-		}
-		c = Compiler{Engine: e}
-	)
-
-	if err := c.CompileDynamic(ctx, &m, pi); err != nil {
-		return err
-	}
-
-	if err := e.LoadModule(&m); err != nil {
-		return err
-	}
-
-	p.LastMaterializedAt = e.CurrentTime
-	if e.Predicates == nil {
-		e.Predicates = map[term.Functor]wam.Predicate{}
-	}
-	e.Predicates[pi] = *p
-	return nil
 }

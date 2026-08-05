@@ -306,6 +306,10 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					})
 					return
 				}
+				if p.Dynamic {
+					_ = yield(errors.New("dynamic call is not implemented yet"))
+					return
+				}
 				e.location = term.NewFunctor(pi.Name(), pi.Arity()-1)
 				e.programPointer = p.Offset
 				e.cutB = len(e.stack)
@@ -430,6 +434,71 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 		_ = yield(errors.New("invalid end of code"))
 		return
 	}
+}
+
+func (e *Execution) PrepareCall(ctx context.Context, goal, cont term.Handle) error {
+	pi, ok := e.Functor(goal, term.AllowAtom(true))
+	if !ok {
+		return &TypeError{
+			ValidType: term.NewAtom("callable"),
+			Culprit:   syntax.Serialize(e.Arena, goal),
+			Location:  e.location,
+		}
+	}
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, ok := e.Predicates[bpi]
+	if !ok {
+		c, err := e.PutFunctor(pi)
+		if err != nil {
+			return err
+		}
+		return &ExistenceError{
+			ObjectType: term.NewAtom("procedure"),
+			Culprit:    syntax.Serialize(e.Arena, c),
+			Location:   e.location,
+		}
+	}
+
+	if p.Dynamic {
+		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
+		if !ok {
+			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
+			if err != nil {
+				return err
+			}
+			return &ExistenceError{
+				ObjectType: term.NewAtom("procedure"),
+				Culprit:    syntax.Serialize(e.Arena, c),
+				Location:   e.location,
+			}
+		}
+		return e.pushSeqStackFrame(func(yield func(error) bool) {
+			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
+				ok, err := e.Unify(r.Head, goal)
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				if !ok {
+					continue
+				}
+
+				e.tempVars[1] = r.Body
+				e.tempVars[2] = cont
+				e.programPointer = call.Offset
+
+				if !yield(nil) {
+					return
+				}
+			}
+		}, 2)
+	}
+
+	e.programPointer = p.Offset
+	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
+		e.tempVars[i+1] = arg
+	}
+	return nil
 }
 
 func (e *Execution) Next() {

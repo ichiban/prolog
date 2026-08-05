@@ -143,15 +143,18 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 	cont := e.tempVars[1]
 	cont = e.Deref(cont)
 
-	pi, ok := e.Functor(cont, term.AllowAtom(true))
+	bpi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
 		return false, &TypeError{
-			ValidType: term.NewAtom("callable"),
+			ValidType: term.NewAtom("continuation"),
 			Culprit:   syntax.Serialize(e.Arena, cont),
 			Location:  e.location,
 		}
 	}
-	p, ok := e.Predicates[pi]
+
+	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+
+	p, ok := e.Predicates[bpi]
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
@@ -163,9 +166,48 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 			Location:   e.location,
 		}
 	}
-	if err := e.Materialize(ctx, pi, &p); err != nil {
-		return false, err
+
+	if p.Dynamic {
+		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
+		if !ok {
+			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
+			if err != nil {
+				return false, err
+			}
+			return false, &ExistenceError{
+				ObjectType: term.NewAtom("procedure"),
+				Culprit:    syntax.Serialize(e.Arena, c),
+				Location:   e.location,
+			}
+		}
+		args := slices.Collect(e.Args(cont))
+		goal, err := e.PutCompound(pi.Name(), args[:len(args)-1]...)
+		if err != nil {
+			return false, err
+		}
+		cont = args[len(args)-1]
+		return false, e.pushSeqStackFrame(func(yield func(error) bool) {
+			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
+				ok, err := e.Unify(r.Head, goal)
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				if !ok {
+					continue
+				}
+
+				e.tempVars[1] = r.Body
+				e.tempVars[2] = cont
+				e.programPointer = call.Offset
+
+				if !yield(nil) {
+					return
+				}
+			}
+		}, 2)
 	}
+
 	e.programPointer = p.Offset
 	for i, arg := range indexed(e.Args(cont)) {
 		e.tempVars[i+1] = arg
@@ -214,7 +256,39 @@ func call1(ctx context.Context, e *Execution) (bool, error) {
 			Location:   e.location,
 		}
 	}
-	if err := e.Materialize(ctx, bpi, &p); err != nil {
+	if p.Dynamic {
+		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
+		if !ok {
+			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
+			if err != nil {
+				return false, err
+			}
+			return false, &ExistenceError{
+				ObjectType: term.NewAtom("procedure"),
+				Culprit:    syntax.Serialize(e.Arena, c),
+				Location:   e.location,
+			}
+		}
+		err = e.pushSeqStackFrame(func(yield func(error) bool) {
+			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
+				ok, err := e.Unify(r.Head, goal)
+				if err != nil {
+					_ = yield(err)
+					return
+				}
+				if !ok {
+					continue
+				}
+
+				e.tempVars[1] = r.Body
+				e.tempVars[2] = cont
+				e.programPointer = call.Offset
+
+				if !yield(nil) {
+					return
+				}
+			}
+		}, 2)
 		return false, err
 	}
 	e.programPointer = p.Offset
@@ -734,7 +808,7 @@ func termVariables2(_ context.Context, e *Execution) (bool, error) {
 	return true, nil
 }
 
-func clause2(_ context.Context, e *Execution) (bool, error) {
+func clause2(ctx context.Context, e *Execution) (bool, error) {
 	head, body := e.tempVars[1], e.tempVars[2]
 
 	pi, err := e.mustBeCallable(head)
@@ -768,7 +842,7 @@ func clause2(_ context.Context, e *Execution) (bool, error) {
 
 	// Set up a special choice point.
 	if err := e.pushSeqStackFrame(func(yield func(error) bool) {
-		for r, err := range e.DB.Select(e.Arena, pi, e.CurrentTime) {
+		for r, err := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err != nil {
 				_ = yield(err)
 				return
@@ -806,7 +880,7 @@ func clause2(_ context.Context, e *Execution) (bool, error) {
 	return false, nil
 }
 
-func assertz1(_ context.Context, e *Execution) (bool, error) {
+func assertz1(ctx context.Context, e *Execution) (bool, error) {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
 
@@ -869,7 +943,7 @@ func assertz1(_ context.Context, e *Execution) (bool, error) {
 		}
 	}
 
-	if err := e.DB.Insert(e.Arena, db.Record{
+	if err := e.DB.Insert(ctx, e.Arena, db.Record{
 		Head:      head,
 		Body:      body,
 		CreatedAt: e.CurrentTime,
@@ -896,9 +970,7 @@ func dynamic1(ctx context.Context, e *Execution) (bool, error) {
 	p, _ := e.Predicates[bpi]
 	p.Public = true
 	p.Dynamic = true
-	if err := e.Materialize(ctx, bpi, &p); err != nil {
-		return false, err
-	}
+	e.Predicates[bpi] = p
 
 	e.tempVars[1] = cont
 	e.Next()

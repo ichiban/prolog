@@ -107,22 +107,6 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 	return nil
 }
 
-func (c *Compiler) CompileDynamic(ctx context.Context, out *ir.Module, pi term.Functor) error {
-	for r, err := range c.DB.Select(c.Arena, pi, c.CurrentTime) {
-		if err != nil {
-			return err
-		}
-
-		t, err := c.PutCompound(atomNeck, r.Head, r.Body)
-		if err != nil {
-			return err
-		}
-
-		c.schedule(t)
-	}
-	return c.run(ctx, out)
-}
-
 func (c *Compiler) schedule(t term.Handle) {
 	c.todo = append(c.todo, t)
 }
@@ -177,7 +161,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 		}
 
 		var cl ir.Clause
-		if err := c.compileClause(&cl, head, body); err != nil {
+		if err := c.compileClause(ctx, &cl, head, body); err != nil {
 			return err
 		}
 		out.Clauses = append(out.Clauses, cl)
@@ -185,7 +169,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 	return nil
 }
 
-func (c *Compiler) compileClause(clause *ir.Clause, head, body term.Handle) error {
+func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, body term.Handle) error {
 	cont, err := c.PutVariable()
 	if err != nil {
 		return err
@@ -203,7 +187,7 @@ func (c *Compiler) compileClause(clause *ir.Clause, head, body term.Handle) erro
 
 	bpi, _ := c.Functor(binHead)
 	if p, _ := c.Predicates[bpi]; p.Public {
-		if err := c.DB.Insert(c.Arena, db.Record{
+		if err := c.DB.Insert(ctx, c.Arena, db.Record{
 			Head:      head,
 			Body:      body,
 			CreatedAt: c.CurrentTime,
