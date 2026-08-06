@@ -20,11 +20,16 @@ type Predicate struct {
 	// Offset points to an address in Code to execute this predicate.
 	Offset int
 
+	// Dynamic means it's not backed by BinWAM code but the clauses in DB.
+	Dynamic bool
+
 	// Public means its clauses appear in DB.
 	Public bool
 
-	// Dynamic means it's not backed by BinWAM code but the clauses in DB.
-	Dynamic bool
+	// BuiltIn means this predicate is defined by the system i.e. not user-defined.
+	BuiltIn bool
+
+	Multifile bool
 
 	LastModifiedAt     LogicalTime
 	LastMaterializedAt LogicalTime

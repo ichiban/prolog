@@ -27,9 +27,32 @@ const (
 	InBody
 )
 
+type Promise struct {
+	ok      bool
+	err     error
+	delayed iter.Seq[Promise]
+}
+
+func Success() Promise {
+	return Promise{ok: true}
+}
+
+func Failure() Promise {
+	return Promise{ok: false}
+}
+
+func Error(err error) Promise {
+	return Promise{err: err}
+}
+
+func Delay(seq iter.Seq[Promise]) Promise {
+	return Promise{delayed: seq}
+}
+
 type Builtin struct {
+	PI   term.Functor
 	Type CallingConvention
-	Proc func(ctx context.Context, e *Execution) (bool, error)
+	Proc func(ctx context.Context, e *Execution) Promise
 }
 
 type BuiltinSet struct {
@@ -39,41 +62,42 @@ type BuiltinSet struct {
 
 func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
-	_ = b.Set(term.NewFunctor(term.NewAtom("true"), 1), Builtin{Type: InHead, Proc: true0})
-	_ = b.Set(term.NewFunctor(term.NewAtom("fail"), 1), Builtin{Type: InHead, Proc: fail0})
-	_ = b.Set(term.NewFunctor(term.NewAtom("call"), 2), Builtin{Type: InHead, Proc: call1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("throw"), 2), Builtin{Type: InHead, Proc: throw1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("subsumes_term"), 3), Builtin{Type: InHead, Proc: subsumesTerm2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("var"), 2), Builtin{Type: InBody, Proc: var1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("atom"), 2), Builtin{Type: InBody, Proc: atom1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("integer"), 2), Builtin{Type: InBody, Proc: integer1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("float"), 2), Builtin{Type: InBody, Proc: float1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("compound"), 2), Builtin{Type: InBody, Proc: compound1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("ground"), 2), Builtin{Type: InBody, Proc: ground1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("acyclic_term"), 2), Builtin{Type: InBody, Proc: acyclicTerm1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("compare"), 4), Builtin{Type: InHead, Proc: compare3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("functor"), 4), Builtin{Type: InHead, Proc: functor3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("arg"), 4), Builtin{Type: InHead, Proc: arg3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("=.."), 3), Builtin{Type: InHead, Proc: univ2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("copy_term"), 3), Builtin{Type: InHead, Proc: copyTerm2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("term_variables"), 3), Builtin{Type: InHead, Proc: termVariables2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("clause"), 3), Builtin{Type: InHead, Proc: clause2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("assertz"), 2), Builtin{Type: InHead, Proc: assertz1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$dynamic"), 2), Builtin{Type: InHead, Proc: dynamic1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Builtin{Type: InBody, Proc: getNeckCut1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$get_cont"), 2), Builtin{Type: InBody, Proc: getCont1})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$call_cont"), 2), Builtin{Type: InHead, Proc: callCont1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("true"), 1), Type: InHead, Proc: true0})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: fail0})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: call1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: throw1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: subsumesTerm2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: var1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: atom1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("integer"), 2), Type: InBody, Proc: integer1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("float"), 2), Type: InBody, Proc: float1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compound"), 2), Type: InBody, Proc: compound1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: ground1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: acyclicTerm1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: compare3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: functor3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: arg3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: univ2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("copy_term"), 3), Type: InHead, Proc: copyTerm2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: termVariables2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: clause2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: currentPredicate1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertz1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$call_cont"), 2), Type: InHead, Proc: callCont1})
 	// TODO: Implement optimized arithmetic calling convention in binprolog.
-	_ = b.Set(term.NewFunctor(term.NewAtom("$+"), 4), Builtin{Type: InHead, Proc: add3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$-"), 4), Builtin{Type: InHead, Proc: sub3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$*"), 4), Builtin{Type: InHead, Proc: mul3})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$arith_eq"), 3), Builtin{Type: InHead, Proc: arithEq2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$arith_dif"), 3), Builtin{Type: InHead, Proc: arithDif2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$less"), 3), Builtin{Type: InHead, Proc: less2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$less_eq"), 3), Builtin{Type: InHead, Proc: lessEq2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$greater"), 3), Builtin{Type: InHead, Proc: greater2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$greater_eq"), 3), Builtin{Type: InHead, Proc: greaterEq2})
-	_ = b.Set(term.NewFunctor(term.NewAtom("$atom_concat"), 4), Builtin{Type: InHead, Proc: atomConcat3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: add3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: sub3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: mul3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: lessEq2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: greater2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: greaterEq2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atom_concat"), 4), Type: InHead, Proc: atomConcat3})
 	return &b
 }
 
@@ -89,15 +113,15 @@ func (b *BuiltinSet) Get(id int) *Builtin {
 	return &b.entries[id]
 }
 
-func (b *BuiltinSet) Set(pi term.Functor, entry Builtin) error {
-	if _, ok := b.index[pi]; ok {
-		return fmt.Errorf("duplicate builtin: %s", pi)
+func (b *BuiltinSet) Put(entry Builtin) error {
+	if _, ok := b.index[entry.PI]; ok {
+		return fmt.Errorf("duplicate builtin: %s", entry.PI)
 	}
 
 	if b.index == nil {
 		b.index = map[term.Functor]int{}
 	}
-	b.index[pi] = len(b.entries)
+	b.index[entry.PI] = len(b.entries)
 	b.entries = append(b.entries, entry)
 	return nil
 }
@@ -139,17 +163,17 @@ var exceptionalValueNames = [...]string{
 	Undefined:     "undefined",
 }
 
-func true0(ctx context.Context, e *Execution) (bool, error) {
+func true0(ctx context.Context, e *Execution) Promise {
 	cont := e.tempVars[1]
 	cont = e.Deref(cont)
 
 	bpi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
-		return false, &TypeError{
+		return Error(&TypeError{
 			ValidType: term.NewAtom("continuation"),
 			Culprit:   syntax.Serialize(e.Arena, cont),
 			Location:  e.location,
-		}
+		})
 	}
 
 	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
@@ -158,13 +182,13 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
-		return false, &ExistenceError{
+		return Error(&ExistenceError{
 			ObjectType: term.NewAtom("procedure"),
 			Culprit:    syntax.Serialize(e.Arena, c),
 			Location:   e.location,
-		}
+		})
 	}
 
 	if p.Dynamic {
@@ -172,28 +196,31 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 		if !ok {
 			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
-				return false, err
+				return Error(err)
 			}
-			return false, &ExistenceError{
+			return Error(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
 				Culprit:    syntax.Serialize(e.Arena, c),
 				Location:   e.location,
-			}
+			})
 		}
 		args := slices.Collect(e.Args(cont))
 		goal, err := e.PutCompound(pi.Name(), args[:len(args)-1]...)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		cont = args[len(args)-1]
-		return false, e.pushSeqStackFrame(func(yield func(error) bool) {
+		err = e.pushSeqStackFrame(func(yield func(Promise) bool) {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
-					_ = yield(err)
+					_ = yield(Error(err))
 					return
 				}
 				if !ok {
+					if !yield(Failure()) {
+						return
+					}
 					continue
 				}
 
@@ -201,46 +228,47 @@ func true0(ctx context.Context, e *Execution) (bool, error) {
 				e.tempVars[2] = cont
 				e.programPointer = call.Offset
 
-				if !yield(nil) {
+				if !yield(Success()) {
 					return
 				}
 			}
 		}, 2)
+		return Error(err)
 	}
 
 	e.programPointer = p.Offset
 	for i, arg := range indexed(e.Args(cont)) {
 		e.tempVars[i+1] = arg
 	}
-	return true, nil
+	return Success()
 }
 
-func fail0(_ context.Context, e *Execution) (bool, error) {
-	return false, nil
+func fail0(_ context.Context, e *Execution) Promise {
+	return Failure()
 }
 
-func call1(ctx context.Context, e *Execution) (bool, error) {
+func call1(ctx context.Context, e *Execution) Promise {
 	goal, cont := e.tempVars[1], e.tempVars[2]
 	goal = e.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
 	goal, err := e.rewriteCutForCall(goal)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		if _, ok := e.Variable(goal); ok {
-			return false, &InstantiationError{
+			return Error(&InstantiationError{
 				Location: e.location,
-			}
+			})
 		}
-		return false, &TypeError{
+		return Error(&TypeError{
 			ValidType: term.NewAtom("callable"),
 			Culprit:   syntax.Serialize(e.Arena, goal),
 			Location:  e.location,
-		}
+		})
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -248,35 +276,38 @@ func call1(ctx context.Context, e *Execution) (bool, error) {
 	if !ok {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
-		return false, &ExistenceError{
+		return Error(&ExistenceError{
 			ObjectType: term.NewAtom("procedure"),
 			Culprit:    syntax.Serialize(e.Arena, c),
 			Location:   e.location,
-		}
+		})
 	}
 	if p.Dynamic {
 		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
 		if !ok {
 			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
-				return false, err
+				return Error(err)
 			}
-			return false, &ExistenceError{
+			return Error(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
 				Culprit:    syntax.Serialize(e.Arena, c),
 				Location:   e.location,
-			}
+			})
 		}
-		err = e.pushSeqStackFrame(func(yield func(error) bool) {
+		err = e.pushSeqStackFrame(func(yield func(Promise) bool) {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
-					_ = yield(err)
+					_ = yield(Error(err))
 					return
 				}
 				if !ok {
+					if !yield(Failure()) {
+						return
+					}
 					continue
 				}
 
@@ -284,18 +315,18 @@ func call1(ctx context.Context, e *Execution) (bool, error) {
 				e.tempVars[2] = cont
 				e.programPointer = call.Offset
 
-				if !yield(nil) {
+				if !yield(Success()) {
 					return
 				}
 			}
 		}, 2)
-		return false, err
+		return Error(err)
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
 		e.tempVars[i+1] = arg
 	}
-	return true, nil
+	return Success()
 }
 
 func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
@@ -341,78 +372,78 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 	}
 }
 
-func var1(_ context.Context, e *Execution) (bool, error) {
+func var1(_ context.Context, e *Execution) Promise {
 	v := e.tempVars[0]
 	v = e.Deref(v)
 	if _, ok := e.Variable(v); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func atom1(_ context.Context, e *Execution) (bool, error) {
+func atom1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Atom(t); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func integer1(_ context.Context, e *Execution) (bool, error) {
+func integer1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Integer(t); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func float1(_ context.Context, e *Execution) (bool, error) {
+func float1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Float(t); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func compound1(_ context.Context, e *Execution) (bool, error) {
+func compound1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if _, ok := e.Functor(t); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func ground1(_ context.Context, e *Execution) (bool, error) {
+func ground1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	vs := e.VariableSet(t)
 	if len(vs) > 0 {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func acyclicTerm1(_ context.Context, e *Execution) (bool, error) {
+func acyclicTerm1(_ context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
 	t = e.Deref(t)
 	if ok := e.Acyclic(t); !ok {
-		return false, nil
+		return Failure()
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func throw1(ctx context.Context, e *Execution) (bool, error) {
+func throw1(ctx context.Context, e *Execution) Promise {
 	ball, cont := e.tempVars[1], e.tempVars[2]
 	ball = e.Deref(ball)
 	if _, ok := e.Variable(ball); ok {
@@ -422,7 +453,7 @@ func throw1(ctx context.Context, e *Execution) (bool, error) {
 		}
 		ball, err = ErrorTerm(e.Arena, err)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
@@ -438,19 +469,19 @@ func throw1(ctx context.Context, e *Execution) (bool, error) {
 
 		b, _ := e.Integer(cutB)
 		if err := e.unTrailTo(int(b)); err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ball, err := syntax.ParseTerm(buf.String(),
 			syntax.Arena(e.Arena),
 		)
 		if err != nil {
-			return false, fmt.Errorf("parse serialized ball(%s): %w", buf.String(), err)
+			return Error(fmt.Errorf("parse serialized ball(%s): %w", buf.String(), err))
 		}
 
 		ok, err := e.Unify(catcher, ball)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		if ok {
 			e.tempVars[1] = recovery
@@ -458,10 +489,10 @@ func throw1(ctx context.Context, e *Execution) (bool, error) {
 			return call1(ctx, e)
 		}
 	}
-	return false, fmt.Errorf("unhandled exception: %s", &syntax.Formatter{Arena: e.Arena, Term: ball})
+	return Error(fmt.Errorf("unhandled exception: %s", &syntax.Formatter{Arena: e.Arena, Term: ball}))
 }
 
-func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
+func subsumesTerm2(_ context.Context, e *Execution) Promise {
 	general, specific, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	trailTop := len(e.trail)
 	vs := e.VariableSet(specific)
@@ -469,7 +500,7 @@ func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
 	// Same as unify_with_occurs_check(General, Specific).
 	ok, err := e.Unify(general, specific)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 	ok = ok && e.Acyclic(general)
 
@@ -480,19 +511,19 @@ func subsumesTerm2(_ context.Context, e *Execution) (bool, error) {
 	}
 
 	if err := e.unwindTrail(trailTop); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if !ok {
-		return false, nil
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func compare3(_ context.Context, e *Execution) (bool, error) {
+func compare3(_ context.Context, e *Execution) Promise {
 	order, x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	order, x, y = e.Deref(order), e.Deref(x), e.Deref(y)
 
@@ -503,18 +534,18 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 		case term.NewAtomRune('<'), term.NewAtomRune('>'), term.NewAtomRune('='):
 			break
 		default:
-			return false, &DomainError{
+			return Error(&DomainError{
 				ValidDomain: term.NewAtom("order"),
 				Culprit:     syntax.Serialize(e.Arena, order),
 				Location:    e.location,
-			}
+			})
 		}
 	} else {
-		return false, &TypeError{
+		return Error(&TypeError{
 			ValidType: term.NewAtom("atom"),
 			Culprit:   syntax.Serialize(e.Arena, order),
 			Location:  e.location,
-		}
+		})
 	}
 
 	var (
@@ -530,328 +561,326 @@ func compare3(_ context.Context, e *Execution) (bool, error) {
 		a, err = e.PutAtom(term.NewAtomRune('='))
 	}
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	ok, err := e.Unify(order, a)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 	if !ok {
-		return false, nil
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func functor3(_ context.Context, e *Execution) (bool, error) {
+func functor3(_ context.Context, e *Execution) Promise {
 	t, name, arity, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	t, name, arity = e.Deref(t), e.Deref(name), e.Deref(arity)
 
 	if _, ok := e.Variable(t); ok {
 		if _, ok := e.Variable(arity); ok {
-			return false, &InstantiationError{
+			return Error(&InstantiationError{
 				Location: e.location,
-			}
+			})
 		} else if a, ok := e.Integer(arity); ok {
 			if a < 0 {
-				return false, &DomainError{
+				return Error(&DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
 					Culprit:     syntax.Serialize(e.Arena, arity),
 					Location:    e.location,
-				}
+				})
 			}
 
 			if _, ok := e.Variable(name); ok {
-				return false, &InstantiationError{
+				return Error(&InstantiationError{
 					Location: e.location,
-				}
+				})
 			} else if _, ok := e.Functor(name); ok {
-				return false, &TypeError{
+				return Error(&TypeError{
 					ValidType: term.NewAtom("atomic"),
 					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
-				}
+				})
 			}
 
 			if a == 0 {
 				ok, err := e.Unify(t, name)
 				if !ok || err != nil {
-					return false, err
+					return Error(err)
 				}
 			} else if n, ok := e.Atom(name); ok {
 				c, err := e.PutCompoundWithFreshVars(term.NewFunctor(n, int(a)))
 				if err != nil {
-					return false, err
+					return Error(err)
 				}
 
 				ok, err = e.Unify(t, c)
 				if !ok || err != nil {
-					return false, err
+					return Error(err)
 				}
 			} else {
-				return false, &TypeError{
+				return Error(&TypeError{
 					ValidType: term.NewAtom("atom"),
 					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
-				}
+				})
 			}
 		} else {
-			return false, &TypeError{
+			return Error(&TypeError{
 				ValidType: term.NewAtom("integer"),
 				Culprit:   syntax.Serialize(e.Arena, arity),
 				Location:  e.location,
-			}
+			})
 		}
 	} else if f, ok := e.Functor(t); ok {
 		n, err := e.PutAtom(f.Name())
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ok, err := e.Unify(name, n)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		a, err := e.PutInteger(int64(f.Arity()))
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ok, err = e.Unify(arity, a)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 	} else { // atomic
 		ok, err := e.Unify(name, t)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		a, err := e.PutInteger(int64(0))
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ok, err = e.Unify(arity, a)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func arg3(_ context.Context, e *Execution) (bool, error) {
+func arg3(_ context.Context, e *Execution) Promise {
 	nth, t, arg, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	nth, t, arg = e.Deref(nth), e.Deref(t), e.Deref(arg)
 
 	if _, ok := e.Variable(t); ok {
-		return false, &InstantiationError{
+		return Error(&InstantiationError{
 			Location: e.location,
-		}
+		})
 	} else if f, ok := e.Functor(t); ok {
 		if _, ok := e.Variable(nth); ok {
-			return false, &InstantiationError{
+			return Error(&InstantiationError{
 				Location: e.location,
-			}
+			})
 		} else if n, ok := e.Integer(nth); ok {
 			switch {
 			case n == 0, int(n) > f.Arity():
-				return false, nil
+				return Failure()
 			case n < 0:
-				return false, &DomainError{
+				return Error(&DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
 					Culprit:     syntax.Serialize(e.Arena, nth),
 					Location:    e.location,
-				}
+				})
 			default:
 				a := e.Arg(t, int(n)-1)
 				ok, err := e.Unify(arg, a)
 				if !ok || err != nil {
-					return false, err
+					return Error(err)
 				}
 			}
 
 		} else {
-			return false, &TypeError{
+			return Error(&TypeError{
 				ValidType: term.NewAtom("integer"),
 				Culprit:   syntax.Serialize(e.Arena, nth),
 				Location:  e.location,
-			}
+			})
 		}
 	} else {
-		return false, &TypeError{
+		return Error(&TypeError{
 			ValidType: term.NewAtom("compound"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
-		}
+		})
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func univ2(_ context.Context, e *Execution) (bool, error) {
+func univ2(_ context.Context, e *Execution) Promise {
 	t, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	t, list = e.Deref(t), e.Deref(list)
 
 	if _, ok := e.Variable(t); ok {
 		elems, err := e.mustBeNonEmptyList(list)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		if len(elems) == 1 {
 			if err := e.mustBeAtomic(elems[0]); err != nil {
-				return false, err
+				return Error(err)
 			}
 
 			ok, err := e.Unify(t, elems[0])
 			if !ok || err != nil {
-				return false, err
+				return Error(err)
 			}
 		}
 
 		elems[0] = e.Deref(elems[0])
 		a, err := e.mustBeAtom(elems[0])
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		c, err := e.PutCompound(a, elems[1:]...)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ok, err = e.Unify(t, c)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 	} else if f, ok := e.Functor(t); ok {
 		if err := e.canBeList(list); err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		elems := make([]term.Handle, f.Arity()+1)
 		a, err := e.PutAtom(f.Name())
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 		elems[0] = a
 		copy(elems[1:], slices.Collect(e.Args(t)))
 
 		l, err := e.PutList(elems...)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
 		ok, err := e.Unify(list, l)
 		if !ok || err != nil {
-			return false, err
+			return Error(err)
 		}
 	} else {
 		if err := e.canBeList(list); err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func copyTerm2(_ context.Context, e *Execution) (bool, error) {
+func copyTerm2(_ context.Context, e *Execution) Promise {
 	t1, t2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
 	c, err := e.RenamedCopy(t1)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	ok, err := e.Unify(t2, c)
 	if !ok || err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func termVariables2(_ context.Context, e *Execution) (bool, error) {
+func termVariables2(_ context.Context, e *Execution) Promise {
 	t, vars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	t, vars = e.Deref(t), e.Deref(vars)
 
 	if err := e.canBeList(vars); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	ret, err := e.PutList(slices.Collect(e.WitnessVariables(t))...)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	ok, err := e.Unify(ret, vars)
 	if !ok || err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func clause2(ctx context.Context, e *Execution) (bool, error) {
-	head, body := e.tempVars[1], e.tempVars[2]
+func clause2(ctx context.Context, e *Execution) Promise {
+	head, body, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
 	pi, err := e.mustBeCallable(head)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	if _, _, err := e.canBeCallable(body); err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
 	p, ok := e.Predicates[bpi]
 	if !ok {
-		return false, nil
+		return Failure()
 	}
 
 	if !p.Public {
 		f, err := e.PutFunctor(pi)
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 
-		return false, &PermissionError{
+		return Error(&PermissionError{
 			Operation:      term.NewAtom("access"),
 			PermissionType: term.NewAtom("private_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, f),
 			Location:       e.location,
-		}
+		})
 	}
 
-	// Set up a special choice point.
-	if err := e.pushSeqStackFrame(func(yield func(error) bool) {
+	return Delay(func(yield func(Promise) bool) {
 		for r, err := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err != nil {
-				_ = yield(err)
+				_ = yield(Error(err))
 				return
 			}
-			head, body, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
 			ok, err := e.Unify(head, r.Head)
 			if err != nil {
-				_ = yield(err)
+				_ = yield(Error(err))
 				return
 			}
 			if !ok {
@@ -860,7 +889,7 @@ func clause2(ctx context.Context, e *Execution) (bool, error) {
 
 			ok, err = e.Unify(body, r.Body)
 			if err != nil {
-				_ = yield(err)
+				_ = yield(Error(err))
 				return
 			}
 			if !ok {
@@ -869,25 +898,87 @@ func clause2(ctx context.Context, e *Execution) (bool, error) {
 
 			e.tempVars[1] = cont
 			e.Next()
-			if !yield(nil) {
+			if !yield(Success()) {
 				return
 			}
 		}
-	}, 3); err != nil {
-		return false, err
-	}
-
-	return false, nil
+	})
 }
 
-func assertz1(ctx context.Context, e *Execution) (bool, error) {
+func currentPredicate1(ctx context.Context, e *Execution) Promise {
+	predIndicator, cont := e.tempVars[1], e.tempVars[2]
+	predIndicator = e.Deref(predIndicator)
+
+	switch pi, ok, err := e.canBePredicateIndicator(predIndicator); {
+	case err != nil:
+		return Error(err)
+	case ok:
+		bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+		p, _ := e.Predicates[bpi]
+		if p.BuiltIn {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	pis := slices.Collect(func(yield func(pi term.Functor) bool) {
+		for bpi, p := range e.Predicates {
+			if p.BuiltIn {
+				continue
+			}
+			pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+			if !yield(pi) {
+				return
+			}
+		}
+	})
+	slices.SortFunc(pis, func(a, b term.Functor) int {
+		if o := strings.Compare(a.Name().String(), b.Name().String()); o != 0 {
+			return o
+		}
+		return a.Arity() - b.Arity()
+	})
+
+	return Delay(func(yield func(Promise) bool) {
+		for _, pi := range pis {
+			c, err := e.PutFunctor(pi)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err := e.Unify(predIndicator, c)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
+}
+
+func assertz1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
-		return true, &InstantiationError{
+		return Error(&InstantiationError{
 			Location: e.location,
-		}
+		})
 	}
 
 	var (
@@ -898,27 +989,27 @@ func assertz1(ctx context.Context, e *Execution) (bool, error) {
 	)
 	pi, ok := e.Functor(t, term.AllowAtom(true))
 	if !ok {
-		return false, &TypeError{
+		return Error(&TypeError{
 			ValidType: term.NewAtom("callable"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
-		}
+		})
 	}
 	if pi == term.NewFunctor(term.NewAtom(":-"), 2) {
 		head, body = e.Arg(t, 0), e.Arg(t, 1)
 		pi, ok = e.Functor(head, term.AllowAtom(true))
 		if !ok {
-			return false, &TypeError{
+			return Error(&TypeError{
 				ValidType: term.NewAtom("callable"),
 				Culprit:   syntax.Serialize(e.Arena, t),
 				Location:  e.location,
-			}
+			})
 		}
 	} else {
 		head = t
 		body, err = e.PutAtom(term.NewAtom("true"))
 		if err != nil {
-			return false, err
+			return Error(err)
 		}
 	}
 
@@ -935,12 +1026,12 @@ func assertz1(ctx context.Context, e *Execution) (bool, error) {
 		e.Predicates[bpi] = p
 	}
 	if !p.Dynamic {
-		return false, &PermissionError{
+		return Error(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, t),
 			Location:       e.location,
-		}
+		})
 	}
 
 	if err := e.DB.Insert(ctx, e.Arena, db.Record{
@@ -948,22 +1039,22 @@ func assertz1(ctx context.Context, e *Execution) (bool, error) {
 		Body:      body,
 		CreatedAt: e.CurrentTime,
 	}); err != nil {
-		return false, err
+		return Error(err)
 	}
 	e.CurrentTime++
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func dynamic1(ctx context.Context, e *Execution) (bool, error) {
+func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -974,37 +1065,37 @@ func dynamic1(ctx context.Context, e *Execution) (bool, error) {
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func getNeckCut1(_ context.Context, e *Execution) (bool, error) {
+func getNeckCut1(_ context.Context, e *Execution) Promise {
 	cutB, err := e.PutInteger(int64(e.cutB))
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 	e.tempVars[0] = cutB
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func getCont1(_ context.Context, e *Execution) (bool, error) {
+func getCont1(_ context.Context, e *Execution) Promise {
 	out, cont := e.tempVars[1], e.tempVars[2]
 	if ok, err := e.Unify(out, cont); !ok || err != nil {
-		return false, err
+		return Error(err)
 	}
 	e.Next()
-	return true, nil
+	return Success()
 }
 
-func callCont1(ctx context.Context, e *Execution) (bool, error) {
+func callCont1(ctx context.Context, e *Execution) Promise {
 	// No need to move arguments.
 	return true0(ctx, e)
 }
 
-func add3(ctx context.Context, e *Execution) (bool, error) {
+func add3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
 			r, err := addI(x, y)
 			if err != nil {
@@ -1020,7 +1111,7 @@ func add3(ctx context.Context, e *Execution) (bool, error) {
 			}
 			e.tempVars[1] = cont
 			e.Next()
-			return true, nil
+			return true, err
 		}, func(e *Execution, y float64) (bool, error) {
 			r, err := addIF(x, y)
 			if err != nil {
@@ -1082,12 +1173,19 @@ func add3(ctx context.Context, e *Execution) (bool, error) {
 			return true, nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+	return Success()
 }
 
-func sub3(ctx context.Context, e *Execution) (bool, error) {
+func sub3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
 			r, err := subI(x, y)
 			if err != nil {
@@ -1168,12 +1266,19 @@ func sub3(ctx context.Context, e *Execution) (bool, error) {
 			return true, nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+	return Success()
 }
 
-func mul3(ctx context.Context, e *Execution) (bool, error) {
+func mul3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
 			r, err := mulI(x, y)
 			if err != nil {
@@ -1242,270 +1347,217 @@ func mul3(ctx context.Context, e *Execution) (bool, error) {
 			return true, nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+	return Success()
 }
 
-func arithEq2(ctx context.Context, e *Execution) (bool, error) {
+func arithEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !eqI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return eqI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !eqIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return eqIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !eqFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return eqFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !eqF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return eqF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func arithDif2(ctx context.Context, e *Execution) (bool, error) {
+func arithDif2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !neqI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return neqI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !neqIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return neqIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !neqFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return neqFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !neqF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return neqF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func less2(ctx context.Context, e *Execution) (bool, error) {
+func less2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !lssI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return lssI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !lssIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return lssIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !lssFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return lssFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !lssF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return lssF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func lessEq2(ctx context.Context, e *Execution) (bool, error) {
+func lessEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !leqI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return leqI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !leqIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return leqIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !leqFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return leqFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !leqF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return leqF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func greater2(ctx context.Context, e *Execution) (bool, error) {
+func greater2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !gtrI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return gtrI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !gtrIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return gtrIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !gtrFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return gtrFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !gtrF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return gtrF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func greaterEq2(ctx context.Context, e *Execution) (bool, error) {
+func greaterEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	x, y = e.Deref(x), e.Deref(y)
 
-	return e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
+	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !geqI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return geqI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !geqIF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return geqIF(x, y), nil
 		})
 	}, func(e *Execution, x float64) (bool, error) {
 		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			if !geqFI(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return geqFI(x, y), nil
 		}, func(e *Execution, y float64) (bool, error) {
-			if !geqF(x, y) {
-				return false, nil
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
+			return geqF(x, y), nil
 		})
 	})
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
-func atomConcat3(ctx context.Context, e *Execution) (bool, error) {
+func atomConcat3(ctx context.Context, e *Execution) Promise {
 	// Simpler one-directional variant of atom_concat/3.
 	atom1, atom2, atom12, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
 
 	a1, err := e.mustBeAtom(atom1)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	a2, err := e.mustBeAtom(atom2)
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	r, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
 	if err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	ok, err := e.Unify(atom12, r)
 	if !ok || err != nil {
-		return false, err
+		return Error(err)
 	}
 
 	e.tempVars[1] = cont
 	e.Next()
-	return true, nil
+	return Success()
 }
 
 func (e *Execution) unTrailTo(b int) error {
@@ -1606,6 +1658,36 @@ func (e *Execution) mustBeAtom(t term.Handle) (term.Atom, error) {
 		}
 	}
 	return a, nil
+}
+
+func (e *Execution) canBeInteger(t term.Handle) (int64, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	n, ok := e.Integer(t)
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("integer"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return n, true, nil
+}
+
+func (e *Execution) mustBeInteger(t term.Handle) (int64, error) {
+	n, ok, err := e.canBeInteger(t)
+	if err != nil {
+		return 0, err
+	}
+
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	return n, nil
 }
 
 func (e *Execution) canBeList(list term.Handle) error {
@@ -1740,8 +1822,10 @@ func (e *Execution) canBePredicateIndicator(t term.Handle) (term.Functor, bool, 
 		}
 	}
 
-	n, ok := e.Atom(e.Deref(e.Arg(t, 0)))
-	if !ok {
+	name, arity := e.Deref(e.Arg(t, 0)), e.Deref(e.Arg(t, 1))
+
+	n, nok, err := e.canBeAtom(name)
+	if err != nil {
 		return 0, false, &TypeError{
 			ValidType: term.NewAtom("predicate_indicator"),
 			Culprit:   syntax.Serialize(e.Arena, t),
@@ -1749,13 +1833,17 @@ func (e *Execution) canBePredicateIndicator(t term.Handle) (term.Functor, bool, 
 		}
 	}
 
-	a, ok := e.Integer(e.Deref(e.Arg(t, 1)))
-	if !ok {
+	a, aok, err := e.canBeInteger(arity)
+	if err != nil {
 		return 0, false, &TypeError{
 			ValidType: term.NewAtom("predicate_indicator"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
 		}
+	}
+
+	if !nok || !aok {
+		return 0, false, nil
 	}
 
 	pi := term.NewFunctor(n, int(a))

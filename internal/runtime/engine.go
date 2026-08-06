@@ -66,7 +66,16 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 	if err := c.CompileText(ctx, &m, bootstrap); err != nil {
 		return err
 	}
-	return e.LoadModule(&m)
+	if err := e.LoadModule(&m); err != nil {
+		return err
+	}
+
+	for pi, p := range e.Predicates {
+		p.BuiltIn = true
+		e.Predicates[pi] = p
+	}
+
+	return nil
 }
 
 func (e *Engine) LoadFile(ctx context.Context, filename string) error {

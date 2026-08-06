@@ -344,6 +344,13 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.8.pl"}, query: `clause(elk(N), Body).`, err: "permission_error(access,private_procedure,elk/1)"},
 		{loaded: []string{"testdata/8.8.pl"}, query: `clause(atom(_), Body).`, err: "permission_error(access,private_procedure,atom/1)"},
 		{loaded: []string{"testdata/8.8.pl"}, query: `clause(legs(A, 6), insect(f(A))).`, results: []string{""}},
+		// 8.8.2.4
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(dog/0).`, results: []string{""}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(current_predicate/1).`, results: []string{}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(elk/Arity).`, results: []string{"Arity = 1"}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(foo/A).`, results: []string{}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(Name/1).`, results: []string{"Name = elk", "Name = insect"}},
+		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(4).`, err: "type_error(predicate_indicator,4)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -402,7 +409,7 @@ func TestInterpreter_Query(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
-			i := New(3 * 1024)
+			i := New(4 * 1024)
 			i.SetSourceFS(testdata)
 
 			if err := i.engine.LoadSystem(t.Context()); err != nil {

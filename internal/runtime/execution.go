@@ -28,8 +28,8 @@ type stackFrame struct {
 	tempVars       term.Handle // The backing array in the form of '$temp_vars'(A1, ..., An) to save An
 	cutB           int         // B0, cut pointer
 
-	next func() (error, bool) // for built-in predicates
-	stop func()               // for built-in predicates
+	next func() (Promise, bool) // for built-in predicates
+	stop func()                 // for built-in predicates
 }
 
 type structurePointer struct {
@@ -414,13 +414,18 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				ok, err := b.Proc(ctx, e)
-				if err != nil {
-					_ = yield(err)
+				switch p := b.Proc(ctx, e); {
+				case p.err != nil:
+					_ = yield(p.err)
 					return
-				}
-				if !ok {
-					ok, err = e.Backtrack()
+				case p.delayed != nil:
+					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity()); err != nil {
+						_ = yield(err)
+						return
+					}
+					fallthrough // Triggers the iterator.
+				case !p.ok:
+					ok, err := e.Backtrack()
 					if err != nil {
 						_ = yield(err)
 						return
@@ -434,71 +439,6 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 		_ = yield(errors.New("invalid end of code"))
 		return
 	}
-}
-
-func (e *Execution) PrepareCall(ctx context.Context, goal, cont term.Handle) error {
-	pi, ok := e.Functor(goal, term.AllowAtom(true))
-	if !ok {
-		return &TypeError{
-			ValidType: term.NewAtom("callable"),
-			Culprit:   syntax.Serialize(e.Arena, goal),
-			Location:  e.location,
-		}
-	}
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := e.Predicates[bpi]
-	if !ok {
-		c, err := e.PutFunctor(pi)
-		if err != nil {
-			return err
-		}
-		return &ExistenceError{
-			ObjectType: term.NewAtom("procedure"),
-			Culprit:    syntax.Serialize(e.Arena, c),
-			Location:   e.location,
-		}
-	}
-
-	if p.Dynamic {
-		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
-		if !ok {
-			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
-			if err != nil {
-				return err
-			}
-			return &ExistenceError{
-				ObjectType: term.NewAtom("procedure"),
-				Culprit:    syntax.Serialize(e.Arena, c),
-				Location:   e.location,
-			}
-		}
-		return e.pushSeqStackFrame(func(yield func(error) bool) {
-			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
-				ok, err := e.Unify(r.Head, goal)
-				if err != nil {
-					_ = yield(err)
-					return
-				}
-				if !ok {
-					continue
-				}
-
-				e.tempVars[1] = r.Body
-				e.tempVars[2] = cont
-				e.programPointer = call.Offset
-
-				if !yield(nil) {
-					return
-				}
-			}
-		}, 2)
-	}
-
-	e.programPointer = p.Offset
-	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
-		e.tempVars[i+1] = arg
-	}
-	return nil
 }
 
 func (e *Execution) Next() {
@@ -517,21 +457,29 @@ func (e *Execution) Backtrack() (bool, error) {
 	e.cutB = f.cutB
 	e.programPointer = f.programPointer
 	if f.next != nil {
-		if err := e.restoreState(); err != nil {
-			return false, err
-		}
-		e.stack = e.stack[:len(e.stack)+1]
-		err, ok := f.next()
-		if !ok {
-			f.stop()
-			if len(e.stack) == 0 {
-				return false, nil
+		for {
+			if err := e.restoreState(); err != nil {
+				return false, err
 			}
-			e.stack = e.stack[:len(e.stack)-1]
-			return e.Backtrack()
-		}
-		if err != nil {
-			return false, err
+			e.stack = e.stack[:len(e.stack)+1]
+			switch p, ok := f.next(); {
+			case !ok:
+				f.stop()
+				if len(e.stack) == 0 {
+					return false, nil
+				}
+				e.stack = e.stack[:len(e.stack)-1]
+				return e.Backtrack()
+			case p.err != nil:
+				return false, p.err
+			case p.delayed != nil:
+				if err := e.pushSeqStackFrame(p.delayed, 0); err != nil {
+					return false, err
+				}
+				fallthrough // Triggers the iterator.
+			case p.ok:
+				return true, nil
+			}
 		}
 	}
 	return true, nil
@@ -604,7 +552,7 @@ func (e *Execution) Unify(x, y term.Handle) (bool, error) {
 	return true, nil
 }
 
-func (e *Execution) pushSeqStackFrame(seq iter.Seq[error], arity int) error {
+func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int) error {
 	next, stop := iter.Pull(seq)
 	tvs, err := e.PutCompound(term.NewAtom("$temp_vars"), e.tempVars[1:arity+1]...)
 	if err != nil {
