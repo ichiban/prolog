@@ -17,7 +17,8 @@ type Record struct {
 
 // DB stores dynamic predicates.
 type DB interface {
-	Insert(ctx context.Context, arena *term.Arena, record Record) error
+	InsertBefore(ctx context.Context, arena *term.Arena, record Record) error
+	InsertAfter(ctx context.Context, arena *term.Arena, record Record) error
 	Select(ctx context.Context, arena *term.Arena, pi term.Functor, aliveAt wam.LogicalTime) iter.Seq2[Record, error]
 	Delete(ctx context.Context, id int, deletedAt wam.LogicalTime) error
 }

@@ -20,7 +20,19 @@ type MemoryDB struct {
 	records []memoryDBRecord
 }
 
-func (db *MemoryDB) Insert(ctx context.Context, arena *term.Arena, record Record) error {
+func (db *MemoryDB) InsertBefore(ctx context.Context, arena *term.Arena, record Record) error {
+	record.ID = len(db.records)
+	db.records = append(db.records, memoryDBRecord{})
+	copy(db.records[1:], db.records)
+	db.records[0] = memoryDBRecord{
+		Head:      syntax.Serialize(arena, record.Head),
+		Body:      syntax.Serialize(arena, record.Body),
+		CreatedAt: record.CreatedAt,
+	}
+	return nil
+}
+
+func (db *MemoryDB) InsertAfter(ctx context.Context, arena *term.Arena, record Record) error {
 	record.ID = len(db.records)
 	db.records = append(db.records, memoryDBRecord{
 		Head:      syntax.Serialize(arena, record.Head),

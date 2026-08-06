@@ -187,7 +187,7 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 
 	bpi, _ := c.Functor(binHead)
 	if p, _ := c.Predicates[bpi]; p.Public {
-		if err := c.DB.Insert(ctx, c.Arena, db.Record{
+		if err := c.DB.InsertAfter(ctx, c.Arena, db.Record{
 			Head:      head,
 			Body:      body,
 			CreatedAt: c.CurrentTime,

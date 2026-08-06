@@ -351,6 +351,14 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(foo/A).`, results: []string{}},
 		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(Name/1).`, results: []string{"Name = elk", "Name = insect"}},
 		{loaded: []string{"testdata/8.8.pl"}, query: `current_predicate(4).`, err: "type_error(predicate_indicator,4)"},
+		// 8.9.1.4
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta(legs(octopus, 8)).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((legs(A, 4) :- animal(A))).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((foo(X) :- X, call(X))).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta(_).`, err: "instantiation_error"},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta(4).`, err: "type_error(callable,4)"},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((foo :- 4)).`, err: "type_error(callable,4)"},
+		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((atom(_) :- true)).`, err: "permission_error(modify,static_procedure,atom/1)"},
 		// TODO:
 		/*
 			Other test cases.

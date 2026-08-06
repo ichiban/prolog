@@ -82,7 +82,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: termVariables2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: clause2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: currentPredicate1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertz1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: assertA1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertZ1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -971,7 +972,15 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func assertz1(ctx context.Context, e *Execution) Promise {
+func assertA1(ctx context.Context, e *Execution) Promise {
+	return assert1(ctx, e, db.DB.InsertBefore)
+}
+
+func assertZ1(ctx context.Context, e *Execution) Promise {
+	return assert1(ctx, e, db.DB.InsertAfter)
+}
+
+func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
 
@@ -1005,6 +1014,14 @@ func assertz1(ctx context.Context, e *Execution) Promise {
 				Location:  e.location,
 			})
 		}
+
+		if _, ok := e.Functor(body, term.AllowAtom(true)); !ok {
+			return Error(&TypeError{
+				ValidType: term.NewAtom("callable"),
+				Culprit:   syntax.Serialize(e.Arena, body),
+				Location:  e.location,
+			})
+		}
 	} else {
 		head = t
 		body, err = e.PutAtom(term.NewAtom("true"))
@@ -1026,15 +1043,19 @@ func assertz1(ctx context.Context, e *Execution) Promise {
 		e.Predicates[bpi] = p
 	}
 	if !p.Dynamic {
+		c, err := e.PutFunctor(pi)
+		if err != nil {
+			return Error(err)
+		}
 		return Error(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
-			Culprit:        syntax.Serialize(e.Arena, t),
+			Culprit:        syntax.Serialize(e.Arena, c),
 			Location:       e.location,
 		})
 	}
 
-	if err := e.DB.Insert(ctx, e.Arena, db.Record{
+	if err := fn(e.DB, ctx, e.Arena, db.Record{
 		Head:      head,
 		Body:      body,
 		CreatedAt: e.CurrentTime,
