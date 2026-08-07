@@ -359,6 +359,14 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta(4).`, err: "type_error(callable,4)"},
 		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((foo :- 4)).`, err: "type_error(callable,4)"},
 		{loaded: []string{"testdata/8.9.1.4.pl"}, query: `asserta((atom(_) :- true)).`, err: "permission_error(modify,static_procedure,atom/1)"},
+		// 8.9.2.4
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz(legs(spider, 8)).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz((legs(B, 2) :- bird(B))).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz((foo(X) :- X -> call(X))).`, results: []string{""}},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz(_).`, err: "instantiation_error"},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz(4).`, err: "type_error(callable,4)"},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz((foo :- 4)).`, err: "type_error(callable,4)"},
+		{loaded: []string{"testdata/8.9.2.4.pl"}, query: `assertz((atom(_) :- true)).`, err: "permission_error(modify,static_procedure,atom/1)"},
 		// TODO:
 		/*
 			Other test cases.
