@@ -25,6 +25,7 @@ func (db *MemoryDB) InsertBefore(ctx context.Context, arena *term.Arena, record 
 	db.records = append(db.records, memoryDBRecord{})
 	copy(db.records[1:], db.records)
 	db.records[0] = memoryDBRecord{
+		ID:        len(db.records) + 1,
 		Head:      syntax.Serialize(arena, record.Head),
 		Body:      syntax.Serialize(arena, record.Body),
 		CreatedAt: record.CreatedAt,
@@ -35,6 +36,7 @@ func (db *MemoryDB) InsertBefore(ctx context.Context, arena *term.Arena, record 
 func (db *MemoryDB) InsertAfter(ctx context.Context, arena *term.Arena, record Record) error {
 	record.ID = len(db.records)
 	db.records = append(db.records, memoryDBRecord{
+		ID:        len(db.records) + 1,
 		Head:      syntax.Serialize(arena, record.Head),
 		Body:      syntax.Serialize(arena, record.Body),
 		CreatedAt: record.CreatedAt,
@@ -75,6 +77,6 @@ func (db *MemoryDB) Select(ctx context.Context, arena *term.Arena, pi term.Funct
 }
 
 func (db *MemoryDB) Delete(ctx context.Context, id int, deletedAt wam.LogicalTime) error {
-	db.records[id].DeletedAt = deletedAt
+	db.records[id-1].DeletedAt = deletedAt
 	return nil
 }

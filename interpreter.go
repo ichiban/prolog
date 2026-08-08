@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
+	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/runtime"
@@ -62,11 +63,12 @@ func (i *Interpreter) Load(ctx context.Context, filename string) error {
 	return e.LoadFile(ctx, filename)
 }
 
-type ParsedVariables = []syntax.ParsedVariable
+type VariableName = term.VariableName
 
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
-	bindings map[string]Value
+	bindings      map[string]Value
+	variableNames *[]VariableName
 }
 
 // QueryOption is a single option for a query.
@@ -79,6 +81,12 @@ func Bindings(b map[string]Value) QueryOption {
 	}
 }
 
+func VariableNames(varNames *[]VariableName) QueryOption {
+	return func(o *QueryOptions) {
+		o.variableNames = varNames
+	}
+}
+
 // Query queries an interpreter and returns results.
 func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...QueryOption) iter.Seq2[T, error] {
 	var options QueryOptions
@@ -86,11 +94,14 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 		o(&options)
 	}
 
+	if options.variableNames == nil {
+		options.variableNames = &[]VariableName{}
+	}
+
 	return func(yield func(T, error) bool) {
 		var (
 			e    = &i.engine
 			zero T
-			pvs  []syntax.ParsedVariable
 		)
 
 		if e.Code == nil {
@@ -102,7 +113,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		for v, b := range options.bindings {
 			v, err := syntax.ParseVariable(v,
-				syntax.Variables(&pvs),
+				syntax.VariableNames(options.variableNames),
 			)
 			if err != nil {
 				_ = yield(zero, err)
@@ -121,27 +132,22 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		g, err := syntax.ParseTerm(query,
 			syntax.Arena(e.Arena),
-			syntax.Variables(&pvs),
+			syntax.VariableNames(options.variableNames),
 		)
 		if err != nil {
 			_ = yield(zero, err)
 			return
 		}
 
-		varNames := make(map[term.Handle]term.Atom, len(pvs))
-		for _, v := range pvs {
-			varNames[v.Variable] = term.NewAtom(v.Name)
-		}
-
 		for err := range i.engine.Call(ctx, g) {
 			if err != nil {
-				_ = yield(zero, i.wrapError(err, varNames))
+				_ = yield(zero, i.wrapError(err, *options.variableNames))
 				return
 			}
 
 			var (
 				t   T
-				err = i.decodeResult(&t, varNames)
+				err = i.decodeResult(&t, *options.variableNames)
 			)
 			if !yield(t, err) {
 				return
@@ -150,41 +156,43 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 	}
 }
 
-func (i *Interpreter) wrapError(err error, varNames map[term.Handle]term.Atom) error {
+func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 	origErr := err
 	errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
 	if err != nil {
 		return err
 	}
 	return fmt.Errorf("%s: %w", &syntax.Formatter{
-		Arena:        i.engine.Arena,
-		Term:         errTerm,
-		VariableName: varNames,
+		Arena:         i.engine.Arena,
+		Term:          errTerm,
+		VariableNames: varNames,
 	}, origErr)
 }
 
-func (i *Interpreter) decodeResult(out any, varNames map[term.Handle]term.Atom) error {
+func (i *Interpreter) decodeResult(out any, varNames []term.VariableName) error {
 	switch out := out.(type) {
 	case *Result:
 
 		if *out == nil {
 			*out = Result{}
 		}
-		for v, name := range varNames {
-			t := v
+		for _, vn := range varNames {
+			t := vn.Variable
 			t = i.engine.Deref(t)
 			if _, ok := i.engine.Variable(t); ok {
-				if t == v {
+				if t == vn.Variable {
 					continue
 				}
-				if _, ok := varNames[t]; !ok {
+				if i := slices.IndexFunc(varNames, func(vn term.VariableName) bool {
+					return vn.Variable == t
+				}); i < 0 {
 					continue
 				}
 			}
-			(*out)[name.String()] = Raw(fmt.Sprintf("%s", &syntax.Formatter{
-				Arena:        i.engine.Arena,
-				Term:         t,
-				VariableName: varNames,
+			(*out)[vn.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{
+				Arena:         i.engine.Arena,
+				Term:          t,
+				VariableNames: varNames,
 			}))
 		}
 		return nil

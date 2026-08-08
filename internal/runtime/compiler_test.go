@@ -223,12 +223,16 @@ func TestReplaceBody(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.goal, func(t *testing.T) {
 			var (
-				arena    = term.Arena{Heap: make(term.Heap, 0, 1024)}
-				a        = must(arena.PutVariable())
-				b        = must(arena.PutVariable())
-				c        = must(arena.PutVariable())
-				vars     = []term.Handle{a, b, c}
-				pvs      []syntax.ParsedVariable
+				arena = term.Arena{Heap: make(term.Heap, 0, 1024)}
+				a     = must(arena.PutVariable())
+				b     = must(arena.PutVariable())
+				c     = must(arena.PutVariable())
+				vars  = []term.Handle{a, b, c}
+				vns   = []term.VariableName{
+					{Variable: a, Name: "A"},
+					{Variable: b, Name: "B"},
+					{Variable: c, Name: "C"},
+				}
 				compiler = Compiler{
 					Engine: &Engine{Arena: &arena},
 					makeVariable: func() (term.Handle, error) {
@@ -246,7 +250,7 @@ func TestReplaceBody(t *testing.T) {
 
 			goal, err := syntax.ParseTerm(test.goal,
 				syntax.Arena(&arena),
-				syntax.Variables(&pvs),
+				syntax.VariableNames(&vns),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -256,20 +260,11 @@ func TestReplaceBody(t *testing.T) {
 				t.Errorf("got error %v, want %v", err, test.err)
 			}
 
-			varNames := map[term.Handle]term.Atom{
-				a: term.NewAtomRune('A'),
-				b: term.NewAtomRune('B'),
-				c: term.NewAtomRune('C'),
-			}
-			for _, pv := range pvs {
-				varNames[pv.Variable] = term.NewAtom(pv.Name)
-			}
-
 			got := fmt.Sprintf("%s", &syntax.Formatter{
-				Arena:        &arena,
-				Term:         goal,
-				Quoted:       true,
-				VariableName: varNames,
+				Arena:         &arena,
+				Term:          goal,
+				Quoted:        true,
+				VariableNames: vns,
 			})
 
 			if got != test.result {
@@ -318,7 +313,7 @@ func TestBinarize(t *testing.T) {
 		t.Run(test.head, func(t *testing.T) {
 			var (
 				arena    = term.Arena{Heap: make(term.Heap, 0, 1024)}
-				pvs      []syntax.ParsedVariable
+				pvs      []term.VariableName
 				compiler = Compiler{
 					Engine: &Engine{Arena: &arena},
 				}
@@ -327,20 +322,20 @@ func TestBinarize(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			pvs = append(pvs, syntax.ParsedVariable{
+			pvs = append(pvs, term.VariableName{
 				Name:     "Cont",
 				Variable: cont,
 			})
 			head, err := syntax.ParseTerm(test.head,
 				syntax.Arena(&arena),
-				syntax.Variables(&pvs),
+				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			body, err := syntax.ParseTerm(test.body,
 				syntax.Arena(&arena),
-				syntax.Variables(&pvs),
+				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -354,41 +349,41 @@ func TestBinarize(t *testing.T) {
 			}
 			expectedHead, err := syntax.ParseTerm(test.newHead,
 				syntax.Arena(&arena),
-				syntax.Variables(&pvs),
+				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			expectedBody, err := syntax.ParseTerm(test.newBody,
 				syntax.Arena(&arena),
-				syntax.Variables(&pvs),
+				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			varNames := map[term.Handle]term.Atom{
-				cont: term.NewAtom("Cont"),
+			varNames := []term.VariableName{
+				{Variable: cont, Name: "Cont"},
 			}
 			if arena.Compare(newHead, expectedHead) != 0 {
 				t.Errorf("got %s, want %s", &syntax.Formatter{
-					Arena:        &arena,
-					Term:         newHead,
-					VariableName: varNames,
+					Arena:         &arena,
+					Term:          newHead,
+					VariableNames: varNames,
 				}, &syntax.Formatter{
-					Arena:        &arena,
-					Term:         expectedHead,
-					VariableName: varNames,
+					Arena:         &arena,
+					Term:          expectedHead,
+					VariableNames: varNames,
 				})
 			}
 			if arena.Compare(newBody, expectedBody) != 0 {
 				t.Errorf("got %s, want %s", &syntax.Formatter{
-					Arena:        &arena,
-					Term:         newBody,
-					VariableName: varNames,
+					Arena:         &arena,
+					Term:          newBody,
+					VariableNames: varNames,
 				}, &syntax.Formatter{
-					Arena:        &arena,
-					Term:         expectedBody,
-					VariableName: varNames,
+					Arena:         &arena,
+					Term:          expectedBody,
+					VariableNames: varNames,
 				})
 			}
 		})
@@ -674,12 +669,12 @@ func TestCompiler_CompileClause(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			arena.Heap = arena.Heap[:0]
-			var vars []syntax.ParsedVariable
-			h, err := syntax.ParseTerm(test.head, syntax.Arena(&arena), syntax.Variables(&vars))
+			var vns []term.VariableName
+			h, err := syntax.ParseTerm(test.head, syntax.Arena(&arena), syntax.VariableNames(&vns))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.head, err)
 			}
-			b, err := syntax.ParseTerm(test.body, syntax.Arena(&arena), syntax.Variables(&vars))
+			b, err := syntax.ParseTerm(test.body, syntax.Arena(&arena), syntax.VariableNames(&vns))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}

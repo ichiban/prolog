@@ -5,6 +5,15 @@ import (
 	"slices"
 )
 
+// VariableName is a mapping from a variable term to its name or vice versa.
+// After reading, a variable term looses its textual representation.
+// You can use VariableName to keep track of and restore it on writing.
+type VariableName struct {
+	Variable Handle
+	Name     string
+	Count    int
+}
+
 func (a *Arena) VariableSet(t Handle) []Handle {
 	// 7.1.1.1 Variable set of a term.
 	t = a.Deref(t)

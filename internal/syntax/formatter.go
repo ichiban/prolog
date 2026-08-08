@@ -6,6 +6,7 @@ import (
 	"io"
 	"iter"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -33,10 +34,10 @@ type Formatter struct {
 	Arena *term.Arena
 	Term  term.Handle
 
-	IgnoreOps    bool
-	Quoted       bool
-	VariableName map[term.Handle]term.Atom
-	NumberVars   bool
+	IgnoreOps     bool
+	Quoted        bool
+	VariableNames []term.VariableName
+	NumberVars    bool
 
 	Ops       *OperatorSet
 	MaxDepth  int
@@ -126,9 +127,12 @@ func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
 	if letterDigit(f.left.name) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
-	if name, ok := f.VariableName[v]; ok {
+	if i := slices.IndexFunc(f.VariableNames, func(vn term.VariableName) bool {
+		return vn.Variable == v
+	}); i >= 0 {
+		vn := f.VariableNames[i]
 		f.Quoted = false
-		_, _ = f.writeAtom(&ew, name)
+		_, _ = f.writeAtom(&ew, term.NewAtom(vn.Name))
 	} else {
 		addr, _ := arena.Variable(v)
 		_, _ = fmt.Fprintf(&ew, "_%d", addr)

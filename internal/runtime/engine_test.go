@@ -309,10 +309,10 @@ func TestEngine_Call(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			var vars []syntax.ParsedVariable
+			var vns []term.VariableName
 			g, err := syntax.ParseTerm(test.goal,
 				syntax.Arena(e.Arena),
-				syntax.Variables(&vars),
+				syntax.VariableNames(&vns),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -324,7 +324,7 @@ func TestEngine_Call(t *testing.T) {
 					t.Fatal(err)
 				}
 				var result []string
-				for _, v := range vars {
+				for _, v := range vns {
 					result = append(result, fmt.Sprintf("%s = %s", v.Name, &syntax.Formatter{Arena: e.Arena, Term: v.Variable}))
 				}
 				results = append(results, strings.Join(result, ", "))

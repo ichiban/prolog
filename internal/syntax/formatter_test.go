@@ -131,8 +131,8 @@ func TestFormatter_WriteTo(t *testing.T) {
 		err       error
 	}{
 		{title: "variable: unnamed", formatter: Formatter{Arena: &arena, Term: x}, output: "_0"},
-		{title: "variable: variable_names", formatter: Formatter{Arena: &arena, Term: x, VariableName: map[term.Handle]term.Atom{
-			x: term.NewAtom("Foo"),
+		{title: "variable: variable_names", formatter: Formatter{Arena: &arena, Term: x, VariableNames: []term.VariableName{
+			{Variable: x, Name: "Foo"},
 		}}, output: `Foo`},
 
 		{title: "atom: a", formatter: Formatter{Arena: &arena, Term: a, Quoted: false}, output: `a`},

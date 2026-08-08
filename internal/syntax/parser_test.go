@@ -36,7 +36,7 @@ func Test_ParseTerm(t *testing.T) {
 		doubleQuotes DoubleQuotes
 		term         term.Handle
 		err          error
-		vars         []ParsedVariable
+		vars         []term.VariableName
 	}{
 		{input: ``, err: io.EOF},
 		{input: `foo`, err: io.EOF},
@@ -88,7 +88,7 @@ func Test_ParseTerm(t *testing.T) {
 		{input: `'-'1.0.`, term: must(arena.PutFloat(-1))},
 
 		{input: `_.`, term: x},
-		{input: `X.`, term: x, vars: []ParsedVariable{
+		{input: `X.`, term: x, vars: []term.VariableName{
 			{Name: "X", Variable: x, Count: 1},
 		}},
 
@@ -105,10 +105,10 @@ func Test_ParseTerm(t *testing.T) {
 		{input: `[(), b].`, err: &UnexpectedTokenError{token: token{kind: tokenClose, val: ")"}}},
 		{input: `[a, ()].`, err: &UnexpectedTokenError{token: token{kind: tokenClose, val: ")"}}},
 		{input: `[a b].`, err: &UnexpectedTokenError{token: token{kind: tokenLetterDigit, val: "b"}}},
-		{input: `[a|X].`, term: must(arena.PutCompound(term.NewAtom("."), must(arena.PutAtom(term.NewAtom("a"))), x)), vars: []ParsedVariable{
+		{input: `[a|X].`, term: must(arena.PutCompound(term.NewAtom("."), must(arena.PutAtom(term.NewAtom("a"))), x)), vars: []term.VariableName{
 			{Name: "X", Variable: x, Count: 1},
 		}},
-		{input: `[a, b|X].`, term: must(arena.PutPartialList(x, must(arena.PutAtom(term.NewAtom("a"))), must(arena.PutAtom(term.NewAtom("b"))))), vars: []ParsedVariable{
+		{input: `[a, b|X].`, term: must(arena.PutPartialList(x, must(arena.PutAtom(term.NewAtom("a"))), must(arena.PutAtom(term.NewAtom("b"))))), vars: []term.VariableName{
 			{Name: "X", Variable: x, Count: 1},
 		}},
 		{input: `[a, b|()].`, err: &UnexpectedTokenError{token: token{kind: tokenClose, val: ")"}}},
@@ -158,12 +158,12 @@ func Test_ParseTerm(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			var pvs []ParsedVariable
+			var vns []term.VariableName
 			result, err := ParseTerm(tt.input,
 				Arena(&arena),
 				Operators(&ops),
 				DoubleQuote(&tt.doubleQuotes),
-				Variables(&pvs),
+				VariableNames(&vns),
 				MakeVariable(func() (term.Handle, error) {
 					return x, nil
 				}),
@@ -175,12 +175,12 @@ func Test_ParseTerm(t *testing.T) {
 			if arena.Compare(result, tt.term) != 0 {
 				t.Errorf("expected %4q, got %4q", &Formatter{Term: tt.term}, &Formatter{Term: result})
 			}
-			if len(pvs) != len(tt.vars) {
-				t.Errorf("expected %d, got %d", len(tt.vars), len(pvs))
+			if len(vns) != len(tt.vars) {
+				t.Errorf("expected %d, got %d", len(tt.vars), len(vns))
 			}
-			for i := range len(pvs) {
-				if pvs[i] != tt.vars[i] {
-					t.Errorf("expected %v, got %v", tt.vars[i], pvs[i])
+			for i := range len(vns) {
+				if vns[i] != tt.vars[i] {
+					t.Errorf("expected %v, got %v", tt.vars[i], vns[i])
 				}
 			}
 		})

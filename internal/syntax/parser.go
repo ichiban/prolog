@@ -35,11 +35,11 @@ func (e *UnexpectedTokenError) Error() string {
 }
 
 type ParseOptions struct {
-	arena        *term.Arena
-	operatorSet  *OperatorSet
-	doubleQuotes *DoubleQuotes
-	variables    *[]ParsedVariable
-	makeVariable func() (term.Handle, error)
+	arena         *term.Arena
+	operatorSet   *OperatorSet
+	doubleQuotes  *DoubleQuotes
+	variableNames *[]term.VariableName
+	makeVariable  func() (term.Handle, error)
 }
 
 type ParseOption func(*ParseOptions)
@@ -56,9 +56,9 @@ func DoubleQuote(doubleQuotes *DoubleQuotes) ParseOption {
 	}
 }
 
-func Variables(variables *[]ParsedVariable) ParseOption {
+func VariableNames(variables *[]term.VariableName) ParseOption {
 	return func(o *ParseOptions) {
-		o.variables = variables
+		o.variableNames = variables
 	}
 }
 
@@ -102,13 +102,6 @@ func ParseNumber(text string, opts ...ParseOption) (term.Handle, error) {
 func ParseVariable(text string, opts ...ParseOption) (term.Handle, error) {
 	p := newParser(text, opts...)
 	return p.Variable()
-}
-
-// ParsedVariable is a set of information regarding a variable in a parsed term.
-type ParsedVariable struct {
-	Name     string
-	Variable term.Handle
-	Count    int
 }
 
 // parser turns bytes into Term.
@@ -603,13 +596,13 @@ func (p *parser) variable(s string) (term.Handle, error) {
 		v, err := p.makeVariable()
 		return v, err
 	}
-	if p.variables == nil {
-		var pvs []ParsedVariable
-		p.variables = &pvs
+	if p.variableNames == nil {
+		var vns []term.VariableName
+		p.variableNames = &vns
 	}
-	for i, pv := range *p.variables {
+	for i, pv := range *p.variableNames {
 		if pv.Name == s {
-			(*p.variables)[i].Count++
+			(*p.variableNames)[i].Count++
 			return pv.Variable, nil
 		}
 	}
@@ -617,8 +610,8 @@ func (p *parser) variable(s string) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	if p.variables != nil {
-		*p.variables = append(*p.variables, ParsedVariable{Name: s, Variable: v, Count: 1})
+	if p.variableNames != nil {
+		*p.variableNames = append(*p.variableNames, term.VariableName{Name: s, Variable: v, Count: 1})
 	}
 	return v, nil
 }

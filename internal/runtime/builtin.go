@@ -84,6 +84,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: currentPredicate1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: assertA1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertZ1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: retract1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1067,6 +1068,85 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
+}
+
+func retract1(ctx context.Context, e *Execution) Promise {
+	t, cont := e.tempVars[1], e.tempVars[2]
+	t = e.Deref(t)
+
+	h, err := e.PutVariable()
+	if err != nil {
+		return Error(err)
+	}
+
+	b, err := e.PutVariable()
+	if err != nil {
+		return Error(err)
+	}
+
+	c, err := e.PutCompound(atomNeck, h, b)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(c, t)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		h = t
+		b, err = e.PutAtom(term.NewAtom("true"))
+		if err != nil {
+			return Error(err)
+		}
+	}
+
+	h, b = e.Deref(h), e.Deref(b)
+
+	pi, err := e.mustBeCallable(h)
+	if err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		before := e.CurrentTime
+		e.CurrentTime++
+		for r := range e.DB.Select(ctx, e.Arena, pi, before) {
+			ok, err := e.Unify(r.Head, h)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			ok, err = e.Unify(r.Body, b)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			if err := e.DB.Delete(ctx, r.ID, before); err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {
