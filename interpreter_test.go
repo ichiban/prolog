@@ -697,6 +697,14 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract((X :- in_eec(Y))).`, err: "instantiation_error"},
 		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract((4 :- X)).`, err: "type_error(callable,4)"},
 		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract((atom(X) :- X == '[]')).`, err: "permission_error(modify,static_procedure,atom/1)"},
+		// 8.9.4.4
+		{setup: []string{`assertz(foo(a, b)).`}, query: `abolish(foo/2).`, expectations: [][]string{
+			{`\+clause(foo(X, Y), true).`},
+		}},
+		{query: `abolish(foo/_).`, err: "instantiation_error"},
+		{query: `abolish(foo).`, err: "type_error(predicate_indicator,foo)"},
+		// {query: `abolish(foo(_)).`, err: "type_error(predicate_indicator,foo(_))"}, TODO: Match err with variables.
+		{query: `abolish(abolish/1).`, err: "permission_error(modify,static_procedure,abolish/1)"},
 		// TODO:
 		/*
 			Other test cases.

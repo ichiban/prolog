@@ -85,6 +85,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: assertA1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertZ1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: retract1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: abolish1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1147,6 +1148,35 @@ func retract1(ctx context.Context, e *Execution) Promise {
 			}
 		}
 	})
+}
+
+func abolish1(ctx context.Context, e *Execution) Promise {
+	pred, cont := e.tempVars[1], e.tempVars[2]
+	pred = e.Deref(pred)
+
+	pi, err := e.mustBePredicateIndicator(pred)
+	if err != nil {
+		return Error(err)
+	}
+
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	p, _ := e.Predicates[bpi]
+	fmt.Printf("predicate %s: %#v\n", bpi, p)
+	if p.Dynamic {
+		fmt.Printf("dynamic!: %s\n", bpi)
+		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
+			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
+				return Error(err)
+			}
+			fmt.Printf("deleted %s :- %s.\n", &syntax.Formatter{Arena: e.Arena, Term: r.Head, Quoted: true}, &syntax.Formatter{Arena: e.Arena, Term: r.Body, Quoted: true})
+		}
+		delete(e.Predicates, bpi)
+		e.CurrentTime++
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {
