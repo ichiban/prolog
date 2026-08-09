@@ -705,6 +705,25 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `abolish(foo).`, err: "type_error(predicate_indicator,foo)"},
 		// {query: `abolish(foo(_)).`, err: "type_error(predicate_indicator,foo(_))"}, TODO: Match err with variables.
 		{query: `abolish(abolish/1).`, err: "permission_error(modify,static_procedure,abolish/1)"},
+		// 8.10.1.4
+		{query: `findall(X, (X=1; X=2), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `findall(X+Y, (X=1), S).`, expectations: [][]string{
+			{`S = [1+_].`},
+		}},
+		{query: `findall(X, fail, L).`, expectations: [][]string{
+			{`L = [].`},
+		}},
+		{query: `findall(X, (X=1; X=1), S).`, expectations: [][]string{
+			{`S = [1, 1].`},
+		}},
+		{query: `findall(X, (X=2; X=1), [1, 2]).`, expectations: [][]string{}},
+		{query: `findall(X, (X=1; X=2), [X, Y]).`, expectations: [][]string{
+			{`X = 1.`, `Y = 2`},
+		}},
+		{query: `findall(X, Goal, S).`, err: "instantiation_error"},
+		{query: `findall(X, 4, S).`, err: "type_error(callable,4)"},
 		// TODO:
 		/*
 			Other test cases.

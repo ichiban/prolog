@@ -86,6 +86,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertZ1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: retract1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: abolish1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: findAll3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1172,6 +1173,43 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 		}
 		delete(e.Predicates, bpi)
 		e.CurrentTime++
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func findAll3(ctx context.Context, e *Execution) Promise {
+	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	if err := e.canBeList(instances); err != nil {
+		return Error(err)
+	}
+
+	var elems []term.Handle
+	for err := range e.Call(ctx, goal) {
+		if err != nil {
+			return Error(err)
+		}
+		c, err := e.RenamedCopy(template)
+		if err != nil {
+			return Error(err)
+		}
+		elems = append(elems, c)
+	}
+
+	l, err := e.PutList(elems...)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(instances, l)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
