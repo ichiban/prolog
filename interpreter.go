@@ -31,17 +31,46 @@ type Raw string
 // Result is a generic result map. It contains variable names as keys and associated terms as values.
 type Result map[string]Raw
 
+type InterpreterOptions struct {
+	heapSize     int
+	tempHeapSize int
+}
+
+type InterpreterOption func(*InterpreterOptions)
+
+func HeapSize(heapSize int) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.heapSize = heapSize
+	}
+}
+
+func TempHeapSize(tempHeapSize int) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.tempHeapSize = tempHeapSize
+	}
+}
+
 // Interpreter is a Prolog processor. It loads prolog texts from files and takes queries.
 type Interpreter struct {
 	engine runtime.Engine
 }
 
 // New instantiates an interpreter.
-func New(heapSize int) *Interpreter {
+func New(opts ...InterpreterOption) *Interpreter {
+	opt := InterpreterOptions{
+		heapSize:     4 * 1024,
+		tempHeapSize: 1024,
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
 	return &Interpreter{
 		engine: runtime.Engine{
 			Arena: &term.Arena{
-				Heap: make(term.Heap, 0, heapSize),
+				Heap: make(term.Heap, 0, opt.heapSize),
+			},
+			TempArena: &term.Arena{
+				Heap: make(term.Heap, 0, opt.tempHeapSize),
 			},
 			DB: &db.MemoryDB{},
 		},

@@ -1183,7 +1183,7 @@ func TestArena_RenamedCopy(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			result, err := arena.RenamedCopy(test.term)
+			result, err := RenamedCopy(&arena, &arena, test.term)
 			if !errors.Is(err, test.err) {
 				t.Errorf("expected %v, got %v", test.err, err)
 			}

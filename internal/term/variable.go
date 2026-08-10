@@ -83,3 +83,45 @@ func (a *Arena) witnessVariables(t Handle, witness map[Handle]struct{}) iter.Seq
 		}
 	}
 }
+
+func (a *Arena) Variant(t1, t2 Handle) bool {
+	s := map[Handle]Handle{}
+	rest := [][2]Handle{
+		{t1, t2},
+	}
+	var xy [2]Handle
+	for len(rest) > 0 {
+		rest, xy = rest[:len(rest)-1], rest[len(rest)-1]
+		x, y := a.Deref(xy[0]), a.Deref(xy[1])
+		if _, ok := a.Variable(x); ok {
+			if _, ok := a.Variable(y); !ok {
+				return false
+			}
+			if z, ok := s[x]; ok {
+				if z != y {
+					return false
+				}
+			} else {
+				s[x] = y
+			}
+			continue
+		}
+		if fx, ok := a.Functor(x); ok {
+			fy, ok := a.Functor(y)
+			if !ok {
+				return false
+			}
+			if fx != fy {
+				return false
+			}
+			for i := 0; i < fx.Arity(); i++ {
+				rest = append(rest, [2]Handle{a.Arg(x, i), a.Arg(y, i)})
+			}
+			continue
+		}
+		if x != y {
+			return false
+		}
+	}
+	return true
+}

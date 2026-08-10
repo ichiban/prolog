@@ -12,7 +12,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
 )
@@ -291,26 +290,17 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
-				pi := e.Functors[n]
-				p, ok := e.Predicates[pi]
-				if !ok {
-					culprit, err := e.PutFunctor(pi)
-					if err != nil {
-						_ = yield(err)
-						return
-					}
-					_ = yield(&ExistenceError{
-						ObjectType: term.NewAtom("procedure"),
-						Culprit:    syntax.Serialize(e.Arena, culprit),
-						Location:   e.location,
-					})
+				bpi := e.Functors[n]
+				p, err := e.Predicate(bpi)
+				if err != nil {
+					_ = yield(err)
 					return
 				}
 				if p.Dynamic {
 					_ = yield(errors.New("dynamic call is not implemented yet"))
 					return
 				}
-				e.location = term.NewFunctor(pi.Name(), pi.Arity()-1)
+				e.location = term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 				e.programPointer = p.Offset
 				e.cutB = len(e.stack)
 			case wam.OpProceed: // proceed

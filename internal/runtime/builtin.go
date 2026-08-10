@@ -87,6 +87,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: retract1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: abolish1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: findAll3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: bagOf3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -182,17 +183,9 @@ func true0(ctx context.Context, e *Execution) Promise {
 
 	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 
-	p, ok := e.Predicates[bpi]
-	if !ok {
-		c, err := e.PutFunctor(pi)
-		if err != nil {
-			return Error(err)
-		}
-		return Error(&ExistenceError{
-			ObjectType: term.NewAtom("procedure"),
-			Culprit:    syntax.Serialize(e.Arena, c),
-			Location:   e.location,
-		})
+	p, err := e.Predicate(bpi)
+	if err != nil {
+		return Error(err)
 	}
 
 	if p.Dynamic {
@@ -276,17 +269,9 @@ func call1(ctx context.Context, e *Execution) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := e.Predicates[bpi]
-	if !ok {
-		c, err := e.PutFunctor(pi)
-		if err != nil {
-			return Error(err)
-		}
-		return Error(&ExistenceError{
-			ObjectType: term.NewAtom("procedure"),
-			Culprit:    syntax.Serialize(e.Arena, c),
-			Location:   e.location,
-		})
+	p, err := e.Predicate(bpi)
+	if err != nil {
+		return Error(err)
 	}
 	if p.Dynamic {
 		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
@@ -805,7 +790,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 func copyTerm2(_ context.Context, e *Execution) Promise {
 	t1, t2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
-	c, err := e.RenamedCopy(t1)
+	c, err := term.RenamedCopy(e.Arena, e.Arena, t1)
 	if err != nil {
 		return Error(err)
 	}
@@ -1162,14 +1147,11 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
 	p, _ := e.Predicates[bpi]
-	fmt.Printf("predicate %s: %#v\n", bpi, p)
 	if p.Dynamic {
-		fmt.Printf("dynamic!: %s\n", bpi)
 		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
 				return Error(err)
 			}
-			fmt.Printf("deleted %s :- %s.\n", &syntax.Formatter{Arena: e.Arena, Term: r.Head, Quoted: true}, &syntax.Formatter{Arena: e.Arena, Term: r.Body, Quoted: true})
 		}
 		delete(e.Predicates, bpi)
 		e.CurrentTime++
@@ -1188,15 +1170,8 @@ func findAll3(ctx context.Context, e *Execution) Promise {
 	}
 
 	var elems []term.Handle
-	for err := range e.Call(ctx, goal) {
-		if err != nil {
-			return Error(err)
-		}
-		c, err := e.RenamedCopy(template)
-		if err != nil {
-			return Error(err)
-		}
-		elems = append(elems, c)
+	if err := e.FindAll(ctx, &elems, template, goal); err != nil {
+		return Error(err)
 	}
 
 	l, err := e.PutList(elems...)
@@ -1215,6 +1190,124 @@ func findAll3(ctx context.Context, e *Execution) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
+}
+
+func bagOf3(ctx context.Context, e *Execution) Promise {
+	return collectionOf(ctx, e, func(ts []term.Handle) (term.Handle, error) {
+		return e.PutList(ts...)
+	})
+}
+
+func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
+	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	if err := e.canBeList(instances); err != nil {
+		return Error(err)
+	}
+
+	fvs := e.FreeVariableSet(goal, template)
+	witness, err := e.PutCompound(term.NewAtom("$witness"), fvs...)
+	if err != nil {
+		return Error(err)
+	}
+
+	template, err = e.PutCompound(term.NewAtomRune('+'), witness, template)
+	if err != nil {
+		return Error(err)
+	}
+
+	for {
+		goal = e.Deref(goal)
+		f, ok := e.Functor(goal)
+		if !ok || f != term.NewFunctor(term.NewAtomRune('^'), 2) {
+			break
+		}
+		goal = e.Arg(goal, 1)
+	}
+
+	var s []term.Handle
+	if err := e.FindAll(ctx, &s, template, goal); err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		for len(s) > 0 {
+			var wt term.Handle
+			wt, s = s[0], s[1:]
+			w, t := e.Arg(wt, 0), e.Arg(wt, 1) // W+T
+			wl, tl := []term.Handle{w}, []term.Handle{t}
+			n := 0 // https://github.com/golang/go/wiki/SliceTricks#filter-in-place
+			for _, t := range s {
+				ww, tt := e.Arg(t, 0), e.Arg(t, 1) // WW+TT
+				if e.Variant(ww, w) {
+					wl = append(wl, ww)
+					tl = append(tl, tt)
+				} else { // keep
+					s[n] = t
+					n++
+				}
+			}
+			s = s[:n]
+			for _, w := range wl {
+				if _, err := e.Unify(witness, w); err != nil {
+					_ = yield(Error(err))
+					return
+				}
+			}
+			a, err := agg(tl)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			ok, err := e.Unify(instances, a)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
+}
+
+func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template term.Handle, goal term.Handle) error {
+	// Resulting instances are not accessible after each run.
+	// So, escape them to a secondary memory arena for a moment, then bring them back.
+
+	heapTop := len(e.TempArena.Heap)
+	defer func() {
+		e.TempArena.Heap = e.TempArena.Heap[:heapTop]
+	}()
+
+	var instances []term.Handle
+	for err := range e.Call(ctx, goal) {
+		if err != nil {
+			return err
+		}
+
+		c, err := term.RenamedCopy(e.Arena, e.TempArena, template)
+		if err != nil {
+			return err
+		}
+		instances = append(instances, c)
+	}
+	for _, t := range instances {
+		c, err := term.RenamedCopy(e.TempArena, e.Arena, t)
+		if err != nil {
+			return err
+		}
+		*out = append(*out, c)
+	}
+	return nil
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {

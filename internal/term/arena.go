@@ -615,18 +615,18 @@ func (a *Arena) cyclic(t Handle, visited map[Handle]struct{}) bool {
 	return false
 }
 
-func (a *Arena) RenamedCopy(t Handle) (Handle, error) {
-	return a.renamedCopy(t, map[Handle]Handle{})
+func RenamedCopy(from, to *Arena, t Handle) (Handle, error) {
+	return renamedCopy(from, to, t, map[Handle]Handle{})
 }
 
-func (a *Arena) renamedCopy(t Handle, copied map[Handle]Handle) (Handle, error) {
-	t = a.Deref(t)
+func renamedCopy(from, to *Arena, t Handle, copied map[Handle]Handle) (Handle, error) {
+	t = from.Deref(t)
 	if t, ok := copied[t]; ok {
 		return t, nil
 	}
 
-	if _, ok := a.Variable(t); ok {
-		v, err := a.PutVariable()
+	if _, ok := from.Variable(t); ok {
+		v, err := to.PutVariable()
 		if err != nil {
 			return Handle{}, err
 		}
@@ -634,17 +634,36 @@ func (a *Arena) renamedCopy(t Handle, copied map[Handle]Handle) (Handle, error) 
 		return v, nil
 	}
 
+	if from != to {
+		if a, ok := from.Atom(t); ok {
+			return to.PutAtom(a)
+		}
+
+		if i, ok := from.Integer(t); ok {
+			return to.PutInteger(i)
+		}
+
+		if f, ok := from.Float(t); ok {
+			return to.PutFloat(f)
+		}
+
+	}
+
+	if s, ok := from.CharList(t); ok {
+		return to.PutCharList(s)
+	}
+
 	// TODO: Specialize on list, partial list, and string.
-	if f, ok := a.Functor(t); ok {
+	if f, ok := from.Functor(t); ok {
 		args := make([]Handle, 0, f.Arity())
-		for arg := range a.Args(t) {
-			arg, err := a.renamedCopy(arg, copied)
+		for arg := range from.Args(t) {
+			arg, err := renamedCopy(from, to, arg, copied)
 			if err != nil {
 				return Handle{}, err
 			}
 			args = append(args, arg)
 		}
-		c, err := a.PutCompound(f.Name(), args...)
+		c, err := to.PutCompound(f.Name(), args...)
 		if err != nil {
 			return Handle{}, err
 		}

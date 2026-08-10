@@ -23,6 +23,7 @@ var bootstrap string
 
 type Engine struct {
 	*term.Arena
+	TempArena *term.Arena // Used for findall/3, etc.
 	wam.Image
 	BuiltinSet *BuiltinSet
 
@@ -36,6 +37,23 @@ type Engine struct {
 	CurrentTime  wam.LogicalTime
 
 	OnDiscontiguous func(pi term.Functor) error
+}
+
+func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, error) {
+	p, ok := e.Predicates[bpi]
+	if !ok {
+		pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+		culprit, err := e.PutFunctor(pi)
+		if err != nil {
+			return wam.Predicate{}, err
+		}
+		return wam.Predicate{}, &ExistenceError{
+			ObjectType: term.NewAtom("procedure"),
+			Culprit:    syntax.Serialize(e.Arena, culprit),
+			Location:   term.NewFunctor(term.NewAtom("user"), 0),
+		}
+	}
+	return p, nil
 }
 
 func (e *Engine) Inspect(t term.Handle) string {
@@ -347,27 +365,17 @@ func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Se
 }
 
 func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
-	pi := term.NewFunctor(term.NewAtom("call"), 2)
+	bpi := term.NewFunctor(term.NewAtom("call"), 2)
 	cont, err := e.PutAtom(term.NewAtom("true"))
 	if err != nil {
 		return func(yield func(error) bool) {
 			_ = yield(err)
 		}
 	}
-	p, ok := e.Predicates[pi]
-	if !ok {
+	p, err := e.Predicate(bpi)
+	if err != nil {
 		return func(yield func(error) bool) {
-			pi := term.NewFunctor(pi.Name(), pi.Arity()-1)
-			culprit, err := e.PutFunctor(pi)
-			if err != nil {
-				_ = yield(err)
-				return
-			}
-			_ = yield(&ExistenceError{
-				ObjectType: term.NewAtom("procedure"),
-				Culprit:    syntax.Serialize(e.Arena, culprit),
-				Location:   term.NewFunctor(term.NewAtom("user"), 0),
-			})
+			_ = yield(err)
 		}
 	}
 	exec := Execution{
@@ -377,5 +385,17 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 	}
 	exec.tempVars[1] = goal
 	exec.tempVars[2] = cont
-	return exec.run(ctx)
+	return func(yield func(error) bool) {
+		// The last solution's bindings are still trailed on exec when run
+		// terminates; undo them so they don't leak into the caller.
+		trailTop := len(exec.trail)
+		defer func() {
+			_ = exec.unwindTrail(trailTop)
+		}()
+		for err := range exec.run(ctx) {
+			if !yield(err) {
+				return
+			}
+		}
+	}
 }

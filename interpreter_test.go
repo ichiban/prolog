@@ -720,10 +720,61 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		{query: `findall(X, (X=2; X=1), [1, 2]).`, expectations: [][]string{}},
 		{query: `findall(X, (X=1; X=2), [X, Y]).`, expectations: [][]string{
-			{`X = 1.`, `Y = 2`},
+			{`X = 1.`, `Y = 2.`},
 		}},
 		{query: `findall(X, Goal, S).`, err: "instantiation_error"},
 		{query: `findall(X, 4, S).`, err: "type_error(callable,4)"},
+		// 8.10.2.4
+		{query: `bagof(X, (X=1; X=2), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `bagof(X, (X=1; X=2), X).`, expectations: [][]string{
+			{`X = [1, 2].`},
+		}},
+		{query: `bagof(X, (X=Y ; X=Z), S).`, expectations: [][]string{
+			{`S = [Y, Z].`},
+		}},
+		{query: `bagof(X, fail, S).`, expectations: [][]string{}},
+		{query: `bagof(1, (Y=1 ; Y=2), L).`, expectations: [][]string{
+			{`L = [1].`, `Y = 1.`},
+			{`L = [1].`, `Y = 2.`},
+		}},
+		{query: `bagof(f(X, Y), (X=a ; Y=b), L).`, expectations: [][]string{
+			{`L = [f(a, _), f(_, b)].`},
+		}},
+		{query: `bagof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `bagof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
+			{`S = [1, _, 2].`},
+		}},
+		// TODO: Implement set_prolog_flag/2.
+		// {setup: []string{`set_prolog_flag(unknown, warning).`}, query: `bagof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
+		// 	{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
+		// }},
+		{query: `bagof(X, (X=Y ; X=Z ; Y=1), S).`, expectations: [][]string{
+			{`S = [Y, Z].`},
+			{`S = [_].`, `Y = 1.`},
+		}},
+		{setup: []string{
+			`assertz(a(1, f(_))).`,
+			`assertz(a(2, f(_))).`,
+		}, query: `bagof(X, a(X, Y), L).`, expectations: [][]string{
+			{`L = [1, 2].`, `Y = f(_).`},
+		}},
+		{setup: []string{
+			`assertz(b(1, 1)).`,
+			`assertz(b(1, 1)).`,
+			`assertz(b(1, 2)).`,
+			`assertz(b(2, 1)).`,
+			`assertz(b(2, 2)).`,
+			`assertz(b(2, 2)).`,
+		}, query: `bagof(X, b(X, Y), L).`, expectations: [][]string{
+			{`L = [1, 1, 2].`, `Y = 1.`},
+			{`L = [1, 2, 2].`, `Y = 2.`},
+		}},
+		{query: `bagof(X, Y^Z, L).`, err: "instantiation_error"},
+		{query: `bagof(X, 1, L).`, err: "type_error(callable,1)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -782,7 +833,7 @@ func TestInterpreter_Query(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
-			i := New(4 * 1024)
+			i := New(HeapSize(4 * 1024))
 			i.SetSourceFS(testdata)
 
 			if err := i.engine.LoadSystem(t.Context()); err != nil {
@@ -825,14 +876,11 @@ func TestInterpreter_Query(t *testing.T) {
 						j++
 						continue
 					}
-					// Expectation queries allocate on the interpreter's arena.
-					// Restore the heap and the variable names afterwards so
-					// that the suspended query resumes on the exact state it
-					// yielded with.
-					heap := slices.Clone(i.engine.Heap)
-					nvns := len(vns)
 					for _, expectation := range test.expectations[j] {
-						var ok bool
+						var (
+							ok  bool
+							vns = slices.Clone(vns)
+						)
 						for _, err := range Query[Result](t.Context(), i, expectation, VariableNames(&vns)) {
 							if err != nil {
 								t.Fatal(err)
@@ -844,12 +892,9 @@ func TestInterpreter_Query(t *testing.T) {
 							t.Errorf("expectation isn't met: %s", expectation)
 						}
 					}
-					i.engine.Heap = heap
-					vns = vns[:nvns]
 				}
 				j++
 			}
-
 		})
 	}
 }
