@@ -95,6 +95,13 @@ X =< Y :- X =< Y.
 X > Y :- X > Y.
 X >= Y :- X >= Y.
 
+sort([], []).
+sort(List, Sorted) :-
+  setof(X, '$member'(X, List), Sorted).
+
+'$member'(X, [X|_]).
+'$member'(X, [_|Xs]) :- '$member'(X, Xs).
+
 retractall(Head) :-
   retract((Head :- _)),
   fail.

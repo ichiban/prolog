@@ -426,7 +426,24 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `compare(<, <, <).`, expectations: [][]string{}},
 		{query: `compare(1+2, 3, 3.0).`, err: "type_error(atom,1+2)"},
 		{query: `compare(>=, 3, 3.0).`, err: "domain_error(order,>=)"},
-		// TODO: sort/2, keysort/2
+		// 8.4.3.4
+		{query: `sort([1, 1], Sorted).`, expectations: [][]string{
+			{`Sorted = [1].`},
+		}},
+		{query: `sort([1+Y, z, a, V, 1, 2, V, 1, 7.0, 8.0, 1+Y, 1+2, 8.0, -a, -X, a], Sorted).`, expectations: [][]string{
+			{`Sorted = [V, 7.0, 8.0, 1, 2, a, z, -X, -a, 1+Y, 1+2].`},
+		}},
+		{query: `sort([X, 1], [1, 1]).`, expectations: [][]string{
+			{`X = 1.`},
+		}},
+		{query: `sort([1, 1], [1, 1]).`, expectations: [][]string{}},
+		{query: `sort([V], V).`, expectations: [][]string{
+			{`V = [V].`},
+		}},
+		{query: `sort([f(U),U,U,f(V),f(U),V], L).`, expectations: [][]string{
+			{`L = [U,V,f(U),f(V)].`},
+		}},
+		// TODO: keysort/2
 		// 8.5.1.4
 		{query: `functor(foo(a, b, c), foo, 3).`, expectations: [][]string{
 			{`true.`},
