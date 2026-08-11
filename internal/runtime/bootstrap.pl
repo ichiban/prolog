@@ -95,6 +95,11 @@ X =< Y :- X =< Y.
 X > Y :- X > Y.
 X >= Y :- X >= Y.
 
+retractall(Head) :-
+  retract((Head :- _)),
+  fail.
+retractall(_).
+
 % stub
 write(Term).
 

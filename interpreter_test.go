@@ -705,6 +705,21 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `abolish(foo).`, err: "type_error(predicate_indicator,foo)"},
 		// {query: `abolish(foo(_)).`, err: "type_error(predicate_indicator,foo(_))"}, TODO: Match err with variables.
 		{query: `abolish(abolish/1).`, err: "permission_error(modify,static_procedure,abolish/1)"},
+		// 8.9.5.4
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(insect(bee)).`, expectations: [][]string{
+			{`\+insect(bee).`},
+		}},
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(insect(_)).`, expectations: [][]string{
+			{`\+insect(_).`},
+		}},
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(insect(spider)).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(mammal(_)).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(3).`, err: "type_error(callable,3)"},
+		{loaded: []string{"testdata/8.9.5.4.pl"}, query: `retractall(retractall(_)).`, err: "permission_error(modify,static_procedure,retractall/1)"},
 		// 8.10.1.4
 		{query: `findall(X, (X=1; X=2), S).`, expectations: [][]string{
 			{`S = [1, 2].`},
