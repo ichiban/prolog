@@ -88,6 +88,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: abolish1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: findAll3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: bagOf3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: setOf3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1198,6 +1199,16 @@ func bagOf3(ctx context.Context, e *Execution) Promise {
 	})
 }
 
+func setOf3(ctx context.Context, e *Execution) Promise {
+	return collectionOf(ctx, e, func(ts []term.Handle) (term.Handle, error) {
+		slices.SortFunc(ts, e.Compare)
+		ts = slices.CompactFunc(ts, func(a, b term.Handle) bool {
+			return e.Compare(a, b) == 0
+		})
+		return e.PutList(ts...)
+	})
+}
+
 func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
@@ -1268,6 +1279,7 @@ func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (te
 				if !yield(Failure()) {
 					return
 				}
+				continue
 			}
 
 			e.tempVars[1] = cont

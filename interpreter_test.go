@@ -775,6 +775,77 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		{query: `bagof(X, Y^Z, L).`, err: "instantiation_error"},
 		{query: `bagof(X, 1, L).`, err: "type_error(callable,1)"},
+		// 8.10.3.4
+		{query: `setof(X, (X=1; X=2), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `bagof(X, (X=1; X=2), X).`, expectations: [][]string{
+			{`X = [1, 2].`},
+		}},
+		{query: `setof(X, (X=2; X=1), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `setof(X, (X=2; X=2), S).`, expectations: [][]string{
+			{`S = [2].`},
+		}},
+		{query: `setof(X, (X=Y ; X=Z), S).`, expectations: [][]string{
+			{`S = [Y, Z].`},
+		}},
+		{query: `setof(X, fail, S).`, expectations: [][]string{}},
+		{query: `setof(1, (Y=2 ; Y=1), L).`, expectations: [][]string{
+			{`L = [1].`, `Y = 2.`},
+			{`L = [1].`, `Y = 1.`},
+		}},
+		{query: `setof(f(X, Y), (X=a ; Y=b), L).`, expectations: [][]string{
+			{`L = [f(_, b), f(a, _)].`},
+		}},
+		{query: `setof(X, Y^((X=1, Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
+			{`S = [1, 2].`},
+		}},
+		{query: `setof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
+			{`S = [_, 1, 2].`},
+		}},
+		// TODO: Implement set_prolog_flag/2.
+		// {setup: []string{`set_prolog_flag(unknown, warning).`}, query: `setof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
+		// 	{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
+		// }},
+		{query: `setof(X, (X=Y ; X=Z ; Y=1), S).`, expectations: [][]string{
+			{`S = [Y, Z].`},
+			{`S = [_].`, `Y = 1.`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, a(X, Y), L).`, expectations: [][]string{
+			{`L = [1, 2].`, `Y = f(_).`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[f(U,b),f(V,c)]), L).`, expectations: [][]string{
+			{`L = [f(U,b), f(V,c)].`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[f(U,b),f(V,c)]), [f(a,c),f(a,b)]).`, expectations: [][]string{}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[f(b,U),f(c,V)]), [f(b,a),f(c,a)]).`, expectations: [][]string{
+			{`U = a.`, `V = a.`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[V,U,f(U),f(V)]), L).`, expectations: [][]string{
+			{`L = [U, V, f(U), f(V)].`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(a),f(b)]).`, expectations: [][]string{
+			{`U = b.`, `V = a.`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, member(X,[V,U,f(U),f(V)]), [a,b,f(b),f(a)]).`, expectations: [][]string{}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, (exists(U,V)^member(X,[V,U,f(U),f(V)])), [a,b,f(b),f(a)]).`, expectations: [][]string{
+			{},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X, b(X, Y), L).`, expectations: [][]string{
+			{`L = [1, 2].`, `Y = 1.`},
+			{`L = [1, 2].`, `Y = 2.`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X-Xs,Y^setof(Y,b(X,Y),Xs),L).`, expectations: [][]string{
+			{`L = [1-[1,2], 2-[1,2]].`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X-Xs,setof(Y,b(X,Y),Xs),L).`, expectations: [][]string{
+			{`L = [1-[1,2], 2-[1,2]].`, `Y = _.`},
+		}},
+		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X-Xs,bagof(Y,d(X,Y),Xs),L).`, expectations: [][]string{
+			{`L = [1-[1,2,1], 2-[2,1,2]].`, `Y = _.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.
