@@ -75,6 +75,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: ground1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: acyclicTerm1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: compare3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: keySort2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: functor3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: arg3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: univ2})
@@ -567,6 +568,88 @@ func compare3(_ context.Context, e *Execution) Promise {
 	return Success()
 }
 
+func keySort2(ctx context.Context, e *Execution) Promise {
+	pairs, sorted, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	ps, err := e.mustBeList(pairs)
+	if err != nil {
+		return Error(err)
+	}
+	for _, pair := range ps {
+		pair = e.Deref(pair)
+		if _, ok := e.Variable(pair); ok {
+			return Error(&InstantiationError{
+				Location: e.location,
+			})
+		}
+
+		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
+			return Error(&TypeError{
+				ValidType: term.NewAtom("pair"),
+				Culprit:   syntax.Serialize(e.Arena, pair),
+				Location:  e.location,
+			})
+		}
+	}
+
+	ss, err := e.canBeList(sorted)
+	if err != nil {
+		return Error(err)
+	}
+	for _, pair := range ss {
+		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
+			return Error(&TypeError{
+				ValidType: term.NewAtom("pair"),
+				Culprit:   syntax.Serialize(e.Arena, pair),
+				Location:  e.location,
+			})
+		}
+	}
+
+	ts := make([]term.Handle, len(ps))
+	for i, pair := range ps {
+		key, value := e.Arg(pair, 0), e.Arg(pair, 1)
+		p, err := e.PutInteger(int64(i))
+		if err != nil {
+			return Error(err)
+		}
+		t, err := e.PutCompound(term.NewAtomRune('t'), key, p, value)
+		if err != nil {
+			return Error(err)
+		}
+		ts[i] = t
+	}
+
+	slices.SortFunc(ts, e.Compare)
+
+	kvs := make([]term.Handle, len(ts))
+	for i, t := range ts {
+		key, value := e.Arg(t, 0), e.Arg(t, 2)
+		p, err := e.PutCompound(term.NewAtomRune('-'), key, value)
+		if err != nil {
+			return Error(err)
+		}
+		kvs[i] = p
+	}
+
+	l, err := e.PutList(kvs...)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(sorted, l)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
 func functor3(_ context.Context, e *Execution) Promise {
 	t, name, arity, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	t, name, arity = e.Deref(t), e.Deref(name), e.Deref(arity)
@@ -756,7 +839,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else if f, ok := e.Functor(t); ok {
-		if err := e.canBeList(list); err != nil {
+		if _, err := e.canBeList(list); err != nil {
 			return Error(err)
 		}
 
@@ -778,7 +861,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else {
-		if err := e.canBeList(list); err != nil {
+		if _, err := e.canBeList(list); err != nil {
 			return Error(err)
 		}
 	}
@@ -810,7 +893,7 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 	t, vars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	t, vars = e.Deref(t), e.Deref(vars)
 
-	if err := e.canBeList(vars); err != nil {
+	if _, err := e.canBeList(vars); err != nil {
 		return Error(err)
 	}
 
@@ -1166,7 +1249,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 func findAll3(ctx context.Context, e *Execution) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if err := e.canBeList(instances); err != nil {
+	if _, err := e.canBeList(instances); err != nil {
 		return Error(err)
 	}
 
@@ -1212,7 +1295,7 @@ func setOf3(ctx context.Context, e *Execution) Promise {
 func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if err := e.canBeList(instances); err != nil {
+	if _, err := e.canBeList(instances); err != nil {
 		return Error(err)
 	}
 
@@ -1964,23 +2047,27 @@ func (e *Execution) mustBeInteger(t term.Handle) (int64, error) {
 	return n, nil
 }
 
-func (e *Execution) canBeList(list term.Handle) error {
-	for _, ok := range e.List(list, term.AllowPartial(true)) {
+func (e *Execution) canBeList(list term.Handle) ([]term.Handle, error) {
+	var elems []term.Handle
+	for elem, ok := range e.List(list, term.AllowPartial(true)) {
 		if !ok {
-			return &TypeError{
+			return nil, &TypeError{
 				ValidType: term.NewAtom("list"),
 				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
 			}
 		}
+
+		elems = append(elems, elem)
 	}
-	return nil
+	return elems, nil
 }
 
 func (e *Execution) mustBeList(list term.Handle) ([]term.Handle, error) {
 	var elems []term.Handle
 	for elem, ok := range e.List(list) {
 		if !ok {
+			elem = e.Deref(elem)
 			if _, ok := e.Variable(elem); ok {
 				return nil, &InstantiationError{
 					Location: e.location,

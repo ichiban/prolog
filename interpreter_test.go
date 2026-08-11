@@ -443,7 +443,20 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `sort([f(U),U,U,f(V),f(U),V], L).`, expectations: [][]string{
 			{`L = [U,V,f(U),f(V)].`},
 		}},
-		// TODO: keysort/2
+		// 8.4.4.4
+		{query: `keysort([1-1, 1-1], Sorted).`, expectations: [][]string{
+			{`Sorted = [1-1, 1-1].`},
+		}},
+		{query: `keysort([2-99, 1-a, 3-f(_), 1-z, 1-a, 2-44], Sorted).`, expectations: [][]string{
+			{`Sorted = [1-a, 1-z, 1-a, 2-99, 2-44, 3-f(_)].`},
+		}},
+		{query: `keysort([X-1, 1-1], [2-1, 1-1]).`, expectations: [][]string{
+			{`X = 2.`},
+		}},
+		// {query: `Pairs = [1-2|Pairs], keysort(Pairs, Sorted).`, err: "type_error(list,Pairs)"}, TODO: Match err with variables.
+		{query: `keysort([V-V], V).`, expectations: [][]string{
+			{`V = [V-V].`},
+		}},
 		// 8.5.1.4
 		{query: `functor(foo(a, b, c), foo, 3).`, expectations: [][]string{
 			{`true.`},
