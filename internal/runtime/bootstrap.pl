@@ -140,6 +140,14 @@ get_code(Code) :-
   current_input(S),
   get_code(S, Code).
 
+peek_char(Char) :-
+  current_input(S),
+  peek_char(S, Char).
+
+peek_code(Code) :-
+  current_input(S),
+  peek_code(S, Code).
+
 % stub
 write(Term).
 

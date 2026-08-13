@@ -895,28 +895,28 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		// 8.12.1.4
 		{input: "qwerty ...", query: `get_char(Char).`, expectations: [][]string{
-			{`Char = q.`},
+			{`Char = q.`, `get_char(w).`},
 		}},
 		{input: "qwerty ...", query: `get_code(Code).`, expectations: [][]string{
-			{`Code = 0'q.`},
+			{`Code = 0'q.`, `get_char(w).`},
 		}},
 		{input: "qwerty ...", query: `get_char(user_input, Char).`, expectations: [][]string{
-			{`Char = q.`},
+			{`Char = q.`, `get_char(user_input, w).`},
 		}},
 		{input: "qwerty ...", query: `get_code(user_input, Code).`, expectations: [][]string{
-			{`Code = 0'q.`},
+			{`Code = 0'q.`, `get_char(user_input, w).`},
 		}},
 		{input: "'qwerty' ...", query: `get_char(user_input, Char).`, expectations: [][]string{
-			{`Char = ''''.`},
+			{`Char = ''''.`, `get_char(user_input, q).`},
 		}},
 		{input: "'qwerty' ...", query: `get_code(user_input, Code).`, expectations: [][]string{
-			{`Code = 0'''.`},
+			{`Code = 0'''.`, `get_char(user_input, q).`},
 		}},
 		{input: "qwerty ...", query: `get_char(user_input, q).`, expectations: [][]string{
-			{`true.`},
+			{`true.`, `get_char(user_input, w).`},
 		}},
 		{input: "qwerty ...", query: `get_code(user_input, 0'q).`, expectations: [][]string{
-			{`true.`},
+			{`true.`, `get_char(user_input, w).`},
 		}},
 		{input: "", query: `get_char(user_input, Char).`, expectations: [][]string{
 			{`Char = end_of_file.`, `current_input(S), stream_property(S, end_of_stream(past)).`},
@@ -926,6 +926,38 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		{query: `get_char(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		{query: `get_code(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		// 8.12.2.4
+		{input: "qwerty ...", query: `peek_char(Char).`, expectations: [][]string{
+			{`Char = q.`, `get_char(q).`},
+		}},
+		{input: "qwerty ...", query: `peek_code(Code).`, expectations: [][]string{
+			{`Code = 0'q.`, `get_char(q).`},
+		}},
+		{input: "qwerty ...", query: `peek_char(user_input, Char).`, expectations: [][]string{
+			{`Char = q.`, `get_char(user_input, q).`},
+		}},
+		{input: "qwerty ...", query: `peek_code(user_input, Code).`, expectations: [][]string{
+			{`Code = 0'q.`, `get_char(user_input, q).`},
+		}},
+		{input: "'qwerty' ...", query: `peek_char(user_input, Char).`, expectations: [][]string{
+			{`Char = ''''.`, `get_char(user_input, '''').`},
+		}},
+		{input: "'qwerty' ...", query: `peek_code(user_input, Code).`, expectations: [][]string{
+			{`Code = 0'''.`, `get_char(user_input, '''').`},
+		}},
+		{input: "qwerty ...", query: `peek_char(user_input, p).`, expectations: [][]string{}},
+		{input: "qwerty ...", query: `peek_code(user_input, 0'p).`, expectations: [][]string{}},
+		{input: "", query: `peek_char(user_input, Char).`, expectations: [][]string{
+			{`Char = end_of_file.`, `current_input(S), stream_property(S, end_of_stream(past)).`},
+		}},
+		{input: "", query: `peek_code(user_input, Code).`, expectations: [][]string{
+			{`Code = -1.`, `current_input(S), stream_property(S, end_of_stream(past)).`},
+		}},
+		{input: "", setup: []string{
+			`open('testdata/8.12.2.4.txt', read, _, [alias(s), eof_action(error)]).`,
+		}, query: `peek_char(s, Char).`, err: "permission_error(input,past_end_of_stream,s)"},
+		{query: `peek_char(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		{query: `peek_code(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -984,7 +1016,7 @@ func TestInterpreter_Query(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
-			i := New(HeapSize(4 * 1024))
+			i := New(HeapSize(5 * 1024))
 			i.SetSourceFS(testdata)
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)

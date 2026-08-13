@@ -16,6 +16,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/ichiban/prolog/v2/internal/db"
@@ -105,6 +106,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: setStreamPosition2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: getChar2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: getCode2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: peekChar2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: peekCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2145,6 +2148,152 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return Error(err)
 	default:
+		c, err = e.PutInteger(int64(r))
+		if err != nil {
+			return Error(err)
+		}
+	}
+
+	ok, err := e.Unify(inCharCode, c)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func peekChar2(ctx context.Context, e *Execution) Promise {
+	sOrA, inChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInChar(inChar); err != nil {
+		return Error(err)
+	}
+
+	var c term.Handle
+	switch r, _, err := s.ReadRune(); {
+	case errors.Is(err, io.EOF):
+		c, err = e.PutAtom(term.NewAtom("end_of_file"))
+		if err != nil {
+			return Error(err)
+		}
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		if err := s.UnreadRune(); err != nil {
+			return Error(err)
+		}
+
+		if r == unicode.ReplacementChar {
+			return Error(&RepresentationError{
+				Flag:     term.NewAtom("character"),
+				Location: e.location,
+			})
+		}
+
+		c, err = e.PutAtom(term.NewAtomRune(r))
+		if err != nil {
+			return Error(err)
+		}
+	}
+
+	ok, err := e.Unify(inChar, c)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func peekCode2(ctx context.Context, e *Execution) Promise {
+	sOrA, inCharCode, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInCharCode(inCharCode); err != nil {
+		return Error(err)
+	}
+
+	var c term.Handle
+	switch r, _, err := s.ReadRune(); {
+	case errors.Is(err, io.EOF):
+		c, err = e.PutInteger(-1)
+		if err != nil {
+			return Error(err)
+		}
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		if err := s.UnreadRune(); err != nil {
+			return Error(err)
+		}
+
+		if r == unicode.ReplacementChar {
+			return Error(&RepresentationError{
+				Flag:     term.NewAtom("in_character_code"),
+				Location: e.location,
+			})
+		}
+
 		c, err = e.PutInteger(int64(r))
 		if err != nil {
 			return Error(err)
