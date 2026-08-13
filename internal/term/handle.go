@@ -41,6 +41,7 @@ const (
 	cellTagFloat
 	cellTagStructure
 	cellTagFunctor
+	cellTagStream
 	cellTagString0
 	cellTagString1
 	cellTagString2
@@ -62,6 +63,7 @@ var cellTagNames = [...]string{
 	cellTagFloat:     "float",
 	cellTagStructure: "structure",
 	cellTagFunctor:   "functor",
+	cellTagStream:    "stream",
 	cellTagString0:   "string(0)",
 	cellTagString1:   "string(1)",
 	cellTagString2:   "string(2)",
@@ -82,6 +84,7 @@ var cellTagImmediate = [...]bool{
 	cellTagFloat:     false,
 	cellTagStructure: false,
 	cellTagFunctor:   true,
+	cellTagStream:    true,
 	cellTagString0:   false,
 	cellTagString1:   false,
 	cellTagString2:   false,

@@ -3,6 +3,7 @@ package prolog
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"iter"
 	"slices"
@@ -32,21 +33,28 @@ type Raw string
 type Result map[string]Raw
 
 type InterpreterOptions struct {
-	heapSize     int
-	tempHeapSize int
+	heapSize     int32
+	tempHeapSize int32
+	streamSize   int32
 }
 
 type InterpreterOption func(*InterpreterOptions)
 
-func HeapSize(heapSize int) InterpreterOption {
+func HeapSize(heapSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.heapSize = heapSize
 	}
 }
 
-func TempHeapSize(tempHeapSize int) InterpreterOption {
+func TempHeapSize(tempHeapSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.tempHeapSize = tempHeapSize
+	}
+}
+
+func StreamSize(streamSize int32) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.streamSize = streamSize
 	}
 }
 
@@ -60,6 +68,7 @@ func New(opts ...InterpreterOption) *Interpreter {
 	opt := InterpreterOptions{
 		heapSize:     4 * 1024,
 		tempHeapSize: 1024,
+		streamSize:   32,
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -67,7 +76,8 @@ func New(opts ...InterpreterOption) *Interpreter {
 	return &Interpreter{
 		engine: runtime.Engine{
 			Arena: &term.Arena{
-				Heap: make(term.Heap, 0, opt.heapSize),
+				Heap:    make(term.Heap, 0, opt.heapSize),
+				Streams: make([]term.Stream, 0, opt.streamSize),
 			},
 			TempArena: &term.Arena{
 				Heap: make(term.Heap, 0, opt.tempHeapSize),
@@ -78,10 +88,38 @@ func New(opts ...InterpreterOption) *Interpreter {
 }
 
 func (i *Interpreter) SetSourceFS(fs fs.FS) {
-	i.engine.SourceFS = fs
+	i.engine.FS = runtime.ReadOnly{FS: fs}
 }
 
-// Load loads a Prolog text from file via SourceFS in Config.
+func (i *Interpreter) SetUserInput(r io.Reader) error {
+	s, err := i.engine.PutStream(term.Stream{
+		Source:     r,
+		Mode:       term.Read,
+		Alias:      term.NewAtom("user_input"),
+		StreamType: term.Text,
+	})
+	if err != nil {
+		return err
+	}
+	i.engine.Input = s
+	return nil
+}
+
+func (i *Interpreter) SetUserOutput(w io.Writer) error {
+	s, err := i.engine.PutStream(term.Stream{
+		Sink:       w,
+		Mode:       term.Write,
+		Alias:      term.NewAtom("user_output"),
+		StreamType: term.Text,
+	})
+	if err != nil {
+		return err
+	}
+	i.engine.Output = s
+	return nil
+}
+
+// Load loads a Prolog text from file via FS in Config.
 func (i *Interpreter) Load(ctx context.Context, filename string) error {
 	e := &i.engine
 	if e.Image.Code == nil {
@@ -195,6 +233,7 @@ func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 		Arena:         i.engine.Arena,
 		Term:          errTerm,
 		VariableNames: varNames,
+		Quoted:        true,
 	}, origErr)
 }
 
@@ -222,6 +261,7 @@ func (i *Interpreter) decodeResult(out any, varNames []term.VariableName) error 
 				Arena:         i.engine.Arena,
 				Term:          t,
 				VariableNames: varNames,
+				Quoted:        true,
 			}))
 		}
 		return nil
@@ -249,7 +289,7 @@ func (i *Interpreter) decodeTerm(t term.Handle) Value {
 	if s, ok := e.CharList(t); ok {
 		return Value(s)
 	}
-	return Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t}))
+	return Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t, Quoted: true}))
 }
 
 func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {

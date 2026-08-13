@@ -7,7 +7,10 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"iter"
 	"maps"
 	"math"
@@ -90,6 +93,15 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: findAll3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: bagOf3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: setOf3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_input"), 2), Type: InHead, Proc: currentInput1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_output"), 2), Type: InHead, Proc: currentOutput1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_input"), 2), Type: InHead, Proc: setInput1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_output"), 2), Type: InHead, Proc: setOutput1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("open"), 5), Type: InHead, Proc: open4})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("close"), 3), Type: InHead, Proc: close2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: flushOutput1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: streamProperty2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: setStreamPosition2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1405,6 +1417,626 @@ func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template te
 	return nil
 }
 
+func currentInput1(ctx context.Context, e *Execution) Promise {
+	s, cont := e.tempVars[1], e.tempVars[2]
+
+	if e.Input == (term.Handle{}) {
+		return Failure()
+	}
+
+	ok, err := e.Unify(s, e.Input)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func currentOutput1(ctx context.Context, e *Execution) Promise {
+	s, cont := e.tempVars[1], e.tempVars[2]
+
+	if e.Output == (term.Handle{}) {
+		return Failure()
+	}
+
+	ok, err := e.Unify(s, e.Output)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func setInput1(ctx context.Context, e *Execution) Promise {
+	s, cont := e.tempVars[1], e.tempVars[2]
+
+	if _, err := e.mustBeStream(s); err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(s, e.Input)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func setOutput1(ctx context.Context, e *Execution) Promise {
+	s, cont := e.tempVars[1], e.tempVars[2]
+
+	if _, err := e.mustBeStream(s); err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(s, e.Output)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func open4(ctx context.Context, e *Execution) Promise {
+	sourceSink, mode, stream, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
+
+	filename, err := e.mustBeSourceSink(sourceSink)
+	if err != nil {
+		return Error(err)
+	}
+
+	m, err := e.mustBeMode(mode)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, err := e.canBeStream(stream); err != nil {
+		return Error(err)
+	}
+
+	opts, err := e.mustBeList(options)
+	if err != nil {
+		return Error(err)
+	}
+
+	f, err := e.FS.Open(filename, m)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, fs.ErrPermission):
+	case err != nil:
+		return Error(err)
+	}
+
+	s := term.Stream{Mode: m}
+	switch m {
+	case term.Read:
+		f, ok := f.(io.Reader)
+		if !ok {
+			return Error(errors.New("f does not implement io.Reader"))
+		}
+		s.Source = f
+		if err := s.InitRead(); err != nil {
+			return Error(err)
+		}
+	case term.Write, term.Append:
+		f, ok := f.(io.Writer)
+		if !ok {
+			return Error(errors.New("f does not implement io.Writer"))
+		}
+		s.Sink = f
+	}
+
+	if fi, err := f.Stat(); err == nil {
+		s.Reposition = fi.Mode()&fs.ModeType == 0
+	}
+
+	for _, o := range opts {
+		if err := e.handleStreamOption(&s, o); err != nil {
+			return Error(err)
+		}
+	}
+
+	t, err := e.PutStream(s)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(stream, t)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func (e *Execution) handleStreamOption(s *term.Stream, o term.Handle) error {
+	o = e.Deref(o)
+
+	if _, ok := e.Variable(o); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	switch f, _ := e.Functor(o); f {
+	case term.NewFunctor(term.NewAtom("alias"), 1):
+		return e.handleStreamOptionAlias(s, o)
+	case term.NewFunctor(term.NewAtom("type"), 1):
+		return e.handleStreamOptionType(s, o)
+	case term.NewFunctor(term.NewAtom("reposition"), 1):
+		return e.handleStreamOptionReposition(s, o)
+	case term.NewFunctor(term.NewAtom("eof_action"), 1):
+		return e.handleStreamOptionEOFAction(s, o)
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("stream_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+}
+
+func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Handle) error {
+	alias := e.Arg(o, 0)
+	alias = e.Deref(alias)
+
+	if _, ok := e.Variable(alias); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	a, ok := e.Atom(alias)
+	if !ok {
+		return &DomainError{
+			ValidDomain: term.NewAtom("stream_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    0,
+		}
+	}
+	if i := slices.IndexFunc(e.Streams, func(s term.Stream) bool {
+		return s.Alias == a
+	}); i >= 0 {
+		return &PermissionError{
+			Operation:      term.NewAtom("open"),
+			PermissionType: term.NewAtom("source_sink"),
+			Culprit:        syntax.Serialize(e.Arena, o),
+			Location:       e.location,
+		}
+	}
+	s.Alias = a
+	return nil
+}
+
+func (e *Execution) handleStreamOptionType(s *term.Stream, o term.Handle) error {
+	t := e.Arg(o, 0)
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	switch a, _ := e.Atom(t); a {
+	case term.NewAtom("text"):
+		s.StreamType = term.Text
+		return nil
+	case term.NewAtom("binary"):
+		s.StreamType = term.Binary
+		return nil
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("stream_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+}
+
+func (e *Execution) handleStreamOptionReposition(s *term.Stream, o term.Handle) error {
+	r := e.Arg(o, 0)
+	r = e.Deref(r)
+
+	if _, ok := e.Variable(r); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	switch a, _ := e.Atom(r); a {
+	case term.NewAtom("true"):
+		s.Reposition = true
+		return nil
+	case term.NewAtom("false"):
+		s.Reposition = false
+		return nil
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("stream_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+}
+
+func (e *Execution) handleStreamOptionEOFAction(s *term.Stream, o term.Handle) error {
+	action := e.Arg(o, 0)
+	action = e.Deref(action)
+
+	if _, ok := e.Variable(action); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	switch a, _ := e.Atom(action); a {
+	case term.NewAtom("error"):
+		s.EOFAction = term.Error
+		return nil
+	case term.NewAtom("eof_code"):
+		s.EOFAction = term.EOFCode
+		return nil
+	case term.NewAtom("reset"):
+		s.EOFAction = term.Reset
+		return nil
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("stream_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+}
+
+func close2(ctx context.Context, e *Execution) Promise {
+	sOrA, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	opts, err := e.mustBeList(options)
+	if err != nil {
+		return Error(err)
+	}
+
+	var force bool
+	for _, o := range opts {
+		o = e.Deref(o)
+
+		if _, ok := e.Variable(o); ok {
+			return Error(&InstantiationError{
+				Location: e.location,
+			})
+		}
+
+		switch f, _ := e.Functor(o); f {
+		case term.NewFunctor(term.NewAtom("force"), 1):
+			b := e.Arg(o, 0)
+			b = e.Deref(b)
+
+			switch b, _ := e.Atom(b); b {
+			case term.NewAtom("true"):
+				force = true
+			case term.NewAtom("false"):
+				force = false
+			}
+			fallthrough
+		default:
+			return Error(&DomainError{
+				ValidDomain: term.NewAtom("close_option"),
+				Culprit:     syntax.Serialize(e.Arena, o),
+				Location:    e.location,
+			})
+		}
+	}
+
+	if err := s.Close(); err != nil && !force {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func flushOutput1(ctx context.Context, e *Execution) Promise {
+	sOrA, cont := e.tempVars[1], e.tempVars[2]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	switch err := s.Flush(); {
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("operation"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func streamProperty2(ctx context.Context, e *Execution) Promise {
+	stream, property, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	stream = e.Deref(stream)
+
+	var streams iter.Seq[term.Handle]
+	s, err := e.canBeStream(stream)
+	if err != nil {
+		return Error(err)
+	}
+	if s == nil {
+		streams = singleton(stream)
+	} else {
+		streams = e.OpenStreams()
+	}
+
+	if err := e.canBeStreamProperty(property); err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		for s := range streams {
+			st, _ := e.Stream(s)
+			for p, err := range e.properties(st) {
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+
+				ok, err := e.Unify(stream, s)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				ok, err = e.Unify(property, p)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				e.tempVars[1] = cont
+				e.Next()
+				if !yield(Success()) {
+					return
+				}
+			}
+		}
+	})
+}
+
+func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
+	return func(yield func(term.Handle, error) bool) {
+		if n := s.Name(); n != "" {
+			n, err := e.PutAtom(term.NewAtom(n))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			c, err := e.PutCompound(term.NewAtom("file_name"), n)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+
+		m, err := e.PutAtom(term.NewAtom(s.Mode.String()))
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		c, err := e.PutCompound(term.NewAtom("mode"), m)
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		if !yield(c, nil) {
+			return
+		}
+
+		switch s.Mode {
+		case term.Read:
+			a, err := e.PutAtom(term.NewAtom("input"))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(a, nil) {
+				return
+			}
+		case term.Write, term.Append:
+			a, err := e.PutAtom(term.NewAtom("output"))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(a, nil) {
+				return
+			}
+		}
+
+		if s.Alias != (term.Atom{}) {
+			a, err := e.PutAtom(s.Alias)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			c, err := e.PutCompound(term.NewAtom("alias"), a)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+
+		{
+			p, err := e.PutInteger(s.Position)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			c, err := e.PutCompound(term.NewAtom("position"), p)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+
+		{
+			eos, err := e.PutAtom(term.NewAtom(s.EndOfStream.String()))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			c, err := e.PutCompound(term.NewAtom("end_of_stream"), eos)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+
+		{
+			a, err := e.PutAtom(term.NewAtom(s.EOFAction.String()))
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			c, err := e.PutCompound(term.NewAtom("eof_action"), a)
+			if err != nil {
+				_ = yield(term.Handle{}, err)
+				return
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+
+		var t term.Handle
+		if s.Reposition {
+			t, err = e.PutAtom(term.NewAtom("true"))
+		} else {
+			t, err = e.PutAtom(term.NewAtom("false"))
+		}
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		c, err = e.PutCompound(term.NewAtom("reposition"), t)
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		if !yield(c, nil) {
+			return
+		}
+
+		t, err = e.PutAtom(term.NewAtom(s.StreamType.String()))
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		c, err = e.PutCompound(term.NewAtom("type"), t)
+		if err != nil {
+			_ = yield(term.Handle{}, err)
+			return
+		}
+		if !yield(c, nil) {
+			return
+		}
+	}
+}
+
+func setStreamPosition2(ctx context.Context, e *Execution) Promise {
+	sOrA, position, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	p, err := e.mustBeInteger(position)
+	if err != nil {
+		return Error(err)
+	}
+
+	switch _, err := s.Seek(p, 0); {
+	case errors.Is(err, term.ErrReposition):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("reposition"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -2222,6 +2854,197 @@ func (e *Execution) mustBePredicateIndicator(t term.Handle) (term.Functor, error
 		}
 	}
 	return pi, nil
+}
+
+func (e *Execution) canBeStream(t term.Handle) (*term.Stream, error) {
+	t = e.Deref(t)
+	if _, ok := e.Variable(t); ok {
+		return nil, nil
+	}
+	s, ok := e.Stream(t)
+	if !ok {
+		return nil, &TypeError{
+			ValidType: term.NewAtom("stream"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return s, nil
+}
+
+func (e *Execution) mustBeStream(t term.Handle) (*term.Stream, error) {
+	s, err := e.canBeStream(t)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return s, nil
+}
+
+func (e *Execution) canBeSourceSink(t term.Handle) (string, error) {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return "", nil
+	}
+
+	if a, ok := e.Atom(t); ok {
+		return a.String(), nil
+	}
+
+	if s, ok := e.CharList(t); ok {
+		return s, nil
+	}
+
+	return "", &TypeError{
+		ValidType: term.NewAtom("source_sink"),
+		Culprit:   syntax.Serialize(e.Arena, t),
+		Location:  e.location,
+	}
+}
+
+func (e *Execution) mustBeSourceSink(t term.Handle) (string, error) {
+	s, err := e.canBeSourceSink(t)
+	if err != nil {
+		return "", err
+	}
+	if s == "" {
+		return "", &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return s, nil
+}
+
+func (e *Execution) canBeMode(t term.Handle) (term.Mode, bool, error) {
+	t = e.Deref(t)
+
+	a, ok, err := e.canBeAtom(t)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+
+	switch a {
+	case term.NewAtom("read"):
+		return term.Read, true, nil
+	case term.NewAtom("write"):
+		return term.Write, true, nil
+	case term.NewAtom("append"):
+		return term.Append, true, nil
+	default:
+		return 0, false, &DomainError{
+			ValidDomain: term.NewAtom("mode"),
+			Culprit:     syntax.Serialize(e.Arena, t),
+			Location:    e.location,
+		}
+	}
+}
+
+func (e *Execution) mustBeMode(t term.Handle) (term.Mode, error) {
+	m, ok, err := e.canBeMode(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return m, nil
+}
+
+func (e *Execution) canBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return nil, nil
+	}
+
+	if a, ok := e.Atom(t); ok {
+		for t := range e.OpenStreams() {
+			s, _ := e.Stream(t)
+			if s.Alias == a {
+				return s, nil
+			}
+		}
+		return nil, &ExistenceError{
+			ObjectType: term.NewAtom("stream"),
+			Culprit:    syntax.Serialize(e.Arena, t),
+			Location:   e.location,
+		}
+	}
+
+	s, ok := e.Stream(t)
+	if !ok {
+		return nil, &DomainError{
+			ValidDomain: term.NewAtom("stream_or_alias"),
+			Culprit:     syntax.Serialize(e.Arena, t),
+			Location:    e.location,
+		}
+	}
+
+	return s, nil
+}
+
+func (e *Execution) mustBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
+	s, err := e.canBeStreamOrAlias(t)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return s, nil
+}
+
+func (e *Execution) canBeStreamProperty(t term.Handle) error {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return nil
+	}
+
+	switch f, _ := e.Functor(t, term.AllowAtom(true)); f {
+	case term.NewFunctor(term.NewAtom("input"), 0),
+		term.NewFunctor(term.NewAtom("output"), 0):
+		return nil
+	case term.NewFunctor(term.NewAtom("file_name"), 1):
+		arg := e.Arg(t, 0)
+		arg = e.Deref(arg)
+		if _, _, err := e.canBeAtom(arg); err == nil {
+			return nil
+		}
+		break
+	case term.NewFunctor(term.NewAtom("mode"), 1),
+		term.NewFunctor(term.NewAtom("alias"), 1),
+		term.NewFunctor(term.NewAtom("end_of_stream"), 1),
+		term.NewFunctor(term.NewAtom("eof_action"), 1),
+		term.NewFunctor(term.NewAtom("reposition"), 1):
+		arg := e.Arg(t, 0)
+		arg = e.Deref(arg)
+		if _, _, err := e.canBeAtom(arg); err == nil {
+			return nil
+		}
+		break
+	case term.NewFunctor(term.NewAtom("position"), 1):
+		arg := e.Arg(t, 0)
+		arg = e.Deref(arg)
+		if _, _, err := e.canBeInteger(arg); err == nil {
+			return nil
+		}
+		break
+	}
+	return &DomainError{
+		ValidDomain: term.NewAtom("stream_property"),
+		Culprit:     syntax.Serialize(e.Arena, t),
+		Location:    e.location,
+	}
 }
 
 func addI(x, y int64) (int64, error) {

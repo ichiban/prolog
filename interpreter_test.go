@@ -891,6 +891,7 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X-Xs,bagof(Y,d(X,Y),Xs),L).`, expectations: [][]string{
 			{`L = [1-[1,2,1], 2-[2,1,2]].`, `Y = _.`},
 		}},
+
 		// TODO:
 		/*
 			Other test cases.

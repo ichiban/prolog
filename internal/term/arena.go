@@ -37,6 +37,7 @@ func AllowPartial(ok bool) ListOption {
 type Arena struct {
 	Heap
 	// TODO: Add a side-car table for big integers.
+	Streams []Stream
 }
 
 // PutVariable creates a variable term and returns its reference.
@@ -512,6 +513,35 @@ func (a *Arena) CharList(t Handle) (string, bool) {
 	return sb.String(), true
 }
 
+func (a *Arena) PutStream(s Stream) (Handle, error) {
+	if len(a.Streams) == cap(a.Streams) {
+		return Handle{}, ErrOutOfMemory
+	}
+	id := len(a.Streams)
+	a.Streams = append(a.Streams, s)
+	return Handle{cell{tag: cellTagStream, value: int32(id)}}, nil
+}
+
+func (a *Arena) Stream(t Handle) (*Stream, bool) {
+	if t.cell.tag != cellTagStream {
+		return nil, false
+	}
+	return &a.Streams[t.cell.value], true
+}
+
+func (a *Arena) OpenStreams() iter.Seq[Handle] {
+	return func(yield func(Handle) bool) {
+		for i, s := range a.Streams {
+			if s.Closed {
+				continue
+			}
+			if !yield(Handle{cell: cell{tag: cellTagStream, value: int32(i)}}) {
+				return
+			}
+		}
+	}
+}
+
 func (a *Arena) Compare(x, y Handle) int {
 	x, y = a.Deref(x), a.Deref(y)
 	if x == y {
@@ -566,6 +596,25 @@ func (a *Arena) Compare(x, y Handle) int {
 		}
 		if y, ok := a.Atom(y); ok {
 			return strings.Compare(x.String(), y.String())
+		}
+		return -1
+	}
+
+	if _, ok := a.Stream(x); ok {
+		if _, ok := a.Variable(y); ok {
+			return 1
+		}
+		if _, ok := a.Float(y); ok {
+			return 1
+		}
+		if _, ok := a.Integer(y); ok {
+			return 1
+		}
+		if _, ok := a.Atom(y); ok {
+			return 1
+		}
+		if _, ok := a.Stream(y); ok {
+			return int(x.cell.value - y.cell.value)
 		}
 		return -1
 	}
@@ -625,6 +674,10 @@ func renamedCopy(from, to *Arena, t Handle, copied map[Handle]Handle) (Handle, e
 		return t, nil
 	}
 
+	if _, ok := from.Stream(t); ok {
+		return Handle{}, ErrUnsupportedOperation
+	}
+
 	if _, ok := from.Variable(t); ok {
 		v, err := to.PutVariable()
 		if err != nil {
@@ -646,7 +699,6 @@ func renamedCopy(from, to *Arena, t Handle, copied map[Handle]Handle) (Handle, e
 		if f, ok := from.Float(t); ok {
 			return to.PutFloat(f)
 		}
-
 	}
 
 	if s, ok := from.CharList(t); ok {

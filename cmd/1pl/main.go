@@ -61,8 +61,14 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := prolog.New(4 * 1024)
+	i := prolog.New()
 	i.SetSourceFS(os.DirFS("."))
+	if err := i.SetUserInput(os.Stdin); err != nil {
+		log.Fatalf("failed to set user input: %v", err)
+	}
+	if err := i.SetUserOutput(os.Stdout); err != nil {
+		log.Fatalf("failed to set user output: %v", err)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()

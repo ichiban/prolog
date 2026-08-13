@@ -124,6 +124,10 @@ func newParser(text string, opts ...ParseOption) parser {
 	if p.operatorSet == nil {
 		p.operatorSet = NewOperatorSet()
 	}
+	if p.doubleQuotes == nil {
+		var dq DoubleQuotes
+		p.doubleQuotes = &dq
+	}
 	return p
 }
 

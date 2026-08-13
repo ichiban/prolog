@@ -107,6 +107,31 @@ retractall(Head) :-
   fail.
 retractall(_).
 
+open(Source_sink, Mode, Stream) :-
+  open(Source_sink, Mode, Stream, []).
+
+close(S_or_a) :-
+  close(S_or_a, []).
+
+flush_output :-
+  current_output(S),
+  flush_output(S).
+
+at_end_of_stream :-
+  current_input(S),
+  stream_property(S, end_of_stream(E)),
+  !,
+  (E = at ; E = past).
+
+at_end_of_stream(S_or_a) :-
+  ( atom(S_or_a) ->
+    stream_property(S, alias(S_or_a))
+  ; S = S_or_a
+  ),
+  stream_property(S, end_of_stream(E)),
+  !,
+  (E = at ; E = past).
+
 % stub
 write(Term).
 

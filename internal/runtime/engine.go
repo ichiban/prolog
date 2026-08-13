@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"iter"
 	"math"
 	"slices"
@@ -27,14 +26,18 @@ type Engine struct {
 	wam.Image
 	BuiltinSet *BuiltinSet
 
-	SourceFS fs.FS
-	Loaded   map[string]struct{}
+	FS FS
+
+	Loaded map[string]struct{}
 
 	Module       term.Atom
 	DoubleQuotes syntax.DoubleQuotes
 	Ops          *syntax.OperatorSet
 	DB           db.DB
 	CurrentTime  wam.LogicalTime
+
+	Input  term.Handle
+	Output term.Handle
 
 	OnDiscontiguous func(pi term.Functor) error
 }
@@ -97,7 +100,7 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 }
 
 func (e *Engine) LoadFile(ctx context.Context, filename string) error {
-	f, err := e.SourceFS.Open(filename)
+	f, err := e.FS.Open(filename, term.Read)
 	if err != nil {
 		return err
 	}
@@ -105,7 +108,12 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 		_ = f.Close()
 	}()
 
-	b, err := io.ReadAll(f)
+	r, ok := f.(io.Reader)
+	if !ok {
+		return errors.New("file does not implement io.Reader")
+	}
+
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}

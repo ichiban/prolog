@@ -113,6 +113,14 @@ func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
 		return f.writeFloat(w, fl)
 	}
 
+	if s, ok := arena.Stream(t); ok {
+		id, err := arena.PutInteger(int64(slices.Index(arena.Streams, *s)))
+		if err != nil {
+			return 0, err
+		}
+		return f.writeCompoundFunctionalNotation(w, term.NewAtom("$stream"), singleton(id))
+	}
+
 	if f.visited == nil {
 		f.visited = map[term.Handle]struct{}{}
 	}
@@ -543,4 +551,10 @@ func (ew *errWriter) Write(p []byte) (int, error) {
 
 func (ew *errWriter) Result() (int64, error) {
 	return ew.n, ew.err
+}
+
+func singleton[T any](e T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		_ = yield(e)
+	}
 }
