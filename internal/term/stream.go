@@ -10,8 +10,8 @@ import (
 
 var (
 	ErrWrongIOMode     = errors.New("wrong i/o mode")
-	errWrongStreamType = errors.New("wrong stream type")
-	errPastEndOfStream = errors.New("past end of stream")
+	ErrWrongStreamType = errors.New("wrong stream type")
+	ErrPastEndOfStream = errors.New("past end of stream")
 	ErrReposition      = errors.New("reposition")
 )
 
@@ -139,7 +139,7 @@ func (s *Stream) ReadByte() (byte, error) {
 	}
 
 	if s.StreamType != Binary {
-		return 0, errWrongStreamType
+		return 0, ErrWrongStreamType
 	}
 
 	b, err := s.buf.ReadByte()
@@ -156,7 +156,7 @@ func (s *Stream) UnreadByte() error {
 	}
 
 	if s.StreamType != Binary {
-		return errWrongStreamType
+		return ErrWrongStreamType
 	}
 
 	err := s.buf.UnreadByte()
@@ -175,7 +175,7 @@ func (s *Stream) ReadRune() (r rune, size int, err error) {
 	}
 
 	if s.StreamType != Text {
-		return 0, 0, errWrongStreamType
+		return 0, 0, ErrWrongStreamType
 	}
 
 	r, n, err := s.buf.ReadRune()
@@ -191,7 +191,7 @@ func (s *Stream) UnreadRune() error {
 	}
 
 	if s.StreamType != Text {
-		return errWrongStreamType
+		return ErrWrongStreamType
 	}
 
 	err := s.buf.UnreadRune()
@@ -306,7 +306,7 @@ func (s *Stream) InitRead() error {
 	if s.EndOfStream == Past {
 		switch s.EOFAction {
 		case Error:
-			return errPastEndOfStream
+			return ErrPastEndOfStream
 		case Reset:
 			s.reset()
 		}
@@ -362,7 +362,7 @@ func (s *Stream) textWriter() (textWriter, error) {
 	}
 
 	if s.StreamType != Text {
-		return textWriter{}, errWrongStreamType
+		return textWriter{}, ErrWrongStreamType
 	}
 
 	return textWriter{stream: s}, nil
@@ -374,7 +374,7 @@ func (s *Stream) binaryWriter() (binaryWriter, error) {
 	}
 
 	if s.StreamType != Binary {
-		return binaryWriter{}, errWrongStreamType
+		return binaryWriter{}, ErrWrongStreamType
 	}
 
 	return binaryWriter{stream: s}, nil

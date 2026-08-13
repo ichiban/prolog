@@ -16,6 +16,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/syntax"
@@ -102,6 +103,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: flushOutput1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: streamProperty2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: setStreamPosition2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: getChar2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: getCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2037,6 +2040,130 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 	}
 }
 
+func getChar2(ctx context.Context, e *Execution) Promise {
+	sOrA, inChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInChar(inChar); err != nil {
+		return Error(err)
+	}
+
+	var c term.Handle
+	switch r, _, err := s.ReadRune(); {
+	case errors.Is(err, io.EOF):
+		c, err = e.PutAtom(term.NewAtom("end_of_file"))
+		if err != nil {
+			return Error(err)
+		}
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		c, err = e.PutAtom(term.NewAtomRune(r))
+		if err != nil {
+			return Error(err)
+		}
+	}
+
+	ok, err := e.Unify(inChar, c)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func getCode2(ctx context.Context, e *Execution) Promise {
+	sOrA, inCharCode, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInCharCode(inCharCode); err != nil {
+		return Error(err)
+	}
+
+	var c term.Handle
+	switch r, _, err := s.ReadRune(); {
+	case errors.Is(err, io.EOF):
+		c, err = e.PutInteger(-1)
+		if err != nil {
+			return Error(err)
+		}
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		c, err = e.PutInteger(int64(r))
+		if err != nil {
+			return Error(err)
+		}
+	}
+
+	ok, err := e.Unify(inCharCode, c)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -2647,6 +2774,38 @@ func (e *Execution) mustBeAtom(t term.Handle) (term.Atom, error) {
 		}
 	}
 	return a, nil
+}
+
+func (e *Execution) canBeInChar(t term.Handle) (rune, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	a, ok := e.Atom(t)
+	r := a.Rune()
+	if !ok || r == utf8.RuneError {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("in_character"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return r, true, nil
+}
+
+func (e *Execution) canBeInCharCode(t term.Handle) (rune, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	i, ok := e.Integer(t)
+	r := rune(i)
+	if !ok || !utf8.ValidRune(r) {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("in_character_code"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return r, true, nil
 }
 
 func (e *Execution) canBeInteger(t term.Handle) (int64, bool, error) {

@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"embed"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ func TestInterpreter_Query(t *testing.T) {
 	tests := []struct {
 		loaded       []string
 		setup        []string
+		input        string
 		query        string
 		expectations [][]string
 		err          string
@@ -891,7 +893,39 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/8.10.3.4.pl"}, query: `setof(X-Xs,bagof(Y,d(X,Y),Xs),L).`, expectations: [][]string{
 			{`L = [1-[1,2,1], 2-[2,1,2]].`, `Y = _.`},
 		}},
-
+		// 8.12.1.4
+		{input: "qwerty ...", query: `get_char(Char).`, expectations: [][]string{
+			{`Char = q.`},
+		}},
+		{input: "qwerty ...", query: `get_code(Code).`, expectations: [][]string{
+			{`Code = 0'q.`},
+		}},
+		{input: "qwerty ...", query: `get_char(user_input, Char).`, expectations: [][]string{
+			{`Char = q.`},
+		}},
+		{input: "qwerty ...", query: `get_code(user_input, Code).`, expectations: [][]string{
+			{`Code = 0'q.`},
+		}},
+		{input: "'qwerty' ...", query: `get_char(user_input, Char).`, expectations: [][]string{
+			{`Char = ''''.`},
+		}},
+		{input: "'qwerty' ...", query: `get_code(user_input, Code).`, expectations: [][]string{
+			{`Code = 0'''.`},
+		}},
+		{input: "qwerty ...", query: `get_char(user_input, q).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{input: "qwerty ...", query: `get_code(user_input, 0'q).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{input: "", query: `get_char(user_input, Char).`, expectations: [][]string{
+			{`Char = end_of_file.`, `current_input(S), stream_property(S, end_of_stream(past)).`},
+		}},
+		{input: "", query: `get_code(user_input, Code).`, expectations: [][]string{
+			{`Code = -1.`, `current_input(S), stream_property(S, end_of_stream(past)).`},
+		}},
+		{query: `get_char(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		{query: `get_code(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -952,6 +986,12 @@ func TestInterpreter_Query(t *testing.T) {
 		t.Run(test.query, func(t *testing.T) {
 			i := New(HeapSize(4 * 1024))
 			i.SetSourceFS(testdata)
+			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
+				t.Fatal(err)
+			}
+			if err := i.SetUserOutput(io.Discard); err != nil {
+				t.Fatal(err)
+			}
 
 			if err := i.engine.LoadSystem(t.Context()); err != nil {
 				t.Fatal(err)

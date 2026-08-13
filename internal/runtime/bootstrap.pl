@@ -132,6 +132,14 @@ at_end_of_stream(S_or_a) :-
   !,
   (E = at ; E = past).
 
+get_char(Char) :-
+  current_input(S),
+  get_char(S, Char).
+
+get_code(Code) :-
+  current_input(S),
+  get_code(S, Code).
+
 % stub
 write(Term).
 
