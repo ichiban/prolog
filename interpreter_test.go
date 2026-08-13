@@ -1,8 +1,8 @@
 package prolog
 
 import (
+	"bytes"
 	"embed"
-	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +18,7 @@ func TestInterpreter_Query(t *testing.T) {
 		input        string
 		query        string
 		expectations [][]string
+		output       string
 		err          string
 	}{
 		/*
@@ -958,6 +959,31 @@ func TestInterpreter_Query(t *testing.T) {
 		}, query: `peek_char(s, Char).`, err: "permission_error(input,past_end_of_stream,s)"},
 		{query: `peek_char(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		{query: `peek_code(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		// 8.12.3.4
+		{query: `put_char(t).`, expectations: [][]string{
+			{`true.`},
+		}, output: "t"},
+		{query: `put_char(user_output, 'A').`, expectations: [][]string{
+			{`true.`},
+		}, output: "A"},
+		{query: `put_code(0't).`, expectations: [][]string{
+			{`true.`},
+		}, output: "t"},
+		{query: `put_code(user_output, 0't).`, expectations: [][]string{
+			{`true.`},
+		}, output: "t"},
+		{query: `nl, put_char(a).`, expectations: [][]string{
+			{`true.`},
+		}, output: `
+a`},
+		{query: `nl(user_output), put_char(user_output, a).`, expectations: [][]string{
+			{`true.`},
+		}, output: `
+a`},
+		{query: `put_char(user_output, C).`, err: "instantiation_error"},
+		{query: `put_char(user_output, 'ty').`, err: "type_error(character,ty)"},
+		{query: `nl(Str).`, err: "instantiation_error"},
+		{query: `nl(user_input).`, err: "permission_error(output,stream,user_input)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -1021,7 +1047,9 @@ func TestInterpreter_Query(t *testing.T) {
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)
 			}
-			if err := i.SetUserOutput(io.Discard); err != nil {
+
+			var buf bytes.Buffer
+			if err := i.SetUserOutput(&buf); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1044,11 +1072,10 @@ func TestInterpreter_Query(t *testing.T) {
 			}
 
 			var (
-				results []Result
-				j       int
-				vns     []VariableName
+				j   int
+				vns []VariableName
 			)
-			for result, err := range Query[Result](t.Context(), i, test.query, VariableNames(&vns)) {
+			for _, err := range Query[Result](t.Context(), i, test.query, VariableNames(&vns)) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)
@@ -1058,7 +1085,6 @@ func TestInterpreter_Query(t *testing.T) {
 					}
 					continue
 				}
-				results = append(results, result)
 				if test.expectations != nil {
 					if j >= len(test.expectations) {
 						t.Errorf("Unexpected solution #%d, expected only %d", j+1, len(test.expectations))
@@ -1083,6 +1109,9 @@ func TestInterpreter_Query(t *testing.T) {
 					}
 				}
 				j++
+			}
+			if output := buf.String(); output != test.output {
+				t.Errorf("Expected output %q, got %q", test.output, output)
 			}
 		})
 	}

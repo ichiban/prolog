@@ -108,6 +108,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: getCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: peekChar2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: peekCode2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: putChar2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: putCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2313,6 +2315,80 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 	return Success()
 }
 
+func putChar2(ctx context.Context, e *Execution) Promise {
+	sOrA, char, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	r, err := e.mustBeChar(char)
+	if err != nil {
+		return Error(err)
+	}
+
+	switch _, err := s.WriteRune(r); {
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func putCode2(ctx context.Context, e *Execution) Promise {
+	sOrA, code, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	r, err := e.mustBeCharCode(code)
+	if err != nil {
+		return Error(err)
+	}
+
+	switch _, err := s.WriteRune(r); {
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -2955,6 +3031,64 @@ func (e *Execution) canBeInCharCode(t term.Handle) (rune, bool, error) {
 		}
 	}
 	return r, true, nil
+}
+
+func (e *Execution) canBeChar(t term.Handle) (rune, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	a, ok := e.Atom(t)
+	r := a.Rune()
+	if !ok || r == utf8.RuneError {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("character"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return r, true, nil
+}
+
+func (e *Execution) mustBeChar(t term.Handle) (rune, error) {
+	r, ok, err := e.canBeChar(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return r, nil
+}
+
+func (e *Execution) canBeCharCode(t term.Handle) (rune, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	i, ok := e.Integer(t)
+	r := rune(i)
+	if !ok || !utf8.ValidRune(r) {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("character_code"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return r, true, nil
+}
+
+func (e *Execution) mustBeCharCode(t term.Handle) (rune, error) {
+	r, ok, err := e.canBeCharCode(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return r, nil
 }
 
 func (e *Execution) canBeInteger(t term.Handle) (int64, bool, error) {
