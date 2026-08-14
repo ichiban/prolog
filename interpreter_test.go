@@ -15,6 +15,7 @@ func TestInterpreter_Query(t *testing.T) {
 	tests := []struct {
 		loaded       []string
 		setup        []string
+		teardown     []string
 		input        string
 		query        string
 		expectations [][]string
@@ -956,6 +957,8 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		{input: "", setup: []string{
 			`open('testdata/8.12.2.4.txt', read, _, [alias(s), eof_action(error)]).`,
+		}, teardown: []string{
+			`close(s).`,
 		}, query: `peek_char(s, Char).`, err: "permission_error(input,past_end_of_stream,s)"},
 		{query: `peek_char(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		{query: `peek_code(user_output, X).`, err: "permission_error(input,stream,user_output)"},
@@ -984,6 +987,35 @@ a`},
 		{query: `put_char(user_output, 'ty').`, err: "type_error(character,ty)"},
 		{query: `nl(Str).`, err: "instantiation_error"},
 		{query: `nl(user_input).`, err: "permission_error(output,stream,user_input)"},
+		// 8.13.1.4
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+			`set_input(s).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `get_byte(Byte).`, expectations: [][]string{
+			{`Byte = 113.`, `get_byte(119).`},
+		}},
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `get_byte(s, Byte).`, expectations: [][]string{
+			{`Byte = 113.`, `get_byte(s, 119).`},
+		}},
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `get_byte(s, 114).`, expectations: [][]string{}},
+		{setup: []string{
+			`open('testdata/empty.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `get_byte(s, Byte).`, expectations: [][]string{
+			{`Byte = -1.`, `stream_property(S, alias(s)), stream_property(S, end_of_stream(past)).`},
+		}},
+		{query: `get_byte(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -1070,6 +1102,15 @@ a`},
 					}
 				}
 			}
+			defer func() {
+				for _, p := range test.teardown {
+					for _, err := range Query[Result](t.Context(), i, p) {
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+			}()
 
 			var (
 				j   int

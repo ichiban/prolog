@@ -110,6 +110,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: peekCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: putChar2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: putCode2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: getByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1466,18 +1467,18 @@ func currentOutput1(ctx context.Context, e *Execution) Promise {
 }
 
 func setInput1(ctx context.Context, e *Execution) Promise {
-	s, cont := e.tempVars[1], e.tempVars[2]
+	sOrA, cont := e.tempVars[1], e.tempVars[2]
 
-	if _, err := e.mustBeStream(s); err != nil {
-		return Error(err)
-	}
-
-	ok, err := e.Unify(s, e.Input)
+	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return Error(err)
 	}
-	if !ok {
-		return Failure()
+
+	for stream := range e.OpenStreams() {
+		if str, _ := e.Stream(stream); str == s {
+			e.Input = stream
+			break
+		}
 	}
 
 	e.tempVars[1] = cont
@@ -1486,18 +1487,18 @@ func setInput1(ctx context.Context, e *Execution) Promise {
 }
 
 func setOutput1(ctx context.Context, e *Execution) Promise {
-	s, cont := e.tempVars[1], e.tempVars[2]
+	sOrA, cont := e.tempVars[1], e.tempVars[2]
 
-	if _, err := e.mustBeStream(s); err != nil {
-		return Error(err)
-	}
-
-	ok, err := e.Unify(s, e.Output)
+	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return Error(err)
 	}
-	if !ok {
-		return Failure()
+
+	for stream := range e.OpenStreams() {
+		if str, _ := e.Stream(stream); str == s {
+			e.Output = stream
+			break
+		}
 	}
 
 	e.tempVars[1] = cont
@@ -1811,9 +1812,9 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 	if s == nil {
-		streams = singleton(stream)
-	} else {
 		streams = e.OpenStreams()
+	} else {
+		streams = singleton(stream)
 	}
 
 	if err := e.canBeStreamProperty(property); err != nil {
@@ -1822,7 +1823,10 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 
 	return Delay(func(yield func(Promise) bool) {
 		for s := range streams {
-			st, _ := e.Stream(s)
+			st, ok := e.Stream(s)
+			if !ok {
+				continue
+			}
 			for p, err := range e.properties(st) {
 				if err != nil {
 					_ = yield(Error(err))
@@ -2382,6 +2386,67 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 		})
 	case err != nil:
 		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func getByte2(ctx context.Context, e *Execution) Promise {
+	sOrA, inByte, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInByte(inByte); err != nil {
+		return Error(err)
+	}
+
+	var n int64
+	switch b, err := s.ReadByte(); {
+	case errors.Is(err, io.EOF):
+		n = -1
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("text_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		n = int64(b)
+	}
+
+	i, err := e.PutInteger(n)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(inByte, i)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
@@ -3428,6 +3493,13 @@ func (e *Execution) canBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
 			Location:    e.location,
 		}
 	}
+	if s.Closed {
+		return nil, &ExistenceError{
+			ObjectType: term.NewAtom("stream"),
+			Culprit:    syntax.Serialize(e.Arena, t),
+			Location:   e.location,
+		}
+	}
 
 	return s, nil
 }
@@ -3487,6 +3559,25 @@ func (e *Execution) canBeStreamProperty(t term.Handle) error {
 		Culprit:     syntax.Serialize(e.Arena, t),
 		Location:    e.location,
 	}
+}
+
+func (e *Execution) canBeInByte(t term.Handle) (byte, bool, error) {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+
+	b, ok := e.Integer(t)
+	if !ok || b < 0 || b > 255 {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("in_byte"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	return byte(b), true, nil
 }
 
 func addI(x, y int64) (int64, error) {

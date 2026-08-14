@@ -163,6 +163,10 @@ nl :-
 nl(S) :-
   put_char(S, '\n').
 
+get_byte(Byte) :-
+  current_input(S),
+  get_byte(S, Byte).
+
 % stub
 write(Term).
 
