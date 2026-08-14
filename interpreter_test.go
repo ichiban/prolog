@@ -1016,6 +1016,35 @@ a`},
 			{`Byte = -1.`, `stream_property(S, alias(s)), stream_property(S, end_of_stream(past)).`},
 		}},
 		{query: `get_byte(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		// 8.13.2.4
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+			`set_input(s).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `peek_byte(Byte).`, expectations: [][]string{
+			{`Byte = 113.`, `get_byte(113).`},
+		}},
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `peek_byte(s, Byte).`, expectations: [][]string{
+			{`Byte = 113.`, `get_byte(s, 113).`},
+		}},
+		{setup: []string{
+			`open('testdata/8.13.1.4.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `peek_byte(s, 114).`, expectations: [][]string{}},
+		{setup: []string{
+			`open('testdata/empty.bin', read, _, [alias(s), type(binary)]).`,
+		}, teardown: []string{
+			`close(s).`,
+		}, query: `peek_byte(s, Byte).`, expectations: [][]string{
+			{`Byte = -1.`},
+		}},
+		{query: `peek_byte(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		// TODO:
 		/*
 			Other test cases.

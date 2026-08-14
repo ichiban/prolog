@@ -111,6 +111,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: putChar2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: putCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: getByte2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: peekByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2433,6 +2434,71 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return Error(err)
 	default:
+		n = int64(b)
+	}
+
+	i, err := e.PutInteger(n)
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(inByte, i)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func peekByte2(ctx context.Context, e *Execution) Promise {
+	sOrA, inByte, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInByte(inByte); err != nil {
+		return Error(err)
+	}
+
+	var n int64
+	switch b, err := s.ReadByte(); {
+	case errors.Is(err, io.EOF):
+		n = -1
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("text_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		if err := s.UnreadByte(); err != nil {
+			return Error(err)
+		}
+
 		n = int64(b)
 	}
 
