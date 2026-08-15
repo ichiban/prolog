@@ -14,6 +14,7 @@ import (
 	"iter"
 	"maps"
 	"math"
+	"os"
 	"slices"
 	"strings"
 	"unicode"
@@ -112,6 +113,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: putCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: getByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: peekByte2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: putByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -1529,7 +1531,16 @@ func open4(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
-	f, err := e.FS.Open(filename, m)
+	var flag int
+	switch m {
+	case term.Read:
+		flag = os.O_RDONLY
+	case term.Write:
+		flag = os.O_WRONLY | os.O_CREATE
+	case term.Append:
+		flag = os.O_APPEND | os.O_WRONLY | os.O_CREATE
+	}
+	f, err := e.FS.OpenFile(filename, flag, 0644)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case errors.Is(err, fs.ErrPermission):
@@ -2518,6 +2529,43 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
+}
+
+func putByte2(ctx context.Context, e *Execution) Promise {
+	sOrA, byt, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	b, err := e.mustBeByte(byt)
+	if err != nil {
+		return Error(err)
+	}
+
+	switch err := s.WriteByte(b); {
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("text_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {
@@ -3644,6 +3692,38 @@ func (e *Execution) canBeInByte(t term.Handle) (byte, bool, error) {
 	}
 
 	return byte(b), true, nil
+}
+
+func (e *Execution) canBeByte(t term.Handle) (byte, bool, error) {
+	t = e.Deref(t)
+
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+
+	b, ok := e.Integer(t)
+	if !ok || b < 0 || b > 255 {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("byte"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+
+	return byte(b), true, nil
+}
+
+func (e *Execution) mustBeByte(t term.Handle) (byte, error) {
+	b, ok, err := e.canBeByte(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return b, nil
 }
 
 func addI(x, y int64) (int64, error) {

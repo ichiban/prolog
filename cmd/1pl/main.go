@@ -61,8 +61,12 @@ Type Ctrl-C or 'halt.' to exit.
 
 	log.SetOutput(t)
 
-	i := prolog.New()
-	i.SetSourceFS(os.DirFS("."))
+	r, err := os.OpenRoot(".")
+	if err != nil {
+		log.Fatalf("failed to open root: %v", err)
+	}
+
+	i := prolog.New(prolog.Root(r))
 	if err := i.SetUserInput(os.Stdin); err != nil {
 		log.Fatalf("failed to set user input: %v", err)
 	}

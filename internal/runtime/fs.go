@@ -4,8 +4,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-
-	"github.com/ichiban/prolog/v2/internal/term"
+	"path/filepath"
 )
 
 type File interface {
@@ -13,25 +12,33 @@ type File interface {
 	Stat() (fs.FileInfo, error)
 }
 
-type FS interface {
-	Open(name string, mode term.Mode) (File, error)
+type FS struct {
+	SourceFSs []SourceFS
+	Root      *os.Root
 }
 
-type ReadOnly struct {
-	fs.FS
+func (f FS) Open(name string) (File, error) {
+	return f.OpenFile(name, os.O_RDONLY, 0)
 }
 
-func (r ReadOnly) Open(name string, mode term.Mode) (File, error) {
-	if mode == term.Write || mode == term.Append {
-		return nil, fs.ErrPermission
+func (f FS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
+	for _, s := range f.SourceFSs {
+		rel, err := filepath.Rel(s.BasePath, name)
+		if err != nil || !filepath.IsLocal(rel) {
+			continue
+		}
+		if flag != os.O_RDONLY {
+			return nil, fs.ErrPermission
+		}
+		return s.FS.Open(rel)
 	}
-	return r.FS.Open(name)
+	if f.Root == nil {
+		return nil, fs.ErrNotExist
+	}
+	return f.Root.OpenFile(name, flag, perm)
 }
 
-type Root struct {
-	*os.Root
-}
-
-func (r Root) Open(name string, mode term.Mode) (File, error) {
-	return r.OpenFile(name, int(mode), 0644)
+type SourceFS struct {
+	BasePath string
+	FS       fs.FS
 }

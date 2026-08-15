@@ -3,6 +3,8 @@ package prolog
 import (
 	"bytes"
 	"embed"
+	"io/fs"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -1045,6 +1047,31 @@ a`},
 			{`Byte = -1.`},
 		}},
 		{query: `peek_byte(user_output, X).`, err: "permission_error(input,stream,user_output)"},
+		// 8.13.3.4
+		{setup: []string{
+			`open('test', write, _, [alias(w), type(binary)]).`,
+			`set_output(w).`,
+			`open('test', read, _, [alias(r), type(binary)]).`,
+			`set_input(r).`,
+		}, teardown: []string{
+			`close(w).`,
+			`close(r).`,
+		}, query: `put_byte(84).`, expectations: [][]string{
+			{`true.`, `peek_byte(84).`},
+		}},
+		{setup: []string{
+			`open('test', write, _, [alias(w), type(binary)]).`,
+			`set_output(w).`,
+			`open('test', read, _, [alias(r), type(binary)]).`,
+			`set_input(r).`,
+		}, teardown: []string{
+			`close(w).`,
+			`close(r).`,
+		}, query: `put_byte(w, 84).`, expectations: [][]string{
+			{`true.`, `peek_byte(84).`},
+		}},
+		{query: `put_byte(user_output, C).`, err: "instantiation_error"},
+		{query: `put_byte(user_output, 'ty').`, err: "type_error(byte,ty)"},
 		// TODO:
 		/*
 			Other test cases.
@@ -1103,8 +1130,23 @@ a`},
 
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
-			i := New(HeapSize(5 * 1024))
-			i.SetSourceFS(testdata)
+			dir, err := os.MkdirTemp("", "prolog-test-*")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func(path string) {
+				if err := os.RemoveAll(path); err != nil {
+					t.Fatal(err)
+				}
+			}(dir)
+
+			root, err := os.OpenRoot(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			i := New(HeapSize(5*1024), Root(root))
+			i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)
 			}
@@ -1185,4 +1227,11 @@ a`},
 			}
 		})
 	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

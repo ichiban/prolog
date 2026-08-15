@@ -100,7 +100,7 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 }
 
 func (e *Engine) LoadFile(ctx context.Context, filename string) error {
-	f, err := e.FS.Open(filename, term.Read)
+	f, err := e.FS.Open(filename)
 	if err != nil {
 		return err
 	}

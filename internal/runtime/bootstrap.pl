@@ -171,6 +171,10 @@ peek_byte(Byte) :-
   current_input(S),
   peek_byte(S, Byte).
 
+put_byte(Byte) :-
+  current_output(S),
+  put_byte(S, Byte).
+
 % stub
 write(Term).
 

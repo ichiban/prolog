@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"iter"
+	"os"
 	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/db"
@@ -36,6 +37,7 @@ type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32
 	streamSize   int32
+	root         *os.Root
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -55,6 +57,12 @@ func TempHeapSize(tempHeapSize int32) InterpreterOption {
 func StreamSize(streamSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.streamSize = streamSize
+	}
+}
+
+func Root(root *os.Root) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.root = root
 	}
 }
 
@@ -83,12 +91,18 @@ func New(opts ...InterpreterOption) *Interpreter {
 				Heap: make(term.Heap, 0, opt.tempHeapSize),
 			},
 			DB: &db.MemoryDB{},
+			FS: runtime.FS{
+				Root: opt.root,
+			},
 		},
 	}
 }
 
-func (i *Interpreter) SetSourceFS(fs fs.FS) {
-	i.engine.FS = runtime.ReadOnly{FS: fs}
+func (i *Interpreter) MountFS(basePath string, fs fs.FS) {
+	i.engine.FS.SourceFSs = append(i.engine.FS.SourceFSs, runtime.SourceFS{
+		BasePath: basePath,
+		FS:       fs,
+	})
 }
 
 func (i *Interpreter) SetUserInput(r io.Reader) error {
