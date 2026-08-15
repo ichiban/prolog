@@ -373,6 +373,7 @@ func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Se
 }
 
 func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
+	// FIXME: iter.Seq[error] is a code smell since each error isn't an element of the sequence but the error of the sequence itself.
 	bpi := term.NewFunctor(term.NewAtom("call"), 2)
 	cont, err := e.PutAtom(term.NewAtom("true"))
 	if err != nil {

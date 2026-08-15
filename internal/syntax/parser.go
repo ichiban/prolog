@@ -21,9 +21,10 @@ var (
 )
 
 var (
-	ErrNotANumber = errors.New("not a number")
-	ErrIntAbove   = errors.New("int above")
-	ErrIntBelow   = errors.New("int below")
+	ErrNotANumber    = errors.New("not a number")
+	ErrIntAbove      = errors.New("int above")
+	ErrIntBelow      = errors.New("int below")
+	ErrUnexpectedEOF = errors.New("unexpected end of file")
 )
 
 type UnexpectedTokenError struct {
@@ -74,8 +75,8 @@ func MakeVariable(makeVariable func() (term.Handle, error)) ParseOption {
 	}
 }
 
-func Parse(text string, opts ...ParseOption) iter.Seq2[term.Handle, error] {
-	p := newParser(text, opts...)
+func Parse(r io.RuneReader, opts ...ParseOption) iter.Seq2[term.Handle, error] {
+	p := newParser(r, opts...)
 	return func(yield func(term.Handle, error) bool) {
 		for p.More() {
 			if !yield(p.Term()) {
@@ -85,8 +86,8 @@ func Parse(text string, opts ...ParseOption) iter.Seq2[term.Handle, error] {
 	}
 }
 
-func ParseTerm(text string, opts ...ParseOption) (term.Handle, error) {
-	p := newParser(text, opts...)
+func ParseTerm(r io.RuneReader, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(r, opts...)
 	t, err := p.Term()
 	if err != nil {
 		return term.Handle{}, fmt.Errorf("term(): %w", err)
@@ -94,13 +95,13 @@ func ParseTerm(text string, opts ...ParseOption) (term.Handle, error) {
 	return t, nil
 }
 
-func ParseNumber(text string, opts ...ParseOption) (term.Handle, error) {
-	p := newParser(text, opts...)
+func ParseNumber(r io.RuneReader, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(r, opts...)
 	return p.Number()
 }
 
-func ParseVariable(text string, opts ...ParseOption) (term.Handle, error) {
-	p := newParser(text, opts...)
+func ParseVariable(r io.RuneReader, opts ...ParseOption) (term.Handle, error) {
+	p := newParser(r, opts...)
 	return p.Variable()
 }
 
@@ -111,10 +112,10 @@ type parser struct {
 	buf   *ring.Buffer[token]
 }
 
-func newParser(text string, opts ...ParseOption) parser {
+func newParser(r io.RuneReader, opts ...ParseOption) parser {
 	p := parser{
 		lexer: lexer{
-			input: ring.NewRuneReader(strings.NewReader(text), 4),
+			input: ring.NewRuneReader(r, 4),
 		},
 		buf: ring.NewBuffer[token](4),
 	}
@@ -161,8 +162,10 @@ func (p *parser) Term() (_ term.Handle, err error) {
 	}
 
 	switch t, err := p.next(); {
-	case errors.Is(err, io.EOF), t.kind == tokenEnd:
+	case t.kind == tokenEnd:
 		break
+	case errors.Is(err, io.EOF):
+		return term.Handle{}, fmt.Errorf("next(): %w", ErrUnexpectedEOF)
 	default:
 		p.backup()
 		return term.Handle{}, fmt.Errorf("next(): %w", &UnexpectedTokenError{token: p.current()})
@@ -315,6 +318,11 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 	for {
 		op, ok, err := p.infix(maxPriority)
 		if err != nil {
+			// EOF after a complete term means no more operators follow;
+			// the missing end token is reported by Term.
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			return term.Handle{}, false, fmt.Errorf("infix(%d): %w", maxPriority, err)
 		}
 		if !ok {
@@ -596,18 +604,16 @@ func (p *parser) variable(s string) (term.Handle, error) {
 	if p.makeVariable == nil {
 		p.makeVariable = p.arena.PutVariable
 	}
-	if s == "_" {
-		v, err := p.makeVariable()
-		return v, err
-	}
 	if p.variableNames == nil {
 		var vns []term.VariableName
 		p.variableNames = &vns
 	}
-	for i, pv := range *p.variableNames {
-		if pv.Name == s {
-			(*p.variableNames)[i].Count++
-			return pv.Variable, nil
+	if s != "_" {
+		for i, pv := range *p.variableNames {
+			if pv.Name == s {
+				(*p.variableNames)[i].Count++
+				return pv.Variable, nil
+			}
 		}
 	}
 	v, err := p.makeVariable()

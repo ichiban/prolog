@@ -11,6 +11,7 @@ import (
 	"iter"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
@@ -87,7 +88,7 @@ func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
 
 // CompileText compiles a Prolog text into a module.
 func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
-	for t, err := range syntax.Parse(text,
+	for t, err := range syntax.Parse(strings.NewReader(text),
 		syntax.Arena(c.Arena),
 		syntax.Operators(c.Ops),
 		syntax.DoubleQuote(&c.DoubleQuotes),
@@ -237,7 +238,7 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Handle, error] {
 	c.todo = c.todo[:0]
 	return func(yield func(term.Handle, error) bool) {
-		for t, err := range syntax.Parse(text,
+		for t, err := range syntax.Parse(strings.NewReader(text),
 			syntax.Arena(c.Arena),
 			syntax.Operators(c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),

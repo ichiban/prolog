@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -87,7 +88,9 @@ func Test_ParseTerm(t *testing.T) {
 		{input: `- 1.0.`, term: must(arena.PutFloat(-1))},
 		{input: `'-'1.0.`, term: must(arena.PutFloat(-1))},
 
-		{input: `_.`, term: x},
+		{input: `_.`, term: x, vars: []term.VariableName{
+			{Name: "_", Variable: x, Count: 1},
+		}},
 		{input: `X.`, term: x, vars: []term.VariableName{
 			{Name: "X", Variable: x, Count: 1},
 		}},
@@ -159,7 +162,7 @@ func Test_ParseTerm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			var vns []term.VariableName
-			result, err := ParseTerm(tt.input,
+			result, err := ParseTerm(strings.NewReader(tt.input),
 				Arena(&arena),
 				Operators(&ops),
 				DoubleQuote(&tt.doubleQuotes),
@@ -239,7 +242,7 @@ func Test_ParseNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			n, err := ParseNumber(tt.input, Arena(&arena))
+			n, err := ParseNumber(strings.NewReader(tt.input), Arena(&arena))
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}

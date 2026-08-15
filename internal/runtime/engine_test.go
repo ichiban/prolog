@@ -310,7 +310,7 @@ func TestEngine_Call(t *testing.T) {
 			}
 
 			var vns []term.VariableName
-			g, err := syntax.ParseTerm(test.goal,
+			g, err := syntax.ParseTerm(strings.NewReader(test.goal),
 				syntax.Arena(e.Arena),
 				syntax.VariableNames(&vns),
 			)

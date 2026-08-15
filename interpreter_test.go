@@ -959,6 +959,7 @@ func TestInterpreter_Query(t *testing.T) {
 		}},
 		{input: "", setup: []string{
 			`open('testdata/8.12.2.4.txt', read, _, [alias(s), eof_action(error)]).`,
+			`get_char(s, end_of_file).`,
 		}, teardown: []string{
 			`close(s).`,
 		}, query: `peek_char(s, Char).`, err: "permission_error(input,past_end_of_stream,s)"},
@@ -1072,6 +1073,19 @@ a`},
 		}},
 		{query: `put_byte(user_output, C).`, err: "instantiation_error"},
 		{query: `put_byte(user_output, 'ty').`, err: "type_error(byte,ty)"},
+		// 8.14.1.4
+		{input: `term1. term2. ...`, query: `read(T).`, expectations: [][]string{
+			{`T = term1.`, `read(term2).`},
+		}},
+		{input: `term1. term2. ...`, query: `read(user_input, T).`, expectations: [][]string{
+			{`T = term1.`, `read(user_input, term2).`},
+		}},
+		{input: `foo(A+Roger, A+_). term2. ...`, query: `read_term(user_input, T, [variables(VL), variable_names(VN), singletons(VS)]).`, expectations: [][]string{
+			{`T = foo(X1+X2, X1+X3).`, `VL = [X1, X2, X3].`, `VN = ['A' = X1, 'Roger' = X2].`, `VS = ['Roger' = X2].`, `read(user_input, term2).`},
+		}},
+		{input: `3.1. term2. ...`, query: `read(4.1).`, expectations: [][]string{}},
+		{input: `foo 123. term2. ...`, query: `read(T).`, err: "syntax_error('term(): next(): unexpected token \"integer(123)\"')"},
+		{input: `3.1`, query: `read(T).`, err: "syntax_error('term(): next(): unexpected end of file')"},
 		// TODO:
 		/*
 			Other test cases.
@@ -1196,6 +1210,9 @@ a`},
 						t.Errorf("Expected error %q, got %q", test.err, err)
 					}
 					continue
+				}
+				if test.err != "" {
+					t.Errorf("Expected error %q, got nothing", test.err)
 				}
 				if test.expectations != nil {
 					if j >= len(test.expectations) {

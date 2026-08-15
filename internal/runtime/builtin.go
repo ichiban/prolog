@@ -114,6 +114,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: getByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: peekByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: putByte2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: readTerm3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -487,7 +488,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 
-		ball, err := syntax.ParseTerm(buf.String(),
+		ball, err := syntax.ParseTerm(&buf,
 			syntax.Arena(e.Arena),
 		)
 		if err != nil {
@@ -595,39 +596,39 @@ func compare3(_ context.Context, e *Execution) Promise {
 func keySort2(ctx context.Context, e *Execution) Promise {
 	pairs, sorted, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
-	ps, err := e.mustBeList(pairs)
-	if err != nil {
-		return Error(err)
-	}
-	for _, pair := range ps {
+	var ps []term.Handle
+	if err := e.mustBeList(pairs, func(pair term.Handle) error {
 		pair = e.Deref(pair)
 		if _, ok := e.Variable(pair); ok {
-			return Error(&InstantiationError{
+			return &InstantiationError{
 				Location: e.location,
-			})
+			}
 		}
 
 		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
-			return Error(&TypeError{
+			return &TypeError{
 				ValidType: term.NewAtom("pair"),
 				Culprit:   syntax.Serialize(e.Arena, pair),
 				Location:  e.location,
-			})
+			}
 		}
-	}
-
-	ss, err := e.canBeList(sorted)
-	if err != nil {
+		ps = append(ps, pair)
+		return nil
+	}); err != nil {
 		return Error(err)
 	}
-	for _, pair := range ss {
+
+	if err := e.canBeList(sorted, func(pair term.Handle) error {
 		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
-			return Error(&TypeError{
+			return &TypeError{
 				ValidType: term.NewAtom("pair"),
 				Culprit:   syntax.Serialize(e.Arena, pair),
 				Location:  e.location,
-			})
+			}
 		}
+		return nil
+	}); err != nil {
+		return Error(err)
 	}
 
 	ts := make([]term.Handle, len(ps))
@@ -831,8 +832,11 @@ func univ2(_ context.Context, e *Execution) Promise {
 	t, list = e.Deref(t), e.Deref(list)
 
 	if _, ok := e.Variable(t); ok {
-		elems, err := e.mustBeNonEmptyList(list)
-		if err != nil {
+		var elems []term.Handle
+		if err := e.mustBeNonEmptyList(list, func(elem term.Handle) error {
+			elems = append(elems, elem)
+			return nil
+		}); err != nil {
 			return Error(err)
 		}
 
@@ -863,7 +867,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else if f, ok := e.Functor(t); ok {
-		if _, err := e.canBeList(list); err != nil {
+		if err := e.canBeList(list, nil); err != nil {
 			return Error(err)
 		}
 
@@ -885,7 +889,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else {
-		if _, err := e.canBeList(list); err != nil {
+		if err := e.canBeList(list, nil); err != nil {
 			return Error(err)
 		}
 	}
@@ -917,7 +921,7 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 	t, vars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	t, vars = e.Deref(t), e.Deref(vars)
 
-	if _, err := e.canBeList(vars); err != nil {
+	if err := e.canBeList(vars, nil); err != nil {
 		return Error(err)
 	}
 
@@ -1203,6 +1207,20 @@ func retract1(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
+	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
+	if p, ok := e.Predicates[bpi]; ok && !p.Dynamic {
+		c, err := e.PutFunctor(pi)
+		if err != nil {
+			return Error(err)
+		}
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("modify"),
+			PermissionType: term.NewAtom("static_procedure"),
+			Culprit:        syntax.Serialize(e.Arena, c),
+			Location:       e.location,
+		})
+	}
+
 	return Delay(func(yield func(Promise) bool) {
 		before := e.CurrentTime
 		e.CurrentTime++
@@ -1254,8 +1272,19 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, _ := e.Predicates[bpi]
-	if p.Dynamic {
+	if p, ok := e.Predicates[bpi]; ok {
+		if !p.Dynamic {
+			c, err := e.PutFunctor(pi)
+			if err != nil {
+				return Error(err)
+			}
+			return Error(&PermissionError{
+				Operation:      term.NewAtom("modify"),
+				PermissionType: term.NewAtom("static_procedure"),
+				Culprit:        syntax.Serialize(e.Arena, c),
+				Location:       e.location,
+			})
+		}
 		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
 				return Error(err)
@@ -1273,7 +1302,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 func findAll3(ctx context.Context, e *Execution) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if _, err := e.canBeList(instances); err != nil {
+	if err := e.canBeList(instances, nil); err != nil {
 		return Error(err)
 	}
 
@@ -1319,7 +1348,7 @@ func setOf3(ctx context.Context, e *Execution) Promise {
 func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if _, err := e.canBeList(instances); err != nil {
+	if err := e.canBeList(instances, nil); err != nil {
 		return Error(err)
 	}
 
@@ -1526,11 +1555,6 @@ func open4(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
-	opts, err := e.mustBeList(options)
-	if err != nil {
-		return Error(err)
-	}
-
 	var flag int
 	switch m {
 	case term.Read:
@@ -1571,10 +1595,10 @@ func open4(ctx context.Context, e *Execution) Promise {
 		s.Reposition = fi.Mode()&fs.ModeType == 0
 	}
 
-	for _, o := range opts {
-		if err := e.handleStreamOption(&s, o); err != nil {
-			return Error(err)
-		}
+	if err := e.mustBeList(options, func(elem term.Handle) error {
+		return e.handleStreamOption(&s, elem)
+	}); err != nil {
+		return Error(err)
 	}
 
 	t, err := e.PutStream(s)
@@ -1743,19 +1767,14 @@ func close2(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
-	opts, err := e.mustBeList(options)
-	if err != nil {
-		return Error(err)
-	}
-
 	var force bool
-	for _, o := range opts {
+	if err := e.mustBeList(options, func(o term.Handle) error {
 		o = e.Deref(o)
 
 		if _, ok := e.Variable(o); ok {
-			return Error(&InstantiationError{
+			return &InstantiationError{
 				Location: e.location,
-			})
+			}
 		}
 
 		switch f, _ := e.Functor(o); f {
@@ -1766,17 +1785,21 @@ func close2(ctx context.Context, e *Execution) Promise {
 			switch b, _ := e.Atom(b); b {
 			case term.NewAtom("true"):
 				force = true
+				return nil
 			case term.NewAtom("false"):
 				force = false
+				return nil
 			}
 			fallthrough
 		default:
-			return Error(&DomainError{
+			return &DomainError{
 				ValidDomain: term.NewAtom("close_option"),
 				Culprit:     syntax.Serialize(e.Arena, o),
 				Location:    e.location,
-			})
+			}
 		}
+	}); err != nil {
+		return Error(err)
 	}
 
 	if err := s.Close(); err != nil && !force {
@@ -2568,6 +2591,190 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 	}
 }
 
+func readTerm3(ctx context.Context, e *Execution) Promise {
+	sOrA, t, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	var opts readTermOptions
+	if err := e.mustBeList(options, func(elem term.Handle) error {
+		return e.readTermOption(&opts, elem)
+	}); err != nil {
+		return Error(err)
+	}
+
+	var (
+		vars                 []term.VariableName
+		unexpectedTokenError *syntax.UnexpectedTokenError
+	)
+	p, err := syntax.ParseTerm(s,
+		syntax.Arena(e.Arena),
+		syntax.DoubleQuote(&e.DoubleQuotes),
+		syntax.Operators(e.Ops),
+		syntax.VariableNames(&vars),
+	)
+	switch {
+	case errors.Is(err, io.EOF):
+		eof, err := e.PutAtom(term.NewAtom("end_of_file"))
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err := e.Unify(t, eof)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("text_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrPastEndOfStream):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("input"),
+			PermissionType: term.NewAtom("past_end_of_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.As(err, &unexpectedTokenError), errors.Is(err, syntax.ErrUnexpectedEOF):
+		return Error(&SyntaxError{
+			ImpDepAtom: term.NewAtom(err.Error()),
+			Location:   e.location,
+		})
+	case err != nil:
+		return Error(err)
+	default:
+		var (
+			singletons    []term.Handle
+			variables     []term.Handle
+			variableNames []term.Handle
+		)
+		for _, v := range vars {
+			if opts.singletons != (term.Handle{}) && v.Count == 1 && v.Name != "_" {
+				singletons = append(singletons, v.Variable)
+			}
+			if opts.variables != (term.Handle{}) {
+				variables = append(variables, v.Variable)
+			}
+			if opts.variableNames != (term.Handle{}) && v.Name != "_" {
+				n, err := e.PutAtom(term.NewAtom(v.Name))
+				if err != nil {
+					return Error(err)
+				}
+				c, err := e.PutCompound(term.NewAtomRune('='), n, v.Variable)
+				if err != nil {
+					return Error(err)
+				}
+				variableNames = append(variableNames, c)
+			}
+		}
+
+		ok, err := e.Unify(t, p)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		if opts.singletons != (term.Handle{}) {
+			l, err := e.PutList(singletons...)
+			if err != nil {
+				return Error(err)
+			}
+
+			ok, err := e.Unify(opts.singletons, l)
+			if err != nil {
+				return Error(err)
+			}
+			if !ok {
+				return Failure()
+			}
+		}
+
+		if opts.variables != (term.Handle{}) {
+			l, err := e.PutList(variables...)
+			if err != nil {
+				return Error(err)
+			}
+
+			ok, err := e.Unify(opts.variables, l)
+			if err != nil {
+				return Error(err)
+			}
+			if !ok {
+				return Failure()
+			}
+		}
+
+		if opts.variableNames != (term.Handle{}) {
+			l, err := e.PutList(variableNames...)
+			if err != nil {
+				return Error(err)
+			}
+
+			ok, err := e.Unify(opts.variableNames, l)
+			if err != nil {
+				return Error(err)
+			}
+			if !ok {
+				return Failure()
+			}
+		}
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+type readTermOptions struct {
+	singletons    term.Handle
+	variables     term.Handle
+	variableNames term.Handle
+}
+
+func (e *Execution) readTermOption(opts *readTermOptions, option term.Handle) error {
+	option = e.Deref(option)
+
+	if _, ok := e.Variable(option); ok {
+		return &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	switch f, _ := e.Functor(option); f {
+	case term.NewFunctor(term.NewAtom("singletons"), 1):
+		opts.singletons = e.Arg(option, 0)
+	case term.NewFunctor(term.NewAtom("variables"), 1):
+		opts.variables = e.Arg(option, 0)
+	case term.NewFunctor(term.NewAtom("variable_names"), 1):
+		opts.variableNames = e.Arg(option, 0)
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("read_option"),
+			Culprit:     syntax.Serialize(e.Arena, option),
+			Location:    e.location,
+		}
+	}
+	return nil
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -3185,6 +3392,9 @@ func (e *Execution) canBeInChar(t term.Handle) (rune, bool, error) {
 		return 0, false, nil
 	}
 	a, ok := e.Atom(t)
+	if ok && a == term.NewAtom("end_of_file") {
+		return -1, true, nil
+	}
 	r := a.Rune()
 	if !ok || r == utf8.RuneError {
 		return 0, false, &TypeError{
@@ -3201,6 +3411,9 @@ func (e *Execution) canBeInCharCode(t term.Handle) (rune, bool, error) {
 		return 0, false, nil
 	}
 	i, ok := e.Integer(t)
+	if ok && i == -1 {
+		return -1, true, nil
+	}
 	r := rune(i)
 	if !ok || !utf8.ValidRune(r) {
 		return 0, false, &TypeError{
@@ -3300,57 +3513,72 @@ func (e *Execution) mustBeInteger(t term.Handle) (int64, error) {
 	return n, nil
 }
 
-func (e *Execution) canBeList(list term.Handle) ([]term.Handle, error) {
-	var elems []term.Handle
+func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error) error {
+	if fn == nil {
+		fn = func(term.Handle) error {
+			return nil
+		}
+	}
 	for elem, ok := range e.List(list, term.AllowPartial(true)) {
 		if !ok {
-			return nil, &TypeError{
+			return &TypeError{
 				ValidType: term.NewAtom("list"),
 				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
 			}
 		}
 
-		elems = append(elems, elem)
+		if err := fn(elem); err != nil {
+			return err
+		}
 	}
-	return elems, nil
+	return nil
 }
 
-func (e *Execution) mustBeList(list term.Handle) ([]term.Handle, error) {
-	var elems []term.Handle
+func (e *Execution) mustBeList(list term.Handle, fn func(elem term.Handle) error) error {
+	if fn == nil {
+		fn = func(term.Handle) error {
+			return nil
+		}
+	}
 	for elem, ok := range e.List(list) {
 		if !ok {
 			elem = e.Deref(elem)
 			if _, ok := e.Variable(elem); ok {
-				return nil, &InstantiationError{
+				return &InstantiationError{
 					Location: e.location,
 				}
 			}
-			return nil, &TypeError{
+			return &TypeError{
 				ValidType: term.NewAtom("list"),
 				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
 			}
 		}
 
-		elems = append(elems, elem)
+		if err := fn(elem); err != nil {
+			return err
+		}
 	}
-	return elems, nil
+	return nil
 }
 
-func (e *Execution) mustBeNonEmptyList(list term.Handle) ([]term.Handle, error) {
-	elems, err := e.mustBeList(list)
-	if err != nil {
-		return nil, err
+func (e *Execution) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) error) error {
+	var ok bool
+	if err := e.mustBeList(list, func(elem term.Handle) error {
+		ok = true
+		return fn(elem)
+	}); err != nil {
+		return err
 	}
-	if len(elems) == 0 {
-		return nil, &DomainError{
+	if !ok {
+		return &DomainError{
 			ValidDomain: term.NewAtom("non_empty_list"),
 			Culprit:     syntax.Serialize(e.Arena, list),
 			Location:    e.location,
 		}
 	}
-	return elems, nil
+	return nil
 }
 
 func (e *Execution) mustBeAtomic(t term.Handle) error {

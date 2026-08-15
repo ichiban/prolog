@@ -175,6 +175,17 @@ put_byte(Byte) :-
   current_output(S),
   put_byte(S, Byte).
 
+read_term(Term, Options) :-
+  current_input(S),
+  read_term(S, Term, Options).
+
+read(Term) :-
+  current_input(S),
+  read_term(S, Term, []).
+
+read(S, Term) :-
+  read_term(S, Term, []).
+
 % stub
 write(Term).
 

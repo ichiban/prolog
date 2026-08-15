@@ -8,6 +8,7 @@ import (
 	"iter"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/runtime"
@@ -170,6 +171,7 @@ func VariableNames(varNames *[]VariableName) QueryOption {
 
 // Query queries an interpreter and returns results.
 func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...QueryOption) iter.Seq2[T, error] {
+	// FIXME: iter.Seq2[T, error] is a code smell since the error is not an element of the sequence but the error of the sequence itself.
 	var options QueryOptions
 	for _, o := range opts {
 		o(&options)
@@ -193,7 +195,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 		}
 
 		for v, b := range options.bindings {
-			v, err := syntax.ParseVariable(v,
+			v, err := syntax.ParseVariable(strings.NewReader(v),
 				syntax.VariableNames(options.variableNames),
 			)
 			if err != nil {
@@ -211,7 +213,7 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 			}
 		}
 
-		g, err := syntax.ParseTerm(query,
+		g, err := syntax.ParseTerm(strings.NewReader(query),
 			syntax.Arena(e.Arena),
 			syntax.VariableNames(options.variableNames),
 		)
@@ -328,7 +330,7 @@ func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {
 	case string:
 		return e.PutCharList(v)
 	case Raw:
-		return syntax.ParseTerm(string(v))
+		return syntax.ParseTerm(strings.NewReader(string(v) + " ."))
 	default:
 		return term.Handle{}, fmt.Errorf("unknown type: %T", v)
 	}

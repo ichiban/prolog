@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 )
@@ -17,5 +18,5 @@ func Serialize(arena *term.Arena, t term.Handle) Serialized {
 }
 
 func Deserialize(arena *term.Arena, s Serialized) (term.Handle, error) {
-	return ParseTerm(string(s), Arena(arena))
+	return ParseTerm(strings.NewReader(string(s)), Arena(arena))
 }

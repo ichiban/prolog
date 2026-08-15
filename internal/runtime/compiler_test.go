@@ -3,6 +3,7 @@ package runtime
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ichiban/prolog/v2/internal/ir"
@@ -248,7 +249,7 @@ func TestReplaceBody(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			goal, err := syntax.ParseTerm(test.goal,
+			goal, err := syntax.ParseTerm(strings.NewReader(test.goal),
 				syntax.Arena(&arena),
 				syntax.VariableNames(&vns),
 			)
@@ -326,14 +327,14 @@ func TestBinarize(t *testing.T) {
 				Name:     "Cont",
 				Variable: cont,
 			})
-			head, err := syntax.ParseTerm(test.head,
+			head, err := syntax.ParseTerm(strings.NewReader(test.head),
 				syntax.Arena(&arena),
 				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			body, err := syntax.ParseTerm(test.body,
+			body, err := syntax.ParseTerm(strings.NewReader(test.body),
 				syntax.Arena(&arena),
 				syntax.VariableNames(&pvs),
 			)
@@ -347,14 +348,14 @@ func TestBinarize(t *testing.T) {
 			if err != nil {
 				return
 			}
-			expectedHead, err := syntax.ParseTerm(test.newHead,
+			expectedHead, err := syntax.ParseTerm(strings.NewReader(test.newHead),
 				syntax.Arena(&arena),
 				syntax.VariableNames(&pvs),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedBody, err := syntax.ParseTerm(test.newBody,
+			expectedBody, err := syntax.ParseTerm(strings.NewReader(test.newBody),
 				syntax.Arena(&arena),
 				syntax.VariableNames(&pvs),
 			)
@@ -670,11 +671,11 @@ func TestCompiler_CompileClause(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			arena.Heap = arena.Heap[:0]
 			var vns []term.VariableName
-			h, err := syntax.ParseTerm(test.head, syntax.Arena(&arena), syntax.VariableNames(&vns))
+			h, err := syntax.ParseTerm(strings.NewReader(test.head), syntax.Arena(&arena), syntax.VariableNames(&vns))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.head, err)
 			}
-			b, err := syntax.ParseTerm(test.body, syntax.Arena(&arena), syntax.VariableNames(&vns))
+			b, err := syntax.ParseTerm(strings.NewReader(test.body), syntax.Arena(&arena), syntax.VariableNames(&vns))
 			if err != nil {
 				t.Fatalf("ParseTerm(%q): %v", test.body, err)
 			}

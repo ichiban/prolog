@@ -66,7 +66,10 @@ Type Ctrl-C or 'halt.' to exit.
 		log.Fatalf("failed to open root: %v", err)
 	}
 
-	i := prolog.New(prolog.Root(r))
+	i := prolog.New(
+		prolog.HeapSize(5*1024),
+		prolog.Root(r),
+	)
 	if err := i.SetUserInput(os.Stdin); err != nil {
 		log.Fatalf("failed to set user input: %v", err)
 	}

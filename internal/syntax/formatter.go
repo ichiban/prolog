@@ -189,7 +189,7 @@ func (f formatter) writeAtom(w io.Writer, name term.Atom) (int64, error) {
 }
 
 func needQuoted(name term.Atom) bool {
-	p := newParser(name.String())
+	p := newParser(strings.NewReader(name.String()))
 	parsed, ok, err := p.atom()
 	return err != nil || !ok || parsed != name
 }
