@@ -115,6 +115,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: peekByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: putByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: readTerm3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: writeTerm3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2772,6 +2773,154 @@ func (e *Execution) readTermOption(opts *readTermOptions, option term.Handle) er
 			Location:    e.location,
 		}
 	}
+	return nil
+}
+
+func writeTerm3(ctx context.Context, e *Execution) Promise {
+	sOrA, t, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+
+	s, err := e.mustBeStreamOrAlias(sOrA)
+	if err != nil {
+		return Error(err)
+	}
+
+	formatter := syntax.Formatter{
+		Arena: e.Arena,
+		Term:  t,
+		Ops:   e.Ops,
+	}
+	if err := e.mustBeList(options, func(o term.Handle) error {
+		o = e.Deref(o)
+
+		if _, ok := e.Variable(o); ok {
+			return &InstantiationError{
+				Location: e.location,
+			}
+		}
+
+		switch f, _ := e.Functor(o); f {
+		case term.NewFunctor(term.NewAtom("quoted"), 1):
+			return e.writeTermOptionBool(&formatter.Quoted, o)
+		case term.NewFunctor(term.NewAtom("ignore_ops"), 1):
+			return e.writeTermOptionBool(&formatter.IgnoreOps, o)
+		case term.NewFunctor(term.NewAtom("numbervars"), 1):
+			return e.writeTermOptionBool(&formatter.NumberVars, o)
+		case term.NewFunctor(term.NewAtom("variable_names"), 1):
+			return e.writeTermOptionVariableNames(&formatter.VariableNames, o)
+		case term.NewFunctor(term.NewAtom("max_depth"), 1):
+			return e.writeTermOptionInteger(&formatter.MaxDepth, o)
+		}
+		return &DomainError{
+			ValidDomain: term.NewAtom("write_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}); err != nil {
+		return Error(err)
+	}
+
+	w, err := s.TextWriter()
+	switch {
+	case errors.Is(err, term.ErrWrongIOMode):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case errors.Is(err, term.ErrWrongStreamType):
+		return Error(&PermissionError{
+			Operation:      term.NewAtom("output"),
+			PermissionType: term.NewAtom("binary_stream"),
+			Culprit:        syntax.Serialize(e.Arena, sOrA),
+			Location:       e.location,
+		})
+	case err != nil:
+		return Error(err)
+	}
+
+	if _, err := formatter.WriteTo(w); err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func (e *Execution) writeTermOptionBool(out *bool, o term.Handle) error {
+	switch b, _ := e.Atom(e.Arg(o, 0)); b {
+	case term.NewAtom("true"):
+		*out = true
+	case term.NewAtom("false"):
+		*out = false
+	default:
+		return &DomainError{
+			ValidDomain: term.NewAtom("write_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+	return nil
+}
+
+func (e *Execution) writeTermOptionVariableNames(out *[]term.VariableName, o term.Handle) error {
+	return e.mustBeList(e.Arg(o, 0), func(vn term.Handle) error {
+		vn = e.Deref(vn)
+
+		if _, ok := e.Variable(vn); ok {
+			return &InstantiationError{
+				Location: e.location,
+			}
+		}
+
+		switch f, _ := e.Functor(vn); f {
+		case term.NewFunctor(term.NewAtom("="), 2):
+			v, n := e.Arg(vn, 0), e.Arg(vn, 1)
+			v, n = e.Deref(v), e.Deref(n)
+
+			if _, ok := e.Variable(v); !ok {
+				return &DomainError{
+					ValidDomain: term.NewAtom("write_option"),
+					Culprit:     syntax.Serialize(e.Arena, o),
+					Location:    e.location,
+				}
+			}
+
+			a, ok := e.Atom(n)
+			if !ok {
+				return &DomainError{
+					ValidDomain: term.NewAtom("write_option"),
+					Culprit:     syntax.Serialize(e.Arena, o),
+					Location:    e.location,
+				}
+			}
+
+			*out = append(*out, term.VariableName{
+				Variable: v,
+				Name:     a.String(),
+			})
+			return nil
+		default:
+			return &DomainError{
+				ValidDomain: term.NewAtom("write_option"),
+				Culprit:     syntax.Serialize(e.Arena, o),
+				Location:    e.location,
+			}
+		}
+	})
+}
+
+func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
+	n, ok := e.Integer(e.Arg(o, 0))
+	if !ok {
+		return &DomainError{
+			ValidDomain: term.NewAtom("write_option"),
+			Culprit:     syntax.Serialize(e.Arena, o),
+			Location:    e.location,
+		}
+	}
+	*out = int(n)
 	return nil
 }
 

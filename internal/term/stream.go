@@ -242,7 +242,7 @@ func (s *Stream) WriteByte(c byte) error {
 // WriteRune writes the rune r to the underlying Sink.
 // It throws an error if the stream is not an output binary stream.
 func (s *Stream) WriteRune(r rune) (size int, err error) {
-	t, err := s.textWriter()
+	t, err := s.TextWriter()
 	if err != nil {
 		return 0, err
 	}
@@ -356,16 +356,16 @@ func fileSize(r io.Reader) int64 {
 	return fi.Size()
 }
 
-func (s *Stream) textWriter() (textWriter, error) {
+func (s *Stream) TextWriter() (TextWriter, error) {
 	if s.Mode != Write && s.Mode != Append {
-		return textWriter{}, ErrWrongIOMode
+		return TextWriter{}, ErrWrongIOMode
 	}
 
 	if s.StreamType != Text {
-		return textWriter{}, ErrWrongStreamType
+		return TextWriter{}, ErrWrongStreamType
 	}
 
-	return textWriter{stream: s}, nil
+	return TextWriter{stream: s}, nil
 }
 
 func (s *Stream) binaryWriter() (binaryWriter, error) {
@@ -380,13 +380,13 @@ func (s *Stream) binaryWriter() (binaryWriter, error) {
 	return binaryWriter{stream: s}, nil
 }
 
-type textWriter struct {
+type TextWriter struct {
 	stream *Stream
 }
 
 // Write writes to the underlying Sink.
 // It throws an error if the stream is not an output text stream.
-func (t textWriter) Write(p []byte) (int, error) {
+func (t TextWriter) Write(p []byte) (int, error) {
 	s := t.stream
 	n, err := s.Sink.Write(p)
 	s.Position += int64(n)

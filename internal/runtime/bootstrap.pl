@@ -186,8 +186,30 @@ read(Term) :-
 read(S, Term) :-
   read_term(S, Term, []).
 
-% stub
-write(Term).
+write_term(Term, Options) :-
+  current_output(S),
+  write_term(S, Term, Options).
+
+write(Term) :-
+  current_output(S),
+  write_term(S, Term, [numbervars(true)]).
+
+write(S, Term) :-
+  write_term(S, Term, [numbervars(true)]).
+
+writeq(Term) :-
+  current_output(S),
+  write_term(S, Term, [quoted(true), numbervars(true)]).
+
+writeq(S, Term) :-
+  write_term(S, Term, [quoted(true), numbervars(true)]).
+
+write_canonical(Term) :-
+  current_output(S),
+  write_term(S, Term, [quoted(true), ignore_ops(true)]).
+
+write_canonical(S, Term) :-
+  write_term(S, Term, [quoted(true), ignore_ops(true)]).
 
 % stub
 number_chars(_, _) :- throw(error(syntax_error(_), _)).

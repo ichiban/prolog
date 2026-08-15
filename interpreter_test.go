@@ -22,6 +22,7 @@ func TestInterpreter_Query(t *testing.T) {
 		query        string
 		expectations [][]string
 		output       string
+		ignoreOutput bool
 		err          string
 	}{
 		/*
@@ -36,20 +37,20 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `call(fail).`, expectations: [][]string{}},
 		{query: `call((fail, X)).`, expectations: [][]string{}},
 		{query: `call((fail, call(1))).`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(X).`, err: `instantiation_error`},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(3).`, err: `type_error(callable,3)`}, // type_error(callable,(write(3),3))
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(X).`, err: `instantiation_error`, ignoreOutput: true},
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `b(3).`, output: `3`, err: `type_error(callable,3)`}, // type_error(callable,(write(3),3))
 		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `Z = !, call((Z = !, a(X), Z)).`, expectations: [][]string{
 			{`X = 1.`, `Z = !.`},
 		}},
 		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((Z=!, a(X), Z)).`, expectations: [][]string{
 			{`X = 1.`, `Z = !.`},
 		}},
-		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((write(3), X)).`, err: `instantiation_error`},
+		{loaded: []string{"testdata/7.8.3.4.pl"}, query: `call((write(3), X)).`, err: `instantiation_error`, ignoreOutput: true},
 		{query: `call(X).`, err: `instantiation_error`},
 		{query: `call(1).`, err: `type_error(callable,1)`},
 		{query: `call((fail, 1)).`, err: `type_error(callable,(fail,1))`},
-		{query: `call((write(3), 1)).`, err: `type_error(callable,1)`}, // type_error(callable,(write(3),1))
-		{query: `call((1;true)).`, err: `type_error(callable,1)`},      // type_error(callable,(1;true))
+		{query: `call((write(3), 1)).`, err: `type_error(callable,1)`, ignoreOutput: true}, // type_error(callable,(write(3),1))
+		{query: `call((1;true)).`, err: `type_error(callable,1)`},                          // type_error(callable,(1;true))
 		// 7.8.4.4
 		{query: `!.`, expectations: [][]string{
 			{`true.`},
@@ -58,15 +59,15 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `(call(!), fail; true).`, expectations: [][]string{
 			{`true.`},
 		}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), !, write('Forwards '), fail.`, expectations: [][]string{}},
-		{query: `(!; write('No ')), write('Cut disjunction '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), (write('No '); !), write('Cut '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), (!, fail; write('No ')).`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(X), call(X), write('Forwards '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `goal(X), call(X), write('Forwards '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), \+(\+(!)), write('Forwards '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), once(!), write('Forwards '), fail.`, expectations: [][]string{}},
-		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), call(!), write('Forwards '), fail.`, expectations: [][]string{}},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), !, write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards `},
+		{query: `(!; write('No ')), write('Cut disjunction '), fail.`, expectations: [][]string{}, output: `Cut disjunction `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), (write('No '); !), write('Cut '), fail.`, expectations: [][]string{}, output: `C No Cut Cut `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), (!, fail; write('No ')).`, expectations: [][]string{}, output: `C `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(X), call(X), write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards Moss Forwards `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `goal(X), call(X), write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards Three Forwards `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), \+(\+(!)), write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards Moss Forwards `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), once(!), write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards Moss Forwards `},
+		{loaded: []string{"testdata/7.8.4.4.pl"}, query: `twice(_), call(!), write('Forwards '), fail.`, expectations: [][]string{}, output: `C Forwards Moss Forwards `},
 		// 7.8.5.4
 		{query: `','(X=1, var(X)).`, expectations: [][]string{}},
 		{query: `','(var(X), X=1).`, expectations: [][]string{
@@ -147,7 +148,7 @@ func TestInterpreter_Query(t *testing.T) {
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(number_chars(X, ['1', 'a', '0']), error(syntax_error(_), _), fail).`, expectations: [][]string{}},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(g, C, write(h1)).`, expectations: [][]string{
 			{`C = c.`},
-		}},
+		}, output: `h1`},
 		{loaded: []string{"testdata/7.8.9.4.pl"}, query: `catch(coo(X), Y, true).`, expectations: [][]string{
 			{`Y = error(instantiation_error,throw/1).`},
 		}},
@@ -723,7 +724,7 @@ func TestInterpreter_Query(t *testing.T) {
 			`retract((legs(X, 2) :- T)).`,
 			`retract((legs(X, Y) :- Z)).`,
 		}, query: `retract((legs(X, Y) :- Z)).`, expectations: [][]string{}},
-		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract(insect(I)), write(I), retract(insect(bee)), fail.`, expectations: [][]string{}},
+		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract(insect(I)), write(I), retract(insect(bee)), fail.`, expectations: [][]string{}, output: `antbee`},
 		{loaded: []string{"testdata/8.9.3.4.pl"}, query: `retract((foo(A) :- A, call(A))).`, expectations: [][]string{
 			{`true.`},
 		}},
@@ -1086,6 +1087,28 @@ a`},
 		{input: `3.1. term2. ...`, query: `read(4.1).`, expectations: [][]string{}},
 		{input: `foo 123. term2. ...`, query: `read(T).`, err: "syntax_error('term(): next(): unexpected token \"integer(123)\"')"},
 		{input: `3.1`, query: `read(T).`, err: "syntax_error('term(): next(): unexpected end of file')"},
+		// 8.14.2.4
+		{query: `S = user_output, write_term(S, [1,2,3], []).`, expectations: [][]string{
+			{`true.`},
+		}, output: `[1,2,3]`},
+		{query: `write_canonical([1,2,3]).`, expectations: [][]string{
+			{`true.`},
+		}, output: `'.'(1,'.'(2,'.'(3,[])))`},
+		{query: `S = user_output, write_term(S, '1<2', []).`, expectations: [][]string{
+			{`true.`},
+		}, output: `1<2`},
+		{query: `S = user_output, writeq(S, '1<2').`, expectations: [][]string{
+			{`true.`},
+		}, output: `'1<2'`},
+		{query: `writeq('$VAR'(0)).`, expectations: [][]string{
+			{`true.`},
+		}, output: `A`},
+		{query: `S = user_output, write_term(S, '$VAR'(1), [numbervars(false)]).`, expectations: [][]string{
+			{`true.`},
+		}, output: `$VAR(1)`},
+		{query: `S = user_output, write_term(S, '$VAR'(51), [numbervars(true)]).`, expectations: [][]string{
+			{`true.`},
+		}, output: `Z1`},
 		// TODO:
 		/*
 			Other test cases.
@@ -1239,8 +1262,10 @@ a`},
 				}
 				j++
 			}
-			if output := buf.String(); output != test.output {
-				t.Errorf("Expected output %q, got %q", test.output, output)
+			if !test.ignoreOutput {
+				if output := buf.String(); output != test.output {
+					t.Errorf("Expected output %q, got %q", test.output, output)
+				}
 			}
 		})
 	}
