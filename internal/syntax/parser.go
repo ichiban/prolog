@@ -36,11 +36,12 @@ func (e *UnexpectedTokenError) Error() string {
 }
 
 type ParseOptions struct {
-	arena         *term.Arena
-	operatorSet   *OperatorSet
-	doubleQuotes  *DoubleQuotes
-	variableNames *[]term.VariableName
-	makeVariable  func() (term.Handle, error)
+	arena          *term.Arena
+	operatorSet    *OperatorSet
+	doubleQuotes   *DoubleQuotes
+	variableNames  *[]term.VariableName
+	charConversion *CharConversion
+	makeVariable   func() (term.Handle, error)
 }
 
 type ParseOption func(*ParseOptions)
@@ -66,6 +67,12 @@ func VariableNames(variables *[]term.VariableName) ParseOption {
 func Operators(ops *OperatorSet) ParseOption {
 	return func(o *ParseOptions) {
 		o.operatorSet = ops
+	}
+}
+
+func CharConv(c *CharConversion) ParseOption {
+	return func(o *ParseOptions) {
+		o.charConversion = c
 	}
 }
 
@@ -129,6 +136,7 @@ func newParser(r io.RuneReader, opts ...ParseOption) parser {
 		var dq DoubleQuotes
 		p.doubleQuotes = &dq
 	}
+	p.lexer.charConversions = p.charConversion
 	return p
 }
 

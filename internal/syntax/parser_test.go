@@ -67,6 +67,7 @@ func Test_ParseTerm(t *testing.T) {
 		{input: `'\''.`, term: must(arena.PutAtom(term.NewAtom(`'`)))},
 		{input: `'\"'.`, term: must(arena.PutAtom(term.NewAtom(`"`)))},
 		{input: "'\\`'.", term: must(arena.PutAtom(term.NewAtom("`")))},
+		{input: `'’'.`, term: must(arena.PutAtom(term.NewAtomRune('’')))},
 		{input: `[`, err: io.EOF},
 		{input: `{`, err: io.EOF},
 

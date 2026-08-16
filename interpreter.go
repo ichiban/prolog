@@ -216,6 +216,9 @@ func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...Que
 
 		g, err := syntax.ParseTerm(strings.NewReader(query),
 			syntax.Arena(e.Arena),
+			syntax.Operators(&e.Ops),
+			syntax.DoubleQuote(&e.DoubleQuotes),
+			syntax.CharConv(&e.CharConversion),
 			syntax.VariableNames(options.variableNames),
 		)
 		if err != nil {

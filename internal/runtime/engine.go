@@ -30,11 +30,12 @@ type Engine struct {
 
 	Loaded map[string]struct{}
 
-	Module       term.Atom
-	DoubleQuotes syntax.DoubleQuotes
-	Ops          syntax.OperatorSet
-	DB           db.DB
-	CurrentTime  wam.LogicalTime
+	Module         term.Atom
+	DoubleQuotes   syntax.DoubleQuotes
+	Ops            syntax.OperatorSet
+	CharConversion syntax.CharConversion
+	DB             db.DB
+	CurrentTime    wam.LogicalTime
 
 	Input  term.Handle
 	Output term.Handle

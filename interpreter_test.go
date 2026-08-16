@@ -1137,6 +1137,32 @@ a`},
 			{`P = 600.`, `OP = (':').`},
 			{`P = 200.`, `OP = ('^').`},
 		}},
+		// 8.14.5.4
+		{query: `char_conversion('&', ',').`, input: `a&a.`, expectations: [][]string{
+			{`read(X), X = (a,a).`},
+		}},
+		{query: `char_conversion('’', '\'').`, input: `’a&a’.`, expectations: [][]string{
+			{`read(X), X = 'a&a'.`},
+		}},
+		{setup: []string{
+			`op(1000, xfy, '&').`,
+		}, query: `char_conversion('ａ', 'a').`, input: `ａ&ａ.`, expectations: [][]string{
+			{`read(X), X = (a&a).`},
+		}},
+		{setup: []string{
+			`op(1000, xfy, '&').`,
+			`char_conversion('&', ',').`,
+		}, query: `char_conversion('&', '&').`, input: `a&a.`, expectations: [][]string{
+			{`read(X), X = (a&a).`},
+		}},
+		// 8.14.6.4
+		{setup: []string{
+			`char_conversion('ａ', a).`,
+			`char_conversion('α', a).`,
+		}, query: `current_char_conversion(C, a).`, expectations: [][]string{
+			{`C = 'ａ'.`},
+			{`C = 'α'.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.

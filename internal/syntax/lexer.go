@@ -16,7 +16,7 @@ import (
 // lexer turns runes into tokens.
 type lexer struct {
 	input           *ring.RuneReader
-	charConversions map[rune]rune
+	charConversions *CharConversion
 
 	buf    bytes.Buffer
 	offset int
@@ -30,19 +30,12 @@ func (l *lexer) Token() (token, error) {
 
 func (l *lexer) next() (rune, error) {
 	r, err := l.rawNext()
-	return l.conv(r), err
+	return l.charConversions.Map(r), err
 }
 
 func (l *lexer) rawNext() (rune, error) {
 	r, _, err := l.input.ReadRune()
 	return r, err
-}
-
-func (l *lexer) conv(r rune) rune {
-	if r, ok := l.charConversions[r]; ok {
-		return r
-	}
-	return r
 }
 
 func (l *lexer) backup() {
@@ -333,18 +326,16 @@ func (l *lexer) quotedToken() (token, error) {
 		switch r, err := l.rawNext(); {
 		case err != nil:
 			return token{}, err
-		case isSingleQuotedCharacter(r):
-			l.accept(r)
-			continue
-		case r == '\'':
-			l.accept(r)
+		// Char conversion applies to the quote delimiters but not to the quoted content.
+		case l.charConversions.Map(r) == '\'':
+			l.accept('\'')
 			switch r, err := l.rawNext(); {
 			case errors.Is(err, io.EOF):
 				break
 			case err != nil:
 				return token{}, err
 			case r == '\'':
-				l.accept(r)
+				l.accept('\'')
 				continue
 			default:
 				l.backup()
@@ -373,6 +364,9 @@ func (l *lexer) quotedToken() (token, error) {
 			}
 
 			return l.escapeSequence(l.quotedToken)
+		case isSingleQuotedCharacter(r):
+			l.accept(r)
+			continue
 		default:
 			l.accept(r)
 			return token{kind: tokenInvalid, val: l.chunk()}, nil
@@ -810,6 +804,7 @@ func (l *lexer) doubleQuotedListToken() (token, error) {
 func isGraphicChar(r rune) bool {
 	return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r) || unicode.In(r, &unicode.RangeTable{
 		R16: []unicode.Range16{
+			{Lo: 0x2000, Hi: 0x206F, Stride: 1}, // General Punctuation
 			{Lo: 0x2200, Hi: 0x22FF, Stride: 1}, // Mathematical Operators
 			{Lo: 0x2A00, Hi: 0x2AFF, Stride: 1}, // Supplemental Mathematical Operators
 		},

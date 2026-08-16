@@ -93,7 +93,7 @@ func (o *OperatorSet) Define(priority int16, spec OperatorSpecifier, names ...te
 }
 
 func (o *OperatorSet) Undefine(name term.Atom, class OperatorClass) {
-	_ = slices.DeleteFunc(*o, func(op Operator) bool {
+	*o = slices.DeleteFunc(*o, func(op Operator) bool {
 		return op.Name == name && op.Specifier.Class() == class
 	})
 }

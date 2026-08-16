@@ -118,6 +118,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: writeTerm3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: op3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: currentOp3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: charConversion2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: currentCharConversion2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2618,6 +2620,7 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 		syntax.DoubleQuote(&e.DoubleQuotes),
 		syntax.Operators(&e.Ops),
 		syntax.VariableNames(&vars),
+		syntax.CharConv(&e.CharConversion),
 	)
 	switch {
 	case errors.Is(err, io.EOF):
@@ -3153,6 +3156,93 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 			}
 
 			ok, err = e.Unify(operator, n)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
+}
+
+func charConversion2(ctx context.Context, e *Execution) Promise {
+	inChar, outChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	in, err := e.mustBeChar(inChar)
+	if err != nil {
+		return Error(err)
+	}
+
+	out, err := e.mustBeChar(outChar)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.CharConversion.Entries = slices.DeleteFunc(e.CharConversion.Entries, func(entry syntax.CharConversionEntry) bool {
+		return entry.In == in
+	})
+
+	if in != out {
+		e.CharConversion.Entries = append(e.CharConversion.Entries, syntax.CharConversionEntry{
+			In:  in,
+			Out: out,
+		})
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func currentCharConversion2(ctx context.Context, e *Execution) Promise {
+	inChar, outChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	if _, _, err := e.canBeChar(inChar); err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeChar(outChar); err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		for _, entry := range e.CharConversion.Entries {
+			i, err := e.PutAtom(term.NewAtomRune(entry.In))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err := e.Unify(inChar, i)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			o, err := e.PutAtom(term.NewAtomRune(entry.Out))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err = e.Unify(outChar, o)
 			if err != nil {
 				_ = yield(Error(err))
 				return
