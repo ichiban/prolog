@@ -216,5 +216,8 @@ write_canonical(S, Term) :-
 
 once(G) :- call(G), !.
 
+repeat.
+repeat :- repeat.
+
 % stub
 number_chars(_, _) :- throw(error(syntax_error(_), _)).

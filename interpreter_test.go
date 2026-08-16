@@ -1179,6 +1179,21 @@ a`},
 		{query: `\+(3).`, err: "type_error(callable,3)"},
 		{query: `'\\+'(X).`, err: "instantiation_error"},
 		{query: `\+(X = f(X)).`, expectations: [][]string{}},
+		// 8.15.2.4
+		{query: `once(!).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `once(!), (X=1; X=2).`, expectations: [][]string{
+			{`X = 1.`},
+			{`X = 2.`},
+		}},
+		{query: `once(repeat).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `once(fail).`, expectations: [][]string{}},
+		{query: `once(X = f(X)).`, expectations: [][]string{
+			{`X = f(X).`},
+		}},
 		// TODO:
 		/*
 			Other test cases.
