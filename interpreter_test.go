@@ -22,6 +22,7 @@ func TestInterpreter_Query(t *testing.T) {
 		input        string
 		query        string
 		expectations [][]string
+		adInfinitum  bool
 		output       string
 		ignoreOutput bool
 		err          string
@@ -1198,6 +1199,32 @@ a`},
 		// 8.15.3.4
 		{query: `repeat, write('hello '), fail.`, err: "system_error", output: `hello hello hello hello hello `},
 		{query: `repeat, !, fail.`, expectations: [][]string{}},
+		// 8.15.4.4
+		{query: `call(integer, 3).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `call(functor(F,c), 0).`, expectations: [][]string{
+			{`F = c.`},
+		}},
+		// TODO: atom_concat/3
+		// {query: `call(call(call(atom_concat, pro), log), Atom).`, expectations: [][]string{
+		// {`Atom = prolog.`},
+		// }},
+		{query: `call(;, X = 1, X = 2).`, expectations: [][]string{
+			{`X = 1.`},
+			{`X = 2.`},
+		}},
+		{query: `call(;, (true->fail), X=1).`, expectations: [][]string{}},
+		{loaded: []string{"testdata/8.15.4.4.pl"}, query: `maplist(>(3), [1, 2]).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{loaded: []string{"testdata/8.15.4.4.pl"}, query: `maplist(>(3), [1, 2, 3]).`, expectations: [][]string{}},
+		{loaded: []string{"testdata/8.15.4.4.pl"}, query: `maplist(=(X), Xs).`, expectations: [][]string{
+			{`Xs = [].`},
+			{`Xs = [X].`},
+			{`Xs = [X, X].`},
+			{`Xs = [X, X, X].`},
+		}, adInfinitum: true},
 		// TODO:
 		/*
 			Other test cases.
@@ -1271,7 +1298,7 @@ a`},
 				t.Fatal(err)
 			}
 
-			i := New(HeapSize(5*1024), Root(root))
+			i := New(HeapSize(6*1024), Root(root))
 			i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)
@@ -1328,6 +1355,9 @@ a`},
 				}
 				if test.expectations != nil {
 					if j >= len(test.expectations) {
+						if test.adInfinitum {
+							break
+						}
 						t.Errorf("Unexpected solution #%d, expected only %d", j+1, len(test.expectations))
 						j++
 						continue

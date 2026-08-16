@@ -120,6 +120,13 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: currentOp3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: charConversion2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: currentCharConversion2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 3), Type: InHead, Proc: call2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 4), Type: InHead, Proc: call3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 5), Type: InHead, Proc: call4})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 6), Type: InHead, Proc: call5})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: call6})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: call7})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: call8})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3263,6 +3270,188 @@ func currentCharConversion2(ctx context.Context, e *Execution) Promise {
 	})
 }
 
+func call2(ctx context.Context, e *Execution) Promise {
+	closure, arg1, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call3(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call4(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(arg3),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call5(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(arg3),
+		singleton(arg4),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call6(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(arg3),
+		singleton(arg4),
+		singleton(arg5),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call7(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(arg3),
+		singleton(arg4),
+		singleton(arg5),
+		singleton(arg6),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func call8(ctx context.Context, e *Execution) Promise {
+	closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
+	closure = e.Deref(closure)
+
+	f, err := e.mustBeCallable(closure)
+	if err != nil {
+		return Error(err)
+	}
+
+	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
+		e.Args(closure),
+		singleton(arg1),
+		singleton(arg2),
+		singleton(arg3),
+		singleton(arg4),
+		singleton(arg5),
+		singleton(arg6),
+		singleton(arg7),
+		singleton(cont),
+	))...)
+	if err != nil {
+		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -3828,16 +4017,13 @@ func singleton[T any](e T) iter.Seq[T] {
 	}
 }
 
-func concat[T any](s1, s2 iter.Seq[T]) iter.Seq[T] {
+func concat[T any](ss ...iter.Seq[T]) iter.Seq[T] {
 	return func(yield func(T) bool) {
-		for e := range s1 {
-			if !yield(e) {
-				return
-			}
-		}
-		for e := range s2 {
-			if !yield(e) {
-				return
+		for _, s := range ss {
+			for e := range s {
+				if !yield(e) {
+					return
+				}
 			}
 		}
 	}
