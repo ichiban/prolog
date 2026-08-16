@@ -168,7 +168,7 @@ func TestCompile(t *testing.T) {
 					BuiltinSet: &BuiltinSet{},
 					Module:     term.NewAtom("user"),
 					Arena:      &arena,
-					Ops:        syntax.NewOperatorSet(),
+					Ops:        *syntax.NewOperatorSet(),
 				},
 			}
 			var m ir.Module

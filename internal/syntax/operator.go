@@ -2,107 +2,136 @@ package syntax
 
 import (
 	"math"
+	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 // OperatorSet is a set of defined operators.
-type OperatorSet struct {
-	ops map[opKey]operator
+type OperatorSet []Operator
+
+var defaultOperatorSet = OperatorSet{
+	// :- op(1200, xfx, [:-, -->]).
+	{Priority: 1200, Specifier: XFX, Name: term.NewAtom(`:-`)},
+	{Priority: 1200, Specifier: XFX, Name: term.NewAtom(`-->`)},
+	// :- op(1200, fx, [:-, ?-]).
+	{Priority: 1200, Specifier: FX, Name: term.NewAtom(`:-`)},
+	{Priority: 1200, Specifier: FX, Name: term.NewAtom(`?-`)},
+	// :- op(1105, xfy, '|').
+	{Priority: 1105, Specifier: XFY, Name: term.NewAtomRune('|')},
+	// :- op(1100, xfy, ;).
+	{Priority: 1100, Specifier: XFY, Name: term.NewAtomRune(';')},
+	// :- op(1050, xfy, ->).
+	{Priority: 1050, Specifier: XFY, Name: term.NewAtom(`->`)},
+	// :- op(1000, xfy, ',').
+	{Priority: 1000, Specifier: XFY, Name: term.NewAtomRune(',')},
+	// :- op(900, fy, \+).
+	{Priority: 900, Specifier: FY, Name: term.NewAtom(`\+`)},
+	// :- op(700, xfx, [=, \=]).
+	{Priority: 700, Specifier: XFX, Name: term.NewAtomRune('=')},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`\=`)},
+	// :- op(700, xfx, [==, \==, @<, @=<, @>, @>=]).
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`==`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`\==`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`@<`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`@=<`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`@>`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`@>=`)},
+	// :- op(700, xfx, =..).
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`=..`)},
+	// :- op(700, xfx, [is, =:=, =\=, <, =<, >, >=]).
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`is`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`=:=`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`=\=`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtomRune('<')},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`=<`)},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtomRune('>')},
+	{Priority: 700, Specifier: XFX, Name: term.NewAtom(`>=`)},
+	// :- op(600, xfy, :).
+	{Priority: 600, Specifier: XFY, Name: term.NewAtomRune(':')},
+	// :- op(500, yfx, [+, -, /\, \/]).
+	{Priority: 500, Specifier: YFX, Name: term.NewAtomRune('+')},
+	{Priority: 500, Specifier: YFX, Name: term.NewAtomRune('-')},
+	{Priority: 500, Specifier: YFX, Name: term.NewAtom(`/\`)},
+	{Priority: 500, Specifier: YFX, Name: term.NewAtom(`\/`)},
+	// :- op(400, yfx, [*, /, //, div, rem, mod, <<, >>]).
+	{Priority: 400, Specifier: YFX, Name: term.NewAtomRune('*')},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtomRune('/')},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`//`)},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`div`)},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`rem`)},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`mod`)},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`<<`)},
+	{Priority: 400, Specifier: YFX, Name: term.NewAtom(`>>`)},
+	// :- op(200, xfx, **).
+	{Priority: 200, Specifier: XFX, Name: term.NewAtom(`**`)},
+	// :- op(200, xfy, ^).
+	{Priority: 200, Specifier: XFY, Name: term.NewAtomRune('^')},
+	// :- op(200, fy, [+, -, \]).
+	{Priority: 200, Specifier: FY, Name: term.NewAtomRune('+')},
+	{Priority: 200, Specifier: FY, Name: term.NewAtomRune('-')},
+	{Priority: 200, Specifier: FY, Name: term.NewAtomRune('\\')},
 }
 
 func NewOperatorSet() *OperatorSet {
-	var ops OperatorSet
-
-	// :- op(1200, xfx, [:-, -->]).
-	ops.Define(1200, XFX, term.NewAtom(":-"), term.NewAtom("-->"))
-	// :- op(1200, fx, [:-, ?-]).
-	ops.Define(1200, FX, term.NewAtom(":-"), term.NewAtom("?-"))
-	// :- op(1105, xfy, '|').
-	ops.Define(1105, XFY, term.NewAtomRune('|'))
-	// :- op(1100, xfy, ;).
-	ops.Define(1100, XFY, term.NewAtomRune(';'))
-	// :- op(1050, xfy, ->).
-	ops.Define(1050, XFY, term.NewAtom("->"))
-	// :- op(1000, xfy, ',').
-	ops.Define(1000, XFY, term.NewAtomRune(','))
-	// :- op(900, fy, \+).
-	ops.Define(900, FY, term.NewAtom(`\+`))
-	// :- op(700, xfx, [=, \=]).
-	ops.Define(700, XFX, term.NewAtomRune('='), term.NewAtom(`\=`))
-	// :- op(700, xfx, [==, \==, @<, @=<, @>, @>=]).
-	ops.Define(700, XFX, term.NewAtom("=="), term.NewAtom(`\==`), term.NewAtom(`@<`), term.NewAtom(`@=<`), term.NewAtom(`@>`), term.NewAtom(`@>=`))
-	// :- op(700, xfx, =..).
-	ops.Define(700, XFX, term.NewAtom("=.."))
-	// :- op(700, xfx, [is, =:=, =\=, <, =<, >, >=]).
-	ops.Define(700, XFX, term.NewAtom("is"), term.NewAtom("=:="), term.NewAtom(`=\=`), term.NewAtomRune('<'), term.NewAtom("=<"), term.NewAtomRune('>'), term.NewAtom(">="))
-	// :- op(600, xfy, :).
-	ops.Define(600, XFY, term.NewAtomRune(':'))
-	// :- op(500, yfx, [+, -, /\, \/]).
-	ops.Define(500, YFX, term.NewAtomRune('+'), term.NewAtomRune('-'), term.NewAtom(`/\`), term.NewAtom(`\/`))
-	// :- op(400, yfx, [*, /, //, div, rem, mod, <<, >>]).
-	ops.Define(400, YFX, term.NewAtomRune('*'), term.NewAtomRune('/'), term.NewAtom("//"), term.NewAtom("div"), term.NewAtom("rem"), term.NewAtom("mod"), term.NewAtom("<<"), term.NewAtom(">>"))
-	// :- op(200, xfx, **).
-	ops.Define(200, XFX, term.NewAtom("**"))
-	// :- op(200, xfy, ^).
-	ops.Define(200, XFY, term.NewAtomRune('^'))
-	// :- op(200, fy, [+, -, \]).
-	ops.Define(200, FY, term.NewAtomRune('+'), term.NewAtomRune('-'), term.NewAtomRune('\\'))
-
+	ops := slices.Clone(defaultOperatorSet)
 	return &ops
 }
 
 // Define defines an operator.
-func (o *OperatorSet) Define(priority int, spec OperatorSpecifier, names ...term.Atom) {
-	if o.ops == nil {
-		o.ops = map[opKey]operator{}
+func (o *OperatorSet) Define(priority int16, spec OperatorSpecifier, names ...term.Atom) {
+	if priority == 0 {
+		return
 	}
 	for _, name := range names {
-		o.ops[opKey{
-			name:    name,
-			opClass: operatorSpecifiers[spec].opClass,
-		}] = operator{
-			priority:  priority,
-			specifier: spec,
-			name:      name,
-		}
+		*o = append(*o, Operator{
+			Priority:  priority,
+			Specifier: spec,
+			Name:      name,
+		})
 	}
 }
 
-func (o *OperatorSet) definedIn(name term.Atom, opClass operatorClass) bool {
-	_, ok := o.ops[opKey{name: name, opClass: opClass}]
-	return ok
+func (o *OperatorSet) Undefine(name term.Atom, class OperatorClass) {
+	_ = slices.DeleteFunc(*o, func(op Operator) bool {
+		return op.Name == name && op.Specifier.Class() == class
+	})
+}
+
+func (o *OperatorSet) DefinedIn(name term.Atom, opClass OperatorClass) (Operator, bool) {
+	i := slices.IndexFunc(*o, func(op Operator) bool {
+		return op.Name == name && op.Specifier.Class() == opClass
+	})
+	if i < 0 {
+		return Operator{}, false
+	}
+	return (*o)[i], true
 }
 
 func (o *OperatorSet) defined(name term.Atom) bool {
-	return o.definedIn(name, operatorClassPrefix) ||
-		o.definedIn(name, operatorClassPostfix) ||
-		o.definedIn(name, operatorClassInfix)
+	return slices.IndexFunc(*o, func(op Operator) bool {
+		return op.Name == name
+	}) >= 0
 }
 
-type opKey struct {
-	name    term.Atom
-	opClass operatorClass
-}
-
-type operatorClass int8
+type OperatorClass int8
 
 const (
-	operatorClassPrefix operatorClass = iota
-	operatorClassPostfix
-	operatorClassInfix
+	Prefix OperatorClass = iota
+	Postfix
+	Infix
 )
 
 var operatorClasses = [...]struct {
 	arity int
 }{
-	operatorClassPrefix: {
+	Prefix: {
 		arity: 1,
 	},
-	operatorClassPostfix: {
+	Postfix: {
 		arity: 1,
 	},
-	operatorClassInfix: {
+	Infix: {
 		arity: 2,
 	},
 }
@@ -122,61 +151,61 @@ const (
 
 var operatorSpecifiers = [...]struct {
 	name       string
-	opClass    operatorClass
-	priorities func(p int) (left int, right int)
+	opClass    OperatorClass
+	priorities func(p int16) (left int16, right int16)
 }{
 	FX: {
 		name:    "fx",
-		opClass: operatorClassPrefix,
-		priorities: func(p int) (left int, right int) {
-			return math.MaxInt, p - 1
+		opClass: Prefix,
+		priorities: func(p int16) (left int16, right int16) {
+			return math.MaxInt16, p - 1
 		},
 	},
 	FY: {
 		name:    "fy",
-		opClass: operatorClassPrefix,
-		priorities: func(p int) (left int, right int) {
-			return math.MaxInt, p
+		opClass: Prefix,
+		priorities: func(p int16) (left int16, right int16) {
+			return math.MaxInt16, p
 		},
 	},
 	XF: {
 		name:    "xf",
-		opClass: operatorClassPostfix,
-		priorities: func(p int) (left int, right int) {
-			return p - 1, math.MaxInt
+		opClass: Postfix,
+		priorities: func(p int16) (left int16, right int16) {
+			return p - 1, math.MaxInt16
 		},
 	},
 	YF: {
 		name:    "yf",
-		opClass: operatorClassPostfix,
-		priorities: func(p int) (left int, right int) {
-			return p, math.MaxInt
+		opClass: Postfix,
+		priorities: func(p int16) (left int16, right int16) {
+			return p, math.MaxInt16
 		},
 	},
 	XFX: {
 		name:    "xfx",
-		opClass: operatorClassInfix,
-		priorities: func(p int) (left int, right int) {
+		opClass: Infix,
+		priorities: func(p int16) (left int16, right int16) {
 			return p - 1, p - 1
 		},
 	},
 	XFY: {
-		name:    "xFy",
-		opClass: operatorClassInfix,
-		priorities: func(p int) (left int, right int) {
+		name:    "xfy",
+		opClass: Infix,
+		priorities: func(p int16) (left int16, right int16) {
 			return p - 1, p
 		},
 	},
 	YFX: {
-		name:    "yFx",
-		opClass: operatorClassInfix,
-		priorities: func(p int) (left int, right int) {
+		name:    "yfx",
+		opClass: Infix,
+		priorities: func(p int16) (left int16, right int16) {
 			return p, p - 1
 		},
 	},
 }
 
-func (s OperatorSpecifier) class() operatorClass {
+func (s OperatorSpecifier) Class() OperatorClass {
 	return operatorSpecifiers[s].opClass
 }
 
@@ -188,13 +217,13 @@ func (s OperatorSpecifier) arity() int {
 	return operatorClasses[operatorSpecifiers[s].opClass].arity
 }
 
-type operator struct {
-	priority  int // 1 ~ 1200
-	specifier OperatorSpecifier
-	name      term.Atom
+type Operator struct {
+	Priority  int16 // 1 ~ 1200
+	Specifier OperatorSpecifier
+	Name      term.Atom
 }
 
 // Pratt parser's binding powers but in Prolog priority.
-func (o *operator) bindingPriorities() (int, int) {
-	return operatorSpecifiers[o.specifier].priorities(o.priority)
+func (o *Operator) bindingPriorities() (int16, int16) {
+	return operatorSpecifiers[o.Specifier].priorities(o.Priority)
 }

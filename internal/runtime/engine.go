@@ -32,7 +32,7 @@ type Engine struct {
 
 	Module       term.Atom
 	DoubleQuotes syntax.DoubleQuotes
-	Ops          *syntax.OperatorSet
+	Ops          syntax.OperatorSet
 	DB           db.DB
 	CurrentTime  wam.LogicalTime
 

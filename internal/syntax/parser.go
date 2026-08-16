@@ -286,7 +286,7 @@ func (d DoubleQuotes) String() string {
 }
 
 // Loosely based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term(maxPriority int16) (term.Handle, bool, error) {
 	var lhs term.Handle
 	switch op, ok, err := p.prefix(maxPriority); {
 	case err != nil:
@@ -309,9 +309,9 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 			p.backup()
 			return p.term0(maxPriority)
 		}
-		lhs, err = p.arena.PutCompound(op.name, t)
+		lhs, err = p.arena.PutCompound(op.Name, t)
 		if err != nil {
-			return term.Handle{}, false, fmt.Errorf("PutCompound(%s, %s): %w", op.name, &Formatter{Arena: p.arena, Term: t}, err)
+			return term.Handle{}, false, fmt.Errorf("PutCompound(%s, %s): %w", op.Name, &Formatter{Arena: p.arena, Term: t}, err)
 		}
 	}
 
@@ -332,7 +332,7 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 		switch _, rbp := op.bindingPriorities(); {
 		case rbp > 1200:
 			var err error
-			lhs, err = p.arena.PutCompound(op.name, lhs)
+			lhs, err = p.arena.PutCompound(op.Name, lhs)
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -344,7 +344,7 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 			if !ok {
 				return term.Handle{}, false, nil
 			}
-			lhs, err = p.arena.PutCompound(op.name, lhs, rhs)
+			lhs, err = p.arena.PutCompound(op.Name, lhs, rhs)
 			if err != nil {
 				return term.Handle{}, false, err
 			}
@@ -354,25 +354,25 @@ func (p *parser) term(maxPriority int) (term.Handle, bool, error) {
 	return lhs, true, nil
 }
 
-func (p *parser) prefix(maxPriority int) (operator, bool, error) {
+func (p *parser) prefix(maxPriority int16) (Operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
 	if err != nil {
-		return operator{}, false, fmt.Errorf("op(%d): %w", maxPriority, err)
+		return Operator{}, false, fmt.Errorf("op(%d): %w", maxPriority, err)
 	}
 	if !ok {
-		return operator{}, false, nil
+		return Operator{}, false, nil
 	}
 
 	if a == atomMinus {
 		t, err := p.next()
 		if err != nil {
-			return operator{}, false, err
+			return Operator{}, false, err
 		}
 		switch t.kind {
 		case tokenInteger, tokenFloatNumber:
 			p.backup()
 			p.backup()
-			return operator{}, false, nil
+			return Operator{}, false, nil
 		default:
 			p.backup()
 		}
@@ -380,41 +380,41 @@ func (p *parser) prefix(maxPriority int) (operator, bool, error) {
 
 	t, err := p.next()
 	if err != nil {
-		return operator{}, false, err
+		return Operator{}, false, err
 	}
 	switch t.kind {
 	case tokenOpenCT:
 		p.backup()
 		p.backup()
-		return operator{}, false, nil
+		return Operator{}, false, nil
 	default:
 		p.backup()
 	}
 
-	op, ok := p.operatorSet.ops[opKey{name: a, opClass: operatorClassPrefix}]
-	if !ok || op.priority > maxPriority {
+	op, ok := p.operatorSet.DefinedIn(a, Prefix)
+	if !ok || op.Priority > maxPriority {
 		p.backup()
-		return operator{}, false, nil
+		return Operator{}, false, nil
 	}
 	return op, true, nil
 }
 
-func (p *parser) infix(maxPriority int) (operator, bool, error) {
+func (p *parser) infix(maxPriority int16) (Operator, bool, error) {
 	a, ok, err := p.op(maxPriority)
 	if err != nil {
-		return operator{}, ok, fmt.Errorf("op(%d): %w", maxPriority, err)
+		return Operator{}, ok, fmt.Errorf("op(%d): %w", maxPriority, err)
 	}
 	if !ok {
-		return operator{}, false, nil
+		return Operator{}, false, nil
 	}
 
-	if op := p.operatorSet.ops[opKey{name: a, opClass: operatorClassInfix}]; op != (operator{}) {
+	if op, ok := p.operatorSet.DefinedIn(a, Infix); ok {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, true, nil
 		}
 	}
-	if op := p.operatorSet.ops[opKey{name: a, opClass: operatorClassPostfix}]; op != (operator{}) {
+	if op, ok := p.operatorSet.DefinedIn(a, Postfix); ok {
 		l, _ := op.bindingPriorities()
 		if l <= maxPriority {
 			return op, true, nil
@@ -422,10 +422,10 @@ func (p *parser) infix(maxPriority int) (operator, bool, error) {
 	}
 
 	p.backup()
-	return operator{}, false, nil
+	return Operator{}, false, nil
 }
 
-func (p *parser) op(maxPriority int) (term.Atom, bool, error) {
+func (p *parser) op(maxPriority int16) (term.Atom, bool, error) {
 	a, ok, err := p.atom()
 	if err != nil {
 		return term.Atom{}, false, err
@@ -468,7 +468,7 @@ func (p *parser) op(maxPriority int) (term.Atom, bool, error) {
 	return term.Atom{}, false, nil
 }
 
-func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term0(maxPriority int16) (term.Handle, bool, error) {
 	t, err := p.next()
 	if err != nil {
 		return term.Handle{}, false, fmt.Errorf("next(): %w", err)
@@ -551,7 +551,7 @@ func (p *parser) term0(maxPriority int) (term.Handle, bool, error) {
 	return a, ok, nil
 }
 
-func (p *parser) term0Atom(maxPriority int) (term.Handle, bool, error) {
+func (p *parser) term0Atom(maxPriority int16) (term.Handle, bool, error) {
 	a, ok, err := p.atom()
 	if err != nil {
 		return term.Handle{}, false, fmt.Errorf("atom(): %w", err)

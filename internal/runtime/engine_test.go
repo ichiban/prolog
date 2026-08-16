@@ -196,6 +196,7 @@ p(a).
 					Heap: make(term.Heap, 0, 1024),
 				},
 				BuiltinSet: &BuiltinSet{},
+				Ops:        *syntax.NewOperatorSet(),
 			}
 
 			c := Compiler{
@@ -290,6 +291,7 @@ func TestEngine_Call(t *testing.T) {
 				Arena: &term.Arena{
 					Heap: make(term.Heap, 0, 5*1024),
 				},
+				Ops: *syntax.NewOperatorSet(),
 			}
 
 			if err := e.LoadSystem(t.Context()); err != nil {

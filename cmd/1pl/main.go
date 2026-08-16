@@ -137,6 +137,8 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 		resultShown = true
 	}
 	if !resultShown {
+		buf.Reset()
+		t.SetPrompt(prompt)
 		_, _ = fmt.Fprintf(t, "%t\n", false)
 	}
 

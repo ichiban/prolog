@@ -91,7 +91,8 @@ func New(opts ...InterpreterOption) *Interpreter {
 			TempArena: &term.Arena{
 				Heap: make(term.Heap, 0, opt.tempHeapSize),
 			},
-			DB: &db.MemoryDB{},
+			Ops: *syntax.NewOperatorSet(),
+			DB:  &db.MemoryDB{},
 			FS: runtime.FS{
 				Root: opt.root,
 			},
@@ -256,11 +257,13 @@ func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 func (i *Interpreter) decodeResult(out any, varNames []term.VariableName) error {
 	switch out := out.(type) {
 	case *Result:
-
 		if *out == nil {
 			*out = Result{}
 		}
 		for _, vn := range varNames {
+			if vn.Name == "_" {
+				continue
+			}
 			t := vn.Variable
 			t = i.engine.Deref(t)
 			if _, ok := i.engine.Variable(t); ok {

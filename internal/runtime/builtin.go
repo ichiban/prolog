@@ -116,6 +116,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: putByte2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: readTerm3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: writeTerm3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: op3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: currentOp3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -2614,7 +2616,7 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 	p, err := syntax.ParseTerm(s,
 		syntax.Arena(e.Arena),
 		syntax.DoubleQuote(&e.DoubleQuotes),
-		syntax.Operators(e.Ops),
+		syntax.Operators(&e.Ops),
 		syntax.VariableNames(&vars),
 	)
 	switch {
@@ -2787,7 +2789,7 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 	formatter := syntax.Formatter{
 		Arena: e.Arena,
 		Term:  t,
-		Ops:   e.Ops,
+		Ops:   &e.Ops,
 	}
 	if err := e.mustBeList(options, func(o term.Handle) error {
 		o = e.Deref(o)
@@ -2922,6 +2924,253 @@ func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
 	}
 	*out = int(n)
 	return nil
+}
+
+func op3(ctx context.Context, e *Execution) Promise {
+	priority, operatorSpecifier, operator, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
+
+	p, err := e.mustBeInteger(priority)
+	if err != nil {
+		return Error(err)
+	}
+	if p < 0 || p > 1200 {
+		return Error(&DomainError{
+			ValidDomain: term.NewAtom("operator_priority"),
+			Culprit:     syntax.Serialize(e.Arena, priority),
+			Location:    e.location,
+		})
+	}
+
+	opSpec, err := e.mustBeAtom(operatorSpecifier)
+	if err != nil {
+		return Error(err)
+	}
+
+	var spec syntax.OperatorSpecifier
+	switch opSpec {
+	case term.NewAtom("fx"):
+		spec = syntax.FX
+	case term.NewAtom("fy"):
+		spec = syntax.FY
+	case term.NewAtom("xf"):
+		spec = syntax.XF
+	case term.NewAtom("yf"):
+		spec = syntax.YF
+	case term.NewAtom("xfx"):
+		spec = syntax.XFX
+	case term.NewAtom("xfy"):
+		spec = syntax.XFY
+	case term.NewAtom("yfx"):
+		spec = syntax.YFX
+	default:
+		return Error(&DomainError{
+			ValidDomain: term.NewAtom("operator_specifier"),
+			Culprit:     syntax.Serialize(e.Arena, operatorSpecifier),
+			Location:    e.location,
+		})
+	}
+
+	var ops []term.Atom
+	if a, ok := e.Atom(operator); ok {
+		if err := e.validateOp(p, spec, operator); err != nil {
+			return Error(err)
+		}
+		ops = append(ops, a)
+	} else {
+		if err := e.mustBeList(operator, func(elem term.Handle) error {
+			a, err := e.mustBeAtom(elem)
+			if err != nil {
+				return err
+			}
+
+			if err := e.validateOp(p, spec, operator); err != nil {
+				return err
+			}
+
+			if slices.Contains(ops, a) {
+				return nil
+			}
+			ops = append(ops, a)
+
+			return nil
+		}); err != nil {
+			return Error(err)
+		}
+	}
+
+	for _, op := range ops {
+		e.Ops.Undefine(op, spec.Class())
+		e.Ops.Define(int16(p), spec, op)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.Handle) error {
+	name, _ := e.Atom(op)
+
+	switch name {
+	case term.NewAtomRune('.'):
+		if _, ok := e.Ops.DefinedIn(name, syntax.Infix); ok {
+			return &PermissionError{
+				Operation:      term.NewAtom("modify"),
+				PermissionType: term.NewAtom("operator"),
+				Culprit:        syntax.Serialize(e.Arena, op),
+				Location:       0,
+			}
+		}
+	case term.NewAtomRune('|'):
+		if spec.Class() != syntax.Infix || (p > 0 && p < 1001) {
+			operation := term.NewAtom("create")
+			if _, ok := e.Ops.DefinedIn(name, syntax.Infix); ok {
+				operation = term.NewAtom("modify")
+			}
+			return &PermissionError{
+				Operation:      operation,
+				PermissionType: term.NewAtom("operator"),
+				Culprit:        syntax.Serialize(e.Arena, op),
+				Location:       e.location,
+			}
+		}
+	case term.NewAtom("{}"), term.NewAtom("[]"):
+		return &PermissionError{
+			Operation:      term.NewAtom("create"),
+			PermissionType: term.NewAtom("operator"),
+			Culprit:        syntax.Serialize(e.Arena, op),
+			Location:       e.location,
+		}
+	}
+
+	// 6.3.4.3 There shall not be an infix and a postfix Operator with the same name.
+	switch spec.Class() {
+	case syntax.Infix:
+		if _, ok := e.Ops.DefinedIn(name, syntax.Postfix); ok {
+			return &PermissionError{
+				Operation:      term.NewAtom("create"),
+				PermissionType: term.NewAtom("operator"),
+				Culprit:        syntax.Serialize(e.Arena, op),
+				Location:       e.location,
+			}
+		}
+	case syntax.Postfix:
+		if _, ok := e.Ops.DefinedIn(name, syntax.Infix); ok {
+			return &PermissionError{
+				Operation:      term.NewAtom("create"),
+				PermissionType: term.NewAtom("operator"),
+				Culprit:        syntax.Serialize(e.Arena, op),
+				Location:       e.location,
+			}
+		}
+	}
+
+	return nil
+}
+
+func currentOp3(ctx context.Context, e *Execution) Promise {
+	priority, operatorSpecifier, operator, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
+
+	switch p, ok, err := e.canBeInteger(priority); {
+	case err != nil:
+		return Error(err)
+	case ok && (p < 0 || p > 1200):
+		return Error(&DomainError{
+			ValidDomain: term.NewAtom("operator_priority"),
+			Culprit:     syntax.Serialize(e.Arena, priority),
+			Location:    e.location,
+		})
+	}
+
+	switch s, ok, err := e.canBeAtom(operatorSpecifier); {
+	case err != nil:
+		return Error(err)
+	case ok && !slices.Contains([]term.Atom{
+		term.NewAtom("fx"),
+		term.NewAtom("fy"),
+		term.NewAtom("xf"),
+		term.NewAtom("yf"),
+		term.NewAtom("xfx"),
+		term.NewAtom("xfy"),
+		term.NewAtom("yfx"),
+	}, s):
+		return Error(&DomainError{
+			ValidDomain: term.NewAtom("operator_specifier"),
+			Culprit:     syntax.Serialize(e.Arena, operatorSpecifier),
+			Location:    e.location,
+		})
+	}
+
+	switch _, _, err := e.canBeAtom(operator); {
+	case err != nil:
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		for _, op := range e.Ops {
+			p, err := e.PutInteger(int64(op.Priority))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err := e.Unify(priority, p)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			s, err := e.PutAtom(term.NewAtom(op.Specifier.String()))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err = e.Unify(operatorSpecifier, s)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			n, err := e.PutAtom(op.Name)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err = e.Unify(operator, n)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {

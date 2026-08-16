@@ -78,10 +78,10 @@ func (f *Formatter) WriteTo(w io.Writer) (int64, error) {
 
 type formatter struct {
 	Formatter
-	priority    int
+	priority    int16
 	visited     map[term.Handle]struct{}
 	prefixMinus bool
-	left, right operator
+	left, right Operator
 	depth       int
 }
 
@@ -132,7 +132,7 @@ func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
 func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
 	arena := f.Arena
 	ew := errWriter{w: w}
-	if letterDigit(f.left.name) {
+	if letterDigit(f.left.Name) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	if i := slices.IndexFunc(f.VariableNames, func(vn term.VariableName) bool {
@@ -145,7 +145,7 @@ func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
 		addr, _ := arena.Variable(v)
 		_, _ = fmt.Fprintf(&ew, "_%d", addr)
 	}
-	if letterDigit(f.right.name) {
+	if letterDigit(f.right.Name) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	return ew.Result()
@@ -153,30 +153,30 @@ func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
 
 func (f formatter) writeAtom(w io.Writer, name term.Atom) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := (f.left != (operator{}) || f.right != (operator{})) && f.Ops.defined(name)
+	openClose := (f.left != (Operator{}) || f.right != (Operator{})) && f.Ops.defined(name)
 
 	if openClose {
-		if f.left.name != (term.Atom{}) && f.left.specifier.class() == operatorClassPrefix {
+		if f.left.Name != (term.Atom{}) && f.left.Specifier.Class() == Prefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		f.left, f.right = operator{}, operator{}
+		f.left, f.right = Operator{}, Operator{}
 	}
 
 	if f.Quoted && needQuoted(name) {
-		if f.left != (operator{}) && needQuoted(f.left.name) { // Avoid 'FOO''BAR'.
+		if f.left != (Operator{}) && needQuoted(f.left.Name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = ew.Write([]byte(quote(name)))
-		if f.right != (operator{}) && needQuoted(f.right.name) { // Avoid 'FOO''BAR'.
+		if f.right != (Operator{}) && needQuoted(f.right.Name) { // Avoid 'FOO''BAR'.
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 	} else {
-		if (letterDigit(f.left.name) && letterDigit(name)) || (graphic(f.left.name) && graphic(name)) {
+		if (letterDigit(f.left.Name) && letterDigit(name)) || (graphic(f.left.Name) && graphic(name)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, name)
-		if (letterDigit(f.right.name) && letterDigit(name)) || (graphic(f.right.name) && graphic(name)) {
+		if (letterDigit(f.right.Name) && letterDigit(name)) || (graphic(f.right.Name) && graphic(name)) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 	}
@@ -243,14 +243,14 @@ func graphic(s term.Atom) bool {
 
 func (f formatter) writeInteger(w io.Writer, i int64) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix && i > 0
+	openClose := f.left.Name == atomMinus && f.left.Specifier.Class() == Prefix && i > 0
 
 	if openClose {
 		_, _ = ew.Write([]byte(" ("))
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 	} else {
-		if f.left != (operator{}) && (letterDigit(f.left.name) || (i < 0 && graphic(f.left.name))) {
+		if f.left != (Operator{}) && (letterDigit(f.left.Name) || (i < 0 && graphic(f.left.Name))) {
 			_, _ = ew.Write([]byte(" "))
 		}
 	}
@@ -263,7 +263,7 @@ func (f formatter) writeInteger(w io.Writer, i int64) (int64, error) {
 	}
 
 	// Avoid ambiguous 0b, 0o, 0x or 0'.
-	if !openClose && f.right != (operator{}) && (letterDigit(f.right.name) || (needQuoted(f.right.name) && f.right.name != atomComma && f.right.name != atomBar)) {
+	if !openClose && f.right != (Operator{}) && (letterDigit(f.right.Name) || (needQuoted(f.right.Name) && f.right.Name != atomComma && f.right.Name != atomBar)) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
@@ -272,9 +272,9 @@ func (f formatter) writeInteger(w io.Writer, i int64) (int64, error) {
 
 func (f formatter) writeFloat(w io.Writer, fl float64) (int64, error) {
 	ew := errWriter{w: w}
-	openClose := f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix && fl > 0
+	openClose := f.left.Name == atomMinus && f.left.Specifier.Class() == Prefix && fl > 0
 
-	if openClose || (fl < 0 && f.left != operator{}) {
+	if openClose || (fl < 0 && f.left != Operator{}) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
@@ -296,7 +296,7 @@ func (f formatter) writeFloat(w io.Writer, fl float64) (int64, error) {
 		_, _ = ew.Write([]byte(")"))
 	}
 
-	if !openClose && f.right != (operator{}) && (f.right.name == atomSmallE || f.right.name == atomLargeE) {
+	if !openClose && f.right != (Operator{}) && (f.right.Name == atomSmallE || f.right.Name == atomLargeE) {
 		_, _ = ew.Write([]byte(" "))
 	}
 
@@ -321,17 +321,16 @@ func (f formatter) writeCompound(w io.Writer, t term.Handle) (int64, error) {
 			return f.writeCompoundCurlyBracketed(w, t)
 		}
 
-		ops := f.Ops.ops
 		switch fn.Arity() {
 		case 1:
-			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassPrefix}]; ok {
+			if op, ok := f.Ops.DefinedIn(fn.Name(), Prefix); ok {
 				return f.writeCompoundOpPrefix(w, fn.Name(), arena.Arg(t, 0), &op)
 			}
-			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassPostfix}]; ok {
+			if op, ok := f.Ops.DefinedIn(fn.Name(), Postfix); ok {
 				return f.writeCompoundOpPostfix(w, fn.Name(), arena.Arg(t, 0), &op)
 			}
 		case 2:
-			if op, ok := ops[opKey{name: fn.Name(), opClass: operatorClassInfix}]; ok {
+			if op, ok := f.Ops.DefinedIn(fn.Name(), Infix); ok {
 				return f.writeCompoundOpInfix(w, arena.Arg(t, 0), fn.Name(), arena.Arg(t, 1), &op)
 			}
 		}
@@ -355,8 +354,8 @@ func (f formatter) writeCompoundList(w io.Writer, t term.Handle) (int64, error) 
 	arena := f.Arena
 	ew := errWriter{w: w}
 	f.priority = 999
-	f.left = operator{}
-	f.right = operator{}
+	f.left = Operator{}
+	f.right = Operator{}
 	_, _ = fmt.Fprint(&ew, "[")
 	var (
 		car = arena.Arg(t, 0)
@@ -385,30 +384,30 @@ func (f formatter) writeCompoundList(w io.Writer, t term.Handle) (int64, error) 
 func (f formatter) writeCompoundCurlyBracketed(w io.Writer, t term.Handle) (int64, error) {
 	arena := f.Arena
 	ew := errWriter{w: w}
-	f.left = operator{}
+	f.left = Operator{}
 	_, _ = fmt.Fprint(&ew, "{")
 	_, _ = f.writeTerm(&ew, arena.Arg(t, 0))
 	_, _ = fmt.Fprint(&ew, "}")
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *operator) (int64, error) {
+func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	_, r := op.bindingPriorities()
-	openClose := f.priority < op.priority || (f.right != operator{} && r >= f.right.priority)
+	openClose := f.priority < op.Priority || (f.right != Operator{} && r >= f.right.Priority)
 
-	if f.left != (operator{}) {
+	if f.left != (Operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, "(")
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 	}
 	{
 		f := f
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 		_, _ = f.writeAtom(&ew, name)
 	}
 	{
@@ -424,18 +423,18 @@ func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.H
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Handle, op *operator) (int64, error) {
+func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Handle, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, _ := op.bindingPriorities()
-	openClose := f.priority < op.priority || (f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix)
+	openClose := f.priority < op.Priority || (f.left.Name == atomMinus && f.left.Specifier.Class() == Prefix)
 
 	if openClose {
-		if f.left != (operator{}) {
+		if f.left != (Operator{}) {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 	}
 	{
 		f := f
@@ -446,32 +445,32 @@ func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.
 	}
 	{
 		f := f
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 		_, _ = f.writeAtom(&ew, name)
 	}
 	if openClose {
 		_, _ = fmt.Fprint(&ew, ")")
-	} else if f.right != (operator{}) {
+	} else if f.right != (Operator{}) {
 		_, _ = fmt.Fprint(&ew, " ")
 	}
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right term.Handle, op *operator) (int64, error) {
+func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right term.Handle, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, r := op.bindingPriorities()
-	openClose := f.priority < op.priority ||
-		(f.left.name == atomMinus && f.left.specifier.class() == operatorClassPrefix) ||
-		(f.right != operator{} && r >= f.right.priority)
+	openClose := f.priority < op.Priority ||
+		(f.left.Name == atomMinus && f.left.Specifier.Class() == Prefix) ||
+		(f.right != Operator{} && r >= f.right.Priority)
 
 	if openClose {
-		if f.left != (operator{}) && f.left.specifier.class() == operatorClassPrefix {
+		if f.left != (Operator{}) && f.left.Specifier.Class() == Prefix {
 			_, _ = fmt.Fprint(&ew, " ")
 		}
 		_, _ = fmt.Fprint(&ew, "(")
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 	}
 	{
 		f := f
@@ -485,8 +484,8 @@ func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term
 		_, _ = fmt.Fprint(&ew, name)
 	default:
 		f := f
-		f.left = operator{}
-		f.right = operator{}
+		f.left = Operator{}
+		f.right = Operator{}
 		_, _ = f.writeAtom(&ew, name)
 	}
 	{
@@ -504,10 +503,10 @@ func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term
 
 func (f formatter) writeCompoundFunctionalNotation(w io.Writer, name term.Atom, args iter.Seq[term.Handle]) (int64, error) {
 	ew := errWriter{w: w}
-	f.right = operator{}
+	f.right = Operator{}
 	_, _ = f.writeAtom(&ew, name)
 	_, _ = fmt.Fprint(&ew, "(")
-	f.left = operator{}
+	f.left = Operator{}
 	f.priority = 999
 	f.depth++
 	for i, a := range withIndex(args) {

@@ -90,7 +90,7 @@ func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
 func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
 	for t, err := range syntax.Parse(strings.NewReader(text),
 		syntax.Arena(c.Arena),
-		syntax.Operators(c.Ops),
+		syntax.Operators(&c.Ops),
 		syntax.DoubleQuote(&c.DoubleQuotes),
 	) {
 		if err != nil {
@@ -240,7 +240,7 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 	return func(yield func(term.Handle, error) bool) {
 		for t, err := range syntax.Parse(strings.NewReader(text),
 			syntax.Arena(c.Arena),
-			syntax.Operators(c.Ops),
+			syntax.Operators(&c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),
 		) {
 			if err != nil {

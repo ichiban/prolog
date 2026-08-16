@@ -1109,6 +1109,25 @@ a`},
 		{query: `S = user_output, write_term(S, '$VAR'(51), [numbervars(true)]).`, expectations: [][]string{
 			{`true.`},
 		}, output: `Z1`},
+		// 8.14.3.4
+		{query: `op(30, xfy, ++).`, expectations: [][]string{
+			{`current_op(30, xfy, ++).`},
+		}},
+		{setup: []string{
+			`op(30, xfy, ++).`,
+		}, query: `op(0, yfx, ++).`, expectations: [][]string{
+			{`\+current_op(30, xfy, ++).`},
+		}},
+		{query: `op(max, xfy, ++).`, err: "type_error(integer,max)"},
+		{query: `op(-30, xfy, ++).`, err: "domain_error(operator_priority,-30)"},
+		{query: `op(1201, xfy, ++).`, err: "domain_error(operator_priority,1201)"},
+		{query: `op(30, XFY, ++).`, err: "instantiation_error"},
+		{query: `op(30, yfy, ++).`, err: "domain_error(operator_specifier,yfy)"},
+		{query: `op(30, xfy, 0).`, err: "type_error(list,0)"},
+		{query: `op(30, xfy, ++), op(40, xfx, ++).`, expectations: [][]string{
+			{`current_op(40, xfx, ++).`, `\+current_op(30, xfy, ++).`},
+		}},
+		{query: `op(30, xfy, ++), op(50, yf, ++).`, err: "permission_error(create,operator,++)"},
 		// TODO:
 		/*
 			Other test cases.
