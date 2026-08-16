@@ -3,6 +3,7 @@ package prolog
 import (
 	"bytes"
 	"embed"
+	"io"
 	"io/fs"
 	"os"
 	"slices"
@@ -1194,6 +1195,9 @@ a`},
 		{query: `once(X = f(X)).`, expectations: [][]string{
 			{`X = f(X).`},
 		}},
+		// 8.15.3.4
+		{query: `repeat, write('hello '), fail.`, err: "system_error", output: `hello hello hello hello hello `},
+		{query: `repeat, !, fail.`, expectations: [][]string{}},
 		// TODO:
 		/*
 			Other test cases.
@@ -1274,7 +1278,7 @@ a`},
 			}
 
 			var buf bytes.Buffer
-			if err := i.SetUserOutput(&buf); err != nil {
+			if err := i.SetUserOutput(&cappedWriter{Writer: &buf, limit: 30}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1364,4 +1368,28 @@ func must[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
+}
+
+type cappedWriter struct {
+	io.Writer
+	limit int
+}
+
+func (w *cappedWriter) Write(p []byte) (int, error) {
+	var (
+		i        = w.limit - len(p)
+		limitErr error
+	)
+	if i > 0 {
+		w.limit = i
+	} else {
+		p = p[:w.limit]
+		w.limit = 0
+		limitErr = io.ErrShortWrite
+	}
+	n, err := w.Writer.Write(p)
+	if err != nil {
+		return n, err
+	}
+	return n, limitErr
 }
