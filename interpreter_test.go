@@ -1225,6 +1225,8 @@ a`},
 			{`Xs = [X, X].`},
 			{`Xs = [X, X, X].`},
 		}, adInfinitum: true},
+		// 8.15.5.4
+		{query: `false.`, expectations: [][]string{}},
 		// TODO:
 		/*
 			Other test cases.

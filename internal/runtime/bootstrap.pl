@@ -219,5 +219,7 @@ once(G) :- call(G), !.
 repeat.
 repeat :- repeat.
 
+false :- fail.
+
 % stub
 number_chars(_, _) :- throw(error(syntax_error(_), _)).
