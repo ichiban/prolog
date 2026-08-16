@@ -1163,6 +1163,22 @@ a`},
 			{`C = 'ａ'.`},
 			{`C = 'α'.`},
 		}},
+		// 8.15.1.4
+		{query: `'\\+'(true).`, expectations: [][]string{}},
+		{query: `\+(!).`, expectations: [][]string{}},
+		{query: `'\\+'((!, fail)).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `(X=1; X=2), \+((!, fail)).`, expectations: [][]string{
+			{`X = 1.`},
+			{`X = 2.`},
+		}},
+		{query: `'\\+'(4 = 5).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `\+(3).`, err: "type_error(callable,3)"},
+		{query: `'\\+'(X).`, err: "instantiation_error"},
+		{query: `\+(X = f(X)).`, expectations: [][]string{}},
 		// TODO:
 		/*
 			Other test cases.
@@ -1315,6 +1331,9 @@ a`},
 					}
 				}
 				j++
+			}
+			if test.expectations != nil && j != len(test.expectations) {
+				t.Errorf("Expected %d solutions, got %d", len(test.expectations), j)
 			}
 			if !test.ignoreOutput {
 				if output := buf.String(); output != test.output {

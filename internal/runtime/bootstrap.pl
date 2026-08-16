@@ -211,10 +211,10 @@ write_canonical(Term) :-
 write_canonical(S, Term) :-
   write_term(S, Term, [quoted(true), ignore_ops(true)]).
 
-% stub
-number_chars(_, _) :- throw(error(syntax_error(_), _)).
-
 \+(G) :- G, !, fail.
 \+(_).
 
 once(G) :- call(G), !.
+
+% stub
+number_chars(_, _) :- throw(error(syntax_error(_), _)).
