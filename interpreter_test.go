@@ -1128,6 +1128,15 @@ a`},
 			{`current_op(40, xfx, ++).`, `\+current_op(30, xfy, ++).`},
 		}},
 		{query: `op(30, xfy, ++), op(50, yf, ++).`, err: "permission_error(create,operator,++)"},
+		// 8.14.4.4
+		{query: `current_op(P, xfy, OP).`, expectations: [][]string{
+			{`P = 1105.`, `OP = ('|').`},
+			{`P = 1100.`, `OP = (';').`},
+			{`P = 1050.`, `OP = ('->').`},
+			{`P = 1000.`, `OP = (',').`},
+			{`P = 600.`, `OP = (':').`},
+			{`P = 200.`, `OP = ('^').`},
+		}},
 		// TODO:
 		/*
 			Other test cases.
