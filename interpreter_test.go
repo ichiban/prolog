@@ -1384,6 +1384,37 @@ a`},
 		{query: `number_chars(A, ['4', '2', '.', '0', 'e', '-', '1']).`, expectations: [][]string{
 			{`A = 4.2.`},
 		}},
+		// 8.16.8.4
+		{query: `number_codes(33, L).`, expectations: [][]string{
+			{`L = [0'3, 0'3].`},
+		}},
+		{query: `number_codes(33, [0'3, 0'3]).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `number_codes(33.0, L).`, expectations: [][]string{
+			{`L = [0'3, 0'3, 0'., 0'0].`},
+		}},
+		{query: `number_codes(33.0, [0'3, 0'., 0'3, 0'E, 0'+, 0'0, 0'1]).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `number_codes(A, [0'-, 0'2, 0'5]).`, expectations: [][]string{
+			{`A = -25.`},
+		}},
+		{query: `number_codes(A, [0' , 0'3]).`, expectations: [][]string{
+			{`A = 3.`},
+		}},
+		{query: `number_codes(A, [0'0, 0'x, 0'f]).`, expectations: [][]string{
+			{`A = 15.`},
+		}},
+		{query: `number_codes(A, [0'0, 0''', 0'a]).`, expectations: [][]string{
+			{`A = 0'a.`},
+		}},
+		{query: `number_codes(A, [0'4, 0'., 0'2]).`, expectations: [][]string{
+			{`A = 4.2.`},
+		}},
+		{query: `number_codes(A, [0'4, 0'2, 0'., 0'0, 0'e, 0'-, 0'1]).`, expectations: [][]string{
+			{`A = 4.2.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.

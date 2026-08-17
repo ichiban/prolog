@@ -134,6 +134,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: atomCodes2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: charCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: numberChars2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: numberCodes2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3901,6 +3902,75 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 		})
 
 		l, err := e.PutCharList(sb.String())
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err = e.Unify(list, l)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	n, err := syntax.ParseNumber(strings.NewReader(sb.String()),
+		syntax.Arena(e.Arena),
+	)
+	switch {
+	case errors.Is(err, syntax.ErrNotANumber):
+		return e.Throw(&SyntaxError{
+			ImpDepAtom: term.NewAtom("not_a_number"),
+			Location:   e.location,
+		}, cont)
+	case err != nil:
+		return Error(err)
+	}
+
+	ok, err := e.Unify(number, n)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func numberCodes2(ctx context.Context, e *Execution) Promise {
+	number, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	var sb strings.Builder
+	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
+		r, err := e.mustBeCharCode(elem)
+		if err != nil {
+			return err
+		}
+		_, _ = sb.WriteRune(r)
+		return nil
+	}); {
+	case err != nil:
+		return Error(err)
+	case !ok:
+		if _, err := e.mustBeNumber(number, nil, nil); err != nil {
+			return Error(err)
+		}
+
+		var sb strings.Builder
+		_, _ = fmt.Fprintf(&sb, "%s", &syntax.Formatter{
+			Arena: e.Arena,
+			Term:  number,
+		})
+
+		l, err := e.PutCodeList(sb.String())
 		if err != nil {
 			return Error(err)
 		}
