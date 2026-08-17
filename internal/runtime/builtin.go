@@ -128,6 +128,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: call7})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: call8})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: atomLength2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: atomConcat3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -142,7 +143,6 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: lessEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: greater2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: greaterEq2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atom_concat"), 4), Type: InHead, Proc: atomConcat3})
 	return &b
 }
 
@@ -3483,6 +3483,99 @@ func atomLength2(ctx context.Context, e *Execution) Promise {
 	return Success()
 }
 
+func atomConcat3(ctx context.Context, e *Execution) Promise {
+	atom1, atom2, atom3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
+
+	a3, ok, err := e.canBeAtom(atom3)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		a1, err := e.mustBeAtom(atom1)
+		if err != nil {
+			return Error(err)
+		}
+
+		a2, err := e.mustBeAtom(atom2)
+		if err != nil {
+			return Error(err)
+		}
+
+		a, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err := e.Unify(atom3, a)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	if _, _, err := e.canBeAtom(atom1); err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeAtom(atom2); err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		s := a3.String()
+		for i := 0; i <= len(s); i++ {
+			a1, err := e.PutAtom(term.NewAtom(s[:i]))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err := e.Unify(atom1, a1)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			a2, err := e.PutAtom(term.NewAtom(s[i:]))
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+
+			ok, err = e.Unify(atom2, a2)
+			if err != nil {
+				_ = yield(Error(err))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			e.tempVars[1] = cont
+			e.Next()
+			if !yield(Success()) {
+				return
+			}
+		}
+	})
+}
+
 func dynamic1(ctx context.Context, e *Execution) Promise {
 	t, cont := e.tempVars[1], e.tempVars[2]
 	t = e.Deref(t)
@@ -3958,36 +4051,6 @@ func greaterEq2(ctx context.Context, e *Execution) Promise {
 	}
 	if !ok {
 		return Failure()
-	}
-
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
-}
-
-func atomConcat3(ctx context.Context, e *Execution) Promise {
-	// Simpler one-directional variant of atom_concat/3.
-	atom1, atom2, atom12, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
-	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
-
-	a1, err := e.mustBeAtom(atom1)
-	if err != nil {
-		return Error(err)
-	}
-
-	a2, err := e.mustBeAtom(atom2)
-	if err != nil {
-		return Error(err)
-	}
-
-	r, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
-	if err != nil {
-		return Error(err)
-	}
-
-	ok, err := e.Unify(atom12, r)
-	if !ok || err != nil {
-		return Error(err)
 	}
 
 	e.tempVars[1] = cont

@@ -1242,6 +1242,23 @@ a`},
 		{query: `atom_length(Atom, 4).`, err: "instantiation_error"},
 		{query: `atom_length(1.23, 4).`, err: "type_error(atom,1.23)"},
 		{query: `atom_length(atom, '4').`, err: "type_error(integer,'4')"},
+		// 8.16.2.4
+		{query: `atom_concat('hello', ' world', S3).`, expectations: [][]string{
+			{`S3 = 'hello world'.`},
+		}},
+		{query: `atom_concat(T, ' world', 'small world').`, expectations: [][]string{
+			{`T = 'small'.`},
+		}},
+		{query: `atom_concat('hello', ' world', 'small world').`, expectations: [][]string{}},
+		{query: `atom_concat(T1, T2, 'hello').`, expectations: [][]string{
+			{`T1 = ''.`, `T2 = 'hello'.`},
+			{`T1 = 'h'.`, `T2 = 'ello'.`},
+			{`T1 = 'he'.`, `T2 = 'llo'.`},
+			{`T1 = 'hel'.`, `T2 = 'lo'.`},
+			{`T1 = 'hell'.`, `T2 = 'o'.`},
+			{`T1 = 'hello'.`, `T2 = ''.`},
+		}},
+		{query: `atom_concat(small, V2, V4).`, err: "instantiation_error"},
 		// TODO:
 		/*
 			Other test cases.
