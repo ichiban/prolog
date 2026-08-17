@@ -132,6 +132,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: subAtom5})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: atomChars2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: atomCodes2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: charCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3808,6 +3809,59 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 	}
 
 	ok, err = e.Unify(codes, cs)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func charCode2(ctx context.Context, e *Execution) Promise {
+	char, code, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	r, ok, err := e.canBeChar(char)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		r, err := e.mustBeCharCode(code)
+		if err != nil {
+			return Error(err)
+		}
+
+		ch, err := e.PutAtom(term.NewAtomRune(r))
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err := e.Unify(char, ch)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	if _, _, err := e.canBeCharCode(code); err != nil {
+		return Error(err)
+	}
+
+	cd, err := e.PutInteger(int64(r))
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err = e.Unify(code, cd)
 	if err != nil {
 		return Error(err)
 	}

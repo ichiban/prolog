@@ -1333,6 +1333,22 @@ a`},
 		}},
 		{query: `atom_codes('soap', [0's, 0'o, 0'p]).`, expectations: [][]string{}},
 		{query: `atom_codes(X, Y).`, err: "instantiation_error"},
+		// 8.16.6.4
+		{query: `char_code('a', Code).`, expectations: [][]string{
+			{`Code = 0'a.`},
+		}},
+		{query: `char_code(Str, 99).`, expectations: [][]string{
+			{`Str = c.`},
+		}},
+		{query: `char_code(Str, 0'c).`, expectations: [][]string{
+			{`Str = c.`},
+		}},
+		{query: `char_code(Str, 163).`, expectations: [][]string{
+			{`Str = '£'.`},
+		}},
+		{query: `char_code('b', 84).`, expectations: [][]string{}},
+		{query: `char_code('ab', Int).`, err: "type_error(character,ab)"},
+		{query: `char_code(C, I).`, err: "instantiation_error"},
 		// TODO:
 		/*
 			Other test cases.

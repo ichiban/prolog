@@ -802,13 +802,10 @@ func (l *lexer) doubleQuotedListToken() (token, error) {
 // Characters
 
 func isGraphicChar(r rune) bool {
-	return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r) || unicode.In(r, &unicode.RangeTable{
-		R16: []unicode.Range16{
-			{Lo: 0x2000, Hi: 0x206F, Stride: 1}, // General Punctuation
-			{Lo: 0x2200, Hi: 0x22FF, Stride: 1}, // Mathematical Operators
-			{Lo: 0x2A00, Hi: 0x2AFF, Stride: 1}, // Supplemental Mathematical Operators
-		},
-	})
+	if r < utf8.RuneSelf {
+		return strings.ContainsRune(`#$&*+-./:<=>?@^~`, r)
+	}
+	return unicode.In(r, unicode.S, unicode.Pd, unicode.Po, unicode.Pi, unicode.Pf)
 }
 
 func isAlphanumericChar(r rune) bool {
