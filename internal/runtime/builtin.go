@@ -130,6 +130,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: atomLength2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: atomConcat3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: subAtom5})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: atomChars2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3690,6 +3691,69 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 func nextRuneSize(s string) int {
 	_, size := utf8.DecodeRuneInString(s)
 	return max(size, 1)
+}
+
+func atomChars2(ctx context.Context, e *Execution) Promise {
+	atom, chars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	a, ok, err := e.canBeAtom(atom)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		var sb strings.Builder
+		if err := e.mustBeList(chars, func(elem term.Handle) error {
+			r, err := e.mustBeChar(elem)
+			if err != nil {
+				return err
+			}
+			sb.WriteRune(r)
+			return nil
+		}); err != nil {
+			return Error(err)
+		}
+
+		a, err := e.PutAtom(term.NewAtom(sb.String()))
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err := e.Unify(atom, a)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	if err := e.canBeList(chars, func(elem term.Handle) error {
+		_, _, err := e.canBeChar(elem)
+		return err
+	}); err != nil {
+		return Error(err)
+	}
+
+	cs, err := e.PutCharList(a.String())
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err = e.Unify(chars, cs)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {

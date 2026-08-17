@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
-	"unsafe"
 )
 
 // ListOptions is a set of options that configures how a list iterator behaves.
@@ -37,6 +36,7 @@ func AllowPartial(ok bool) ListOption {
 type Arena struct {
 	Heap
 	// TODO: Add a side-car table for big integers.
+	Strings []String
 	Streams []Stream
 }
 
@@ -278,31 +278,15 @@ func (a *Arena) PutCharList(str string) (Handle, error) {
 }
 
 func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
-	addr := int32(len(a.Heap))
-
-	b := unsafe.Slice(unsafe.StringData(str), len(str))
-	for chunk := range slices.Chunk(b, 8) {
-		chunk = append(chunk, make([]byte, 8-len(chunk))...) // Fills with null chars.
-		var val [8]uint8
-		copy(val[:], chunk)
-		if _, err := a.put(cast[[8]uint8, word](val)); err != nil {
-			return Handle{}, err
-		}
+	if str == "" {
+		return tail, nil
 	}
 
-	// Ensures null termination.
-	// If the last cell is packed with characters, append a word of null characters.
-	if len(b)%8 == 0 {
-		if _, err := a.put(0); err != nil {
-			return Handle{}, err
-		}
-	}
+	strID := len(a.Strings)
+	a.Strings = append(a.Strings, String{Body: str, Tail: tail}) // FIXME: Chunk str when the body length exceeds uint16.
 
-	if _, err := a.Put(tail); err != nil {
-		return Handle{}, err
-	}
 	return Handle{
-		cell: cell{tag: cellTagString0, value: addr},
+		cell: cell{tag: cellTagString, value: int32(strID), aux: 0},
 	}, nil
 }
 
@@ -344,8 +328,7 @@ func (a *Arena) Functor(t Handle, opts ...FunctorOption) (Functor, bool) {
 	case cellTagStructure:
 		f := unpack(a.Heap[t.cell.value])
 		return Functor(f.value), true
-	case cellTagString0, cellTagString1, cellTagString2, cellTagString3,
-		cellTagString4, cellTagString5, cellTagString6, cellTagString7:
+	case cellTagString:
 		return functorCons, true
 	default:
 		if atom, ok := a.Atom(t); ok && opt.allowAtom {
@@ -368,24 +351,22 @@ func (a *Arena) Arg(t Handle, n int) Handle {
 		return Handle{
 			cell: arg,
 		}
-	case cellTagString0, cellTagString1, cellTagString2, cellTagString3, cellTagString4, cellTagString5, cellTagString6, cellTagString7:
-		offset := int32(t.cell.tag - cellTagString0)
-		b := castSlice[word, byte](a.Heap[t.cell.value:])[offset:]
-		r, s := utf8.DecodeRune(b)
+	case cellTagString:
+		offset := t.cell.aux
+		str := a.Strings[t.cell.value]
+		r, s := utf8.DecodeRuneInString(str.Body[offset:])
 		switch n {
 		case 0:
 			return Handle{
 				cell: cell{tag: cellTagCharacter, value: r},
 			}
 		case 1:
-			if r, _ := utf8.DecodeRune(b[s:]); r == 0 { // tail
-				return Handle{
-					cell: unpack(a.Heap[t.cell.value+1]),
-				}
+			if r, s := utf8.DecodeRuneInString(str.Body[int(offset)+s:]); r == utf8.RuneError && s == 0 { // tail
+				return str.Tail
 			}
-			offset += int32(s)
+			offset += uint16(s)
 			return Handle{
-				cell: cell{tag: cellTagString0 + cellTag(offset%8), value: t.cell.value + offset/8},
+				cell: cell{tag: cellTagString, value: t.cell.value, aux: offset},
 			}
 		default:
 			return Handle{}
@@ -481,17 +462,18 @@ func (a *Arena) List(t Handle, opts ...ListOption) iter.Seq2[Handle, bool] {
 
 // CharList returns a string if the term is a list of single-character atoms.
 func (a *Arena) CharList(t Handle) (string, bool) {
-	if t.cell.tag >= cellTagString0 && t.cell.tag <= cellTagString7 {
-		offset := int32(t.cell.tag - cellTagString0)
-		b := castSlice[word, byte](a.Heap[t.cell.value:])[offset:]
-		l := slices.Index(b, 0)
-		tail := Handle{
-			cell: unpack(a.Heap[t.cell.value+(offset+int32(l))/8+1]),
-		}
-		if atom, ok := a.Atom(tail); !ok || atom != atomEmptyList {
+	if a, _ := a.Atom(t); a == atomEmptyList {
+		return "", true
+	}
+
+	if t.cell.tag == cellTagString {
+		offset := t.cell.aux
+		str := a.Strings[t.cell.value]
+		tail, ok := a.CharList(a.Deref(str.Tail))
+		if !ok {
 			return "", false
 		}
-		return string(b[:l]), true
+		return str.Body[offset:] + tail, true
 	}
 
 	var sb strings.Builder

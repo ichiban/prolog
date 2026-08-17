@@ -42,14 +42,7 @@ const (
 	cellTagStructure
 	cellTagFunctor
 	cellTagStream
-	cellTagString0
-	cellTagString1
-	cellTagString2
-	cellTagString3
-	cellTagString4
-	cellTagString5
-	cellTagString6
-	cellTagString7
+	cellTagString
 	_cellTagLen
 )
 
@@ -64,14 +57,7 @@ var cellTagNames = [...]string{
 	cellTagStructure: "structure",
 	cellTagFunctor:   "functor",
 	cellTagStream:    "stream",
-	cellTagString0:   "string(0)",
-	cellTagString1:   "string(1)",
-	cellTagString2:   "string(2)",
-	cellTagString3:   "string(3)",
-	cellTagString4:   "string(4)",
-	cellTagString5:   "string(5)",
-	cellTagString6:   "string(6)",
-	cellTagString7:   "string(7)",
+	cellTagString:    "string",
 }
 
 var cellTagImmediate = [...]bool{
@@ -85,14 +71,7 @@ var cellTagImmediate = [...]bool{
 	cellTagStructure: false,
 	cellTagFunctor:   true,
 	cellTagStream:    true,
-	cellTagString0:   false,
-	cellTagString1:   false,
-	cellTagString2:   false,
-	cellTagString3:   false,
-	cellTagString4:   false,
-	cellTagString5:   false,
-	cellTagString6:   false,
-	cellTagString7:   false,
+	cellTagString:    true,
 }
 
 func (t cellTag) String() string {

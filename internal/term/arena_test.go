@@ -603,7 +603,7 @@ func TestArena_PutCharList(t *testing.T) {
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abc",
 			term: Handle{
-				cell: cell{tag: cellTagString0, value: 0},
+				cell: cell{tag: cellTagString, value: 0, aux: 0},
 			},
 		},
 	}
@@ -635,7 +635,7 @@ func TestArena_PutPartialCharList(t *testing.T) {
 			str:   "abc",
 			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
 			term: Handle{
-				cell: cell{tag: cellTagString0, value: 0},
+				cell: cell{tag: cellTagString, value: 0},
 			},
 		},
 		{
@@ -644,29 +644,8 @@ func TestArena_PutPartialCharList(t *testing.T) {
 			str:   "abcdefghabcdefgh",
 			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
 			term: Handle{
-				cell: cell{tag: cellTagString0, value: 0},
+				cell: cell{tag: cellTagString, value: 0},
 			},
-		},
-		{
-			title: "not enough heap for chunks",
-			arena: Arena{Heap: make(Heap, 0)},
-			str:   "abc",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			err:   ErrOutOfMemory,
-		},
-		{
-			title: "not enough heap for null word",
-			arena: Arena{Heap: make(Heap, 0, 2)},
-			str:   "abcdefghabcdefgh",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			err:   ErrOutOfMemory,
-		},
-		{
-			title: "not enough heap for tail",
-			arena: Arena{Heap: make(Heap, 0, 2)},
-			str:   "abcdefgh",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			err:   ErrOutOfMemory,
 		},
 	}
 	for _, test := range tests {

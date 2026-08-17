@@ -1291,6 +1291,27 @@ a`},
 			{`Start = 1.`, `Length = 1.`, `Sub_atom = 'b'.`},
 			{`Start = 2.`, `Length = 0.`, `Sub_atom = ''.`},
 		}},
+		// 8.16.4.4
+		{query: `atom_chars('', L).`, expectations: [][]string{
+			{`L = [].`},
+		}},
+		{query: `atom_chars([], L).`, expectations: [][]string{
+			{`L = ['[', ']'].`},
+		}},
+		{query: `atom_chars('''', L).`, expectations: [][]string{
+			{`L = [''''].`},
+		}},
+		{query: `atom_chars('ant', L).`, expectations: [][]string{
+			{`L = ['a', 'n', 't'].`},
+		}},
+		{query: `atom_chars(Str, ['s', 'o', 'p']).`, expectations: [][]string{
+			{`Str = 'sop'.`},
+		}},
+		{query: `atom_chars('North', ['N' | X]).`, expectations: [][]string{
+			{`X = ['o', 'r', 't', 'h'].`},
+		}},
+		{query: `atom_chars('soap', ['s', 'o', 'p']).`, expectations: [][]string{}},
+		{query: `atom_chars(X, Y).`, err: "instantiation_error"},
 		// TODO:
 		/*
 			Other test cases.
