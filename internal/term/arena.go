@@ -282,12 +282,33 @@ func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
 		return tail, nil
 	}
 
+	// Chunks str when the body length exceeds uint16.
+	if l, r := splitByRuneCount(str, math.MaxUint16); r != "" {
+		str = l
+		var err error
+		tail, err = a.PutPartialCharList(r, tail)
+		if err != nil {
+			return Handle{}, err
+		}
+	}
+
 	strID := len(a.Strings)
-	a.Strings = append(a.Strings, String{Body: str, Tail: tail}) // FIXME: Chunk str when the body length exceeds uint16.
+	a.Strings = append(a.Strings, String{Body: str, Tail: tail})
 
 	return Handle{
 		cell: cell{tag: cellTagString, value: int32(strID), aux: 0},
 	}, nil
+}
+
+func splitByRuneCount(str string, n int) (string, string) {
+	c := 0
+	for i := range str {
+		c++
+		if c == n {
+			return str[:i], str[i:]
+		}
+	}
+	return str, ""
 }
 
 // PutCodeList creates a list of single-character atoms.

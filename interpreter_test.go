@@ -1312,6 +1312,27 @@ a`},
 		}},
 		{query: `atom_chars('soap', ['s', 'o', 'p']).`, expectations: [][]string{}},
 		{query: `atom_chars(X, Y).`, err: "instantiation_error"},
+		// 8.16.5.4
+		{query: `atom_codes('', L).`, expectations: [][]string{
+			{`L = [].`},
+		}},
+		{query: `atom_codes([], L).`, expectations: [][]string{
+			{`L = [0'[, 0']].`},
+		}},
+		{query: `atom_codes('''', L).`, expectations: [][]string{
+			{`L = [0'''].`},
+		}},
+		{query: `atom_codes('ant', L).`, expectations: [][]string{
+			{`L = [0'a, 0'n, 0't].`},
+		}},
+		{query: `atom_codes(Str, [0's, 0'o, 0'p]).`, expectations: [][]string{
+			{`Str = 'sop'.`},
+		}},
+		{query: `atom_codes('North', [0'N | X]).`, expectations: [][]string{
+			{`X = [0'o, 0'r, 0't, 0'h].`},
+		}},
+		{query: `atom_codes('soap', [0's, 0'o, 0'p]).`, expectations: [][]string{}},
+		{query: `atom_codes(X, Y).`, err: "instantiation_error"},
 		// TODO:
 		/*
 			Other test cases.
