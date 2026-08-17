@@ -1259,6 +1259,38 @@ a`},
 			{`T1 = 'hello'.`, `T2 = ''.`},
 		}},
 		{query: `atom_concat(small, V2, V4).`, err: "instantiation_error"},
+		// 8.16.3.4
+		{query: `sub_atom(abracadabra, 0, 5, _, S2).`, expectations: [][]string{
+			{`S2 = 'abrac'.`},
+		}},
+		{query: `sub_atom(abracadabra, _, 5, 0, S2).`, expectations: [][]string{
+			{`S2 = 'dabra'.`},
+		}},
+		{query: `sub_atom(abracadabra, 3, L, 3, S2).`, expectations: [][]string{
+			{`L = 5.`, `S2 = 'acada'.`},
+		}},
+		{query: `sub_atom(abracadabra, B, 2, A, ab).`, expectations: [][]string{
+			{`B = 0.`, `A = 9.`},
+			{`B = 7.`, `A = 2.`},
+		}},
+		{query: `sub_atom('Banana', 3, 2, _, S2).`, expectations: [][]string{
+			{`S2 = 'an'.`},
+		}},
+		{query: `sub_atom('charity', _, 3, _, S2).`, expectations: [][]string{
+			{`S2 = 'cha'.`},
+			{`S2 = 'har'.`},
+			{`S2 = 'ari'.`},
+			{`S2 = 'rit'.`},
+			{`S2 = 'ity'.`},
+		}},
+		{query: `sub_atom('ab', Start, Length, _, Sub_atom).`, expectations: [][]string{
+			{`Start = 0.`, `Length = 0.`, `Sub_atom = ''.`},
+			{`Start = 0.`, `Length = 1.`, `Sub_atom = 'a'.`},
+			{`Start = 0.`, `Length = 2.`, `Sub_atom = 'ab'.`},
+			{`Start = 1.`, `Length = 0.`, `Sub_atom = ''.`},
+			{`Start = 1.`, `Length = 1.`, `Sub_atom = 'b'.`},
+			{`Start = 2.`, `Length = 0.`, `Sub_atom = ''.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.

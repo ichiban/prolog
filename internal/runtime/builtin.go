@@ -129,6 +129,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: call8})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: atomLength2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: atomConcat3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: subAtom5})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3530,7 +3531,7 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 
 	return Delay(func(yield func(Promise) bool) {
 		s := a3.String()
-		for i := 0; i <= len(s); i++ {
+		for i := 0; i <= len(s); i += nextRuneSize(s[i:]) {
 			a1, err := e.PutAtom(term.NewAtom(s[:i]))
 			if err != nil {
 				_ = yield(Error(err))
@@ -3574,6 +3575,121 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 			}
 		}
 	})
+}
+
+func subAtom5(ctx context.Context, e *Execution) Promise {
+	atom, before, length, after, subAtom, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
+
+	a, err := e.mustBeAtom(atom)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeNotLessThanZero(before); err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeNotLessThanZero(length); err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeNotLessThanZero(after); err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeAtom(subAtom); err != nil {
+		return Error(err)
+	}
+
+	return Delay(func(yield func(Promise) bool) {
+		s := a.String()
+		for i := 0; i <= len(s); i += nextRuneSize(s[i:]) {
+			for j := i; j <= len(s); j += nextRuneSize(s[j:]) {
+				b, err := e.PutInteger(int64(i))
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+
+				ok, err := e.Unify(before, b)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				l, err := e.PutInteger(int64(j - i))
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+
+				ok, err = e.Unify(length, l)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				a, err := e.PutInteger(int64(len(s) - j))
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+
+				ok, err = e.Unify(after, a)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				sub, err := e.PutAtom(term.NewAtom(s[i:j]))
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+
+				ok, err = e.Unify(subAtom, sub)
+				if err != nil {
+					_ = yield(Error(err))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				e.tempVars[1] = cont
+				e.Next()
+				if !yield(Success()) {
+					return
+				}
+			}
+		}
+	})
+}
+
+func nextRuneSize(s string) int {
+	_, size := utf8.DecodeRuneInString(s)
+	return max(size, 1)
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {
@@ -4279,6 +4395,24 @@ func (e *Execution) mustBeInteger(t term.Handle) (int64, error) {
 	}
 
 	return n, nil
+}
+
+func (e *Execution) canBeNotLessThanZero(t term.Handle) (int64, bool, error) {
+	i, ok, err := e.canBeInteger(t)
+	if err != nil {
+		return 0, false, err
+	}
+	if !ok {
+		return 0, false, nil
+	}
+	if i < 0 {
+		return 0, false, &DomainError{
+			ValidDomain: term.NewAtom("not_less_than_zero"),
+			Culprit:     syntax.Serialize(e.Arena, t),
+			Location:    e.location,
+		}
+	}
+	return i, ok, nil
 }
 
 func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error) error {
