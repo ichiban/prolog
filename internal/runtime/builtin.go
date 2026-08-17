@@ -133,6 +133,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: atomChars2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: atomCodes2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: charCode2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: numberChars2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -635,7 +636,7 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
-	if err := e.canBeList(sorted, func(pair term.Handle) error {
+	if _, err := e.canBeList(sorted, func(pair term.Handle) error {
 		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
 			return &TypeError{
 				ValidType: term.NewAtom("pair"),
@@ -884,7 +885,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else if f, ok := e.Functor(t); ok {
-		if err := e.canBeList(list, nil); err != nil {
+		if _, err := e.canBeList(list, nil); err != nil {
 			return Error(err)
 		}
 
@@ -906,7 +907,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 	} else {
-		if err := e.canBeList(list, nil); err != nil {
+		if _, err := e.canBeList(list, nil); err != nil {
 			return Error(err)
 		}
 	}
@@ -938,7 +939,7 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 	t, vars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	t, vars = e.Deref(t), e.Deref(vars)
 
-	if err := e.canBeList(vars, nil); err != nil {
+	if _, err := e.canBeList(vars, nil); err != nil {
 		return Error(err)
 	}
 
@@ -1319,7 +1320,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 func findAll3(ctx context.Context, e *Execution) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if err := e.canBeList(instances, nil); err != nil {
+	if _, err := e.canBeList(instances, nil); err != nil {
 		return Error(err)
 	}
 
@@ -1365,7 +1366,7 @@ func setOf3(ctx context.Context, e *Execution) Promise {
 func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
-	if err := e.canBeList(instances, nil); err != nil {
+	if _, err := e.canBeList(instances, nil); err != nil {
 		return Error(err)
 	}
 
@@ -2856,7 +2857,7 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 		return Error(err)
 	}
 
-	if _, err := formatter.WriteTo(w); err != nil {
+	if _, err := fmt.Fprintf(w, "%s", &formatter); err != nil {
 		return Error(err)
 	}
 
@@ -3733,7 +3734,7 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 		return Success()
 	}
 
-	if err := e.canBeList(chars, func(elem term.Handle) error {
+	if _, err := e.canBeList(chars, func(elem term.Handle) error {
 		_, _, err := e.canBeChar(elem)
 		return err
 	}); err != nil {
@@ -3796,7 +3797,7 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 		return Success()
 	}
 
-	if err := e.canBeList(codes, func(elem term.Handle) error {
+	if _, err := e.canBeList(codes, func(elem term.Handle) error {
 		_, _, err := e.canBeCharCode(elem)
 		return err
 	}); err != nil {
@@ -3869,6 +3870,90 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func numberChars2(ctx context.Context, e *Execution) Promise {
+	number, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	var sb strings.Builder
+	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
+		r, err := e.mustBeChar(elem)
+		if err != nil {
+			return err
+		}
+		_, _ = sb.WriteRune(r)
+		return nil
+	}); {
+	case err != nil:
+		return Error(err)
+	case !ok:
+		if _, err := e.mustBeNumber(number, nil, nil); err != nil {
+			return Error(err)
+		}
+
+		var sb strings.Builder
+		_, _ = fmt.Fprintf(&sb, "%s", &syntax.Formatter{
+			Arena: e.Arena,
+			Term:  number,
+		})
+
+		l, err := e.PutCharList(sb.String())
+		if err != nil {
+			return Error(err)
+		}
+
+		ok, err = e.Unify(list, l)
+		if err != nil {
+			return Error(err)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
+
+	n, err := syntax.ParseNumber(strings.NewReader(sb.String()),
+		syntax.Arena(e.Arena),
+	)
+	switch {
+	case errors.Is(err, syntax.ErrNotANumber):
+		return e.Throw(&SyntaxError{
+			ImpDepAtom: term.NewAtom("not_a_number"),
+			Location:   e.location,
+		}, cont)
+	case err != nil:
+		return Error(err)
+	}
+
+	ok, err := e.Unify(number, n)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+// Throw throws an error. TODO: Expand the use of this method.
+func (e *Execution) Throw(err error, cont term.Handle) Promise {
+	et, err := ErrorTerm(e.Arena, err)
+	if err != nil {
+		return Error(err)
+	}
+	cont, err = e.PutCompound(term.NewAtom("throw"), et, cont)
+	if err != nil {
+		return Error(err)
+	}
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
@@ -4357,13 +4442,11 @@ func greaterEq2(ctx context.Context, e *Execution) Promise {
 }
 
 func (e *Execution) unTrailTo(b int) error {
-	//
-	for i := len(e.stack) - 1; i > b; i-- {
+	for i := len(e.stack) - 1; i >= b; i-- {
 		f := e.stack[i]
-		if f.stop == nil {
-			continue
+		if f.stop != nil {
+			f.stop()
 		}
-		f.stop()
 	}
 
 	e.stack = e.stack[:b]
@@ -4597,15 +4680,19 @@ func (e *Execution) canBeNotLessThanZero(t term.Handle) (int64, bool, error) {
 	return i, ok, nil
 }
 
-func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error) error {
+func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error) (bool, error) {
 	if fn == nil {
 		fn = func(term.Handle) error {
 			return nil
 		}
 	}
-	for elem, ok := range e.List(list, term.AllowPartial(true)) {
+	for elem, ok := range e.List(list) {
 		if !ok {
-			return &TypeError{
+			if _, ok := e.Variable(elem); ok {
+				return false, nil
+			}
+
+			return false, &TypeError{
 				ValidType: term.NewAtom("list"),
 				Culprit:   syntax.Serialize(e.Arena, list),
 				Location:  e.location,
@@ -4613,10 +4700,10 @@ func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error)
 		}
 
 		if err := fn(elem); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func (e *Execution) mustBeList(list term.Handle, fn func(elem term.Handle) error) error {
@@ -4682,6 +4769,17 @@ func (e *Execution) mustBeAtomic(t term.Handle) error {
 }
 
 func (e *Execution) mustBeNumber(t term.Handle, intFn func(e *Execution, i int64) (bool, error), floatFn func(e *Execution, f float64) (bool, error)) (bool, error) {
+	if intFn == nil {
+		intFn = func(e *Execution, i int64) (bool, error) {
+			return false, nil
+		}
+	}
+	if floatFn == nil {
+		floatFn = func(e *Execution, f float64) (bool, error) {
+			return false, nil
+		}
+	}
+
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {

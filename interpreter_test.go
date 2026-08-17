@@ -1349,6 +1349,41 @@ a`},
 		{query: `char_code('b', 84).`, expectations: [][]string{}},
 		{query: `char_code('ab', Int).`, err: "type_error(character,ab)"},
 		{query: `char_code(C, I).`, err: "instantiation_error"},
+		// 8.16.7.4
+		{query: `number_chars(33, L).`, expectations: [][]string{
+			{`L = ['3', '3'].`},
+		}},
+		{query: `number_chars(33, ['3', '3']).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `number_chars(33.0, L).`, expectations: [][]string{
+			{`L = ['3', '3', '.', '0'].`},
+		}},
+		{query: `number_chars(X, ['3', '.', '3', 'E', '+', '0']).`, expectations: [][]string{
+			{`X = 3.3.`},
+		}},
+		{query: `number_chars(3.3, ['3', '.', '3', 'E', '+', '0']).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `number_chars(A, [-, '2', '5']).`, expectations: [][]string{
+			{`A = -25.`},
+		}},
+		{query: `number_chars(A, ['\n', ' ', '3']).`, expectations: [][]string{
+			{`A = 3.`},
+		}},
+		{query: `number_chars(A, ['3', ' ']).`, err: "syntax_error"},
+		{query: `number_chars(A, ['0', x, f]).`, expectations: [][]string{
+			{`A = 15.`},
+		}},
+		{query: `number_chars(A, ['0', '''', a]).`, expectations: [][]string{
+			{`A = 0'a.`},
+		}},
+		{query: `number_chars(A, ['4', '.', '2']).`, expectations: [][]string{
+			{`A = 4.2.`},
+		}},
+		{query: `number_chars(A, ['4', '2', '.', '0', 'e', '-', '1']).`, expectations: [][]string{
+			{`A = 4.2.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.
