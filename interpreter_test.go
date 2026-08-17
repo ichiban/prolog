@@ -1227,6 +1227,21 @@ a`},
 		}, adInfinitum: true},
 		// 8.15.5.4
 		{query: `false.`, expectations: [][]string{}},
+		// 8.16.1.4
+		{query: `atom_length('enchanted evening', N).`, expectations: [][]string{
+			{`N = 17.`},
+		}},
+		{query: `atom_length('enchanted\
+ evening', N).`, expectations: [][]string{
+			{`N = 17.`},
+		}},
+		{query: `atom_length('', N).`, expectations: [][]string{
+			{`N = 0.`},
+		}},
+		{query: `atom_length('scarlet', 5).`, expectations: [][]string{}},
+		{query: `atom_length(Atom, 4).`, err: "instantiation_error"},
+		{query: `atom_length(1.23, 4).`, err: "type_error(atom,1.23)"},
+		{query: `atom_length(atom, '4').`, err: "type_error(integer,'4')"},
 		// TODO:
 		/*
 			Other test cases.

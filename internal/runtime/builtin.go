@@ -127,6 +127,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: call6})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: call7})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: call8})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: atomLength2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -3445,6 +3446,36 @@ func call8(ctx context.Context, e *Execution) Promise {
 	))...)
 	if err != nil {
 		return Error(err)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func atomLength2(ctx context.Context, e *Execution) Promise {
+	atom, length, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	a, err := e.mustBeAtom(atom)
+	if err != nil {
+		return Error(err)
+	}
+
+	if _, _, err := e.canBeInteger(length); err != nil {
+		return Error(err)
+	}
+
+	l, err := e.PutInteger(int64(utf8.RuneCountInString(a.String())))
+	if err != nil {
+		return Error(err)
+	}
+
+	ok, err := e.Unify(length, l)
+	if err != nil {
+		return Error(err)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
