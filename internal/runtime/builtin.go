@@ -137,6 +137,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: numberCodes2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: setPrologFlag2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: currentPrologFlag2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("halt"), 2), Type: InHead, Proc: halt1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -4297,6 +4298,29 @@ func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
+}
+
+type Halt struct {
+	Code int
+}
+
+func (e Halt) Error() string {
+	return fmt.Sprintf("halt %d", e.Code)
+}
+
+func halt1(ctx context.Context, e *Execution) Promise {
+	x, cont := e.tempVars[1], e.tempVars[2]
+
+	n, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	// Do not throw this error as a ball.
+	// Return it to the host program as is.
+	return Error(&Halt{
+		Code: int(n),
+	})
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {

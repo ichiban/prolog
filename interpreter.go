@@ -34,6 +34,9 @@ type Raw string
 // Result is a generic result map. It contains variable names as keys and associated terms as values.
 type Result map[string]Raw
 
+// Halt reports that the interpreter executed halt/0 or halt/1.
+type Halt = runtime.Halt
+
 type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32

@@ -1439,6 +1439,11 @@ a`},
 			{`F = double_quotes.`, `V = chars.`},
 		}},
 		{query: `current_prolog_flag(5, _).`, err: "type_error(atom,5)"},
+		// 8.17.3.4
+		{query: `halt.`, err: "system_error"},
+		// 8.17.4.4
+		{query: `halt(1).`, err: "system_error"},
+		{query: `halt(a).`, err: "type_error(integer,a)"},
 		// TODO:
 		/*
 			Other test cases.

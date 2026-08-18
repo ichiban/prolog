@@ -220,3 +220,5 @@ repeat.
 repeat :- repeat.
 
 false :- fail.
+
+halt :- halt(0).

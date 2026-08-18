@@ -45,8 +45,10 @@ See https://github.com/ichiban/prolog for more details.
 Type Ctrl-C or 'halt.' to exit.
 `, version)
 
+	var oldState *terminal.State
 	if terminal.IsTerminal(0) {
-		oldState, err := terminal.MakeRaw(0)
+		var err error
+		oldState, err = terminal.MakeRaw(0)
 		if err != nil {
 			log.Panicf("failed to enter raw mode: %v", err)
 		}
@@ -89,14 +91,20 @@ Type Ctrl-C or 'halt.' to exit.
 		}
 	}
 
-	var buf strings.Builder
-	keys := bufio.NewReader(os.Stdin)
+	var (
+		buf  strings.Builder
+		keys = bufio.NewReader(os.Stdin)
+		halt *prolog.Halt
+	)
 	for {
-		switch err := handleLine(ctx, &buf, i, t, keys); err {
-		case nil:
+		switch err := handleLine(ctx, &buf, i, t, keys); {
+		case err == nil:
 			break
-		case io.EOF:
+		case errors.Is(err, io.EOF):
 			return
+		case errors.As(err, &halt):
+			_ = terminal.Restore(0, oldState)
+			os.Exit(halt.Code)
 		default:
 			log.Panic(err)
 		}
@@ -110,7 +118,10 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	}
 	_, _ = fmt.Fprintf(buf, "%s\n", line)
 
-	var resultShown bool
+	var (
+		resultShown bool
+		haltError   *prolog.Halt
+	)
 	for result, err := range prolog.Query[prolog.Result](ctx, i, buf.String()) {
 		switch {
 		case err == nil:
@@ -120,6 +131,8 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 			// Returns without resetting buf.
 			t.SetPrompt(contPrompt)
 			return nil
+		case errors.As(err, &haltError):
+			return err
 		default:
 			log.Printf("failed to query: %v", err)
 			buf.Reset()
