@@ -27,11 +27,11 @@ func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
 	if err != nil {
 		return term.Handle{}, err
 	}
-	s, err := arena.PutCharList(origErr.Error())
+	a, err := arena.PutAtom(term.NewAtom(origErr.Error()))
 	if err != nil {
 		return term.Handle{}, err
 	}
-	return arena.PutCompound(term.NewAtom("error"), t, s)
+	return arena.PutCompound(term.NewAtom("error"), t, a)
 }
 
 func cause(err error) error {

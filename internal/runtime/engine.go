@@ -20,6 +20,24 @@ import (
 //go:embed bootstrap.pl
 var bootstrap string
 
+type unknownAction int8
+
+const (
+	unknownError unknownAction = iota
+	unknownFail
+	unknownWarning
+)
+
+var unknowActionNames = [...]string{
+	unknownError:   "error",
+	unknownFail:    "fail",
+	unknownWarning: "warning",
+}
+
+func (u unknownAction) String() string {
+	return unknowActionNames[u]
+}
+
 type Engine struct {
 	*term.Arena
 	TempArena *term.Arena // Used for findall/3, etc.
@@ -40,24 +58,39 @@ type Engine struct {
 	Input  term.Handle
 	Output term.Handle
 
-	OnDiscontiguous func(pi term.Functor) error
+	debug   bool
+	unknown unknownAction
+	Warn    func(error)
 }
 
-func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, error) {
+func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {
 	p, ok := e.Predicates[bpi]
 	if !ok {
 		pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 		culprit, err := e.PutFunctor(pi)
 		if err != nil {
-			return wam.Predicate{}, err
+			return wam.Predicate{}, false, err
 		}
-		return wam.Predicate{}, &ExistenceError{
+
+		err = &ExistenceError{
 			ObjectType: term.NewAtom("procedure"),
 			Culprit:    syntax.Serialize(e.Arena, culprit),
 			Location:   term.NewFunctor(term.NewAtom("user"), 0),
 		}
+		switch e.unknown {
+		case unknownError:
+			return wam.Predicate{}, false, err
+		case unknownWarning:
+			if e.Warn == nil {
+				e.Warn = func(error) {}
+			}
+			e.Warn(err)
+			fallthrough
+		case unknownFail:
+			return wam.Predicate{}, false, nil
+		}
 	}
-	return p, nil
+	return p, true, nil
 }
 
 func (e *Engine) Inspect(t term.Handle) string {
@@ -139,12 +172,6 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 }
 
 func (e *Engine) LoadModule(module *ir.Module) error {
-	if e.OnDiscontiguous == nil {
-		e.OnDiscontiguous = func(pi term.Functor) error {
-			return nil
-		}
-	}
-
 	if e.Code == nil {
 		e.Predicates = map[term.Functor]wam.Predicate{
 			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
@@ -186,9 +213,10 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				return err
 			}
 		case pi != current: // A discontiguous clause.
-			if err := e.OnDiscontiguous(pi); err != nil {
-				return err
+			if e.Warn == nil {
+				e.Warn = func(error) {}
 			}
+			e.Warn(fmt.Errorf("discontiguous: %s", pi))
 			current = pi
 			// TODO: Overwrite the previous chunk's `execute P` to an unconditional jump to this chunk.
 			fallthrough
@@ -382,10 +410,14 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 			_ = yield(err)
 		}
 	}
-	p, err := e.Predicate(bpi)
+	p, ok, err := e.Predicate(bpi)
 	if err != nil {
 		return func(yield func(error) bool) {
 			_ = yield(err)
+		}
+	}
+	if !ok {
+		return func(yield func(error) bool) {
 		}
 	}
 	exec := Execution{

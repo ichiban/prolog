@@ -69,6 +69,9 @@ Type Ctrl-C or 'halt.' to exit.
 	i := prolog.New(
 		prolog.HeapSize(5*1024),
 		prolog.Root(r),
+		prolog.Warn(func(err error) {
+			log.Printf("warning: %v", err)
+		}),
 	)
 	if err := i.SetUserInput(os.Stdin); err != nil {
 		log.Fatalf("failed to set user input: %v", err)

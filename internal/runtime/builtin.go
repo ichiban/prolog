@@ -135,6 +135,8 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: charCode2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: numberChars2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: numberCodes2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: setPrologFlag2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: currentPrologFlag2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
@@ -229,9 +231,12 @@ func true0(ctx context.Context, e *Execution) Promise {
 
 	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 
-	p, err := e.Predicate(bpi)
+	p, ok, err := e.Predicate(bpi)
 	if err != nil {
 		return Error(err)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	if p.Dynamic {
@@ -315,9 +320,12 @@ func call1(ctx context.Context, e *Execution) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, err := e.Predicate(bpi)
+	p, ok, err := e.Predicate(bpi)
 	if err != nil {
 		return Error(err)
+	}
+	if !ok {
+		return Failure()
 	}
 	if p.Dynamic {
 		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
@@ -4024,6 +4032,268 @@ func (e *Execution) Throw(err error, cont term.Handle) Promise {
 	if err != nil {
 		return Error(err)
 	}
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+type flagEntry struct {
+	flag term.Atom
+	get  func(e *Engine) (term.Handle, error)
+	set  func(e *Engine, value term.Handle) error
+}
+
+var (
+	flags = []flagEntry{
+		{
+			flag: term.NewAtom("bounded"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutAtom(term.NewAtom("true"))
+			},
+		},
+		{
+			flag: term.NewAtom("max_integer"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutInteger(int64(math.MaxInt64))
+			},
+		},
+		{
+			flag: term.NewAtom("min_integer"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutInteger(int64(math.MinInt64))
+			},
+		},
+		{
+			flag: term.NewAtom("integer_rounding_function"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutAtom(term.NewAtom("toward_zero"))
+			},
+		},
+		{
+			flag: term.NewAtom("char_conversion"),
+			get: func(e *Engine) (term.Handle, error) {
+				if e.CharConversion.Disabled {
+					return e.PutAtom(term.NewAtom("false"))
+				}
+				return e.PutAtom(term.NewAtom("true"))
+			},
+			set: func(e *Engine, value term.Handle) error {
+				switch a, _ := e.Atom(value); a {
+				case term.NewAtom("true"):
+					e.CharConversion.Disabled = false
+				case term.NewAtom("false"):
+					e.CharConversion.Disabled = true
+				default:
+					return errInvalidFlagValue
+				}
+				return nil
+			},
+		},
+		{
+			flag: term.NewAtom("debug"),
+			get: func(e *Engine) (term.Handle, error) {
+				if e.debug {
+					return e.PutAtom(term.NewAtom("on"))
+				}
+				return e.PutAtom(term.NewAtom("off"))
+			},
+			set: func(e *Engine, value term.Handle) error {
+				value = e.Deref(value)
+				switch a, _ := e.Atom(value); a {
+				case term.NewAtom("on"):
+					e.debug = true
+				case term.NewAtom("off"):
+					e.debug = false
+				default:
+					return errInvalidFlagValue
+				}
+				return nil
+			},
+		},
+		{
+			flag: term.NewAtom("max_arity"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutInteger(int64(math.MaxUint16))
+			},
+		},
+		{
+			flag: term.NewAtom("unknown"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutAtom(term.NewAtom(e.unknown.String()))
+			},
+			set: func(e *Engine, value term.Handle) error {
+				a, _ := e.Atom(value)
+				i := slices.IndexFunc(unknowActionNames[:], func(name string) bool {
+					return name == a.String()
+				})
+				if i < 0 {
+					return errInvalidFlagValue
+				}
+				e.unknown = unknownAction(i)
+				return nil
+			},
+		},
+		{
+			flag: term.NewAtom("double_quotes"),
+			get: func(e *Engine) (term.Handle, error) {
+				return e.PutAtom(term.NewAtom(e.DoubleQuotes.String()))
+			},
+			set: func(e *Engine, value term.Handle) error {
+				a, _ := e.Atom(value)
+				i := slices.IndexFunc(syntax.DoubleQuoteNames[:], func(name string) bool {
+					return name == a.String()
+				})
+				if i < 0 {
+					return errInvalidFlagValue
+				}
+				e.DoubleQuotes = syntax.DoubleQuotes(i)
+				return nil
+			},
+		},
+	}
+	errInvalidFlagValue = errors.New("invalid flag value")
+)
+
+func setPrologFlag2(ctx context.Context, e *Execution) Promise {
+	flag, value, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	value = e.Deref(value)
+
+	f, err := e.mustBeAtom(flag)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var fe flagEntry
+	switch i := slices.IndexFunc(flags, func(entry flagEntry) bool {
+		return entry.flag == f
+	}); {
+	case i < 0:
+		return e.Throw(&DomainError{
+			ValidDomain: term.NewAtom("flag"),
+			Culprit:     syntax.Serialize(e.Arena, flag),
+			Location:    e.location,
+		}, cont)
+	default:
+		fe = flags[i]
+	}
+
+	if fe.set == nil {
+		return e.Throw(&PermissionError{
+			Operation:      term.NewAtom("modify"),
+			PermissionType: term.NewAtom("flag"),
+			Culprit:        syntax.Serialize(e.Arena, flag),
+			Location:       e.location,
+		}, cont)
+	}
+
+	switch err := fe.set(e.Engine, value); {
+	case errors.Is(err, errInvalidFlagValue):
+		p, err := e.PutCompound(term.NewAtomRune('+'), flag, value)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+
+		return e.Throw(&DomainError{
+			ValidDomain: term.NewAtom("flag_value"),
+			Culprit:     syntax.Serialize(e.Arena, p),
+			Location:    e.location,
+		}, cont)
+	case err != nil:
+		return e.Throw(err, cont)
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
+	flag, value, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	f, ok, err := e.canBeAtom(flag)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Delay(func(yield func(Promise) bool) {
+			for _, fe := range flags {
+				f, err := e.PutAtom(fe.flag)
+				if err != nil {
+					if !yield(e.Throw(err, cont)) {
+						return
+					}
+					continue
+				}
+
+				ok, err := e.Unify(flag, f)
+				if err != nil {
+					if !yield(e.Throw(err, cont)) {
+						return
+					}
+					continue
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				v, err := fe.get(e.Engine)
+				if err != nil {
+					if !yield(e.Throw(err, cont)) {
+						return
+					}
+					continue
+				}
+
+				ok, err = e.Unify(value, v)
+				if err != nil {
+					if !yield(e.Throw(err, cont)) {
+						return
+					}
+					continue
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				e.tempVars[1] = cont
+				e.Next()
+				if !yield(Success()) {
+					return
+				}
+			}
+		})
+	}
+	i := slices.IndexFunc(flags, func(entry flagEntry) bool {
+		return entry.flag == f
+	})
+	if i < 0 {
+		return e.Throw(&DomainError{
+			ValidDomain: term.NewAtom("flag"),
+			Culprit:     syntax.Serialize(e.Arena, flag),
+			Location:    e.location,
+		}, cont)
+	}
+
+	fe := flags[i]
+	v, err := fe.get(e.Engine)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err = e.Unify(value, v)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()

@@ -39,6 +39,7 @@ type InterpreterOptions struct {
 	tempHeapSize int32
 	streamSize   int32
 	root         *os.Root
+	warn         func(error)
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -58,6 +59,12 @@ func TempHeapSize(tempHeapSize int32) InterpreterOption {
 func StreamSize(streamSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.streamSize = streamSize
+	}
+}
+
+func Warn(fn func(error)) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.warn = fn
 	}
 }
 
@@ -96,6 +103,7 @@ func New(opts ...InterpreterOption) *Interpreter {
 			FS: runtime.FS{
 				Root: opt.root,
 			},
+			Warn: opt.warn,
 		},
 	}
 }

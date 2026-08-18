@@ -291,10 +291,20 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					return
 				}
 				bpi := e.Functors[n]
-				p, err := e.Predicate(bpi)
+				p, ok, err := e.Predicate(bpi)
 				if err != nil {
 					_ = yield(err)
 					return
+				}
+				if !ok {
+					ok, err := e.Backtrack()
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
+						return
+					}
 				}
 				if p.Dynamic {
 					_ = yield(errors.New("dynamic call is not implemented yet"))

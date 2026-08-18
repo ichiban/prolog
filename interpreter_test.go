@@ -802,10 +802,9 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `bagof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
 			{`S = [1, _, 2].`},
 		}},
-		// TODO: Implement set_prolog_flag/2.
-		// {setup: []string{`set_prolog_flag(unknown, warning).`}, query: `bagof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
-		// 	{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
-		// }},
+		{setup: []string{`set_prolog_flag(unknown, warning).`}, query: `bagof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
+			{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
+		}},
 		{query: `bagof(X, (X=Y ; X=Z ; Y=1), S).`, expectations: [][]string{
 			{`S = [Y, Z].`},
 			{`S = [_].`, `Y = 1.`},
@@ -859,10 +858,9 @@ func TestInterpreter_Query(t *testing.T) {
 		{query: `setof(X, Y^((X=1 ; Y=1) ; (X=2, Y=2)), S).`, expectations: [][]string{
 			{`S = [_, 1, 2].`},
 		}},
-		// TODO: Implement set_prolog_flag/2.
-		// {setup: []string{`set_prolog_flag(unknown, warning).`}, query: `setof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
-		// 	{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
-		// }},
+		{setup: []string{`set_prolog_flag(unknown, warning).`}, query: `setof(X, (Y^(X=1 ; Y=2) ; X=3), S).`, expectations: [][]string{
+			{`S = [3].`, `Y = _.`}, // Also, warning on undefined procedure ^/2.
+		}},
 		{query: `setof(X, (X=Y ; X=Z ; Y=1), S).`, expectations: [][]string{
 			{`S = [Y, Z].`},
 			{`S = [_].`, `Y = 1.`},
@@ -1415,6 +1413,32 @@ a`},
 		{query: `number_codes(A, [0'4, 0'2, 0'., 0'0, 0'e, 0'-, 0'1]).`, expectations: [][]string{
 			{`A = 4.2.`},
 		}},
+		// 8.17.1.4
+		{query: `set_prolog_flag(unknown, fail).`, expectations: [][]string{
+			{`current_prolog_flag(unknown, fail).`},
+		}},
+		{query: `set_prolog_flag(X, off).`, err: "instantiation_error"},
+		{query: `set_prolog_flag(5, decimals).`, err: "type_error(atom,5)"},
+		{query: `set_prolog_flag(date, 'July 1988').`, err: "domain_error(flag,date)"},
+		{query: `set_prolog_flag(debug, trace).`, err: "domain_error(flag_value,debug+trace)"},
+		// 8.17.2.4
+		{setup: []string{
+			`set_prolog_flag(debug, off).`,
+		}, query: `current_prolog_flag(debug, off).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `current_prolog_flag(F, V).`, expectations: [][]string{
+			{`F = bounded.`, `V = true.`},
+			{`F = max_integer.`, `V = 9223372036854775807.`},
+			{`F = min_integer.`, `V = -9223372036854775808.`},
+			{`F = integer_rounding_function.`, `V = toward_zero.`},
+			{`F = char_conversion.`, `V = true.`},
+			{`F = debug.`, `V = off.`},
+			{`F = max_arity.`, `V = 65535.`},
+			{`F = unknown.`, `V = error.`},
+			{`F = double_quotes.`, `V = chars.`},
+		}},
+		{query: `current_prolog_flag(5, _).`, err: "type_error(atom,5)"},
 		// TODO:
 		/*
 			Other test cases.

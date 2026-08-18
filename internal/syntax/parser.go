@@ -283,14 +283,14 @@ const (
 	DoubleQuotesAtom
 )
 
-var doubleQuoteNames = [...]string{
+var DoubleQuoteNames = [...]string{
 	DoubleQuotesCodes: "codes",
 	DoubleQuotesChars: "chars",
 	DoubleQuotesAtom:  "atom",
 }
 
 func (d DoubleQuotes) String() string {
-	return doubleQuoteNames[d]
+	return DoubleQuoteNames[d]
 }
 
 // Loosely based on Pratt parser explained in this article: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
