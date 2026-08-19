@@ -1596,6 +1596,43 @@ a`},
 		{query: `X is '**'(0.0, 0).`, expectations: [][]string{
 			{`X = 1.0.`},
 		}},
+		// 9.3.2.4
+		{query: `X is sin(0.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `X is sin(N).`, err: "instantiation_error"},
+		{query: `X is sin(0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `X is sin(foo).`, err: "type_error(number,foo)"},
+		{query: `PI is atan(1.0) * 4, X is sin(PI / 2.0).`, expectations: [][]string{
+			{`X = 1.0.`, `PI = 3.141592653589793.`},
+		}},
+		// 9.3.3.4
+		{query: `X is cos(0.0).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is cos(N).`, err: "instantiation_error"},
+		{query: `X is cos(0).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is cos(foo).`, err: "type_error(number,foo)"},
+		// TODO: Don't know what ISO says here.
+		// {query: `PI is atan(1.0) * 4, X is cos(PI / 2.0).`, expectations: [][]string{
+		// 	{`X = 0.0.`, `PI = 3.141592653589793.`},
+		// }},
+		// 9.3.4.4
+		{query: `X is atan(0.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `PI is atan(1.0) * 4.`, expectations: [][]string{
+			{`X = 3.141592.`},
+		}},
+		{query: `X is atan(N).`, err: "instantiation_error"},
+		{query: `X is atan(0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `X is atan(foo).`, err: "type_error(number,foo)"},
 		// TODO:
 		/*
 			Other test cases.
