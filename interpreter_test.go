@@ -1633,6 +1633,18 @@ a`},
 			{`X = 0.0.`},
 		}},
 		{query: `X is atan(foo).`, err: "type_error(number,foo)"},
+		// 9.3.5.4
+		{query: `X is exp(0.0).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is exp(1.0).`, expectations: [][]string{
+			{`X = 2.718281828459045.`},
+		}},
+		{query: `X is exp(N).`, err: "instantiation_error"},
+		{query: `X is exp(0).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is exp(foo).`, err: "type_error(number,foo)"},
 		// TODO:
 		/*
 			Other test cases.
