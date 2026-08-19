@@ -1645,6 +1645,17 @@ a`},
 			{`X = 1.0.`},
 		}},
 		{query: `X is exp(foo).`, err: "type_error(number,foo)"},
+		// 9.3.6.4
+		{query: `X is log(1.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `X is log(2.7818).`, expectations: [][]string{
+			{`X = 1.0230982001908928.`},
+		}},
+		{query: `X is log(N).`, err: "instantiation_error"},
+		{query: `X is log(0).`, err: "evaluation_error(undefined)"},
+		{query: `X is log(foo).`, err: "type_error(number,foo)"},
+		{query: `X is log(0.0).`, err: "evaluation_error(undefined)"},
 		// TODO:
 		/*
 			Other test cases.
