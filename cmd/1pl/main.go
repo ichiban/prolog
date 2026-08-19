@@ -69,7 +69,7 @@ Type Ctrl-C or 'halt.' to exit.
 	}
 
 	i := prolog.New(
-		prolog.HeapSize(5*1024),
+		prolog.HeapSize(6*1024),
 		prolog.Root(r),
 		prolog.Warn(func(err error) {
 			log.Printf("warning: %v", err)

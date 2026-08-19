@@ -1444,6 +1444,143 @@ a`},
 		// 8.17.4.4
 		{query: `halt(1).`, err: "system_error"},
 		{query: `halt(a).`, err: "type_error(integer,a)"},
+		// 9.1.7
+		{query: `X is '+'(7, 35).`, expectations: [][]string{
+			{`X = 42.`},
+		}},
+		{query: `X is '+'(0, 3+11).`, expectations: [][]string{
+			{`X = 14.`},
+		}},
+		{query: `X is '+'(0, 3.2+11).`, expectations: [][]string{
+			{`X = 14.2.`},
+		}},
+		{query: `X is '+'(77, N).`, err: "instantiation_error"},
+		{query: `X is '+'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '-'(7).`, expectations: [][]string{
+			{`X = -7.`},
+		}},
+		{query: `X is '-'(3-11).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is '-'(3.2-11).`, expectations: [][]string{
+			{`X = 7.8.`},
+		}},
+		{query: `X is '-'(N).`, err: "instantiation_error"},
+		{query: `X is '-'(foo).`, err: "type_error(number,foo)"},
+		{query: `X is '-'(7, 35).`, expectations: [][]string{
+			{`X = -28.`},
+		}},
+		{query: `X is '-'(20, 3+11).`, expectations: [][]string{
+			{`X = 6.`},
+		}},
+		{query: `X is '-'(0, 3.2+11).`, expectations: [][]string{
+			{`X = -14.2.`},
+		}},
+		{query: `X is '-'(77, N).`, err: "instantiation_error"},
+		{query: `X is '-'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '*'(7, 35).`, expectations: [][]string{
+			{`X = 245.`},
+		}},
+		{query: `X is '*'(0, 3+11).`, expectations: [][]string{
+			{`X = 0.`},
+		}},
+		{query: `X is '*'(1.5, 3.2+11).`, expectations: [][]string{
+			{`X = 21.299999999999997.`},
+		}},
+		{query: `X is '*'(77, N).`, err: "instantiation_error"},
+		{query: `X is '*'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '//'(7, 35).`, expectations: [][]string{
+			{`X = 0.`},
+		}},
+		{query: `X is '/'(7.0, 35).`, expectations: [][]string{
+			{`X = 0.2.`},
+		}},
+		{query: `X is '/'(7.0, 35).`, expectations: [][]string{
+			{`X = 0.2.`},
+		}},
+		{query: `X is '//'(140, 3+11).`, expectations: [][]string{
+			{`X = 10.`},
+		}},
+		{query: `X is '/'(20.164, 3.2+11).`, expectations: [][]string{
+			{`X = 1.4200000000000002.`},
+		}},
+		{query: `X is '/'(7, -3).`, expectations: [][]string{
+			{`X = -2.3333333333333335.`},
+		}},
+		{query: `X is '/'(-7, 3).`, expectations: [][]string{
+			{`X = -2.3333333333333335.`},
+		}},
+		{query: `X is '/'(77, N).`, err: "instantiation_error"},
+		{query: `X is '/'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '/'(3, 0).`, err: "evaluation_error(zero_divisor)"},
+		{query: `X is mod(7, 3).`, expectations: [][]string{
+			{`X = 1.`},
+		}},
+		{query: `X is mod(0, 3+11).`, expectations: [][]string{
+			{`X = 0.`},
+		}},
+		{query: `X is mod(7, -2).`, expectations: [][]string{
+			{`X = -1.`},
+		}},
+		{query: `X is mod(77, N).`, err: "instantiation_error"},
+		{query: `X is mod(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is mod(7.5, 2).`, err: "type_error(integer,7.5)"},
+		{query: `X is mod(7, 0).`, err: "evaluation_error(zero_divisor)"},
+		{query: `X is floor(7.4).`, expectations: [][]string{
+			{`X = 7.`},
+		}},
+		{query: `X is floor(-0.4).`, expectations: [][]string{
+			{`X = -1.`},
+		}},
+		{query: `X is floor(7.4).`, expectations: [][]string{
+			{`X = 7.`},
+		}},
+		{query: `X is round(7.5).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is round(7.6).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is round(-0.6).`, expectations: [][]string{
+			{`X = -1.`},
+		}},
+		{query: `X is round(N).`, err: "instantiation_error"},
+		{query: `X is ceiling(-0.5).`, expectations: [][]string{
+			{`X = 0.`},
+		}},
+		{query: `X is truncate(-0.5).`, expectations: [][]string{
+			{`X = 0.`},
+		}},
+		{query: `X is truncate(foo).`, err: "type_error(number,foo)"},
+		{query: `X is float(7).`, expectations: [][]string{
+			{`X = 7.0.`},
+		}},
+		{query: `X is float(7.3).`, expectations: [][]string{
+			{`X = 7.3.`},
+		}},
+		{query: `X is float(5//3).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is float(N).`, err: "instantiation_error"},
+		{query: `X is float(foo).`, err: "type_error(number,foo)"},
+		{query: `X is abs(7).`, expectations: [][]string{
+			{`X = 7.`},
+		}},
+		{query: `X is abs(3-11).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is abs(3.2-11.0).`, expectations: [][]string{
+			{`X = 7.8.`},
+		}},
+		{query: `X is abs(N).`, err: "instantiation_error"},
+		{query: `X is abs(foo).`, err: "type_error(number,foo)"},
+		{query: `current_prolog_flag(max_integer, MI), X is '+'(MI, 1).`, err: "evaluation_error(int_overflow)"},
+		{query: `current_prolog_flag(max_integer, MI), X is '-'('+'(MI, 1), 1).`, err: "evaluation_error(int_overflow)"},
+		{query: `current_prolog_flag(max_integer, MI), X is '-'(-1, MI).`, expectations: [][]string{
+			{`X = -9223372036854775808.`}, // ISO says it's evaluation_error(int_overflow).
+		}},
+		{query: `current_prolog_flag(max_integer, MI), X is '*'(MI, 2).`, err: "evaluation_error(int_overflow)"},
+		{query: `current_prolog_flag(max_integer, MI), R is float(MI) * 2, X is floor(R).`, err: "evaluation_error(int_overflow)"},
 		// TODO:
 		/*
 			Other test cases.

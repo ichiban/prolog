@@ -146,6 +146,22 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: add3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: sub3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: mul3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$//"), 4), Type: InHead, Proc: intDiv3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/"), 4), Type: InHead, Proc: div3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$rem"), 4), Type: InHead, Proc: rem3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$mod"), 4), Type: InHead, Proc: mod3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 3), Type: InHead, Proc: neg2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$abs"), 3), Type: InHead, Proc: abs2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sign"), 3), Type: InHead, Proc: sign2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_integer_part"), 3), Type: InHead, Proc: floatIntegerPart2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_fractional_part"), 3), Type: InHead, Proc: floatFractionalPart2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float"), 3), Type: InHead, Proc: float2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$floor"), 3), Type: InHead, Proc: floor2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$truncate"), 3), Type: InHead, Proc: truncate2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$round"), 3), Type: InHead, Proc: round2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: ceiling2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: floorDiv3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: pos2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
@@ -3900,7 +3916,7 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return Error(err)
 	case !ok:
-		if _, err := e.mustBeNumber(number, nil, nil); err != nil {
+		if _, _, _, _, err := e.mustBeNumber(number); err != nil {
 			return Error(err)
 		}
 
@@ -3969,7 +3985,7 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return Error(err)
 	case !ok:
-		if _, err := e.mustBeNumber(number, nil, nil); err != nil {
+		if _, _, _, _, err := e.mustBeNumber(number); err != nil {
 			return Error(err)
 		}
 
@@ -4369,287 +4385,945 @@ func callCont1(ctx context.Context, e *Execution) Promise {
 
 func add3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := addI(x, y)
-			if err != nil {
-				return false, err
-			}
-			t, err := e.PutInteger(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, err
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := addIF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := addFI(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := addF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		r, err := addI(xi, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		r, err := addIF(xi, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		r, err := addFI(xf, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		r, err := addF(xf, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
+
+	e.tempVars[1] = cont
+	e.Next()
 	return Success()
 }
 
 func sub3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := subI(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutInteger(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := subIF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := subFI(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := subF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		r, err := subI(xi, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		r, err := subIF(xi, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		r, err := subFI(xf, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		r, err := subF(xf, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
+
+	e.tempVars[1] = cont
+	e.Next()
 	return Success()
 }
 
 func mul3(ctx context.Context, e *Execution) Promise {
 	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := mulI(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutInteger(r)
-			if err != nil {
-				return false, err
-			}
-			ok, err := e.Unify(out, t)
-			if !ok || err != nil {
-				return false, err
-			}
-			e.tempVars[1] = cont
-			e.Next()
-			return true, nil
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := mulIF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			e.tempVars[0] = t
-			e.Next()
-			return true, nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			r, err := mulFI(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			e.tempVars[0] = t
-			e.Next()
-			return true, nil
-		}, func(e *Execution, y float64) (bool, error) {
-			r, err := mulF(x, y)
-			if err != nil {
-				return false, &EvaluationError{
-					Cause:    err,
-					Location: e.location,
-				}
-			}
-			t, err := e.PutFloat(r)
-			if err != nil {
-				return false, err
-			}
-			e.tempVars[0] = t
-			e.Next()
-			return true, nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		r, err := mulI(xi, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		r, err := mulIF(xi, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		r, err := mulFI(xf, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		r, err := mulF(xf, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func intDiv3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
+		return e.Throw(err, cont)
+	}
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := intDivI(i, j)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func div3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		r, err := divI(xi, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		r, err := divIF(xi, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		r, err := divFI(xf, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		r, err := divF(xf, yf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func rem3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
+		return e.Throw(err, cont)
+	}
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := remI(i, j)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func mod3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
+		return e.Throw(err, cont)
+	}
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := modI(i, j)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func neg2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	if xInt {
+		r, err := negI(xi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	} else {
+		t, err = e.PutFloat(negF(xf))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func abs2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	if xInt {
+		r, err := absI(xi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	} else {
+		r := absF(xf)
+		var err error
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func sign2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	if xInt {
+		r := signI(xi)
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	} else {
+		r := signF(xf)
+		var err error
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func floatIntegerPart2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := intPartF(f)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func floatFractionalPart2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := fractPartF(f)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func float2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var r float64
+	if xInt {
+		r = floatItoF(xi)
+	} else {
+		r = floatFtoF(xf)
+	}
+
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func floor2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := floorFtoI(f)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func truncate2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := ceilingFtoI(f)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func round2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := roundFtoI(f)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func ceiling2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	f, err := e.mustBeFloat(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := ceilingFtoI(f)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func floorDiv3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
+		return e.Throw(err, cont)
+	}
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
+		return e.Throw(err, cont)
+	}
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r, err := intFloorDivI(i, j)
+	if err != nil {
+		return e.Throw(&EvaluationError{
+			Cause:    err,
+			Location: e.location,
+		}, cont)
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func pos2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	if xInt {
+		r, err := posI(xi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutInteger(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	} else {
+		r, err := posF(xf)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+		t, err = e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
 	return Success()
 }
 
 func arithEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return eqI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return eqIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return eqFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return eqF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = eqI(xi, yi)
+	case xInt:
+		ok = eqIF(xi, yf)
+	case yInt:
+		ok = eqFI(xf, yi)
+	default:
+		ok = eqF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -4662,23 +5336,27 @@ func arithEq2(ctx context.Context, e *Execution) Promise {
 
 func arithDif2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return neqI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return neqIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return neqFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return neqF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = neqI(xi, yi)
+	case xInt:
+		ok = neqIF(xi, yf)
+	case yInt:
+		ok = neqFI(xf, yi)
+	default:
+		ok = neqF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -4691,23 +5369,27 @@ func arithDif2(ctx context.Context, e *Execution) Promise {
 
 func less2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return lssI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return lssIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return lssFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return lssF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = lssI(xi, yi)
+	case xInt:
+		ok = lssIF(xi, yf)
+	case yInt:
+		ok = lssFI(xf, yi)
+	default:
+		ok = lssF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -4720,23 +5402,27 @@ func less2(ctx context.Context, e *Execution) Promise {
 
 func lessEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return leqI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return leqIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return leqFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return leqF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = leqI(xi, yi)
+	case xInt:
+		ok = leqIF(xi, yf)
+	case yInt:
+		ok = leqFI(xf, yi)
+	default:
+		ok = leqF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -4749,23 +5435,27 @@ func lessEq2(ctx context.Context, e *Execution) Promise {
 
 func greater2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return gtrI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return gtrIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return gtrFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return gtrF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = gtrI(xi, yi)
+	case xInt:
+		ok = gtrIF(xi, yf)
+	case yInt:
+		ok = gtrFI(xf, yi)
+	default:
+		ok = gtrF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -4778,23 +5468,27 @@ func greater2(ctx context.Context, e *Execution) Promise {
 
 func greaterEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-	x, y = e.Deref(x), e.Deref(y)
 
-	ok, err := e.mustBeNumber(x, func(e *Execution, x int64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return geqI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return geqIF(x, y), nil
-		})
-	}, func(e *Execution, x float64) (bool, error) {
-		return e.mustBeNumber(y, func(e *Execution, y int64) (bool, error) {
-			return geqFI(x, y), nil
-		}, func(e *Execution, y float64) (bool, error) {
-			return geqF(x, y), nil
-		})
-	})
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var ok bool
+	switch {
+	case xInt && yInt:
+		ok = geqI(xi, yi)
+	case xInt:
+		ok = geqIF(xi, yf)
+	case yInt:
+		ok = geqFI(xf, yi)
+	default:
+		ok = geqF(xf, yf)
 	}
 	if !ok {
 		return Failure()
@@ -5044,6 +5738,36 @@ func (e *Execution) canBeNotLessThanZero(t term.Handle) (int64, bool, error) {
 	return i, ok, nil
 }
 
+func (e *Execution) canBeFloat(t term.Handle) (float64, bool, error) {
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	f, ok := e.Float(t)
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("float"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return f, true, nil
+}
+
+func (e *Execution) mustBeFloat(t term.Handle) (float64, error) {
+	f, ok, err := e.canBeFloat(t)
+	if err != nil {
+		return 0, err
+	}
+
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+
+	return f, nil
+}
+
 func (e *Execution) canBeList(list term.Handle, fn func(elem term.Handle) error) (bool, error) {
 	if fn == nil {
 		fn = func(term.Handle) error {
@@ -5132,35 +5856,24 @@ func (e *Execution) mustBeAtomic(t term.Handle) error {
 	return nil
 }
 
-func (e *Execution) mustBeNumber(t term.Handle, intFn func(e *Execution, i int64) (bool, error), floatFn func(e *Execution, f float64) (bool, error)) (bool, error) {
-	if intFn == nil {
-		intFn = func(e *Execution, i int64) (bool, error) {
-			return false, nil
-		}
-	}
-	if floatFn == nil {
-		floatFn = func(e *Execution, f float64) (bool, error) {
-			return false, nil
-		}
-	}
-
+func (e *Execution) mustBeNumber(t term.Handle) (int64, bool, float64, bool, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
-		return false, &InstantiationError{
+		return 0, false, 0, false, &InstantiationError{
 			Location: e.location,
 		}
 	}
 
 	if i, ok := e.Integer(t); ok {
-		return intFn(e, i)
+		return i, true, 0, false, nil
 	}
 
 	if f, ok := e.Float(t); ok {
-		return floatFn(e, f)
+		return 0, false, f, true, nil
 	}
 
-	return false, &TypeError{
+	return 0, false, 0, false, &TypeError{
 		ValidType: term.NewAtom("number"),
 		Culprit:   syntax.Serialize(e.Arena, t),
 		Location:  e.location,
@@ -5572,9 +6285,7 @@ func mulI(x, y int64) (int64, error) {
 
 func mulF(x, y float64) (float64, error) {
 	switch {
-	case y != 0 && x > math.MaxFloat64/y:
-		return 0, FloatOverflow
-	case y != 0 && x < -math.MaxFloat64/y:
+	case y != 0 && math.Abs(x) > math.MaxFloat64/math.Abs(y):
 		return 0, FloatOverflow
 	}
 
@@ -5616,9 +6327,7 @@ func divF(x, y float64) (float64, error) {
 	switch {
 	case y == 0:
 		return 0, ZeroDivisor
-	case x > math.MaxFloat64*y:
-		return 0, FloatOverflow
-	case x < -math.MaxFloat64*y:
+	case math.Abs(x) > math.MaxFloat64*math.Abs(y):
 		return 0, FloatOverflow
 	}
 
@@ -5846,7 +6555,7 @@ func floatFtoF(x float64) float64 {
 
 func floorFtoI(x float64) (int64, error) {
 	f := math.Floor(x)
-	if f > float64(math.MaxInt64) || f < float64(math.MinInt64) {
+	if f >= float64(math.MaxInt64) || f < float64(math.MinInt64) {
 		return 0, IntOverflow
 	}
 	return int64(f), nil
@@ -5854,7 +6563,7 @@ func floorFtoI(x float64) (int64, error) {
 
 func truncateFtoI(x float64) (int64, error) {
 	t := math.Trunc(x)
-	if t > float64(math.MaxInt64) || t < float64(math.MinInt64) {
+	if t >= float64(math.MaxInt64) || t < float64(math.MinInt64) {
 		return 0, IntOverflow
 	}
 	return int64(t), nil
@@ -5862,7 +6571,7 @@ func truncateFtoI(x float64) (int64, error) {
 
 func roundFtoI(x float64) (int64, error) {
 	r := math.Round(x)
-	if r > float64(math.MaxInt64) || r < float64(math.MinInt64) {
+	if r >= float64(math.MaxInt64) || r < float64(math.MinInt64) {
 		return 0, IntOverflow
 	}
 	return int64(r), nil
@@ -5870,7 +6579,7 @@ func roundFtoI(x float64) (int64, error) {
 
 func ceilingFtoI(x float64) (int64, error) {
 	c := math.Ceil(x)
-	if c > float64(math.MaxInt64) || c < float64(math.MinInt64) {
+	if c >= float64(math.MaxInt64) || c < float64(math.MinInt64) {
 		return 0, IntOverflow
 	}
 	return int64(c), nil
