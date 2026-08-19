@@ -168,6 +168,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan"), 3), Type: InHead, Proc: atan2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: exp2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: log2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: sqrt2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
@@ -5527,14 +5528,53 @@ func log2(ctx context.Context, e *Execution) Promise {
 		xf = float64(xi)
 	}
 
-	r := math.Log(xf)
-
 	if xf <= 0 {
 		return Error(&EvaluationError{
 			Cause:    Undefined,
 			Location: e.location,
 		})
 	}
+
+	r := math.Log(xf)
+
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func sqrt2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	if xf < 0 {
+		return Error(&EvaluationError{
+			Cause:    Undefined,
+			Location: e.location,
+		})
+	}
+
+	r := math.Sqrt(xf)
 
 	t, err := e.PutFloat(r)
 	if err != nil {

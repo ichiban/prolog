@@ -1656,6 +1656,19 @@ a`},
 		{query: `X is log(0).`, err: "evaluation_error(undefined)"},
 		{query: `X is log(foo).`, err: "type_error(number,foo)"},
 		{query: `X is log(0.0).`, err: "evaluation_error(undefined)"},
+		// 9.3.7.4
+		{query: `X is sqrt(0.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		{query: `X is sqrt(1).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
+		{query: `X is sqrt(1.21).`, expectations: [][]string{
+			{`X = 1.1.`},
+		}},
+		{query: `X is sqrt(N).`, err: "instantiation_error"},
+		{query: `X is sqrt(-1.0).`, err: "evaluation_error(undefined)"},
+		{query: `X is sqrt(foo).`, err: "type_error(number,foo)"},
 		// TODO:
 		/*
 			Other test cases.
