@@ -162,6 +162,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: ceiling2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: floorDiv3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: pos2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$**"), 4), Type: InHead, Proc: power3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
@@ -5299,6 +5300,70 @@ func pos2(ctx context.Context, e *Execution) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Success()
+}
+
+func power3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if yInt {
+		yf = float64(yi)
+	}
+
+	// 9.3.1.3 d) special case
+	if xf == 0 && yf < 0 {
+		return e.Throw(&EvaluationError{
+			Cause:    Undefined,
+			Location: 0,
+		}, cont)
+	}
+
+	switch r := math.Pow(xf, yf); {
+	case math.IsInf(r, 0):
+		return Error(&EvaluationError{
+			Cause:    FloatOverflow,
+			Location: e.location,
+		})
+	case r == 0 && xf != 0: // Underflow: r can be 0 iff x = 0.
+		return Error(&EvaluationError{
+			Cause:    Underflow,
+			Location: e.location,
+		})
+	case math.IsNaN(r):
+		return Error(&EvaluationError{
+			Cause:    Undefined,
+			Location: e.location,
+		})
+	default:
+		t, err := e.PutFloat(r)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+
+		ok, err := e.Unify(out, t)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return Failure()
+		}
+
+		e.tempVars[1] = cont
+		e.Next()
+		return Success()
+	}
 }
 
 func arithEq2(ctx context.Context, e *Execution) Promise {

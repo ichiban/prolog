@@ -1581,6 +1581,21 @@ a`},
 		}},
 		{query: `current_prolog_flag(max_integer, MI), X is '*'(MI, 2).`, err: "evaluation_error(int_overflow)"},
 		{query: `current_prolog_flag(max_integer, MI), R is float(MI) * 2, X is floor(R).`, err: "evaluation_error(int_overflow)"},
+		// 9.3.1.4
+		{query: `X is '**'(5, 3).`, expectations: [][]string{
+			{`X = 125.0.`},
+		}},
+		{query: `X is '**'(-5.0, 3).`, expectations: [][]string{
+			{`X = -125.0.`},
+		}},
+		{query: `X is '**'(77, N).`, err: "instantiation_error"},
+		{query: `X is '**'(foo, 2).`, err: "type_error(number,foo)"},
+		{query: `X is '**'(5, 3.0).`, expectations: [][]string{
+			{`X = 125.0.`},
+		}},
+		{query: `X is '**'(0.0, 0).`, expectations: [][]string{
+			{`X = 1.0.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.
