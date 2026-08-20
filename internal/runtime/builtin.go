@@ -176,6 +176,12 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: atan3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: tan2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: pi1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$>>"), 4), Type: InHead, Proc: bitwiseRightShift3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$<<"), 4), Type: InHead, Proc: bitwiseLeftShift3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/\\"), 4), Type: InHead, Proc: bitwiseAnd3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\/"), 4), Type: InHead, Proc: bitwiseOr3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\"), 3), Type: InHead, Proc: bitwiseComplement2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$xor"), 4), Type: InHead, Proc: bitwiseXor3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
@@ -6003,6 +6009,199 @@ func pi1(ctx context.Context, e *Execution) Promise {
 	out, cont := e.tempVars[1], e.tempVars[2]
 
 	t, err := e.PutFloat(math.Pi)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseRightShift3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := i >> j
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseLeftShift3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := i << j
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseAnd3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := i & j
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseOr3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := i | j
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseComplement2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := ^i
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func bitwiseXor3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	i, err := e.mustBeInteger(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	j, err := e.mustBeInteger(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	r := i ^ j
+	t, err := e.PutInteger(r)
 	if err != nil {
 		return e.Throw(err, cont)
 	}

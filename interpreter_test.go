@@ -1752,9 +1752,85 @@ a`},
 		{query: `X is tan(0.5).`, expectations: [][]string{
 			{`X = 0.5463024898437905.`},
 		}},
-		// 0.3.15.4
+		// 9.3.15.4
 		{query: `X is pi.`, expectations: [][]string{
 			{`X = 3.141592653589793.`},
+		}},
+		// 9.4.1.4
+		{query: `X is '>>'(16, 2).`, expectations: [][]string{
+			{`X = 4.`},
+		}},
+		{query: `X is '>>'(19, 2).`, expectations: [][]string{
+			{`X = 4.`},
+		}},
+		{query: `X is '>>'(-16, 2).`, expectations: [][]string{
+			{`X = -4.`},
+		}},
+		{query: `X is '>>'(77, N).`, err: "instantiation_error"},
+		{query: `X is '>>'(foo, 2).`, err: "type_error(integer,foo)"},
+		// 9.4.2.4
+		{query: `X is '<<'(16, 2).`, expectations: [][]string{
+			{`X = 64.`},
+		}},
+		{query: `X is '<<'(19, 2).`, expectations: [][]string{
+			{`X = 76.`},
+		}},
+		{query: `X is '<<'(-16, 2).`, expectations: [][]string{
+			{`X = -64.`},
+		}},
+		{query: `X is '<<'(77, N).`, err: "instantiation_error"},
+		{query: `X is '<<'(foo, 2).`, err: "type_error(integer,foo)"},
+		// 9.4.3.4
+		{query: `X is '/\\'(10, 12).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is /\(10, 12).`, expectations: [][]string{
+			{`X = 8.`},
+		}},
+		{query: `X is '/\\'(17 * 256 + 125, 125).`, expectations: [][]string{
+			{`X = 125.`},
+		}},
+		{query: `X is /\(-10, 12).`, expectations: [][]string{
+			{`X = 4.`},
+		}},
+		{query: `X is '/\\'(77, N).`, err: "instantiation_error"},
+		{query: `X is '/\\'(foo, 2).`, err: "type_error(integer,foo)"},
+		// 9.4.4.4
+		{query: `X is '\\/'(10, 12).`, expectations: [][]string{
+			{`X = 14.`},
+		}},
+		{query: `X is \/(10, 12).`, expectations: [][]string{
+			{`X = 14.`},
+		}},
+		{query: `X is '\\/'(125, 255).`, expectations: [][]string{
+			{`X = 255.`},
+		}},
+		{query: `X is \/(-10, 12).`, expectations: [][]string{
+			{`X = -2.`},
+		}},
+		{query: `X is '\\/'(77, N).`, err: "instantiation_error"},
+		{query: `X is '\\/'(foo, 2).`, err: "type_error(integer,foo)"},
+		// 9.4.5.4
+		{query: `X is '\\'( '\\'(10)).`, expectations: [][]string{
+			{`X = 10.`},
+		}},
+		{query: `X is \( \(10)).`, expectations: [][]string{
+			{`X = 10.`},
+		}},
+		{query: `X is \(10).`, expectations: [][]string{
+			{`X = -11.`},
+		}},
+		{query: `X is '\\'(N).`, err: "instantiation_error"},
+		{query: `X is '\\'(2.5).`, err: "type_error(integer,2.5)"},
+		// 9.4.6.4
+		{query: `X is xor(10, 12).`, expectations: [][]string{
+			{`X = 6.`},
+		}},
+		{query: `X is xor(125, 255).`, expectations: [][]string{
+			{`X = 130.`},
+		}},
+		{query: `X is xor(-10, 12).`, expectations: [][]string{
+			{`X = -6.`},
 		}},
 		// TODO:
 		/*
