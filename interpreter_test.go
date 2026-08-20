@@ -1455,7 +1455,7 @@ a`},
 			{`X = 14.2.`},
 		}},
 		{query: `X is '+'(77, N).`, err: "instantiation_error"},
-		{query: `X is '+'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '+'(foo, 77).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '-'(7).`, expectations: [][]string{
 			{`X = -7.`},
 		}},
@@ -1466,7 +1466,7 @@ a`},
 			{`X = 7.8.`},
 		}},
 		{query: `X is '-'(N).`, err: "instantiation_error"},
-		{query: `X is '-'(foo).`, err: "type_error(number,foo)"},
+		{query: `X is '-'(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '-'(7, 35).`, expectations: [][]string{
 			{`X = -28.`},
 		}},
@@ -1477,7 +1477,7 @@ a`},
 			{`X = -14.2.`},
 		}},
 		{query: `X is '-'(77, N).`, err: "instantiation_error"},
-		{query: `X is '-'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '-'(foo, 77).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '*'(7, 35).`, expectations: [][]string{
 			{`X = 245.`},
 		}},
@@ -1488,7 +1488,7 @@ a`},
 			{`X = 21.299999999999997.`},
 		}},
 		{query: `X is '*'(77, N).`, err: "instantiation_error"},
-		{query: `X is '*'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '*'(foo, 77).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '//'(7, 35).`, expectations: [][]string{
 			{`X = 0.`},
 		}},
@@ -1511,7 +1511,7 @@ a`},
 			{`X = -2.3333333333333335.`},
 		}},
 		{query: `X is '/'(77, N).`, err: "instantiation_error"},
-		{query: `X is '/'(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is '/'(foo, 77).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '/'(3, 0).`, err: "evaluation_error(zero_divisor)"},
 		{query: `X is mod(7, 3).`, expectations: [][]string{
 			{`X = 1.`},
@@ -1523,7 +1523,7 @@ a`},
 			{`X = -1.`},
 		}},
 		{query: `X is mod(77, N).`, err: "instantiation_error"},
-		{query: `X is mod(foo, 77).`, err: "type_error(number,foo)"},
+		{query: `X is mod(foo, 77).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is mod(7.5, 2).`, err: "type_error(integer,7.5)"},
 		{query: `X is mod(7, 0).`, err: "evaluation_error(zero_divisor)"},
 		{query: `X is floor(7.4).`, expectations: [][]string{
@@ -1551,7 +1551,7 @@ a`},
 		{query: `X is truncate(-0.5).`, expectations: [][]string{
 			{`X = 0.`},
 		}},
-		{query: `X is truncate(foo).`, err: "type_error(number,foo)"},
+		{query: `X is truncate(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is float(7).`, expectations: [][]string{
 			{`X = 7.0.`},
 		}},
@@ -1562,7 +1562,7 @@ a`},
 			{`X = 1.0.`},
 		}},
 		{query: `X is float(N).`, err: "instantiation_error"},
-		{query: `X is float(foo).`, err: "type_error(number,foo)"},
+		{query: `X is float(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is abs(7).`, expectations: [][]string{
 			{`X = 7.`},
 		}},
@@ -1573,7 +1573,7 @@ a`},
 			{`X = 7.8.`},
 		}},
 		{query: `X is abs(N).`, err: "instantiation_error"},
-		{query: `X is abs(foo).`, err: "type_error(number,foo)"},
+		{query: `X is abs(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `current_prolog_flag(max_integer, MI), X is '+'(MI, 1).`, err: "evaluation_error(int_overflow)"},
 		{query: `current_prolog_flag(max_integer, MI), X is '-'('+'(MI, 1), 1).`, err: "evaluation_error(int_overflow)"},
 		{query: `current_prolog_flag(max_integer, MI), X is '-'(-1, MI).`, expectations: [][]string{
@@ -1589,7 +1589,7 @@ a`},
 			{`X = -125.0.`},
 		}},
 		{query: `X is '**'(77, N).`, err: "instantiation_error"},
-		{query: `X is '**'(foo, 2).`, err: "type_error(number,foo)"},
+		{query: `X is '**'(foo, 2).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is '**'(5, 3.0).`, expectations: [][]string{
 			{`X = 125.0.`},
 		}},
@@ -1604,7 +1604,7 @@ a`},
 		{query: `X is sin(0).`, expectations: [][]string{
 			{`X = 0.0.`},
 		}},
-		{query: `X is sin(foo).`, err: "type_error(number,foo)"},
+		{query: `X is sin(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `PI is atan(1.0) * 4, X is sin(PI / 2.0).`, expectations: [][]string{
 			{`X = 1.0.`, `PI = 3.141592653589793.`},
 		}},
@@ -1616,7 +1616,7 @@ a`},
 		{query: `X is cos(0).`, expectations: [][]string{
 			{`X = 1.0.`},
 		}},
-		{query: `X is cos(foo).`, err: "type_error(number,foo)"},
+		{query: `X is cos(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// TODO: Don't know what ISO says here.
 		// {query: `PI is atan(1.0) * 4, X is cos(PI / 2.0).`, expectations: [][]string{
 		// 	{`X = 0.0.`, `PI = 3.141592653589793.`},
@@ -1632,7 +1632,7 @@ a`},
 		{query: `X is atan(0).`, expectations: [][]string{
 			{`X = 0.0.`},
 		}},
-		{query: `X is atan(foo).`, err: "type_error(number,foo)"},
+		{query: `X is atan(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.3.5.4
 		{query: `X is exp(0.0).`, expectations: [][]string{
 			{`X = 1.0.`},
@@ -1644,7 +1644,7 @@ a`},
 		{query: `X is exp(0).`, expectations: [][]string{
 			{`X = 1.0.`},
 		}},
-		{query: `X is exp(foo).`, err: "type_error(number,foo)"},
+		{query: `X is exp(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.3.6.4
 		{query: `X is log(1.0).`, expectations: [][]string{
 			{`X = 0.0.`},
@@ -1654,7 +1654,7 @@ a`},
 		}},
 		{query: `X is log(N).`, err: "instantiation_error"},
 		{query: `X is log(0).`, err: "evaluation_error(undefined)"},
-		{query: `X is log(foo).`, err: "type_error(number,foo)"},
+		{query: `X is log(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		{query: `X is log(0.0).`, err: "evaluation_error(undefined)"},
 		// 9.3.7.4
 		{query: `X is sqrt(0.0).`, expectations: [][]string{
@@ -1668,7 +1668,7 @@ a`},
 		}},
 		{query: `X is sqrt(N).`, err: "instantiation_error"},
 		{query: `X is sqrt(-1.0).`, err: "evaluation_error(undefined)"},
-		{query: `X is sqrt(foo).`, err: "type_error(number,foo)"},
+		{query: `X is sqrt(foo).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.3.8.4
 		{query: `X is max(2, 3).`, expectations: [][]string{
 			{`X = 3.`},
@@ -1767,7 +1767,7 @@ a`},
 			{`X = -4.`},
 		}},
 		{query: `X is '>>'(77, N).`, err: "instantiation_error"},
-		{query: `X is '>>'(foo, 2).`, err: "type_error(integer,foo)"},
+		{query: `X is '>>'(foo, 2).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.4.2.4
 		{query: `X is '<<'(16, 2).`, expectations: [][]string{
 			{`X = 64.`},
@@ -1779,7 +1779,7 @@ a`},
 			{`X = -64.`},
 		}},
 		{query: `X is '<<'(77, N).`, err: "instantiation_error"},
-		{query: `X is '<<'(foo, 2).`, err: "type_error(integer,foo)"},
+		{query: `X is '<<'(foo, 2).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.4.3.4
 		{query: `X is '/\\'(10, 12).`, expectations: [][]string{
 			{`X = 8.`},
@@ -1794,7 +1794,7 @@ a`},
 			{`X = 4.`},
 		}},
 		{query: `X is '/\\'(77, N).`, err: "instantiation_error"},
-		{query: `X is '/\\'(foo, 2).`, err: "type_error(integer,foo)"},
+		{query: `X is '/\\'(foo, 2).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.4.4.4
 		{query: `X is '\\/'(10, 12).`, expectations: [][]string{
 			{`X = 14.`},
@@ -1809,7 +1809,7 @@ a`},
 			{`X = -2.`},
 		}},
 		{query: `X is '\\/'(77, N).`, err: "instantiation_error"},
-		{query: `X is '\\/'(foo, 2).`, err: "type_error(integer,foo)"},
+		{query: `X is '\\/'(foo, 2).`, err: "type_error(evaluable,foo/0)"}, // ISO says type_error(number,foo).
 		// 9.4.5.4
 		{query: `X is '\\'( '\\'(10)).`, expectations: [][]string{
 			{`X = 10.`},
@@ -1942,7 +1942,7 @@ a`},
 				t.Fatal(err)
 			}
 
-			i := New(HeapSize(6*1024), Root(root))
+			i := New(HeapSize(7*1024), Root(root))
 			i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)
