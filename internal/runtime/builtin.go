@@ -281,7 +281,7 @@ func true0(ctx context.Context, e *Execution) Promise {
 		if !ok {
 			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			return Error(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
@@ -292,14 +292,14 @@ func true0(ctx context.Context, e *Execution) Promise {
 		args := slices.Collect(e.Args(cont))
 		goal, err := e.PutCompound(pi.Name(), args[:len(args)-1]...)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		cont = args[len(args)-1]
 		err = e.pushSeqStackFrame(func(yield func(Promise) bool) {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -318,6 +318,8 @@ func true0(ctx context.Context, e *Execution) Promise {
 				}
 			}
 		}, 2)
+		// err is nil unless pushing the frame itself failed; Error(nil) isn't a
+		// failure to report but the backtrack which triggers the iterator.
 		return Error(err)
 	}
 
@@ -339,7 +341,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
 	goal, err := e.rewriteCutForCall(goal)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
@@ -369,7 +371,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 		if !ok {
 			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			return Error(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
@@ -381,7 +383,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -400,6 +402,8 @@ func call1(ctx context.Context, e *Execution) Promise {
 				}
 			}
 		}, 2)
+		// err is nil unless pushing the frame itself failed; Error(nil) isn't a
+		// failure to report but the backtrack which triggers the iterator.
 		return Error(err)
 	}
 	e.programPointer = p.Offset
@@ -533,7 +537,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 		}
 		ball, err = ErrorTerm(e.Arena, err)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
@@ -548,7 +552,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 
 		b, _ := e.Integer(cutB)
 		if err := e.unTrailTo(int(b)); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ball, err := syntax.Deserialize(e.Arena, serialized)
@@ -558,7 +562,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 
 		ok, err := e.Unify(catcher, ball)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if ok {
 			e.tempVars[1] = recovery
@@ -566,7 +570,36 @@ func throw1(ctx context.Context, e *Execution) Promise {
 			return call1(ctx, e)
 		}
 	}
-	return Error(fmt.Errorf("unhandled exception: %s", &syntax.Formatter{Arena: e.Arena, Term: ball}))
+	return Error(&uncaughtBall{ball: serialized})
+}
+
+// uncaughtBall is a ball which found no matching catch/3 in the execution it
+// was thrown in. The ball is kept serialized because Engine.Call unwinds its
+// execution's trail on the way out, which would unbind the variables within it.
+//
+// The caller of a nested execution rethrows the ball so that it carries on
+// outwards; when it reaches the host instead, 7.8.9.1 calls for a system error
+// unless the ball is itself an error term.
+type uncaughtBall struct {
+	ball syntax.Serialized
+}
+
+func (u *uncaughtBall) Error() string {
+	return fmt.Sprintf("unhandled exception: %s", u.ball)
+}
+
+// rethrow sends err on its way in this execution. A ball thrown in a nested
+// execution keeps its identity; anything else is described as an error term.
+func (e *Execution) rethrow(err error, cont term.Handle) Promise {
+	var ball *uncaughtBall
+	if errors.As(err, &ball) {
+		t, err := syntax.Deserialize(e.Arena, ball.ball)
+		if err != nil {
+			return Error(err)
+		}
+		return e.throwBall(t, cont)
+	}
+	return e.Throw(err, cont)
 }
 
 func subsumesTerm2(_ context.Context, e *Execution) Promise {
@@ -577,7 +610,7 @@ func subsumesTerm2(_ context.Context, e *Execution) Promise {
 	// Same as unify_with_occurs_check(General, Specific).
 	ok, err := e.Unify(general, specific)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	ok = ok && e.Acyclic(general)
 
@@ -588,7 +621,7 @@ func subsumesTerm2(_ context.Context, e *Execution) Promise {
 	}
 
 	if err := e.unwindTrail(trailTop); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if !ok {
@@ -638,12 +671,12 @@ func compare3(_ context.Context, e *Execution) Promise {
 		a, err = e.PutAtom(term.NewAtomRune('='))
 	}
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(order, a)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -676,7 +709,7 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		ps = append(ps, pair)
 		return nil
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, err := e.canBeList(sorted, func(pair term.Handle) error {
@@ -689,7 +722,7 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		}
 		return nil
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ts := make([]term.Handle, len(ps))
@@ -697,11 +730,11 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		key, value := e.Arg(pair, 0), e.Arg(pair, 1)
 		p, err := e.PutInteger(int64(i))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		t, err := e.PutCompound(term.NewAtomRune('t'), key, p, value)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		ts[i] = t
 	}
@@ -713,19 +746,19 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		key, value := e.Arg(t, 0), e.Arg(t, 2)
 		p, err := e.PutCompound(term.NewAtomRune('-'), key, value)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		kvs[i] = p
 	}
 
 	l, err := e.PutList(kvs...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(sorted, l)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -768,18 +801,24 @@ func functor3(_ context.Context, e *Execution) Promise {
 
 			if a == 0 {
 				ok, err := e.Unify(t, name)
-				if !ok || err != nil {
-					return Error(err)
+				if err != nil {
+					return e.Throw(err, cont)
+				}
+				if !ok {
+					return Failure()
 				}
 			} else if n, ok := e.Atom(name); ok {
 				c, err := e.PutCompoundWithFreshVars(term.NewFunctor(n, int(a)))
 				if err != nil {
-					return Error(err)
+					return e.Throw(err, cont)
 				}
 
 				ok, err = e.Unify(t, c)
-				if !ok || err != nil {
-					return Error(err)
+				if err != nil {
+					return e.Throw(err, cont)
+				}
+				if !ok {
+					return Failure()
 				}
 			} else {
 				return Error(&TypeError{
@@ -798,37 +837,49 @@ func functor3(_ context.Context, e *Execution) Promise {
 	} else if f, ok := e.Functor(t); ok {
 		n, err := e.PutAtom(f.Name())
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(name, n)
-		if !ok || err != nil {
-			return Error(err)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return Failure()
 		}
 
 		a, err := e.PutInteger(int64(f.Arity()))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err = e.Unify(arity, a)
-		if !ok || err != nil {
-			return Error(err)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return Failure()
 		}
 	} else { // atomic
 		ok, err := e.Unify(name, t)
-		if !ok || err != nil {
-			return Error(err)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return Failure()
 		}
 
 		a, err := e.PutInteger(int64(0))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err = e.Unify(arity, a)
-		if !ok || err != nil {
-			return Error(err)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return Failure()
 		}
 	}
 
@@ -863,8 +914,11 @@ func arg3(_ context.Context, e *Execution) Promise {
 			default:
 				a := e.Arg(t, int(n)-1)
 				ok, err := e.Unify(arg, a)
-				if !ok || err != nil {
-					return Error(err)
+				if err != nil {
+					return e.Throw(err, cont)
+				}
+				if !ok {
+					return Failure()
 				}
 			}
 
@@ -1006,12 +1060,15 @@ func copyTerm2(_ context.Context, e *Execution) Promise {
 
 	c, err := term.RenamedCopy(e.Arena, e.Arena, t1)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(t2, c)
-	if !ok || err != nil {
-		return Error(err)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
@@ -1024,17 +1081,20 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 	t, vars = e.Deref(t), e.Deref(vars)
 
 	if _, err := e.canBeList(vars, nil); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ret, err := e.PutList(slices.Collect(e.WitnessVariables(t))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(ret, vars)
-	if !ok || err != nil {
-		return Error(err)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
@@ -1047,11 +1107,11 @@ func clause2(ctx context.Context, e *Execution) Promise {
 
 	pi, err := e.mustBeCallable(head)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeCallable(body); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -1063,7 +1123,7 @@ func clause2(ctx context.Context, e *Execution) Promise {
 	if !p.Public {
 		f, err := e.PutFunctor(pi)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		return Error(&PermissionError{
@@ -1077,13 +1137,13 @@ func clause2(ctx context.Context, e *Execution) Promise {
 	return Delay(func(yield func(Promise) bool) {
 		for r, err := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err := e.Unify(head, r.Head)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1092,7 +1152,7 @@ func clause2(ctx context.Context, e *Execution) Promise {
 
 			ok, err = e.Unify(body, r.Body)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1114,7 +1174,7 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 
 	switch pi, ok, err := e.canBePredicateIndicator(predIndicator); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	case ok:
 		bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
 		p, _ := e.Predicates[bpi]
@@ -1149,13 +1209,13 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 		for _, pi := range pis {
 			c, err := e.PutFunctor(pi)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err := e.Unify(predIndicator, c)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1228,7 +1288,7 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 		head = t
 		body, err = e.PutAtom(term.NewAtom("true"))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
@@ -1247,7 +1307,7 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	if !p.Dynamic {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		return Error(&PermissionError{
 			Operation:      term.NewAtom("modify"),
@@ -1262,7 +1322,7 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 		Body:      body,
 		CreatedAt: e.CurrentTime,
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	e.CurrentTime++
 
@@ -1277,28 +1337,28 @@ func retract1(ctx context.Context, e *Execution) Promise {
 
 	h, err := e.PutVariable()
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	b, err := e.PutVariable()
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	c, err := e.PutCompound(atomNeck, h, b)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(c, t)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		h = t
 		b, err = e.PutAtom(term.NewAtom("true"))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
@@ -1306,14 +1366,14 @@ func retract1(ctx context.Context, e *Execution) Promise {
 
 	pi, err := e.mustBeCallable(h)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
 	if p, ok := e.Predicates[bpi]; ok && !p.Dynamic {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		return Error(&PermissionError{
 			Operation:      term.NewAtom("modify"),
@@ -1329,7 +1389,7 @@ func retract1(ctx context.Context, e *Execution) Promise {
 		for r := range e.DB.Select(ctx, e.Arena, pi, before) {
 			ok, err := e.Unify(r.Head, h)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1341,7 +1401,7 @@ func retract1(ctx context.Context, e *Execution) Promise {
 
 			ok, err = e.Unify(r.Body, b)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1352,7 +1412,7 @@ func retract1(ctx context.Context, e *Execution) Promise {
 			}
 
 			if err := e.DB.Delete(ctx, r.ID, before); err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			e.tempVars[1] = cont
@@ -1370,7 +1430,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 
 	pi, err := e.mustBePredicateIndicator(pred)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -1378,7 +1438,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 		if !p.Dynamic {
 			c, err := e.PutFunctor(pi)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			return Error(&PermissionError{
 				Operation:      term.NewAtom("modify"),
@@ -1389,7 +1449,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 		}
 		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 		}
 		delete(e.Predicates, bpi)
@@ -1405,22 +1465,22 @@ func findAll3(ctx context.Context, e *Execution) Promise {
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
 	if _, err := e.canBeList(instances, nil); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var elems []term.Handle
 	if err := e.FindAll(ctx, &elems, template, goal); err != nil {
-		return Error(err)
+		return e.rethrow(err, cont)
 	}
 
 	l, err := e.PutList(elems...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(instances, l)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -1451,18 +1511,18 @@ func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (te
 	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 
 	if _, err := e.canBeList(instances, nil); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	fvs := e.FreeVariableSet(goal, template)
 	witness, err := e.PutCompound(term.NewAtom("$witness"), fvs...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	template, err = e.PutCompound(term.NewAtomRune('+'), witness, template)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	for {
@@ -1476,7 +1536,7 @@ func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (te
 
 	var s []term.Handle
 	if err := e.FindAll(ctx, &s, template, goal); err != nil {
-		return Error(err)
+		return e.rethrow(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -1499,18 +1559,18 @@ func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (te
 			s = s[:n]
 			for _, w := range wl {
 				if _, err := e.Unify(witness, w); err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 			}
 			a, err := agg(tl)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			ok, err := e.Unify(instances, a)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1569,7 +1629,7 @@ func currentInput1(ctx context.Context, e *Execution) Promise {
 
 	ok, err := e.Unify(s, e.Input)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -1589,7 +1649,7 @@ func currentOutput1(ctx context.Context, e *Execution) Promise {
 
 	ok, err := e.Unify(s, e.Output)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -1605,7 +1665,7 @@ func setInput1(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	for stream := range e.OpenStreams() {
@@ -1625,7 +1685,7 @@ func setOutput1(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	for stream := range e.OpenStreams() {
@@ -1645,16 +1705,16 @@ func open4(ctx context.Context, e *Execution) Promise {
 
 	filename, err := e.mustBeSourceSink(sourceSink)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	m, err := e.mustBeMode(mode)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, err := e.canBeStream(stream); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var flag int
@@ -1671,7 +1731,7 @@ func open4(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, fs.ErrNotExist):
 	case errors.Is(err, fs.ErrPermission):
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	s := term.Stream{Mode: m}
@@ -1683,7 +1743,7 @@ func open4(ctx context.Context, e *Execution) Promise {
 		}
 		s.Source = f
 		if err := s.InitRead(); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	case term.Write, term.Append:
 		f, ok := f.(io.Writer)
@@ -1700,17 +1760,17 @@ func open4(ctx context.Context, e *Execution) Promise {
 	if err := e.mustBeList(options, func(elem term.Handle) error {
 		return e.handleStreamOption(&s, elem)
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	t, err := e.PutStream(s)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(stream, t)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -1866,7 +1926,7 @@ func close2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var force bool
@@ -1901,11 +1961,11 @@ func close2(ctx context.Context, e *Execution) Promise {
 			}
 		}
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if err := s.Close(); err != nil && !force {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -1918,7 +1978,7 @@ func flushOutput1(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	switch err := s.Flush(); {
@@ -1930,7 +1990,7 @@ func flushOutput1(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -1946,7 +2006,7 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 	var streams iter.Seq[term.Handle]
 	s, err := e.canBeStream(stream)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if s == nil {
 		streams = e.OpenStreams()
@@ -1955,7 +2015,7 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 	}
 
 	if err := e.canBeStreamProperty(property); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -1966,13 +2026,13 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 			}
 			for p, err := range e.properties(st) {
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 
 				ok, err := e.Unify(stream, s)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -1984,7 +2044,7 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 
 				ok, err = e.Unify(property, p)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -2161,12 +2221,12 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	p, err := e.mustBeInteger(position)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	switch _, err := s.Seek(p, 0); {
@@ -2178,7 +2238,7 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		e.tempVars[1] = cont
 		e.Next()
@@ -2191,11 +2251,11 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInChar(inChar); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var c term.Handle
@@ -2203,7 +2263,7 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutAtom(term.NewAtom("end_of_file"))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
 		return Error(&PermissionError{
@@ -2227,17 +2287,17 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		c, err = e.PutAtom(term.NewAtomRune(r))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
 	ok, err := e.Unify(inChar, c)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2253,11 +2313,11 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInCharCode(inCharCode); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var c term.Handle
@@ -2265,7 +2325,7 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutInteger(-1)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
 		return Error(&PermissionError{
@@ -2289,17 +2349,17 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		c, err = e.PutInteger(int64(r))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
 	ok, err := e.Unify(inCharCode, c)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2315,11 +2375,11 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInChar(inChar); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var c term.Handle
@@ -2327,7 +2387,7 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutAtom(term.NewAtom("end_of_file"))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
 		return Error(&PermissionError{
@@ -2351,10 +2411,10 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		if err := s.UnreadRune(); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		if r == unicode.ReplacementChar {
@@ -2366,13 +2426,13 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 
 		c, err = e.PutAtom(term.NewAtomRune(r))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
 	ok, err := e.Unify(inChar, c)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2388,11 +2448,11 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInCharCode(inCharCode); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var c term.Handle
@@ -2400,7 +2460,7 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutInteger(-1)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
 		return Error(&PermissionError{
@@ -2424,10 +2484,10 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		if err := s.UnreadRune(); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		if r == unicode.ReplacementChar {
@@ -2439,13 +2499,13 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 
 		c, err = e.PutInteger(int64(r))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
 	ok, err := e.Unify(inCharCode, c)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2461,12 +2521,12 @@ func putChar2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	r, err := e.mustBeChar(char)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	switch _, err := s.WriteRune(r); {
@@ -2485,7 +2545,7 @@ func putChar2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -2498,12 +2558,12 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	r, err := e.mustBeCharCode(code)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	switch _, err := s.WriteRune(r); {
@@ -2522,7 +2582,7 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -2535,11 +2595,11 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInByte(inByte); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var n int64
@@ -2568,19 +2628,19 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		n = int64(b)
 	}
 
 	i, err := e.PutInteger(n)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(inByte, i)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2596,11 +2656,11 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInByte(inByte); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var n int64
@@ -2629,10 +2689,10 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		if err := s.UnreadByte(); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		n = int64(b)
@@ -2640,12 +2700,12 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 
 	i, err := e.PutInteger(n)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(inByte, i)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -2661,12 +2721,12 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	b, err := e.mustBeByte(byt)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	switch err := s.WriteByte(b); {
@@ -2685,7 +2745,7 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		e.tempVars[1] = cont
 		e.Next()
@@ -2698,14 +2758,14 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var opts readTermOptions
 	if err := e.mustBeList(options, func(elem term.Handle) error {
 		return e.readTermOption(&opts, elem)
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var (
@@ -2723,12 +2783,12 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		eof, err := e.PutAtom(term.NewAtom("end_of_file"))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(t, eof)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -2760,7 +2820,7 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 			Location:   e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	default:
 		var (
 			singletons    []term.Handle
@@ -2777,11 +2837,11 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 			if opts.variableNames != (term.Handle{}) && v.Name != "_" {
 				n, err := e.PutAtom(term.NewAtom(v.Name))
 				if err != nil {
-					return Error(err)
+					return e.Throw(err, cont)
 				}
 				c, err := e.PutCompound(term.NewAtomRune('='), n, v.Variable)
 				if err != nil {
-					return Error(err)
+					return e.Throw(err, cont)
 				}
 				variableNames = append(variableNames, c)
 			}
@@ -2789,7 +2849,7 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 
 		ok, err := e.Unify(t, p)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -2798,12 +2858,12 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 		if opts.singletons != (term.Handle{}) {
 			l, err := e.PutList(singletons...)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 
 			ok, err := e.Unify(opts.singletons, l)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			if !ok {
 				return Failure()
@@ -2813,12 +2873,12 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 		if opts.variables != (term.Handle{}) {
 			l, err := e.PutList(variables...)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 
 			ok, err := e.Unify(opts.variables, l)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			if !ok {
 				return Failure()
@@ -2828,12 +2888,12 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 		if opts.variableNames != (term.Handle{}) {
 			l, err := e.PutList(variableNames...)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 
 			ok, err := e.Unify(opts.variableNames, l)
 			if err != nil {
-				return Error(err)
+				return e.Throw(err, cont)
 			}
 			if !ok {
 				return Failure()
@@ -2883,7 +2943,7 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	formatter := syntax.Formatter{
@@ -2918,7 +2978,7 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 			Location:    e.location,
 		}
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	w, err := s.TextWriter()
@@ -2938,11 +2998,11 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 			Location:       e.location,
 		})
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, err := fmt.Fprintf(w, "%s", &formatter); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3032,7 +3092,7 @@ func op3(ctx context.Context, e *Execution) Promise {
 
 	p, err := e.mustBeInteger(priority)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if p < 0 || p > 1200 {
 		return Error(&DomainError{
@@ -3044,7 +3104,7 @@ func op3(ctx context.Context, e *Execution) Promise {
 
 	opSpec, err := e.mustBeAtom(operatorSpecifier)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	var spec syntax.OperatorSpecifier
@@ -3074,7 +3134,7 @@ func op3(ctx context.Context, e *Execution) Promise {
 	var ops []term.Atom
 	if a, ok := e.Atom(operator); ok {
 		if err := e.validateOp(p, spec, operator); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		ops = append(ops, a)
 	} else {
@@ -3095,7 +3155,7 @@ func op3(ctx context.Context, e *Execution) Promise {
 
 			return nil
 		}); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 	}
 
@@ -3175,7 +3235,7 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 
 	switch p, ok, err := e.canBeInteger(priority); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	case ok && (p < 0 || p > 1200):
 		return Error(&DomainError{
 			ValidDomain: term.NewAtom("operator_priority"),
@@ -3186,7 +3246,7 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 
 	switch s, ok, err := e.canBeAtom(operatorSpecifier); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	case ok && !slices.Contains([]term.Atom{
 		term.NewAtom("fx"),
 		term.NewAtom("fy"),
@@ -3205,20 +3265,20 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 
 	switch _, _, err := e.canBeAtom(operator); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
 		for _, op := range e.Ops {
 			p, err := e.PutInteger(int64(op.Priority))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err := e.Unify(priority, p)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3230,13 +3290,13 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 
 			s, err := e.PutAtom(term.NewAtom(op.Specifier.String()))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err = e.Unify(operatorSpecifier, s)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3248,13 +3308,13 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 
 			n, err := e.PutAtom(op.Name)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err = e.Unify(operator, n)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3278,12 +3338,12 @@ func charConversion2(ctx context.Context, e *Execution) Promise {
 
 	in, err := e.mustBeChar(inChar)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	out, err := e.mustBeChar(outChar)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.CharConversion.Entries = slices.DeleteFunc(e.CharConversion.Entries, func(entry syntax.CharConversionEntry) bool {
@@ -3306,24 +3366,24 @@ func currentCharConversion2(ctx context.Context, e *Execution) Promise {
 	inChar, outChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
 	if _, _, err := e.canBeChar(inChar); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeChar(outChar); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
 		for _, entry := range e.CharConversion.Entries {
 			i, err := e.PutAtom(term.NewAtomRune(entry.In))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err := e.Unify(inChar, i)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3335,13 +3395,13 @@ func currentCharConversion2(ctx context.Context, e *Execution) Promise {
 
 			o, err := e.PutAtom(term.NewAtomRune(entry.Out))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err = e.Unify(outChar, o)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3366,7 +3426,7 @@ func call2(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3375,7 +3435,7 @@ func call2(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3389,7 +3449,7 @@ func call3(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3399,7 +3459,7 @@ func call3(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3413,7 +3473,7 @@ func call4(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3424,7 +3484,7 @@ func call4(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3438,7 +3498,7 @@ func call5(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3450,7 +3510,7 @@ func call5(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3464,7 +3524,7 @@ func call6(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3477,7 +3537,7 @@ func call6(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3491,7 +3551,7 @@ func call7(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3505,7 +3565,7 @@ func call7(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3519,7 +3579,7 @@ func call8(ctx context.Context, e *Execution) Promise {
 
 	f, err := e.mustBeCallable(closure)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
@@ -3534,7 +3594,7 @@ func call8(ctx context.Context, e *Execution) Promise {
 		singleton(cont),
 	))...)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -3547,21 +3607,21 @@ func atomLength2(ctx context.Context, e *Execution) Promise {
 
 	a, err := e.mustBeAtom(atom)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeInteger(length); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	l, err := e.PutInteger(int64(utf8.RuneCountInString(a.String())))
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(length, l)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -3578,27 +3638,27 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 
 	a3, ok, err := e.canBeAtom(atom3)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		a1, err := e.mustBeAtom(atom1)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		a2, err := e.mustBeAtom(atom2)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		a, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(atom3, a)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -3610,11 +3670,11 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 	}
 
 	if _, _, err := e.canBeAtom(atom1); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeAtom(atom2); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -3622,13 +3682,13 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 		for i := 0; i <= len(s); i += nextRuneSize(s[i:]) {
 			a1, err := e.PutAtom(term.NewAtom(s[:i]))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err := e.Unify(atom1, a1)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3640,13 +3700,13 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 
 			a2, err := e.PutAtom(term.NewAtom(s[i:]))
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 
 			ok, err = e.Unify(atom2, a2)
 			if err != nil {
-				_ = yield(Error(err))
+				_ = yield(e.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3670,23 +3730,23 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 
 	a, err := e.mustBeAtom(atom)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeNotLessThanZero(before); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeNotLessThanZero(length); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeNotLessThanZero(after); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	if _, _, err := e.canBeAtom(subAtom); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -3695,13 +3755,13 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 			for j := i; j <= len(s); j += nextRuneSize(s[j:]) {
 				b, err := e.PutInteger(int64(i))
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 
 				ok, err := e.Unify(before, b)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3713,13 +3773,13 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 
 				l, err := e.PutInteger(int64(j - i))
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 
 				ok, err = e.Unify(length, l)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3731,13 +3791,13 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 
 				a, err := e.PutInteger(int64(len(s) - j))
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 
 				ok, err = e.Unify(after, a)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3749,13 +3809,13 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 
 				sub, err := e.PutAtom(term.NewAtom(s[i:j]))
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 
 				ok, err = e.Unify(subAtom, sub)
 				if err != nil {
-					_ = yield(Error(err))
+					_ = yield(e.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3785,7 +3845,7 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		var sb strings.Builder
@@ -3797,17 +3857,17 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 			sb.WriteRune(r)
 			return nil
 		}); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		a, err := e.PutAtom(term.NewAtom(sb.String()))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(atom, a)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -3822,17 +3882,17 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 		_, _, err := e.canBeChar(elem)
 		return err
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cs, err := e.PutCharList(a.String())
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err = e.Unify(chars, cs)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -3848,7 +3908,7 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		var sb strings.Builder
@@ -3860,17 +3920,17 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 			sb.WriteRune(r)
 			return nil
 		}); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		a, err := e.PutAtom(term.NewAtom(sb.String()))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(atom, a)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -3885,17 +3945,17 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 		_, _, err := e.canBeCharCode(elem)
 		return err
 	}); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cs, err := e.PutCodeList(a.String())
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err = e.Unify(codes, cs)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -3911,22 +3971,22 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 
 	r, ok, err := e.canBeChar(char)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		r, err := e.mustBeCharCode(code)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ch, err := e.PutAtom(term.NewAtomRune(r))
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err := e.Unify(char, ch)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -3938,17 +3998,17 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 	}
 
 	if _, _, err := e.canBeCharCode(code); err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	cd, err := e.PutInteger(int64(r))
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err = e.Unify(code, cd)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -3972,10 +4032,10 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 		return nil
 	}); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	case !ok:
 		if _, _, _, _, err := e.mustBeNumber(number); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		var sb strings.Builder
@@ -3986,12 +4046,12 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 
 		l, err := e.PutCharList(sb.String())
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err = e.Unify(list, l)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -4012,12 +4072,12 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 			Location:   e.location,
 		}, cont)
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(number, n)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -4041,10 +4101,10 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 		return nil
 	}); {
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	case !ok:
 		if _, _, _, _, err := e.mustBeNumber(number); err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		var sb strings.Builder
@@ -4055,12 +4115,12 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 
 		l, err := e.PutCodeList(sb.String())
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 
 		ok, err = e.Unify(list, l)
 		if err != nil {
-			return Error(err)
+			return e.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
@@ -4081,12 +4141,12 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 			Location:   e.location,
 		}, cont)
 	case err != nil:
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	ok, err := e.Unify(number, n)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -4097,13 +4157,18 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 	return Success()
 }
 
-// Throw throws an error. TODO: Expand the use of this method.
+// Throw throws an error.
 func (e *Execution) Throw(err error, cont term.Handle) Promise {
 	et, err := ErrorTerm(e.Arena, err)
 	if err != nil {
 		return Error(err)
 	}
-	cont, err = e.PutCompound(term.NewAtom("throw"), et, cont)
+	return e.throwBall(et, cont)
+}
+
+// throwBall continues execution by throwing ball, which is already a term.
+func (e *Execution) throwBall(ball, cont term.Handle) Promise {
+	cont, err := e.PutCompound(term.NewAtom("throw"), ball, cont)
 	if err != nil {
 		return Error(err)
 	}
@@ -4374,14 +4439,6 @@ func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
 	return Success()
 }
 
-type Halt struct {
-	Code int
-}
-
-func (e Halt) Error() string {
-	return fmt.Sprintf("halt %d", e.Code)
-}
-
 func halt1(ctx context.Context, e *Execution) Promise {
 	x, cont := e.tempVars[1], e.tempVars[2]
 
@@ -4390,11 +4447,14 @@ func halt1(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	// Do not throw this error as a ball.
-	// Return it to the host program as is.
-	return Error(&Halt{
-		Code: int(n),
-	})
+	if e.Halt == nil {
+		e.Halt = func(code int) {}
+	}
+	e.Halt(int(n))
+
+	// 8.17.3.1 says "this built-in predicate neither succeeds nor fails."
+	// In case Halt doesn't terminate the engine, we return a Go error here.
+	return Error(fmt.Errorf("halt(%d)", n))
 }
 
 func dynamic1(ctx context.Context, e *Execution) Promise {
@@ -4403,7 +4463,7 @@ func dynamic1(ctx context.Context, e *Execution) Promise {
 
 	pi, err := e.mustBePredicateIndicator(t)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -4429,8 +4489,10 @@ func getNeckCut1(_ context.Context, e *Execution) Promise {
 
 func getCont1(_ context.Context, e *Execution) Promise {
 	out, cont := e.tempVars[1], e.tempVars[2]
-	if ok, err := e.Unify(out, cont); !ok || err != nil {
-		return Error(err)
+	if ok, err := e.Unify(out, cont); err != nil {
+		return e.Throw(err, cont)
+	} else if !ok {
+		return Failure()
 	}
 	e.Next()
 	return Success()

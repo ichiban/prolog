@@ -61,6 +61,7 @@ type Engine struct {
 	debug   bool
 	unknown unknownAction
 	Warn    func(error)
+	Halt    func(code int)
 }
 
 func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {

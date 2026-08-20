@@ -18,6 +18,16 @@ func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
 		return term.Handle{}, errors.New("nil error")
 	}
 
+	// A ball which reached the host is reported as itself when it's an error
+	// term; any other ball is a system error (7.8.9.1).
+	if u, ok := err.(*uncaughtBall); ok {
+		if t, derr := syntax.Deserialize(arena, u.ball); derr == nil {
+			if pi, ok := arena.Functor(t); ok && pi.Name() == term.NewAtom("error") && pi.Arity() == 2 {
+				return t, nil
+			}
+		}
+	}
+
 	if err, ok := err.(Termer); ok {
 		return err.Term(arena)
 	}

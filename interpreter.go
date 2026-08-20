@@ -34,15 +34,13 @@ type Raw string
 // Result is a generic result map. It contains variable names as keys and associated terms as values.
 type Result map[string]Raw
 
-// Halt reports that the interpreter executed halt/0 or halt/1.
-type Halt = runtime.Halt
-
 type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32
 	streamSize   int32
 	root         *os.Root
 	warn         func(error)
+	halt         func(code int)
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -65,15 +63,21 @@ func StreamSize(streamSize int32) InterpreterOption {
 	}
 }
 
+func Root(root *os.Root) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.root = root
+	}
+}
+
 func Warn(fn func(error)) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.warn = fn
 	}
 }
 
-func Root(root *os.Root) InterpreterOption {
+func Halt(fn func(code int)) InterpreterOption {
 	return func(o *InterpreterOptions) {
-		o.root = root
+		o.halt = fn
 	}
 }
 
@@ -107,6 +111,7 @@ func New(opts ...InterpreterOption) *Interpreter {
 				Root: opt.root,
 			},
 			Warn: opt.warn,
+			Halt: opt.halt,
 		},
 	}
 }

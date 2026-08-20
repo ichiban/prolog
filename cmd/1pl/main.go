@@ -74,6 +74,10 @@ Type Ctrl-C or 'halt.' to exit.
 		prolog.Warn(func(err error) {
 			log.Printf("warning: %v", err)
 		}),
+		prolog.Halt(func(code int) {
+			_ = terminal.Restore(0, oldState)
+			os.Exit(code)
+		}),
 	)
 	if err := i.SetUserInput(os.Stdin); err != nil {
 		log.Fatalf("failed to set user input: %v", err)
@@ -94,7 +98,6 @@ Type Ctrl-C or 'halt.' to exit.
 	var (
 		buf  strings.Builder
 		keys = bufio.NewReader(os.Stdin)
-		halt *prolog.Halt
 	)
 	for {
 		switch err := handleLine(ctx, &buf, i, t, keys); {
@@ -102,9 +105,6 @@ Type Ctrl-C or 'halt.' to exit.
 			break
 		case errors.Is(err, io.EOF):
 			return
-		case errors.As(err, &halt):
-			_ = terminal.Restore(0, oldState)
-			os.Exit(halt.Code)
 		default:
 			log.Panic(err)
 		}
@@ -120,7 +120,6 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 
 	var (
 		resultShown bool
-		haltError   *prolog.Halt
 	)
 	for result, err := range prolog.Query[prolog.Result](ctx, i, buf.String()) {
 		switch {
@@ -131,8 +130,6 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 			// Returns without resetting buf.
 			t.SetPrompt(contPrompt)
 			return nil
-		case errors.As(err, &haltError):
-			return err
 		default:
 			log.Printf("failed to query: %v", err)
 			buf.Reset()

@@ -1886,6 +1886,43 @@ a`},
 				{`X = a.`},
 			},
 		},
+
+		// catch/3 catches errors raised by built-in predicates, not just those raised by throw/1.
+		{query: `catch(atom_length(1, _), error(type_error(atom, 1), _), true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `catch(atom_chars(_, _), error(instantiation_error, _), true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `catch(findall(_, 1, _), error(type_error(callable, 1), _), true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		// The recovery goal runs, so a failing recovery yields no solution rather than letting the error escape.
+		{query: `catch(atom_length(1, _), _, fail).`, expectations: [][]string{}},
+		// Bindings made by the goal are undone before the recovery runs.
+		{query: `catch((X = bound, atom_length(1, _)), _, var(X)).`, expectations: [][]string{
+			{`true.`},
+		}},
+
+		// findall/3, bagof/3 and setof/3 run the goal in a nested execution which can't see this one's catch/3 frames.
+		// A ball thrown there still has to carry on outwards, keeping its identity.
+		{query: `catch(findall(X, throw(foo), L), foo, true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `catch(bagof(X, throw(foo), L), foo, true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `catch(setof(X, throw(foo), L), foo, true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		{query: `catch(findall(_, findall(_, throw(deep), _), _), deep, true).`, expectations: [][]string{
+			{`true.`},
+		}},
+		// The ball outlives the nested execution's trail being unwound, so
+		// a variable bound by the goal is still bound in the ball.
+		{query: `catch(findall(_, (X = 1, throw(f(X))), _), f(Y), true).`, expectations: [][]string{
+			{`Y == 1.`},
+		}},
 	}
 
 	for _, test := range tests {
