@@ -5,7 +5,6 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -169,6 +168,14 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: exp2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: log2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: sqrt2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$max"), 4), Type: InHead, Proc: max3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$min"), 4), Type: InHead, Proc: min3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$^"), 4), Type: InHead, Proc: integerPower3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$asin"), 3), Type: InHead, Proc: asin2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$acos"), 3), Type: InHead, Proc: acos2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: atan3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: tan2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: pi1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
@@ -257,7 +264,7 @@ func true0(ctx context.Context, e *Execution) Promise {
 
 	p, ok, err := e.Predicate(bpi)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -346,7 +353,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
 	p, ok, err := e.Predicate(bpi)
 	if err != nil {
-		return Error(err)
+		return e.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
@@ -524,8 +531,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 		}
 	}
 
-	var buf bytes.Buffer
-	_, _ = fmt.Fprintf(&buf, "%s.", &syntax.Formatter{Arena: e.Arena, Term: ball})
+	serialized := syntax.Serialize(e.Arena, ball)
 
 	for cont := range contChain(e.Arena, cont) {
 		if pi, ok := e.Functor(cont); !ok || pi.Name() != term.NewAtom("$to_catch") || pi.Arity() != 5 {
@@ -539,11 +545,9 @@ func throw1(ctx context.Context, e *Execution) Promise {
 			return Error(err)
 		}
 
-		ball, err := syntax.ParseTerm(&buf,
-			syntax.Arena(e.Arena),
-		)
+		ball, err := syntax.Deserialize(e.Arena, serialized)
 		if err != nil {
-			return Error(fmt.Errorf("parse serialized ball(%s): %w", buf.String(), err))
+			return Error(fmt.Errorf("parse serialized ball(%s): %w", serialized, err))
 		}
 
 		ok, err := e.Unify(catcher, ball)
@@ -883,66 +887,107 @@ func univ2(_ context.Context, e *Execution) Promise {
 	t, list = e.Deref(t), e.Deref(list)
 
 	if _, ok := e.Variable(t); ok {
-		var elems []term.Handle
-		if err := e.mustBeNonEmptyList(list, func(elem term.Handle) error {
-			elems = append(elems, elem)
-			return nil
-		}); err != nil {
-			return Error(err)
-		}
+		return e.univVariable(t, list, cont)
+	}
 
-		if len(elems) == 1 {
-			if err := e.mustBeAtomic(elems[0]); err != nil {
-				return Error(err)
+	f, ok := e.Functor(t)
+	if !ok { // Atomic.
+		return e.univAtomic(t, list, cont)
+	}
+
+	if _, err := e.canBeList(list, nil); err != nil {
+		return e.Throw(err, cont)
+	}
+
+	a, err := e.PutAtom(f.Name())
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	l, err := e.PutList(slices.Collect(concat(singleton(a), e.Args(t)))...)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err = e.Unify(list, l)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func (e *Execution) univAtomic(t, list, cont term.Handle) Promise {
+	if _, err := e.canBeList(list, nil); err != nil {
+		return e.Throw(err, cont)
+	}
+
+	l, err := e.PutList(t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(list, l)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
+	var elems []term.Handle
+	if err := e.mustBeNonEmptyList(list, func(elem term.Handle) error {
+		elem = e.Deref(elem)
+		elems = append(elems, elem)
+		return nil
+	}); err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if len(elems) == 1 {
+		elem := elems[0]
+		if _, ok := e.Functor(elem); !ok {
+			ok, err := e.Unify(t, elem)
+			if err != nil {
+				return e.Throw(err, cont)
+			}
+			if !ok {
+				return Failure()
 			}
 
-			ok, err := e.Unify(t, elems[0])
-			if !ok || err != nil {
-				return Error(err)
-			}
+			e.tempVars[1] = cont
+			e.Next()
+			return Success()
 		}
+	}
 
-		elems[0] = e.Deref(elems[0])
-		a, err := e.mustBeAtom(elems[0])
-		if err != nil {
-			return Error(err)
-		}
+	n, ok := e.Atom(elems[0])
+	if !ok {
+		return Failure()
+	}
 
-		c, err := e.PutCompound(a, elems[1:]...)
-		if err != nil {
-			return Error(err)
-		}
+	c, err := e.PutCompound(n, elems[1:]...)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
 
-		ok, err = e.Unify(t, c)
-		if !ok || err != nil {
-			return Error(err)
-		}
-	} else if f, ok := e.Functor(t); ok {
-		if _, err := e.canBeList(list, nil); err != nil {
-			return Error(err)
-		}
-
-		elems := make([]term.Handle, f.Arity()+1)
-		a, err := e.PutAtom(f.Name())
-		if err != nil {
-			return Error(err)
-		}
-		elems[0] = a
-		copy(elems[1:], slices.Collect(e.Args(t)))
-
-		l, err := e.PutList(elems...)
-		if err != nil {
-			return Error(err)
-		}
-
-		ok, err := e.Unify(list, l)
-		if !ok || err != nil {
-			return Error(err)
-		}
-	} else {
-		if _, err := e.canBeList(list, nil); err != nil {
-			return Error(err)
-		}
+	ok, err = e.Unify(t, c)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
 	}
 
 	e.tempVars[1] = cont
@@ -5594,6 +5639,387 @@ func sqrt2(ctx context.Context, e *Execution) Promise {
 	return Success()
 }
 
+func max3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		t, err = e.PutInteger(max(xi, yi))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		t, err = e.PutFloat(max(float64(xi), yf))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		t, err = e.PutFloat(max(xf, float64(yi)))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		t, err = e.PutFloat(max(xf, yf))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func min3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	var t term.Handle
+	switch {
+	case xInt && yInt:
+		t, err = e.PutInteger(min(xi, yi))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case xInt:
+		t, err = e.PutFloat(min(float64(xi), yf))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	case yInt:
+		t, err = e.PutFloat(min(xf, float64(yi)))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	default:
+		t, err = e.PutFloat(min(xf, yf))
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func integerPower3(ctx context.Context, e *Execution) Promise {
+	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	x, y = e.Deref(x), e.Deref(y)
+
+	xi, xInt, _, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	yi, yInt, _, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if !xInt || !yInt {
+		return power3(ctx, e)
+	}
+
+	var r int64
+	if yi < 0 {
+		switch xi {
+		case 0:
+			return e.Throw(&EvaluationError{
+				Cause:    Undefined,
+				Location: e.location,
+			}, cont)
+		case 1, -1:
+			yi, err := negI(yi) // y can be minInt
+			if err != nil {
+				return e.Throw(&EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}, cont)
+			}
+			r, _ = intPow(xi, yi) // Since x is either 1 or -1, no errors occur.
+			r, err = intDivI(1, r)
+			if err != nil {
+				return e.Throw(&EvaluationError{
+					Cause:    err,
+					Location: e.location,
+				}, cont)
+			}
+		default:
+			return e.Throw(&TypeError{
+				ValidType: term.NewAtom("float"),
+				Culprit:   syntax.Serialize(e.Arena, x),
+				Location:  e.location,
+			}, cont)
+		}
+	} else {
+		r, err = intPow(xi, yi)
+		if err != nil {
+			return e.Throw(&EvaluationError{
+				Cause:    err,
+				Location: e.location,
+			}, cont)
+		}
+	}
+
+	t, err := e.PutInteger(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+// Loosely based on https://www.programminglogic.com/fast-exponentiation-algorithms/
+func intPow(a, b int64) (int64, error) {
+	var (
+		r   = int64(1)
+		err error
+	)
+	for {
+		if b&1 != 0 {
+			r, err = mulI(r, a)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		b >>= 1
+		if b == 0 {
+			break
+		}
+
+		a, err = mulI(a, a)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return r, nil
+}
+
+func asin2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	if xf > 1 || xf < -1 {
+		return e.Throw(&EvaluationError{
+			Cause:    Undefined,
+			Location: e.location,
+		}, cont)
+	}
+
+	r := math.Asin(xf)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func acos2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	if xf > 1 || xf < -1 {
+		return e.Throw(&EvaluationError{
+			Cause:    Undefined,
+			Location: e.location,
+		}, cont)
+	}
+
+	r := math.Acos(xf)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func atan3(ctx context.Context, e *Execution) Promise {
+	y, x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	y, x = e.Deref(y), e.Deref(x)
+
+	yi, yInt, yf, _, err := e.mustBeNumber(y)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if yInt {
+		yf = float64(yi)
+	}
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	if yf == 0 && xf == 0 {
+		return e.Throw(&EvaluationError{
+			Cause:    Undefined,
+			Location: e.location,
+		}, cont)
+	}
+
+	r := math.Atan2(yf, xf)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func tan2(ctx context.Context, e *Execution) Promise {
+	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	x = e.Deref(x)
+
+	xi, xInt, xf, _, err := e.mustBeNumber(x)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if xInt {
+		xf = float64(xi)
+	}
+
+	r := math.Tan(xf)
+	t, err := e.PutFloat(r)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+
+}
+
+func pi1(ctx context.Context, e *Execution) Promise {
+	out, cont := e.tempVars[1], e.tempVars[2]
+
+	t, err := e.PutFloat(math.Pi)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(out, t)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
 func arithEq2(ctx context.Context, e *Execution) Promise {
 	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 
@@ -5793,6 +6219,15 @@ func greaterEq2(ctx context.Context, e *Execution) Promise {
 }
 
 func (e *Execution) unTrailTo(b int) error {
+	if b >= len(e.stack) {
+		return nil
+	}
+
+	// e.stack[b] is catch/3's own choice point, so its trailTop is the trail as
+	// of the catch/3 call. Recovery resumes from there: bindings Goal made are
+	// undone, bindings the enclosing clause made before catch/3 are kept.
+	trailTop := e.stack[b].trailTop
+
 	for i := len(e.stack) - 1; i >= b; i-- {
 		f := e.stack[i]
 		if f.stop != nil {
@@ -5801,10 +6236,6 @@ func (e *Execution) unTrailTo(b int) error {
 	}
 
 	e.stack = e.stack[:b]
-	trailTop := 0
-	if len(e.stack) > 0 {
-		trailTop = e.stack[len(e.stack)-1].trailTop
-	}
 	return e.unwindTrail(trailTop)
 }
 

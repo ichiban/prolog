@@ -1669,6 +1669,93 @@ a`},
 		{query: `X is sqrt(N).`, err: "instantiation_error"},
 		{query: `X is sqrt(-1.0).`, err: "evaluation_error(undefined)"},
 		{query: `X is sqrt(foo).`, err: "type_error(number,foo)"},
+		// 9.3.8.4
+		{query: `X is max(2, 3).`, expectations: [][]string{
+			{`X = 3.`},
+		}},
+		{query: `X is max(2.0, 3).`, expectations: [][]string{
+			{`X = 3.0.`},
+		}},
+		{query: `X is max(2, 3.0).`, expectations: [][]string{
+			{`X = 3.0.`},
+		}},
+		{query: `X is max(0, 0.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		// 9.3.9.4
+		{query: `X is min(2, 3).`, expectations: [][]string{
+			{`X = 2.`},
+		}},
+		{query: `X is min(2.0, 3).`, expectations: [][]string{
+			{`X = 2.0.`},
+		}},
+		{query: `X is min(2, 3.0).`, expectations: [][]string{
+			{`X = 2.0.`},
+		}},
+		{query: `X is min(0, 0.0).`, expectations: [][]string{
+			{`X = 0.0.`},
+		}},
+		// 9.3.10.4
+		{query: `X is ^(0, 0).`, expectations: [][]string{
+			{`X = 1.`},
+		}},
+		{query: `X is 3^1.0.`, expectations: [][]string{
+			{`X = 3.0.`},
+		}},
+		{query: `X is 3^3.`, expectations: [][]string{
+			{`X = 27.`},
+		}},
+		{query: `X is 3^27.`, expectations: [][]string{
+			{`X = 7625597484987.`},
+		}},
+		{query: `X is 3^3^3.`, expectations: [][]string{
+			{`X = 7625597484987.`},
+		}},
+		{query: `X is 2^(-1).`, err: "type_error(float,2)"},
+		{query: `X is 2.0^(-1).`, expectations: [][]string{
+			{`X = 0.5.`},
+		}},
+		{query: `X is 1^(-1).`, expectations: [][]string{
+			{`X = 1.`},
+		}},
+		{query: `X is 0^0.`, expectations: [][]string{
+			{`X = 1.`},
+		}},
+		{query: `X is 2^ -1.5.`, expectations: [][]string{
+			{`X = 0.3535533905932738.`},
+		}},
+		// 9.3.11.4
+		{query: `X is asin(0.5).`, expectations: [][]string{
+			{`X = 0.5235987755982989.`},
+		}},
+		{query: `X is 2*asin(1).`, expectations: [][]string{
+			{`X = 3.141592653589793.`},
+		}},
+		{query: `X is asin(2).`, err: "evaluation_error(undefined)"},
+		// 9.3.12.4
+		{query: `X is acos(-1).`, expectations: [][]string{
+			{`X = 3.141592653589793.`},
+		}},
+		{query: `X is acos(0.5).`, expectations: [][]string{
+			{`X = 1.0471975511965976.`},
+		}},
+		{query: `X is acos(1.5).`, err: "evaluation_error(undefined)"},
+		// 9.3.13.4
+		{query: `X is atan2(1,0).`, expectations: [][]string{
+			{`X = 1.5707963267948966.`},
+		}},
+		{query: `X is atan2(0,-1).`, expectations: [][]string{
+			{`X = 3.141592653589793.`},
+		}},
+		{query: `X is atan2(0,0).`, err: "evaluation_error(undefined)"},
+		// 9.3.14.4
+		{query: `X is tan(0.5).`, expectations: [][]string{
+			{`X = 0.5463024898437905.`},
+		}},
+		// 0.3.15.4
+		{query: `X is pi.`, expectations: [][]string{
+			{`X = 3.141592653589793.`},
+		}},
 		// TODO:
 		/*
 			Other test cases.

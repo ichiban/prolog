@@ -74,19 +74,23 @@ R is E :- R is E.
 
 '$expr'(E, _) :- var(E), !,
   throw(error(instantiation_error, '$expr'/2)).
-'$expr'(E, R) :- atomic(E), !,
+'$expr'(E, R) :- number(E), !,
   E = R.
 '$expr'(E, R) :- E =.. [Op, E1, E2], !,
   atom_concat($, Op, NewOp),
   '$expr'(E1, X1),
   '$expr'(E2, X2),
   G =.. [NewOp, X1, X2, R],
-  G.
-'$expr'(E, R) :- E =.. [Op, E1],
+  catch(G, error(existence_error(procedure, NewOp/3), _), E = R).
+'$expr'(E, R) :- E =.. [Op, E1], !,
   atom_concat($, Op, NewOp),
   '$expr'(E1, X1),
   G =.. [NewOp, X1, R],
-  G.
+  catch(G, error(existence_error(procedure, NewOp/2), _), E = R).
+'$expr'(E, R) :- E =.. [Op], !,
+  atom_concat($, Op, NewOp),
+  G =.. [NewOp, R],
+  catch(G, error(existence_error(procedure, NewOp/1), _), E = R).
 
 X =:= Y :- X =:= Y.
 X =\= Y :- X =\= Y.
