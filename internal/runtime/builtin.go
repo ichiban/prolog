@@ -80,6 +80,7 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: ground1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: acyclicTerm1})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: compare3})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sort"), 3), Type: InHead, Proc: sort2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: keySort2})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: functor3})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: arg3})
@@ -675,6 +676,44 @@ func compare3(_ context.Context, e *Execution) Promise {
 	}
 
 	ok, err := e.Unify(order, a)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	if !ok {
+		return Failure()
+	}
+
+	e.tempVars[1] = cont
+	e.Next()
+	return Success()
+}
+
+func sort2(ctx context.Context, e *Execution) Promise {
+	list, sorted, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+
+	var ts []term.Handle
+	if err := e.mustBeList(list, func(elem term.Handle) error {
+		ts = append(ts, elem)
+		return nil
+	}); err != nil {
+		return e.Throw(err, cont)
+	}
+
+	if _, err := e.canBeList(sorted, nil); err != nil {
+		return e.Throw(err, cont)
+	}
+
+	slices.SortFunc(ts, e.Compare)
+	ts = slices.CompactFunc(ts, func(a, b term.Handle) bool {
+		return e.Compare(a, b) == 0
+	})
+
+	l, err := e.PutList(ts...)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+
+	ok, err := e.Unify(sorted, l)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
