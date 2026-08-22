@@ -2037,6 +2037,107 @@ a`},
 	}
 }
 
+// loadFiles loads each file as a separate Prolog text, collecting warnings.
+func loadFiles(t *testing.T, filenames ...string) (*Interpreter, []error, error) {
+	t.Helper()
+
+	var warnings []error
+	i := New(HeapSize(7*1024), Warn(func(err error) {
+		warnings = append(warnings, err)
+	}))
+	i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
+	for _, filename := range filenames {
+		if err := i.Load(t.Context(), filename); err != nil {
+			return i, warnings, err
+		}
+	}
+	return i, warnings, nil
+}
+
+// solutions collects the bindings of X for each solution of the query.
+func solutions(t *testing.T, i *Interpreter, query string) []string {
+	t.Helper()
+
+	var got []string
+	for r, err := range Query[Result](t.Context(), i, query) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(r["X"]))
+	}
+	return got
+}
+
+// 7.4.2.2
+func TestInterpreter_Load_multifile(t *testing.T) {
+	i, warnings, err := loadFiles(t, "testdata/multifile-1.pl", "testdata/multifile-2.pl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", warnings)
+	}
+	if got, want := solutions(t, i, `insect(X).`), []string{"ant", "bee", "beetle"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+	if got, want := solutions(t, i, `bird(X).`), []string{"sparrow", "owl"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+	// First-argument indexing reaches clauses of a later text,
+	// including on a predicate that had a single clause before (bird/1).
+	if got := solutions(t, i, `insect(beetle).`); len(got) != 1 {
+		t.Errorf("expected 1 solution, got %d", len(got))
+	}
+	if got := solutions(t, i, `bird(owl).`); len(got) != 1 {
+		t.Errorf("expected 1 solution, got %d", len(got))
+	}
+}
+
+// 7.4.2.3
+func TestInterpreter_Load_discontiguous(t *testing.T) {
+	i, warnings, err := loadFiles(t, "testdata/discontiguous.pl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", warnings)
+	}
+	if got, want := solutions(t, i, `insect(X).`), []string{"ant", "bee", "beetle", "fly"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+	if got, want := solutions(t, i, `bird(X).`), []string{"sparrow", "owl"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+	// First-argument indexing reaches clauses of a later chunk,
+	// including on a predicate that had a single clause before (bird/1).
+	if got := solutions(t, i, `insect(beetle).`); len(got) != 1 {
+		t.Errorf("expected 1 solution, got %d", len(got))
+	}
+	if got := solutions(t, i, `bird(owl).`); len(got) != 1 {
+		t.Errorf("expected 1 solution, got %d", len(got))
+	}
+}
+
+// Undeclared discontiguous predicates still load, each with a warning:
+// p/1 has a multi-clause first chunk, r/1 a single-clause one.
+func TestInterpreter_Load_clausesNotTogether(t *testing.T) {
+	i, warnings, err := loadFiles(t, "testdata/clauses-not-together.pl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 2 ||
+		!strings.Contains(warnings[0].Error(), "discontiguous: p/1") ||
+		!strings.Contains(warnings[1].Error(), "discontiguous: r/1") {
+		t.Errorf("expected discontiguous warnings for p/1 and r/1, got %v", warnings)
+	}
+	if got, want := solutions(t, i, `p(X).`), []string{"1", "2", "3"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+	if got, want := solutions(t, i, `r(X).`), []string{"1", "2"}; !slices.Equal(got, want) {
+		t.Errorf("expected %v, got %v", want, got)
+	}
+}
+
 func must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)

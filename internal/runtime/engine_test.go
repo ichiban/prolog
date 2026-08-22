@@ -88,9 +88,11 @@ p(a).
 			text:  `p(X, X).`,
 			image: `
    0          true/0: proceed
-   1             p/3: get_value X1, A2
-   2                  move X1, X3
-   3                  execute true/1
+   1             p/3: nondet
+   2                  nop
+   3                  get_value X1, A2
+   4                  move X1, X3
+   5                  execute true/1
 `,
 		},
 		{
@@ -98,13 +100,15 @@ p(a).
 			text:  `p(f(X, X, a, _)).`,
 			image: `
    0          true/0: proceed
-   1             p/2: get_structure f/4, A1
-   2                  unify_variable X3
-   3           (f/4): unify_value X3
-   4                  unify_constant a
-   5                  unify_void
-   6                  move X1, X2
-   7                  execute true/1
+   1             p/2: nondet
+   2                  nop
+   3           (f/4): get_structure f/4, A1
+   4                  unify_variable X3
+   5                  unify_value X3
+   6                  unify_constant a
+   7                  unify_void
+   8                  move X1, X2
+   9                  execute true/1
 `,
 		},
 		{
@@ -112,11 +116,13 @@ p(a).
 			text:  `p(X) :- q(X, Y, Y, a, _).`,
 			image: `
    0          true/0: proceed
-   1             p/2: move X6, X2
-   2                  put_variable X3, A2
-   3                  put_constant a, A4
-   4                  put_variable X5, A5
-   5                  execute q/6
+   1             p/2: nondet
+   2                  nop
+   3                  move X6, X2
+   4                  put_variable X3, A2
+   5                  put_constant a, A4
+   6                  put_variable X5, A5
+   7                  execute q/6
 `,
 		},
 		{
@@ -124,14 +130,16 @@ p(a).
 			text:  `p(X) :- q(f(X, Y, Y, a, _)).`,
 			image: `
    0          true/0: proceed
-   1             p/2: put_structure f/5, A3
-   2                  write_value X1
-   3                  write_variable X4
-   4                  write_value X4
-   5                  write_constant a
-   6                  write_void
-   7                  move X1, X3
-   8                  execute q/2
+   1             p/2: nondet
+   2                  nop
+   3                  put_structure f/5, A3
+   4                  write_value X1
+   5                  write_variable X4
+   6                  write_value X4
+   7                  write_constant a
+   8                  write_void
+   9                  move X1, X3
+  10                  execute q/2
 `,
 		},
 		{
@@ -139,14 +147,16 @@ p(a).
 			text:  `p(X) :- q(X), r(X), s(X).`,
 			image: `
    0          true/0: proceed
-   1             p/2: put_structure r/2, A3
-   2                  write_value X1
-   3                  write_variable X4
-   4                  push_structure s/2, A4
-   5                  write_value X1
-   6                  write_value X2
-   7                  move X2, X3
-   8                  execute q/2
+   1             p/2: nondet
+   2                  nop
+   3                  put_structure r/2, A3
+   4                  write_value X1
+   5                  write_variable X4
+   6                  push_structure s/2, A4
+   7                  write_value X1
+   8                  write_value X2
+   9                  move X2, X3
+  10                  execute q/2
 `,
 		},
 		{
@@ -154,14 +164,16 @@ p(a).
 			text:  `p(X) :- q(X); r(X); s(X).`,
 			image: `
    0          true/0: proceed
-   1             p/2: execute $aux1/2
-   2         $aux1/2: nondet
-   3                  try_me_else 5
-   4                  execute q/2
-   5                  retry_me_else 7
-   6                  execute r/2
-   7                  trust_me
-   8                  execute s/2
+   1             p/2: nondet
+   2                  nop
+   3                  execute $aux1/2
+   4         $aux1/2: nondet
+   5                  try_me_else 7
+   6                  execute q/2
+   7                  retry_me_else 9
+   8                  execute r/2
+   9                  trust_me
+  10                  execute s/2
 `,
 		},
 		{
@@ -169,8 +181,10 @@ p(a).
 			text:  `p :- !, q.`,
 			image: `
    0          true/0: proceed
-   1             p/1: put_cut
-   2                  execute q/1
+   1             p/1: nondet
+   2                  nop
+   3                  put_cut
+   4                  execute q/1
 `,
 		},
 		{
@@ -178,13 +192,15 @@ p(a).
 			text:  `p :- q, !, r.`,
 			image: `
    0          true/0: proceed
-   1             p/1: put_structure $cut_to/2, A2
-   2                  push_cut
-   3                  write_variable X3
-   4                  push_structure r/1, A3
-   5                  write_value X1
-   6                  move X1, X2
-   7                  execute q/1
+   1             p/1: nondet
+   2                  nop
+   3                  put_structure $cut_to/2, A2
+   4                  push_cut
+   5                  write_variable X3
+   6                  push_structure r/1, A3
+   7                  write_value X1
+   8                  move X1, X2
+   9                  execute q/1
 `,
 		},
 	}
@@ -229,6 +245,71 @@ p(a).
 				}
 			}
 		})
+	}
+}
+
+// A multifile predicate extended by a later text ends up with the same layout
+// as if its clauses were contiguous, first-argument dispatch included.
+func TestEngine_LoadModule_extension(t *testing.T) {
+	e := Engine{
+		Arena: &term.Arena{
+			Heap: make(term.Heap, 0, 1024),
+		},
+		BuiltinSet: &BuiltinSet{},
+		Ops:        *syntax.NewOperatorSet(),
+	}
+	c := Compiler{
+		Engine: &e,
+	}
+
+	var m1 ir.Module
+	if err := c.CompileText(t.Context(), &m1, `p(a).`); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.LoadModule(&m1); err != nil {
+		t.Fatal(err)
+	}
+
+	bpi := term.NewFunctor(term.NewAtom("p"), 2)
+	p := e.Predicates[bpi]
+	p.Multifile = true
+	e.Predicates[bpi] = p
+
+	var m2 ir.Module
+	if err := c.CompileText(t.Context(), &m2, `p(b).`); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.LoadModule(&m2); err != nil {
+		t.Fatal(err)
+	}
+
+	want := `
+   0          true/0: proceed
+   1             p/2: switch p/2
+   2                  try_me_else 6
+   3             (a): get_constant a, A1
+   4                  move X1, X2
+   5                  execute true/1
+   6                  trust_me
+   7             (b): get_constant b, A1
+   8                  move X1, X2
+   9                  execute true/1
+`
+	var (
+		got = strings.Split(e.Image.String(), "\n")
+		w   = strings.Split(want, "\n")[1:]
+	)
+	for i := range max(len(got), len(w)) {
+		var g, x string
+		if i < len(got) {
+			g = got[i]
+		}
+		if i < len(w) {
+			x = w[i]
+		}
+		if g != x {
+			t.Errorf("got %q, want %q", g, x)
+		}
 	}
 }
 

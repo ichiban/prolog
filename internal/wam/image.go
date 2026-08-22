@@ -31,6 +31,12 @@ type Predicate struct {
 
 	Multifile bool
 
+	Discontiguous bool
+
+	// LastChoice points to the last choice instruction of the predicate's last
+	// chunk of clauses, so that a later chunk can link itself there.
+	LastChoice int
+
 	LastModifiedAt     LogicalTime
 	LastMaterializedAt LogicalTime
 

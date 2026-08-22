@@ -8,7 +8,6 @@ import (
 	"io"
 	"iter"
 	"math"
-	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
@@ -185,53 +184,85 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 	var (
 		current term.Functor
 		last    int
+		defined = map[term.Functor]struct{}{}
 	)
-	for i, clause := range module.Clauses {
-		pi := clause.PI
+	for _, clause := range module.Clauses {
+		bpi := clause.PI
 
-		switch p, _ := e.Predicates[pi]; {
-		case p.Offset == 0: // The 1st clause.
-			if i > 0 {
-				// The last predicate needs to be closed.
-				if err := e.closePredicate(last); err != nil {
-					return err
-				}
+		switch p, _ := e.Predicates[bpi]; {
+		case bpi == current: // A subsequent clause of the current chunk.
+			if err := e.rewriteN(last, len(e.Code)); err != nil {
+				return err
+			}
+			last = len(e.Code)
+			if err := e.emit(wam.OpRetryMeElse, bpi.Arity(), 0); err != nil {
+				return err
+			}
+		case p.Offset == 0: // The 1st clause of the predicate.
+			// The current chunk needs to be closed.
+			if err := e.closePredicate(current, last); err != nil {
+				return err
 			}
 
-			current = pi
+			current = bpi
 			p.Offset = len(e.Code)
 			if e.Predicates == nil {
 				e.Predicates = map[term.Functor]wam.Predicate{}
 			}
-			e.Predicates[pi] = p
+			e.Predicates[bpi] = p
 
-			fid := e.EmbedFunctor(pi)
+			fid := e.EmbedFunctor(bpi)
 			if err := e.emit(wam.OpSwitch, 0, fid); err != nil {
 				return err
 			}
 			last = len(e.Code)
-			if err := e.emit(wam.OpTryMeElse, pi.Arity(), 0); err != nil {
+			if err := e.emit(wam.OpTryMeElse, bpi.Arity(), 0); err != nil {
 				return err
 			}
-		case pi != current: // A discontiguous clause.
+		default: // A new chunk of an already defined predicate.
+			if err := e.closePredicate(current, last); err != nil {
+				return err
+			}
+
 			if e.Warn == nil {
 				e.Warn = func(error) {}
 			}
-			e.Warn(fmt.Errorf("discontiguous: %s", pi))
-			current = pi
-			// TODO: Overwrite the previous chunk's `execute P` to an unconditional jump to this chunk.
-			fallthrough
-		default:
-			if last > 0 {
-				if err := e.rewriteN(last, len(e.Code)); err != nil {
-					return err
+			pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+			if _, ok := defined[bpi]; ok {
+				if !p.Discontiguous {
+					e.Warn(fmt.Errorf("discontiguous: %s", pi))
 				}
-				last = len(e.Code)
-				if err := e.emit(wam.OpRetryMeElse, pi.Arity(), 0); err != nil {
-					return err
+			} else if !p.Multifile {
+				e.Warn(fmt.Errorf("multifile: %s", pi))
+			}
+
+			// Reopen the predicate's last alternative and link it to this chunk.
+			switch e.Code[p.LastChoice].Op {
+			case wam.OpNop: // A closed single-clause chunk, i.e. the predicate has one clause so far.
+				e.Code[p.LastChoice].Op = wam.OpTryMeElse
+				e.Code[p.LastChoice].I = uint16(bpi.Arity())
+				// First-argument dispatch pays off again with multiple clauses.
+				// The switch was disabled by closePredicate with its operand kept,
+				// unless the sole clause wasn't indexable in the first place.
+				if len(p.FirstArgIndex) > 0 {
+					e.Code[p.Offset].Op = wam.OpSwitch
 				}
+			case wam.OpTrustMe:
+				e.Code[p.LastChoice].Op = wam.OpRetryMeElse
+			default:
+				return errors.New("invalid instruction")
+			}
+			if err := e.rewriteN(p.LastChoice, len(e.Code)); err != nil {
+				return err
+			}
+
+			current = bpi
+			last = len(e.Code)
+			if err := e.emit(wam.OpRetryMeElse, bpi.Arity(), 0); err != nil {
+				return err
 			}
 		}
+		defined[bpi] = struct{}{}
 
 		if clause.MaxRegs >= maxRegisters {
 			return errors.New("not enough registers")
@@ -243,7 +274,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 			Term:  fa.Term,
 			Arity: fa.Arity,
 		}
-		p, _ := e.Predicates[pi]
+		p, _ := e.Predicates[bpi]
 		if _, ok := p.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
 			e.Code[p.Offset] = wam.Instruction{Op: wam.OpNondet}
 		} else {
@@ -251,7 +282,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 				p.FirstArgIndex = map[wam.FirstArgKey]int{}
 			}
 			p.FirstArgIndex[key] = len(e.Code)
-			e.Predicates[pi] = p
+			e.Predicates[bpi] = p
 		}
 
 		for _, inst := range clause.Code {
@@ -301,7 +332,7 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		}
 	}
 
-	return e.closePredicate(last)
+	return e.closePredicate(current, last)
 }
 
 func (e *Engine) emit(op wam.OpCode, i, n int) error {
@@ -327,19 +358,25 @@ func (e *Engine) rewriteN(addr, n int) error {
 	return nil
 }
 
-func (e *Engine) closePredicate(last int) error {
+func (e *Engine) closePredicate(pi term.Functor, last int) error {
 	if last == 0 {
 		return nil
 	}
+	p := e.Predicates[pi]
 	switch e.Code[last].Op {
-	case wam.OpTryMeElse: // The last predicate has only one clause.
-		// TODO: What would happen if it's discontiguous?
-		e.Code = slices.Delete(e.Code, last-1, last+1)
+	case wam.OpTryMeElse: // The chunk has only one clause.
+		// Keep the instruction patchable so that a later chunk can link itself here.
+		e.Code[last] = wam.Instruction{Op: wam.OpNop}
+		// A single clause needs no first-argument dispatch: hit or miss, the switch
+		// would end up right past the nop anyway. Disable it, keeping its operand.
+		e.Code[p.Offset].Op = wam.OpNondet
 	case wam.OpRetryMeElse:
 		e.Code[last].Op = wam.OpTrustMe
 	default:
 		return errors.New("invalid instruction")
 	}
+	p.LastChoice = last
+	e.Predicates[pi] = p
 	return nil
 }
 

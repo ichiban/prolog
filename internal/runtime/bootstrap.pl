@@ -1,14 +1,18 @@
 % Ported to Go from BinProlog (github.com/ptarau/binprolog, src/lib.pl, src/extra.pl and related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
 % This file has been modified: non-ISO predicates are renamed and missing ISO predicates are added.
 
-dynamic((PI1, PI2)) :- !,
-  dynamic(PI1),
-  dynamic(PI2).
-dynamic([PI|PIs]) :- !,
-  dynamic(PI),
-  dynamic(PIs).
-dynamic([]) :- !.
-dynamic(PI) :- '$dynamic'(PI).
+dynamic(PIs) :- '$predicate_indicators'(PIs, '$dynamic').
+multifile(PIs) :- '$predicate_indicators'(PIs, '$multifile').
+discontiguous(PIs) :- '$predicate_indicators'(PIs, '$discontiguous').
+
+'$predicate_indicators'((PI1, PI2), D) :- !,
+  '$predicate_indicators'(PI1, D),
+  '$predicate_indicators'(PI2, D).
+'$predicate_indicators'([PI|PIs], D) :- !,
+  '$predicate_indicators'(PI, D),
+  '$predicate_indicators'(PIs, D).
+'$predicate_indicators'([], _) :- !.
+'$predicate_indicators'(N/A, D) :- call(D, N/A).
 
 '$cut_to'('$cut').
 

@@ -67,7 +67,6 @@ func (m Mode) Op() ir.OpCode {
 
 type Compiler struct {
 	*Engine
-	OnDiscontiguous func(pi term.Functor) error
 
 	counter      int
 	todo         []term.Handle
