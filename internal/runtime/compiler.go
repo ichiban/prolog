@@ -129,6 +129,9 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 		if f == term.NewFunctor(term.NewAtom(":-"), 1) {
 			d := c.Arg(t, 0)
 			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
+			case term.NewFunctor(term.NewAtom("initialization"), 1):
+				g := c.Arg(d, 0)
+				out.Initialization = append(out.Initialization, g)
 			default:
 				for err := range c.Call(ctx, d) {
 					if err != nil {

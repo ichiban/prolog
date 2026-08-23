@@ -2138,6 +2138,26 @@ func TestInterpreter_Load_clausesNotTogether(t *testing.T) {
 	}
 }
 
+func TestInterpreter_Load_initialization(t *testing.T) {
+	const expected = `foo
+bar
+baz
+`
+
+	var sb strings.Builder
+	i := New(HeapSize(7 * 1024))
+	i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
+	if err := i.SetUserOutput(&sb); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "testdata/initialization.pl"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sb.String(); got != expected {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
 func must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)

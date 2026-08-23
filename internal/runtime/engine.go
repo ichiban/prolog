@@ -121,7 +121,7 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 	if err := c.CompileText(ctx, &m, bootstrap); err != nil {
 		return err
 	}
-	if err := e.LoadModule(&m); err != nil {
+	if err := e.LoadModule(ctx, &m); err != nil {
 		return err
 	}
 
@@ -159,7 +159,7 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 	if err := c.CompileText(ctx, &m, string(b)); err != nil {
 		return err
 	}
-	if err := e.LoadModule(&m); err != nil {
+	if err := e.LoadModule(ctx, &m); err != nil {
 		return err
 	}
 
@@ -171,7 +171,7 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 	return nil
 }
 
-func (e *Engine) LoadModule(module *ir.Module) error {
+func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 	if e.Code == nil {
 		e.Predicates = map[term.Functor]wam.Predicate{
 			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
@@ -332,7 +332,20 @@ func (e *Engine) LoadModule(module *ir.Module) error {
 		}
 	}
 
-	return e.closePredicate(current, last)
+	if err := e.closePredicate(current, last); err != nil {
+		return err
+	}
+
+	for _, g := range module.Initialization {
+		for err := range e.Call(ctx, g) {
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
+	return nil
 }
 
 func (e *Engine) emit(op wam.OpCode, i, n int) error {

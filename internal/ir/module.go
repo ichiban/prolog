@@ -8,8 +8,9 @@ import (
 )
 
 type Module struct {
-	Name    term.Atom
-	Clauses []Clause
+	Name           term.Atom
+	Clauses        []Clause
+	Initialization []term.Handle
 }
 
 type ModuleStringer struct {

@@ -224,7 +224,7 @@ p(a).
 				t.Fatal(err)
 			}
 
-			if err := e.LoadModule(&m); err != nil {
+			if err := e.LoadModule(t.Context(), &m); err != nil {
 				t.Fatal(err)
 			}
 
@@ -266,7 +266,7 @@ func TestEngine_LoadModule_extension(t *testing.T) {
 	if err := c.CompileText(t.Context(), &m1, `p(a).`); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.LoadModule(&m1); err != nil {
+	if err := e.LoadModule(t.Context(), &m1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -279,7 +279,7 @@ func TestEngine_LoadModule_extension(t *testing.T) {
 	if err := c.CompileText(t.Context(), &m2, `p(b).`); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.LoadModule(&m2); err != nil {
+	if err := e.LoadModule(t.Context(), &m2); err != nil {
 		t.Fatal(err)
 	}
 
@@ -388,7 +388,7 @@ func TestEngine_Call(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := e.LoadModule(&m); err != nil {
+			if err := e.LoadModule(t.Context(), &m); err != nil {
 				t.Fatal(err)
 			}
 
