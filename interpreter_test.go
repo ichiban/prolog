@@ -2118,6 +2118,40 @@ func TestInterpreter_Load_discontiguous(t *testing.T) {
 	}
 }
 
+// 7.4.2.7
+func TestInterpreter_Load_include(t *testing.T) {
+	t.Run("the included clauses take the place of the directive", func(t *testing.T) {
+		i, warnings, err := loadFiles(t, "testdata/include-main.pl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got %v", warnings)
+		}
+		// part/1 is defined 1, 2 by the included file and 3 after the directive.
+		// Inserting in place keeps the clauses in that order and contiguous.
+		if got, want := solutions(t, i, `part(X).`), []string{"1", "2", "3"}; !slices.Equal(got, want) {
+			t.Errorf("expected %v, got %v", want, got)
+		}
+		// The including file's own clauses survive.
+		if got := solutions(t, i, `main(x).`); len(got) != 1 {
+			t.Errorf("expected 1 solution, got %d", len(got))
+		}
+		// An included file may include another one.
+		if got := solutions(t, i, `nested(inner).`); len(got) != 1 {
+			t.Errorf("expected 1 solution, got %d", len(got))
+		}
+	})
+
+	t.Run("including a file that doesn't exist fails the load", func(t *testing.T) {
+		// The error is a Go error from FS, not a Prolog error term. 7.4.2.7 doesn't
+		// prescribe one, so this only pins that the load doesn't silently succeed.
+		if _, _, err := loadFiles(t, "testdata/include-missing.pl"); err == nil {
+			t.Error("expected an error, got none")
+		}
+	})
+}
+
 // Undeclared discontiguous predicates still load, each with a warning:
 // p/1 has a multi-clause first chunk, r/1 a single-clause one.
 func TestInterpreter_Load_clausesNotTogether(t *testing.T) {

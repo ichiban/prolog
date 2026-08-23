@@ -133,10 +133,11 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) LoadFile(ctx context.Context, filename string) error {
+// ReadFile reads a Prolog text from file via FS.
+func (e *Engine) ReadFile(filename string) (string, error) {
 	f, err := e.FS.Open(filename)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() {
 		_ = f.Close()
@@ -144,10 +145,19 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 
 	r, ok := f.(io.Reader)
 	if !ok {
-		return errors.New("file does not implement io.Reader")
+		return "", errors.New("file does not implement io.Reader")
 	}
 
 	b, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
+func (e *Engine) LoadFile(ctx context.Context, filename string) error {
+	text, err := e.ReadFile(filename)
 	if err != nil {
 		return err
 	}
@@ -156,7 +166,7 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 		c = Compiler{Engine: e}
 		m ir.Module
 	)
-	if err := c.CompileText(ctx, &m, string(b)); err != nil {
+	if err := c.CompileText(ctx, &m, text); err != nil {
 		return err
 	}
 	if err := e.LoadModule(ctx, &m); err != nil {

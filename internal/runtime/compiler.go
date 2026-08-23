@@ -111,6 +111,24 @@ func (c *Compiler) schedule(t term.Handle) {
 	c.todo = append(c.todo, t)
 }
 
+// include schedules the terms of an included text ahead of the ones left in the
+// including text, so that they take the place of the include/1 directive.
+func (c *Compiler) include(text string) error {
+	var ts []term.Handle
+	for t, err := range syntax.Parse(strings.NewReader(text),
+		syntax.Arena(c.Arena),
+		syntax.Operators(&c.Ops),
+		syntax.DoubleQuote(&c.DoubleQuotes),
+	) {
+		if err != nil {
+			return err
+		}
+		ts = append(ts, t)
+	}
+	c.todo = append(ts, c.todo...)
+	return nil
+}
+
 func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 	for len(c.todo) > 0 {
 		var (
@@ -132,6 +150,18 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			case term.NewFunctor(term.NewAtom("initialization"), 1):
 				g := c.Arg(d, 0)
 				out.Initialization = append(out.Initialization, g)
+			case term.NewFunctor(term.NewAtom("include"), 1):
+				f := c.Arg(d, 0)
+				f = c.Deref(f)
+				if fn, ok := c.Atom(f); ok {
+					text, err := c.Engine.ReadFile(fn.String())
+					if err != nil {
+						return err
+					}
+					if err := c.include(text); err != nil {
+						return err
+					}
+				}
 			default:
 				for err := range c.Call(ctx, d) {
 					if err != nil {
@@ -249,8 +279,6 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 				_ = yield(term.Handle{}, err)
 				return
 			}
-
-			// TODO: Process include/1 directive here?
 
 			for t, err := range c.Engine.ExpandTerm(ctx, t) {
 				if err != nil {
