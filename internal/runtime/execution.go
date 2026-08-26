@@ -39,8 +39,6 @@ type structurePointer struct {
 type Execution struct {
 	*Engine
 
-	location term.Functor
-
 	programPointer int // P
 
 	stack []stackFrame // B = len(stack)

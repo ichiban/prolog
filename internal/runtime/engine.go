@@ -37,15 +37,20 @@ func (u unknownAction) String() string {
 	return unknowActionNames[u]
 }
 
+type loadedKey struct {
+	fsName   term.Atom
+	filename string
+}
+
 type Engine struct {
 	*term.Arena
 	TempArena *term.Arena // Used for findall/3, etc.
 	wam.Image
 	BuiltinSet *BuiltinSet
 
-	FS FS
+	FSs FSSet
 
-	Loaded map[string]struct{}
+	Loaded map[loadedKey]struct{}
 
 	Module         term.Atom
 	DoubleQuotes   syntax.DoubleQuotes
@@ -57,10 +62,11 @@ type Engine struct {
 	Input  term.Handle
 	Output term.Handle
 
-	debug   bool
-	unknown unknownAction
-	Warn    func(error)
-	Halt    func(code int)
+	debug    bool
+	unknown  unknownAction
+	Warn     func(error)
+	Halt     func(code int)
+	location term.Functor
 }
 
 func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {
@@ -134,8 +140,13 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 }
 
 // ReadFile reads a Prolog text from file via FS.
-func (e *Engine) ReadFile(filename string) (string, error) {
-	f, err := e.FS.Open(filename)
+func (e *Engine) ReadFile(fsName term.Atom, filename string) (string, error) {
+	fs, ok := e.FSs.Get(fsName)
+	if !ok {
+		return "", errors.New("file not found")
+	}
+
+	f, err := fs.Open(filename)
 	if err != nil {
 		return "", err
 	}
@@ -156,8 +167,8 @@ func (e *Engine) ReadFile(filename string) (string, error) {
 	return string(b), nil
 }
 
-func (e *Engine) LoadFile(ctx context.Context, filename string) error {
-	text, err := e.ReadFile(filename)
+func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string) error {
+	text, err := e.ReadFile(fsName, filename)
 	if err != nil {
 		return err
 	}
@@ -174,9 +185,12 @@ func (e *Engine) LoadFile(ctx context.Context, filename string) error {
 	}
 
 	if e.Loaded == nil {
-		e.Loaded = map[string]struct{}{}
+		e.Loaded = map[loadedKey]struct{}{}
 	}
-	e.Loaded[filename] = struct{}{}
+	e.Loaded[loadedKey{
+		fsName:   fsName,
+		filename: filename,
+	}] = struct{}{}
 
 	return nil
 }
@@ -483,7 +497,6 @@ func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
 	}
 	exec := Execution{
 		Engine:         e,
-		location:       term.NewFunctor(term.NewAtom("call"), 1),
 		programPointer: p.Offset,
 	}
 	exec.tempVars[1] = goal

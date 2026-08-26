@@ -1,44 +1,42 @@
 package runtime
 
 import (
-	"io"
+	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
+	"slices"
+
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-type File interface {
-	io.Closer
-	Stat() (fs.FileInfo, error)
+type OpenFiler interface {
+	OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
 }
 
-type FS struct {
-	SourceFSs []SourceFS
-	Root      *os.Root
+type FSSet []NamedFS
+
+type NamedFS struct {
+	Name term.Atom
+	FS   fs.FS
 }
 
-func (f FS) Open(name string) (File, error) {
-	return f.OpenFile(name, os.O_RDONLY, 0)
-}
-
-func (f FS) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
-	for _, s := range f.SourceFSs {
-		rel, err := filepath.Rel(s.BasePath, name)
-		if err != nil || !filepath.IsLocal(rel) {
-			continue
-		}
-		if flag != os.O_RDONLY {
-			return nil, fs.ErrPermission
-		}
-		return s.FS.Open(rel)
+func (f *FSSet) Put(name term.Atom, fs fs.FS) error {
+	if _, ok := f.Get(name); ok {
+		return errors.New("duplicate entry")
 	}
-	if f.Root == nil {
-		return nil, fs.ErrNotExist
-	}
-	return f.Root.OpenFile(name, flag, perm)
+	*f = append(*f, NamedFS{
+		Name: name,
+		FS:   fs,
+	})
+	return nil
 }
 
-type SourceFS struct {
-	BasePath string
-	FS       fs.FS
+func (f *FSSet) Get(name term.Atom) (fs.FS, bool) {
+	i := slices.IndexFunc(*f, func(n NamedFS) bool {
+		return n.Name == name
+	})
+	if i < 0 {
+		return nil, false
+	}
+	return (*f)[i].FS, true
 }

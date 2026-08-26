@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"io"
-	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -1051,9 +1050,9 @@ a`},
 		{query: `peek_byte(user_output, X).`, err: "permission_error(input,stream,user_output)"},
 		// 8.13.3.4
 		{setup: []string{
-			`open('test', write, _, [alias(w), type(binary)]).`,
+			`open(temp(test), write, _, [alias(w), type(binary)]).`,
 			`set_output(w).`,
-			`open('test', read, _, [alias(r), type(binary)]).`,
+			`open(temp(test), read, _, [alias(r), type(binary)]).`,
 			`set_input(r).`,
 		}, teardown: []string{
 			`close(w).`,
@@ -1062,9 +1061,9 @@ a`},
 			{`true.`, `peek_byte(84).`},
 		}},
 		{setup: []string{
-			`open('test', write, _, [alias(w), type(binary)]).`,
+			`open(temp(test), write, _, [alias(w), type(binary)]).`,
 			`set_output(w).`,
-			`open('test', read, _, [alias(r), type(binary)]).`,
+			`open(temp(test), read, _, [alias(r), type(binary)]).`,
 			`set_input(r).`,
 		}, teardown: []string{
 			`close(w).`,
@@ -1942,8 +1941,13 @@ a`},
 				t.Fatal(err)
 			}
 
-			i := New(HeapSize(7*1024), Root(root))
-			i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
+			i := New(HeapSize(7 * 1024))
+			if err := i.MountFS("", testdata); err != nil {
+				t.Fatal(err)
+			}
+			if err := i.MountFS("temp", RootFS{Root: root}); err != nil {
+				t.Fatal(err)
+			}
 			if err := i.SetUserInput(strings.NewReader(test.input)); err != nil {
 				t.Fatal(err)
 			}
@@ -1958,7 +1962,7 @@ a`},
 			}
 
 			for _, l := range test.loaded {
-				if err := i.Load(t.Context(), l); err != nil {
+				if err := i.Load(t.Context(), "", l); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -2045,9 +2049,11 @@ func loadFiles(t *testing.T, filenames ...string) (*Interpreter, []error, error)
 	i := New(HeapSize(7*1024), Warn(func(err error) {
 		warnings = append(warnings, err)
 	}))
-	i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
+	if err := i.MountFS("", testdata); err != nil {
+		return nil, nil, err
+	}
 	for _, filename := range filenames {
-		if err := i.Load(t.Context(), filename); err != nil {
+		if err := i.Load(t.Context(), "", filename); err != nil {
 			return i, warnings, err
 		}
 	}
@@ -2180,15 +2186,42 @@ baz
 
 	var sb strings.Builder
 	i := New(HeapSize(7 * 1024))
-	i.MountFS("testdata", must(fs.Sub(testdata, "testdata")))
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
 	if err := i.SetUserOutput(&sb); err != nil {
 		t.Fatal(err)
 	}
-	if err := i.Load(t.Context(), "testdata/initialization.pl"); err != nil {
+	if err := i.Load(t.Context(), "", "testdata/initialization.pl"); err != nil {
 		t.Fatal(err)
 	}
 	if got := sb.String(); got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestInterpreter_Load_ensure_loaded(t *testing.T) {
+	var sb strings.Builder
+	i := New(HeapSize(7 * 1024))
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.SetUserOutput(&sb); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "", "testdata/ensure_loaded.pl"); err != nil {
+		t.Fatal(err)
+	}
+
+	var ok bool
+	for _, err := range Query[Result](t.Context(), i, `q([a, b, c]).`) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok = true
+	}
+	if !ok {
+		t.Error("expected query to succeed")
 	}
 }
 

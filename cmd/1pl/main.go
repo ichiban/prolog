@@ -70,7 +70,6 @@ Type Ctrl-C or 'halt.' to exit.
 
 	i := prolog.New(
 		prolog.HeapSize(6*1024),
-		prolog.Root(r),
 		prolog.Warn(func(err error) {
 			log.Printf("warning: %v", err)
 		}),
@@ -79,6 +78,9 @@ Type Ctrl-C or 'halt.' to exit.
 			os.Exit(code)
 		}),
 	)
+	if err := i.MountFS("", prolog.RootFS{Root: r}); err != nil {
+		log.Fatalf("failed to mount: %v", err)
+	}
 	if err := i.SetUserInput(os.Stdin); err != nil {
 		log.Fatalf("failed to set user input: %v", err)
 	}
@@ -90,7 +92,7 @@ Type Ctrl-C or 'halt.' to exit.
 	defer stop()
 
 	for _, arg := range flag.Args() {
-		if err := i.Load(ctx, arg); err != nil {
+		if err := i.Load(ctx, "", arg); err != nil {
 			log.Fatalf("failed to load %s: %v", arg, err)
 		}
 	}

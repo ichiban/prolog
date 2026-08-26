@@ -5,9 +5,12 @@
 package runtime
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"iter"
 	"math"
 	"slices"
@@ -113,9 +116,9 @@ func (c *Compiler) schedule(t term.Handle) {
 
 // include schedules the terms of an included text ahead of the ones left in the
 // including text, so that they take the place of the include/1 directive.
-func (c *Compiler) include(text string) error {
+func (c *Compiler) include(r io.RuneReader) error {
 	var ts []term.Handle
-	for t, err := range syntax.Parse(strings.NewReader(text),
+	for t, err := range syntax.Parse(r,
 		syntax.Arena(c.Arena),
 		syntax.Operators(&c.Ops),
 		syntax.DoubleQuote(&c.DoubleQuotes),
@@ -151,16 +154,38 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 				g := c.Arg(d, 0)
 				out.Initialization = append(out.Initialization, g)
 			case term.NewFunctor(term.NewAtom("include"), 1):
-				f := c.Arg(d, 0)
-				f = c.Deref(f)
-				if fn, ok := c.Atom(f); ok {
-					text, err := c.Engine.ReadFile(fn.String())
-					if err != nil {
-						return err
-					}
-					if err := c.include(text); err != nil {
-						return err
-					}
+				fn := c.Arg(d, 0)
+				fn = c.Deref(fn)
+				fsName, filename, err := c.mustBeSourceSink(fn)
+				if err != nil {
+					return err
+				}
+				fsy, ok := c.FSs.Get(fsName)
+				if !ok {
+					return fs.ErrNotExist
+				}
+				f, err := fsy.Open(filename)
+				if err != nil {
+					return err
+				}
+				if err := c.include(bufio.NewReader(f)); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
+				fn := c.Arg(d, 0)
+				fn = c.Deref(fn)
+				fsName, filename, err := c.mustBeSourceSink(fn)
+				if err != nil {
+					return err
+				}
+				if _, ok := c.Loaded[loadedKey{
+					fsName:   fsName,
+					filename: filename,
+				}]; ok {
+					break
+				}
+				if err := c.LoadFile(ctx, fsName, filename); err != nil {
+					return err
 				}
 			default:
 				for err := range c.Call(ctx, d) {
