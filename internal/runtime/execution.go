@@ -412,7 +412,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				switch p := b.Proc(ctx, e); {
+				switch p := b.Proc.Call(ctx, e); {
 				case p.err != nil:
 					_ = yield(p.err)
 					return

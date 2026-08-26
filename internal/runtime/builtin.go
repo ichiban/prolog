@@ -53,7 +53,7 @@ func Delay(seq iter.Seq[Promise]) Promise {
 type Builtin struct {
 	PI   term.Functor
 	Type CallingConvention
-	Proc func(ctx context.Context, e *Execution) Promise
+	Proc Procedure
 }
 
 type BuiltinSet struct {
@@ -63,130 +63,130 @@ type BuiltinSet struct {
 
 func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("true"), 1), Type: InHead, Proc: true0})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: fail0})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: call1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: throw1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: subsumesTerm2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: var1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: atom1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("integer"), 2), Type: InBody, Proc: integer1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("float"), 2), Type: InBody, Proc: float1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compound"), 2), Type: InBody, Proc: compound1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: ground1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: acyclicTerm1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: compare3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sort"), 3), Type: InHead, Proc: sort2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: keySort2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: functor3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: arg3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: univ2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("copy_term"), 3), Type: InHead, Proc: copyTerm2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: termVariables2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: clause2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: currentPredicate1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: assertA1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: assertZ1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: retract1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: abolish1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: findAll3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: bagOf3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: setOf3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_input"), 2), Type: InHead, Proc: currentInput1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_output"), 2), Type: InHead, Proc: currentOutput1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_input"), 2), Type: InHead, Proc: setInput1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_output"), 2), Type: InHead, Proc: setOutput1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("open"), 5), Type: InHead, Proc: open4})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("close"), 3), Type: InHead, Proc: close2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: flushOutput1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: streamProperty2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: setStreamPosition2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: getChar2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: getCode2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: peekChar2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: peekCode2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: putChar2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: putCode2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: getByte2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: peekByte2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: putByte2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: readTerm3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: writeTerm3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: op3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: currentOp3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: charConversion2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: currentCharConversion2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 3), Type: InHead, Proc: call2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 4), Type: InHead, Proc: call3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 5), Type: InHead, Proc: call4})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 6), Type: InHead, Proc: call5})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: call6})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: call7})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: call8})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: atomLength2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: atomConcat3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: subAtom5})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: atomChars2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: atomCodes2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: charCode2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: numberChars2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: numberCodes2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: setPrologFlag2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: currentPrologFlag2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("halt"), 2), Type: InHead, Proc: halt1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: dynamic1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$multifile"), 2), Type: InHead, Proc: multifile1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$discontiguous"), 2), Type: InHead, Proc: discontiguous1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: getNeckCut1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InBody, Proc: getCont1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$call_cont"), 2), Type: InHead, Proc: callCont1})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("true"), 1), Type: InHead, Proc: Predicate0(True0)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: Predicate0(Fail0)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: Predicate1(Call1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: Predicate1(Throw1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: Predicate2(SubsumesTerm2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: Inline1(Var1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: Inline1(Atom1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("integer"), 2), Type: InBody, Proc: Inline1(Integer1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("float"), 2), Type: InBody, Proc: Inline1(Float1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compound"), 2), Type: InBody, Proc: Inline1(Compound1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: Inline1(Ground1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: Inline1(AcyclicTerm1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: Predicate3(Compare3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sort"), 3), Type: InHead, Proc: Predicate2(Sort2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: Predicate2(KeySort2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: Predicate3(Functor3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: Predicate3(Arg3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: Predicate2(Univ2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("copy_term"), 3), Type: InHead, Proc: Predicate2(CopyTerm2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: Predicate2(TermVariables2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: Predicate2(Clause2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: Predicate1(CurrentPredicate1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: Predicate1(AssertA1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: Predicate1(AssertZ1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: Predicate1(Retract1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: Predicate1(Abolish1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: Predicate3(FindAll3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: Predicate3(BagOf3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: Predicate3(SetOf3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_input"), 2), Type: InHead, Proc: Predicate1(CurrentInput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_output"), 2), Type: InHead, Proc: Predicate1(CurrentOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_input"), 2), Type: InHead, Proc: Predicate1(SetInput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_output"), 2), Type: InHead, Proc: Predicate1(SetOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("open"), 5), Type: InHead, Proc: Predicate4(Open4)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("close"), 3), Type: InHead, Proc: Predicate2(Close2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: Predicate1(FlushOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: Predicate2(StreamProperty2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: Predicate2(SetStreamPosition2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: Predicate2(GetChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: Predicate2(GetCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: Predicate2(PeekChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: Predicate2(PeekCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: Predicate2(PutChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: Predicate2(PutCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: Predicate2(GetByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: Predicate2(PeekByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: Predicate2(PutByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: Predicate3(ReadTerm3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: Predicate3(WriteTerm3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: Predicate3(Op3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: Predicate3(CurrentOp3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: Predicate2(CharConversion2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: Predicate2(CurrentCharConversion2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 3), Type: InHead, Proc: Predicate2(Call2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 4), Type: InHead, Proc: Predicate3(Call3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 5), Type: InHead, Proc: Predicate4(Call4)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 6), Type: InHead, Proc: Predicate5(Call5)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: Predicate6(Call6)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: Predicate7(Call7)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: Predicate8(Call8)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: Predicate2(AtomLength2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: Predicate3(AtomConcat3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: Predicate5(SubAtom5)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: Predicate2(AtomChars2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: Predicate2(AtomCodes2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: Predicate2(CharCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: Predicate2(NumberChars2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: Predicate2(NumberCodes2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: Predicate2(SetPrologFlag2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: Predicate2(CurrentPrologFlag2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("halt"), 2), Type: InHead, Proc: Predicate1(Halt1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: Predicate1(Dynamic1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$multifile"), 2), Type: InHead, Proc: Predicate1(Multifile1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$discontiguous"), 2), Type: InHead, Proc: Predicate1(Discontiguous1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: Inline1(GetNeckCut1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InHead, Proc: Predicate1(GetCont1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$call_cont"), 2), Type: InHead, Proc: Predicate1(CallCont1)})
 	// TODO: Implement optimized arithmetic calling convention in binprolog.
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: add3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: sub3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: mul3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$//"), 4), Type: InHead, Proc: intDiv3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/"), 4), Type: InHead, Proc: div3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$rem"), 4), Type: InHead, Proc: rem3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$mod"), 4), Type: InHead, Proc: mod3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 3), Type: InHead, Proc: neg2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$abs"), 3), Type: InHead, Proc: abs2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sign"), 3), Type: InHead, Proc: sign2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_integer_part"), 3), Type: InHead, Proc: floatIntegerPart2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_fractional_part"), 3), Type: InHead, Proc: floatFractionalPart2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float"), 3), Type: InHead, Proc: float2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$floor"), 3), Type: InHead, Proc: floor2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$truncate"), 3), Type: InHead, Proc: truncate2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$round"), 3), Type: InHead, Proc: round2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: ceiling2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: floorDiv3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: pos2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$**"), 4), Type: InHead, Proc: power3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sin"), 3), Type: InHead, Proc: sin2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$cos"), 3), Type: InHead, Proc: cos2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan"), 3), Type: InHead, Proc: atan2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: exp2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: log2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: sqrt2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$max"), 4), Type: InHead, Proc: max3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$min"), 4), Type: InHead, Proc: min3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$^"), 4), Type: InHead, Proc: integerPower3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$asin"), 3), Type: InHead, Proc: asin2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$acos"), 3), Type: InHead, Proc: acos2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: atan3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: tan2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: pi1})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$>>"), 4), Type: InHead, Proc: bitwiseRightShift3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$<<"), 4), Type: InHead, Proc: bitwiseLeftShift3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/\\"), 4), Type: InHead, Proc: bitwiseAnd3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\/"), 4), Type: InHead, Proc: bitwiseOr3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\"), 3), Type: InHead, Proc: bitwiseComplement2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$xor"), 4), Type: InHead, Proc: bitwiseXor3})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: arithEq2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: arithDif2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: less2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: lessEq2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: greater2})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: greaterEq2})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: Predicate3(Add3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: Predicate3(Sub3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: Predicate3(Mul3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$//"), 4), Type: InHead, Proc: Predicate3(IntDiv3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/"), 4), Type: InHead, Proc: Predicate3(Div3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$rem"), 4), Type: InHead, Proc: Predicate3(Rem3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$mod"), 4), Type: InHead, Proc: Predicate3(Mod3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 3), Type: InHead, Proc: Predicate2(Neg2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$abs"), 3), Type: InHead, Proc: Predicate2(Abs2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sign"), 3), Type: InHead, Proc: Predicate2(Sign2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_integer_part"), 3), Type: InHead, Proc: Predicate2(FloatIntegerPart2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_fractional_part"), 3), Type: InHead, Proc: Predicate2(FloatFractionalPart2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float"), 3), Type: InHead, Proc: Predicate2(Float2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$floor"), 3), Type: InHead, Proc: Predicate2(Floor2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$truncate"), 3), Type: InHead, Proc: Predicate2(Truncate2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$round"), 3), Type: InHead, Proc: Predicate2(Round2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: Predicate2(Ceiling2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: Predicate3(FloorDiv3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: Predicate2(Pos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$**"), 4), Type: InHead, Proc: Predicate3(Power3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sin"), 3), Type: InHead, Proc: Predicate2(Sin2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$cos"), 3), Type: InHead, Proc: Predicate2(Cos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan"), 3), Type: InHead, Proc: Predicate2(Atan2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: Predicate2(Exp2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: Predicate2(Log2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: Predicate2(Sqrt2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$max"), 4), Type: InHead, Proc: Predicate3(Max3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$min"), 4), Type: InHead, Proc: Predicate3(Min3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$^"), 4), Type: InHead, Proc: Predicate3(IntegerPower3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$asin"), 3), Type: InHead, Proc: Predicate2(Asin2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$acos"), 3), Type: InHead, Proc: Predicate2(Acos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: Predicate3(Atan3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: Predicate2(Tan2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: Predicate1(Pi1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$>>"), 4), Type: InHead, Proc: Predicate3(BitwiseRightShift3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$<<"), 4), Type: InHead, Proc: Predicate3(BitwiseLeftShift3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/\\"), 4), Type: InHead, Proc: Predicate3(BitwiseAnd3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\/"), 4), Type: InHead, Proc: Predicate3(BitwiseOr3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\"), 3), Type: InHead, Proc: Predicate2(BitwiseComplement2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$xor"), 4), Type: InHead, Proc: Predicate3(BitwiseXor3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: Predicate2(ArithEq2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: Predicate2(ArithDif2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: Predicate2(Less2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: Predicate2(LessEq2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: Predicate2(Greater2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: Predicate2(GreaterEq2)})
 	return &b
 }
 
@@ -252,8 +252,88 @@ var exceptionalValueNames = [...]string{
 	Undefined:     "undefined",
 }
 
-func true0(ctx context.Context, e *Execution) Promise {
+type Procedure interface {
+	Call(ctx context.Context, e *Execution) Promise
+}
+
+type Predicate0 func(ctx context.Context, e *Execution, cont term.Handle) Promise
+
+func (p Predicate0) Call(ctx context.Context, e *Execution) Promise {
 	cont := e.tempVars[1]
+	return p(ctx, e, cont)
+}
+
+type Inline1 func(ctx context.Context, e *Execution, t *term.Handle) (bool, error)
+
+func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
+	t := &e.tempVars[0]
+	ok, err := i(ctx, e, t)
+	if err != nil {
+		return Error(err)
+	}
+	if ok {
+		e.Next()
+	}
+	return Promise{ok: ok}
+}
+
+type Predicate1 func(ctx context.Context, e *Execution, arg1, cont term.Handle) Promise
+
+func (p Predicate1) Call(ctx context.Context, e *Execution) Promise {
+	arg1, cont := e.tempVars[1], e.tempVars[2]
+	return p(ctx, e, arg1, cont)
+}
+
+type Predicate2 func(ctx context.Context, e *Execution, arg1, arg2, cont term.Handle) Promise
+
+func (p Predicate2) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	return p(ctx, e, arg1, arg2, cont)
+}
+
+type Predicate3 func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont term.Handle) Promise
+
+func (p Predicate3) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	return p(ctx, e, arg1, arg2, arg3, cont)
+}
+
+type Predicate4 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont term.Handle) Promise
+
+func (p Predicate4) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
+	return p(ctx, e, arg1, arg2, arg3, arg4, cont)
+}
+
+type Predicate5 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont term.Handle) Promise
+
+func (p Predicate5) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
+	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, cont)
+}
+
+type Predicate6 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) Promise
+
+func (p Predicate6) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
+	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, cont)
+}
+
+type Predicate7 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) Promise
+
+func (p Predicate7) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
+	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont)
+}
+
+type Predicate8 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Handle) Promise
+
+func (p Predicate8) Call(ctx context.Context, e *Execution) Promise {
+	arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
+	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont)
+}
+
+func True0(ctx context.Context, e *Execution, cont term.Handle) Promise {
 	cont = e.Deref(cont)
 
 	bpi, ok := e.Functor(cont, term.AllowAtom(true))
@@ -329,12 +409,11 @@ func true0(ctx context.Context, e *Execution) Promise {
 	return Promise{ok: true}
 }
 
-func fail0(_ context.Context, e *Execution) Promise {
+func Fail0(_ context.Context, _ *Execution, _ term.Handle) Promise {
 	return Failure()
 }
 
-func call1(ctx context.Context, e *Execution) Promise {
-	goal, cont := e.tempVars[1], e.tempVars[2]
+func Call1(ctx context.Context, e *Execution, goal, cont term.Handle) Promise {
 	goal = e.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
@@ -455,79 +534,48 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 	}
 }
 
-func var1(_ context.Context, e *Execution) Promise {
-	v := e.tempVars[0]
-	v = e.Deref(v)
-	if _, ok := e.Variable(v); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Var1(_ context.Context, e *Execution, v *term.Handle) (bool, error) {
+	*v = e.Deref(*v)
+	_, ok := e.Variable(*v)
+	return ok, nil
 }
 
-func atom1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	if _, ok := e.Atom(t); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Atom1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	_, ok := e.Atom(*t)
+	return ok, nil
 }
 
-func integer1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	if _, ok := e.Integer(t); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Integer1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	_, ok := e.Integer(*t)
+	return ok, nil
 }
 
-func float1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	if _, ok := e.Float(t); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Float1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	_, ok := e.Float(*t)
+	return ok, nil
 }
 
-func compound1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	if _, ok := e.Functor(t); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Compound1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	_, ok := e.Functor(*t)
+	return ok, nil
 }
 
-func ground1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	vs := e.VariableSet(t)
-	if len(vs) > 0 {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func Ground1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	vs := e.VariableSet(*t)
+	return len(vs) == 0, nil
 }
 
-func acyclicTerm1(_ context.Context, e *Execution) Promise {
-	t := e.tempVars[0]
-	t = e.Deref(t)
-	if ok := e.Acyclic(t); !ok {
-		return Failure()
-	}
-	e.Next()
-	return Promise{ok: true}
+func AcyclicTerm1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+	*t = e.Deref(*t)
+	return e.Acyclic(*t), nil
 }
 
-func throw1(ctx context.Context, e *Execution) Promise {
-	ball, cont := e.tempVars[1], e.tempVars[2]
+func Throw1(ctx context.Context, e *Execution, ball, cont term.Handle) Promise {
 	ball = e.Deref(ball)
 	if _, ok := e.Variable(ball); ok {
 		var err error
@@ -564,9 +612,7 @@ func throw1(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 		if ok {
-			e.tempVars[1] = recovery
-			e.tempVars[2] = cont
-			return call1(ctx, e)
+			return Call1(ctx, e, recovery, cont)
 		}
 	}
 	return Error(&uncaughtBall{ball: serialized})
@@ -601,8 +647,7 @@ func (e *Execution) rethrow(err error, cont term.Handle) Promise {
 	return e.Throw(err, cont)
 }
 
-func subsumesTerm2(_ context.Context, e *Execution) Promise {
-	general, specific, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func SubsumesTerm2(_ context.Context, e *Execution, general, specific, cont term.Handle) Promise {
 	trailTop := len(e.trail)
 	vs := e.VariableSet(specific)
 
@@ -630,8 +675,7 @@ func subsumesTerm2(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func compare3(_ context.Context, e *Execution) Promise {
-	order, x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Handle) Promise {
 	order, x, y = e.Deref(order), e.Deref(x), e.Deref(y)
 
 	if _, ok := e.Variable(order); ok {
@@ -682,9 +726,7 @@ func compare3(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func sort2(ctx context.Context, e *Execution) Promise {
-	list, sorted, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Promise {
 	var ts []term.Handle
 	if err := e.mustBeList(list, func(elem term.Handle) error {
 		ts = append(ts, elem)
@@ -718,9 +760,7 @@ func sort2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func keySort2(ctx context.Context, e *Execution) Promise {
-	pairs, sorted, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) Promise {
 	var ps []term.Handle
 	if err := e.mustBeList(pairs, func(pair term.Handle) error {
 		pair = e.Deref(pair)
@@ -798,8 +838,7 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func functor3(_ context.Context, e *Execution) Promise {
-	t, name, arity, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Functor3(_ context.Context, e *Execution, t, name, arity, cont term.Handle) Promise {
 	t, name, arity = e.Deref(t), e.Deref(name), e.Deref(arity)
 
 	if _, ok := e.Variable(t); ok {
@@ -915,8 +954,7 @@ func functor3(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func arg3(_ context.Context, e *Execution) Promise {
-	nth, t, arg, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Arg3(_ context.Context, e *Execution, nth, t, arg, cont term.Handle) Promise {
 	nth, t, arg = e.Deref(nth), e.Deref(t), e.Deref(arg)
 
 	if _, ok := e.Variable(t); ok {
@@ -967,8 +1005,7 @@ func arg3(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func univ2(_ context.Context, e *Execution) Promise {
-	t, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Univ2(_ context.Context, e *Execution, t, list, cont term.Handle) Promise {
 	t, list = e.Deref(t), e.Deref(list)
 
 	if _, ok := e.Variable(t); ok {
@@ -1072,9 +1109,7 @@ func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func copyTerm2(_ context.Context, e *Execution) Promise {
-	t1, t2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func CopyTerm2(_ context.Context, e *Execution, t1, t2, cont term.Handle) Promise {
 	c, err := term.RenamedCopy(e.Arena, e.Arena, t1)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1091,8 +1126,7 @@ func copyTerm2(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func termVariables2(_ context.Context, e *Execution) Promise {
-	t, vars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Handle) Promise {
 	t, vars = e.Deref(t), e.Deref(vars)
 
 	if _, err := e.canBeList(vars, nil); err != nil {
@@ -1115,9 +1149,7 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func clause2(ctx context.Context, e *Execution) Promise {
-	head, body, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func Clause2(ctx context.Context, e *Execution, head, body, cont term.Handle) Promise {
 	pi, err := e.mustBeCallable(head)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1179,8 +1211,7 @@ func clause2(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func currentPredicate1(ctx context.Context, e *Execution) Promise {
-	predIndicator, cont := e.tempVars[1], e.tempVars[2]
+func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term.Handle) Promise {
 	predIndicator = e.Deref(predIndicator)
 
 	switch pi, ok, err := e.canBePredicateIndicator(predIndicator); {
@@ -1241,16 +1272,15 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func assertA1(ctx context.Context, e *Execution) Promise {
-	return assert1(ctx, e, db.DB.InsertBefore)
+func AssertA1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
+	return assert1(ctx, e, t, cont, db.DB.InsertBefore)
 }
 
-func assertZ1(ctx context.Context, e *Execution) Promise {
-	return assert1(ctx, e, db.DB.InsertAfter)
+func AssertZ1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
+	return assert1(ctx, e, t, cont, db.DB.InsertAfter)
 }
 
-func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
-	t, cont := e.tempVars[1], e.tempVars[2]
+func assert1(ctx context.Context, e *Execution, t, cont term.Handle, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -1336,8 +1366,7 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	return e.Success(cont)
 }
 
-func retract1(ctx context.Context, e *Execution) Promise {
-	t, cont := e.tempVars[1], e.tempVars[2]
+func Retract1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
 	t = e.Deref(t)
 
 	h, err := e.PutVariable()
@@ -1427,8 +1456,7 @@ func retract1(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func abolish1(ctx context.Context, e *Execution) Promise {
-	pred, cont := e.tempVars[1], e.tempVars[2]
+func Abolish1(ctx context.Context, e *Execution, pred, cont term.Handle) Promise {
 	pred = e.Deref(pred)
 
 	pi, err := e.mustBePredicateIndicator(pred)
@@ -1462,9 +1490,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func findAll3(ctx context.Context, e *Execution) Promise {
-	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
-
+func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
 	if _, err := e.canBeList(instances, nil); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -1490,14 +1516,14 @@ func findAll3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bagOf3(ctx context.Context, e *Execution) Promise {
-	return collectionOf(ctx, e, func(ts []term.Handle) (term.Handle, error) {
+func BagOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
+	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Handle) (term.Handle, error) {
 		return e.PutList(ts...)
 	})
 }
 
-func setOf3(ctx context.Context, e *Execution) Promise {
-	return collectionOf(ctx, e, func(ts []term.Handle) (term.Handle, error) {
+func SetOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
+	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Handle) (term.Handle, error) {
 		slices.SortFunc(ts, e.Compare)
 		ts = slices.CompactFunc(ts, func(a, b term.Handle) bool {
 			return e.Compare(a, b) == 0
@@ -1506,9 +1532,7 @@ func setOf3(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (term.Handle, error)) Promise {
-	template, goal, instances, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
-
+func collectionOf(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle, agg func([]term.Handle) (term.Handle, error)) Promise {
 	if _, err := e.canBeList(instances, nil); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -1617,9 +1641,7 @@ func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template te
 	return nil
 }
 
-func currentInput1(ctx context.Context, e *Execution) Promise {
-	s, cont := e.tempVars[1], e.tempVars[2]
-
+func CurrentInput1(_ context.Context, e *Execution, s, cont term.Handle) Promise {
 	if e.Input == (term.Handle{}) {
 		return Failure()
 	}
@@ -1635,9 +1657,7 @@ func currentInput1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func currentOutput1(ctx context.Context, e *Execution) Promise {
-	s, cont := e.tempVars[1], e.tempVars[2]
-
+func CurrentOutput1(_ context.Context, e *Execution, s, cont term.Handle) Promise {
 	if e.Output == (term.Handle{}) {
 		return Failure()
 	}
@@ -1653,9 +1673,7 @@ func currentOutput1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func setInput1(ctx context.Context, e *Execution) Promise {
-	sOrA, cont := e.tempVars[1], e.tempVars[2]
-
+func SetInput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1671,9 +1689,7 @@ func setInput1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func setOutput1(ctx context.Context, e *Execution) Promise {
-	sOrA, cont := e.tempVars[1], e.tempVars[2]
-
+func SetOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1689,9 +1705,7 @@ func setOutput1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func open4(ctx context.Context, e *Execution) Promise {
-	sourceSink, mode, stream, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
-
+func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, cont term.Handle) Promise {
 	fsID, filename, err := e.mustBeSourceSink(sourceSink)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1935,9 +1949,7 @@ func (e *Execution) handleStreamOptionEOFAction(s *term.Stream, o term.Handle) e
 	}
 }
 
-func close2(ctx context.Context, e *Execution) Promise {
-	sOrA, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func Close2(_ context.Context, e *Execution, sOrA, options, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1985,9 +1997,7 @@ func close2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func flushOutput1(ctx context.Context, e *Execution) Promise {
-	sOrA, cont := e.tempVars[1], e.tempVars[2]
-
+func FlushOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2008,9 +2018,7 @@ func flushOutput1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func streamProperty2(ctx context.Context, e *Execution) Promise {
-	stream, property, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func StreamProperty2(_ context.Context, e *Execution, stream, property, cont term.Handle) Promise {
 	stream = e.Deref(stream)
 
 	var streams iter.Seq[term.Handle]
@@ -2224,9 +2232,7 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 	}
 }
 
-func setStreamPosition2(ctx context.Context, e *Execution) Promise {
-	sOrA, position, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func SetStreamPosition2(_ context.Context, e *Execution, sOrA, position, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2252,9 +2258,7 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 	}
 }
 
-func getChar2(ctx context.Context, e *Execution) Promise {
-	sOrA, inChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func GetChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2312,9 +2316,7 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func getCode2(ctx context.Context, e *Execution) Promise {
-	sOrA, inCharCode, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func GetCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2372,9 +2374,7 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func peekChar2(ctx context.Context, e *Execution) Promise {
-	sOrA, inChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PeekChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2443,9 +2443,7 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func peekCode2(ctx context.Context, e *Execution) Promise {
-	sOrA, inCharCode, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PeekCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2514,9 +2512,7 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func putChar2(ctx context.Context, e *Execution) Promise {
-	sOrA, char, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PutChar2(_ context.Context, e *Execution, sOrA, char, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2549,9 +2545,7 @@ func putChar2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func putCode2(ctx context.Context, e *Execution) Promise {
-	sOrA, code, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PutCode2(_ context.Context, e *Execution, sOrA, code, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2584,9 +2578,7 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func getByte2(ctx context.Context, e *Execution) Promise {
-	sOrA, inByte, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func GetByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2643,9 +2635,7 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func peekByte2(ctx context.Context, e *Execution) Promise {
-	sOrA, inByte, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PeekByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2706,9 +2696,7 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func putByte2(ctx context.Context, e *Execution) Promise {
-	sOrA, byt, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func PutByte2(_ context.Context, e *Execution, sOrA, byt, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2741,9 +2729,7 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 	}
 }
 
-func readTerm3(ctx context.Context, e *Execution) Promise {
-	sOrA, t, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
-
+func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2924,9 +2910,7 @@ func (e *Execution) readTermOption(opts *readTermOptions, option term.Handle) er
 	return nil
 }
 
-func writeTerm3(ctx context.Context, e *Execution) Promise {
-	sOrA, t, options, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
-
+func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Handle) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3070,8 +3054,7 @@ func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
 	return nil
 }
 
-func op3(ctx context.Context, e *Execution) Promise {
-	priority, operatorSpecifier, operator, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Handle) Promise {
 	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
 
 	p, err := e.mustBeInteger(priority)
@@ -3211,8 +3194,7 @@ func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.H
 	return nil
 }
 
-func currentOp3(ctx context.Context, e *Execution) Promise {
-	priority, operatorSpecifier, operator, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Handle) Promise {
 	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
 
 	switch p, ok, err := e.canBeInteger(priority); {
@@ -3313,9 +3295,7 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func charConversion2(ctx context.Context, e *Execution) Promise {
-	inChar, outChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Handle) Promise {
 	in, err := e.mustBeChar(inChar)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3340,9 +3320,7 @@ func charConversion2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func currentCharConversion2(ctx context.Context, e *Execution) Promise {
-	inChar, outChar, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Handle) Promise {
 	if _, _, err := e.canBeChar(inChar); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3396,8 +3374,7 @@ func currentCharConversion2(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func call2(ctx context.Context, e *Execution) Promise {
-	closure, arg1, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Call2(_ context.Context, e *Execution, closure, arg1, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3417,8 +3394,7 @@ func call2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call3(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Call3(_ context.Context, e *Execution, closure, arg1, arg2, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3439,8 +3415,7 @@ func call3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call4(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
+func Call4(_ context.Context, e *Execution, closure, arg1, arg2, arg3, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3462,8 +3437,7 @@ func call4(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call5(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
+func Call5(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3486,8 +3460,7 @@ func call5(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call6(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
+func Call6(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3511,8 +3484,7 @@ func call6(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call7(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
+func Call7(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3537,8 +3509,7 @@ func call7(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func call8(ctx context.Context, e *Execution) Promise {
-	closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
+func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3564,9 +3535,7 @@ func call8(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func atomLength2(ctx context.Context, e *Execution) Promise {
-	atom, length, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Handle) Promise {
 	a, err := e.mustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3592,8 +3561,7 @@ func atomLength2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func atomConcat3(ctx context.Context, e *Execution) Promise {
-	atom1, atom2, atom3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term.Handle) Promise {
 	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
 
 	a3, ok, err := e.canBeAtom(atom3)
@@ -3681,9 +3649,7 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 	})
 }
 
-func subAtom5(ctx context.Context, e *Execution) Promise {
-	atom, before, length, after, subAtom, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
-
+func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subAtom, cont term.Handle) Promise {
 	a, err := e.mustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3794,9 +3760,7 @@ func nextRuneSize(s string) int {
 	return max(size, 1)
 }
 
-func atomChars2(ctx context.Context, e *Execution) Promise {
-	atom, chars, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Handle) Promise {
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3853,9 +3817,7 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func atomCodes2(ctx context.Context, e *Execution) Promise {
-	atom, codes, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Handle) Promise {
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3912,9 +3874,7 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func charCode2(ctx context.Context, e *Execution) Promise {
-	char, code, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func CharCode2(_ context.Context, e *Execution, char, code, cont term.Handle) Promise {
 	r, ok, err := e.canBeChar(char)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3961,9 +3921,7 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func numberChars2(ctx context.Context, e *Execution) Promise {
-	number, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func NumberChars2(_ context.Context, e *Execution, number, list, cont term.Handle) Promise {
 	var sb strings.Builder
 	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
 		r, err := e.mustBeChar(elem)
@@ -4026,9 +3984,7 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func numberCodes2(ctx context.Context, e *Execution) Promise {
-	number, list, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func NumberCodes2(_ context.Context, e *Execution, number, list, cont term.Handle) Promise {
 	var sb strings.Builder
 	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
 		r, err := e.mustBeCharCode(elem)
@@ -4096,6 +4052,10 @@ func (e *Execution) Success(cont term.Handle) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Promise{ok: true}
+}
+
+func (e *Execution) Failure() Promise {
+	return Failure()
 }
 
 // Throw throws an error.
@@ -4233,8 +4193,7 @@ var (
 	errInvalidFlagValue = errors.New("invalid flag value")
 )
 
-func setPrologFlag2(ctx context.Context, e *Execution) Promise {
-	flag, value, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Handle) Promise {
 	value = e.Deref(value)
 
 	f, err := e.mustBeAtom(flag)
@@ -4284,9 +4243,7 @@ func setPrologFlag2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
-	flag, value, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Handle) Promise {
 	f, ok, err := e.canBeAtom(flag)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -4372,9 +4329,7 @@ func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func halt1(ctx context.Context, e *Execution) Promise {
-	x, cont := e.tempVars[1], e.tempVars[2]
-
+func Halt1(_ context.Context, e *Execution, x, cont term.Handle) Promise {
 	n, err := e.mustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -4390,8 +4345,7 @@ func halt1(ctx context.Context, e *Execution) Promise {
 	return Error(fmt.Errorf("halt(%d)", n))
 }
 
-func dynamic1(ctx context.Context, e *Execution) Promise {
-	t, cont := e.tempVars[1], e.tempVars[2]
+func Dynamic1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4408,8 +4362,7 @@ func dynamic1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func multifile1(ctx context.Context, e *Execution) Promise {
-	t, cont := e.tempVars[1], e.tempVars[2]
+func Multifile1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4425,8 +4378,7 @@ func multifile1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func discontiguous1(ctx context.Context, e *Execution) Promise {
-	t, cont := e.tempVars[1], e.tempVars[2]
+func Discontiguous1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4442,34 +4394,31 @@ func discontiguous1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func getNeckCut1(_ context.Context, e *Execution) Promise {
+func GetNeckCut1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
 	cutB, err := e.PutInteger(int64(e.cutB))
 	if err != nil {
-		return Error(err)
+		return false, err
 	}
-	e.tempVars[0] = cutB
-	e.Next()
-	return Promise{ok: true}
+	*t = cutB
+	return true, nil
 }
 
-func getCont1(_ context.Context, e *Execution) Promise {
-	out, cont := e.tempVars[1], e.tempVars[2]
-	if ok, err := e.Unify(out, cont); err != nil {
+func GetCont1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
+	ok, err := e.Unify(out, cont)
+	if err != nil {
 		return e.Throw(err, cont)
-	} else if !ok {
+	}
+	if !ok {
 		return Failure()
 	}
-	e.Next()
-	return Promise{ok: true}
+	return e.Success(cont)
 }
 
-func callCont1(ctx context.Context, e *Execution) Promise {
-	// No need to move arguments.
-	return true0(ctx, e)
+func CallCont1(ctx context.Context, e *Execution, cont, _ term.Handle) Promise {
+	return True0(ctx, e, cont)
 }
 
-func add3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Add3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4545,8 +4494,7 @@ func add3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func sub3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Sub3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4622,8 +4570,7 @@ func sub3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func mul3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Mul3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4699,8 +4646,7 @@ func mul3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func intDiv3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4740,8 +4686,7 @@ func intDiv3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func div3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Div3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4817,8 +4762,7 @@ func div3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func rem3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4861,8 +4805,7 @@ func rem3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func mod3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4905,8 +4848,7 @@ func mod3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func neg2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Neg2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4945,8 +4887,7 @@ func neg2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func abs2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Abs2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4987,8 +4928,7 @@ func abs2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func sign2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Sign2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5023,8 +4963,7 @@ func sign2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func floatIntegerPart2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func FloatIntegerPart2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5052,8 +4991,7 @@ func floatIntegerPart2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func floatFractionalPart2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func FloatFractionalPart2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5081,8 +5019,7 @@ func floatFractionalPart2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func float2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Float2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5113,8 +5050,7 @@ func float2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func floor2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Floor2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5149,8 +5085,7 @@ func floor2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func truncate2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Truncate2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5185,8 +5120,7 @@ func truncate2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func round2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Round2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5221,8 +5155,7 @@ func round2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func ceiling2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Ceiling2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5257,8 +5190,7 @@ func ceiling2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func floorDiv3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5301,8 +5233,7 @@ func floorDiv3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func pos2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Pos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5348,8 +5279,7 @@ func pos2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func power3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Power3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5410,8 +5340,7 @@ func power3(ctx context.Context, e *Execution) Promise {
 	}
 }
 
-func sin2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Sin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5439,8 +5368,7 @@ func sin2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func cos2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Cos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5468,8 +5396,7 @@ func cos2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func atan2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Atan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5497,8 +5424,7 @@ func atan2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func exp2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Exp2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5546,8 +5472,7 @@ func exp2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func log2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Log2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5583,8 +5508,7 @@ func log2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func sqrt2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Sqrt2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5620,8 +5544,7 @@ func sqrt2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func max3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Max3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5669,8 +5592,7 @@ func max3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func min3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Min3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5718,8 +5640,7 @@ func min3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func integerPower3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func IntegerPower3(ctx context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, _, _, err := e.mustBeNumber(x)
@@ -5733,7 +5654,7 @@ func integerPower3(ctx context.Context, e *Execution) Promise {
 	}
 
 	if !xInt || !yInt {
-		return power3(ctx, e)
+		return Power3(ctx, e, x, y, out, cont)
 	}
 
 	var r int64
@@ -5820,8 +5741,7 @@ func intPow(a, b int64) (int64, error) {
 	return r, nil
 }
 
-func asin2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Asin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5856,8 +5776,7 @@ func asin2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func acos2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Acos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5892,8 +5811,7 @@ func acos2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func atan3(ctx context.Context, e *Execution) Promise {
-	y, x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func Atan3(_ context.Context, e *Execution, y, x, out, cont term.Handle) Promise {
 	y, x = e.Deref(y), e.Deref(x)
 
 	yi, yInt, yf, _, err := e.mustBeNumber(y)
@@ -5936,8 +5854,7 @@ func atan3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func tan2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func Tan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5966,9 +5883,7 @@ func tan2(ctx context.Context, e *Execution) Promise {
 
 }
 
-func pi1(ctx context.Context, e *Execution) Promise {
-	out, cont := e.tempVars[1], e.tempVars[2]
-
+func Pi1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
 	t, err := e.PutFloat(math.Pi)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -5985,8 +5900,7 @@ func pi1(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseRightShift3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.mustBeInteger(x)
@@ -6016,8 +5930,7 @@ func bitwiseRightShift3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseLeftShift3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.mustBeInteger(x)
@@ -6047,8 +5960,7 @@ func bitwiseLeftShift3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseAnd3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.mustBeInteger(x)
@@ -6078,8 +5990,7 @@ func bitwiseAnd3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseOr3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.mustBeInteger(x)
@@ -6109,8 +6020,7 @@ func bitwiseOr3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseComplement2(ctx context.Context, e *Execution) Promise {
-	x, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
 	i, err := e.mustBeInteger(x)
@@ -6135,8 +6045,7 @@ func bitwiseComplement2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func bitwiseXor3(ctx context.Context, e *Execution) Promise {
-	x, y, out, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+func BitwiseXor3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.mustBeInteger(x)
@@ -6166,9 +6075,7 @@ func bitwiseXor3(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func arithEq2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func ArithEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6197,9 +6104,7 @@ func arithEq2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func arithDif2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func ArithDif2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6228,9 +6133,7 @@ func arithDif2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func less2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func Less2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6259,9 +6162,7 @@ func less2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func lessEq2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func LessEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6290,9 +6191,7 @@ func lessEq2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func greater2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func Greater2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6321,9 +6220,7 @@ func greater2(ctx context.Context, e *Execution) Promise {
 	return e.Success(cont)
 }
 
-func greaterEq2(ctx context.Context, e *Execution) Promise {
-	x, y, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
-
+func GreaterEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)

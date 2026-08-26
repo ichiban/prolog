@@ -15,6 +15,12 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
+type (
+	Term      = term.Handle
+	Execution = runtime.Execution
+	Promise   = runtime.Promise
+)
+
 // Value is a Go type that can be converted into/from a Prolog type which is either:
 // - Atom, as an atom,
 // - int/int8/int16/int32/int64, as an integer,
@@ -97,10 +103,11 @@ func New(opts ...InterpreterOption) *Interpreter {
 			TempArena: &term.Arena{
 				Heap: make(term.Heap, 0, opt.tempHeapSize),
 			},
-			Ops:  *syntax.NewOperatorSet(),
-			DB:   &db.MemoryDB{},
-			Warn: opt.warn,
-			Halt: opt.halt,
+			BuiltinSet: runtime.NewBuiltinSet(),
+			Ops:        *syntax.NewOperatorSet(),
+			DB:         &db.MemoryDB{},
+			Warn:       opt.warn,
+			Halt:       opt.halt,
 		},
 	}
 }
@@ -139,6 +146,78 @@ func (i *Interpreter) SetUserOutput(w io.Writer) error {
 	}
 	i.engine.Output = s
 	return nil
+}
+
+func (i *Interpreter) SetPredicate0(name string, fn func(ctx context.Context, e *Execution, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 1),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate0(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate1(name string, fn func(ctx context.Context, e *Execution, arg1, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 2),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate1(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate2(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 3),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate2(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate3(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 4),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate3(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate4(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 5),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate4(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate5(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 6),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate5(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate6(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 7),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate6(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate7(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 8),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate7(fn),
+	})
+}
+
+func (i *Interpreter) SetPredicate8(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont Term) Promise) error {
+	return i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), 9),
+		Type: runtime.InHead,
+		Proc: runtime.Predicate8(fn),
+	})
 }
 
 // Load loads a Prolog text from file via FS in Config.

@@ -87,6 +87,23 @@ Type Ctrl-C or 'halt.' to exit.
 	if err := i.SetUserOutput(os.Stdout); err != nil {
 		log.Fatalf("failed to set user output: %v", err)
 	}
+	if err := i.SetPredicate1("version", func(ctx context.Context, e *prolog.Execution, arg1, cont prolog.Term) prolog.Promise {
+		v, err := e.PutInteger(2)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		ok, err := e.Unify(arg1, v)
+		if err != nil {
+			return e.Throw(err, cont)
+		}
+		if !ok {
+			return e.Failure()
+		}
+
+		return e.Success(cont)
+	}); err != nil {
+		log.Fatalf("failed to register: %v", err)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
