@@ -38,10 +38,6 @@ type Promise struct {
 	delayed iter.Seq[Promise]
 }
 
-func Success() Promise {
-	return Promise{ok: true}
-}
-
 func Failure() Promise {
 	return Promise{ok: false}
 }
@@ -316,7 +312,7 @@ func true0(ctx context.Context, e *Execution) Promise {
 				e.tempVars[2] = cont
 				e.programPointer = call.Offset
 
-				if !yield(Success()) {
+				if !yield(Promise{ok: true}) {
 					return
 				}
 			}
@@ -330,7 +326,7 @@ func true0(ctx context.Context, e *Execution) Promise {
 	for i, arg := range indexed(e.Args(cont)) {
 		e.tempVars[i+1] = arg
 	}
-	return Success()
+	return Promise{ok: true}
 }
 
 func fail0(_ context.Context, e *Execution) Promise {
@@ -400,7 +396,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 				e.tempVars[2] = cont
 				e.programPointer = call.Offset
 
-				if !yield(Success()) {
+				if !yield(Promise{ok: true}) {
 					return
 				}
 			}
@@ -413,7 +409,7 @@ func call1(ctx context.Context, e *Execution) Promise {
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
 		e.tempVars[i+1] = arg
 	}
-	return Success()
+	return Promise{ok: true}
 }
 
 func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
@@ -466,7 +462,7 @@ func var1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func atom1(_ context.Context, e *Execution) Promise {
@@ -476,7 +472,7 @@ func atom1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func integer1(_ context.Context, e *Execution) Promise {
@@ -486,7 +482,7 @@ func integer1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func float1(_ context.Context, e *Execution) Promise {
@@ -496,7 +492,7 @@ func float1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func compound1(_ context.Context, e *Execution) Promise {
@@ -506,7 +502,7 @@ func compound1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func ground1(_ context.Context, e *Execution) Promise {
@@ -517,7 +513,7 @@ func ground1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func acyclicTerm1(_ context.Context, e *Execution) Promise {
@@ -527,7 +523,7 @@ func acyclicTerm1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func throw1(ctx context.Context, e *Execution) Promise {
@@ -631,9 +627,7 @@ func subsumesTerm2(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func compare3(_ context.Context, e *Execution) Promise {
@@ -685,9 +679,7 @@ func compare3(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func sort2(ctx context.Context, e *Execution) Promise {
@@ -723,9 +715,7 @@ func sort2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func keySort2(ctx context.Context, e *Execution) Promise {
@@ -805,9 +795,7 @@ func keySort2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func functor3(_ context.Context, e *Execution) Promise {
@@ -924,9 +912,7 @@ func functor3(_ context.Context, e *Execution) Promise {
 		}
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func arg3(_ context.Context, e *Execution) Promise {
@@ -978,9 +964,7 @@ func arg3(_ context.Context, e *Execution) Promise {
 		}, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func univ2(_ context.Context, e *Execution) Promise {
@@ -1018,9 +1002,7 @@ func univ2(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) univAtomic(t, list, cont term.Handle) Promise {
@@ -1041,9 +1023,7 @@ func (e *Execution) univAtomic(t, list, cont term.Handle) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
@@ -1067,9 +1047,7 @@ func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
 				return Failure()
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			return Success()
+			return e.Success(cont)
 		}
 	}
 
@@ -1091,9 +1069,7 @@ func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func copyTerm2(_ context.Context, e *Execution) Promise {
@@ -1112,9 +1088,7 @@ func copyTerm2(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func termVariables2(_ context.Context, e *Execution) Promise {
@@ -1138,9 +1112,7 @@ func termVariables2(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func clause2(ctx context.Context, e *Execution) Promise {
@@ -1200,9 +1172,7 @@ func clause2(ctx context.Context, e *Execution) Promise {
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -1223,9 +1193,7 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	pis := slices.Collect(func(yield func(pi term.Functor) bool) {
@@ -1266,9 +1234,7 @@ func currentPredicate1(ctx context.Context, e *Execution) Promise {
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -1367,9 +1333,7 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	}
 	e.CurrentTime++
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func retract1(ctx context.Context, e *Execution) Promise {
@@ -1456,9 +1420,7 @@ func retract1(ctx context.Context, e *Execution) Promise {
 				_ = yield(e.Throw(err, cont))
 				return
 			}
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -1497,9 +1459,7 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 		e.CurrentTime++
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func findAll3(ctx context.Context, e *Execution) Promise {
@@ -1527,9 +1487,7 @@ func findAll3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bagOf3(ctx context.Context, e *Execution) Promise {
@@ -1621,9 +1579,7 @@ func collectionOf(ctx context.Context, e *Execution, agg func([]term.Handle) (te
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -1676,9 +1632,7 @@ func currentInput1(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func currentOutput1(ctx context.Context, e *Execution) Promise {
@@ -1696,9 +1650,7 @@ func currentOutput1(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func setInput1(ctx context.Context, e *Execution) Promise {
@@ -1716,9 +1668,7 @@ func setInput1(ctx context.Context, e *Execution) Promise {
 		}
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func setOutput1(ctx context.Context, e *Execution) Promise {
@@ -1736,9 +1686,7 @@ func setOutput1(ctx context.Context, e *Execution) Promise {
 		}
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func open4(ctx context.Context, e *Execution) Promise {
@@ -1844,9 +1792,7 @@ func open4(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) handleStreamOption(s *term.Stream, o term.Handle) error {
@@ -2036,9 +1982,7 @@ func close2(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func flushOutput1(ctx context.Context, e *Execution) Promise {
@@ -2061,9 +2005,7 @@ func flushOutput1(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func streamProperty2(ctx context.Context, e *Execution) Promise {
@@ -2122,9 +2064,7 @@ func streamProperty2(ctx context.Context, e *Execution) Promise {
 					continue
 				}
 
-				e.tempVars[1] = cont
-				e.Next()
-				if !yield(Success()) {
+				if !yield(e.Success(cont)) {
 					return
 				}
 			}
@@ -2308,9 +2248,7 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 }
 
@@ -2371,9 +2309,7 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func getCode2(ctx context.Context, e *Execution) Promise {
@@ -2433,9 +2369,7 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func peekChar2(ctx context.Context, e *Execution) Promise {
@@ -2506,9 +2440,7 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func peekCode2(ctx context.Context, e *Execution) Promise {
@@ -2579,9 +2511,7 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func putChar2(ctx context.Context, e *Execution) Promise {
@@ -2616,9 +2546,7 @@ func putChar2(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func putCode2(ctx context.Context, e *Execution) Promise {
@@ -2653,9 +2581,7 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func getByte2(ctx context.Context, e *Execution) Promise {
@@ -2714,9 +2640,7 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func peekByte2(ctx context.Context, e *Execution) Promise {
@@ -2779,9 +2703,7 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func putByte2(ctx context.Context, e *Execution) Promise {
@@ -2815,9 +2737,7 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 }
 
@@ -2969,9 +2889,7 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 		}
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 type readTermOptions struct {
@@ -3073,9 +2991,7 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) writeTermOptionBool(out *bool, o term.Handle) error {
@@ -3232,9 +3148,7 @@ func op3(ctx context.Context, e *Execution) Promise {
 		e.Ops.Define(int16(p), spec, op)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.Handle) error {
@@ -3392,9 +3306,7 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -3425,9 +3337,7 @@ func charConversion2(ctx context.Context, e *Execution) Promise {
 		})
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func currentCharConversion2(ctx context.Context, e *Execution) Promise {
@@ -3479,9 +3389,7 @@ func currentCharConversion2(ctx context.Context, e *Execution) Promise {
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -3506,9 +3414,7 @@ func call2(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call3(ctx context.Context, e *Execution) Promise {
@@ -3530,9 +3436,7 @@ func call3(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call4(ctx context.Context, e *Execution) Promise {
@@ -3555,9 +3459,7 @@ func call4(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call5(ctx context.Context, e *Execution) Promise {
@@ -3581,9 +3483,7 @@ func call5(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call6(ctx context.Context, e *Execution) Promise {
@@ -3608,9 +3508,7 @@ func call6(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call7(ctx context.Context, e *Execution) Promise {
@@ -3636,9 +3534,7 @@ func call7(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func call8(ctx context.Context, e *Execution) Promise {
@@ -3665,9 +3561,7 @@ func call8(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func atomLength2(ctx context.Context, e *Execution) Promise {
@@ -3695,9 +3589,7 @@ func atomLength2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func atomConcat3(ctx context.Context, e *Execution) Promise {
@@ -3732,9 +3624,7 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	if _, _, err := e.canBeAtom(atom1); err != nil {
@@ -3784,9 +3674,7 @@ func atomConcat3(ctx context.Context, e *Execution) Promise {
 				continue
 			}
 
-			e.tempVars[1] = cont
-			e.Next()
-			if !yield(Success()) {
+			if !yield(e.Success(cont)) {
 				return
 			}
 		}
@@ -3893,9 +3781,7 @@ func subAtom5(ctx context.Context, e *Execution) Promise {
 					continue
 				}
 
-				e.tempVars[1] = cont
-				e.Next()
-				if !yield(Success()) {
+				if !yield(e.Success(cont)) {
 					return
 				}
 			}
@@ -3941,9 +3827,7 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	if _, err := e.canBeList(chars, func(elem term.Handle) error {
@@ -3966,9 +3850,7 @@ func atomChars2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func atomCodes2(ctx context.Context, e *Execution) Promise {
@@ -4004,9 +3886,7 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	if _, err := e.canBeList(codes, func(elem term.Handle) error {
@@ -4029,9 +3909,7 @@ func atomCodes2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func charCode2(ctx context.Context, e *Execution) Promise {
@@ -4060,9 +3938,7 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	if _, _, err := e.canBeCharCode(code); err != nil {
@@ -4082,9 +3958,7 @@ func charCode2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func numberChars2(ctx context.Context, e *Execution) Promise {
@@ -4125,9 +3999,7 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	n, err := syntax.ParseNumber(strings.NewReader(sb.String()),
@@ -4151,9 +4023,7 @@ func numberChars2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func numberCodes2(ctx context.Context, e *Execution) Promise {
@@ -4194,9 +4064,7 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 
 	n, err := syntax.ParseNumber(strings.NewReader(sb.String()),
@@ -4220,9 +4088,14 @@ func numberCodes2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
+	return e.Success(cont)
+}
+
+// Success continues the execution with the given continuation.
+func (e *Execution) Success(cont term.Handle) Promise {
 	e.tempVars[1] = cont
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 // Throw throws an error.
@@ -4240,9 +4113,7 @@ func (e *Execution) throwBall(ball, cont term.Handle) Promise {
 	if err != nil {
 		return Error(err)
 	}
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 type flagEntry struct {
@@ -4410,9 +4281,7 @@ func setPrologFlag2(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
@@ -4469,9 +4338,7 @@ func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
 					continue
 				}
 
-				e.tempVars[1] = cont
-				e.Next()
-				if !yield(Success()) {
+				if !yield(e.Success(cont)) {
 					return
 				}
 			}
@@ -4502,9 +4369,7 @@ func currentPrologFlag2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func halt1(ctx context.Context, e *Execution) Promise {
@@ -4540,9 +4405,7 @@ func dynamic1(ctx context.Context, e *Execution) Promise {
 	p.Dynamic = true
 	e.Predicates[bpi] = p
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func multifile1(ctx context.Context, e *Execution) Promise {
@@ -4559,9 +4422,7 @@ func multifile1(ctx context.Context, e *Execution) Promise {
 	p.Multifile = true
 	e.Predicates[bpi] = p
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func discontiguous1(ctx context.Context, e *Execution) Promise {
@@ -4578,9 +4439,7 @@ func discontiguous1(ctx context.Context, e *Execution) Promise {
 	p.Discontiguous = true
 	e.Predicates[bpi] = p
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func getNeckCut1(_ context.Context, e *Execution) Promise {
@@ -4590,7 +4449,7 @@ func getNeckCut1(_ context.Context, e *Execution) Promise {
 	}
 	e.tempVars[0] = cutB
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func getCont1(_ context.Context, e *Execution) Promise {
@@ -4601,7 +4460,7 @@ func getCont1(_ context.Context, e *Execution) Promise {
 		return Failure()
 	}
 	e.Next()
-	return Success()
+	return Promise{ok: true}
 }
 
 func callCont1(ctx context.Context, e *Execution) Promise {
@@ -4683,9 +4542,7 @@ func add3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func sub3(ctx context.Context, e *Execution) Promise {
@@ -4762,9 +4619,7 @@ func sub3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func mul3(ctx context.Context, e *Execution) Promise {
@@ -4841,9 +4696,7 @@ func mul3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func intDiv3(ctx context.Context, e *Execution) Promise {
@@ -4884,9 +4737,7 @@ func intDiv3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func div3(ctx context.Context, e *Execution) Promise {
@@ -4963,9 +4814,7 @@ func div3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func rem3(ctx context.Context, e *Execution) Promise {
@@ -5009,9 +4858,7 @@ func rem3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func mod3(ctx context.Context, e *Execution) Promise {
@@ -5055,9 +4902,7 @@ func mod3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func neg2(ctx context.Context, e *Execution) Promise {
@@ -5097,9 +4942,7 @@ func neg2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func abs2(ctx context.Context, e *Execution) Promise {
@@ -5141,9 +4984,7 @@ func abs2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func sign2(ctx context.Context, e *Execution) Promise {
@@ -5179,9 +5020,7 @@ func sign2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func floatIntegerPart2(ctx context.Context, e *Execution) Promise {
@@ -5210,9 +5049,7 @@ func floatIntegerPart2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func floatFractionalPart2(ctx context.Context, e *Execution) Promise {
@@ -5241,9 +5078,7 @@ func floatFractionalPart2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func float2(ctx context.Context, e *Execution) Promise {
@@ -5275,9 +5110,7 @@ func float2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func floor2(ctx context.Context, e *Execution) Promise {
@@ -5313,9 +5146,7 @@ func floor2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func truncate2(ctx context.Context, e *Execution) Promise {
@@ -5351,9 +5182,7 @@ func truncate2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func round2(ctx context.Context, e *Execution) Promise {
@@ -5389,9 +5218,7 @@ func round2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func ceiling2(ctx context.Context, e *Execution) Promise {
@@ -5427,9 +5254,7 @@ func ceiling2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func floorDiv3(ctx context.Context, e *Execution) Promise {
@@ -5473,9 +5298,7 @@ func floorDiv3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func pos2(ctx context.Context, e *Execution) Promise {
@@ -5522,9 +5345,7 @@ func pos2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func power3(ctx context.Context, e *Execution) Promise {
@@ -5585,9 +5406,7 @@ func power3(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 
-		e.tempVars[1] = cont
-		e.Next()
-		return Success()
+		return e.Success(cont)
 	}
 }
 
@@ -5617,9 +5436,7 @@ func sin2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func cos2(ctx context.Context, e *Execution) Promise {
@@ -5648,9 +5465,7 @@ func cos2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func atan2(ctx context.Context, e *Execution) Promise {
@@ -5679,9 +5494,7 @@ func atan2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func exp2(ctx context.Context, e *Execution) Promise {
@@ -5730,9 +5543,7 @@ func exp2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func log2(ctx context.Context, e *Execution) Promise {
@@ -5769,9 +5580,7 @@ func log2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func sqrt2(ctx context.Context, e *Execution) Promise {
@@ -5808,9 +5617,7 @@ func sqrt2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func max3(ctx context.Context, e *Execution) Promise {
@@ -5859,9 +5666,7 @@ func max3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func min3(ctx context.Context, e *Execution) Promise {
@@ -5910,9 +5715,7 @@ func min3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func integerPower3(ctx context.Context, e *Execution) Promise {
@@ -5987,9 +5790,7 @@ func integerPower3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 // Loosely based on https://www.programminglogic.com/fast-exponentiation-algorithms/
@@ -6052,9 +5853,7 @@ func asin2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func acos2(ctx context.Context, e *Execution) Promise {
@@ -6090,9 +5889,7 @@ func acos2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func atan3(ctx context.Context, e *Execution) Promise {
@@ -6136,9 +5933,7 @@ func atan3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func tan2(ctx context.Context, e *Execution) Promise {
@@ -6167,9 +5962,7 @@ func tan2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 
 }
 
@@ -6189,9 +5982,7 @@ func pi1(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseRightShift3(ctx context.Context, e *Execution) Promise {
@@ -6222,9 +6013,7 @@ func bitwiseRightShift3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseLeftShift3(ctx context.Context, e *Execution) Promise {
@@ -6255,9 +6044,7 @@ func bitwiseLeftShift3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseAnd3(ctx context.Context, e *Execution) Promise {
@@ -6288,9 +6075,7 @@ func bitwiseAnd3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseOr3(ctx context.Context, e *Execution) Promise {
@@ -6321,9 +6106,7 @@ func bitwiseOr3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseComplement2(ctx context.Context, e *Execution) Promise {
@@ -6349,9 +6132,7 @@ func bitwiseComplement2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func bitwiseXor3(ctx context.Context, e *Execution) Promise {
@@ -6382,9 +6163,7 @@ func bitwiseXor3(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func arithEq2(ctx context.Context, e *Execution) Promise {
@@ -6415,9 +6194,7 @@ func arithEq2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func arithDif2(ctx context.Context, e *Execution) Promise {
@@ -6448,9 +6225,7 @@ func arithDif2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func less2(ctx context.Context, e *Execution) Promise {
@@ -6481,9 +6256,7 @@ func less2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func lessEq2(ctx context.Context, e *Execution) Promise {
@@ -6514,9 +6287,7 @@ func lessEq2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func greater2(ctx context.Context, e *Execution) Promise {
@@ -6547,9 +6318,7 @@ func greater2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func greaterEq2(ctx context.Context, e *Execution) Promise {
@@ -6580,9 +6349,7 @@ func greaterEq2(ctx context.Context, e *Execution) Promise {
 		return Failure()
 	}
 
-	e.tempVars[1] = cont
-	e.Next()
-	return Success()
+	return e.Success(cont)
 }
 
 func (e *Execution) unTrailTo(b int) error {
