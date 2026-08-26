@@ -262,11 +262,11 @@ func true0(ctx context.Context, e *Execution) Promise {
 
 	bpi, ok := e.Functor(cont, term.AllowAtom(true))
 	if !ok {
-		return Error(&TypeError{
+		return e.Throw(&TypeError{
 			ValidType: term.NewAtom("continuation"),
 			Culprit:   syntax.Serialize(e.Arena, cont),
 			Location:  e.location,
-		})
+		}, cont)
 	}
 
 	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
@@ -298,7 +298,7 @@ func true0(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 		cont = args[len(args)-1]
-		err = e.pushSeqStackFrame(func(yield func(Promise) bool) {
+		if err := e.pushSeqStackFrame(func(yield func(Promise) bool) {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
@@ -320,10 +320,10 @@ func true0(ctx context.Context, e *Execution) Promise {
 					return
 				}
 			}
-		}, 2)
-		// err is nil unless pushing the frame itself failed; Error(nil) isn't a
-		// failure to report but the backtrack which triggers the iterator.
-		return Error(err)
+		}, 2); err != nil {
+			return e.Throw(err, cont)
+		}
+		return Failure()
 	}
 
 	e.programPointer = p.Offset
@@ -350,15 +350,15 @@ func call1(ctx context.Context, e *Execution) Promise {
 	pi, ok := e.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		if _, ok := e.Variable(goal); ok {
-			return Error(&InstantiationError{
+			return e.Throw(&InstantiationError{
 				Location: e.location,
-			})
+			}, cont)
 		}
-		return Error(&TypeError{
+		return e.Throw(&TypeError{
 			ValidType: term.NewAtom("callable"),
 			Culprit:   syntax.Serialize(e.Arena, goal),
 			Location:  e.location,
-		})
+		}, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -376,13 +376,13 @@ func call1(ctx context.Context, e *Execution) Promise {
 			if err != nil {
 				return e.Throw(err, cont)
 			}
-			return Error(&ExistenceError{
+			return e.Throw(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
 				Culprit:    syntax.Serialize(e.Arena, c),
 				Location:   e.location,
-			})
+			}, cont)
 		}
-		err = e.pushSeqStackFrame(func(yield func(Promise) bool) {
+		if err := e.pushSeqStackFrame(func(yield func(Promise) bool) {
 			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 				ok, err := e.Unify(r.Head, goal)
 				if err != nil {
@@ -404,10 +404,10 @@ func call1(ctx context.Context, e *Execution) Promise {
 					return
 				}
 			}
-		}, 2)
-		// err is nil unless pushing the frame itself failed; Error(nil) isn't a
-		// failure to report but the backtrack which triggers the iterator.
-		return Error(err)
+		}, 2); err != nil {
+			return e.Throw(err, cont)
+		}
+		return Failure()
 	}
 	e.programPointer = p.Offset
 	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
@@ -647,18 +647,18 @@ func compare3(_ context.Context, e *Execution) Promise {
 		case term.NewAtomRune('<'), term.NewAtomRune('>'), term.NewAtomRune('='):
 			break
 		default:
-			return Error(&DomainError{
+			return e.Throw(&DomainError{
 				ValidDomain: term.NewAtom("order"),
 				Culprit:     syntax.Serialize(e.Arena, order),
 				Location:    e.location,
-			})
+			}, cont)
 		}
 	} else {
-		return Error(&TypeError{
+		return e.Throw(&TypeError{
 			ValidType: term.NewAtom("atom"),
 			Culprit:   syntax.Serialize(e.Arena, order),
 			Location:  e.location,
-		})
+		}, cont)
 	}
 
 	var (
@@ -816,28 +816,28 @@ func functor3(_ context.Context, e *Execution) Promise {
 
 	if _, ok := e.Variable(t); ok {
 		if _, ok := e.Variable(arity); ok {
-			return Error(&InstantiationError{
+			return e.Throw(&InstantiationError{
 				Location: e.location,
-			})
+			}, cont)
 		} else if a, ok := e.Integer(arity); ok {
 			if a < 0 {
-				return Error(&DomainError{
+				return e.Throw(&DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
 					Culprit:     syntax.Serialize(e.Arena, arity),
 					Location:    e.location,
-				})
+				}, cont)
 			}
 
 			if _, ok := e.Variable(name); ok {
-				return Error(&InstantiationError{
+				return e.Throw(&InstantiationError{
 					Location: e.location,
-				})
+				}, cont)
 			} else if _, ok := e.Functor(name); ok {
-				return Error(&TypeError{
+				return e.Throw(&TypeError{
 					ValidType: term.NewAtom("atomic"),
 					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
-				})
+				}, cont)
 			}
 
 			if a == 0 {
@@ -862,18 +862,18 @@ func functor3(_ context.Context, e *Execution) Promise {
 					return Failure()
 				}
 			} else {
-				return Error(&TypeError{
+				return e.Throw(&TypeError{
 					ValidType: term.NewAtom("atom"),
 					Culprit:   syntax.Serialize(e.Arena, name),
 					Location:  e.location,
-				})
+				}, cont)
 			}
 		} else {
-			return Error(&TypeError{
+			return e.Throw(&TypeError{
 				ValidType: term.NewAtom("integer"),
 				Culprit:   syntax.Serialize(e.Arena, arity),
 				Location:  e.location,
-			})
+			}, cont)
 		}
 	} else if f, ok := e.Functor(t); ok {
 		n, err := e.PutAtom(f.Name())
@@ -934,24 +934,24 @@ func arg3(_ context.Context, e *Execution) Promise {
 	nth, t, arg = e.Deref(nth), e.Deref(t), e.Deref(arg)
 
 	if _, ok := e.Variable(t); ok {
-		return Error(&InstantiationError{
+		return e.Throw(&InstantiationError{
 			Location: e.location,
-		})
+		}, cont)
 	} else if f, ok := e.Functor(t); ok {
 		if _, ok := e.Variable(nth); ok {
-			return Error(&InstantiationError{
+			return e.Throw(&InstantiationError{
 				Location: e.location,
-			})
+			}, cont)
 		} else if n, ok := e.Integer(nth); ok {
 			switch {
 			case n == 0, int(n) > f.Arity():
 				return Failure()
 			case n < 0:
-				return Error(&DomainError{
+				return e.Throw(&DomainError{
 					ValidDomain: term.NewAtom("not_less_than_zero"),
 					Culprit:     syntax.Serialize(e.Arena, nth),
 					Location:    e.location,
-				})
+				}, cont)
 			default:
 				a := e.Arg(t, int(n)-1)
 				ok, err := e.Unify(arg, a)
@@ -964,18 +964,18 @@ func arg3(_ context.Context, e *Execution) Promise {
 			}
 
 		} else {
-			return Error(&TypeError{
+			return e.Throw(&TypeError{
 				ValidType: term.NewAtom("integer"),
 				Culprit:   syntax.Serialize(e.Arena, nth),
 				Location:  e.location,
-			})
+			}, cont)
 		}
 	} else {
-		return Error(&TypeError{
+		return e.Throw(&TypeError{
 			ValidType: term.NewAtom("compound"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
-		})
+		}, cont)
 	}
 
 	e.tempVars[1] = cont
@@ -1167,12 +1167,12 @@ func clause2(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("access"),
 			PermissionType: term.NewAtom("private_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, f),
 			Location:       e.location,
-		})
+		}, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -1288,9 +1288,9 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
-		return Error(&InstantiationError{
+		return e.Throw(&InstantiationError{
 			Location: e.location,
-		})
+		}, cont)
 	}
 
 	var (
@@ -1301,29 +1301,29 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 	)
 	pi, ok := e.Functor(t, term.AllowAtom(true))
 	if !ok {
-		return Error(&TypeError{
+		return e.Throw(&TypeError{
 			ValidType: term.NewAtom("callable"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
-		})
+		}, cont)
 	}
 	if pi == term.NewFunctor(term.NewAtom(":-"), 2) {
 		head, body = e.Arg(t, 0), e.Arg(t, 1)
 		pi, ok = e.Functor(head, term.AllowAtom(true))
 		if !ok {
-			return Error(&TypeError{
+			return e.Throw(&TypeError{
 				ValidType: term.NewAtom("callable"),
 				Culprit:   syntax.Serialize(e.Arena, t),
 				Location:  e.location,
-			})
+			}, cont)
 		}
 
 		if _, ok := e.Functor(body, term.AllowAtom(true)); !ok {
-			return Error(&TypeError{
+			return e.Throw(&TypeError{
 				ValidType: term.NewAtom("callable"),
 				Culprit:   syntax.Serialize(e.Arena, body),
 				Location:  e.location,
-			})
+			}, cont)
 		}
 	} else {
 		head = t
@@ -1350,12 +1350,12 @@ func assert1(ctx context.Context, e *Execution, fn func(db db.DB, ctx context.Co
 		if err != nil {
 			return e.Throw(err, cont)
 		}
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, c),
 			Location:       e.location,
-		})
+		}, cont)
 	}
 
 	if err := fn(e.DB, ctx, e.Arena, db.Record{
@@ -1416,12 +1416,12 @@ func retract1(ctx context.Context, e *Execution) Promise {
 		if err != nil {
 			return e.Throw(err, cont)
 		}
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, c),
 			Location:       e.location,
-		})
+		}, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
@@ -1481,12 +1481,12 @@ func abolish1(ctx context.Context, e *Execution) Promise {
 			if err != nil {
 				return e.Throw(err, cont)
 			}
-			return Error(&PermissionError{
+			return e.Throw(&PermissionError{
 				Operation:      term.NewAtom("modify"),
 				PermissionType: term.NewAtom("static_procedure"),
 				Culprit:        syntax.Serialize(e.Arena, c),
 				Location:       e.location,
-			})
+			}, cont)
 		}
 		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
 			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
@@ -2051,12 +2051,12 @@ func flushOutput1(ctx context.Context, e *Execution) Promise {
 
 	switch err := s.Flush(); {
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("operation"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	}
@@ -2299,12 +2299,12 @@ func setStreamPosition2(ctx context.Context, e *Execution) Promise {
 
 	switch _, err := s.Seek(p, 0); {
 	case errors.Is(err, term.ErrReposition):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("reposition"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2334,26 +2334,26 @@ func getChar2(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2396,26 +2396,26 @@ func getCode2(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2458,26 +2458,26 @@ func peekChar2(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2531,26 +2531,26 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 			return e.Throw(err, cont)
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2559,10 +2559,10 @@ func peekCode2(ctx context.Context, e *Execution) Promise {
 		}
 
 		if r == unicode.ReplacementChar {
-			return Error(&RepresentationError{
+			return e.Throw(&RepresentationError{
 				Flag:     term.NewAtom("in_character_code"),
 				Location: e.location,
-			})
+			}, cont)
 		}
 
 		c, err = e.PutInteger(int64(r))
@@ -2599,19 +2599,19 @@ func putChar2(ctx context.Context, e *Execution) Promise {
 
 	switch _, err := s.WriteRune(r); {
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	}
@@ -2636,19 +2636,19 @@ func putCode2(ctx context.Context, e *Execution) Promise {
 
 	switch _, err := s.WriteRune(r); {
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	}
@@ -2675,26 +2675,26 @@ func getByte2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		n = -1
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("text_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2736,26 +2736,26 @@ func peekByte2(ctx context.Context, e *Execution) Promise {
 	case errors.Is(err, io.EOF):
 		n = -1
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("text_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2799,19 +2799,19 @@ func putByte2(ctx context.Context, e *Execution) Promise {
 
 	switch err := s.WriteByte(b); {
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("text_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -2862,31 +2862,31 @@ func readTerm3(ctx context.Context, e *Execution) Promise {
 			return Failure()
 		}
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("text_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrPastEndOfStream):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("input"),
 			PermissionType: term.NewAtom("past_end_of_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.As(err, &unexpectedTokenError), errors.Is(err, syntax.ErrUnexpectedEOF):
-		return Error(&SyntaxError{
+		return e.Throw(&SyntaxError{
 			ImpDepAtom: term.NewAtom(err.Error()),
 			Location:   e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	default:
@@ -3052,19 +3052,19 @@ func writeTerm3(ctx context.Context, e *Execution) Promise {
 	w, err := s.TextWriter()
 	switch {
 	case errors.Is(err, term.ErrWrongIOMode):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case errors.Is(err, term.ErrWrongStreamType):
-		return Error(&PermissionError{
+		return e.Throw(&PermissionError{
 			Operation:      term.NewAtom("output"),
 			PermissionType: term.NewAtom("binary_stream"),
 			Culprit:        syntax.Serialize(e.Arena, sOrA),
 			Location:       e.location,
-		})
+		}, cont)
 	case err != nil:
 		return e.Throw(err, cont)
 	}
@@ -3163,11 +3163,11 @@ func op3(ctx context.Context, e *Execution) Promise {
 		return e.Throw(err, cont)
 	}
 	if p < 0 || p > 1200 {
-		return Error(&DomainError{
+		return e.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_priority"),
 			Culprit:     syntax.Serialize(e.Arena, priority),
 			Location:    e.location,
-		})
+		}, cont)
 	}
 
 	opSpec, err := e.mustBeAtom(operatorSpecifier)
@@ -3192,11 +3192,11 @@ func op3(ctx context.Context, e *Execution) Promise {
 	case term.NewAtom("yfx"):
 		spec = syntax.YFX
 	default:
-		return Error(&DomainError{
+		return e.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_specifier"),
 			Culprit:     syntax.Serialize(e.Arena, operatorSpecifier),
 			Location:    e.location,
-		})
+		}, cont)
 	}
 
 	var ops []term.Atom
@@ -3305,11 +3305,11 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 	case err != nil:
 		return e.Throw(err, cont)
 	case ok && (p < 0 || p > 1200):
-		return Error(&DomainError{
+		return e.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_priority"),
 			Culprit:     syntax.Serialize(e.Arena, priority),
 			Location:    e.location,
-		})
+		}, cont)
 	}
 
 	switch s, ok, err := e.canBeAtom(operatorSpecifier); {
@@ -3324,11 +3324,11 @@ func currentOp3(ctx context.Context, e *Execution) Promise {
 		term.NewAtom("xfy"),
 		term.NewAtom("yfx"),
 	}, s):
-		return Error(&DomainError{
+		return e.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_specifier"),
 			Culprit:     syntax.Serialize(e.Arena, operatorSpecifier),
 			Location:    e.location,
-		})
+		}, cont)
 	}
 
 	switch _, _, err := e.canBeAtom(operator); {
@@ -5557,20 +5557,20 @@ func power3(ctx context.Context, e *Execution) Promise {
 
 	switch r := math.Pow(xf, yf); {
 	case math.IsInf(r, 0):
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    FloatOverflow,
 			Location: e.location,
-		})
+		}, cont)
 	case r == 0 && xf != 0: // Underflow: r can be 0 iff x = 0.
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    Underflow,
 			Location: e.location,
-		})
+		}, cont)
 	case math.IsNaN(r):
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    Undefined,
 			Location: e.location,
-		})
+		}, cont)
 	default:
 		t, err := e.PutFloat(r)
 		if err != nil {
@@ -5702,19 +5702,19 @@ func exp2(ctx context.Context, e *Execution) Promise {
 	// x * log(e) > log(max)
 	//          x > log(max)
 	if xf > math.Log(math.MaxFloat64) {
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    FloatOverflow,
 			Location: e.location,
-		})
+		}, cont)
 	}
 
 	r := math.Exp(xf)
 
 	if r == 0 { // e^x != 0.
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    Underflow,
 			Location: e.location,
-		})
+		}, cont)
 	}
 
 	t, err := e.PutFloat(r)
@@ -5748,10 +5748,10 @@ func log2(ctx context.Context, e *Execution) Promise {
 	}
 
 	if xf <= 0 {
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    Undefined,
 			Location: e.location,
-		})
+		}, cont)
 	}
 
 	r := math.Log(xf)
@@ -5787,10 +5787,10 @@ func sqrt2(ctx context.Context, e *Execution) Promise {
 	}
 
 	if xf < 0 {
-		return Error(&EvaluationError{
+		return e.Throw(&EvaluationError{
 			Cause:    Undefined,
 			Location: e.location,
-		})
+		}, cont)
 	}
 
 	r := math.Sqrt(xf)
