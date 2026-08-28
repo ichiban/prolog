@@ -1941,7 +1941,7 @@ a`},
 				t.Fatal(err)
 			}
 
-			i := New(HeapSize(7 * 1024))
+			i := New()
 			if err := i.MountFS("", testdata); err != nil {
 				t.Fatal(err)
 			}
@@ -2046,7 +2046,7 @@ func loadFiles(t *testing.T, filenames ...string) (*Interpreter, []error, error)
 	t.Helper()
 
 	var warnings []error
-	i := New(HeapSize(7*1024), Warn(func(err error) {
+	i := New(Warn(func(err error) {
 		warnings = append(warnings, err)
 	}))
 	if err := i.MountFS("", testdata); err != nil {
@@ -2185,7 +2185,7 @@ baz
 `
 
 	var sb strings.Builder
-	i := New(HeapSize(7 * 1024))
+	i := New()
 	if err := i.MountFS("", testdata); err != nil {
 		t.Fatal(err)
 	}
@@ -2202,7 +2202,7 @@ baz
 
 func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	var sb strings.Builder
-	i := New(HeapSize(7 * 1024))
+	i := New()
 	if err := i.MountFS("", testdata); err != nil {
 		t.Fatal(err)
 	}

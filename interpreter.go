@@ -2,6 +2,7 @@ package prolog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,17 +16,11 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-type (
-	Term      = term.Handle
-	Execution = runtime.Execution
-	Promise   = runtime.Promise
-)
-
 // Value is a Go type that can be converted into/from a Prolog type which is either:
 // - Atom, as an atom,
-// - int/int8/int16/int32/int64, as an integer,
-// - float32/float64, as a float,
-// - string, as a char list (by default, can be code list or atom, too), or
+// - int64, as an integer,
+// - float64, as a float,
+// - string, as a char list, or
 // - Raw, as an arbitrary term
 type Value any
 
@@ -87,7 +82,7 @@ type Interpreter struct {
 // New instantiates an interpreter.
 func New(opts ...InterpreterOption) *Interpreter {
 	opt := InterpreterOptions{
-		heapSize:     4 * 1024,
+		heapSize:     8 * 1024,
 		tempHeapSize: 1024,
 		streamSize:   32,
 	}
@@ -148,76 +143,100 @@ func (i *Interpreter) SetUserOutput(w io.Writer) error {
 	return nil
 }
 
-func (i *Interpreter) SetPredicate0(name string, fn func(ctx context.Context, e *Execution, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 1),
+// register adds fn to the builtin set as name/arity. The functor stored in the
+// builtin set is binarized (arity+1) to carry the continuation, which is an
+// implementation detail; errors reported here use the arity the caller passed.
+func (i *Interpreter) register(name string, arity int, proc runtime.Procedure) error {
+	// The builtin set is compiled into the image by LoadSystem, so a later
+	// registration would never be reachable from Prolog.
+	if i.engine.Code != nil {
+		return fmt.Errorf("register %s/%d: predicates must be registered before the first Load or Query", name, arity)
+	}
+
+	err := i.engine.BuiltinSet.Put(runtime.Builtin{
+		PI:   term.NewFunctor(term.NewAtom(name), arity+1),
 		Type: runtime.InHead,
-		Proc: runtime.Predicate0(fn),
+		Proc: proc,
 	})
+	var dup *runtime.DuplicateBuiltinError
+	if errors.As(err, &dup) {
+		return fmt.Errorf("duplicate predicate: %s/%d", name, arity)
+	}
+	return err
 }
 
-func (i *Interpreter) SetPredicate1(name string, fn func(ctx context.Context, e *Execution, arg1, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 2),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate1(fn),
-	})
+// Register0 registers fn as the custom predicate name/0.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Execution) Outcome) error {
+	return i.register(name, 0, runtime.Predicate0(func(ctx context.Context, e *runtime.Execution, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate2(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 3),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate2(fn),
-	})
+// Register1 registers fn as the custom predicate name/1.
+// fn receives the goal's argument as a [Term], which may be bound or unbound depending on how it's called.
+// Register1 must be called before the first [Interpreter.Load] or [Query] or it'll return an error.
+// Also, it returns an error if name/1 is already taken.
+func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Execution, arg1 Term) Outcome) error {
+	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate3(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 4),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate3(fn),
-	})
+// Register2 registers fn as the custom predicate name/2.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register2(name string, fn func(ctx context.Context, e Execution, arg1, arg2 Term) Outcome) error {
+	return i.register(name, 2, runtime.Predicate2(func(ctx context.Context, e *runtime.Execution, arg1, arg2, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate4(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 5),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate4(fn),
-	})
+// Register3 registers fn as the custom predicate name/3.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register3(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3 Term) Outcome) error {
+	return i.register(name, 3, runtime.Predicate3(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate5(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 6),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate5(fn),
-	})
+// Register4 registers fn as the custom predicate name/4.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register4(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4 Term) Outcome) error {
+	return i.register(name, 4, runtime.Predicate4(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate6(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 7),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate6(fn),
-	})
+// Register5 registers fn as the custom predicate name/5.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register5(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
+	return i.register(name, 5, runtime.Predicate5(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate7(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 8),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate7(fn),
-	})
+// Register6 registers fn as the custom predicate name/6.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register6(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
+	return i.register(name, 6, runtime.Predicate6(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}).promise
+	}))
 }
 
-func (i *Interpreter) SetPredicate8(name string, fn func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont Term) Promise) error {
-	return i.engine.BuiltinSet.Put(runtime.Builtin{
-		PI:   term.NewFunctor(term.NewAtom(name), 9),
-		Type: runtime.InHead,
-		Proc: runtime.Predicate8(fn),
-	})
+// Register7 registers fn as the custom predicate name/7.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register7(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
+	return i.register(name, 7, runtime.Predicate7(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}).promise
+	}))
+}
+
+// Register8 registers fn as the custom predicate name/8.
+// See [Interpreter.Register1] for details.
+func (i *Interpreter) Register8(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
+	return i.register(name, 8, runtime.Predicate8(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Handle) runtime.Promise {
+		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}, Term{handle: arg8}).promise
+	}))
 }
 
 // Load loads a Prolog text from file via FS in Config.

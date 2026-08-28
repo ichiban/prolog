@@ -202,9 +202,19 @@ func (b *BuiltinSet) Get(id int) *Builtin {
 	return &b.entries[id]
 }
 
+// DuplicateBuiltinError is returned by [BuiltinSet.Put] when PI is already registered.
+// PI is binarized, i.e. its arity includes the continuation argument.
+type DuplicateBuiltinError struct {
+	PI term.Functor
+}
+
+func (e *DuplicateBuiltinError) Error() string {
+	return fmt.Sprintf("duplicate builtin: %s", e.PI)
+}
+
 func (b *BuiltinSet) Put(entry Builtin) error {
 	if _, ok := b.index[entry.PI]; ok {
-		return fmt.Errorf("duplicate builtin: %s", entry.PI)
+		return &DuplicateBuiltinError{PI: entry.PI}
 	}
 
 	if b.index == nil {
@@ -230,28 +240,6 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 	}
 }
 
-type ExceptionalValue int8
-
-const (
-	FloatOverflow ExceptionalValue = iota
-	IntOverflow
-	Underflow
-	ZeroDivisor
-	Undefined
-)
-
-func (e ExceptionalValue) Error() string {
-	return exceptionalValueNames[e]
-}
-
-var exceptionalValueNames = [...]string{
-	FloatOverflow: "float_overflow",
-	IntOverflow:   "int_overflow",
-	Underflow:     "underflow",
-	ZeroDivisor:   "zero_divisor",
-	Undefined:     "undefined",
-}
-
 type Procedure interface {
 	Call(ctx context.Context, e *Execution) Promise
 }
@@ -263,10 +251,10 @@ func (p Predicate0) Call(ctx context.Context, e *Execution) Promise {
 	return p(ctx, e, cont)
 }
 
-type Inline1 func(ctx context.Context, e *Execution, t *term.Handle) (bool, error)
+type Inline1 func(ctx context.Context, e *Execution, t term.Handle) (bool, error)
 
 func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
-	t := &e.tempVars[0]
+	t := e.tempVars[0]
 	ok, err := i(ctx, e, t)
 	if err != nil {
 		return Error(err)
@@ -534,45 +522,45 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 	}
 }
 
-func Var1(_ context.Context, e *Execution, v *term.Handle) (bool, error) {
-	*v = e.Deref(*v)
-	_, ok := e.Variable(*v)
+func Var1(_ context.Context, e *Execution, v term.Handle) (bool, error) {
+	v = e.Deref(v)
+	_, ok := e.Variable(v)
 	return ok, nil
 }
 
-func Atom1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	_, ok := e.Atom(*t)
+func Atom1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	_, ok := e.Atom(t)
 	return ok, nil
 }
 
-func Integer1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	_, ok := e.Integer(*t)
+func Integer1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	_, ok := e.Integer(t)
 	return ok, nil
 }
 
-func Float1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	_, ok := e.Float(*t)
+func Float1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	_, ok := e.Float(t)
 	return ok, nil
 }
 
-func Compound1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	_, ok := e.Functor(*t)
+func Compound1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	_, ok := e.Functor(t)
 	return ok, nil
 }
 
-func Ground1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	vs := e.VariableSet(*t)
+func Ground1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	vs := e.VariableSet(t)
 	return len(vs) == 0, nil
 }
 
-func AcyclicTerm1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
-	*t = e.Deref(*t)
-	return e.Acyclic(*t), nil
+func AcyclicTerm1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+	t = e.Deref(t)
+	return e.Acyclic(t), nil
 }
 
 func Throw1(ctx context.Context, e *Execution, ball, cont term.Handle) Promise {
@@ -728,7 +716,7 @@ func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Handle) Pr
 
 func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Promise {
 	var ts []term.Handle
-	if err := e.mustBeList(list, func(elem term.Handle) error {
+	if err := e.MustBeList(list, func(elem term.Handle) error {
 		ts = append(ts, elem)
 		return nil
 	}); err != nil {
@@ -762,7 +750,7 @@ func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Prom
 
 func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) Promise {
 	var ps []term.Handle
-	if err := e.mustBeList(pairs, func(pair term.Handle) error {
+	if err := e.MustBeList(pairs, func(pair term.Handle) error {
 		pair = e.Deref(pair)
 		if _, ok := e.Variable(pair); ok {
 			return &InstantiationError{
@@ -1787,7 +1775,7 @@ func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, c
 		s.Reposition = fi.Mode()&fs.ModeType == 0
 	}
 
-	if err := e.mustBeList(options, func(elem term.Handle) error {
+	if err := e.MustBeList(options, func(elem term.Handle) error {
 		return e.handleStreamOption(&s, elem)
 	}); err != nil {
 		return e.Throw(err, cont)
@@ -1956,7 +1944,7 @@ func Close2(_ context.Context, e *Execution, sOrA, options, cont term.Handle) Pr
 	}
 
 	var force bool
-	if err := e.mustBeList(options, func(o term.Handle) error {
+	if err := e.MustBeList(options, func(o term.Handle) error {
 		o = e.Deref(o)
 
 		if _, ok := e.Variable(o); ok {
@@ -2238,7 +2226,7 @@ func SetStreamPosition2(_ context.Context, e *Execution, sOrA, position, cont te
 		return e.Throw(err, cont)
 	}
 
-	p, err := e.mustBeInteger(position)
+	p, err := e.MustBeInteger(position)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -2518,7 +2506,7 @@ func PutChar2(_ context.Context, e *Execution, sOrA, char, cont term.Handle) Pro
 		return e.Throw(err, cont)
 	}
 
-	r, err := e.mustBeChar(char)
+	r, err := e.MustBeChar(char)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -2736,7 +2724,7 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 	}
 
 	var opts readTermOptions
-	if err := e.mustBeList(options, func(elem term.Handle) error {
+	if err := e.MustBeList(options, func(elem term.Handle) error {
 		return e.readTermOption(&opts, elem)
 	}); err != nil {
 		return e.Throw(err, cont)
@@ -2921,7 +2909,7 @@ func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Han
 		Term:  t,
 		Ops:   &e.Ops,
 	}
-	if err := e.mustBeList(options, func(o term.Handle) error {
+	if err := e.MustBeList(options, func(o term.Handle) error {
 		o = e.Deref(o)
 
 		if _, ok := e.Variable(o); ok {
@@ -2995,7 +2983,7 @@ func (e *Execution) writeTermOptionBool(out *bool, o term.Handle) error {
 }
 
 func (e *Execution) writeTermOptionVariableNames(out *[]term.VariableName, o term.Handle) error {
-	return e.mustBeList(e.Arg(o, 0), func(vn term.Handle) error {
+	return e.MustBeList(e.Arg(o, 0), func(vn term.Handle) error {
 		vn = e.Deref(vn)
 
 		if _, ok := e.Variable(vn); ok {
@@ -3057,7 +3045,7 @@ func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
 func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Handle) Promise {
 	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
 
-	p, err := e.mustBeInteger(priority)
+	p, err := e.MustBeInteger(priority)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3069,7 +3057,7 @@ func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator,
 		}, cont)
 	}
 
-	opSpec, err := e.mustBeAtom(operatorSpecifier)
+	opSpec, err := e.MustBeAtom(operatorSpecifier)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3105,8 +3093,8 @@ func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator,
 		}
 		ops = append(ops, a)
 	} else {
-		if err := e.mustBeList(operator, func(elem term.Handle) error {
-			a, err := e.mustBeAtom(elem)
+		if err := e.MustBeList(operator, func(elem term.Handle) error {
+			a, err := e.MustBeAtom(elem)
 			if err != nil {
 				return err
 			}
@@ -3296,12 +3284,12 @@ func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, op
 }
 
 func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Handle) Promise {
-	in, err := e.mustBeChar(inChar)
+	in, err := e.MustBeChar(inChar)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	out, err := e.mustBeChar(outChar)
+	out, err := e.MustBeChar(outChar)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3536,7 +3524,7 @@ func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg
 }
 
 func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Handle) Promise {
-	a, err := e.mustBeAtom(atom)
+	a, err := e.MustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3569,12 +3557,12 @@ func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term
 		return e.Throw(err, cont)
 	}
 	if !ok {
-		a1, err := e.mustBeAtom(atom1)
+		a1, err := e.MustBeAtom(atom1)
 		if err != nil {
 			return e.Throw(err, cont)
 		}
 
-		a2, err := e.mustBeAtom(atom2)
+		a2, err := e.MustBeAtom(atom2)
 		if err != nil {
 			return e.Throw(err, cont)
 		}
@@ -3650,7 +3638,7 @@ func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term
 }
 
 func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subAtom, cont term.Handle) Promise {
-	a, err := e.mustBeAtom(atom)
+	a, err := e.MustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3767,8 +3755,8 @@ func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Handle) 
 	}
 	if !ok {
 		var sb strings.Builder
-		if err := e.mustBeList(chars, func(elem term.Handle) error {
-			r, err := e.mustBeChar(elem)
+		if err := e.MustBeList(chars, func(elem term.Handle) error {
+			r, err := e.MustBeChar(elem)
 			if err != nil {
 				return err
 			}
@@ -3824,7 +3812,7 @@ func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Handle) 
 	}
 	if !ok {
 		var sb strings.Builder
-		if err := e.mustBeList(codes, func(elem term.Handle) error {
+		if err := e.MustBeList(codes, func(elem term.Handle) error {
 			r, err := e.mustBeCharCode(elem)
 			if err != nil {
 				return err
@@ -3924,7 +3912,7 @@ func CharCode2(_ context.Context, e *Execution, char, code, cont term.Handle) Pr
 func NumberChars2(_ context.Context, e *Execution, number, list, cont term.Handle) Promise {
 	var sb strings.Builder
 	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
-		r, err := e.mustBeChar(elem)
+		r, err := e.MustBeChar(elem)
 		if err != nil {
 			return err
 		}
@@ -4196,7 +4184,7 @@ var (
 func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Handle) Promise {
 	value = e.Deref(value)
 
-	f, err := e.mustBeAtom(flag)
+	f, err := e.MustBeAtom(flag)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4330,7 +4318,7 @@ func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.
 }
 
 func Halt1(_ context.Context, e *Execution, x, cont term.Handle) Promise {
-	n, err := e.mustBeInteger(x)
+	n, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4394,13 +4382,12 @@ func Discontiguous1(_ context.Context, e *Execution, t, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func GetNeckCut1(_ context.Context, e *Execution, t *term.Handle) (bool, error) {
+func GetNeckCut1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
 	cutB, err := e.PutInteger(int64(e.cutB))
 	if err != nil {
 		return false, err
 	}
-	*t = cutB
-	return true, nil
+	return e.Unify(t, cutB)
 }
 
 func GetCont1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
@@ -4652,7 +4639,7 @@ func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promi
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4660,7 +4647,7 @@ func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promi
 	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
 		return e.Throw(err, cont)
 	}
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4768,7 +4755,7 @@ func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4776,7 +4763,7 @@ func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
 		return e.Throw(err, cont)
 	}
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4811,7 +4798,7 @@ func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4819,7 +4806,7 @@ func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
 		return e.Throw(err, cont)
 	}
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4969,7 +4956,7 @@ func FloatIntegerPart2(_ context.Context, e *Execution, x, out, cont term.Handle
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -4997,7 +4984,7 @@ func FloatFractionalPart2(_ context.Context, e *Execution, x, out, cont term.Han
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5056,7 +5043,7 @@ func Floor2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5091,12 +5078,12 @@ func Truncate2(_ context.Context, e *Execution, x, out, cont term.Handle) Promis
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	r, err := ceilingFtoI(f)
+	r, err := truncateFtoI(f)
 	if err != nil {
 		return e.Throw(&EvaluationError{
 			Cause:    err,
@@ -5126,7 +5113,7 @@ func Round2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5161,7 +5148,7 @@ func Ceiling2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	f, err := e.mustBeFloat(x)
+	f, err := e.MustBeFloat(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5196,7 +5183,7 @@ func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Pro
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
 		return e.Throw(err, cont)
 	}
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5204,7 +5191,7 @@ func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Pro
 	if _, _, _, _, err := e.mustBeNumber(y); err != nil {
 		return e.Throw(err, cont)
 	}
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5903,12 +5890,12 @@ func Pi1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
 func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5933,12 +5920,12 @@ func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Ha
 func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5963,12 +5950,12 @@ func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Han
 func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -5993,12 +5980,12 @@ func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Handle) P
 func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -6023,7 +6010,7 @@ func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Pr
 func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	x = e.Deref(x)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -6048,12 +6035,12 @@ func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Handl
 func BitwiseXor3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
-	i, err := e.mustBeInteger(x)
+	i, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	j, err := e.mustBeInteger(y)
+	j, err := e.MustBeInteger(y)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
@@ -6315,376 +6302,4 @@ func concat[T any](ss ...iter.Seq[T]) iter.Seq[T] {
 			}
 		}
 	}
-}
-
-func addI(x, y int64) (int64, error) {
-	switch {
-	case y > 0 && x > math.MaxInt64-y:
-		return 0, IntOverflow
-	case y < 0 && x < math.MinInt64-y:
-		return 0, IntOverflow
-	default:
-		return x + y, nil
-	}
-}
-
-func addF(x, y float64) (float64, error) {
-	switch {
-	case y > 0 && x > math.MaxFloat64-y:
-		return 0, FloatOverflow
-	case y < 0 && x < -math.MaxFloat64-y:
-		return 0, FloatOverflow
-	default:
-		return x + y, nil
-	}
-}
-
-func addIF(x int64, y float64) (float64, error) {
-	return addF(float64(x), y)
-}
-
-func addFI(x float64, y int64) (float64, error) {
-	return addF(x, float64(y))
-}
-
-func subI(x, y int64) (int64, error) {
-	switch {
-	case y < 0 && x > math.MaxInt64+y:
-		return 0, IntOverflow
-	case y > 0 && x < math.MinInt64+y:
-		return 0, IntOverflow
-	default:
-		return x - y, nil
-	}
-}
-
-func subF(x, y float64) (float64, error) {
-	return addF(x, -y)
-}
-
-func subFI(x float64, n int64) (float64, error) {
-	return subF(x, float64(n))
-}
-
-func subIF(n int64, x float64) (float64, error) {
-	return subF(float64(n), x)
-}
-
-func mulI(x, y int64) (int64, error) {
-	switch {
-	case x == -1 && y == math.MinInt64:
-		return 0, IntOverflow
-	case x == math.MinInt64 && y == -1:
-		return 0, IntOverflow
-	case y == 0:
-		return 0, nil
-	default:
-		r := x * y
-		if r/y != x {
-			return 0, IntOverflow
-		}
-		return r, nil
-	}
-}
-
-func mulF(x, y float64) (float64, error) {
-	switch {
-	case y != 0 && math.Abs(x) > math.MaxFloat64/math.Abs(y):
-		return 0, FloatOverflow
-	}
-
-	r := x * y
-
-	// Underflow: x*y = 0 iff x = 0 or y = 0.
-	if r == 0 && x != 0 && y != 0 {
-		return 0, Underflow
-	}
-
-	return r, nil
-}
-
-func mulIF(n int64, x float64) (float64, error) {
-	return mulF(float64(n), x)
-}
-
-func mulFI(x float64, n int64) (float64, error) {
-	return mulF(x, float64(n))
-}
-
-func intDivI(x, y int64) (int64, error) {
-	switch {
-	case y == 0:
-		return 0, ZeroDivisor
-	case x == math.MinInt64 && y == -1:
-		// Two's complement special case
-		return 0, IntOverflow
-	default:
-		return x / y, nil
-	}
-}
-
-func divI(n, m int64) (float64, error) {
-	return divF(float64(n), float64(m))
-}
-
-func divF(x, y float64) (float64, error) {
-	switch {
-	case y == 0:
-		return 0, ZeroDivisor
-	case math.Abs(x) > math.MaxFloat64*math.Abs(y):
-		return 0, FloatOverflow
-	}
-
-	r := x / y
-
-	// Underflow: x/y = 0 iff x = 0 and y != 0.
-	if r == 0 && x != 0 {
-		return 0, Underflow
-	}
-
-	return r, nil
-}
-
-func divIF(n int64, x float64) (float64, error) {
-	return divF(float64(n), x)
-}
-
-func divFI(x float64, n int64) (float64, error) {
-	return divF(x, float64(n))
-}
-
-func remI(x, y int64) (int64, error) {
-	if y == 0 {
-		return 0, ZeroDivisor
-	}
-	return x - ((x / y) * y), nil
-}
-
-func modI(x, y int64) (int64, error) {
-	if y == 0 {
-		return 0, ZeroDivisor
-	}
-	return x - (int64(math.Floor(float64(x)/float64(y))) * y), nil
-}
-
-func negI(x int64) (int64, error) {
-	// Two's complement special case
-	if x == math.MinInt64 {
-		return 0, IntOverflow
-	}
-	return -x, nil
-}
-
-func negF(x float64) float64 {
-	return -x
-}
-
-func absI(x int64) (int64, error) {
-	switch {
-	case x == math.MinInt64:
-		return 0, IntOverflow
-	case x < 0:
-		return -x, nil
-	default:
-		return x, nil
-	}
-}
-
-func absF(x float64) float64 {
-	return math.Abs(float64(x))
-}
-
-func signI(x int64) int64 {
-	switch {
-	case x > 0:
-		return 1
-	case x < 0:
-		return -1
-	default:
-		return 0
-	}
-}
-
-func signF(x float64) float64 {
-	switch {
-	case x > 0:
-		return 1
-	case x < 0:
-		return -1
-	default:
-		return 0
-	}
-}
-
-func posI(x int64) (int64, error) {
-	return x, nil
-}
-
-func posF(x float64) (float64, error) {
-	return x, nil
-}
-
-func intFloorDivI(x, y int64) (int64, error) {
-	switch {
-	case x == math.MinInt64 && y == -1:
-		return 0, IntOverflow
-	case y == 0:
-		return 0, ZeroDivisor
-	default:
-		return int64(math.Floor(float64(x) / float64(y))), nil
-	}
-}
-
-func intPartF(x float64) float64 {
-	s := signF(x)
-	return s * math.Floor(math.Abs(x))
-}
-
-func fractPartF(x float64) float64 {
-	i := intPartF(x)
-	return x - i
-}
-
-func eqI(m, n int64) bool {
-	return m == n
-}
-
-func eqF(x, y float64) bool {
-	return x == y
-}
-
-func eqFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return eqF(x, y)
-}
-
-func eqIF(n int64, y float64) bool {
-	return eqFI(y, n)
-}
-
-func neqF(x, y float64) bool {
-	return x != y
-}
-
-func neqI(m, n int64) bool {
-	return m != n
-}
-
-func neqFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return neqF(x, y)
-}
-
-func neqIF(n int64, y float64) bool {
-	return neqFI(y, n)
-}
-
-func lssF(x, y float64) bool {
-	return x < y
-}
-
-func lssI(m, n int64) bool {
-	return m < n
-}
-
-func lssFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return lssF(x, y)
-}
-
-func lssIF(n int64, y float64) bool {
-	return gtrFI(y, n)
-}
-
-func leqF(x, y float64) bool {
-	return x <= y
-}
-
-func leqI(m, n int64) bool {
-	return m <= n
-}
-
-func leqFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return leqF(x, y)
-}
-
-func leqIF(n int64, y float64) bool {
-	return geqFI(y, n)
-}
-
-func gtrF(x, y float64) bool {
-	return x > y
-}
-
-func gtrI(m, n int64) bool {
-	return m > n
-}
-
-func gtrFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return gtrF(x, y)
-}
-
-func gtrIF(n int64, y float64) bool {
-	return lssFI(y, n)
-}
-
-func geqF(x, y float64) bool {
-	return x >= y
-}
-
-func geqI(m, n int64) bool {
-	return m >= n
-}
-
-func geqFI(x float64, n int64) bool {
-	y := floatItoF(n)
-	return geqF(x, y)
-}
-
-func geqIF(n int64, y float64) bool {
-	return leqFI(y, n)
-}
-
-// Type conversion operations
-
-func floatItoF(n int64) float64 {
-	return float64(n)
-}
-
-func floatFtoF(x float64) float64 {
-	return x
-}
-
-func floorFtoI(x float64) (int64, error) {
-	f := math.Floor(x)
-	if f >= float64(math.MaxInt64) || f < float64(math.MinInt64) {
-		return 0, IntOverflow
-	}
-	return int64(f), nil
-}
-
-func truncateFtoI(x float64) (int64, error) {
-	t := math.Trunc(x)
-	if t >= float64(math.MaxInt64) || t < float64(math.MinInt64) {
-		return 0, IntOverflow
-	}
-	return int64(t), nil
-}
-
-func roundFtoI(x float64) (int64, error) {
-	r := math.Round(x)
-	if r >= float64(math.MaxInt64) || r < float64(math.MinInt64) {
-		return 0, IntOverflow
-	}
-	return int64(r), nil
-}
-
-func ceilingFtoI(x float64) (int64, error) {
-	c := math.Ceil(x)
-	if c >= float64(math.MaxInt64) || c < float64(math.MinInt64) {
-		return 0, IntOverflow
-	}
-	return int64(c), nil
 }

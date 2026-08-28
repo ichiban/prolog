@@ -22,7 +22,7 @@ func (e *Engine) canBeAtom(t term.Handle) (term.Atom, bool, error) {
 	return a, true, nil
 }
 
-func (e *Engine) mustBeAtom(t term.Handle) (term.Atom, error) {
+func (e *Engine) MustBeAtom(t term.Handle) (term.Atom, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Atom{}, &InstantiationError{
 			Location: e.location,
@@ -55,7 +55,7 @@ func (e *Engine) canBeChar(t term.Handle) (rune, bool, error) {
 	return r, true, nil
 }
 
-func (e *Engine) mustBeChar(t term.Handle) (rune, error) {
+func (e *Engine) MustBeChar(t term.Handle) (rune, error) {
 	r, ok, err := e.canBeChar(t)
 	if err != nil {
 		return 0, err
@@ -83,7 +83,7 @@ func (e *Engine) canBeInteger(t term.Handle) (int64, bool, error) {
 	return n, true, nil
 }
 
-func (e *Engine) mustBeInteger(t term.Handle) (int64, error) {
+func (e *Engine) MustBeInteger(t term.Handle) (int64, error) {
 	n, ok, err := e.canBeInteger(t)
 	if err != nil {
 		return 0, err
@@ -160,7 +160,7 @@ func (e *Engine) canBeFloat(t term.Handle) (float64, bool, error) {
 	return f, true, nil
 }
 
-func (e *Engine) mustBeFloat(t term.Handle) (float64, error) {
+func (e *Engine) MustBeFloat(t term.Handle) (float64, error) {
 	f, ok, err := e.canBeFloat(t)
 	if err != nil {
 		return 0, err
@@ -618,7 +618,7 @@ func (e *Engine) canBeList(list term.Handle, fn func(elem term.Handle) error) (b
 	return true, nil
 }
 
-func (e *Engine) mustBeList(list term.Handle, fn func(elem term.Handle) error) error {
+func (e *Engine) MustBeList(list term.Handle, fn func(elem term.Handle) error) error {
 	if fn == nil {
 		fn = func(term.Handle) error {
 			return nil
@@ -648,7 +648,7 @@ func (e *Engine) mustBeList(list term.Handle, fn func(elem term.Handle) error) e
 
 func (e *Engine) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) error) error {
 	var ok bool
-	if err := e.mustBeList(list, func(elem term.Handle) error {
+	if err := e.MustBeList(list, func(elem term.Handle) error {
 		ok = true
 		return fn(elem)
 	}); err != nil {
@@ -662,4 +662,33 @@ func (e *Engine) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) 
 		}
 	}
 	return nil
+}
+
+func (e *Engine) canBeCompound(t term.Handle) (term.Functor, bool, error) {
+	t = e.Deref(t)
+	if _, ok := e.Variable(t); ok {
+		return 0, false, nil
+	}
+	f, ok := e.Functor(t)
+	if !ok {
+		return 0, false, &TypeError{
+			ValidType: term.NewAtom("compound"),
+			Culprit:   syntax.Serialize(e.Arena, t),
+			Location:  e.location,
+		}
+	}
+	return f, true, nil
+}
+
+func (e *Engine) MustBeCompound(t term.Handle) (term.Functor, error) {
+	f, ok, err := e.canBeCompound(t)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, &InstantiationError{
+			Location: e.location,
+		}
+	}
+	return f, nil
 }
