@@ -1,3 +1,10 @@
+// The instruction set follows BinWAM, the abstract machine of BinProlog
+// (github.com/ptarau/binprolog, src/global.h) by Paul Tarau: of the
+// opcodes below, all but Nop, Builtin, PutValue and GetVariable correspond to
+// one of BinWAM's. This is an independent implementation of that design rather
+// than a port of binprolog's code. See the Provenance section of
+// ARCHITECTURE.md.
+
 package wam
 
 import "fmt"
@@ -62,54 +69,6 @@ const (
 
 	// OpBuiltin0 marks the beginning of the builtin section.
 	OpBuiltin0
-
-	/* TODO: We're not going to define those specific opcodes but need to define Builtins for them.
-	OpEvaluate
-	OpEqual
-	OpNotEqual
-	OpLessThan
-	OpLessThanOrEqual
-	OpGreaterThan
-	OpGreaterThanOrEqual
-	OpAdd
-	OpSubtract
-	OpMultiply
-	OpIntDivide
-	OpDivide
-	OpRemainder
-	OpModulo
-	OpNegate
-	OpAbsolute
-	OpSign
-	OpFloatIntegerPart
-	OpFloatFractionalPart
-	OpFloat
-	OpFloor
-	OpTruncate
-	OpRound
-	OpCeiling
-	OpPower
-	OpSine
-	OpCosine
-	OpArcTangent
-	OpExponential
-	OpLogarithm
-	OpSquareRoot
-	OpMaximum
-	OpMinimum
-	OpIntegerPower
-	OpArcSine
-	OpArcCosine
-	OpArcTangent2
-	OpTangent
-	OpPi
-	OpBitwiseRightShift
-	OpBitwiseLeftShift
-	OpBitwiseAnd
-	OpBitwiseOr
-	OpBitwiseComplement
-	OpBitwiseXor
-	*/
 )
 
 var OpCodeNames = [...]string{

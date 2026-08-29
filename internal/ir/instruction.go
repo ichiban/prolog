@@ -1,3 +1,9 @@
+// The instruction vocabulary follows BinWAM, the abstract machine of BinProlog
+// (github.com/ptarau/binprolog) by Paul Tarau: the write and push
+// families are BinWAM's rather than Warren's. The orthogonal opcode/type
+// encoding, and the implementation, are original. See the Provenance section of
+// ARCHITECTURE.md.
+
 package ir
 
 import (

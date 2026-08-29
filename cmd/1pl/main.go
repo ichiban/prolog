@@ -154,7 +154,7 @@ func handleLine(ctx context.Context, buf *strings.Builder, i *prolog.Interpreter
 	var (
 		resultShown bool
 	)
-	for result, err := range prolog.Query[prolog.Result](ctx, i, buf.String()) {
+	for result, err := range i.Query[map[string]prolog.Raw](ctx, buf.String()) {
 		switch {
 		case err == nil:
 			buf.Reset()

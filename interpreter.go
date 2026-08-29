@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"iter"
-	"slices"
 	"strings"
 
 	"github.com/ichiban/prolog/v2/internal/db"
@@ -30,9 +29,6 @@ type Atom string
 
 // Raw is a type to annotate the given string represents a term, not an atom nor string.
 type Raw string
-
-// Result is a generic result map. It contains variable names as keys and associated terms as values.
-type Result map[string]Raw
 
 type InterpreterOptions struct {
 	heapSize     int32
@@ -175,7 +171,7 @@ func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Exec
 
 // Register1 registers fn as the custom predicate name/1.
 // fn receives the goal's argument as a [Term], which may be bound or unbound depending on how it's called.
-// Register1 must be called before the first [Interpreter.Load] or [Query] or it'll return an error.
+// Register1 must be called before the first [Interpreter.Load] or [Interpreter.Query] or it'll return an error.
 // Also, it returns an error if name/1 is already taken.
 func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Execution, arg1 Term) Outcome) error {
 	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Handle) runtime.Promise {
@@ -279,8 +275,7 @@ func VariableNames(varNames *[]VariableName) QueryOption {
 }
 
 // Query queries an interpreter and returns results.
-func Query[T any](ctx context.Context, i *Interpreter, query string, opts ...QueryOption) iter.Seq2[T, error] {
-	// FIXME: iter.Seq2[T, error] is a code smell since the error is not an element of the sequence but the error of the sequence itself.
+func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...QueryOption) iter.Seq2[T, error] {
 	var options QueryOptions
 	for _, o := range opts {
 		o(&options)
@@ -363,63 +358,6 @@ func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 		VariableNames: varNames,
 		Quoted:        true,
 	}, origErr)
-}
-
-func (i *Interpreter) decodeResult(out any, varNames []term.VariableName) error {
-	switch out := out.(type) {
-	case *Result:
-		if *out == nil {
-			*out = Result{}
-		}
-		for _, vn := range varNames {
-			if vn.Name == "_" {
-				continue
-			}
-			t := vn.Variable
-			t = i.engine.Deref(t)
-			if _, ok := i.engine.Variable(t); ok {
-				if t == vn.Variable {
-					continue
-				}
-				if i := slices.IndexFunc(varNames, func(vn term.VariableName) bool {
-					return vn.Variable == t
-				}); i < 0 {
-					continue
-				}
-			}
-			(*out)[vn.Name] = Raw(fmt.Sprintf("%s", &syntax.Formatter{
-				Arena:         i.engine.Arena,
-				Term:          t,
-				VariableNames: varNames,
-				Quoted:        true,
-			}))
-		}
-		return nil
-	default:
-		// TODO: Support structs.
-		return fmt.Errorf("unexpected result type: %T", out)
-	}
-}
-
-func (i *Interpreter) decodeTerm(t term.Handle) Value {
-	e := i.engine
-	t = e.Deref(t)
-	if _, ok := e.Variable(t); ok {
-		return nil
-	}
-	if a, ok := e.Atom(t); ok {
-		return Value(Atom(a.String()))
-	}
-	if n, ok := e.Integer(t); ok {
-		return Value(n)
-	}
-	if f, ok := e.Float(t); ok {
-		return Value(f)
-	}
-	if s, ok := e.CharList(t); ok {
-		return Value(s)
-	}
-	return Raw(fmt.Sprintf("%s", &syntax.Formatter{Arena: i.engine.Arena, Term: t, Quoted: true}))
 }
 
 func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {

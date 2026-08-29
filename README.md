@@ -1,8 +1,8 @@
 # ![prolog - the only reasonable scripting engine for Go](prolog.gif)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ichiban/prolog.svg)](https://pkg.go.dev/github.com/ichiban/prolog)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ichiban/prolog/v2.svg)](https://pkg.go.dev/github.com/ichiban/prolog/v2)
 [![Actions Status](https://github.com/ichiban/prolog/actions/workflows/go.yml/badge.svg)](https://github.com/ichiban/prolog/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ichiban/prolog)](https://goreportcard.com/report/github.com/ichiban/prolog)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ichiban/prolog/v2)](https://goreportcard.com/report/github.com/ichiban/prolog/v2)
 [![codecov](https://codecov.io/gh/ichiban/prolog/branch/main/graph/badge.svg?token=2FC3PZY7LN)](https://codecov.io/gh/ichiban/prolog)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
@@ -39,46 +39,66 @@ go get -u github.com/ichiban/prolog/v2
 
 ### Usage
 
-#### Instantiate a processor
+#### Load and Query
 
 ```go
-p := prolog.New()
-```
+package main
 
-#### Load a Prolog program
+import (
+  "context"
+  "embed"
+  "fmt"
 
-```go
-// Mount a fs.FS that contains a Prolog file.
-p.Mount(fs)
+  "github.com/ichiban/prolog/v2"
+)
 
-// Load the file. 
-if err := p.Load(ctx, "human.pl"); err != nil {
-	panic(err)
+//go:embed src
+var src embed.FS
+
+func main() {
+  // Construct a Prolog interpreter.
+  p := prolog.New()
+
+  // Mount a fs.FS that contains a Prolog file.
+  if err := p.MountFS("", src); err != nil {
+    panic(err)
+  }
+
+  ctx := context.Background()
+
+  // Load the file.
+  if err := p.Load(ctx, "", "src/human.pl"); err != nil {
+    panic(err)
+  }
+
+  // Define a struct type with fields which name corresponds with a variable in the query.
+  type result struct {
+    Who prolog.Atom
+  }
+
+  // Iterates over solutions.
+  for r, err := range p.Query[result](ctx, `mortal(Who).`) {
+    // Check if an error occurred while querying.
+    if err != nil {
+      panic(err)
+    }
+
+    fmt.Printf("Who = %s\n", r.Who) // ==> Who = socrates
+  }
 }
 ```
 
-#### Run the Prolog program
+### Custom Predicates in Go
+
+You can define a custom predicate in Go.
 
 ```go
-// Define a struct type with fields which name corresponds with a variable in the query.
-type sol struct{
-	Who string
-}
 
-// Iterates over solutions.
-for s, err := range prolog.Query[sol](ctx, p, `mortal(Who).`) {
-	// Check if an error occurred while querying.
-	if err != nil {
-		panic(err)
-	}
-	
-	fmt.Printf("Who = %s\n", s.Who) // ==> Who = socrates
-}
 ```
 
 ## The Default Language
 
-`ichiban/prolog` adheres the ISO standard and comes with the ISO predicates as well as the Prologue for Prolog and DCG predicates.
+`ichiban/prolog` adheres to the ISO standard and comes with the ISO predicates as well as the Prologue for Prolog and DCG predicates.
 
 See [the Wiki](https://github.com/ichiban/prolog/wiki) for the directives and the built-in predicates.
 
@@ -100,12 +120,21 @@ $(go env GOPATH)/bin/1pl [<file>...]
 
 ## Extensions
 
+### For v2
+
+None yet — contributions welcome.
+
+### For v1
+
 - **[predicates](https://github.com/guregu/predicates):** Native predicates for ichiban/prolog.
 - **[kagomelog](https://github.com/ichiban/kagomelog):** a Japanese morphological analyzing predicate.
 
 ## License
 
 Distributed under the MIT license. See `LICENSE` for more information.
+
+Some of the files are based on Paul Tarau's work on [binprolog](https://github.com/ptarau/binprolog).
+Such parts are distributed under Apache License Version 2.0. See `LICENSE-binprolog` for more information.
 
 ## Contributing
 
@@ -123,6 +152,6 @@ We would like to extend our thanks to the following individuals for their contri
 
 - [guregu](https://github.com/guregu) for contributing code and ideas
 - [Markus Triska](https://github.com/triska) for his deep knowledge and insights on modern Prolog, as evidenced by his insightful comments on issues
-- [Prof. Ulrich Neumerkel](https://github.com/UWN) for valuable guidance, his [works on ISO standards](http://www.complang.tuwien.ac.at/ulrich/iso-prolog/), [the Prologue for Prolog](http://www.complang.tuwien.ac.at/ulrich/iso-prolog/prologue), and DCGs.
+- [Ulrich Neumerkel](https://github.com/UWN) for valuable guidance, his [works on ISO standards](http://www.complang.tuwien.ac.at/ulrich/iso-prolog/), [the Prologue for Prolog](http://www.complang.tuwien.ac.at/ulrich/iso-prolog/prologue), and DCGs.
 
 We are grateful for the support and contributions of everyone involved in this project. Arigatou gozaimasu!

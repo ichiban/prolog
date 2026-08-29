@@ -1968,7 +1968,7 @@ a`},
 			}
 
 			for _, p := range test.setup {
-				for _, err := range Query[Result](t.Context(), i, p) {
+				for _, err := range i.Query[map[string]Raw](t.Context(), p) {
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1976,7 +1976,7 @@ a`},
 			}
 			defer func() {
 				for _, p := range test.teardown {
-					for _, err := range Query[Result](t.Context(), i, p) {
+					for _, err := range i.Query[map[string]Raw](t.Context(), p) {
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -1988,7 +1988,7 @@ a`},
 				j   int
 				vns []VariableName
 			)
-			for _, err := range Query[Result](t.Context(), i, test.query, VariableNames(&vns)) {
+			for _, err := range i.Query[map[string]Raw](t.Context(), test.query, VariableNames(&vns)) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)
@@ -2015,7 +2015,7 @@ a`},
 							ok  bool
 							vns = slices.Clone(vns)
 						)
-						for _, err := range Query[Result](t.Context(), i, expectation, VariableNames(&vns)) {
+						for _, err := range i.Query[map[string]Raw](t.Context(), expectation, VariableNames(&vns)) {
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -2065,7 +2065,7 @@ func solutions(t *testing.T, i *Interpreter, query string) []string {
 	t.Helper()
 
 	var got []string
-	for r, err := range Query[Result](t.Context(), i, query) {
+	for r, err := range i.Query[map[string]Raw](t.Context(), query) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2214,7 +2214,7 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 
 	var ok bool
-	for _, err := range Query[Result](t.Context(), i, `q([a, b, c]).`) {
+	for _, err := range i.Query[map[string]Raw](t.Context(), `q([a, b, c]).`) {
 		if err != nil {
 			t.Fatal(err)
 		}

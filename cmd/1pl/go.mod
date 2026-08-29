@@ -1,6 +1,6 @@
 module github.com/ichiban/prolog/cmd/1pl
 
-go 1.25.0
+go 1.27.0
 
 require golang.org/x/crypto v0.53.0
 
