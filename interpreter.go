@@ -169,7 +169,7 @@ func (i *Interpreter) register(name string, arity int, proc runtime.Procedure) e
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Execution) Outcome) error {
 	return i.register(name, 0, runtime.Predicate0(func(ctx context.Context, e *runtime.Execution, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}).promise
 	}))
 }
 
@@ -179,7 +179,7 @@ func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Exec
 // Also, it returns an error if name/1 is already taken.
 func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Execution, arg1 Term) Outcome) error {
 	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}).promise
 	}))
 }
 
@@ -187,7 +187,7 @@ func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register2(name string, fn func(ctx context.Context, e Execution, arg1, arg2 Term) Outcome) error {
 	return i.register(name, 2, runtime.Predicate2(func(ctx context.Context, e *runtime.Execution, arg1, arg2, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}).promise
 	}))
 }
 
@@ -195,7 +195,7 @@ func (i *Interpreter) Register2(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register3(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3 Term) Outcome) error {
 	return i.register(name, 3, runtime.Predicate3(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}).promise
 	}))
 }
 
@@ -203,7 +203,7 @@ func (i *Interpreter) Register3(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register4(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4 Term) Outcome) error {
 	return i.register(name, 4, runtime.Predicate4(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}).promise
 	}))
 }
 
@@ -211,7 +211,7 @@ func (i *Interpreter) Register4(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register5(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
 	return i.register(name, 5, runtime.Predicate5(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}).promise
 	}))
 }
 
@@ -219,7 +219,7 @@ func (i *Interpreter) Register5(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register6(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
 	return i.register(name, 6, runtime.Predicate6(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}).promise
 	}))
 }
 
@@ -227,7 +227,7 @@ func (i *Interpreter) Register6(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register7(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
 	return i.register(name, 7, runtime.Predicate7(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}).promise
 	}))
 }
 
@@ -235,7 +235,7 @@ func (i *Interpreter) Register7(name string, fn func(ctx context.Context, e Exec
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register8(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
 	return i.register(name, 8, runtime.Predicate8(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{execution: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}, Term{handle: arg8}).promise
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}, Term{handle: arg8}).promise
 	}))
 }
 
