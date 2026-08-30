@@ -34,8 +34,6 @@ type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32
 	streamSize   int32
-	warn         func(error)
-	halt         func(code int)
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -55,18 +53,6 @@ func TempHeapSize(tempHeapSize int32) InterpreterOption {
 func StreamSize(streamSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.streamSize = streamSize
-	}
-}
-
-func Warn(fn func(error)) InterpreterOption {
-	return func(o *InterpreterOptions) {
-		o.warn = fn
-	}
-}
-
-func Halt(fn func(code int)) InterpreterOption {
-	return func(o *InterpreterOptions) {
-		o.halt = fn
 	}
 }
 
@@ -97,8 +83,6 @@ func New(opts ...InterpreterOption) *Interpreter {
 			BuiltinSet: runtime.NewBuiltinSet(),
 			Ops:        *syntax.NewOperatorSet(),
 			DB:         &db.MemoryDB{},
-			Warn:       opt.warn,
-			Halt:       opt.halt,
 		},
 	}
 }
@@ -137,6 +121,16 @@ func (i *Interpreter) SetUserOutput(w io.Writer) error {
 	}
 	i.engine.Output = s
 	return nil
+}
+
+// SetWarn sets the handler called when the interpreter finds a problem that doesn't stop it from continuing but is worth reporting.
+func (i *Interpreter) SetWarn(warn func(err error)) {
+	i.engine.Warn = warn
+}
+
+// SetHalt sets the handler called when a program executes halt/0 or halt/1, with the exit code.
+func (i *Interpreter) SetHalt(halt func(code int)) {
+	i.engine.Halt = halt
 }
 
 // register adds fn to the builtin set as name/arity. The functor stored in the

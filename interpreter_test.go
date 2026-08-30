@@ -2046,9 +2046,10 @@ func loadFiles(t *testing.T, filenames ...string) (*Interpreter, []error, error)
 	t.Helper()
 
 	var warnings []error
-	i := New(Warn(func(err error) {
+	i := New()
+	i.SetWarn(func(err error) {
 		warnings = append(warnings, err)
-	}))
+	})
 	if err := i.MountFS("", testdata); err != nil {
 		return nil, nil, err
 	}

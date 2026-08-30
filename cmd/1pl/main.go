@@ -68,15 +68,7 @@ Type Ctrl-C or 'halt.' to exit.
 		log.Fatalf("failed to open root: %v", err)
 	}
 
-	i := prolog.New(
-		prolog.Warn(func(err error) {
-			log.Printf("warning: %v", err)
-		}),
-		prolog.Halt(func(code int) {
-			_ = terminal.Restore(0, oldState)
-			os.Exit(code)
-		}),
-	)
+	i := prolog.New()
 	if err := i.MountFS("", prolog.RootFS{Root: r}); err != nil {
 		log.Fatalf("failed to mount: %v", err)
 	}
@@ -86,6 +78,13 @@ Type Ctrl-C or 'halt.' to exit.
 	if err := i.SetUserOutput(os.Stdout); err != nil {
 		log.Fatalf("failed to set user output: %v", err)
 	}
+	i.SetWarn(func(err error) {
+		log.Printf("warning: %v", err)
+	})
+	i.SetHalt(func(code int) {
+		_ = terminal.Restore(0, oldState)
+		os.Exit(code)
+	})
 	if err := i.Register1("version", func(ctx context.Context, e prolog.Execution, arg1 prolog.Term) prolog.Outcome {
 		v, err := e.NewInteger(2)
 		if err != nil {
