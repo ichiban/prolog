@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unsafe"
 )
 
 var (
@@ -51,4 +52,11 @@ func (h *Heap) put(cells ...cell) (int, error) {
 	addr := len(*h)
 	*h = append(*h, cells...)
 	return addr, nil
+}
+
+// cast reinterprets the bits of from as a T. A cell is exactly as wide as an
+// int64 or a float64 (see TestCell_size), so one heap slot holds one of them
+// as a raw payload instead of a cell.
+func cast[F, T any](from F) T {
+	return *(*T)(unsafe.Pointer(&from))
 }

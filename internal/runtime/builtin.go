@@ -1842,9 +1842,14 @@ func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Handle) error
 			Location:    e.location,
 		}
 	}
-	if i := slices.IndexFunc(e.Streams, func(s term.Stream) bool {
-		return s.Alias == a
-	}); i >= 0 {
+	i := -1
+	for j, s := range e.Streams.All() {
+		if s.Alias == a {
+			i = j
+			break
+		}
+	}
+	if i >= 0 {
 		return &PermissionError{
 			Operation:      term.NewAtom("open"),
 			PermissionType: term.NewAtom("source_sink"),

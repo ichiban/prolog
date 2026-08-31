@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ichiban/prolog/v2/internal/side"
 )
 
 // ListOptions is a set of options that configures how a list iterator behaves.
@@ -36,10 +38,8 @@ func AllowPartial(ok bool) ListOption {
 type Arena struct {
 	Heap
 	// TODO: Add a side-car table for big integers.
-	Integers []int64
-	Floats   []float64
-	Strings  []String
-	Streams  []Stream
+	Strings side.Table[String]
+	Streams side.Table[*Stream]
 }
 
 // PutVariable creates a variable term and returns its reference.
@@ -129,10 +129,12 @@ func (a *Arena) PutInteger(n int64) (Handle, error) {
 	if n >= math.MinInt32 && n <= math.MaxInt32 {
 		return Handle{cell: cell{tag: cellTagInt32, value: int32(n)}}, nil
 	}
-	id := len(a.Integers)
-	a.Integers = append(a.Integers, n)
+	addr, err := a.put(cast[int64, cell](n))
+	if err != nil {
+		return Handle{}, err
+	}
 	return Handle{
-		cell: cell{tag: cellTagInt64, value: int32(id)},
+		cell: cell{tag: cellTagInt64, value: int32(addr)},
 	}, nil
 }
 
@@ -140,7 +142,7 @@ func (a *Arena) PutInteger(n int64) (Handle, error) {
 func (a *Arena) Integer(t Handle) (int64, bool) {
 	switch t.cell.tag {
 	case cellTagInt64:
-		return a.Integers[t.cell.value], true
+		return cast[cell, int64](a.Heap[t.cell.value]), true
 	case cellTagInt32:
 		return int64(t.cell.value), true
 	default:
@@ -150,10 +152,12 @@ func (a *Arena) Integer(t Handle) (int64, bool) {
 
 // PutFloat creates a float term and returns its address.
 func (a *Arena) PutFloat(f float64) (Handle, error) {
-	id := len(a.Floats)
-	a.Floats = append(a.Floats, f)
+	addr, err := a.put(cast[float64, cell](f))
+	if err != nil {
+		return Handle{}, err
+	}
 	return Handle{
-		cell: cell{tag: cellTagFloat, value: int32(id)},
+		cell: cell{tag: cellTagFloat, value: int32(addr)},
 	}, nil
 }
 
@@ -161,7 +165,7 @@ func (a *Arena) PutFloat(f float64) (Handle, error) {
 func (a *Arena) Float(t Handle) (float64, bool) {
 	switch t.cell.tag {
 	case cellTagFloat:
-		return a.Floats[t.cell.value], true
+		return cast[cell, float64](a.Heap[t.cell.value]), true
 	default:
 		return 0, false
 	}
@@ -296,8 +300,7 @@ func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
 		}
 	}
 
-	strID := len(a.Strings)
-	a.Strings = append(a.Strings, String{Body: str, Tail: tail})
+	strID := a.Strings.Add(String{Body: str, Tail: tail})
 
 	return Handle{
 		cell: cell{tag: cellTagString, value: int32(strID), aux: 0},
@@ -385,7 +388,7 @@ func (a *Arena) Arg(t Handle, n int) Handle {
 		}
 	case cellTagString:
 		offset := t.cell.aux
-		str := a.Strings[t.cell.value]
+		str := a.Strings.Get(int(t.cell.value))
 		r, s := utf8.DecodeRuneInString(str.Body[offset:])
 		switch n {
 		case 0:
@@ -500,7 +503,7 @@ func (a *Arena) CharList(t Handle) (string, bool) {
 
 	if t.cell.tag == cellTagString {
 		offset := t.cell.aux
-		str := a.Strings[t.cell.value]
+		str := a.Strings.Get(int(t.cell.value))
 		tail, ok := a.CharList(a.Deref(str.Tail))
 		if !ok {
 			return "", false
@@ -528,8 +531,7 @@ func (a *Arena) CharList(t Handle) (string, bool) {
 }
 
 func (a *Arena) PutStream(s Stream) (Handle, error) {
-	id := len(a.Streams)
-	a.Streams = append(a.Streams, s)
+	id := a.Streams.Add(&s)
 	return Handle{cell{tag: cellTagStream, value: int32(id)}}, nil
 }
 
@@ -537,12 +539,12 @@ func (a *Arena) Stream(t Handle) (*Stream, bool) {
 	if t.cell.tag != cellTagStream {
 		return nil, false
 	}
-	return &a.Streams[t.cell.value], true
+	return a.Streams.Get(int(t.cell.value)), true
 }
 
 func (a *Arena) OpenStreams() iter.Seq[Handle] {
 	return func(yield func(Handle) bool) {
-		for i, s := range a.Streams {
+		for i, s := range a.Streams.All() {
 			if s.Closed {
 				continue
 			}

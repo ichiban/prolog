@@ -114,7 +114,14 @@ func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
 	}
 
 	if s, ok := arena.Stream(t); ok {
-		id, err := arena.PutInteger(int64(slices.Index(arena.Streams, *s)))
+		var sid int64
+		for i, st := range arena.Streams.All() {
+			if st == s {
+				sid = int64(i)
+				break
+			}
+		}
+		id, err := arena.PutInteger(sid)
 		if err != nil {
 			return 0, err
 		}

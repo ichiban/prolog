@@ -364,6 +364,69 @@ func TestArena_PutFloat(t *testing.T) {
 	}
 }
 
+// Integers and floats live in a raw heap slot rather than a cell, so the bits
+// have to survive the round trip exactly.
+func TestArena_numberRoundTrip(t *testing.T) {
+	t.Run("integer", func(t *testing.T) {
+		for _, n := range []int64{
+			math.MinInt64, math.MinInt32 - 1, math.MinInt32, -1, 0, 1,
+			math.MaxInt32, math.MaxInt32 + 1, math.MaxInt64,
+		} {
+			arena := Arena{Heap: make(Heap, 0, 1)}
+
+			h, err := arena.PutInteger(n)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok := arena.Integer(h)
+			if !ok {
+				t.Errorf("%d is not an integer", n)
+			}
+			if got != n {
+				t.Errorf("expected: %d, got: %d", n, got)
+			}
+		}
+	})
+
+	t.Run("float", func(t *testing.T) {
+		for _, f := range []float64{
+			0, math.Copysign(0, -1), 1, -1, 1.5,
+			math.MaxFloat64, -math.MaxFloat64, math.SmallestNonzeroFloat64,
+			math.Inf(1), math.Inf(-1), math.NaN(),
+		} {
+			arena := Arena{Heap: make(Heap, 0, 1)}
+
+			h, err := arena.PutFloat(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok := arena.Float(h)
+			if !ok {
+				t.Errorf("%v is not a float", f)
+			}
+			// Compare bits so that NaN and -0.0 are held to the same standard.
+			if math.Float64bits(got) != math.Float64bits(f) {
+				t.Errorf("expected: %x, got: %x", math.Float64bits(f), math.Float64bits(got))
+			}
+		}
+	})
+
+	t.Run("out of memory", func(t *testing.T) {
+		arena := Arena{Heap: make(Heap, 0, 0)}
+
+		if _, err := arena.PutFloat(1); !errors.Is(err, ErrOutOfMemory) {
+			t.Errorf("expected: %v, got: %v", ErrOutOfMemory, err)
+		}
+		if _, err := arena.PutInteger(math.MaxInt64); !errors.Is(err, ErrOutOfMemory) {
+			t.Errorf("expected: %v, got: %v", ErrOutOfMemory, err)
+		}
+		// A small integer is immediate, so it needs no heap.
+		if _, err := arena.PutInteger(1); err != nil {
+			t.Errorf("expected: %v, got: %v", nil, err)
+		}
+	})
+}
+
 func TestArena_Float(t *testing.T) {
 	arena := Arena{
 		Heap: make(Heap, 0, 1),

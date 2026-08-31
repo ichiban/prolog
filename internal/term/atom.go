@@ -2,6 +2,8 @@ package term
 
 import (
 	"unicode/utf8"
+
+	"github.com/ichiban/prolog/v2/internal/side"
 )
 
 var (
@@ -23,19 +25,7 @@ func NewAtom(ident string) Atom {
 		return NewAtomRune(r)
 	}
 
-	if a, ok := atomTable.ids[ident]; ok {
-		return a
-	}
-
-	a := Atom{kind: atomKindID, value: int32(len(atomTable.entries))}
-	atomTable.entries = append(atomTable.entries, atomTableEntry{
-		ident: ident,
-	})
-	if atomTable.ids == nil {
-		atomTable.ids = map[string]Atom{}
-	}
-	atomTable.ids[ident] = a
-	return a
+	return Atom{kind: atomKindID, value: int32(atomTable.Add(ident))}
 }
 
 // NewAtomRune returns an atom.
@@ -48,7 +38,7 @@ func (a Atom) String() string {
 	case atomKindRune:
 		return string(a.value)
 	case atomKindID:
-		return atomTable.entries[a.value].ident
+		return atomTable.Get(int(a.value))
 	default:
 		return ""
 	}
@@ -74,12 +64,4 @@ const (
 	atomKindID
 )
 
-// TODO: reimplement with container.Pool[T].
-var atomTable struct {
-	ids     map[string]Atom
-	entries []atomTableEntry
-}
-
-type atomTableEntry struct {
-	ident string
-}
+var atomTable side.Pool[string]
