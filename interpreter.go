@@ -33,7 +33,6 @@ type Raw string
 type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32
-	streamSize   int32
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -50,12 +49,6 @@ func TempHeapSize(tempHeapSize int32) InterpreterOption {
 	}
 }
 
-func StreamSize(streamSize int32) InterpreterOption {
-	return func(o *InterpreterOptions) {
-		o.streamSize = streamSize
-	}
-}
-
 // Interpreter is a Prolog processor. It loads prolog texts from files and takes queries.
 type Interpreter struct {
 	engine runtime.Engine
@@ -66,7 +59,6 @@ func New(opts ...InterpreterOption) *Interpreter {
 	opt := InterpreterOptions{
 		heapSize:     8 * 1024,
 		tempHeapSize: 1024,
-		streamSize:   32,
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -74,8 +66,7 @@ func New(opts ...InterpreterOption) *Interpreter {
 	return &Interpreter{
 		engine: runtime.Engine{
 			Arena: &term.Arena{
-				Heap:    make(term.Heap, 0, opt.heapSize),
-				Streams: make([]term.Stream, 0, opt.streamSize),
+				Heap: make(term.Heap, 0, opt.heapSize),
 			},
 			TempArena: &term.Arena{
 				Heap: make(term.Heap, 0, opt.tempHeapSize),

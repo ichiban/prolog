@@ -217,12 +217,12 @@ func (e *Engine) mustBeNumber(t term.Handle) (int64, bool, float64, bool, error)
 
 func (e *Engine) canBeCallable(t term.Handle) (term.Functor, bool, error) {
 	if _, ok := e.Variable(t); ok {
-		return 0, false, nil
+		return term.Functor{}, false, nil
 	}
 
 	f, ok := e.Functor(t, term.AllowAtom(true))
 	if !ok {
-		return 0, false, &TypeError{
+		return term.Functor{}, false, &TypeError{
 			ValidType: term.NewAtom("callable"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
@@ -235,10 +235,10 @@ func (e *Engine) canBeCallable(t term.Handle) (term.Functor, bool, error) {
 func (e *Engine) mustBeCallable(t term.Handle) (term.Functor, error) {
 	f, ok, err := e.canBeCallable(t)
 	if err != nil {
-		return 0, err
+		return term.Functor{}, err
 	}
 	if !ok {
-		return 0, &InstantiationError{
+		return term.Functor{}, &InstantiationError{
 			Location: e.location,
 		}
 	}
@@ -247,11 +247,11 @@ func (e *Engine) mustBeCallable(t term.Handle) (term.Functor, error) {
 
 func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, error) {
 	if _, ok := e.Variable(t); ok {
-		return 0, false, nil
+		return term.Functor{}, false, nil
 	}
 
 	if f, ok := e.Functor(t, term.AllowAtom(true)); !ok || f != term.NewFunctor(term.NewAtomRune('/'), 2) {
-		return 0, false, &TypeError{
+		return term.Functor{}, false, &TypeError{
 			ValidType: term.NewAtom("predicate_indicator"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
@@ -262,7 +262,7 @@ func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, err
 
 	n, nok, err := e.canBeAtom(name)
 	if err != nil {
-		return 0, false, &TypeError{
+		return term.Functor{}, false, &TypeError{
 			ValidType: term.NewAtom("predicate_indicator"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
@@ -271,7 +271,7 @@ func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, err
 
 	a, aok, err := e.canBeInteger(arity)
 	if err != nil {
-		return 0, false, &TypeError{
+		return term.Functor{}, false, &TypeError{
 			ValidType: term.NewAtom("predicate_indicator"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
@@ -279,7 +279,7 @@ func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, err
 	}
 
 	if !nok || !aok {
-		return 0, false, nil
+		return term.Functor{}, false, nil
 	}
 
 	pi := term.NewFunctor(n, int(a))
@@ -289,10 +289,10 @@ func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, err
 func (e *Engine) mustBePredicateIndicator(t term.Handle) (term.Functor, error) {
 	pi, ok, err := e.canBePredicateIndicator(t)
 	if err != nil {
-		return 0, err
+		return term.Functor{}, err
 	}
 	if !ok {
-		return 0, &InstantiationError{
+		return term.Functor{}, &InstantiationError{
 			Location: e.location,
 		}
 	}
@@ -667,11 +667,11 @@ func (e *Engine) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) 
 func (e *Engine) canBeCompound(t term.Handle) (term.Functor, bool, error) {
 	t = e.Deref(t)
 	if _, ok := e.Variable(t); ok {
-		return 0, false, nil
+		return term.Functor{}, false, nil
 	}
 	f, ok := e.Functor(t)
 	if !ok {
-		return 0, false, &TypeError{
+		return term.Functor{}, false, &TypeError{
 			ValidType: term.NewAtom("compound"),
 			Culprit:   syntax.Serialize(e.Arena, t),
 			Location:  e.location,
@@ -683,10 +683,10 @@ func (e *Engine) canBeCompound(t term.Handle) (term.Functor, bool, error) {
 func (e *Engine) MustBeCompound(t term.Handle) (term.Functor, error) {
 	f, ok, err := e.canBeCompound(t)
 	if err != nil {
-		return 0, err
+		return term.Functor{}, err
 	}
 	if !ok {
-		return 0, &InstantiationError{
+		return term.Functor{}, &InstantiationError{
 			Location: e.location,
 		}
 	}

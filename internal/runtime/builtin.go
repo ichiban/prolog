@@ -1839,7 +1839,7 @@ func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Handle) error
 		return &DomainError{
 			ValidDomain: term.NewAtom("stream_option"),
 			Culprit:     syntax.Serialize(e.Arena, o),
-			Location:    0,
+			Location:    e.location,
 		}
 	}
 	if i := slices.IndexFunc(e.Streams, func(s term.Stream) bool {
@@ -3132,7 +3132,7 @@ func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.H
 				Operation:      term.NewAtom("modify"),
 				PermissionType: term.NewAtom("operator"),
 				Culprit:        syntax.Serialize(e.Arena, op),
-				Location:       0,
+				Location:       e.location,
 			}
 		}
 	case term.NewAtomRune('|'):
@@ -5289,7 +5289,7 @@ func Power3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promis
 	if xf == 0 && yf < 0 {
 		return e.Throw(&EvaluationError{
 			Cause:    Undefined,
-			Location: 0,
+			Location: e.location,
 		}, cont)
 	}
 

@@ -85,9 +85,9 @@ func TestArena_Variable(t *testing.T) {
 func TestArena_Deref(t *testing.T) {
 	arena := Arena{
 		Heap: Heap{
-			pack(cell{tag: cellTagReference, value: 0}),
-			pack(cell{tag: cellTagCharacter, value: 'a'}),
-			pack(cell{tag: cellTagReference, value: 1}),
+			cell{tag: cellTagReference, value: 0},
+			cell{tag: cellTagCharacter, value: 'a'},
+			cell{tag: cellTagReference, value: 1},
 		},
 	}
 
@@ -274,12 +274,6 @@ func TestArena_PutInteger(t *testing.T) {
 				cell: cell{tag: cellTagInt32, value: math.MaxInt32 - 1},
 			},
 		},
-		{
-			title:   "out of memory",
-			arena:   Arena{Heap: make(Heap, 0)},
-			integer: math.MaxInt32 + 1,
-			err:     ErrOutOfMemory,
-		},
 	}
 
 	for _, tt := range tests {
@@ -354,12 +348,6 @@ func TestArena_PutFloat(t *testing.T) {
 				cell: cell{tag: cellTagFloat, value: 0},
 			},
 		},
-		{
-			title: "ng",
-			arena: Arena{Heap: make(Heap, 0)},
-			float: 1,
-			err:   ErrOutOfMemory,
-		},
 	}
 
 	for _, tt := range tests {
@@ -407,6 +395,61 @@ func TestArena_Float(t *testing.T) {
 			}
 			if f != test.f {
 				t.Errorf("expected: %v, got: %v", test.f, f)
+			}
+		})
+	}
+}
+
+func TestArena_PutFunctor(t *testing.T) {
+	tests := []struct {
+		title   string
+		functor Functor
+		name    Atom
+		arity   int64
+	}{
+		{
+			title:   "ordinary",
+			functor: NewFunctor(NewAtom("foo"), 2),
+			name:    NewAtom("foo"),
+			arity:   2,
+		},
+		{
+			// The zero Functor has no name. It still has to come out as a
+			// well-formed term since it ends up in error terms.
+			title:   "zero",
+			functor: Functor{},
+			name:    NewAtom(""),
+			arity:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			arena := Arena{Heap: make(Heap, 0, 3)}
+
+			f, err := arena.PutFunctor(tt.functor)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if pi, ok := arena.Functor(f); !ok || pi != NewFunctor(NewAtomRune('/'), 2) {
+				t.Fatalf("expected: /2, got: %v (ok=%v)", pi, ok)
+			}
+
+			name, ok := arena.Atom(arena.Arg(f, 0))
+			if !ok {
+				t.Errorf("name is not an atom")
+			}
+			if name != tt.name {
+				t.Errorf("expected: %v, got: %v", tt.name, name)
+			}
+
+			arity, ok := arena.Integer(arena.Arg(f, 1))
+			if !ok {
+				t.Errorf("arity is not an integer")
+			}
+			if arity != tt.arity {
+				t.Errorf("expected: %v, got: %v", tt.arity, arity)
 			}
 		})
 	}

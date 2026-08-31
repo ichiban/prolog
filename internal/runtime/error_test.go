@@ -18,7 +18,7 @@ func TestTypeError_Error(t *testing.T) {
 		ValidType: term.NewAtom("integer"),
 		Culprit:   `a.`,
 	}
-	if got, want := err.Error(), "invalid type: valid type = integer, culprit = a., location = ./2"; got != want {
+	if got, want := err.Error(), "invalid type: valid type = integer, culprit = a., location = /0"; got != want {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }

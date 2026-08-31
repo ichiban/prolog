@@ -36,15 +36,17 @@ func AllowPartial(ok bool) ListOption {
 type Arena struct {
 	Heap
 	// TODO: Add a side-car table for big integers.
-	Strings []String
-	Streams []Stream
+	Integers []int64
+	Floats   []float64
+	Strings  []String
+	Streams  []Stream
 }
 
 // PutVariable creates a variable term and returns its reference.
 func (a *Arena) PutVariable() (Handle, error) {
 	addr := int32(len(a.Heap))
 	c := cell{tag: cellTagReference, value: addr}
-	if _, err := a.put(pack(c)); err != nil {
+	if _, err := a.put(c); err != nil {
 		return Handle{}, err
 	}
 	return Handle{
@@ -66,7 +68,7 @@ func (a *Arena) Deref(x Handle) Handle {
 		prev    cell
 	)
 	for current.tag == cellTagReference && current != prev {
-		prev, current = current, unpack(a.Heap[current.value])
+		prev, current = current, a.Heap[current.value]
 	}
 	return Handle{
 		cell: current,
@@ -79,11 +81,11 @@ func (a *Arena) Bind(x, t Handle) error {
 		return nil
 	}
 
-	if x.cell.tag != cellTagReference || unpack(a.Heap[x.cell.value]) != x.cell {
+	if x.cell.tag != cellTagReference || a.Heap[x.cell.value] != x.cell {
 		return ErrUnsupportedOperation
 	}
 
-	a.Heap[x.cell.value] = pack(t.cell)
+	a.Heap[x.cell.value] = t.cell
 	return nil
 }
 
@@ -91,7 +93,7 @@ func (a *Arena) Unbind(x Handle) error {
 	if x.cell.tag != cellTagReference {
 		return ErrUnsupportedOperation
 	}
-	a.Heap[x.cell.value] = pack(cell{tag: cellTagReference, value: x.cell.value})
+	a.Heap[x.cell.value] = cell{tag: cellTagReference, value: x.cell.value}
 	return nil
 }
 
@@ -127,12 +129,10 @@ func (a *Arena) PutInteger(n int64) (Handle, error) {
 	if n >= math.MinInt32 && n <= math.MaxInt32 {
 		return Handle{cell: cell{tag: cellTagInt32, value: int32(n)}}, nil
 	}
-	addr, err := a.put(cast[int64, word](n))
-	if err != nil {
-		return Handle{}, err
-	}
+	id := len(a.Integers)
+	a.Integers = append(a.Integers, n)
 	return Handle{
-		cell: cell{tag: cellTagInt64, value: int32(addr)},
+		cell: cell{tag: cellTagInt64, value: int32(id)},
 	}, nil
 }
 
@@ -140,7 +140,7 @@ func (a *Arena) PutInteger(n int64) (Handle, error) {
 func (a *Arena) Integer(t Handle) (int64, bool) {
 	switch t.cell.tag {
 	case cellTagInt64:
-		return cast[word, int64](a.Heap[t.cell.value]), true
+		return a.Integers[t.cell.value], true
 	case cellTagInt32:
 		return int64(t.cell.value), true
 	default:
@@ -150,12 +150,10 @@ func (a *Arena) Integer(t Handle) (int64, bool) {
 
 // PutFloat creates a float term and returns its address.
 func (a *Arena) PutFloat(f float64) (Handle, error) {
-	addr, err := a.put(cast[float64, word](f))
-	if err != nil {
-		return Handle{}, err
-	}
+	id := len(a.Floats)
+	a.Floats = append(a.Floats, f)
 	return Handle{
-		cell: cell{tag: cellTagFloat, value: int32(addr)},
+		cell: cell{tag: cellTagFloat, value: int32(id)},
 	}, nil
 }
 
@@ -163,7 +161,7 @@ func (a *Arena) PutFloat(f float64) (Handle, error) {
 func (a *Arena) Float(t Handle) (float64, bool) {
 	switch t.cell.tag {
 	case cellTagFloat:
-		return cast[word, float64](a.Heap[t.cell.value]), true
+		return a.Floats[t.cell.value], true
 	default:
 		return 0, false
 	}
@@ -203,7 +201,13 @@ func (a *Arena) PutCompoundWithFreshVars(f Functor) (Handle, error) {
 }
 
 func (a *Arena) PutFunctor(f Functor) (Handle, error) {
-	name, err := a.PutAtom(f.Name())
+	n := f.Name()
+	if n == (Atom{}) {
+		// The zero Functor has no name. Render it as ''/0 so that it stays a
+		// well-formed term; an invalid atom writes nothing at all.
+		n = NewAtom("")
+	}
+	name, err := a.PutAtom(n)
 	if err != nil {
 		return Handle{}, err
 	}
@@ -347,15 +351,22 @@ func (a *Arena) Functor(t Handle, opts ...FunctorOption) (Functor, bool) {
 	}
 	switch t.cell.tag {
 	case cellTagStructure:
-		f := unpack(a.Heap[t.cell.value])
-		return Functor(f.value), true
+		f := a.Heap[t.cell.value]
+		kind := atomKindID
+		if f.tag == cellTagFunctorChar {
+			kind = atomKindRune
+		}
+		return Functor{
+			name:  Atom{kind: kind, value: f.value},
+			arity: int(f.aux),
+		}, true
 	case cellTagString:
 		return functorCons, true
 	default:
 		if atom, ok := a.Atom(t); ok && opt.allowAtom {
 			return NewFunctor(atom, 0), true
 		}
-		return 0, false
+		return Functor{}, false
 	}
 }
 
@@ -363,8 +374,8 @@ func (a *Arena) Functor(t Handle, opts ...FunctorOption) (Functor, bool) {
 func (a *Arena) Arg(t Handle, n int) Handle {
 	switch t.cell.tag {
 	case cellTagStructure:
-		arg := unpack(a.Heap[int(t.cell.value)+1+n])
-		if arg.tag == cellTagFunctor { // Possibly CDR coding.
+		arg := a.Heap[int(t.cell.value)+1+n]
+		if arg.tag == cellTagFunctor || arg.tag == cellTagFunctorChar { // Possibly CDR coding.
 			return Handle{
 				cell: cell{tag: cellTagStructure, value: t.cell.value + 1 + int32(n)},
 			}
@@ -517,9 +528,6 @@ func (a *Arena) CharList(t Handle) (string, bool) {
 }
 
 func (a *Arena) PutStream(s Stream) (Handle, error) {
-	if len(a.Streams) == cap(a.Streams) {
-		return Handle{}, ErrOutOfMemory
-	}
 	id := len(a.Streams)
 	a.Streams = append(a.Streams, s)
 	return Handle{cell{tag: cellTagStream, value: int32(id)}}, nil

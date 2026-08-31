@@ -1188,7 +1188,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 		var err error
 		body, err = c.PutCompound(term.NewAtom("true"), body)
 		if err != nil {
-			return 0, err
+			return term.Functor{}, err
 		}
 	}
 
@@ -1198,7 +1198,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 
 	pi, ok := c.Functor(body)
 	if !ok {
-		return 0, errUnhandled
+		return term.Functor{}, errUnhandled
 	}
 
 	switch pi {
@@ -1214,7 +1214,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 	case term.NewFunctor(term.NewAtomRune('='), 3):
 		a, b, cont := c.Arg(body, 0), c.Arg(body, 1), c.Arg(body, 2)
 		if err := c.compileEqual(clause, a, b); err != nil {
-			return 0, err
+			return term.Functor{}, err
 		}
 		return c.compileBody(clause, cont)
 	}
@@ -1236,10 +1236,10 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 				arg := c.Arg(body, 0)
 				v, err := c.PutVariable()
 				if err != nil {
-					return 0, err
+					return term.Functor{}, err
 				}
 				if err := c.compileTopTerm(clause, Put, v, arg); err != nil {
-					return 0, err
+					return term.Functor{}, err
 				}
 				clause.Emit(ir.Instruction{
 					OpCode: ir.OpPut,
@@ -1247,11 +1247,11 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 					B:      ir.Operand{Kind: ir.OperandKindTerm, Term: v},
 				})
 			default:
-				return 0, errors.New("can't inline a builtin with arity more than 1")
+				return term.Functor{}, errors.New("can't inline a builtin with arity more than 1")
 			}
 			x, err := c.PutVariable()
 			if err != nil {
-				return 0, err
+				return term.Functor{}, err
 			}
 			clause.Emit(ir.Instruction{
 				OpCode: ir.OpInline,
@@ -1266,7 +1266,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 
 	ct, err := c.PutCompoundWithFreshVars(pi)
 	if err != nil {
-		return 0, err
+		return term.Functor{}, err
 	}
 
 	return pi, c.emitBodyTopTerm(clause, body, ct)

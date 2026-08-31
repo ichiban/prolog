@@ -41,37 +41,40 @@ const (
 	cellTagFloat
 	cellTagStructure
 	cellTagFunctor
+	cellTagFunctorChar
 	cellTagStream
 	cellTagString
 	_cellTagLen
 )
 
 var cellTagNames = [...]string{
-	cellTagInvalid:   "invalid",
-	cellTagReference: "reference",
-	cellTagAtom:      "atom",
-	cellTagCharacter: "character",
-	cellTagInt64:     "int64",
-	cellTagInt32:     "int32",
-	cellTagFloat:     "float",
-	cellTagStructure: "structure",
-	cellTagFunctor:   "functor",
-	cellTagStream:    "stream",
-	cellTagString:    "string",
+	cellTagInvalid:     "invalid",
+	cellTagReference:   "reference",
+	cellTagAtom:        "atom",
+	cellTagCharacter:   "character",
+	cellTagInt64:       "int64",
+	cellTagInt32:       "int32",
+	cellTagFloat:       "float",
+	cellTagStructure:   "structure",
+	cellTagFunctor:     "functor",
+	cellTagFunctorChar: "functorChar",
+	cellTagStream:      "stream",
+	cellTagString:      "string",
 }
 
 var cellTagImmediate = [...]bool{
-	cellTagInvalid:   true,
-	cellTagReference: false,
-	cellTagAtom:      true,
-	cellTagCharacter: true,
-	cellTagInt64:     false,
-	cellTagInt32:     true,
-	cellTagFloat:     false,
-	cellTagStructure: false,
-	cellTagFunctor:   true,
-	cellTagStream:    true,
-	cellTagString:    true,
+	cellTagInvalid:     true,
+	cellTagReference:   false,
+	cellTagAtom:        true,
+	cellTagCharacter:   true,
+	cellTagInt64:       false,
+	cellTagInt32:       true,
+	cellTagFloat:       false,
+	cellTagStructure:   false,
+	cellTagFunctor:     true,
+	cellTagFunctorChar: true,
+	cellTagStream:      true,
+	cellTagString:      true,
 }
 
 func (t cellTag) String() string {
