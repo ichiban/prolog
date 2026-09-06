@@ -80,7 +80,7 @@ func (a Argument) String() string {
 
 // Index represents a first argument index.
 type Index struct {
-	Term  term.Handle
+	Term  term.Cell
 	Arity int
 }
 

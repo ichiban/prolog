@@ -13,7 +13,7 @@ func TestArena_PutVariable(t *testing.T) {
 	tests := []struct {
 		title string
 		arena *Arena
-		term  Handle
+		term  Cell
 		err   error
 	}{
 		{
@@ -21,9 +21,7 @@ func TestArena_PutVariable(t *testing.T) {
 			arena: &Arena{
 				Heap: make(Heap, 0, 1),
 			},
-			term: Handle{
-				cell: cell{tag: cellTagReference, value: 0},
-			},
+			term: Cell{tag: cellTagReference, value: 0},
 		},
 		{
 			title: "ng",
@@ -53,7 +51,7 @@ func TestArena_Variable(t *testing.T) {
 	}
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		addr  int
 		ok    bool
 	}{
@@ -85,34 +83,26 @@ func TestArena_Variable(t *testing.T) {
 func TestArena_Deref(t *testing.T) {
 	arena := Arena{
 		Heap: Heap{
-			cell{tag: cellTagReference, value: 0},
-			cell{tag: cellTagCharacter, value: 'a'},
-			cell{tag: cellTagReference, value: 1},
+			Cell{tag: cellTagReference, value: 0},
+			Cell{tag: cellTagCharacter, value: 'a'},
+			Cell{tag: cellTagReference, value: 1},
 		},
 	}
 
 	tests := []struct {
 		title  string
-		term   Handle
-		result Handle
+		term   Cell
+		result Cell
 	}{
 		{
-			title: "free variable",
-			term: Handle{
-				cell: cell{tag: cellTagReference, value: 0},
-			},
-			result: Handle{
-				cell: cell{tag: cellTagReference, value: 0},
-			},
+			title:  "free variable",
+			term:   Cell{tag: cellTagReference, value: 0},
+			result: Cell{tag: cellTagReference, value: 0},
 		},
 		{
-			title: "bound variable",
-			term: Handle{
-				cell: cell{tag: cellTagReference, value: 2},
-			},
-			result: Handle{
-				cell: cell{tag: cellTagCharacter, value: 'a'},
-			},
+			title:  "bound variable",
+			term:   Cell{tag: cellTagReference, value: 2},
+			result: Cell{tag: cellTagCharacter, value: 'a'},
 		},
 	}
 	for _, test := range tests {
@@ -135,7 +125,7 @@ func TestArena_Bind(t *testing.T) {
 
 	tests := []struct {
 		title string
-		x, y  Handle
+		x, y  Cell
 		err   error
 	}{
 		{
@@ -169,27 +159,23 @@ func TestArena_PutAtom(t *testing.T) {
 		title string
 		heap  *Heap
 		atom  Atom
-		term  Handle
+		term  Cell
 		err   error
 	}{
 		{
 			title: "single char",
 			atom:  NewAtomRune('a'),
-			term: Handle{
-				cell: cell{tag: cellTagCharacter, value: 'a'},
-			},
+			term:  Cell{tag: cellTagCharacter, value: 'a'},
 		},
 		{
 			title: "multiple chars",
 			atom:  NewAtom("foo"),
-			term: Handle{
-				cell: cell{tag: cellTagAtom, value: NewAtom("foo").value},
-			},
+			term:  Cell{tag: cellTagAtom, value: NewAtom("foo").value},
 		},
 		{
 			title: "ng",
 			atom:  Atom{},
-			term:  Handle{},
+			term:  Cell{},
 		},
 	}
 
@@ -214,7 +200,7 @@ func TestArena_Atom(t *testing.T) {
 
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		atom  Atom
 		ok    bool
 	}{
@@ -255,24 +241,20 @@ func TestArena_PutInteger(t *testing.T) {
 		title   string
 		arena   Arena
 		integer int64
-		term    Handle
+		term    Cell
 		err     error
 	}{
 		{
 			title:   "int64",
 			arena:   Arena{Heap: make(Heap, 0, 1)},
 			integer: math.MaxInt32 + 1,
-			term: Handle{
-				cell: cell{tag: cellTagInt64, value: 0},
-			},
+			term:    Cell{tag: cellTagInt64, value: 0},
 		},
 		{
 			title:   "int32",
 			arena:   Arena{Heap: make(Heap, 0, 1)},
 			integer: math.MaxInt32 - 1,
-			term: Handle{
-				cell: cell{tag: cellTagInt32, value: math.MaxInt32 - 1},
-			},
+			term:    Cell{tag: cellTagInt32, value: math.MaxInt32 - 1},
 		},
 	}
 
@@ -297,7 +279,7 @@ func TestArena_Integer(t *testing.T) {
 
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		n     int64
 		ok    bool
 	}{
@@ -337,16 +319,14 @@ func TestArena_PutFloat(t *testing.T) {
 		title string
 		arena Arena
 		float float64
-		term  Handle
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 1)},
 			float: 1,
-			term: Handle{
-				cell: cell{tag: cellTagFloat, value: 0},
-			},
+			term:  Cell{tag: cellTagFloat, value: 0},
 		},
 	}
 
@@ -434,7 +414,7 @@ func TestArena_Float(t *testing.T) {
 
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		f     float64
 		ok    bool
 	}{
@@ -523,45 +503,33 @@ func TestArena_PutCompound(t *testing.T) {
 		title string
 		arena Arena
 		name  Atom
-		args  []Handle
-		term  Handle
+		args  []Cell
+		term  Cell
 		err   error
 	}{
 		{
 			title: "atom",
 			arena: Arena{Heap: make(Heap, 0)},
 			name:  NewAtom("foo"),
-			term: Handle{
-				cell: cell{tag: cellTagAtom, value: NewAtom("foo").value},
-			},
+			term:  Cell{tag: cellTagAtom, value: NewAtom("foo").value},
 		},
 		{
 			title: "compound",
 			arena: Arena{Heap: make(Heap, 0, 3)},
 			name:  NewAtom("foo"),
-			args: []Handle{
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value},
-				},
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value},
-				},
+			args: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
-			term: Handle{
-				cell: cell{tag: cellTagStructure, value: 0},
-			},
+			term: Cell{tag: cellTagStructure, value: 0},
 		},
 		{
 			title: "not enough heap for the functor cell",
 			arena: Arena{Heap: make(Heap, 0)},
 			name:  NewAtom("foo"),
-			args: []Handle{
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value},
-				},
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value},
-				},
+			args: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
 			err: ErrOutOfMemory,
 		},
@@ -569,13 +537,9 @@ func TestArena_PutCompound(t *testing.T) {
 			title: "not enough heap for the args",
 			arena: Arena{Heap: make(Heap, 0, 1)},
 			name:  NewAtom("foo"),
-			args: []Handle{
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value},
-				},
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value},
-				},
+			args: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
 			err: ErrOutOfMemory,
 		},
@@ -597,27 +561,19 @@ func TestArena_PutList(t *testing.T) {
 	tests := []struct {
 		title string
 		arena Arena
-		args  []Handle
-		term  Handle
+		args  []Cell
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
-			args: []Handle{
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value},
-				},
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value},
-				},
-				{
-					cell: cell{tag: cellTagAtom, value: NewAtomRune('c').value},
-				},
+			args: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
+				{tag: cellTagAtom, value: NewAtomRune('c').value},
 			},
-			term: Handle{
-				cell: cell{tag: cellTagStructure, value: 0},
-			},
+			term: Cell{tag: cellTagStructure, value: 0},
 		},
 	}
 	for _, test := range tests {
@@ -637,47 +593,45 @@ func TestArena_PutPartialList(t *testing.T) {
 	tests := []struct {
 		title string
 		arena Arena
-		tail  Handle
-		elems []Handle
-		term  Handle
+		tail  Cell
+		elems []Cell
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtomRune('c').value}},
-			elems: []Handle{
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value}},
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value}},
+			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
+			elems: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
-			term: Handle{
-				cell: cell{tag: cellTagStructure, value: 0},
-			},
+			term: Cell{tag: cellTagStructure, value: 0},
 		},
 		{
 			title: "only tail",
 			arena: Arena{Heap: make(Heap, 0, 10)},
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value}},
-			elems: []Handle{},
-			term:  Handle{cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value}},
+			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('a').value},
+			elems: []Cell{},
+			term:  Cell{tag: cellTagAtom, value: NewAtomRune('a').value},
 		},
 		{
 			title: "not enough heap for elements",
 			arena: Arena{Heap: make(Heap, 0)},
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtomRune('c').value}},
-			elems: []Handle{
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value}},
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value}},
+			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
+			elems: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
 			err: ErrOutOfMemory,
 		},
 		{
 			title: "not enough heap for tail",
 			arena: Arena{Heap: make(Heap, 0, 4)},
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtomRune('c').value}},
-			elems: []Handle{
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('a').value}},
-				{cell: cell{tag: cellTagAtom, value: NewAtomRune('b').value}},
+			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
+			elems: []Cell{
+				{tag: cellTagAtom, value: NewAtomRune('a').value},
+				{tag: cellTagAtom, value: NewAtomRune('b').value},
 			},
 			err: ErrOutOfMemory,
 		},
@@ -701,16 +655,14 @@ func TestArena_PutCharList(t *testing.T) {
 		title string
 		arena Arena
 		str   string
-		term  Handle
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abc",
-			term: Handle{
-				cell: cell{tag: cellTagString, value: 0, aux: 0},
-			},
+			term:  Cell{tag: cellTagString, value: 0, aux: 0},
 		},
 	}
 	for _, test := range tests {
@@ -731,27 +683,23 @@ func TestArena_PutPartialCharList(t *testing.T) {
 		title string
 		arena Arena
 		str   string
-		tail  Handle
-		term  Handle
+		tail  Cell
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abc",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			term: Handle{
-				cell: cell{tag: cellTagString, value: 0},
-			},
+			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
+			term:  Cell{tag: cellTagString, value: 0},
 		},
 		{
 			title: "multiple of 8",
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abcdefghabcdefgh",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			term: Handle{
-				cell: cell{tag: cellTagString, value: 0},
-			},
+			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
+			term:  Cell{tag: cellTagString, value: 0},
 		},
 	}
 	for _, test := range tests {
@@ -772,16 +720,14 @@ func TestArena_PutCodeList(t *testing.T) {
 		title string
 		arena Arena
 		str   string
-		term  Handle
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abc",
-			term: Handle{
-				cell: cell{tag: cellTagStructure, value: 0},
-			},
+			term:  Cell{tag: cellTagStructure, value: 0},
 		},
 	}
 	for _, test := range tests {
@@ -802,18 +748,16 @@ func TestArena_PutPartialCodeList(t *testing.T) {
 		title string
 		arena Arena
 		str   string
-		tail  Handle
-		term  Handle
+		tail  Cell
+		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
 			arena: Arena{Heap: make(Heap, 0, 10)},
 			str:   "abc",
-			tail:  Handle{cell: cell{tag: cellTagAtom, value: NewAtom("[]").value}},
-			term: Handle{
-				cell: cell{tag: cellTagStructure, value: 0},
-			},
+			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
+			term:  Cell{tag: cellTagStructure, value: 0},
 		},
 	}
 	for _, test := range tests {
@@ -835,7 +779,7 @@ func TestArena_Functor(t *testing.T) {
 	}
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		f     Functor
 		ok    bool
 	}{
@@ -876,9 +820,9 @@ func TestArena_Arg(t *testing.T) {
 	}
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		n     int
-		arg   Handle
+		arg   Cell
 	}{
 		{
 			title: "compound",
@@ -908,7 +852,7 @@ func TestArena_Arg(t *testing.T) {
 			title: "atomic",
 			term:  must(arena.PutAtom(NewAtom("foo"))),
 			n:     1,
-			arg:   Handle{},
+			arg:   Cell{},
 		},
 	}
 	for _, test := range tests {
@@ -927,14 +871,14 @@ func TestArena_Args(t *testing.T) {
 	}
 	tests := []struct {
 		title string
-		term  Handle
-		args  []Handle
+		term  Cell
+		args  []Cell
 		n     int
 	}{
 		{
 			title: "compound",
 			term:  must(arena.PutCompound(NewAtom("foo"), must(arena.PutAtom(NewAtomRune('a'))), must(arena.PutAtom(NewAtomRune('b'))))),
-			args: []Handle{
+			args: []Cell{
 				must(arena.PutAtom(NewAtomRune('a'))),
 			},
 			n: 1,
@@ -961,12 +905,12 @@ func TestArena_List(t *testing.T) {
 		t.Fatal(err)
 	}
 	type result struct {
-		elem Handle
+		elem Cell
 		ok   bool
 	}
 	tests := []struct {
 		title   string
-		term    Handle
+		term    Cell
 		opts    []ListOption
 		results []result
 	}{
@@ -1069,7 +1013,7 @@ func TestArena_CharList(t *testing.T) {
 	}
 	tests := []struct {
 		title string
-		term  Handle
+		term  Cell
 		str   string
 		ok    bool
 	}{
@@ -1151,7 +1095,7 @@ func TestArena_Compare(t *testing.T) {
 
 	tests := []struct {
 		title    string
-		lhs, rhs Handle
+		lhs, rhs Cell
 		o        int
 		err      error
 	}{
@@ -1222,7 +1166,7 @@ func TestArena_Acyclic(t *testing.T) {
 
 	tests := []struct {
 		title  string
-		term   Handle
+		term   Cell
 		result bool
 	}{
 		{title: "atom", term: a, result: true},
@@ -1256,8 +1200,8 @@ func TestArena_RenamedCopy(t *testing.T) {
 
 	tests := []struct {
 		title  string
-		term   Handle
-		result Handle
+		term   Cell
+		result Cell
 		err    error
 	}{
 		{title: "atom", term: a, result: a},

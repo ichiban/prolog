@@ -15,7 +15,7 @@ func Test_ParseTerm(t *testing.T) {
 		Heap: make(term.Heap, 0, 1024),
 	}
 
-	must := func(term term.Handle, err error) term.Handle {
+	must := func(term term.Cell, err error) term.Cell {
 		t.Helper()
 		if err != nil {
 			t.Fatal(err)
@@ -35,7 +35,7 @@ func Test_ParseTerm(t *testing.T) {
 	tests := []struct {
 		input        string
 		doubleQuotes DoubleQuotes
-		term         term.Handle
+		term         term.Cell
 		err          error
 		vars         []term.VariableName
 	}{
@@ -168,7 +168,7 @@ func Test_ParseTerm(t *testing.T) {
 				Operators(&ops),
 				DoubleQuote(&tt.doubleQuotes),
 				VariableNames(&vns),
-				MakeVariable(func() (term.Handle, error) {
+				MakeVariable(func() (term.Cell, error) {
 					return x, nil
 				}),
 			)
@@ -196,7 +196,7 @@ func Test_ParseNumber(t *testing.T) {
 		Heap: make(term.Heap, 0, 1024),
 	}
 
-	must := func(term term.Handle, err error) term.Handle {
+	must := func(term term.Cell, err error) term.Cell {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +205,7 @@ func Test_ParseNumber(t *testing.T) {
 
 	tests := []struct {
 		input  string
-		number term.Handle
+		number term.Cell
 		err    error
 	}{
 		{input: `33`, number: must(arena.PutInteger(33))},

@@ -9,23 +9,23 @@ import (
 // After reading, a variable term looses its textual representation.
 // You can use VariableName to keep track of and restore it on writing.
 type VariableName struct {
-	Variable Handle
+	Variable Cell
 	Name     string
 	Count    int
 }
 
-func (a *Arena) VariableSet(t Handle) []Handle {
+func (a *Arena) VariableSet(t Cell) []Cell {
 	// 7.1.1.1 Variable set of a term.
 	t = a.Deref(t)
 	if _, ok := a.Variable(t); ok {
-		return []Handle{t}
+		return []Cell{t}
 	}
 
 	if _, ok := a.Functor(t); !ok {
 		return nil
 	}
 
-	var vs []Handle
+	var vs []Cell
 	for arg := range a.Args(t) {
 		vs = append(vs, a.VariableSet(arg)...)
 	}
@@ -33,7 +33,7 @@ func (a *Arena) VariableSet(t Handle) []Handle {
 	return slices.Compact(vs)
 }
 
-func (a *Arena) ExistentialVariableSet(t Handle) []Handle {
+func (a *Arena) ExistentialVariableSet(t Cell) []Cell {
 	// 7.1.1.3 Existential variables set of a term
 	t = a.Deref(t)
 	if f, ok := a.Functor(t); !ok || f != NewFunctor(NewAtomRune('^'), 2) {
@@ -46,25 +46,25 @@ func (a *Arena) ExistentialVariableSet(t Handle) []Handle {
 	return slices.Compact(evs)
 }
 
-func (a *Arena) FreeVariableSet(t, v Handle) []Handle {
+func (a *Arena) FreeVariableSet(t, v Cell) []Cell {
 	// 7.1.1.4 Free variables set of a term
 	vs := a.VariableSet(t)
 	bv := a.VariableSet(v)
 	bv = append(bv, a.ExistentialVariableSet(t)...)
 	slices.SortFunc(bv, a.Compare)
 	bv = slices.Compact(bv)
-	return slices.DeleteFunc(vs, func(v Handle) bool {
+	return slices.DeleteFunc(vs, func(v Cell) bool {
 		return slices.Contains(bv, v)
 	})
 }
 
-func (a *Arena) WitnessVariables(t Handle) iter.Seq[Handle] {
+func (a *Arena) WitnessVariables(t Cell) iter.Seq[Cell] {
 	// 7.1.1.5 Witness variable list of a term
-	return a.witnessVariables(t, map[Handle]struct{}{})
+	return a.witnessVariables(t, map[Cell]struct{}{})
 }
 
-func (a *Arena) witnessVariables(t Handle, witness map[Handle]struct{}) iter.Seq[Handle] {
-	return func(yield func(Handle) bool) {
+func (a *Arena) witnessVariables(t Cell, witness map[Cell]struct{}) iter.Seq[Cell] {
+	return func(yield func(Cell) bool) {
 		t = a.Deref(t)
 		if _, ok := a.Variable(t); ok {
 			if _, ok := witness[t]; !ok {
@@ -84,12 +84,12 @@ func (a *Arena) witnessVariables(t Handle, witness map[Handle]struct{}) iter.Seq
 	}
 }
 
-func (a *Arena) Variant(t1, t2 Handle) bool {
-	s := map[Handle]Handle{}
-	rest := [][2]Handle{
+func (a *Arena) Variant(t1, t2 Cell) bool {
+	s := map[Cell]Cell{}
+	rest := [][2]Cell{
 		{t1, t2},
 	}
-	var xy [2]Handle
+	var xy [2]Cell
 	for len(rest) > 0 {
 		rest, xy = rest[:len(rest)-1], rest[len(rest)-1]
 		x, y := a.Deref(xy[0]), a.Deref(xy[1])
@@ -115,7 +115,7 @@ func (a *Arena) Variant(t1, t2 Handle) bool {
 				return false
 			}
 			for i := 0; i < fx.Arity(); i++ {
-				rest = append(rest, [2]Handle{a.Arg(x, i), a.Arg(y, i)})
+				rest = append(rest, [2]Cell{a.Arg(x, i), a.Arg(y, i)})
 			}
 			continue
 		}

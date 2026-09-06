@@ -9,23 +9,15 @@ var (
 	ErrUnsupportedOperation = errors.New("unsupported operation")
 )
 
-// Handle is a reference to a term.
-type Handle struct {
-	cell
-}
-
-func (h *Handle) String() string {
-	return h.cell.String()
-}
-
-type cell struct {
-	tag   cellTag // TODO: NaN Boxing?
-	flags uint8   // For GC.
-	aux   uint16  // TODO: Use this for functor arity and string offset.
+// Cell is a tagged word.
+type Cell struct {
+	tag   cellTag
+	_     uint8 // Padding.
+	aux   uint16
 	value int32
 }
 
-func (c cell) String() string {
+func (c Cell) String() string {
 	return fmt.Sprintf("<%s %d>", c.tag, c.value)
 }
 

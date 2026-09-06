@@ -21,18 +21,18 @@ const (
 )
 
 type stackFrame struct {
-	programPointer int         // P, next clause address
-	heapTop        int         // H, saved top of the heap
-	trailTop       int         // TR, saved top of the trail
-	tempVars       term.Handle // The backing array in the form of '$temp_vars'(A1, ..., An) to save An
-	cutB           int         // B0, cut pointer
+	programPointer int       // P, next clause address
+	heapTop        int       // H, saved top of the heap
+	trailTop       int       // TR, saved top of the trail
+	tempVars       term.Cell // The backing array in the form of '$temp_vars'(A1, ..., An) to save An
+	cutB           int       // B0, cut pointer
 
 	next func() (Promise, bool) // for built-in predicates
 	stop func()                 // for built-in predicates
 }
 
 type structurePointer struct {
-	term  term.Handle
+	term  term.Cell
 	argNo int
 }
 
@@ -43,13 +43,13 @@ type Execution struct {
 
 	stack []stackFrame // B = len(stack)
 
-	trail []term.Handle // TR
+	trail []term.Cell // TR
 
 	heapBacktrackPoint int              // HB
 	structurePointer   structurePointer // S
 
-	tempVars [maxRegisters]term.Handle // Xn
-	cutB     int                       // B0
+	tempVars [maxRegisters]term.Cell // Xn
+	cutB     int                     // B0
 
 	mode wam.Mode
 }
@@ -507,10 +507,10 @@ func (e *Execution) unwindTrail(trailTop int) error {
 	return nil
 }
 
-func (e *Execution) Unify(x, y term.Handle) (bool, error) {
+func (e *Execution) Unify(x, y term.Cell) (bool, error) {
 	var (
-		stack   = []term.Handle{x, y}
-		visited = map[[2]term.Handle]struct{}{}
+		stack   = []term.Cell{x, y}
+		visited = map[[2]term.Cell]struct{}{}
 	)
 	for len(stack) > 1 {
 		x, y, stack = stack[len(stack)-2], stack[len(stack)-1], stack[:len(stack)-2]
@@ -531,10 +531,10 @@ func (e *Execution) Unify(x, y term.Handle) (bool, error) {
 		}
 		if fx, ok := e.Functor(x); ok {
 			if fy, ok := e.Functor(y); ok && fx == fy {
-				if _, ok := visited[[2]term.Handle{x, y}]; ok {
+				if _, ok := visited[[2]term.Cell{x, y}]; ok {
 					continue
 				}
-				visited[[2]term.Handle{x, y}] = struct{}{}
+				visited[[2]term.Cell{x, y}] = struct{}{}
 
 				for i := fx.Arity() - 1; i >= 0; i-- {
 					stack = append(stack, e.Arg(x, i), e.Arg(y, i))

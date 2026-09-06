@@ -7,7 +7,7 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-func (e *Engine) canBeAtom(t term.Handle) (term.Atom, bool, error) {
+func (e *Engine) canBeAtom(t term.Cell) (term.Atom, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Atom{}, false, nil
 	}
@@ -22,7 +22,7 @@ func (e *Engine) canBeAtom(t term.Handle) (term.Atom, bool, error) {
 	return a, true, nil
 }
 
-func (e *Engine) MustBeAtom(t term.Handle) (term.Atom, error) {
+func (e *Engine) MustBeAtom(t term.Cell) (term.Atom, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Atom{}, &InstantiationError{
 			Location: e.location,
@@ -39,7 +39,7 @@ func (e *Engine) MustBeAtom(t term.Handle) (term.Atom, error) {
 	return a, nil
 }
 
-func (e *Engine) canBeChar(t term.Handle) (rune, bool, error) {
+func (e *Engine) canBeChar(t term.Cell) (rune, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -55,7 +55,7 @@ func (e *Engine) canBeChar(t term.Handle) (rune, bool, error) {
 	return r, true, nil
 }
 
-func (e *Engine) MustBeChar(t term.Handle) (rune, error) {
+func (e *Engine) MustBeChar(t term.Cell) (rune, error) {
 	r, ok, err := e.canBeChar(t)
 	if err != nil {
 		return 0, err
@@ -68,7 +68,7 @@ func (e *Engine) MustBeChar(t term.Handle) (rune, error) {
 	return r, nil
 }
 
-func (e *Engine) canBeInteger(t term.Handle) (int64, bool, error) {
+func (e *Engine) canBeInteger(t term.Cell) (int64, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -83,7 +83,7 @@ func (e *Engine) canBeInteger(t term.Handle) (int64, bool, error) {
 	return n, true, nil
 }
 
-func (e *Engine) MustBeInteger(t term.Handle) (int64, error) {
+func (e *Engine) MustBeInteger(t term.Cell) (int64, error) {
 	n, ok, err := e.canBeInteger(t)
 	if err != nil {
 		return 0, err
@@ -98,7 +98,7 @@ func (e *Engine) MustBeInteger(t term.Handle) (int64, error) {
 	return n, nil
 }
 
-func (e *Engine) canBeNotLessThanZero(t term.Handle) (int64, bool, error) {
+func (e *Engine) canBeNotLessThanZero(t term.Cell) (int64, bool, error) {
 	i, ok, err := e.canBeInteger(t)
 	if err != nil {
 		return 0, false, err
@@ -116,7 +116,7 @@ func (e *Engine) canBeNotLessThanZero(t term.Handle) (int64, bool, error) {
 	return i, ok, nil
 }
 
-func (e *Engine) canBeCharCode(t term.Handle) (rune, bool, error) {
+func (e *Engine) canBeCharCode(t term.Cell) (rune, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -132,7 +132,7 @@ func (e *Engine) canBeCharCode(t term.Handle) (rune, bool, error) {
 	return r, true, nil
 }
 
-func (e *Engine) mustBeCharCode(t term.Handle) (rune, error) {
+func (e *Engine) mustBeCharCode(t term.Cell) (rune, error) {
 	r, ok, err := e.canBeCharCode(t)
 	if err != nil {
 		return 0, err
@@ -145,7 +145,7 @@ func (e *Engine) mustBeCharCode(t term.Handle) (rune, error) {
 	return r, nil
 }
 
-func (e *Engine) canBeFloat(t term.Handle) (float64, bool, error) {
+func (e *Engine) canBeFloat(t term.Cell) (float64, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -160,7 +160,7 @@ func (e *Engine) canBeFloat(t term.Handle) (float64, bool, error) {
 	return f, true, nil
 }
 
-func (e *Engine) MustBeFloat(t term.Handle) (float64, error) {
+func (e *Engine) MustBeFloat(t term.Cell) (float64, error) {
 	f, ok, err := e.canBeFloat(t)
 	if err != nil {
 		return 0, err
@@ -175,7 +175,7 @@ func (e *Engine) MustBeFloat(t term.Handle) (float64, error) {
 	return f, nil
 }
 
-func (e *Engine) mustBeAtomic(t term.Handle) error {
+func (e *Engine) mustBeAtomic(t term.Cell) error {
 	if _, ok := e.Variable(t); ok {
 		return &InstantiationError{
 			Location: e.location,
@@ -191,7 +191,7 @@ func (e *Engine) mustBeAtomic(t term.Handle) error {
 	return nil
 }
 
-func (e *Engine) mustBeNumber(t term.Handle) (int64, bool, float64, bool, error) {
+func (e *Engine) mustBeNumber(t term.Cell) (int64, bool, float64, bool, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -215,7 +215,7 @@ func (e *Engine) mustBeNumber(t term.Handle) (int64, bool, float64, bool, error)
 	}
 }
 
-func (e *Engine) canBeCallable(t term.Handle) (term.Functor, bool, error) {
+func (e *Engine) canBeCallable(t term.Cell) (term.Functor, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Functor{}, false, nil
 	}
@@ -232,7 +232,7 @@ func (e *Engine) canBeCallable(t term.Handle) (term.Functor, bool, error) {
 	return f, true, nil
 }
 
-func (e *Engine) mustBeCallable(t term.Handle) (term.Functor, error) {
+func (e *Engine) mustBeCallable(t term.Cell) (term.Functor, error) {
 	f, ok, err := e.canBeCallable(t)
 	if err != nil {
 		return term.Functor{}, err
@@ -245,7 +245,7 @@ func (e *Engine) mustBeCallable(t term.Handle) (term.Functor, error) {
 	return f, nil
 }
 
-func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, error) {
+func (e *Engine) canBePredicateIndicator(t term.Cell) (term.Functor, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return term.Functor{}, false, nil
 	}
@@ -286,7 +286,7 @@ func (e *Engine) canBePredicateIndicator(t term.Handle) (term.Functor, bool, err
 	return pi, true, nil
 }
 
-func (e *Engine) mustBePredicateIndicator(t term.Handle) (term.Functor, error) {
+func (e *Engine) mustBePredicateIndicator(t term.Cell) (term.Functor, error) {
 	pi, ok, err := e.canBePredicateIndicator(t)
 	if err != nil {
 		return term.Functor{}, err
@@ -299,7 +299,7 @@ func (e *Engine) mustBePredicateIndicator(t term.Handle) (term.Functor, error) {
 	return pi, nil
 }
 
-func (e *Engine) canBeStream(t term.Handle) (*term.Stream, error) {
+func (e *Engine) canBeStream(t term.Cell) (*term.Stream, error) {
 	t = e.Deref(t)
 	if _, ok := e.Variable(t); ok {
 		return nil, nil
@@ -315,7 +315,7 @@ func (e *Engine) canBeStream(t term.Handle) (*term.Stream, error) {
 	return s, nil
 }
 
-func (e *Engine) mustBeStream(t term.Handle) (*term.Stream, error) {
+func (e *Engine) mustBeStream(t term.Cell) (*term.Stream, error) {
 	s, err := e.canBeStream(t)
 	if err != nil {
 		return nil, err
@@ -328,7 +328,7 @@ func (e *Engine) mustBeStream(t term.Handle) (*term.Stream, error) {
 	return s, nil
 }
 
-func (e *Engine) canBeSourceSink(t term.Handle) (term.Atom, string, error) {
+func (e *Engine) canBeSourceSink(t term.Cell) (term.Atom, string, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -356,7 +356,7 @@ func (e *Engine) canBeSourceSink(t term.Handle) (term.Atom, string, error) {
 	}
 }
 
-func (e *Engine) mustBeSourceSink(t term.Handle) (term.Atom, string, error) {
+func (e *Engine) mustBeSourceSink(t term.Cell) (term.Atom, string, error) {
 	fsID, s, err := e.canBeSourceSink(t)
 	if err != nil {
 		return term.Atom{}, "", err
@@ -369,7 +369,7 @@ func (e *Engine) mustBeSourceSink(t term.Handle) (term.Atom, string, error) {
 	return fsID, s, nil
 }
 
-func (e *Engine) canBeMode(t term.Handle) (term.Mode, bool, error) {
+func (e *Engine) canBeMode(t term.Cell) (term.Mode, bool, error) {
 	t = e.Deref(t)
 
 	a, ok, err := e.canBeAtom(t)
@@ -393,7 +393,7 @@ func (e *Engine) canBeMode(t term.Handle) (term.Mode, bool, error) {
 	}
 }
 
-func (e *Engine) mustBeMode(t term.Handle) (term.Mode, error) {
+func (e *Engine) mustBeMode(t term.Cell) (term.Mode, error) {
 	m, ok, err := e.canBeMode(t)
 	if err != nil {
 		return 0, err
@@ -406,7 +406,7 @@ func (e *Engine) mustBeMode(t term.Handle) (term.Mode, error) {
 	return m, nil
 }
 
-func (e *Engine) canBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
+func (e *Engine) canBeStreamOrAlias(t term.Cell) (*term.Stream, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -446,7 +446,7 @@ func (e *Engine) canBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
 	return s, nil
 }
 
-func (e *Engine) mustBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
+func (e *Engine) mustBeStreamOrAlias(t term.Cell) (*term.Stream, error) {
 	s, err := e.canBeStreamOrAlias(t)
 	if err != nil {
 		return nil, err
@@ -459,7 +459,7 @@ func (e *Engine) mustBeStreamOrAlias(t term.Handle) (*term.Stream, error) {
 	return s, nil
 }
 
-func (e *Engine) canBeStreamProperty(t term.Handle) error {
+func (e *Engine) canBeStreamProperty(t term.Cell) error {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -503,7 +503,7 @@ func (e *Engine) canBeStreamProperty(t term.Handle) error {
 	}
 }
 
-func (e *Engine) canBeInByte(t term.Handle) (byte, bool, error) {
+func (e *Engine) canBeInByte(t term.Cell) (byte, bool, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -522,7 +522,7 @@ func (e *Engine) canBeInByte(t term.Handle) (byte, bool, error) {
 	return byte(b), true, nil
 }
 
-func (e *Engine) canBeByte(t term.Handle) (byte, bool, error) {
+func (e *Engine) canBeByte(t term.Cell) (byte, bool, error) {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -541,7 +541,7 @@ func (e *Engine) canBeByte(t term.Handle) (byte, bool, error) {
 	return byte(b), true, nil
 }
 
-func (e *Engine) mustBeByte(t term.Handle) (byte, error) {
+func (e *Engine) mustBeByte(t term.Cell) (byte, error) {
 	b, ok, err := e.canBeByte(t)
 	if err != nil {
 		return 0, err
@@ -554,7 +554,7 @@ func (e *Engine) mustBeByte(t term.Handle) (byte, error) {
 	return b, nil
 }
 
-func (e *Engine) canBeInChar(t term.Handle) (rune, bool, error) {
+func (e *Engine) canBeInChar(t term.Cell) (rune, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -573,7 +573,7 @@ func (e *Engine) canBeInChar(t term.Handle) (rune, bool, error) {
 	return r, true, nil
 }
 
-func (e *Engine) canBeInCharCode(t term.Handle) (rune, bool, error) {
+func (e *Engine) canBeInCharCode(t term.Cell) (rune, bool, error) {
 	if _, ok := e.Variable(t); ok {
 		return 0, false, nil
 	}
@@ -592,9 +592,9 @@ func (e *Engine) canBeInCharCode(t term.Handle) (rune, bool, error) {
 	return r, true, nil
 }
 
-func (e *Engine) canBeList(list term.Handle, fn func(elem term.Handle) error) (bool, error) {
+func (e *Engine) canBeList(list term.Cell, fn func(elem term.Cell) error) (bool, error) {
 	if fn == nil {
-		fn = func(term.Handle) error {
+		fn = func(term.Cell) error {
 			return nil
 		}
 	}
@@ -618,9 +618,9 @@ func (e *Engine) canBeList(list term.Handle, fn func(elem term.Handle) error) (b
 	return true, nil
 }
 
-func (e *Engine) MustBeList(list term.Handle, fn func(elem term.Handle) error) error {
+func (e *Engine) MustBeList(list term.Cell, fn func(elem term.Cell) error) error {
 	if fn == nil {
-		fn = func(term.Handle) error {
+		fn = func(term.Cell) error {
 			return nil
 		}
 	}
@@ -646,9 +646,9 @@ func (e *Engine) MustBeList(list term.Handle, fn func(elem term.Handle) error) e
 	return nil
 }
 
-func (e *Engine) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) error) error {
+func (e *Engine) mustBeNonEmptyList(list term.Cell, fn func(elem term.Cell) error) error {
 	var ok bool
-	if err := e.MustBeList(list, func(elem term.Handle) error {
+	if err := e.MustBeList(list, func(elem term.Cell) error {
 		ok = true
 		return fn(elem)
 	}); err != nil {
@@ -664,7 +664,7 @@ func (e *Engine) mustBeNonEmptyList(list term.Handle, fn func(elem term.Handle) 
 	return nil
 }
 
-func (e *Engine) canBeCompound(t term.Handle) (term.Functor, bool, error) {
+func (e *Engine) canBeCompound(t term.Cell) (term.Functor, bool, error) {
 	t = e.Deref(t)
 	if _, ok := e.Variable(t); ok {
 		return term.Functor{}, false, nil
@@ -680,7 +680,7 @@ func (e *Engine) canBeCompound(t term.Handle) (term.Functor, bool, error) {
 	return f, true, nil
 }
 
-func (e *Engine) MustBeCompound(t term.Handle) (term.Functor, error) {
+func (e *Engine) MustBeCompound(t term.Cell) (term.Functor, error) {
 	f, ok, err := e.canBeCompound(t)
 	if err != nil {
 		return term.Functor{}, err

@@ -9,7 +9,7 @@ import (
 
 type Serialized string
 
-func Serialize(arena *term.Arena, t term.Handle) Serialized {
+func Serialize(arena *term.Arena, t term.Cell) Serialized {
 	return Serialized(fmt.Sprintf("%s .", &Formatter{
 		Arena:  arena,
 		Term:   t,
@@ -17,6 +17,6 @@ func Serialize(arena *term.Arena, t term.Handle) Serialized {
 	}))
 }
 
-func Deserialize(arena *term.Arena, s Serialized) (term.Handle, error) {
+func Deserialize(arena *term.Arena, s Serialized) (term.Cell, error) {
 	return ParseTerm(strings.NewReader(string(s)), Arena(arena))
 }

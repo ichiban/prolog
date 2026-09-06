@@ -13,7 +13,7 @@ func TestFormatter_WriteTo(t *testing.T) {
 		Heap: make(term.Heap, 0, 1024),
 	}
 
-	must := func(term term.Handle, err error) term.Handle {
+	must := func(term term.Cell, err error) term.Cell {
 		t.Helper()
 		if err != nil {
 			t.Fatal(err)

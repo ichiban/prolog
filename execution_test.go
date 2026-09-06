@@ -29,16 +29,16 @@ type fakeVM struct {
 	unified   bool
 	variable  bool
 
-	cont term.Handle // cont passed to Success or Throw
-	argN int         // n passed to Arg
-	name term.Atom   // name passed to PutCompound
-	args int         // number of arguments passed to PutCompound or PutList
-	str  string      // string passed to PutCharList
+	cont term.Cell // cont passed to Success or Throw
+	argN int       // n passed to Arg
+	name term.Atom // name passed to PutCompound
+	args int       // number of arguments passed to PutCompound or PutList
+	str  string    // string passed to PutCharList
 }
 
 func (f *fakeVM) call(name string) { f.calls = append(f.calls, name) }
 
-func (f *fakeVM) Success(cont term.Handle) runtime.Promise {
+func (f *fakeVM) Success(cont term.Cell) runtime.Promise {
 	f.call("Success")
 	f.cont = cont
 	return runtime.Promise{}
@@ -49,110 +49,110 @@ func (f *fakeVM) Failure() runtime.Promise {
 	return runtime.Promise{}
 }
 
-func (f *fakeVM) Throw(err error, cont term.Handle) runtime.Promise {
+func (f *fakeVM) Throw(err error, cont term.Cell) runtime.Promise {
 	f.call("Throw")
 	f.err, f.cont = err, cont
 	return runtime.Promise{}
 }
 
-func (f *fakeVM) Unify(a, b term.Handle) (bool, error) {
+func (f *fakeVM) Unify(a, b term.Cell) (bool, error) {
 	f.call("Unify")
 	return f.unified, f.err
 }
 
-func (f *fakeVM) Deref(t term.Handle) term.Handle {
+func (f *fakeVM) Deref(t term.Cell) term.Cell {
 	f.call("Deref")
 	return t
 }
 
-func (f *fakeVM) Variable(t term.Handle) (int, bool) {
+func (f *fakeVM) Variable(t term.Cell) (int, bool) {
 	f.call("Variable")
 	return 0, f.variable
 }
 
-func (f *fakeVM) MustBeAtom(t term.Handle) (term.Atom, error) {
+func (f *fakeVM) MustBeAtom(t term.Cell) (term.Atom, error) {
 	f.call("MustBeAtom")
 	return f.atom, f.err
 }
 
-func (f *fakeVM) MustBeInteger(t term.Handle) (int64, error) {
+func (f *fakeVM) MustBeInteger(t term.Cell) (int64, error) {
 	f.call("MustBeInteger")
 	return f.integer, f.err
 }
 
-func (f *fakeVM) MustBeFloat(t term.Handle) (float64, error) {
+func (f *fakeVM) MustBeFloat(t term.Cell) (float64, error) {
 	f.call("MustBeFloat")
 	return f.float, f.err
 }
 
-func (f *fakeVM) MustBeCompound(t term.Handle) (term.Functor, error) {
+func (f *fakeVM) MustBeCompound(t term.Cell) (term.Functor, error) {
 	f.call("MustBeCompound")
 	return f.functor, f.err
 }
 
-func (f *fakeVM) Arg(t term.Handle, n int) term.Handle {
+func (f *fakeVM) Arg(t term.Cell, n int) term.Cell {
 	f.call("Arg")
 	f.argN = n
-	return term.Handle{}
+	return term.Cell{}
 }
 
-func (f *fakeVM) MustBeList(t term.Handle, fn func(elem term.Handle) error) error {
+func (f *fakeVM) MustBeList(t term.Cell, fn func(elem term.Cell) error) error {
 	f.call("MustBeList")
 	if f.err != nil {
 		return f.err
 	}
 	for range f.listElems {
-		if err := fn(term.Handle{}); err != nil {
+		if err := fn(term.Cell{}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (f *fakeVM) MustBeChar(t term.Handle) (rune, error) {
+func (f *fakeVM) MustBeChar(t term.Cell) (rune, error) {
 	f.call("MustBeChar")
 	return f.char, f.charErr
 }
 
-func (f *fakeVM) PutVariable() (term.Handle, error) {
+func (f *fakeVM) PutVariable() (term.Cell, error) {
 	f.call("PutVariable")
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutAtom(a term.Atom) (term.Handle, error) {
+func (f *fakeVM) PutAtom(a term.Atom) (term.Cell, error) {
 	f.call("PutAtom")
 	f.atom = a
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutInteger(i int64) (term.Handle, error) {
+func (f *fakeVM) PutInteger(i int64) (term.Cell, error) {
 	f.call("PutInteger")
 	f.integer = i
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutFloat(fl float64) (term.Handle, error) {
+func (f *fakeVM) PutFloat(fl float64) (term.Cell, error) {
 	f.call("PutFloat")
 	f.float = fl
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutCompound(name term.Atom, args ...term.Handle) (term.Handle, error) {
+func (f *fakeVM) PutCompound(name term.Atom, args ...term.Cell) (term.Cell, error) {
 	f.call("PutCompound")
 	f.name, f.args = name, len(args)
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutCharList(s string) (term.Handle, error) {
+func (f *fakeVM) PutCharList(s string) (term.Cell, error) {
 	f.call("PutCharList")
 	f.str = s
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
-func (f *fakeVM) PutList(elems ...term.Handle) (term.Handle, error) {
+func (f *fakeVM) PutList(elems ...term.Cell) (term.Cell, error) {
 	f.call("PutList")
 	f.args = len(elems)
-	return term.Handle{}, f.err
+	return term.Cell{}, f.err
 }
 
 // newExecution returns an Execution driven by f, with a distinguishable

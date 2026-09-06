@@ -244,14 +244,14 @@ type Procedure interface {
 	Call(ctx context.Context, e *Execution) Promise
 }
 
-type Predicate0 func(ctx context.Context, e *Execution, cont term.Handle) Promise
+type Predicate0 func(ctx context.Context, e *Execution, cont term.Cell) Promise
 
 func (p Predicate0) Call(ctx context.Context, e *Execution) Promise {
 	cont := e.tempVars[1]
 	return p(ctx, e, cont)
 }
 
-type Inline1 func(ctx context.Context, e *Execution, t term.Handle) (bool, error)
+type Inline1 func(ctx context.Context, e *Execution, t term.Cell) (bool, error)
 
 func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
 	t := e.tempVars[0]
@@ -265,63 +265,63 @@ func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
 	return Promise{ok: ok}
 }
 
-type Predicate1 func(ctx context.Context, e *Execution, arg1, cont term.Handle) Promise
+type Predicate1 func(ctx context.Context, e *Execution, arg1, cont term.Cell) Promise
 
 func (p Predicate1) Call(ctx context.Context, e *Execution) Promise {
 	arg1, cont := e.tempVars[1], e.tempVars[2]
 	return p(ctx, e, arg1, cont)
 }
 
-type Predicate2 func(ctx context.Context, e *Execution, arg1, arg2, cont term.Handle) Promise
+type Predicate2 func(ctx context.Context, e *Execution, arg1, arg2, cont term.Cell) Promise
 
 func (p Predicate2) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	return p(ctx, e, arg1, arg2, cont)
 }
 
-type Predicate3 func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont term.Handle) Promise
+type Predicate3 func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont term.Cell) Promise
 
 func (p Predicate3) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	return p(ctx, e, arg1, arg2, arg3, cont)
 }
 
-type Predicate4 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont term.Handle) Promise
+type Predicate4 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont term.Cell) Promise
 
 func (p Predicate4) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
 	return p(ctx, e, arg1, arg2, arg3, arg4, cont)
 }
 
-type Predicate5 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont term.Handle) Promise
+type Predicate5 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont term.Cell) Promise
 
 func (p Predicate5) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, cont)
 }
 
-type Predicate6 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) Promise
+type Predicate6 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) Promise
 
 func (p Predicate6) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, cont)
 }
 
-type Predicate7 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) Promise
+type Predicate7 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) Promise
 
 func (p Predicate7) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont)
 }
 
-type Predicate8 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Handle) Promise
+type Predicate8 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Cell) Promise
 
 func (p Predicate8) Call(ctx context.Context, e *Execution) Promise {
 	arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont)
 }
 
-func True0(ctx context.Context, e *Execution, cont term.Handle) Promise {
+func True0(ctx context.Context, e *Execution, cont term.Cell) Promise {
 	cont = e.Deref(cont)
 
 	bpi, ok := e.Functor(cont, term.AllowAtom(true))
@@ -397,11 +397,11 @@ func True0(ctx context.Context, e *Execution, cont term.Handle) Promise {
 	return Promise{ok: true}
 }
 
-func Fail0(_ context.Context, _ *Execution, _ term.Handle) Promise {
+func Fail0(_ context.Context, _ *Execution, _ term.Cell) Promise {
 	return Failure()
 }
 
-func Call1(ctx context.Context, e *Execution, goal, cont term.Handle) Promise {
+func Call1(ctx context.Context, e *Execution, goal, cont term.Cell) Promise {
 	goal = e.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
@@ -479,7 +479,7 @@ func Call1(ctx context.Context, e *Execution, goal, cont term.Handle) Promise {
 	return Promise{ok: true}
 }
 
-func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
+func (e *Execution) rewriteCutForCall(body term.Cell) (term.Cell, error) {
 	body = e.Deref(body)
 	switch pi, _ := e.Functor(body, term.AllowAtom(true)); pi {
 	case term.NewFunctor(term.NewAtomRune(';'), 2):
@@ -488,15 +488,15 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 			i, t := e.Arg(x, 0), e.Arg(x, 1)
 			i, err := e.rewriteCutForCall(i)
 			if err != nil {
-				return term.Handle{}, err
+				return term.Cell{}, err
 			}
 			t, err = e.rewriteCutForCall(t)
 			if err != nil {
-				return term.Handle{}, err
+				return term.Cell{}, err
 			}
 			x, err = e.PutCompound(term.NewAtom("->"), i, t)
 			if err != nil {
-				return term.Handle{}, err
+				return term.Cell{}, err
 			}
 		}
 		fallthrough
@@ -504,17 +504,17 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 		x, y := e.Arg(body, 0), e.Arg(body, 1)
 		x, err := e.rewriteCutForCall(x)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		y, err = e.rewriteCutForCall(y)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return e.PutCompound(pi.Name(), x, y)
 	case term.NewFunctor(term.NewAtomRune('!'), 0):
 		b, err := e.PutInteger(int64(len(e.stack)))
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return e.PutCompound(term.NewAtom("$cut_to"), b)
 	default:
@@ -522,48 +522,48 @@ func (e *Execution) rewriteCutForCall(body term.Handle) (term.Handle, error) {
 	}
 }
 
-func Var1(_ context.Context, e *Execution, v term.Handle) (bool, error) {
+func Var1(_ context.Context, e *Execution, v term.Cell) (bool, error) {
 	v = e.Deref(v)
 	_, ok := e.Variable(v)
 	return ok, nil
 }
 
-func Atom1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func Atom1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	_, ok := e.Atom(t)
 	return ok, nil
 }
 
-func Integer1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func Integer1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	_, ok := e.Integer(t)
 	return ok, nil
 }
 
-func Float1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func Float1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	_, ok := e.Float(t)
 	return ok, nil
 }
 
-func Compound1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func Compound1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	_, ok := e.Functor(t)
 	return ok, nil
 }
 
-func Ground1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func Ground1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	vs := e.VariableSet(t)
 	return len(vs) == 0, nil
 }
 
-func AcyclicTerm1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func AcyclicTerm1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	t = e.Deref(t)
 	return e.Acyclic(t), nil
 }
 
-func Throw1(ctx context.Context, e *Execution, ball, cont term.Handle) Promise {
+func Throw1(ctx context.Context, e *Execution, ball, cont term.Cell) Promise {
 	ball = e.Deref(ball)
 	if _, ok := e.Variable(ball); ok {
 		var err error
@@ -623,7 +623,7 @@ func (u *uncaughtBall) Error() string {
 
 // rethrow sends err on its way in this execution. A ball thrown in a nested
 // execution keeps its identity; anything else is described as an error term.
-func (e *Execution) rethrow(err error, cont term.Handle) Promise {
+func (e *Execution) rethrow(err error, cont term.Cell) Promise {
 	var ball *uncaughtBall
 	if errors.As(err, &ball) {
 		t, err := syntax.Deserialize(e.Arena, ball.ball)
@@ -635,7 +635,7 @@ func (e *Execution) rethrow(err error, cont term.Handle) Promise {
 	return e.Throw(err, cont)
 }
 
-func SubsumesTerm2(_ context.Context, e *Execution, general, specific, cont term.Handle) Promise {
+func SubsumesTerm2(_ context.Context, e *Execution, general, specific, cont term.Cell) Promise {
 	trailTop := len(e.trail)
 	vs := e.VariableSet(specific)
 
@@ -663,7 +663,7 @@ func SubsumesTerm2(_ context.Context, e *Execution, general, specific, cont term
 	return e.Success(cont)
 }
 
-func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Handle) Promise {
+func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Cell) Promise {
 	order, x, y = e.Deref(order), e.Deref(x), e.Deref(y)
 
 	if _, ok := e.Variable(order); ok {
@@ -688,7 +688,7 @@ func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Handle) Pr
 	}
 
 	var (
-		a   term.Handle
+		a   term.Cell
 		err error
 	)
 	switch o := e.Compare(x, y); {
@@ -714,9 +714,9 @@ func Compare3(_ context.Context, e *Execution, order, x, y, cont term.Handle) Pr
 	return e.Success(cont)
 }
 
-func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Promise {
-	var ts []term.Handle
-	if err := e.MustBeList(list, func(elem term.Handle) error {
+func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Cell) Promise {
+	var ts []term.Cell
+	if err := e.MustBeList(list, func(elem term.Cell) error {
 		ts = append(ts, elem)
 		return nil
 	}); err != nil {
@@ -728,7 +728,7 @@ func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Prom
 	}
 
 	slices.SortFunc(ts, e.Compare)
-	ts = slices.CompactFunc(ts, func(a, b term.Handle) bool {
+	ts = slices.CompactFunc(ts, func(a, b term.Cell) bool {
 		return e.Compare(a, b) == 0
 	})
 
@@ -748,9 +748,9 @@ func Sort2(_ context.Context, e *Execution, list, sorted, cont term.Handle) Prom
 	return e.Success(cont)
 }
 
-func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) Promise {
-	var ps []term.Handle
-	if err := e.MustBeList(pairs, func(pair term.Handle) error {
+func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Cell) Promise {
+	var ps []term.Cell
+	if err := e.MustBeList(pairs, func(pair term.Cell) error {
 		pair = e.Deref(pair)
 		if _, ok := e.Variable(pair); ok {
 			return &InstantiationError{
@@ -771,7 +771,7 @@ func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) 
 		return e.Throw(err, cont)
 	}
 
-	if _, err := e.canBeList(sorted, func(pair term.Handle) error {
+	if _, err := e.canBeList(sorted, func(pair term.Cell) error {
 		if f, ok := e.Functor(pair); !ok || f != term.NewFunctor(term.NewAtomRune('-'), 2) {
 			return &TypeError{
 				ValidType: term.NewAtom("pair"),
@@ -784,7 +784,7 @@ func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) 
 		return e.Throw(err, cont)
 	}
 
-	ts := make([]term.Handle, len(ps))
+	ts := make([]term.Cell, len(ps))
 	for i, pair := range ps {
 		key, value := e.Arg(pair, 0), e.Arg(pair, 1)
 		p, err := e.PutInteger(int64(i))
@@ -800,7 +800,7 @@ func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) 
 
 	slices.SortFunc(ts, e.Compare)
 
-	kvs := make([]term.Handle, len(ts))
+	kvs := make([]term.Cell, len(ts))
 	for i, t := range ts {
 		key, value := e.Arg(t, 0), e.Arg(t, 2)
 		p, err := e.PutCompound(term.NewAtomRune('-'), key, value)
@@ -826,7 +826,7 @@ func KeySort2(_ context.Context, e *Execution, pairs, sorted, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func Functor3(_ context.Context, e *Execution, t, name, arity, cont term.Handle) Promise {
+func Functor3(_ context.Context, e *Execution, t, name, arity, cont term.Cell) Promise {
 	t, name, arity = e.Deref(t), e.Deref(name), e.Deref(arity)
 
 	if _, ok := e.Variable(t); ok {
@@ -942,7 +942,7 @@ func Functor3(_ context.Context, e *Execution, t, name, arity, cont term.Handle)
 	return e.Success(cont)
 }
 
-func Arg3(_ context.Context, e *Execution, nth, t, arg, cont term.Handle) Promise {
+func Arg3(_ context.Context, e *Execution, nth, t, arg, cont term.Cell) Promise {
 	nth, t, arg = e.Deref(nth), e.Deref(t), e.Deref(arg)
 
 	if _, ok := e.Variable(t); ok {
@@ -993,7 +993,7 @@ func Arg3(_ context.Context, e *Execution, nth, t, arg, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func Univ2(_ context.Context, e *Execution, t, list, cont term.Handle) Promise {
+func Univ2(_ context.Context, e *Execution, t, list, cont term.Cell) Promise {
 	t, list = e.Deref(t), e.Deref(list)
 
 	if _, ok := e.Variable(t); ok {
@@ -1030,7 +1030,7 @@ func Univ2(_ context.Context, e *Execution, t, list, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func (e *Execution) univAtomic(t, list, cont term.Handle) Promise {
+func (e *Execution) univAtomic(t, list, cont term.Cell) Promise {
 	if _, err := e.canBeList(list, nil); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -1051,9 +1051,9 @@ func (e *Execution) univAtomic(t, list, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
-	var elems []term.Handle
-	if err := e.mustBeNonEmptyList(list, func(elem term.Handle) error {
+func (e *Execution) univVariable(t, list, cont term.Cell) Promise {
+	var elems []term.Cell
+	if err := e.mustBeNonEmptyList(list, func(elem term.Cell) error {
 		elem = e.Deref(elem)
 		elems = append(elems, elem)
 		return nil
@@ -1097,7 +1097,7 @@ func (e *Execution) univVariable(t, list, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func CopyTerm2(_ context.Context, e *Execution, t1, t2, cont term.Handle) Promise {
+func CopyTerm2(_ context.Context, e *Execution, t1, t2, cont term.Cell) Promise {
 	c, err := term.RenamedCopy(e.Arena, e.Arena, t1)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1114,7 +1114,7 @@ func CopyTerm2(_ context.Context, e *Execution, t1, t2, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Handle) Promise {
+func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Cell) Promise {
 	t, vars = e.Deref(t), e.Deref(vars)
 
 	if _, err := e.canBeList(vars, nil); err != nil {
@@ -1137,7 +1137,7 @@ func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func Clause2(ctx context.Context, e *Execution, head, body, cont term.Handle) Promise {
+func Clause2(ctx context.Context, e *Execution, head, body, cont term.Cell) Promise {
 	pi, err := e.mustBeCallable(head)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1199,7 +1199,7 @@ func Clause2(ctx context.Context, e *Execution, head, body, cont term.Handle) Pr
 	})
 }
 
-func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term.Handle) Promise {
+func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term.Cell) Promise {
 	predIndicator = e.Deref(predIndicator)
 
 	switch pi, ok, err := e.canBePredicateIndicator(predIndicator); {
@@ -1260,15 +1260,15 @@ func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term
 	})
 }
 
-func AssertA1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
+func AssertA1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
 	return assert1(ctx, e, t, cont, db.DB.InsertBefore)
 }
 
-func AssertZ1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
+func AssertZ1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
 	return assert1(ctx, e, t, cont, db.DB.InsertAfter)
 }
 
-func assert1(ctx context.Context, e *Execution, t, cont term.Handle, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
+func assert1(ctx context.Context, e *Execution, t, cont term.Cell, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
 	t = e.Deref(t)
 
 	if _, ok := e.Variable(t); ok {
@@ -1279,8 +1279,8 @@ func assert1(ctx context.Context, e *Execution, t, cont term.Handle, fn func(db 
 
 	var (
 		pi   term.Functor
-		head term.Handle
-		body term.Handle
+		head term.Cell
+		body term.Cell
 		err  error
 	)
 	pi, ok := e.Functor(t, term.AllowAtom(true))
@@ -1354,7 +1354,7 @@ func assert1(ctx context.Context, e *Execution, t, cont term.Handle, fn func(db 
 	return e.Success(cont)
 }
 
-func Retract1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
+func Retract1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
 	t = e.Deref(t)
 
 	h, err := e.PutVariable()
@@ -1444,7 +1444,7 @@ func Retract1(ctx context.Context, e *Execution, t, cont term.Handle) Promise {
 	})
 }
 
-func Abolish1(ctx context.Context, e *Execution, pred, cont term.Handle) Promise {
+func Abolish1(ctx context.Context, e *Execution, pred, cont term.Cell) Promise {
 	pred = e.Deref(pred)
 
 	pi, err := e.mustBePredicateIndicator(pred)
@@ -1478,12 +1478,12 @@ func Abolish1(ctx context.Context, e *Execution, pred, cont term.Handle) Promise
 	return e.Success(cont)
 }
 
-func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
+func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont term.Cell) Promise {
 	if _, err := e.canBeList(instances, nil); err != nil {
 		return e.Throw(err, cont)
 	}
 
-	var elems []term.Handle
+	var elems []term.Cell
 	if err := e.FindAll(ctx, &elems, template, goal); err != nil {
 		return e.rethrow(err, cont)
 	}
@@ -1504,23 +1504,23 @@ func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont
 	return e.Success(cont)
 }
 
-func BagOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
-	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Handle) (term.Handle, error) {
+func BagOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Cell) Promise {
+	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Cell) (term.Cell, error) {
 		return e.PutList(ts...)
 	})
 }
 
-func SetOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle) Promise {
-	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Handle) (term.Handle, error) {
+func SetOf3(ctx context.Context, e *Execution, template, goal, instances, cont term.Cell) Promise {
+	return collectionOf(ctx, e, template, goal, instances, cont, func(ts []term.Cell) (term.Cell, error) {
 		slices.SortFunc(ts, e.Compare)
-		ts = slices.CompactFunc(ts, func(a, b term.Handle) bool {
+		ts = slices.CompactFunc(ts, func(a, b term.Cell) bool {
 			return e.Compare(a, b) == 0
 		})
 		return e.PutList(ts...)
 	})
 }
 
-func collectionOf(ctx context.Context, e *Execution, template, goal, instances, cont term.Handle, agg func([]term.Handle) (term.Handle, error)) Promise {
+func collectionOf(ctx context.Context, e *Execution, template, goal, instances, cont term.Cell, agg func([]term.Cell) (term.Cell, error)) Promise {
 	if _, err := e.canBeList(instances, nil); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -1545,17 +1545,17 @@ func collectionOf(ctx context.Context, e *Execution, template, goal, instances, 
 		goal = e.Arg(goal, 1)
 	}
 
-	var s []term.Handle
+	var s []term.Cell
 	if err := e.FindAll(ctx, &s, template, goal); err != nil {
 		return e.rethrow(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
 		for len(s) > 0 {
-			var wt term.Handle
+			var wt term.Cell
 			wt, s = s[0], s[1:]
 			w, t := e.Arg(wt, 0), e.Arg(wt, 1) // W+T
-			wl, tl := []term.Handle{w}, []term.Handle{t}
+			wl, tl := []term.Cell{w}, []term.Cell{t}
 			n := 0 // https://github.com/golang/go/wiki/SliceTricks#filter-in-place
 			for _, t := range s {
 				ww, tt := e.Arg(t, 0), e.Arg(t, 1) // WW+TT
@@ -1598,7 +1598,7 @@ func collectionOf(ctx context.Context, e *Execution, template, goal, instances, 
 	})
 }
 
-func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template term.Handle, goal term.Handle) error {
+func (e *Execution) FindAll(ctx context.Context, out *[]term.Cell, template term.Cell, goal term.Cell) error {
 	// Resulting instances are not accessible after each run.
 	// So, escape them to a secondary memory arena for a moment, then bring them back.
 
@@ -1607,7 +1607,7 @@ func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template te
 		e.TempArena.Heap = e.TempArena.Heap[:heapTop]
 	}()
 
-	var instances []term.Handle
+	var instances []term.Cell
 	for err := range e.Call(ctx, goal) {
 		if err != nil {
 			return err
@@ -1629,8 +1629,8 @@ func (e *Execution) FindAll(ctx context.Context, out *[]term.Handle, template te
 	return nil
 }
 
-func CurrentInput1(_ context.Context, e *Execution, s, cont term.Handle) Promise {
-	if e.Input == (term.Handle{}) {
+func CurrentInput1(_ context.Context, e *Execution, s, cont term.Cell) Promise {
+	if e.Input == (term.Cell{}) {
 		return Failure()
 	}
 
@@ -1645,8 +1645,8 @@ func CurrentInput1(_ context.Context, e *Execution, s, cont term.Handle) Promise
 	return e.Success(cont)
 }
 
-func CurrentOutput1(_ context.Context, e *Execution, s, cont term.Handle) Promise {
-	if e.Output == (term.Handle{}) {
+func CurrentOutput1(_ context.Context, e *Execution, s, cont term.Cell) Promise {
+	if e.Output == (term.Cell{}) {
 		return Failure()
 	}
 
@@ -1661,7 +1661,7 @@ func CurrentOutput1(_ context.Context, e *Execution, s, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func SetInput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
+func SetInput1(_ context.Context, e *Execution, sOrA, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1677,7 +1677,7 @@ func SetInput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func SetOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
+func SetOutput1(_ context.Context, e *Execution, sOrA, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1693,7 +1693,7 @@ func SetOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise
 	return e.Success(cont)
 }
 
-func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, cont term.Handle) Promise {
+func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, cont term.Cell) Promise {
 	fsID, filename, err := e.mustBeSourceSink(sourceSink)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -1775,7 +1775,7 @@ func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, c
 		s.Reposition = fi.Mode()&fs.ModeType == 0
 	}
 
-	if err := e.MustBeList(options, func(elem term.Handle) error {
+	if err := e.MustBeList(options, func(elem term.Cell) error {
 		return e.handleStreamOption(&s, elem)
 	}); err != nil {
 		return e.Throw(err, cont)
@@ -1797,7 +1797,7 @@ func Open4(_ context.Context, e *Execution, sourceSink, mode, stream, options, c
 	return e.Success(cont)
 }
 
-func (e *Execution) handleStreamOption(s *term.Stream, o term.Handle) error {
+func (e *Execution) handleStreamOption(s *term.Stream, o term.Cell) error {
 	o = e.Deref(o)
 
 	if _, ok := e.Variable(o); ok {
@@ -1824,7 +1824,7 @@ func (e *Execution) handleStreamOption(s *term.Stream, o term.Handle) error {
 	}
 }
 
-func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Handle) error {
+func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Cell) error {
 	alias := e.Arg(o, 0)
 	alias = e.Deref(alias)
 
@@ -1861,7 +1861,7 @@ func (e *Execution) handleStreamOptionAlias(s *term.Stream, o term.Handle) error
 	return nil
 }
 
-func (e *Execution) handleStreamOptionType(s *term.Stream, o term.Handle) error {
+func (e *Execution) handleStreamOptionType(s *term.Stream, o term.Cell) error {
 	t := e.Arg(o, 0)
 	t = e.Deref(t)
 
@@ -1887,7 +1887,7 @@ func (e *Execution) handleStreamOptionType(s *term.Stream, o term.Handle) error 
 	}
 }
 
-func (e *Execution) handleStreamOptionReposition(s *term.Stream, o term.Handle) error {
+func (e *Execution) handleStreamOptionReposition(s *term.Stream, o term.Cell) error {
 	r := e.Arg(o, 0)
 	r = e.Deref(r)
 
@@ -1913,7 +1913,7 @@ func (e *Execution) handleStreamOptionReposition(s *term.Stream, o term.Handle) 
 	}
 }
 
-func (e *Execution) handleStreamOptionEOFAction(s *term.Stream, o term.Handle) error {
+func (e *Execution) handleStreamOptionEOFAction(s *term.Stream, o term.Cell) error {
 	action := e.Arg(o, 0)
 	action = e.Deref(action)
 
@@ -1942,14 +1942,14 @@ func (e *Execution) handleStreamOptionEOFAction(s *term.Stream, o term.Handle) e
 	}
 }
 
-func Close2(_ context.Context, e *Execution, sOrA, options, cont term.Handle) Promise {
+func Close2(_ context.Context, e *Execution, sOrA, options, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
 	var force bool
-	if err := e.MustBeList(options, func(o term.Handle) error {
+	if err := e.MustBeList(options, func(o term.Cell) error {
 		o = e.Deref(o)
 
 		if _, ok := e.Variable(o); ok {
@@ -1990,7 +1990,7 @@ func Close2(_ context.Context, e *Execution, sOrA, options, cont term.Handle) Pr
 	return e.Success(cont)
 }
 
-func FlushOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promise {
+func FlushOutput1(_ context.Context, e *Execution, sOrA, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2011,10 +2011,10 @@ func FlushOutput1(_ context.Context, e *Execution, sOrA, cont term.Handle) Promi
 	return e.Success(cont)
 }
 
-func StreamProperty2(_ context.Context, e *Execution, stream, property, cont term.Handle) Promise {
+func StreamProperty2(_ context.Context, e *Execution, stream, property, cont term.Cell) Promise {
 	stream = e.Deref(stream)
 
-	var streams iter.Seq[term.Handle]
+	var streams iter.Seq[term.Cell]
 	s, err := e.canBeStream(stream)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2073,17 +2073,17 @@ func StreamProperty2(_ context.Context, e *Execution, stream, property, cont ter
 	})
 }
 
-func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
-	return func(yield func(term.Handle, error) bool) {
+func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Cell, error] {
+	return func(yield func(term.Cell, error) bool) {
 		if n := s.Name(); n != "" {
 			n, err := e.PutAtom(term.NewAtom(n))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			c, err := e.PutCompound(term.NewAtom("file_name"), n)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(c, nil) {
@@ -2093,12 +2093,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 
 		m, err := e.PutAtom(term.NewAtom(s.Mode.String()))
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		c, err := e.PutCompound(term.NewAtom("mode"), m)
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		if !yield(c, nil) {
@@ -2109,7 +2109,7 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		case term.Read:
 			a, err := e.PutAtom(term.NewAtom("input"))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(a, nil) {
@@ -2118,7 +2118,7 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		case term.Write, term.Append:
 			a, err := e.PutAtom(term.NewAtom("output"))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(a, nil) {
@@ -2129,12 +2129,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		if s.Alias != (term.Atom{}) {
 			a, err := e.PutAtom(s.Alias)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			c, err := e.PutCompound(term.NewAtom("alias"), a)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(c, nil) {
@@ -2145,12 +2145,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		{
 			p, err := e.PutInteger(s.Position)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			c, err := e.PutCompound(term.NewAtom("position"), p)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(c, nil) {
@@ -2161,12 +2161,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		{
 			eos, err := e.PutAtom(term.NewAtom(s.EndOfStream.String()))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			c, err := e.PutCompound(term.NewAtom("end_of_stream"), eos)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(c, nil) {
@@ -2177,12 +2177,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 		{
 			a, err := e.PutAtom(term.NewAtom(s.EOFAction.String()))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			c, err := e.PutCompound(term.NewAtom("eof_action"), a)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(c, nil) {
@@ -2190,19 +2190,19 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 			}
 		}
 
-		var t term.Handle
+		var t term.Cell
 		if s.Reposition {
 			t, err = e.PutAtom(term.NewAtom("true"))
 		} else {
 			t, err = e.PutAtom(term.NewAtom("false"))
 		}
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		c, err = e.PutCompound(term.NewAtom("reposition"), t)
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		if !yield(c, nil) {
@@ -2211,12 +2211,12 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 
 		t, err = e.PutAtom(term.NewAtom(s.StreamType.String()))
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		c, err = e.PutCompound(term.NewAtom("type"), t)
 		if err != nil {
-			_ = yield(term.Handle{}, err)
+			_ = yield(term.Cell{}, err)
 			return
 		}
 		if !yield(c, nil) {
@@ -2225,7 +2225,7 @@ func (e *Execution) properties(s *term.Stream) iter.Seq2[term.Handle, error] {
 	}
 }
 
-func SetStreamPosition2(_ context.Context, e *Execution, sOrA, position, cont term.Handle) Promise {
+func SetStreamPosition2(_ context.Context, e *Execution, sOrA, position, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2251,7 +2251,7 @@ func SetStreamPosition2(_ context.Context, e *Execution, sOrA, position, cont te
 	}
 }
 
-func GetChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) Promise {
+func GetChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2261,7 +2261,7 @@ func GetChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) P
 		return e.Throw(err, cont)
 	}
 
-	var c term.Handle
+	var c term.Cell
 	switch r, _, err := s.ReadRune(); {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutAtom(term.NewAtom("end_of_file"))
@@ -2309,7 +2309,7 @@ func GetChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) P
 	return e.Success(cont)
 }
 
-func GetCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handle) Promise {
+func GetCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2319,7 +2319,7 @@ func GetCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handl
 		return e.Throw(err, cont)
 	}
 
-	var c term.Handle
+	var c term.Cell
 	switch r, _, err := s.ReadRune(); {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutInteger(-1)
@@ -2367,7 +2367,7 @@ func GetCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handl
 	return e.Success(cont)
 }
 
-func PeekChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) Promise {
+func PeekChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2377,7 +2377,7 @@ func PeekChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) 
 		return e.Throw(err, cont)
 	}
 
-	var c term.Handle
+	var c term.Cell
 	switch r, _, err := s.ReadRune(); {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutAtom(term.NewAtom("end_of_file"))
@@ -2436,7 +2436,7 @@ func PeekChar2(_ context.Context, e *Execution, sOrA, inChar, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func PeekCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Handle) Promise {
+func PeekCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2446,7 +2446,7 @@ func PeekCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Hand
 		return e.Throw(err, cont)
 	}
 
-	var c term.Handle
+	var c term.Cell
 	switch r, _, err := s.ReadRune(); {
 	case errors.Is(err, io.EOF):
 		c, err = e.PutInteger(-1)
@@ -2505,7 +2505,7 @@ func PeekCode2(_ context.Context, e *Execution, sOrA, inCharCode, cont term.Hand
 	return e.Success(cont)
 }
 
-func PutChar2(_ context.Context, e *Execution, sOrA, char, cont term.Handle) Promise {
+func PutChar2(_ context.Context, e *Execution, sOrA, char, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2538,7 +2538,7 @@ func PutChar2(_ context.Context, e *Execution, sOrA, char, cont term.Handle) Pro
 	return e.Success(cont)
 }
 
-func PutCode2(_ context.Context, e *Execution, sOrA, code, cont term.Handle) Promise {
+func PutCode2(_ context.Context, e *Execution, sOrA, code, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2571,7 +2571,7 @@ func PutCode2(_ context.Context, e *Execution, sOrA, code, cont term.Handle) Pro
 	return e.Success(cont)
 }
 
-func GetByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) Promise {
+func GetByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2628,7 +2628,7 @@ func GetByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) P
 	return e.Success(cont)
 }
 
-func PeekByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) Promise {
+func PeekByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2689,7 +2689,7 @@ func PeekByte2(_ context.Context, e *Execution, sOrA, inByte, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func PutByte2(_ context.Context, e *Execution, sOrA, byt, cont term.Handle) Promise {
+func PutByte2(_ context.Context, e *Execution, sOrA, byt, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2722,14 +2722,14 @@ func PutByte2(_ context.Context, e *Execution, sOrA, byt, cont term.Handle) Prom
 	}
 }
 
-func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Handle) Promise {
+func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
 	var opts readTermOptions
-	if err := e.MustBeList(options, func(elem term.Handle) error {
+	if err := e.MustBeList(options, func(elem term.Cell) error {
 		return e.readTermOption(&opts, elem)
 	}); err != nil {
 		return e.Throw(err, cont)
@@ -2790,18 +2790,18 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 		return e.Throw(err, cont)
 	default:
 		var (
-			singletons    []term.Handle
-			variables     []term.Handle
-			variableNames []term.Handle
+			singletons    []term.Cell
+			variables     []term.Cell
+			variableNames []term.Cell
 		)
 		for _, v := range vars {
-			if opts.singletons != (term.Handle{}) && v.Count == 1 && v.Name != "_" {
+			if opts.singletons != (term.Cell{}) && v.Count == 1 && v.Name != "_" {
 				singletons = append(singletons, v.Variable)
 			}
-			if opts.variables != (term.Handle{}) {
+			if opts.variables != (term.Cell{}) {
 				variables = append(variables, v.Variable)
 			}
-			if opts.variableNames != (term.Handle{}) && v.Name != "_" {
+			if opts.variableNames != (term.Cell{}) && v.Name != "_" {
 				n, err := e.PutAtom(term.NewAtom(v.Name))
 				if err != nil {
 					return e.Throw(err, cont)
@@ -2822,7 +2822,7 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 			return Failure()
 		}
 
-		if opts.singletons != (term.Handle{}) {
+		if opts.singletons != (term.Cell{}) {
 			l, err := e.PutList(singletons...)
 			if err != nil {
 				return e.Throw(err, cont)
@@ -2837,7 +2837,7 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 			}
 		}
 
-		if opts.variables != (term.Handle{}) {
+		if opts.variables != (term.Cell{}) {
 			l, err := e.PutList(variables...)
 			if err != nil {
 				return e.Throw(err, cont)
@@ -2852,7 +2852,7 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 			}
 		}
 
-		if opts.variableNames != (term.Handle{}) {
+		if opts.variableNames != (term.Cell{}) {
 			l, err := e.PutList(variableNames...)
 			if err != nil {
 				return e.Throw(err, cont)
@@ -2872,12 +2872,12 @@ func ReadTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Hand
 }
 
 type readTermOptions struct {
-	singletons    term.Handle
-	variables     term.Handle
-	variableNames term.Handle
+	singletons    term.Cell
+	variables     term.Cell
+	variableNames term.Cell
 }
 
-func (e *Execution) readTermOption(opts *readTermOptions, option term.Handle) error {
+func (e *Execution) readTermOption(opts *readTermOptions, option term.Cell) error {
 	option = e.Deref(option)
 
 	if _, ok := e.Variable(option); ok {
@@ -2903,7 +2903,7 @@ func (e *Execution) readTermOption(opts *readTermOptions, option term.Handle) er
 	return nil
 }
 
-func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Handle) Promise {
+func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Cell) Promise {
 	s, err := e.mustBeStreamOrAlias(sOrA)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -2914,7 +2914,7 @@ func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Han
 		Term:  t,
 		Ops:   &e.Ops,
 	}
-	if err := e.MustBeList(options, func(o term.Handle) error {
+	if err := e.MustBeList(options, func(o term.Cell) error {
 		o = e.Deref(o)
 
 		if _, ok := e.Variable(o); ok {
@@ -2971,7 +2971,7 @@ func WriteTerm3(_ context.Context, e *Execution, sOrA, t, options, cont term.Han
 	return e.Success(cont)
 }
 
-func (e *Execution) writeTermOptionBool(out *bool, o term.Handle) error {
+func (e *Execution) writeTermOptionBool(out *bool, o term.Cell) error {
 	switch b, _ := e.Atom(e.Arg(o, 0)); b {
 	case term.NewAtom("true"):
 		*out = true
@@ -2987,8 +2987,8 @@ func (e *Execution) writeTermOptionBool(out *bool, o term.Handle) error {
 	return nil
 }
 
-func (e *Execution) writeTermOptionVariableNames(out *[]term.VariableName, o term.Handle) error {
-	return e.MustBeList(e.Arg(o, 0), func(vn term.Handle) error {
+func (e *Execution) writeTermOptionVariableNames(out *[]term.VariableName, o term.Cell) error {
+	return e.MustBeList(e.Arg(o, 0), func(vn term.Cell) error {
 		vn = e.Deref(vn)
 
 		if _, ok := e.Variable(vn); ok {
@@ -3034,7 +3034,7 @@ func (e *Execution) writeTermOptionVariableNames(out *[]term.VariableName, o ter
 	})
 }
 
-func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
+func (e *Execution) writeTermOptionInteger(out *int, o term.Cell) error {
 	n, ok := e.Integer(e.Arg(o, 0))
 	if !ok {
 		return &DomainError{
@@ -3047,7 +3047,7 @@ func (e *Execution) writeTermOptionInteger(out *int, o term.Handle) error {
 	return nil
 }
 
-func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Handle) Promise {
+func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Cell) Promise {
 	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
 
 	p, err := e.MustBeInteger(priority)
@@ -3098,7 +3098,7 @@ func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator,
 		}
 		ops = append(ops, a)
 	} else {
-		if err := e.MustBeList(operator, func(elem term.Handle) error {
+		if err := e.MustBeList(operator, func(elem term.Cell) error {
 			a, err := e.MustBeAtom(elem)
 			if err != nil {
 				return err
@@ -3127,7 +3127,7 @@ func Op3(_ context.Context, e *Execution, priority, operatorSpecifier, operator,
 	return e.Success(cont)
 }
 
-func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.Handle) error {
+func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.Cell) error {
 	name, _ := e.Atom(op)
 
 	switch name {
@@ -3187,7 +3187,7 @@ func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.H
 	return nil
 }
 
-func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Handle) Promise {
+func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Cell) Promise {
 	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
 
 	switch p, ok, err := e.canBeInteger(priority); {
@@ -3288,7 +3288,7 @@ func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, op
 	})
 }
 
-func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Handle) Promise {
+func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Cell) Promise {
 	in, err := e.MustBeChar(inChar)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3313,7 +3313,7 @@ func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term
 	return e.Success(cont)
 }
 
-func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Handle) Promise {
+func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Cell) Promise {
 	if _, _, err := e.canBeChar(inChar); err != nil {
 		return e.Throw(err, cont)
 	}
@@ -3367,7 +3367,7 @@ func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, co
 	})
 }
 
-func Call2(_ context.Context, e *Execution, closure, arg1, cont term.Handle) Promise {
+func Call2(_ context.Context, e *Execution, closure, arg1, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3387,7 +3387,7 @@ func Call2(_ context.Context, e *Execution, closure, arg1, cont term.Handle) Pro
 	return e.Success(cont)
 }
 
-func Call3(_ context.Context, e *Execution, closure, arg1, arg2, cont term.Handle) Promise {
+func Call3(_ context.Context, e *Execution, closure, arg1, arg2, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3408,7 +3408,7 @@ func Call3(_ context.Context, e *Execution, closure, arg1, arg2, cont term.Handl
 	return e.Success(cont)
 }
 
-func Call4(_ context.Context, e *Execution, closure, arg1, arg2, arg3, cont term.Handle) Promise {
+func Call4(_ context.Context, e *Execution, closure, arg1, arg2, arg3, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3430,7 +3430,7 @@ func Call4(_ context.Context, e *Execution, closure, arg1, arg2, arg3, cont term
 	return e.Success(cont)
 }
 
-func Call5(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, cont term.Handle) Promise {
+func Call5(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3453,7 +3453,7 @@ func Call5(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, con
 	return e.Success(cont)
 }
 
-func Call6(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, cont term.Handle) Promise {
+func Call6(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3477,7 +3477,7 @@ func Call6(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg
 	return e.Success(cont)
 }
 
-func Call7(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) Promise {
+func Call7(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3502,7 +3502,7 @@ func Call7(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg
 	return e.Success(cont)
 }
 
-func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) Promise {
+func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) Promise {
 	closure = e.Deref(closure)
 
 	f, err := e.mustBeCallable(closure)
@@ -3528,7 +3528,7 @@ func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg
 	return e.Success(cont)
 }
 
-func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Handle) Promise {
+func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Cell) Promise {
 	a, err := e.MustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3554,7 +3554,7 @@ func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Handle
 	return e.Success(cont)
 }
 
-func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term.Handle) Promise {
+func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term.Cell) Promise {
 	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
 
 	a3, ok, err := e.canBeAtom(atom3)
@@ -3642,7 +3642,7 @@ func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term
 	})
 }
 
-func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subAtom, cont term.Handle) Promise {
+func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subAtom, cont term.Cell) Promise {
 	a, err := e.MustBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3753,14 +3753,14 @@ func nextRuneSize(s string) int {
 	return max(size, 1)
 }
 
-func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Handle) Promise {
+func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Cell) Promise {
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 	if !ok {
 		var sb strings.Builder
-		if err := e.MustBeList(chars, func(elem term.Handle) error {
+		if err := e.MustBeList(chars, func(elem term.Cell) error {
 			r, err := e.MustBeChar(elem)
 			if err != nil {
 				return err
@@ -3787,7 +3787,7 @@ func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Handle) 
 		return e.Success(cont)
 	}
 
-	if _, err := e.canBeList(chars, func(elem term.Handle) error {
+	if _, err := e.canBeList(chars, func(elem term.Cell) error {
 		_, _, err := e.canBeChar(elem)
 		return err
 	}); err != nil {
@@ -3810,14 +3810,14 @@ func AtomChars2(_ context.Context, e *Execution, atom, chars, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Handle) Promise {
+func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Cell) Promise {
 	a, ok, err := e.canBeAtom(atom)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 	if !ok {
 		var sb strings.Builder
-		if err := e.MustBeList(codes, func(elem term.Handle) error {
+		if err := e.MustBeList(codes, func(elem term.Cell) error {
 			r, err := e.mustBeCharCode(elem)
 			if err != nil {
 				return err
@@ -3844,7 +3844,7 @@ func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Handle) 
 		return e.Success(cont)
 	}
 
-	if _, err := e.canBeList(codes, func(elem term.Handle) error {
+	if _, err := e.canBeList(codes, func(elem term.Cell) error {
 		_, _, err := e.canBeCharCode(elem)
 		return err
 	}); err != nil {
@@ -3867,7 +3867,7 @@ func AtomCodes2(_ context.Context, e *Execution, atom, codes, cont term.Handle) 
 	return e.Success(cont)
 }
 
-func CharCode2(_ context.Context, e *Execution, char, code, cont term.Handle) Promise {
+func CharCode2(_ context.Context, e *Execution, char, code, cont term.Cell) Promise {
 	r, ok, err := e.canBeChar(char)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -3914,9 +3914,9 @@ func CharCode2(_ context.Context, e *Execution, char, code, cont term.Handle) Pr
 	return e.Success(cont)
 }
 
-func NumberChars2(_ context.Context, e *Execution, number, list, cont term.Handle) Promise {
+func NumberChars2(_ context.Context, e *Execution, number, list, cont term.Cell) Promise {
 	var sb strings.Builder
-	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
+	switch ok, err := e.canBeList(list, func(elem term.Cell) error {
 		r, err := e.MustBeChar(elem)
 		if err != nil {
 			return err
@@ -3977,9 +3977,9 @@ func NumberChars2(_ context.Context, e *Execution, number, list, cont term.Handl
 	return e.Success(cont)
 }
 
-func NumberCodes2(_ context.Context, e *Execution, number, list, cont term.Handle) Promise {
+func NumberCodes2(_ context.Context, e *Execution, number, list, cont term.Cell) Promise {
 	var sb strings.Builder
-	switch ok, err := e.canBeList(list, func(elem term.Handle) error {
+	switch ok, err := e.canBeList(list, func(elem term.Cell) error {
 		r, err := e.mustBeCharCode(elem)
 		if err != nil {
 			return err
@@ -4041,7 +4041,7 @@ func NumberCodes2(_ context.Context, e *Execution, number, list, cont term.Handl
 }
 
 // Success continues the execution with the given continuation.
-func (e *Execution) Success(cont term.Handle) Promise {
+func (e *Execution) Success(cont term.Cell) Promise {
 	e.tempVars[1] = cont
 	e.Next()
 	return Promise{ok: true}
@@ -4052,7 +4052,7 @@ func (e *Execution) Failure() Promise {
 }
 
 // Throw throws an error.
-func (e *Execution) Throw(err error, cont term.Handle) Promise {
+func (e *Execution) Throw(err error, cont term.Cell) Promise {
 	et, err := ErrorTerm(e.Arena, err)
 	if err != nil {
 		return Error(err)
@@ -4061,7 +4061,7 @@ func (e *Execution) Throw(err error, cont term.Handle) Promise {
 }
 
 // throwBall continues execution by throwing ball, which is already a term.
-func (e *Execution) throwBall(ball, cont term.Handle) Promise {
+func (e *Execution) throwBall(ball, cont term.Cell) Promise {
 	cont, err := e.PutCompound(term.NewAtom("throw"), ball, cont)
 	if err != nil {
 		return Error(err)
@@ -4071,45 +4071,45 @@ func (e *Execution) throwBall(ball, cont term.Handle) Promise {
 
 type flagEntry struct {
 	flag term.Atom
-	get  func(e *Engine) (term.Handle, error)
-	set  func(e *Engine, value term.Handle) error
+	get  func(e *Engine) (term.Cell, error)
+	set  func(e *Engine, value term.Cell) error
 }
 
 var (
 	flags = []flagEntry{
 		{
 			flag: term.NewAtom("bounded"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutAtom(term.NewAtom("true"))
 			},
 		},
 		{
 			flag: term.NewAtom("max_integer"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutInteger(int64(math.MaxInt64))
 			},
 		},
 		{
 			flag: term.NewAtom("min_integer"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutInteger(int64(math.MinInt64))
 			},
 		},
 		{
 			flag: term.NewAtom("integer_rounding_function"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutAtom(term.NewAtom("toward_zero"))
 			},
 		},
 		{
 			flag: term.NewAtom("char_conversion"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				if e.CharConversion.Disabled {
 					return e.PutAtom(term.NewAtom("false"))
 				}
 				return e.PutAtom(term.NewAtom("true"))
 			},
-			set: func(e *Engine, value term.Handle) error {
+			set: func(e *Engine, value term.Cell) error {
 				switch a, _ := e.Atom(value); a {
 				case term.NewAtom("true"):
 					e.CharConversion.Disabled = false
@@ -4123,13 +4123,13 @@ var (
 		},
 		{
 			flag: term.NewAtom("debug"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				if e.debug {
 					return e.PutAtom(term.NewAtom("on"))
 				}
 				return e.PutAtom(term.NewAtom("off"))
 			},
-			set: func(e *Engine, value term.Handle) error {
+			set: func(e *Engine, value term.Cell) error {
 				value = e.Deref(value)
 				switch a, _ := e.Atom(value); a {
 				case term.NewAtom("on"):
@@ -4144,16 +4144,16 @@ var (
 		},
 		{
 			flag: term.NewAtom("max_arity"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutInteger(int64(math.MaxUint16))
 			},
 		},
 		{
 			flag: term.NewAtom("unknown"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutAtom(term.NewAtom(e.unknown.String()))
 			},
-			set: func(e *Engine, value term.Handle) error {
+			set: func(e *Engine, value term.Cell) error {
 				a, _ := e.Atom(value)
 				i := slices.IndexFunc(unknowActionNames[:], func(name string) bool {
 					return name == a.String()
@@ -4167,10 +4167,10 @@ var (
 		},
 		{
 			flag: term.NewAtom("double_quotes"),
-			get: func(e *Engine) (term.Handle, error) {
+			get: func(e *Engine) (term.Cell, error) {
 				return e.PutAtom(term.NewAtom(e.DoubleQuotes.String()))
 			},
-			set: func(e *Engine, value term.Handle) error {
+			set: func(e *Engine, value term.Cell) error {
 				a, _ := e.Atom(value)
 				i := slices.IndexFunc(syntax.DoubleQuoteNames[:], func(name string) bool {
 					return name == a.String()
@@ -4186,7 +4186,7 @@ var (
 	errInvalidFlagValue = errors.New("invalid flag value")
 )
 
-func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Handle) Promise {
+func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Cell) Promise {
 	value = e.Deref(value)
 
 	f, err := e.MustBeAtom(flag)
@@ -4236,7 +4236,7 @@ func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Hand
 	return e.Success(cont)
 }
 
-func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Handle) Promise {
+func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Cell) Promise {
 	f, ok, err := e.canBeAtom(flag)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -4322,7 +4322,7 @@ func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.
 	return e.Success(cont)
 }
 
-func Halt1(_ context.Context, e *Execution, x, cont term.Handle) Promise {
+func Halt1(_ context.Context, e *Execution, x, cont term.Cell) Promise {
 	n, err := e.MustBeInteger(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -4338,7 +4338,7 @@ func Halt1(_ context.Context, e *Execution, x, cont term.Handle) Promise {
 	return Error(fmt.Errorf("halt(%d)", n))
 }
 
-func Dynamic1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
+func Dynamic1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4355,7 +4355,7 @@ func Dynamic1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Multifile1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
+func Multifile1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4371,7 +4371,7 @@ func Multifile1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Discontiguous1(_ context.Context, e *Execution, t, cont term.Handle) Promise {
+func Discontiguous1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
 	t = e.Deref(t)
 
 	pi, err := e.mustBePredicateIndicator(t)
@@ -4387,7 +4387,7 @@ func Discontiguous1(_ context.Context, e *Execution, t, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func GetNeckCut1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
+func GetNeckCut1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	cutB, err := e.PutInteger(int64(e.cutB))
 	if err != nil {
 		return false, err
@@ -4395,7 +4395,7 @@ func GetNeckCut1(_ context.Context, e *Execution, t term.Handle) (bool, error) {
 	return e.Unify(t, cutB)
 }
 
-func GetCont1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
+func GetCont1(_ context.Context, e *Execution, out, cont term.Cell) Promise {
 	ok, err := e.Unify(out, cont)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -4406,11 +4406,11 @@ func GetCont1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func CallCont1(ctx context.Context, e *Execution, cont, _ term.Handle) Promise {
+func CallCont1(ctx context.Context, e *Execution, cont, _ term.Cell) Promise {
 	return True0(ctx, e, cont)
 }
 
-func Add3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Add3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4423,7 +4423,7 @@ func Add3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		r, err := addI(xi, yi)
@@ -4486,7 +4486,7 @@ func Add3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Sub3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Sub3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4499,7 +4499,7 @@ func Sub3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		r, err := subI(xi, yi)
@@ -4562,7 +4562,7 @@ func Sub3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Mul3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Mul3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4575,7 +4575,7 @@ func Mul3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		r, err := mulI(xi, yi)
@@ -4638,7 +4638,7 @@ func Mul3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4678,7 +4678,7 @@ func IntDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promi
 	return e.Success(cont)
 }
 
-func Div3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Div3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4691,7 +4691,7 @@ func Div3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		r, err := divI(xi, yi)
@@ -4754,7 +4754,7 @@ func Div3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4797,7 +4797,7 @@ func Rem3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4840,7 +4840,7 @@ func Mod3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Neg2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Neg2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4848,7 +4848,7 @@ func Neg2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	if xInt {
 		r, err := negI(xi)
 		if err != nil {
@@ -4879,7 +4879,7 @@ func Neg2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Abs2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Abs2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4887,7 +4887,7 @@ func Abs2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	if xInt {
 		r, err := absI(xi)
 		if err != nil {
@@ -4920,7 +4920,7 @@ func Abs2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Sign2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Sign2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -4928,7 +4928,7 @@ func Sign2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	if xInt {
 		r := signI(xi)
 		t, err = e.PutInteger(r)
@@ -4955,7 +4955,7 @@ func Sign2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func FloatIntegerPart2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func FloatIntegerPart2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -4983,7 +4983,7 @@ func FloatIntegerPart2(_ context.Context, e *Execution, x, out, cont term.Handle
 	return e.Success(cont)
 }
 
-func FloatFractionalPart2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func FloatFractionalPart2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5011,7 +5011,7 @@ func FloatFractionalPart2(_ context.Context, e *Execution, x, out, cont term.Han
 	return e.Success(cont)
 }
 
-func Float2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Float2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5042,7 +5042,7 @@ func Float2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Floor2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Floor2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5077,7 +5077,7 @@ func Floor2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Truncate2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Truncate2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5112,7 +5112,7 @@ func Truncate2(_ context.Context, e *Execution, x, out, cont term.Handle) Promis
 	return e.Success(cont)
 }
 
-func Round2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Round2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5147,7 +5147,7 @@ func Round2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Ceiling2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Ceiling2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5182,7 +5182,7 @@ func Ceiling2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise
 	return e.Success(cont)
 }
 
-func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	if _, _, _, _, err := e.mustBeNumber(x); err != nil {
@@ -5225,7 +5225,7 @@ func FloorDiv3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Pro
 	return e.Success(cont)
 }
 
-func Pos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Pos2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5233,7 +5233,7 @@ func Pos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	if xInt {
 		r, err := posI(xi)
 		if err != nil {
@@ -5271,7 +5271,7 @@ func Pos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Power3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Power3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5332,7 +5332,7 @@ func Power3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promis
 	}
 }
 
-func Sin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Sin2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5360,7 +5360,7 @@ func Sin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Cos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Cos2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5388,7 +5388,7 @@ func Cos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Atan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Atan2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5416,7 +5416,7 @@ func Atan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Exp2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Exp2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5464,7 +5464,7 @@ func Exp2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Log2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Log2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5500,7 +5500,7 @@ func Log2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Sqrt2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Sqrt2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5536,7 +5536,7 @@ func Sqrt2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Max3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Max3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5549,7 +5549,7 @@ func Max3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		t, err = e.PutInteger(max(xi, yi))
@@ -5584,7 +5584,7 @@ func Max3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Min3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func Min3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5597,7 +5597,7 @@ func Min3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 		return e.Throw(err, cont)
 	}
 
-	var t term.Handle
+	var t term.Cell
 	switch {
 	case xInt && yInt:
 		t, err = e.PutInteger(min(xi, yi))
@@ -5632,7 +5632,7 @@ func Min3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func IntegerPower3(ctx context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func IntegerPower3(ctx context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	xi, xInt, _, _, err := e.mustBeNumber(x)
@@ -5733,7 +5733,7 @@ func intPow(a, b int64) (int64, error) {
 	return r, nil
 }
 
-func Asin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Asin2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5768,7 +5768,7 @@ func Asin2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Acos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Acos2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5803,7 +5803,7 @@ func Acos2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Atan3(_ context.Context, e *Execution, y, x, out, cont term.Handle) Promise {
+func Atan3(_ context.Context, e *Execution, y, x, out, cont term.Cell) Promise {
 	y, x = e.Deref(y), e.Deref(x)
 
 	yi, yInt, yf, _, err := e.mustBeNumber(y)
@@ -5846,7 +5846,7 @@ func Atan3(_ context.Context, e *Execution, y, x, out, cont term.Handle) Promise
 	return e.Success(cont)
 }
 
-func Tan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func Tan2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
@@ -5875,7 +5875,7 @@ func Tan2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
 
 }
 
-func Pi1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
+func Pi1(_ context.Context, e *Execution, out, cont term.Cell) Promise {
 	t, err := e.PutFloat(math.Pi)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -5892,7 +5892,7 @@ func Pi1(_ context.Context, e *Execution, out, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.MustBeInteger(x)
@@ -5922,7 +5922,7 @@ func BitwiseRightShift3(_ context.Context, e *Execution, x, y, out, cont term.Ha
 	return e.Success(cont)
 }
 
-func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.MustBeInteger(x)
@@ -5952,7 +5952,7 @@ func BitwiseLeftShift3(_ context.Context, e *Execution, x, y, out, cont term.Han
 	return e.Success(cont)
 }
 
-func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.MustBeInteger(x)
@@ -5982,7 +5982,7 @@ func BitwiseAnd3(_ context.Context, e *Execution, x, y, out, cont term.Handle) P
 	return e.Success(cont)
 }
 
-func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.MustBeInteger(x)
@@ -6012,7 +6012,7 @@ func BitwiseOr3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Pr
 	return e.Success(cont)
 }
 
-func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Handle) Promise {
+func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Cell) Promise {
 	x = e.Deref(x)
 
 	i, err := e.MustBeInteger(x)
@@ -6037,7 +6037,7 @@ func BitwiseComplement2(_ context.Context, e *Execution, x, out, cont term.Handl
 	return e.Success(cont)
 }
 
-func BitwiseXor3(_ context.Context, e *Execution, x, y, out, cont term.Handle) Promise {
+func BitwiseXor3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {
 	x, y = e.Deref(x), e.Deref(y)
 
 	i, err := e.MustBeInteger(x)
@@ -6067,7 +6067,7 @@ func BitwiseXor3(_ context.Context, e *Execution, x, y, out, cont term.Handle) P
 	return e.Success(cont)
 }
 
-func ArithEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func ArithEq2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6096,7 +6096,7 @@ func ArithEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func ArithDif2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func ArithDif2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6125,7 +6125,7 @@ func ArithDif2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise 
 	return e.Success(cont)
 }
 
-func Less2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func Less2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6154,7 +6154,7 @@ func Less2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func LessEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func LessEq2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6183,7 +6183,7 @@ func LessEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func Greater2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func Greater2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6212,7 +6212,7 @@ func Greater2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
 	return e.Success(cont)
 }
 
-func GreaterEq2(_ context.Context, e *Execution, x, y, cont term.Handle) Promise {
+func GreaterEq2(_ context.Context, e *Execution, x, y, cont term.Cell) Promise {
 	xi, xInt, xf, _, err := e.mustBeNumber(x)
 	if err != nil {
 		return e.Throw(err, cont)
@@ -6262,8 +6262,8 @@ func (e *Execution) unTrailTo(b int) error {
 	return e.unwindTrail(trailTop)
 }
 
-func contChain(arena *term.Arena, cont term.Handle) iter.Seq[term.Handle] {
-	return func(yield func(term.Handle) bool) {
+func contChain(arena *term.Arena, cont term.Cell) iter.Seq[term.Cell] {
+	return func(yield func(term.Cell) bool) {
 		for {
 			if !yield(cont) {
 				return

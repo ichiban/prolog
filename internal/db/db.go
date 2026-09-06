@@ -10,7 +10,7 @@ import (
 
 type Record struct {
 	ID         int
-	Head, Body term.Handle
+	Head, Body term.Cell
 	CreatedAt  wam.LogicalTime
 	DeletedAt  wam.LogicalTime
 }

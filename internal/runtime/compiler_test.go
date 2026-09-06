@@ -228,7 +228,7 @@ func TestReplaceBody(t *testing.T) {
 				a     = must(arena.PutVariable())
 				b     = must(arena.PutVariable())
 				c     = must(arena.PutVariable())
-				vars  = []term.Handle{a, b, c}
+				vars  = []term.Cell{a, b, c}
 				vns   = []term.VariableName{
 					{Variable: a, Name: "A"},
 					{Variable: b, Name: "B"},
@@ -236,8 +236,8 @@ func TestReplaceBody(t *testing.T) {
 				}
 				compiler = Compiler{
 					Engine: &Engine{Arena: &arena},
-					makeVariable: func() (term.Handle, error) {
-						var v term.Handle
+					makeVariable: func() (term.Cell, error) {
+						var v term.Cell
 						v, vars = vars[0], vars[1:]
 						return v, nil
 					},

@@ -32,7 +32,7 @@ var (
 
 type Formatter struct {
 	Arena *term.Arena
-	Term  term.Handle
+	Term  term.Cell
 
 	IgnoreOps     bool
 	Quoted        bool
@@ -79,17 +79,17 @@ func (f *Formatter) WriteTo(w io.Writer) (int64, error) {
 type formatter struct {
 	Formatter
 	priority    int16
-	visited     map[term.Handle]struct{}
+	visited     map[term.Cell]struct{}
 	prefixMinus bool
 	left, right Operator
 	depth       int
 }
 
-func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
+func (f formatter) writeTerm(w io.Writer, t term.Cell) (int64, error) {
 	arena := f.Arena
 	t = arena.Deref(t)
 
-	if t == (term.Handle{}) {
+	if t == (term.Cell{}) {
 		return 0, errors.New("invalid term")
 	}
 
@@ -129,14 +129,14 @@ func (f formatter) writeTerm(w io.Writer, t term.Handle) (int64, error) {
 	}
 
 	if f.visited == nil {
-		f.visited = map[term.Handle]struct{}{}
+		f.visited = map[term.Cell]struct{}{}
 	}
 	f.visited[t] = struct{}{}
 
 	return f.writeCompound(w, t)
 }
 
-func (f formatter) writeVariable(w io.Writer, v term.Handle) (int64, error) {
+func (f formatter) writeVariable(w io.Writer, v term.Cell) (int64, error) {
 	arena := f.Arena
 	ew := errWriter{w: w}
 	if letterDigit(f.left.Name) {
@@ -310,7 +310,7 @@ func (f formatter) writeFloat(w io.Writer, fl float64) (int64, error) {
 	return ew.Result()
 }
 
-func (f formatter) writeCompound(w io.Writer, t term.Handle) (int64, error) {
+func (f formatter) writeCompound(w io.Writer, t term.Cell) (int64, error) {
 	arena := f.Arena
 	fn, _ := arena.Functor(t)
 	if fn == functorNumberVar && f.NumberVars {
@@ -357,7 +357,7 @@ func (f formatter) writeCompoundNumberVars(w io.Writer, n int64) (int64, error) 
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundList(w io.Writer, t term.Handle) (int64, error) {
+func (f formatter) writeCompoundList(w io.Writer, t term.Cell) (int64, error) {
 	arena := f.Arena
 	ew := errWriter{w: w}
 	f.priority = 999
@@ -388,7 +388,7 @@ func (f formatter) writeCompoundList(w io.Writer, t term.Handle) (int64, error) 
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundCurlyBracketed(w io.Writer, t term.Handle) (int64, error) {
+func (f formatter) writeCompoundCurlyBracketed(w io.Writer, t term.Cell) (int64, error) {
 	arena := f.Arena
 	ew := errWriter{w: w}
 	f.left = Operator{}
@@ -398,7 +398,7 @@ func (f formatter) writeCompoundCurlyBracketed(w io.Writer, t term.Handle) (int6
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Handle, op *Operator) (int64, error) {
+func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.Cell, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	_, r := op.bindingPriorities()
 	openClose := f.priority < op.Priority || (f.right != Operator{} && r >= f.right.Priority)
@@ -430,7 +430,7 @@ func (f formatter) writeCompoundOpPrefix(w io.Writer, name term.Atom, arg term.H
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Handle, op *Operator) (int64, error) {
+func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.Cell, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, _ := op.bindingPriorities()
 	openClose := f.priority < op.Priority || (f.left.Name == atomMinus && f.left.Specifier.Class() == Prefix)
@@ -464,7 +464,7 @@ func (f formatter) writeCompoundOpPostfix(w io.Writer, name term.Atom, arg term.
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term.Atom, right term.Handle, op *Operator) (int64, error) {
+func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Cell, name term.Atom, right term.Cell, op *Operator) (int64, error) {
 	ew := errWriter{w: w}
 	l, r := op.bindingPriorities()
 	openClose := f.priority < op.Priority ||
@@ -508,7 +508,7 @@ func (f formatter) writeCompoundOpInfix(w io.Writer, left term.Handle, name term
 	return ew.Result()
 }
 
-func (f formatter) writeCompoundFunctionalNotation(w io.Writer, name term.Atom, args iter.Seq[term.Handle]) (int64, error) {
+func (f formatter) writeCompoundFunctionalNotation(w io.Writer, name term.Atom, args iter.Seq[term.Cell]) (int64, error) {
 	ew := errWriter{w: w}
 	f.right = Operator{}
 	_, _ = f.writeAtom(&ew, name)

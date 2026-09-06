@@ -89,7 +89,7 @@ type Operand struct {
 	Kind    OperandKind
 	Index   int
 	Functor term.Functor
-	Term    term.Handle
+	Term    term.Cell
 }
 
 type OperandStringer struct {

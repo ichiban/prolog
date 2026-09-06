@@ -149,7 +149,7 @@ func (i *Interpreter) register(name string, arity int, proc runtime.Procedure) e
 // Register0 registers fn as the custom predicate name/0.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Execution) Outcome) error {
-	return i.register(name, 0, runtime.Predicate0(func(ctx context.Context, e *runtime.Execution, cont term.Handle) runtime.Promise {
+	return i.register(name, 0, runtime.Predicate0(func(ctx context.Context, e *runtime.Execution, cont term.Cell) runtime.Promise {
 		return fn(ctx, Execution{vm: e, cont: cont}).promise
 	}))
 }
@@ -159,64 +159,64 @@ func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Exec
 // Register1 must be called before the first [Interpreter.Load] or [Interpreter.Query] or it'll return an error.
 // Also, it returns an error if name/1 is already taken.
 func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Execution, arg1 Term) Outcome) error {
-	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}).promise
+	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}).promise
 	}))
 }
 
 // Register2 registers fn as the custom predicate name/2.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register2(name string, fn func(ctx context.Context, e Execution, arg1, arg2 Term) Outcome) error {
-	return i.register(name, 2, runtime.Predicate2(func(ctx context.Context, e *runtime.Execution, arg1, arg2, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}).promise
+	return i.register(name, 2, runtime.Predicate2(func(ctx context.Context, e *runtime.Execution, arg1, arg2, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}).promise
 	}))
 }
 
 // Register3 registers fn as the custom predicate name/3.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register3(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3 Term) Outcome) error {
-	return i.register(name, 3, runtime.Predicate3(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}).promise
+	return i.register(name, 3, runtime.Predicate3(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}).promise
 	}))
 }
 
 // Register4 registers fn as the custom predicate name/4.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register4(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4 Term) Outcome) error {
-	return i.register(name, 4, runtime.Predicate4(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}).promise
+	return i.register(name, 4, runtime.Predicate4(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}).promise
 	}))
 }
 
 // Register5 registers fn as the custom predicate name/5.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register5(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
-	return i.register(name, 5, runtime.Predicate5(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}).promise
+	return i.register(name, 5, runtime.Predicate5(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}).promise
 	}))
 }
 
 // Register6 registers fn as the custom predicate name/6.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register6(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
-	return i.register(name, 6, runtime.Predicate6(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}).promise
+	return i.register(name, 6, runtime.Predicate6(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}).promise
 	}))
 }
 
 // Register7 registers fn as the custom predicate name/7.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register7(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
-	return i.register(name, 7, runtime.Predicate7(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}).promise
+	return i.register(name, 7, runtime.Predicate7(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}, Term{cell: arg7}).promise
 	}))
 }
 
 // Register8 registers fn as the custom predicate name/8.
 // See [Interpreter.Register1] for details.
 func (i *Interpreter) Register8(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
-	return i.register(name, 8, runtime.Predicate8(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Handle) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{handle: arg1}, Term{handle: arg2}, Term{handle: arg3}, Term{handle: arg4}, Term{handle: arg5}, Term{handle: arg6}, Term{handle: arg7}, Term{handle: arg8}).promise
+	return i.register(name, 8, runtime.Predicate8(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Cell) runtime.Promise {
+		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}, Term{cell: arg7}, Term{cell: arg8}).promise
 	}))
 }
 
@@ -345,7 +345,7 @@ func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 	}, origErr)
 }
 
-func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {
+func (i *Interpreter) encodeTerm(v Value) (term.Cell, error) {
 	e := i.engine
 	switch v := v.(type) {
 	case Atom:
@@ -369,6 +369,6 @@ func (i *Interpreter) encodeTerm(v Value) (term.Handle, error) {
 	case Raw:
 		return syntax.ParseTerm(strings.NewReader(string(v) + " ."))
 	default:
-		return term.Handle{}, fmt.Errorf("unknown type: %T", v)
+		return term.Cell{}, fmt.Errorf("unknown type: %T", v)
 	}
 }

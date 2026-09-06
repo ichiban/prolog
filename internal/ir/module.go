@@ -10,7 +10,7 @@ import (
 type Module struct {
 	Name           term.Atom
 	Clauses        []Clause
-	Initialization []term.Handle
+	Initialization []term.Cell
 }
 
 type ModuleStringer struct {

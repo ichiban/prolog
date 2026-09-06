@@ -9,13 +9,13 @@ import (
 )
 
 type Termer interface {
-	Term(arena *term.Arena) (term.Handle, error)
+	Term(arena *term.Arena) (term.Cell, error)
 }
 
-func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
+func ErrorTerm(arena *term.Arena, err error) (term.Cell, error) {
 	err = cause(err)
 	if err == nil {
-		return term.Handle{}, errors.New("nil error")
+		return term.Cell{}, errors.New("nil error")
 	}
 
 	// A ball which reached the host is reported as itself when it's an error
@@ -35,11 +35,11 @@ func ErrorTerm(arena *term.Arena, err error) (term.Handle, error) {
 	origErr := err
 	t, err := arena.PutAtom(term.NewAtom("system_error"))
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	a, err := arena.PutAtom(term.NewAtom(origErr.Error()))
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, a)
 }
@@ -61,14 +61,14 @@ func (e *InstantiationError) Error() string {
 	return fmt.Sprintf("instantiation error: location = %s", e.Location)
 }
 
-func (e *InstantiationError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *InstantiationError) Term(arena *term.Arena) (term.Cell, error) {
 	t, err := arena.PutAtom(term.NewAtom("instantiation_error"))
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -84,22 +84,22 @@ func (e *TypeError) Error() string {
 	return fmt.Sprintf("invalid type: valid type = %s, culprit = %s, location = %s", e.ValidType, e.Culprit, e.Location)
 }
 
-func (e *TypeError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *TypeError) Term(arena *term.Arena) (term.Cell, error) {
 	v, err := arena.PutAtom(e.ValidType)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("type_error"), v, c)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -115,22 +115,22 @@ func (e *DomainError) Error() string {
 	return fmt.Sprintf("invalid domain: valid domain = %s, culprit = %s, location = %s", e.ValidDomain, e.Culprit, e.Location)
 }
 
-func (e *DomainError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *DomainError) Term(arena *term.Arena) (term.Cell, error) {
 	v, err := arena.PutAtom(e.ValidDomain)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("domain_error"), v, c)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -146,22 +146,22 @@ func (e *ExistenceError) Error() string {
 	return fmt.Sprintf("%s does not exist: culprit = %s, location = %s", e.ObjectType, e.Culprit, e.Location)
 }
 
-func (e *ExistenceError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *ExistenceError) Term(arena *term.Arena) (term.Cell, error) {
 	o, err := arena.PutAtom(e.ObjectType)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("existence_error"), o, c)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -178,26 +178,26 @@ func (e *PermissionError) Error() string {
 	return fmt.Sprintf("disallowed operation %s on %s: culprit = %s, location = %s", e.Operation, e.PermissionType, e.Culprit, e.Location)
 }
 
-func (e *PermissionError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *PermissionError) Term(arena *term.Arena) (term.Cell, error) {
 	o, err := arena.PutAtom(e.Operation)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	p, err := arena.PutAtom(e.PermissionType)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("permission_error"), o, p, c)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -212,18 +212,18 @@ func (e *RepresentationError) Error() string {
 	return fmt.Sprintf("implementation limit exceeded: %s, location = %s", e.Flag, e.Location)
 }
 
-func (e *RepresentationError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *RepresentationError) Term(arena *term.Arena) (term.Cell, error) {
 	f, err := arena.PutAtom(e.Flag)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("representation_error"), f)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -238,18 +238,18 @@ func (e *ResourceError) Error() string {
 	return fmt.Sprintf("insufficient resource: %s", e.Resource)
 }
 
-func (e *ResourceError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *ResourceError) Term(arena *term.Arena) (term.Cell, error) {
 	r, err := arena.PutAtom(e.Resource)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("resource_error"), r)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -264,18 +264,18 @@ func (e *SyntaxError) Error() string {
 	return fmt.Sprintf("syntax error: %s", e.ImpDepAtom)
 }
 
-func (e *SyntaxError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *SyntaxError) Term(arena *term.Arena) (term.Cell, error) {
 	i, err := arena.PutAtom(e.ImpDepAtom)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("syntax_error"), i)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -290,18 +290,18 @@ func (e *UninstantiationError) Error() string {
 	return "uninstantiation error"
 }
 
-func (e *UninstantiationError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *UninstantiationError) Term(arena *term.Arena) (term.Cell, error) {
 	c, err := syntax.Deserialize(arena, e.Culprit)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("uninstantiation_error"), c)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }
@@ -315,18 +315,18 @@ func (e *EvaluationError) Error() string {
 	return fmt.Sprintf("evaluation error: %s, location = %s", e.Cause, e.Location)
 }
 
-func (e *EvaluationError) Term(arena *term.Arena) (term.Handle, error) {
+func (e *EvaluationError) Term(arena *term.Arena) (term.Cell, error) {
 	i, err := arena.PutAtom(term.NewAtom(e.Cause.Error()))
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	t, err := arena.PutCompound(term.NewAtom("evaluation_error"), i)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	l, err := arena.PutFunctor(e.Location)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return arena.PutCompound(term.NewAtom("error"), t, l)
 }

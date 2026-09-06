@@ -12,7 +12,7 @@ import (
 type LogicalTime int
 
 type FirstArgKey struct {
-	Term  term.Handle
+	Term  term.Cell
 	Arity int
 }
 
@@ -51,11 +51,11 @@ type Image struct {
 	// Its operand may refer to sidecar tables Constants or Functors.
 	// This design choice, instead of holding the value inline, is because Go doesn't support union types.
 	Code      []Instruction
-	Constants []term.Handle
+	Constants []term.Cell
 	Functors  []term.Functor
 }
 
-func (i *Image) EmbedConstants(t term.Handle) int {
+func (i *Image) EmbedConstants(t term.Cell) int {
 	if j := slices.Index(i.Constants, t); j >= 0 {
 		return j
 	}

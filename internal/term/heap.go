@@ -12,7 +12,8 @@ var (
 )
 
 // Heap is a memory arena where Prolog terms reside.
-type Heap []cell
+// It consists of mostly tagged cells, but sometimes it holds int64 or float64.
+type Heap []Cell
 
 func (h *Heap) String() string {
 	var sb strings.Builder
@@ -22,30 +23,28 @@ func (h *Heap) String() string {
 	return sb.String()
 }
 
-func (h *Heap) PutStructure(f Functor) (Handle, error) {
+func (h *Heap) PutStructure(f Functor) (Cell, error) {
 	tag := cellTagFunctor
 	if f.name.kind == atomKindRune {
 		tag = cellTagFunctorChar
 	}
-	addr, err := h.put(cell{tag: tag, value: f.name.value, aux: uint16(f.Arity())})
+	addr, err := h.put(Cell{tag: tag, value: f.name.value, aux: uint16(f.Arity())})
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: cell{tag: cellTagStructure, value: int32(addr)},
-	}, nil
+	return Cell{tag: cellTagStructure, value: int32(addr)}, nil
 }
 
-func (h *Heap) Put(terms ...Handle) (Handle, error) {
-	cells := make([]cell, len(terms))
-	for i, t := range terms {
-		cells[i] = t.cell
+func (h *Heap) Put(terms ...Cell) (Cell, error) {
+	cells := make([]Cell, len(terms))
+	for i, c := range terms {
+		cells[i] = c
 	}
 	addr, err := h.put(cells...)
-	return Handle{cell: cell{tag: cellTagReference, value: int32(addr)}}, err
+	return Cell{tag: cellTagReference, value: int32(addr)}, err
 }
 
-func (h *Heap) put(cells ...cell) (int, error) {
+func (h *Heap) put(cells ...Cell) (int, error) {
 	if cap(*h)-len(*h) < len(cells) {
 		return 0, ErrOutOfMemory
 	}

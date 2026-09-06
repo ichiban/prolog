@@ -42,64 +42,60 @@ type Arena struct {
 	Streams side.Table[*Stream]
 }
 
-// PutVariable creates a variable term and returns its reference.
-func (a *Arena) PutVariable() (Handle, error) {
+// PutVariable creates a variable term and returns it.
+func (a *Arena) PutVariable() (Cell, error) {
 	addr := int32(len(a.Heap))
-	c := cell{tag: cellTagReference, value: addr}
+	c := Cell{tag: cellTagReference, value: addr}
 	if _, err := a.put(c); err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: c,
-	}, nil
+	return c, nil
 }
 
 // Variable returns the address it points to if it's a variable term.
-func (a *Arena) Variable(t Handle) (int, bool) {
-	if t.cell.tag != cellTagReference {
+func (a *Arena) Variable(t Cell) (int, bool) {
+	if t.tag != cellTagReference {
 		return 0, false
 	}
-	return int(t.cell.value), true
+	return int(t.value), true
 }
 
-func (a *Arena) Deref(x Handle) Handle {
+func (a *Arena) Deref(x Cell) Cell {
 	var (
-		current = x.cell
-		prev    cell
+		current = x
+		prev    Cell
 	)
 	for current.tag == cellTagReference && current != prev {
 		prev, current = current, a.Heap[current.value]
 	}
-	return Handle{
-		cell: current,
-	}
+	return current
 }
 
 // Bind binds a variable term to another term.
-func (a *Arena) Bind(x, t Handle) error {
+func (a *Arena) Bind(x, t Cell) error {
 	if x == t {
 		return nil
 	}
 
-	if x.cell.tag != cellTagReference || a.Heap[x.cell.value] != x.cell {
+	if x.tag != cellTagReference || a.Heap[x.value] != x {
 		return ErrUnsupportedOperation
 	}
 
-	a.Heap[x.cell.value] = t.cell
+	a.Heap[x.value] = t
 	return nil
 }
 
-func (a *Arena) Unbind(x Handle) error {
-	if x.cell.tag != cellTagReference {
+func (a *Arena) Unbind(x Cell) error {
+	if x.tag != cellTagReference {
 		return ErrUnsupportedOperation
 	}
-	a.Heap[x.cell.value] = cell{tag: cellTagReference, value: x.cell.value}
+	a.Heap[x.value] = Cell{tag: cellTagReference, value: x.value}
 	return nil
 }
 
-// PutAtom creates an atom term and returns its address.
-func (a *Arena) PutAtom(atom Atom) (Handle, error) {
-	c := cell{value: atom.value}
+// PutAtom creates an atom term and returns it.
+func (a *Arena) PutAtom(atom Atom) (Cell, error) {
+	c := Cell{value: atom.value}
 	switch atom.kind {
 	case atomKindRune:
 		c.tag = cellTagCharacter
@@ -108,71 +104,67 @@ func (a *Arena) PutAtom(atom Atom) (Handle, error) {
 	default:
 		c.tag = cellTagInvalid
 	}
-	return Handle{cell: c}, nil
+	return c, nil
 }
 
 // Atom returns the atom if it's an atom term.
-func (a *Arena) Atom(t Handle) (Atom, bool) {
-	switch t.cell.tag {
+func (a *Arena) Atom(t Cell) (Atom, bool) {
+	switch t.tag {
 	case cellTagCharacter:
-		return Atom{kind: atomKindRune, value: t.cell.value}, true
+		return Atom{kind: atomKindRune, value: t.value}, true
 	case cellTagAtom:
-		return Atom{kind: atomKindID, value: t.cell.value}, true
+		return Atom{kind: atomKindID, value: t.value}, true
 	default:
 		return Atom{kind: atomKindInvalid}, false
 	}
 }
 
-// PutInteger creates an integer term and returns its address.
-func (a *Arena) PutInteger(n int64) (Handle, error) {
+// PutInteger creates an integer term and returns it.
+func (a *Arena) PutInteger(n int64) (Cell, error) {
 	// TODO: support bigger integers.
 	if n >= math.MinInt32 && n <= math.MaxInt32 {
-		return Handle{cell: cell{tag: cellTagInt32, value: int32(n)}}, nil
+		return Cell{tag: cellTagInt32, value: int32(n)}, nil
 	}
-	addr, err := a.put(cast[int64, cell](n))
+	addr, err := a.put(cast[int64, Cell](n))
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: cell{tag: cellTagInt64, value: int32(addr)},
-	}, nil
+	return Cell{tag: cellTagInt64, value: int32(addr)}, nil
 }
 
 // Integer returns the integer if it's an integer term.
-func (a *Arena) Integer(t Handle) (int64, bool) {
-	switch t.cell.tag {
+func (a *Arena) Integer(t Cell) (int64, bool) {
+	switch t.tag {
 	case cellTagInt64:
-		return cast[cell, int64](a.Heap[t.cell.value]), true
+		return cast[Cell, int64](a.Heap[t.value]), true
 	case cellTagInt32:
-		return int64(t.cell.value), true
+		return int64(t.value), true
 	default:
 		return 0, false
 	}
 }
 
-// PutFloat creates a float term and returns its address.
-func (a *Arena) PutFloat(f float64) (Handle, error) {
-	addr, err := a.put(cast[float64, cell](f))
+// PutFloat creates a float term and returns it.
+func (a *Arena) PutFloat(f float64) (Cell, error) {
+	addr, err := a.put(cast[float64, Cell](f))
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: cell{tag: cellTagFloat, value: int32(addr)},
-	}, nil
+	return Cell{tag: cellTagFloat, value: int32(addr)}, nil
 }
 
 // Float returns a float value if it's a float term.
-func (a *Arena) Float(t Handle) (float64, bool) {
-	switch t.cell.tag {
+func (a *Arena) Float(t Cell) (float64, bool) {
+	switch t.tag {
 	case cellTagFloat:
-		return cast[cell, float64](a.Heap[t.cell.value]), true
+		return cast[Cell, float64](a.Heap[t.value]), true
 	default:
 		return 0, false
 	}
 }
 
-// PutCompound creates a compound term and returns its address.
-func (a *Arena) PutCompound(name Atom, args ...Handle) (Handle, error) {
+// PutCompound creates a compound term and returns it.
+func (a *Arena) PutCompound(name Atom, args ...Cell) (Cell, error) {
 	if len(args) == 0 {
 		return a.PutAtom(name)
 	}
@@ -180,31 +172,31 @@ func (a *Arena) PutCompound(name Atom, args ...Handle) (Handle, error) {
 	f := NewFunctor(name, len(args))
 	ret, err := a.PutStructure(f)
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
 	if _, err := a.Put(args...); err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
 	return ret, nil
 }
 
-func (a *Arena) PutCompoundWithFreshVars(f Functor) (Handle, error) {
+func (a *Arena) PutCompoundWithFreshVars(f Functor) (Cell, error) {
 	if f.Arity() == 0 {
 		return a.PutAtom(f.Name())
 	}
 	ret, err := a.PutStructure(f)
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
 	for range f.Arity() {
 		if _, err := a.PutVariable(); err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 	}
 	return ret, nil
 }
 
-func (a *Arena) PutFunctor(f Functor) (Handle, error) {
+func (a *Arena) PutFunctor(f Functor) (Cell, error) {
 	n := f.Name()
 	if n == (Atom{}) {
 		// The zero Functor has no name. Render it as ''/0 so that it stays a
@@ -213,23 +205,23 @@ func (a *Arena) PutFunctor(f Functor) (Handle, error) {
 	}
 	name, err := a.PutAtom(n)
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
 	arity, err := a.PutInteger(int64(f.Arity()))
 	if err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
 	return a.PutCompound(NewAtomRune('/'), name, arity)
 }
 
 // PutList creates a series of compound terms for a list.
-func (a *Arena) PutList(elems ...Handle) (Handle, error) {
+func (a *Arena) PutList(elems ...Cell) (Cell, error) {
 	tail, _ := a.PutAtom(atomEmptyList) // Always succeeds.
 	return a.PutPartialList(tail, elems...)
 }
 
 // PutPartialList creates a series of compound terms for a partial list with the specified tail term.
-func (a *Arena) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
+func (a *Arena) PutPartialList(tail Cell, elems ...Cell) (Cell, error) {
 	if len(elems) == 0 {
 		return tail, nil
 	}
@@ -238,24 +230,22 @@ func (a *Arena) PutPartialList(tail Handle, elems ...Handle) (Handle, error) {
 	addr := int32(len(a.Heap))
 	for _, elem := range elems {
 		if _, err := a.PutStructure(functorCons); err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 		if _, err := a.Put(elem); err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 	}
 	if _, err := a.Put(tail); err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: cell{tag: cellTagStructure, value: addr},
-	}, nil
+	return Cell{tag: cellTagStructure, value: addr}, nil
 }
 
-func (a *Arena) PutSpine(r Atom, elems ...Handle) (Handle, error) {
+func (a *Arena) PutSpine(r Atom, elems ...Cell) (Cell, error) {
 	switch len(elems) {
 	case 0:
-		return Handle{}, ErrUnsupportedOperation
+		return Cell{}, ErrUnsupportedOperation
 	case 1:
 		return elems[0], nil
 	}
@@ -265,27 +255,25 @@ func (a *Arena) PutSpine(r Atom, elems ...Handle) (Handle, error) {
 	addr := int32(len(a.Heap))
 	for _, elem := range elems[:len(elems)-1] {
 		if _, err := a.PutStructure(cons); err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 		if _, err := a.Put(elem); err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 	}
 	if _, err := a.Put(elems[len(elems)-1]); err != nil {
-		return Handle{}, err
+		return Cell{}, err
 	}
-	return Handle{
-		cell: cell{tag: cellTagStructure, value: addr},
-	}, nil
+	return Cell{tag: cellTagStructure, value: addr}, nil
 }
 
 // PutCharList creates a list of single-character atoms.
-func (a *Arena) PutCharList(str string) (Handle, error) {
+func (a *Arena) PutCharList(str string) (Cell, error) {
 	tail, _ := a.PutAtom(atomEmptyList) // Always succeeds.
 	return a.PutPartialCharList(str, tail)
 }
 
-func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
+func (a *Arena) PutPartialCharList(str string, tail Cell) (Cell, error) {
 	if str == "" {
 		return tail, nil
 	}
@@ -296,15 +284,13 @@ func (a *Arena) PutPartialCharList(str string, tail Handle) (Handle, error) {
 		var err error
 		tail, err = a.PutPartialCharList(r, tail)
 		if err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 	}
 
 	strID := a.Strings.Add(String{Body: str, Tail: tail})
 
-	return Handle{
-		cell: cell{tag: cellTagString, value: int32(strID), aux: 0},
-	}, nil
+	return Cell{tag: cellTagString, value: int32(strID), aux: 0}, nil
 }
 
 func splitByRuneCount(str string, n int) (string, string) {
@@ -319,14 +305,14 @@ func splitByRuneCount(str string, n int) (string, string) {
 }
 
 // PutCodeList creates a list of single-character atoms.
-func (a *Arena) PutCodeList(str string) (Handle, error) {
+func (a *Arena) PutCodeList(str string) (Cell, error) {
 	tail, _ := a.PutAtom(atomEmptyList) // Always succeeds.
 	return a.PutPartialCodeList(str, tail)
 }
 
-func (a *Arena) PutPartialCodeList(str string, tail Handle) (Handle, error) {
+func (a *Arena) PutPartialCodeList(str string, tail Cell) (Cell, error) {
 	// It's okay not to optimize this since CharList is the preferred representation of strings.
-	elems := make([]Handle, 0, len(str))
+	elems := make([]Cell, 0, len(str))
 	for _, r := range str {
 		i, _ := a.PutInteger(int64(r)) // Since a rune is int32, this always succeeds.
 		elems = append(elems, i)
@@ -347,14 +333,14 @@ func AllowAtom(ok bool) FunctorOption {
 }
 
 // Functor returns a functor value if it's a compound term.
-func (a *Arena) Functor(t Handle, opts ...FunctorOption) (Functor, bool) {
+func (a *Arena) Functor(t Cell, opts ...FunctorOption) (Functor, bool) {
 	var opt FunctorOptions
 	for _, o := range opts {
 		o(&opt)
 	}
-	switch t.cell.tag {
+	switch t.tag {
 	case cellTagStructure:
-		f := a.Heap[t.cell.value]
+		f := a.Heap[t.value]
 		kind := atomKindID
 		if f.tag == cellTagFunctorChar {
 			kind = atomKindRune
@@ -374,45 +360,37 @@ func (a *Arena) Functor(t Handle, opts ...FunctorOption) (Functor, bool) {
 }
 
 // Arg returns the n-th argument of the term.
-func (a *Arena) Arg(t Handle, n int) Handle {
-	switch t.cell.tag {
+func (a *Arena) Arg(t Cell, n int) Cell {
+	switch t.tag {
 	case cellTagStructure:
-		arg := a.Heap[int(t.cell.value)+1+n]
+		arg := a.Heap[int(t.value)+1+n]
 		if arg.tag == cellTagFunctor || arg.tag == cellTagFunctorChar { // Possibly CDR coding.
-			return Handle{
-				cell: cell{tag: cellTagStructure, value: t.cell.value + 1 + int32(n)},
-			}
+			return Cell{tag: cellTagStructure, value: t.value + 1 + int32(n)}
 		}
-		return Handle{
-			cell: arg,
-		}
+		return arg
 	case cellTagString:
-		offset := t.cell.aux
-		str := a.Strings.Get(int(t.cell.value))
+		offset := t.aux
+		str := a.Strings.Get(int(t.value))
 		r, s := utf8.DecodeRuneInString(str.Body[offset:])
 		switch n {
 		case 0:
-			return Handle{
-				cell: cell{tag: cellTagCharacter, value: r},
-			}
+			return Cell{tag: cellTagCharacter, value: r}
 		case 1:
 			if r, s := utf8.DecodeRuneInString(str.Body[int(offset)+s:]); r == utf8.RuneError && s == 0 { // tail
 				return str.Tail
 			}
 			offset += uint16(s)
-			return Handle{
-				cell: cell{tag: cellTagString, value: t.cell.value, aux: offset},
-			}
+			return Cell{tag: cellTagString, value: t.value, aux: offset}
 		default:
-			return Handle{}
+			return Cell{}
 		}
 	default:
-		return Handle{}
+		return Cell{}
 	}
 }
 
-func (a *Arena) Args(t Handle) iter.Seq[Handle] {
-	return func(yield func(Handle) bool) {
+func (a *Arena) Args(t Cell) iter.Seq[Cell] {
+	return func(yield func(Cell) bool) {
 		f, ok := a.Functor(t)
 		if !ok {
 			return
@@ -425,10 +403,10 @@ func (a *Arena) Args(t Handle) iter.Seq[Handle] {
 	}
 }
 
-func (a *Arena) WithArgs(t Handle, args ...Handle) (Handle, error) {
+func (a *Arena) WithArgs(t Cell, args ...Cell) (Cell, error) {
 	f, ok := a.Functor(t)
 	if !ok || f.Arity() != len(args) {
-		return Handle{}, ErrUnsupportedOperation
+		return Cell{}, ErrUnsupportedOperation
 	}
 	existing := slices.Collect(a.Args(t))
 	if slices.Equal(existing, args) {
@@ -438,7 +416,7 @@ func (a *Arena) WithArgs(t Handle, args ...Handle) (Handle, error) {
 }
 
 // List returns an iterator iterates over the elements of a list.
-func (a *Arena) List(t Handle, opts ...ListOption) iter.Seq2[Handle, bool] {
+func (a *Arena) List(t Cell, opts ...ListOption) iter.Seq2[Cell, bool] {
 	var o ListOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -446,12 +424,12 @@ func (a *Arena) List(t Handle, opts ...ListOption) iter.Seq2[Handle, bool] {
 
 	// Brent's cycle detection algorithm
 	var (
-		tortoise Handle
+		tortoise Cell
 		hare     = t
 		power    = 1
 		lam      = 1
 	)
-	return func(yield func(Handle, bool) bool) {
+	return func(yield func(Cell, bool) bool) {
 		for {
 			if tortoise == hare && !o.allowCycle { // Detected a cycle.
 				_ = yield(hare, false)
@@ -496,14 +474,14 @@ func (a *Arena) List(t Handle, opts ...ListOption) iter.Seq2[Handle, bool] {
 }
 
 // CharList returns a string if the term is a list of single-character atoms.
-func (a *Arena) CharList(t Handle) (string, bool) {
+func (a *Arena) CharList(t Cell) (string, bool) {
 	if a, _ := a.Atom(t); a == atomEmptyList {
 		return "", true
 	}
 
-	if t.cell.tag == cellTagString {
-		offset := t.cell.aux
-		str := a.Strings.Get(int(t.cell.value))
+	if t.tag == cellTagString {
+		offset := t.aux
+		str := a.Strings.Get(int(t.value))
 		tail, ok := a.CharList(a.Deref(str.Tail))
 		if !ok {
 			return "", false
@@ -530,32 +508,32 @@ func (a *Arena) CharList(t Handle) (string, bool) {
 	return sb.String(), true
 }
 
-func (a *Arena) PutStream(s Stream) (Handle, error) {
+func (a *Arena) PutStream(s Stream) (Cell, error) {
 	id := a.Streams.Add(&s)
-	return Handle{cell{tag: cellTagStream, value: int32(id)}}, nil
+	return Cell{tag: cellTagStream, value: int32(id)}, nil
 }
 
-func (a *Arena) Stream(t Handle) (*Stream, bool) {
-	if t.cell.tag != cellTagStream {
+func (a *Arena) Stream(t Cell) (*Stream, bool) {
+	if t.tag != cellTagStream {
 		return nil, false
 	}
-	return a.Streams.Get(int(t.cell.value)), true
+	return a.Streams.Get(int(t.value)), true
 }
 
-func (a *Arena) OpenStreams() iter.Seq[Handle] {
-	return func(yield func(Handle) bool) {
+func (a *Arena) OpenStreams() iter.Seq[Cell] {
+	return func(yield func(Cell) bool) {
 		for i, s := range a.Streams.All() {
 			if s.Closed {
 				continue
 			}
-			if !yield(Handle{cell: cell{tag: cellTagStream, value: int32(i)}}) {
+			if !yield(Cell{tag: cellTagStream, value: int32(i)}) {
 				return
 			}
 		}
 	}
 }
 
-func (a *Arena) Compare(x, y Handle) int {
+func (a *Arena) Compare(x, y Cell) int {
 	x, y = a.Deref(x), a.Deref(y)
 	if x == y {
 		return 0
@@ -627,7 +605,7 @@ func (a *Arena) Compare(x, y Handle) int {
 			return 1
 		}
 		if _, ok := a.Stream(y); ok {
-			return int(x.cell.value - y.cell.value)
+			return int(x.value - y.value)
 		}
 		return -1
 	}
@@ -656,11 +634,11 @@ func (a *Arena) Compare(x, y Handle) int {
 	return 0
 }
 
-func (a *Arena) Acyclic(t Handle) bool {
-	return !a.cyclic(t, map[Handle]struct{}{})
+func (a *Arena) Acyclic(t Cell) bool {
+	return !a.cyclic(t, map[Cell]struct{}{})
 }
 
-func (a *Arena) cyclic(t Handle, visited map[Handle]struct{}) bool {
+func (a *Arena) cyclic(t Cell, visited map[Cell]struct{}) bool {
 	t = a.Deref(t)
 	if _, ok := a.Functor(t); !ok {
 		return false
@@ -677,24 +655,24 @@ func (a *Arena) cyclic(t Handle, visited map[Handle]struct{}) bool {
 	return false
 }
 
-func RenamedCopy(from, to *Arena, t Handle) (Handle, error) {
-	return renamedCopy(from, to, t, map[Handle]Handle{})
+func RenamedCopy(from, to *Arena, t Cell) (Cell, error) {
+	return renamedCopy(from, to, t, map[Cell]Cell{})
 }
 
-func renamedCopy(from, to *Arena, t Handle, copied map[Handle]Handle) (Handle, error) {
+func renamedCopy(from, to *Arena, t Cell, copied map[Cell]Cell) (Cell, error) {
 	t = from.Deref(t)
 	if t, ok := copied[t]; ok {
 		return t, nil
 	}
 
 	if _, ok := from.Stream(t); ok {
-		return Handle{}, ErrUnsupportedOperation
+		return Cell{}, ErrUnsupportedOperation
 	}
 
 	if _, ok := from.Variable(t); ok {
 		v, err := to.PutVariable()
 		if err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 		copied[t] = v
 		return v, nil
@@ -720,17 +698,17 @@ func renamedCopy(from, to *Arena, t Handle, copied map[Handle]Handle) (Handle, e
 
 	// TODO: Specialize on list, partial list, and string.
 	if f, ok := from.Functor(t); ok {
-		args := make([]Handle, 0, f.Arity())
+		args := make([]Cell, 0, f.Arity())
 		for arg := range from.Args(t) {
 			arg, err := renamedCopy(from, to, arg, copied)
 			if err != nil {
-				return Handle{}, err
+				return Cell{}, err
 			}
 			args = append(args, arg)
 		}
 		c, err := to.PutCompound(f.Name(), args...)
 		if err != nil {
-			return Handle{}, err
+			return Cell{}, err
 		}
 
 		copied[t] = c

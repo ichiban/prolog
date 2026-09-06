@@ -72,8 +72,8 @@ type Compiler struct {
 	*Engine
 
 	counter      int
-	todo         []term.Handle
-	makeVariable func() (term.Handle, error)
+	todo         []term.Cell
+	makeVariable func() (term.Cell, error)
 }
 
 func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
@@ -110,14 +110,14 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 	return nil
 }
 
-func (c *Compiler) schedule(t term.Handle) {
+func (c *Compiler) schedule(t term.Cell) {
 	c.todo = append(c.todo, t)
 }
 
 // include schedules the terms of an included text ahead of the ones left in the
 // including text, so that they take the place of the include/1 directive.
 func (c *Compiler) include(r io.RuneReader) error {
-	var ts []term.Handle
+	var ts []term.Cell
 	for t, err := range syntax.Parse(r,
 		syntax.Arena(c.Arena),
 		syntax.Operators(&c.Ops),
@@ -135,7 +135,7 @@ func (c *Compiler) include(r io.RuneReader) error {
 func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 	for len(c.todo) > 0 {
 		var (
-			t   term.Handle
+			t   term.Cell
 			err error
 		)
 		t, c.todo = c.todo[0], c.todo[1:]
@@ -227,7 +227,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 	return nil
 }
 
-func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, body term.Handle) error {
+func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, body term.Cell) error {
 	cont, err := c.PutVariable()
 	if err != nil {
 		return err
@@ -257,8 +257,8 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 	return c.CompileBinaryClause(clause, binHead, binBody)
 }
 
-func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
-	return func(yield func(term.Handle, error) bool) {
+func (c *Compiler) builtinClauses() iter.Seq2[term.Cell, error] {
+	return func(yield func(term.Cell, error) bool) {
 		if c.BuiltinSet == nil {
 			c.BuiltinSet = NewBuiltinSet()
 		}
@@ -267,14 +267,14 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 			pi := term.NewFunctor(pi.Name(), pi.Arity()-1)
 			head, err := c.PutCompoundWithFreshVars(pi)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
-			var body term.Handle
+			var body term.Cell
 			if b.Type == InHead {
 				body, err = c.PutAtom(term.NewAtom("true"))
 				if err != nil {
-					_ = yield(term.Handle{}, err)
+					_ = yield(term.Cell{}, err)
 					return
 				}
 			} else {
@@ -282,7 +282,7 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 			}
 			t, err := c.PutCompound(term.NewAtom(":-"), head, body)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(t, nil) {
@@ -292,22 +292,22 @@ func (c *Compiler) builtinClauses() iter.Seq2[term.Handle, error] {
 	}
 }
 
-func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Handle, error] {
+func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Cell, error] {
 	c.todo = c.todo[:0]
-	return func(yield func(term.Handle, error) bool) {
+	return func(yield func(term.Cell, error) bool) {
 		for t, err := range syntax.Parse(strings.NewReader(text),
 			syntax.Arena(c.Arena),
 			syntax.Operators(&c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),
 		) {
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 
 			for t, err := range c.Engine.ExpandTerm(ctx, t) {
 				if err != nil {
-					_ = yield(term.Handle{}, err)
+					_ = yield(term.Cell{}, err)
 					return
 				}
 				t, err = c.Engine.ExpandGoal(ctx, t) // FIXME:
@@ -327,7 +327,7 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Hand
 }
 
 // rule turns a term to a form of H :- B.
-func (c *Compiler) rule(t term.Handle) (head, body term.Handle, err error) {
+func (c *Compiler) rule(t term.Cell) (head, body term.Cell, err error) {
 	f, ok := c.Functor(t)
 	if ok && f == functorRule {
 		return c.Arg(t, 0), c.Arg(t, 1), nil
@@ -336,7 +336,7 @@ func (c *Compiler) rule(t term.Handle) (head, body term.Handle, err error) {
 	return t, b, nil
 }
 
-func (c *Compiler) ReplaceBody(goal, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) ReplaceBody(goal, cont term.Cell) (term.Cell, error) {
 	if c.makeVariable == nil {
 		c.makeVariable = c.PutVariable
 	}
@@ -352,17 +352,17 @@ func (c *Compiler) ReplaceBody(goal, cont term.Handle) (term.Handle, error) {
 	case errors.Is(err, errUnhandled):
 		break
 	case err != nil:
-		return term.Handle{}, err
+		return term.Cell{}, err
 	default:
 		return goal, nil
 	}
 
-	var ts []term.Handle
+	var ts []term.Cell
 	switch err := c.splitOp(&ts, goal); {
 	case errors.Is(err, errUnhandled):
 		break
 	case err != nil:
-		return term.Handle{}, err
+		return term.Cell{}, err
 	default:
 		return c.PutSpine(term.NewAtomRune(','), ts...)
 	}
@@ -373,7 +373,7 @@ func (c *Compiler) ReplaceBody(goal, cont term.Handle) (term.Handle, error) {
 	return goal, nil
 }
 
-func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) replaceMacro(goal, cont term.Cell) (term.Cell, error) {
 	// $cont(C) -> C = Cont
 	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtom("$cont"), 1) {
 		k := c.Arg(goal, 0)
@@ -436,11 +436,11 @@ func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
 		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		a, err := c.ReplaceBody(a, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		b, err = c.ReplaceBody(b, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, a, b)
 	}
@@ -474,7 +474,7 @@ func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
 		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoal(g, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, x, g, xs)
 	}
@@ -484,7 +484,7 @@ func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
 		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoalWithEV(g, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, x, g, xs)
 	}
@@ -494,7 +494,7 @@ func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
 		x, g, xs := c.Arg(goal, 0), c.Arg(goal, 1), c.Arg(goal, 2)
 		g, err := c.replaceGoalWithEV(g, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, x, g, xs)
 	}
@@ -510,15 +510,15 @@ func (c *Compiler) replaceMacro(goal, cont term.Handle) (term.Handle, error) {
 		g := c.Arg(goal, 0)
 		g, err := c.ReplaceBody(g, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, g)
 	}
 
-	return term.Handle{}, errUnhandled
+	return term.Cell{}, errUnhandled
 }
 
-func (c *Compiler) replaceGoal(goal, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) replaceGoal(goal, cont term.Cell) (term.Cell, error) {
 	// X -> call(X)
 	if _, ok := c.Variable(goal); ok {
 		return c.PutCompound(atomCall, goal)
@@ -529,14 +529,14 @@ func (c *Compiler) replaceGoal(goal, cont term.Handle) (term.Handle, error) {
 		a, b := c.Arg(goal, 0), c.Arg(goal, 1)
 		g, err := c.traverseConjunction(a, b, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		head, err := c.makeNewHead(g)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		if err := c.compileLater(head, g); err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return head, nil
 	}
@@ -551,13 +551,13 @@ func (c *Compiler) replaceGoal(goal, cont term.Handle) (term.Handle, error) {
 	return c.ReplaceBody(goal, cont)
 }
 
-func (c *Compiler) replaceGoalWithEV(goal, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) replaceGoalWithEV(goal, cont term.Cell) (term.Cell, error) {
 	// X^G where X is an Existential Variable.
 	if f, ok := c.Functor(goal); ok && f == term.NewFunctor(term.NewAtomRune('^'), 2) {
 		x, g := c.Arg(goal, 0), c.Arg(goal, 1)
 		g, err := c.replaceGoalWithEV(g, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.WithArgs(goal, x, g)
 	}
@@ -565,38 +565,38 @@ func (c *Compiler) replaceGoalWithEV(goal, cont term.Handle) (term.Handle, error
 	return c.replaceGoal(goal, cont)
 }
 
-func (c *Compiler) traverseConjunction(a, b, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) traverseConjunction(a, b, cont term.Cell) (term.Cell, error) {
 	var err error
 	if _, ok := c.Variable(a); ok {
 		a, err = c.ReplaceBody(a, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 	} else {
-		var ts []term.Handle
+		var ts []term.Cell
 		switch err := c.splitOp(&ts, a); {
 		case errors.Is(err, errUnhandled):
 			a, err = c.ReplaceBody(a, cont)
 			if err != nil {
-				return term.Handle{}, err
+				return term.Cell{}, err
 			}
 		case err != nil:
-			return term.Handle{}, err
+			return term.Cell{}, err
 		default:
 			a, err = c.PutSpine(term.NewAtomRune(','), ts...)
 			if err != nil {
-				return term.Handle{}, err
+				return term.Cell{}, err
 			}
 		}
 	}
 	b, err = c.ReplaceBody(b, cont)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return c.PutCompound(atomAnd, a, b)
 }
 
-func (c *Compiler) replaceDisjunction(a, b, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) replaceDisjunction(a, b, cont term.Cell) (term.Cell, error) {
 	// Avoid replacing cut.
 	if c.cutFree(a) && c.cutFree(b) {
 		return c.replaceDisjunction1(a, b, cont)
@@ -605,28 +605,28 @@ func (c *Compiler) replaceDisjunction(a, b, cont term.Handle) (term.Handle, erro
 	return c.traverseDisjunction(a, b, cont)
 }
 
-func (c *Compiler) replaceDisjunction1(a, b, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) replaceDisjunction1(a, b, cont term.Cell) (term.Cell, error) {
 	t, err := c.PutCompound(term.NewAtom("or"), a, b)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	head, err := c.makeNewHead(t)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	g, err := c.PutCompound(atomOr, a, b)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	for body := range c.disjunctionSeq(g, cont) {
 		if err := c.compileLater(head, body); err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 	}
 	return head, nil
 }
 
-func (c *Compiler) compileLater(head, body term.Handle) error {
+func (c *Compiler) compileLater(head, body term.Cell) error {
 	cl, err := c.PutCompound(atomNeck, head, body)
 	if err != nil {
 		return err
@@ -635,7 +635,7 @@ func (c *Compiler) compileLater(head, body term.Handle) error {
 	return nil
 }
 
-func (c *Compiler) cutFree(t term.Handle) bool {
+func (c *Compiler) cutFree(t term.Cell) bool {
 	t = c.Deref(t)
 	if _, ok := c.Variable(t); ok {
 		return true
@@ -653,17 +653,17 @@ func (c *Compiler) cutFree(t term.Handle) bool {
 	return true
 }
 
-func (c *Compiler) traverseDisjunction(a, b, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) traverseDisjunction(a, b, cont term.Cell) (term.Cell, error) {
 	// A->C;B -> $if(A, C, B)
 	if f, ok := c.Functor(a); ok && f == functorIfThen {
 		a, d := c.Arg(a, 0), c.Arg(a, 1)
 		a, err := c.ReplaceBody(a, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		d, err = c.ReplaceBody(d, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		return c.PutCompound(term.NewAtom("$if"), a, d, b)
 	}
@@ -671,24 +671,24 @@ func (c *Compiler) traverseDisjunction(a, b, cont term.Handle) (term.Handle, err
 	// A;B -> $or(A, B)
 	a, err := c.ReplaceBody(a, cont)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	b, err = c.ReplaceBody(b, cont)
 	if err != nil {
-		return term.Handle{}, err
+		return term.Cell{}, err
 	}
 	return c.PutCompound(term.NewAtom("$or"), a, b)
 }
 
-func (c *Compiler) makeNewHead(t term.Handle) (term.Handle, error) {
+func (c *Compiler) makeNewHead(t term.Cell) (term.Cell, error) {
 	// TODO: A new auxiliary predicate name should be based on t.
 	vs := c.VariableSet(t)
 	c.counter++
 	return c.PutCompound(term.NewAtom(fmt.Sprintf("$aux%d", c.counter)), vs...)
 }
 
-func (c *Compiler) disjunctionSeq(t, cont term.Handle) iter.Seq2[term.Handle, error] {
-	return func(yield func(term.Handle, error) bool) {
+func (c *Compiler) disjunctionSeq(t, cont term.Cell) iter.Seq2[term.Cell, error] {
+	return func(yield func(term.Cell, error) bool) {
 		t = c.Deref(t)
 		switch f, _ := c.Functor(t); f {
 		case functorOr:
@@ -698,14 +698,14 @@ func (c *Compiler) disjunctionSeq(t, cont term.Handle) iter.Seq2[term.Handle, er
 			if _, ok := c.Variable(a); ok {
 				a, err = c.PutCompound(term.NewAtom("call"), a)
 				if err != nil {
-					_ = yield(term.Handle{}, err)
+					_ = yield(term.Cell{}, err)
 					return
 				}
 			}
 			if _, ok := c.Variable(b); ok {
 				b, err = c.PutCompound(term.NewAtom("call"), b)
 				if err != nil {
-					_ = yield(term.Handle{}, err)
+					_ = yield(term.Cell{}, err)
 					return
 				}
 			}
@@ -724,22 +724,22 @@ func (c *Compiler) disjunctionSeq(t, cont term.Handle) iter.Seq2[term.Handle, er
 			var err error
 			a, err = c.ReplaceBody(a, cont)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			cut, err := c.PutAtom(term.NewAtomRune('!'))
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			b, err = c.ReplaceBody(b, cont)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			t, err := c.PutSpine(term.NewAtomRune(','), a, cut, b)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(t, nil) {
@@ -748,7 +748,7 @@ func (c *Compiler) disjunctionSeq(t, cont term.Handle) iter.Seq2[term.Handle, er
 		default:
 			t, err := c.ReplaceBody(t, cont)
 			if err != nil {
-				_ = yield(term.Handle{}, err)
+				_ = yield(term.Cell{}, err)
 				return
 			}
 			if !yield(t, nil) {
@@ -759,26 +759,26 @@ func (c *Compiler) disjunctionSeq(t, cont term.Handle) iter.Seq2[term.Handle, er
 }
 
 // Binarize turns a clause p :- q, r into p(C) :- q(r(C)).
-func (c *Compiler) Binarize(head, body, cont term.Handle) (neaHead term.Handle, neaBody term.Handle, _ error) {
+func (c *Compiler) Binarize(head, body, cont term.Cell) (neaHead term.Cell, neaBody term.Cell, _ error) {
 	var err error
 	hf, ok := c.Functor(head, term.AllowAtom(true))
 	if !ok {
-		return term.Handle{}, term.Handle{}, errUnhandled
+		return term.Cell{}, term.Cell{}, errUnhandled
 	}
 	args := slices.Collect(c.Args(head))
 	args = append(args, cont)
 	head, err = c.PutCompound(hf.Name(), args...)
 	if err != nil {
-		return term.Handle{}, term.Handle{}, err
+		return term.Cell{}, term.Cell{}, err
 	}
 	body, err = c.addCont(body, cont)
 	return head, body, err
 }
 
-func (c *Compiler) addCont(goal, cont term.Handle) (term.Handle, error) {
+func (c *Compiler) addCont(goal, cont term.Cell) (term.Cell, error) {
 	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
-		return term.Handle{}, errUnhandled
+		return term.Cell{}, errUnhandled
 	}
 	switch f {
 	case functorAnd:
@@ -793,11 +793,11 @@ func (c *Compiler) addCont(goal, cont term.Handle) (term.Handle, error) {
 		}
 		y, err := c.addCont(y, cont)
 		if err != nil {
-			return term.Handle{}, err
+			return term.Cell{}, err
 		}
 		f, ok := c.Functor(x, term.AllowAtom(true))
 		if !ok {
-			return term.Handle{}, errUnhandled
+			return term.Cell{}, errUnhandled
 		}
 		args := slices.Collect(c.Args(x))
 		args = append(args, y)
@@ -809,7 +809,7 @@ func (c *Compiler) addCont(goal, cont term.Handle) (term.Handle, error) {
 	}
 }
 
-func (c *Compiler) splitOp(out *[]term.Handle, goal term.Handle) error {
+func (c *Compiler) splitOp(out *[]term.Cell, goal term.Cell) error {
 	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
 		return errUnhandled
@@ -837,7 +837,7 @@ func (c *Compiler) splitOp(out *[]term.Handle, goal term.Handle) error {
 	}
 }
 
-func (c *Compiler) splitIsRel(out *[]term.Handle, x, b term.Handle) error {
+func (c *Compiler) splitIsRel(out *[]term.Cell, x, b term.Cell) error {
 	if _, ok := c.Variable(b); ok {
 		t, err := c.PutCompound(term.NewAtom("$expr"), b, x)
 		if err != nil {
@@ -864,7 +864,7 @@ func (c *Compiler) splitIsRel(out *[]term.Handle, x, b term.Handle) error {
 	return c.splitIs(out, x, b)
 }
 
-func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
+func (c *Compiler) splitIs(out *[]term.Cell, x, a term.Cell) error {
 	if _, ok := c.Variable(a); ok {
 		t, err := c.PutCompound(term.NewAtom("$expr"), a, x)
 		if err != nil {
@@ -884,7 +884,7 @@ func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
 		return nil
 	}
 
-	args := make([]term.Handle, f.Arity(), f.Arity()+1)
+	args := make([]term.Cell, f.Arity(), f.Arity()+1)
 	for i := range args {
 		v, err := c.makeVariable()
 		if err != nil {
@@ -904,7 +904,7 @@ func (c *Compiler) splitIs(out *[]term.Handle, x, a term.Handle) error {
 	return nil
 }
 
-func (c *Compiler) splitRel(out *[]term.Handle, op term.Atom, a, b term.Handle) error {
+func (c *Compiler) splitRel(out *[]term.Cell, op term.Atom, a, b term.Cell) error {
 	x, err := c.makeVariable()
 	if err != nil {
 		return err
@@ -932,7 +932,7 @@ func (c *Compiler) splitRel(out *[]term.Handle, op term.Atom, a, b term.Handle) 
 	return nil
 }
 
-func (c *Compiler) CompileBinaryClause(clause *ir.Clause, head, body term.Handle) error {
+func (c *Compiler) CompileBinaryClause(clause *ir.Clause, head, body term.Cell) error {
 	// Turns the first argument into a functor for indexing.
 	fa := c.Arg(head, 0)
 	index, err := c.index(fa)
@@ -984,7 +984,7 @@ func (c *Compiler) CompileBinaryClause(clause *ir.Clause, head, body term.Handle
 	return nil
 }
 
-func (c *Compiler) index(t term.Handle) (ir.Index, error) {
+func (c *Compiler) index(t term.Cell) (ir.Index, error) {
 	t = c.Deref(t)
 	if _, ok := c.Variable(t); ok {
 		// We use the zero value to represent a variable first argument instead of '_'/0.
@@ -1006,7 +1006,7 @@ func (c *Compiler) index(t term.Handle) (ir.Index, error) {
 	}, nil
 }
 
-func (c *Compiler) compileHead(clause *ir.Clause, head term.Handle) (term.Functor, error) {
+func (c *Compiler) compileHead(clause *ir.Clause, head term.Cell) (term.Functor, error) {
 	f, _ := c.Functor(head)
 
 	pi := term.NewFunctor(f.Name(), f.Arity())
@@ -1036,7 +1036,7 @@ func (c *Compiler) compileHead(clause *ir.Clause, head term.Handle) (term.Functo
 	return f, c.compileTopArg(clause, Get, head, ct)
 }
 
-func (c *Compiler) emitTopArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) error {
+func (c *Compiler) emitTopArgs(clause *ir.Clause, mode Mode, t, ct term.Cell) error {
 	f, ok := c.Functor(t)
 	if !ok {
 		return errUnhandled
@@ -1059,7 +1059,7 @@ func (c *Compiler) emitTopArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) 
 	return nil
 }
 
-func (c *Compiler) compileTopArg(clause *ir.Clause, mode Mode, t, ct term.Handle) error {
+func (c *Compiler) compileTopArg(clause *ir.Clause, mode Mode, t, ct term.Cell) error {
 	f, ok := c.Functor(t)
 	if !ok {
 		return errUnhandled
@@ -1073,7 +1073,7 @@ func (c *Compiler) compileTopArg(clause *ir.Clause, mode Mode, t, ct term.Handle
 	return nil
 }
 
-func (c *Compiler) compileTopTerm(clause *ir.Clause, mode Mode, x, t term.Handle) error {
+func (c *Compiler) compileTopTerm(clause *ir.Clause, mode Mode, x, t term.Cell) error {
 	if _, ok := c.Variable(t); ok {
 		return c.Bind(x, t)
 	}
@@ -1102,7 +1102,7 @@ func (c *Compiler) compileTopTerm(clause *ir.Clause, mode Mode, x, t term.Handle
 	return c.compileArgs(clause, mode, t, ct)
 }
 
-func (c *Compiler) emitArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) error {
+func (c *Compiler) emitArgs(clause *ir.Clause, mode Mode, t, ct term.Cell) error {
 	f, _ := c.Functor(t)
 	for i := range f.Arity() {
 		a, x := c.Arg(t, i), c.Arg(ct, i)
@@ -1140,7 +1140,7 @@ func (c *Compiler) emitArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) err
 	return nil
 }
 
-func (c *Compiler) compileArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) error {
+func (c *Compiler) compileArgs(clause *ir.Clause, mode Mode, t, ct term.Cell) error {
 	f, _ := c.Functor(t)
 	for i := 0; i < f.Arity(); i++ {
 		if err := c.compileTerm(clause, mode, c.Arg(ct, i), c.Arg(t, i)); err != nil {
@@ -1150,7 +1150,7 @@ func (c *Compiler) compileArgs(clause *ir.Clause, mode Mode, t, ct term.Handle) 
 	return nil
 }
 
-func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Handle) error {
+func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Cell) error {
 	if _, ok := c.Variable(t); ok {
 		return c.Bind(x, t)
 	}
@@ -1183,7 +1183,7 @@ func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Handle) e
 	return c.compileArgs(clause, mode, t, ct)
 }
 
-func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functor, error) {
+func (c *Compiler) compileBody(clause *ir.Clause, body term.Cell) (term.Functor, error) {
 	if _, ok := c.Variable(body); ok {
 		var err error
 		body, err = c.PutCompound(term.NewAtom("true"), body)
@@ -1227,7 +1227,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 		case InHead:
 			break
 		case InBody:
-			var cont term.Handle
+			var cont term.Cell
 			switch pi.Arity() {
 			case 1:
 				cont = c.Arg(body, 0)
@@ -1272,7 +1272,7 @@ func (c *Compiler) compileBody(clause *ir.Clause, body term.Handle) (term.Functo
 	return pi, c.emitBodyTopTerm(clause, body, ct)
 }
 
-func (c *Compiler) compileEqual(clause *ir.Clause, a, b term.Handle) error {
+func (c *Compiler) compileEqual(clause *ir.Clause, a, b term.Cell) error {
 	if _, ok := c.Variable(b); ok {
 		if _, ok := c.Variable(a); !ok {
 			a, b = b, a
@@ -1307,14 +1307,14 @@ func (c *Compiler) compileEqual(clause *ir.Clause, a, b term.Handle) error {
 	return c.compileTopTerm(clause, Get, v2, b)
 }
 
-func (c *Compiler) emitBodyTopTerm(clause *ir.Clause, t, ct term.Handle) error {
+func (c *Compiler) emitBodyTopTerm(clause *ir.Clause, t, ct term.Cell) error {
 	if err := c.compileTopArg(clause, Put, t, ct); err != nil {
 		return err
 	}
 	return c.emitTopArgs(clause, Put, t, ct)
 }
 
-func (c *Compiler) classifyArg(x, a term.Handle) (ir.Type, error) {
+func (c *Compiler) classifyArg(x, a term.Cell) (ir.Type, error) {
 	if _, ok := c.Variable(a); ok {
 		err := c.Bind(x, a)
 		return ir.TypeUnknown, err
@@ -1459,7 +1459,7 @@ func (c *Compiler) allocateRegs(clause *ir.Clause, args []ir.Argument, vars map[
 	clause.MaxRegs = n
 }
 
-func (c *Compiler) classifyLoad(clause *ir.Clause, x, a term.Handle) (ir.Type, error) {
+func (c *Compiler) classifyLoad(clause *ir.Clause, x, a term.Cell) (ir.Type, error) {
 	if _, ok := c.Variable(a); ok {
 		return ir.TypeUnknown, c.Bind(x, a)
 	}
@@ -1471,7 +1471,7 @@ func (c *Compiler) classifyLoad(clause *ir.Clause, x, a term.Handle) (ir.Type, e
 	return ir.TypeUnknown, c.compileTopTerm(clause, Put, x, a)
 }
 
-func (c *Compiler) handleConstantRes(clause *ir.Clause, x, res term.Handle) error {
+func (c *Compiler) handleConstantRes(clause *ir.Clause, x, res term.Cell) error {
 	if _, ok := c.Variable(res); ok {
 		return c.Bind(x, res)
 	}

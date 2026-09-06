@@ -107,20 +107,20 @@ func (d decoder) decodeStruct(v reflect.Value) error {
 // binding returns the term the named variable stands for. A variable that is
 // still unbound has no binding, unless it was unified with another variable the
 // query named, in which case that variable is the binding.
-func (d decoder) binding(vn term.VariableName) (term.Handle, bool) {
+func (d decoder) binding(vn term.VariableName) (term.Cell, bool) {
 	if vn.Name == "_" {
-		return term.Handle{}, false
+		return term.Cell{}, false
 	}
 
 	h := d.i.engine.Deref(vn.Variable)
 	if _, ok := d.i.engine.Variable(h); ok {
 		if h == vn.Variable {
-			return term.Handle{}, false
+			return term.Cell{}, false
 		}
 		if j := slices.IndexFunc(d.varNames, func(o term.VariableName) bool {
 			return o.Variable == h
 		}); j < 0 {
-			return term.Handle{}, false
+			return term.Cell{}, false
 		}
 	}
 	return h, true
@@ -128,7 +128,7 @@ func (d decoder) binding(vn term.VariableName) (term.Handle, bool) {
 
 // decodeTerm converts h into dest, whose type decides which terms are
 // acceptable. It's the inverse of Interpreter.encodeTerm.
-func (d decoder) decodeTerm(dest reflect.Value, h term.Handle) error {
+func (d decoder) decodeTerm(dest reflect.Value, h term.Cell) error {
 	e := &d.i.engine
 	h = e.Deref(h)
 
@@ -196,7 +196,7 @@ func (d decoder) decodeTerm(dest reflect.Value, h term.Handle) error {
 	}
 }
 
-func (d decoder) decodeSlice(dest reflect.Value, h term.Handle) error {
+func (d decoder) decodeSlice(dest reflect.Value, h term.Cell) error {
 	elems := reflect.MakeSlice(dest.Type(), 0, 0)
 	for elem, ok := range d.i.engine.List(h) {
 		if !ok {
@@ -214,7 +214,7 @@ func (d decoder) decodeSlice(dest reflect.Value, h term.Handle) error {
 
 // decodeAny converts h into the Value that represents it most closely. A term
 // that has no such representation becomes Raw.
-func (d decoder) decodeAny(h term.Handle) (any, error) {
+func (d decoder) decodeAny(h term.Cell) (any, error) {
 	e := &d.i.engine
 
 	if _, ok := e.Variable(h); ok {
@@ -241,7 +241,7 @@ func (d decoder) decodeAny(h term.Handle) (any, error) {
 	return Raw(d.format(h)), nil
 }
 
-func (d decoder) anyList(h term.Handle) ([]any, bool) {
+func (d decoder) anyList(h term.Cell) ([]any, bool) {
 	elems := []any{}
 	for elem, ok := range d.i.engine.List(h) {
 		if !ok {
@@ -256,7 +256,7 @@ func (d decoder) anyList(h term.Handle) ([]any, bool) {
 	return elems, true
 }
 
-func (d decoder) format(h term.Handle) string {
+func (d decoder) format(h term.Cell) string {
 	return fmt.Sprintf("%s", &syntax.Formatter{
 		Arena:         d.i.engine.Arena,
 		Term:          h,
@@ -265,7 +265,7 @@ func (d decoder) format(h term.Handle) string {
 	})
 }
 
-func (d decoder) conversionError(h term.Handle, t reflect.Type) error {
+func (d decoder) conversionError(h term.Cell, t reflect.Type) error {
 	return fmt.Errorf("cannot convert %s into %s: %w", d.format(h), t, errConversion)
 }
 

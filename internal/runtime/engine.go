@@ -59,8 +59,8 @@ type Engine struct {
 	DB             db.DB
 	CurrentTime    wam.LogicalTime
 
-	Input  term.Handle
-	Output term.Handle
+	Input  term.Cell
+	Output term.Cell
 
 	debug    bool
 	unknown  unknownAction
@@ -99,20 +99,20 @@ func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {
 	return p, true, nil
 }
 
-func (e *Engine) Inspect(t term.Handle) string {
+func (e *Engine) Inspect(t term.Cell) string {
 	return fmt.Sprintf("%s", &syntax.Formatter{Arena: e.Arena, Term: t})
 }
 
 var _ = (*Engine)(nil).Inspect
 
-func (e *Engine) ExpandTerm(_ context.Context, t term.Handle) iter.Seq2[term.Handle, error] {
+func (e *Engine) ExpandTerm(_ context.Context, t term.Cell) iter.Seq2[term.Cell, error] {
 	// TODO: Implement this!
-	return func(yield func(term.Handle, error) bool) {
+	return func(yield func(term.Cell, error) bool) {
 		_ = yield(t, nil)
 	}
 }
 
-func (e *Engine) ExpandGoal(_ context.Context, t term.Handle) (term.Handle, error) {
+func (e *Engine) ExpandGoal(_ context.Context, t term.Cell) (term.Cell, error) {
 	return t, nil // TODO: Implement this!
 }
 
@@ -476,7 +476,7 @@ func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Se
 
 }
 
-func (e *Engine) Call(ctx context.Context, goal term.Handle) iter.Seq[error] {
+func (e *Engine) Call(ctx context.Context, goal term.Cell) iter.Seq[error] {
 	// FIXME: iter.Seq[error] is a code smell since each error isn't an element of the sequence but the error of the sequence itself.
 	bpi := term.NewFunctor(term.NewAtom("call"), 2)
 	cont, err := e.PutAtom(term.NewAtom("true"))
