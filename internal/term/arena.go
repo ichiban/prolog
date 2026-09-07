@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ichiban/prolog/v2/internal/bit"
 	"github.com/ichiban/prolog/v2/internal/side"
 )
 
@@ -40,6 +41,18 @@ type Arena struct {
 	// TODO: Add a side-car table for big integers.
 	Strings side.Table[String]
 	Streams side.Table[*Stream]
+	marks   *bit.Set // For GC.
+	// payloads tells which of the marked cells are raw int64 or float64 bits
+	// rather than cells, so that GC leaves them alone.
+	payloads *bit.Set
+}
+
+func NewArena(size int) *Arena {
+	return &Arena{
+		Heap:     make(Heap, 0, size),
+		marks:    bit.NewSet(size),
+		payloads: bit.NewSet(size),
+	}
 }
 
 // PutVariable creates a variable term and returns it.
@@ -717,4 +730,89 @@ func renamedCopy(from, to *Arena, t Cell, copied map[Cell]Cell) (Cell, error) {
 
 	copied[t] = t
 	return t, nil
+}
+
+// GC reclaims the cells that are unreachable from the given roots and slides
+// the survivors down to the bottom of the heap. The roots are rewritten in
+// place to point at the new addresses.
+func (a *Arena) GC(roots []*Cell) {
+	a.marks.Clear()
+	a.payloads.Clear()
+	for _, r := range roots {
+		a.mark(*r)
+	}
+
+	a.Strings.Sweep()
+	a.Streams.Sweep()
+
+	var n int
+	for i := range a.Heap {
+		if !a.marks.Exists(i) {
+			continue
+		}
+		if a.payloads.Exists(i) {
+			a.Heap[n] = a.Heap[i] // Raw bits. They only look like an address.
+		} else {
+			a.Heap[n] = a.relocate(a.Heap[i])
+		}
+		n++
+	}
+	a.Heap = a.Heap[:n]
+
+	for id, s := range a.Strings.All() {
+		s.Tail = a.relocate(s.Tail)
+		a.Strings.Set(id, s)
+	}
+
+	for _, r := range roots {
+		*r = a.relocate(*r)
+	}
+}
+
+// mark records every heap cell reachable from the given cell.
+func (a *Arena) mark(c Cell) {
+	switch c.tag {
+	case cellTagReference:
+		if a.marks.Exists(int(c.value)) {
+			return
+		}
+		a.marks.Add(int(c.value))
+		a.mark(a.Heap[c.value])
+	case cellTagStructure:
+		addr := int(c.value)
+		if a.marks.Exists(addr) { // Already visited. The term may be cyclic.
+			return
+		}
+		a.marks.Add(addr) // The functor cell.
+		f, _ := a.Functor(c)
+		for i := range f.Arity() {
+			arg := addr + 1 + i
+			if t := a.Heap[arg].tag; t == cellTagFunctor || t == cellTagFunctorChar {
+				// CDR coding. The argument is a structure that starts right here.
+				a.mark(Cell{tag: cellTagStructure, value: int32(arg)})
+				continue
+			}
+			a.marks.Add(arg)
+			a.mark(a.Heap[arg])
+		}
+	case cellTagInt64, cellTagFloat:
+		a.marks.Add(int(c.value)) // A raw int64 or float64, not a cell.
+		a.payloads.Add(int(c.value))
+	case cellTagString:
+		a.Strings.Mark(int(c.value))
+		a.mark(a.Strings.Get(int(c.value)).Tail)
+	case cellTagStream:
+		a.Streams.Mark(int(c.value))
+	}
+}
+
+// relocate rewrites the address a cell holds to where GC is about to move the
+// cell it points at. A live cell at address i moves to Rank(i)-1 because the
+// survivors keep their relative order.
+func (a *Arena) relocate(c Cell) Cell {
+	if c.tag.Immediate() {
+		return c
+	}
+	c.value = int32(a.marks.Rank(int(c.value)) - 1)
+	return c
 }

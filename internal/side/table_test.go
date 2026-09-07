@@ -132,3 +132,18 @@ func TestTable_uncomparable(t *testing.T) {
 		t.Errorf("+0.0 and -0.0 share an id: %d", pos)
 	}
 }
+
+func TestTable_Set(t *testing.T) {
+	var tbl Table[string]
+	a := tbl.Add("a")
+	b := tbl.Add("b")
+
+	tbl.Set(a, "c")
+
+	if got := tbl.Get(a); got != "c" {
+		t.Errorf("expected: %s, got: %s", "c", got)
+	}
+	if got := tbl.Get(b); got != "b" {
+		t.Errorf("expected: %s, got: %s", "b", got)
+	}
+}

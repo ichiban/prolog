@@ -65,12 +65,8 @@ func New(opts ...InterpreterOption) *Interpreter {
 	}
 	return &Interpreter{
 		engine: runtime.Engine{
-			Arena: &term.Arena{
-				Heap: make(term.Heap, 0, opt.heapSize),
-			},
-			TempArena: &term.Arena{
-				Heap: make(term.Heap, 0, opt.tempHeapSize),
-			},
+			Arena:      term.NewArena(int(opt.heapSize)),
+			TempArena:  term.NewArena(int(opt.tempHeapSize)),
 			BuiltinSet: runtime.NewBuiltinSet(),
 			Ops:        *syntax.NewOperatorSet(),
 			DB:         &db.MemoryDB{},

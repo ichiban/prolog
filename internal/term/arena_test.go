@@ -18,17 +18,13 @@ func TestArena_PutVariable(t *testing.T) {
 	}{
 		{
 			title: "ok",
-			arena: &Arena{
-				Heap: make(Heap, 0, 1),
-			},
-			term: Cell{tag: cellTagReference, value: 0},
+			arena: NewArena(1),
+			term:  Cell{tag: cellTagReference, value: 0},
 		},
 		{
 			title: "ng",
-			arena: &Arena{
-				Heap: make(Heap, 0),
-			},
-			err: ErrOutOfMemory,
+			arena: NewArena(0),
+			err:   ErrOutOfMemory,
 		},
 	}
 
@@ -46,9 +42,8 @@ func TestArena_PutVariable(t *testing.T) {
 }
 
 func TestArena_Variable(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 1),
-	}
+	arena := NewArena(1)
+
 	tests := []struct {
 		title string
 		term  Cell
@@ -116,9 +111,7 @@ func TestArena_Deref(t *testing.T) {
 }
 
 func TestArena_Bind(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 2),
-	}
+	arena := NewArena(2)
 
 	x := must(arena.PutVariable())
 	i := must(arena.PutInteger(1))
@@ -151,9 +144,7 @@ func TestArena_Bind(t *testing.T) {
 }
 
 func TestArena_PutAtom(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 2),
-	}
+	arena := NewArena(2)
 
 	tests := []struct {
 		title string
@@ -194,9 +185,7 @@ func TestArena_PutAtom(t *testing.T) {
 }
 
 func TestArena_Atom(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 1),
-	}
+	arena := NewArena(1)
 
 	tests := []struct {
 		title string
@@ -239,20 +228,20 @@ func TestArena_Atom(t *testing.T) {
 func TestArena_PutInteger(t *testing.T) {
 	tests := []struct {
 		title   string
-		arena   Arena
+		arena   *Arena
 		integer int64
 		term    Cell
 		err     error
 	}{
 		{
 			title:   "int64",
-			arena:   Arena{Heap: make(Heap, 0, 1)},
+			arena:   NewArena(1),
 			integer: math.MaxInt32 + 1,
 			term:    Cell{tag: cellTagInt64, value: 0},
 		},
 		{
 			title:   "int32",
-			arena:   Arena{Heap: make(Heap, 0, 1)},
+			arena:   NewArena(1),
 			integer: math.MaxInt32 - 1,
 			term:    Cell{tag: cellTagInt32, value: math.MaxInt32 - 1},
 		},
@@ -273,9 +262,7 @@ func TestArena_PutInteger(t *testing.T) {
 }
 
 func TestArena_Integer(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 1),
-	}
+	arena := NewArena(1)
 
 	tests := []struct {
 		title string
@@ -317,14 +304,14 @@ func TestArena_Integer(t *testing.T) {
 func TestArena_PutFloat(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		float float64
 		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 1)},
+			arena: NewArena(1),
 			float: 1,
 			term:  Cell{tag: cellTagFloat, value: 0},
 		},
@@ -352,7 +339,7 @@ func TestArena_numberRoundTrip(t *testing.T) {
 			math.MinInt64, math.MinInt32 - 1, math.MinInt32, -1, 0, 1,
 			math.MaxInt32, math.MaxInt32 + 1, math.MaxInt64,
 		} {
-			arena := Arena{Heap: make(Heap, 0, 1)}
+			arena := NewArena(1)
 
 			h, err := arena.PutInteger(n)
 			if err != nil {
@@ -374,7 +361,7 @@ func TestArena_numberRoundTrip(t *testing.T) {
 			math.MaxFloat64, -math.MaxFloat64, math.SmallestNonzeroFloat64,
 			math.Inf(1), math.Inf(-1), math.NaN(),
 		} {
-			arena := Arena{Heap: make(Heap, 0, 1)}
+			arena := NewArena(1)
 
 			h, err := arena.PutFloat(f)
 			if err != nil {
@@ -392,7 +379,7 @@ func TestArena_numberRoundTrip(t *testing.T) {
 	})
 
 	t.Run("out of memory", func(t *testing.T) {
-		arena := Arena{Heap: make(Heap, 0, 0)}
+		arena := NewArena(0)
 
 		if _, err := arena.PutFloat(1); !errors.Is(err, ErrOutOfMemory) {
 			t.Errorf("expected: %v, got: %v", ErrOutOfMemory, err)
@@ -408,9 +395,7 @@ func TestArena_numberRoundTrip(t *testing.T) {
 }
 
 func TestArena_Float(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 1),
-	}
+	arena := NewArena(1)
 
 	tests := []struct {
 		title string
@@ -468,7 +453,7 @@ func TestArena_PutFunctor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			arena := Arena{Heap: make(Heap, 0, 3)}
+			arena := NewArena(3)
 
 			f, err := arena.PutFunctor(tt.functor)
 			if err != nil {
@@ -501,7 +486,7 @@ func TestArena_PutFunctor(t *testing.T) {
 func TestArena_PutCompound(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		name  Atom
 		args  []Cell
 		term  Cell
@@ -509,13 +494,13 @@ func TestArena_PutCompound(t *testing.T) {
 	}{
 		{
 			title: "atom",
-			arena: Arena{Heap: make(Heap, 0)},
+			arena: NewArena(0),
 			name:  NewAtom("foo"),
 			term:  Cell{tag: cellTagAtom, value: NewAtom("foo").value},
 		},
 		{
 			title: "compound",
-			arena: Arena{Heap: make(Heap, 0, 3)},
+			arena: NewArena(3),
 			name:  NewAtom("foo"),
 			args: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -525,7 +510,7 @@ func TestArena_PutCompound(t *testing.T) {
 		},
 		{
 			title: "not enough heap for the functor cell",
-			arena: Arena{Heap: make(Heap, 0)},
+			arena: NewArena(0),
 			name:  NewAtom("foo"),
 			args: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -535,7 +520,7 @@ func TestArena_PutCompound(t *testing.T) {
 		},
 		{
 			title: "not enough heap for the args",
-			arena: Arena{Heap: make(Heap, 0, 1)},
+			arena: NewArena(1),
 			name:  NewAtom("foo"),
 			args: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -560,14 +545,14 @@ func TestArena_PutCompound(t *testing.T) {
 func TestArena_PutList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		args  []Cell
 		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			args: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
 				{tag: cellTagAtom, value: NewAtomRune('b').value},
@@ -592,7 +577,7 @@ func TestArena_PutList(t *testing.T) {
 func TestArena_PutPartialList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		tail  Cell
 		elems []Cell
 		term  Cell
@@ -600,7 +585,7 @@ func TestArena_PutPartialList(t *testing.T) {
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
 			elems: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -610,14 +595,14 @@ func TestArena_PutPartialList(t *testing.T) {
 		},
 		{
 			title: "only tail",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('a').value},
 			elems: []Cell{},
 			term:  Cell{tag: cellTagAtom, value: NewAtomRune('a').value},
 		},
 		{
 			title: "not enough heap for elements",
-			arena: Arena{Heap: make(Heap, 0)},
+			arena: NewArena(0),
 			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
 			elems: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -627,7 +612,7 @@ func TestArena_PutPartialList(t *testing.T) {
 		},
 		{
 			title: "not enough heap for tail",
-			arena: Arena{Heap: make(Heap, 0, 4)},
+			arena: NewArena(4),
 			tail:  Cell{tag: cellTagAtom, value: NewAtomRune('c').value},
 			elems: []Cell{
 				{tag: cellTagAtom, value: NewAtomRune('a').value},
@@ -653,14 +638,14 @@ func TestArena_PutPartialList(t *testing.T) {
 func TestArena_PutCharList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		str   string
 		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			str:   "abc",
 			term:  Cell{tag: cellTagString, value: 0, aux: 0},
 		},
@@ -681,7 +666,7 @@ func TestArena_PutCharList(t *testing.T) {
 func TestArena_PutPartialCharList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		str   string
 		tail  Cell
 		term  Cell
@@ -689,14 +674,14 @@ func TestArena_PutPartialCharList(t *testing.T) {
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			str:   "abc",
 			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
 			term:  Cell{tag: cellTagString, value: 0},
 		},
 		{
 			title: "multiple of 8",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			str:   "abcdefghabcdefgh",
 			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
 			term:  Cell{tag: cellTagString, value: 0},
@@ -718,14 +703,14 @@ func TestArena_PutPartialCharList(t *testing.T) {
 func TestArena_PutCodeList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		str   string
 		term  Cell
 		err   error
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			str:   "abc",
 			term:  Cell{tag: cellTagStructure, value: 0},
 		},
@@ -746,7 +731,7 @@ func TestArena_PutCodeList(t *testing.T) {
 func TestArena_PutPartialCodeList(t *testing.T) {
 	tests := []struct {
 		title string
-		arena Arena
+		arena *Arena
 		str   string
 		tail  Cell
 		term  Cell
@@ -754,7 +739,7 @@ func TestArena_PutPartialCodeList(t *testing.T) {
 	}{
 		{
 			title: "ok",
-			arena: Arena{Heap: make(Heap, 0, 10)},
+			arena: NewArena(10),
 			str:   "abc",
 			tail:  Cell{tag: cellTagAtom, value: NewAtom("[]").value},
 			term:  Cell{tag: cellTagStructure, value: 0},
@@ -774,9 +759,8 @@ func TestArena_PutPartialCodeList(t *testing.T) {
 }
 
 func TestArena_Functor(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 4),
-	}
+	arena := NewArena(4)
+
 	tests := []struct {
 		title string
 		term  Cell
@@ -815,9 +799,7 @@ func TestArena_Functor(t *testing.T) {
 }
 
 func TestArena_Arg(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 20),
-	}
+	arena := NewArena(20)
 	tests := []struct {
 		title string
 		term  Cell
@@ -866,9 +848,7 @@ func TestArena_Arg(t *testing.T) {
 }
 
 func TestArena_Args(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 4),
-	}
+	arena := NewArena(4)
 	tests := []struct {
 		title string
 		term  Cell
@@ -895,9 +875,7 @@ func TestArena_Args(t *testing.T) {
 }
 
 func TestArena_List(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 30),
-	}
+	arena := NewArena(30)
 	x := must(arena.PutVariable())
 	v := must(arena.PutVariable())
 	cycle := must(arena.PutPartialList(v, must(arena.PutAtom(NewAtomRune('a')))))
@@ -1008,9 +986,8 @@ func TestArena_List(t *testing.T) {
 }
 
 func TestArena_CharList(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 40),
-	}
+	arena := NewArena(40)
+
 	tests := []struct {
 		title string
 		term  Cell
@@ -1070,9 +1047,7 @@ func TestArena_CharList(t *testing.T) {
 }
 
 func TestArena_Compare(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 40),
-	}
+	arena := NewArena(40)
 
 	w := must(arena.PutVariable())
 	x := must(arena.PutVariable())
@@ -1154,9 +1129,7 @@ func TestArena_Compare(t *testing.T) {
 }
 
 func TestArena_Acyclic(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 40),
-	}
+	arena := NewArena(40)
 
 	a, _ := arena.PutAtom(NewAtomRune('a'))
 	fa, _ := arena.PutCompound(NewAtomRune('f'), a)
@@ -1183,9 +1156,7 @@ func TestArena_Acyclic(t *testing.T) {
 }
 
 func TestArena_RenamedCopy(t *testing.T) {
-	arena := Arena{
-		Heap: make(Heap, 0, 40),
-	}
+	arena := NewArena(40)
 
 	a := must(arena.PutAtom(NewAtomRune('a')))
 	b := must(arena.PutAtom(NewAtomRune('b')))
@@ -1212,7 +1183,7 @@ func TestArena_RenamedCopy(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			result, err := RenamedCopy(&arena, &arena, test.term)
+			result, err := RenamedCopy(arena, arena, test.term)
 			if !errors.Is(err, test.err) {
 				t.Errorf("expected %v, got %v", test.err, err)
 			}
@@ -1243,4 +1214,213 @@ func take[T any](s iter.Seq[T], n int) iter.Seq[T] {
 			i++
 		}
 	}
+}
+
+func TestArena_GC(t *testing.T) {
+	t.Run("unreachable cells are reclaimed", func(t *testing.T) {
+		a := NewArena(8)
+		_ = must(a.PutVariable()) // Garbage.
+		v := must(a.PutVariable())
+
+		a.GC([]*Cell{&v})
+
+		if len(a.Heap) != 1 {
+			t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
+		}
+		if _, ok := a.Variable(a.Deref(v)); !ok {
+			t.Errorf("the survivor is no longer an unbound variable: %v", a.Deref(v))
+		}
+	})
+
+	t.Run("a compound survives with its arguments", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutVariable()) // Garbage.
+		c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(1)), must(a.PutAtom(NewAtom("bar")))))
+
+		a.GC([]*Cell{&c})
+
+		if len(a.Heap) != 3 {
+			t.Errorf("expected: %d, got: %d", 3, len(a.Heap))
+		}
+		if f, ok := a.Functor(c); !ok || f != NewFunctor(NewAtom("foo"), 2) {
+			t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 2), f)
+		}
+		if i, ok := a.Integer(a.Arg(c, 0)); !ok || i != 1 {
+			t.Errorf("expected: %d, got: %d", 1, i)
+		}
+		if atom, ok := a.Atom(a.Arg(c, 1)); !ok || atom != NewAtom("bar") {
+			t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
+		}
+	})
+
+	t.Run("a CDR-coded list survives", func(t *testing.T) {
+		a := NewArena(32)
+		_ = must(a.PutVariable()) // Garbage.
+		l := must(a.PutList(must(a.PutInteger(1)), must(a.PutInteger(2)), must(a.PutInteger(3))))
+
+		a.GC([]*Cell{&l})
+
+		var elems []int64
+		for elem, ok := range a.List(l) {
+			if !ok {
+				t.Fatalf("not a proper list: %v", elem)
+			}
+			i, _ := a.Integer(elem)
+			elems = append(elems, i)
+		}
+		if want := []int64{1, 2, 3}; !slices.Equal(elems, want) {
+			t.Errorf("expected: %v, got: %v", want, elems)
+		}
+		if len(a.Heap) != 7 {
+			t.Errorf("expected: %d, got: %d", 7, len(a.Heap))
+		}
+	})
+
+	t.Run("an int64 survives", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutVariable()) // Garbage.
+		i := must(a.PutInteger(math.MaxInt32 + 1))
+
+		a.GC([]*Cell{&i})
+
+		if n, ok := a.Integer(i); !ok || n != math.MaxInt32+1 {
+			t.Errorf("expected: %d, got: %d", int64(math.MaxInt32)+1, n)
+		}
+	})
+
+	t.Run("an int64 whose bits look like a cell isn't relocated", func(t *testing.T) {
+		a := NewArena(16)
+		n := cast[Cell, int64](Cell{tag: cellTagReference, value: 5})
+		i := must(a.PutInteger(n))
+
+		a.GC([]*Cell{&i})
+
+		if got, ok := a.Integer(i); !ok || got != n {
+			t.Errorf("expected: %d, got: %d", n, got)
+		}
+	})
+
+	t.Run("a float survives", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutVariable()) // Garbage.
+		f := must(a.PutFloat(1.5))
+
+		a.GC([]*Cell{&f})
+
+		if got, ok := a.Float(f); !ok || got != 1.5 {
+			t.Errorf("expected: %f, got: %f", 1.5, got)
+		}
+	})
+
+	t.Run("an unreachable string is collected", func(t *testing.T) {
+		a := NewArena(16)
+		garbage := must(a.PutCharList("garbage"))
+		s := must(a.PutCharList("hello"))
+
+		a.GC([]*Cell{&s})
+
+		if got, ok := a.CharList(s); !ok || got != "hello" {
+			t.Errorf("expected: %s, got: %s", "hello", got)
+		}
+		if got := a.Strings.Get(int(garbage.value)); got.Body != "" {
+			t.Errorf("the unreachable string survived: %v", got)
+		}
+	})
+
+	t.Run("the tail of a string is relocated", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutVariable()) // Garbage.
+		v := must(a.PutVariable())
+		s := must(a.PutPartialCharList("hello", v))
+
+		a.GC([]*Cell{&s})
+
+		if len(a.Heap) != 1 {
+			t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
+		}
+		tail := a.Strings.Get(int(s.value)).Tail
+		if want := (Cell{tag: cellTagReference, value: 0}); tail != want {
+			t.Errorf("expected: %v, got: %v", want, tail)
+		}
+	})
+
+	t.Run("an unreachable stream is collected", func(t *testing.T) {
+		a := NewArena(16)
+		garbage := must(a.PutStream(Stream{Alias: NewAtom("garbage")}))
+		s := must(a.PutStream(Stream{Alias: NewAtom("hello")}))
+
+		a.GC([]*Cell{&s})
+
+		if got, ok := a.Stream(s); !ok || got.Alias != NewAtom("hello") {
+			t.Errorf("expected: %v, got: %v", NewAtom("hello"), got.Alias)
+		}
+		if got := a.Streams.Get(int(garbage.value)); got != nil {
+			t.Errorf("the unreachable stream survived: %v", got)
+		}
+	})
+
+	t.Run("a bound variable keeps its binding", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutVariable()) // Garbage.
+		v := must(a.PutVariable())
+		c := must(a.PutCompound(NewAtom("foo"), must(a.PutAtom(NewAtom("bar")))))
+		if err := a.Bind(v, c); err != nil {
+			t.Fatal(err)
+		}
+
+		a.GC([]*Cell{&v})
+
+		d := a.Deref(v)
+		if f, ok := a.Functor(d); !ok || f != NewFunctor(NewAtom("foo"), 1) {
+			t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 1), f)
+		}
+		if atom, ok := a.Atom(a.Arg(d, 0)); !ok || atom != NewAtom("bar") {
+			t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
+		}
+	})
+
+	t.Run("a cyclic term survives", func(t *testing.T) {
+		a := NewArena(16)
+		v := must(a.PutVariable())
+		c := must(a.PutCompound(NewAtom("f"), v))
+		if err := a.Bind(v, c); err != nil {
+			t.Fatal(err)
+		}
+
+		a.GC([]*Cell{&v})
+
+		if a.Acyclic(v) {
+			t.Error("the cycle is gone")
+		}
+		if a.Deref(a.Arg(a.Deref(v), 0)) != a.Deref(v) {
+			t.Errorf("expected: %v, got: %v", a.Deref(v), a.Deref(a.Arg(a.Deref(v), 0)))
+		}
+	})
+
+	t.Run("no roots empties the heap", func(t *testing.T) {
+		a := NewArena(16)
+		_ = must(a.PutCompound(NewAtom("foo"), must(a.PutVariable())))
+
+		a.GC(nil)
+
+		if len(a.Heap) != 0 {
+			t.Errorf("expected: %d, got: %d", 0, len(a.Heap))
+		}
+	})
+
+	t.Run("collecting an already compact heap changes nothing", func(t *testing.T) {
+		a := NewArena(16)
+		c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(math.MaxInt32+1))))
+
+		a.GC([]*Cell{&c})
+		before, heap := c, slices.Clone(a.Heap)
+		a.GC([]*Cell{&c})
+
+		if c != before {
+			t.Errorf("expected: %v, got: %v", before, c)
+		}
+		if !slices.Equal(heap, a.Heap) {
+			t.Errorf("expected: %v, got: %v", heap, a.Heap)
+		}
+	})
 }

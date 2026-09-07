@@ -17,6 +17,11 @@ func (t *Table[T]) Get(id int) T {
 	return t.entries[id].value
 }
 
+// Set replaces the value of an entry that's already in the table.
+func (t *Table[T]) Set(id int, value T) {
+	t.entries[id].value = value
+}
+
 func (t *Table[T]) All() iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
 		for i, e := range t.entries {

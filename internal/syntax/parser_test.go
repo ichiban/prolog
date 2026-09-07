@@ -11,9 +11,7 @@ import (
 )
 
 func Test_ParseTerm(t *testing.T) {
-	arena := term.Arena{
-		Heap: make(term.Heap, 0, 1024),
-	}
+	arena := term.NewArena(1024)
 
 	must := func(term term.Cell, err error) term.Cell {
 		t.Helper()
@@ -164,7 +162,7 @@ func Test_ParseTerm(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			var vns []term.VariableName
 			result, err := ParseTerm(strings.NewReader(tt.input),
-				Arena(&arena),
+				Arena(arena),
 				Operators(&ops),
 				DoubleQuote(&tt.doubleQuotes),
 				VariableNames(&vns),
@@ -192,9 +190,7 @@ func Test_ParseTerm(t *testing.T) {
 }
 
 func Test_ParseNumber(t *testing.T) {
-	arena := term.Arena{
-		Heap: make(term.Heap, 0, 1024),
-	}
+	arena := term.NewArena(1024)
 
 	must := func(term term.Cell, err error) term.Cell {
 		if err != nil {
@@ -243,7 +239,7 @@ func Test_ParseNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			n, err := ParseNumber(strings.NewReader(tt.input), Arena(&arena))
+			n, err := ParseNumber(strings.NewReader(tt.input), Arena(arena))
 			if !reflect.DeepEqual(err, tt.err) {
 				t.Errorf("expected error %q, got %q", tt.err, err)
 			}

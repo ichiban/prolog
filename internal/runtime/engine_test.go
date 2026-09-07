@@ -208,9 +208,7 @@ p(a).
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			e := Engine{
-				Arena: &term.Arena{
-					Heap: make(term.Heap, 0, 1024),
-				},
+				Arena:      term.NewArena(1024),
 				BuiltinSet: &BuiltinSet{},
 				Ops:        *syntax.NewOperatorSet(),
 			}
@@ -252,9 +250,7 @@ p(a).
 // as if its clauses were contiguous, first-argument dispatch included.
 func TestEngine_LoadModule_extension(t *testing.T) {
 	e := Engine{
-		Arena: &term.Arena{
-			Heap: make(term.Heap, 0, 1024),
-		},
+		Arena:      term.NewArena(1024),
 		BuiltinSet: &BuiltinSet{},
 		Ops:        *syntax.NewOperatorSet(),
 	}
@@ -369,10 +365,8 @@ func TestEngine_Call(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			e := Engine{
-				Arena: &term.Arena{
-					Heap: make(term.Heap, 0, 6*1024),
-				},
-				Ops: *syntax.NewOperatorSet(),
+				Arena: term.NewArena(6 * 1024),
+				Ops:   *syntax.NewOperatorSet(),
 			}
 
 			if err := e.LoadSystem(t.Context()); err != nil {
