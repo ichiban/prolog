@@ -103,3 +103,38 @@ func TestSet_Clear(t *testing.T) {
 		t.Errorf("got %v, want %v", s.bits, want)
 	}
 }
+
+func TestSet_Rank_reflectsElementsAddedAfterAnEarlierRank(t *testing.T) {
+	s := NewSet(127)
+	s.Add(0)
+	s.Add(64)
+
+	// Rank before the set is complete, so any cached summary is populated
+	// while it is still stale.
+	if got, want := s.Rank(127), 2; got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	s.Add(1)
+	s.Add(127)
+
+	tests := []struct {
+		name   string
+		n      int
+		result int
+	}{
+		{name: "0", n: 0, result: 1},
+		{name: "1", n: 1, result: 2},
+		{name: "63", n: 63, result: 2},
+		{name: "64", n: 64, result: 3},
+		{name: "126", n: 126, result: 3},
+		{name: "127", n: 127, result: 4},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := s.Rank(test.n); got != test.result {
+				t.Errorf("got %v, want %v", got, test.result)
+			}
+		})
+	}
+}
