@@ -373,11 +373,14 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					arity = f.Arity()
 				}
 				p, _ := e.Predicates[pi]
-				if i, ok := p.FirstArgIndex[wam.FirstArgKey{
+				key := wam.FirstArgKey{
 					Term:  t,
 					Arity: arity,
-				}]; ok {
-					e.jumpTo(i)
+				}
+				if i := slices.IndexFunc(p.FirstArgIndex, func(arg wam.FirstArg) bool {
+					return arg.FirstArgKey == key
+				}); i >= 0 {
+					e.jumpTo(p.FirstArgIndex[i].Offset)
 					continue
 				}
 				e.Next()

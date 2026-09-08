@@ -8,6 +8,7 @@ import (
 	"io"
 	"iter"
 	"math"
+	"slices"
 
 	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
@@ -299,13 +300,15 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 			Arity: fa.Arity,
 		}
 		p, _ := e.Predicates[bpi]
-		if _, ok := p.FirstArgIndex[key]; ok || fa == (ir.Index{}) {
+		if i := slices.IndexFunc(p.FirstArgIndex, func(arg wam.FirstArg) bool {
+			return arg.FirstArgKey == key
+		}); i >= 0 || fa == (ir.Index{}) {
 			e.Code[p.Offset] = wam.Instruction{Op: wam.OpNondet}
 		} else {
-			if p.FirstArgIndex == nil {
-				p.FirstArgIndex = map[wam.FirstArgKey]int{}
-			}
-			p.FirstArgIndex[key] = len(e.Code)
+			p.FirstArgIndex = append(p.FirstArgIndex, wam.FirstArg{
+				FirstArgKey: key,
+				Offset:      len(e.Code),
+			})
 			e.Predicates[bpi] = p
 		}
 

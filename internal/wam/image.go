@@ -16,6 +16,11 @@ type FirstArgKey struct {
 	Arity int
 }
 
+type FirstArg struct {
+	FirstArgKey
+	Offset int
+}
+
 type Predicate struct {
 	// Offset points to an address in Code to execute this predicate.
 	Offset int
@@ -40,7 +45,7 @@ type Predicate struct {
 	LastModifiedAt     LogicalTime
 	LastMaterializedAt LogicalTime
 
-	FirstArgIndex map[FirstArgKey]int
+	FirstArgIndex []FirstArg
 }
 
 // Image is a compiled image of Prolog texts/modules.
@@ -78,11 +83,11 @@ func (i *Image) String() string {
 			continue
 		}
 		labels[p.Offset] = pi.String() + ":"
-		for k, i := range p.FirstArgIndex {
-			if k.Arity == 0 {
-				labels[i] = fmt.Sprintf("(%s):", &syntax.Formatter{Term: k.Term})
+		for _, i := range p.FirstArgIndex {
+			if i.Arity == 0 {
+				labels[i.Offset] = fmt.Sprintf("(%s):", &syntax.Formatter{Term: i.Term})
 			} else {
-				labels[i] = fmt.Sprintf("(%s/%d):", &syntax.Formatter{Term: k.Term}, k.Arity)
+				labels[i.Offset] = fmt.Sprintf("(%s/%d):", &syntax.Formatter{Term: i.Term}, i.Arity)
 			}
 		}
 	}
