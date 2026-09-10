@@ -85,31 +85,31 @@ Type Ctrl-C or 'halt.' to exit.
 		_ = terminal.Restore(0, oldState)
 		os.Exit(code)
 	})
-	if err := i.Register1("version", func(ctx context.Context, e prolog.Execution, arg1 prolog.Term) prolog.Outcome {
-		v, err := e.NewInteger(2)
+	if err := i.Register1("version", func(ctx context.Context, a prolog.Activation, arg1 prolog.Term) prolog.Outcome {
+		v, err := a.NewInteger(2)
 		if err != nil {
-			return e.Error(err)
+			return a.Error(err)
 		}
-		return e.Unification(arg1, v)
+		return a.Unification(arg1, v)
 	}); err != nil {
 		log.Fatalf("failed to register: %v", err)
 	}
-	if err := i.Register1("rps", func(ctx context.Context, e prolog.Execution, out prolog.Term) prolog.Outcome {
-		r, err := e.NewAtom("rock")
+	if err := i.Register1("rps", func(ctx context.Context, a prolog.Activation, out prolog.Term) prolog.Outcome {
+		r, err := a.NewAtom("rock")
 		if err != nil {
-			return e.Error(err)
+			return a.Error(err)
 		}
-		p, err := e.NewAtom("paper")
+		p, err := a.NewAtom("paper")
 		if err != nil {
-			return e.Error(err)
+			return a.Error(err)
 		}
-		s, err := e.NewAtom("scissors")
+		s, err := a.NewAtom("scissors")
 		if err != nil {
-			return e.Error(err)
+			return a.Error(err)
 		}
-		return e.Nondet(func(yield func(prolog.Outcome) bool) {
+		return a.Nondet(func(yield func(prolog.Outcome) bool) {
 			for _, h := range []prolog.Term{r, p, s} {
-				if !yield(e.Unification(out, h)) {
+				if !yield(a.Unification(out, h)) {
 					return
 				}
 			}

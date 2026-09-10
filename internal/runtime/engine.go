@@ -68,6 +68,99 @@ type Engine struct {
 	Warn     func(error)
 	Halt     func(code int)
 	location term.Functor
+
+	gcThreshold int
+
+	// executions is the stack of executions currently running on this engine,
+	// outermost first. A built-in that re-enters the engine, which today means
+	// findall/3, pushes a nested one, and every level's registers, trail and
+	// choice points stay GC roots for as long as it's on the stack.
+	executions []*Execution
+
+	// externalRoots holds sources of cells that live outside the engine. See
+	// AddRoots.
+	externalRoots    map[int]iter.Seq[*term.Cell]
+	nextExternalRoot int
+}
+
+// AddRoots registers a source of GC roots that live outside the engine: the
+// variables a caller decodes each solution from, a module still being compiled,
+// anything else that holds a cell across a call into the engine. GC marks what
+// the sequence yields and then rewrites each cell in place, so it has to yield
+// pointers to the storage the holder actually reads, and it must not yield the
+// same pointer twice. Call the returned function to unregister the source.
+func (e *Engine) AddRoots(roots iter.Seq[*term.Cell]) (remove func()) {
+	if e.externalRoots == nil {
+		e.externalRoots = map[int]iter.Seq[*term.Cell]{}
+	}
+	id := e.nextExternalRoot
+	e.nextExternalRoot++
+	e.externalRoots[id] = roots
+	return func() {
+		delete(e.externalRoots, id)
+	}
+}
+
+// roots enumerates every location outside the heap that holds a cell: the
+// current streams, the constants and first-argument keys embedded in the code
+// image, the registers, trail and choice points of every execution running on
+// this engine, and whatever AddRoots has registered.
+//
+// A pointer is yielded at most once. A built-in that re-registers its captured
+// terms on a nested choice point leaves two frames pointing at one list, and
+// GC relocates each cell it is handed, so a duplicate would be relocated twice.
+func (e *Engine) roots() iter.Seq[*term.Cell] {
+	return func(yield func(*term.Cell) bool) {
+		seen := map[*term.Cell]struct{}{}
+		once := func(c *term.Cell) bool {
+			if _, ok := seen[c]; ok {
+				return true
+			}
+			seen[c] = struct{}{}
+			return yield(c)
+		}
+
+		if !once(&e.Input) || !once(&e.Output) {
+			return
+		}
+
+		for c := range e.Image.Cells() {
+			if !once(c) {
+				return
+			}
+		}
+
+		for _, exec := range e.executions {
+			for c := range exec.roots() {
+				if !once(c) {
+					return
+				}
+			}
+		}
+
+		for _, roots := range e.externalRoots {
+			for c := range roots {
+				if !once(c) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// heapTops enumerates the saved heap tops that GC has to rewrite when it slides
+// the survivors down, so that backtracking still cuts the heap back to the right
+// boundary afterwards.
+func (e *Engine) heapTops() iter.Seq[*int] {
+	return func(yield func(*int) bool) {
+		for _, exec := range e.executions {
+			for t := range exec.heapTops() {
+				if !yield(t) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {
@@ -363,8 +456,12 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 		return err
 	}
 
-	for _, g := range module.Initialization {
-		for err := range e.Call(ctx, g) {
+	// Running one initialization goal can collect, and the goals after it are
+	// still only reachable from the module.
+	defer e.AddRoots(module.Cells())()
+
+	for i := range module.Initialization {
+		for err := range e.Call(ctx, module.Initialization[i]) {
 			if err != nil {
 				return err
 			}
@@ -498,17 +595,24 @@ func (e *Engine) Call(ctx context.Context, goal term.Cell) iter.Seq[error] {
 		return func(yield func(error) bool) {
 		}
 	}
-	exec := Execution{
+	exec := &Execution{
 		Engine:         e,
 		programPointer: p.Offset,
+		liveRegs:       bpi.Arity(),
 	}
 	exec.tempVars[1] = goal
 	exec.tempVars[2] = cont
 	return func(yield func(error) bool) {
+		// GC can happen anywhere below, including inside a built-in that calls
+		// back in here, so exec has to be reachable from the engine for as long
+		// as it's running.
+		e.executions = append(e.executions, exec)
+
 		// The last solution's bindings are still trailed on exec when run
 		// terminates; undo them so they don't leak into the caller.
 		trailTop := len(exec.trail)
 		defer func() {
+			e.executions = e.executions[:len(e.executions)-1]
 			_ = exec.unwindTrail(trailTop)
 		}()
 		for err := range exec.run(ctx) {

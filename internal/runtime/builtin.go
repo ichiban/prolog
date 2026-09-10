@@ -63,11 +63,11 @@ type BuiltinSet struct {
 
 func NewBuiltinSet() *BuiltinSet {
 	var b BuiltinSet
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("true"), 1), Type: InHead, Proc: Predicate0(True0)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: Predicate0(Fail0)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: Predicate1(Call1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: Predicate1(Throw1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: Predicate2(SubsumesTerm2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("true"), 1), Type: InHead, Proc: Nondeterministic0(True0)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: Deterministic0(Fail0)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: Nondeterministic1(Call1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: Nondeterministic1(Throw1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: Deterministic2(SubsumesTerm2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: Inline1(Var1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: Inline1(Atom1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("integer"), 2), Type: InBody, Proc: Inline1(Integer1)})
@@ -75,118 +75,118 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compound"), 2), Type: InBody, Proc: Inline1(Compound1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("ground"), 2), Type: InBody, Proc: Inline1(Ground1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("acyclic_term"), 2), Type: InBody, Proc: Inline1(AcyclicTerm1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: Predicate3(Compare3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sort"), 3), Type: InHead, Proc: Predicate2(Sort2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: Predicate2(KeySort2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: Predicate3(Functor3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: Predicate3(Arg3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: Predicate2(Univ2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("copy_term"), 3), Type: InHead, Proc: Predicate2(CopyTerm2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: Predicate2(TermVariables2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: Predicate2(Clause2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: Predicate1(CurrentPredicate1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: Predicate1(AssertA1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: Predicate1(AssertZ1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: Predicate1(Retract1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: Predicate1(Abolish1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: Predicate3(FindAll3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: Predicate3(BagOf3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: Predicate3(SetOf3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_input"), 2), Type: InHead, Proc: Predicate1(CurrentInput1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_output"), 2), Type: InHead, Proc: Predicate1(CurrentOutput1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_input"), 2), Type: InHead, Proc: Predicate1(SetInput1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_output"), 2), Type: InHead, Proc: Predicate1(SetOutput1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("open"), 5), Type: InHead, Proc: Predicate4(Open4)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("close"), 3), Type: InHead, Proc: Predicate2(Close2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: Predicate1(FlushOutput1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: Predicate2(StreamProperty2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: Predicate2(SetStreamPosition2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: Predicate2(GetChar2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: Predicate2(GetCode2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: Predicate2(PeekChar2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: Predicate2(PeekCode2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: Predicate2(PutChar2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: Predicate2(PutCode2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: Predicate2(GetByte2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: Predicate2(PeekByte2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: Predicate2(PutByte2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: Predicate3(ReadTerm3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: Predicate3(WriteTerm3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: Predicate3(Op3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: Predicate3(CurrentOp3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: Predicate2(CharConversion2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: Predicate2(CurrentCharConversion2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 3), Type: InHead, Proc: Predicate2(Call2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 4), Type: InHead, Proc: Predicate3(Call3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 5), Type: InHead, Proc: Predicate4(Call4)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 6), Type: InHead, Proc: Predicate5(Call5)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: Predicate6(Call6)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: Predicate7(Call7)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: Predicate8(Call8)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: Predicate2(AtomLength2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: Predicate3(AtomConcat3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: Predicate5(SubAtom5)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: Predicate2(AtomChars2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: Predicate2(AtomCodes2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: Predicate2(CharCode2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: Predicate2(NumberChars2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: Predicate2(NumberCodes2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: Predicate2(SetPrologFlag2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: Predicate2(CurrentPrologFlag2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("halt"), 2), Type: InHead, Proc: Predicate1(Halt1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: Predicate1(Dynamic1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$multifile"), 2), Type: InHead, Proc: Predicate1(Multifile1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$discontiguous"), 2), Type: InHead, Proc: Predicate1(Discontiguous1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("compare"), 4), Type: InHead, Proc: Deterministic3(Compare3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sort"), 3), Type: InHead, Proc: Deterministic2(Sort2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("keysort"), 3), Type: InHead, Proc: Deterministic2(KeySort2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("functor"), 4), Type: InHead, Proc: Deterministic3(Functor3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("arg"), 4), Type: InHead, Proc: Deterministic3(Arg3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("=.."), 3), Type: InHead, Proc: Deterministic2(Univ2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("copy_term"), 3), Type: InHead, Proc: Deterministic2(CopyTerm2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: Deterministic2(TermVariables2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: Nondeterministic2(Clause2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: Nondeterministic1(CurrentPredicate1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: Deterministic1(AssertA1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: Deterministic1(AssertZ1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: Nondeterministic1(Retract1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: Deterministic1(Abolish1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: Deterministic3(FindAll3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: Deterministic3(BagOf3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: Deterministic3(SetOf3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_input"), 2), Type: InHead, Proc: Deterministic1(CurrentInput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_output"), 2), Type: InHead, Proc: Deterministic1(CurrentOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_input"), 2), Type: InHead, Proc: Deterministic1(SetInput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_output"), 2), Type: InHead, Proc: Deterministic1(SetOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("open"), 5), Type: InHead, Proc: Deterministic4(Open4)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("close"), 3), Type: InHead, Proc: Deterministic2(Close2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("flush_output"), 2), Type: InHead, Proc: Deterministic1(FlushOutput1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("stream_property"), 3), Type: InHead, Proc: Nondeterministic2(StreamProperty2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_stream_position"), 3), Type: InHead, Proc: Deterministic2(SetStreamPosition2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_char"), 3), Type: InHead, Proc: Deterministic2(GetChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_code"), 3), Type: InHead, Proc: Deterministic2(GetCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_char"), 3), Type: InHead, Proc: Deterministic2(PeekChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_code"), 3), Type: InHead, Proc: Deterministic2(PeekCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_char"), 3), Type: InHead, Proc: Deterministic2(PutChar2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_code"), 3), Type: InHead, Proc: Deterministic2(PutCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("get_byte"), 3), Type: InHead, Proc: Deterministic2(GetByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("peek_byte"), 3), Type: InHead, Proc: Deterministic2(PeekByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("put_byte"), 3), Type: InHead, Proc: Deterministic2(PutByte2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("read_term"), 4), Type: InHead, Proc: Deterministic3(ReadTerm3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("write_term"), 4), Type: InHead, Proc: Deterministic3(WriteTerm3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("op"), 4), Type: InHead, Proc: Deterministic3(Op3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_op"), 4), Type: InHead, Proc: Nondeterministic3(CurrentOp3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_conversion"), 3), Type: InHead, Proc: Deterministic2(CharConversion2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_char_conversion"), 3), Type: InHead, Proc: Nondeterministic2(CurrentCharConversion2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 3), Type: InHead, Proc: Deterministic2(Call2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 4), Type: InHead, Proc: Deterministic3(Call3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 5), Type: InHead, Proc: Deterministic4(Call4)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 6), Type: InHead, Proc: Deterministic5(Call5)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 7), Type: InHead, Proc: Deterministic6(Call6)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 8), Type: InHead, Proc: Deterministic7(Call7)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 9), Type: InHead, Proc: Deterministic8(Call8)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_length"), 3), Type: InHead, Proc: Deterministic2(AtomLength2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_concat"), 4), Type: InHead, Proc: Nondeterministic3(AtomConcat3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("sub_atom"), 6), Type: InHead, Proc: Nondeterministic5(SubAtom5)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_chars"), 3), Type: InHead, Proc: Deterministic2(AtomChars2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom_codes"), 3), Type: InHead, Proc: Deterministic2(AtomCodes2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("char_code"), 3), Type: InHead, Proc: Deterministic2(CharCode2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_chars"), 3), Type: InHead, Proc: Deterministic2(NumberChars2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("number_codes"), 3), Type: InHead, Proc: Deterministic2(NumberCodes2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("set_prolog_flag"), 3), Type: InHead, Proc: Deterministic2(SetPrologFlag2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_prolog_flag"), 3), Type: InHead, Proc: Nondeterministic2(CurrentPrologFlag2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("halt"), 2), Type: InHead, Proc: Deterministic1(Halt1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$dynamic"), 2), Type: InHead, Proc: Deterministic1(Dynamic1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$multifile"), 2), Type: InHead, Proc: Deterministic1(Multifile1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$discontiguous"), 2), Type: InHead, Proc: Deterministic1(Discontiguous1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_neck_cut"), 2), Type: InBody, Proc: Inline1(GetNeckCut1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InHead, Proc: Predicate1(GetCont1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$call_cont"), 2), Type: InHead, Proc: Predicate1(CallCont1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$get_cont"), 2), Type: InHead, Proc: Deterministic1(GetCont1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$call_cont"), 2), Type: InHead, Proc: Nondeterministic1(CallCont1)})
 	// TODO: Implement optimized arithmetic calling convention in binprolog.
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: Predicate3(Add3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: Predicate3(Sub3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: Predicate3(Mul3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$//"), 4), Type: InHead, Proc: Predicate3(IntDiv3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/"), 4), Type: InHead, Proc: Predicate3(Div3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$rem"), 4), Type: InHead, Proc: Predicate3(Rem3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$mod"), 4), Type: InHead, Proc: Predicate3(Mod3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 3), Type: InHead, Proc: Predicate2(Neg2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$abs"), 3), Type: InHead, Proc: Predicate2(Abs2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sign"), 3), Type: InHead, Proc: Predicate2(Sign2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_integer_part"), 3), Type: InHead, Proc: Predicate2(FloatIntegerPart2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_fractional_part"), 3), Type: InHead, Proc: Predicate2(FloatFractionalPart2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float"), 3), Type: InHead, Proc: Predicate2(Float2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$floor"), 3), Type: InHead, Proc: Predicate2(Floor2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$truncate"), 3), Type: InHead, Proc: Predicate2(Truncate2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$round"), 3), Type: InHead, Proc: Predicate2(Round2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: Predicate2(Ceiling2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: Predicate3(FloorDiv3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: Predicate2(Pos2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$**"), 4), Type: InHead, Proc: Predicate3(Power3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sin"), 3), Type: InHead, Proc: Predicate2(Sin2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$cos"), 3), Type: InHead, Proc: Predicate2(Cos2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan"), 3), Type: InHead, Proc: Predicate2(Atan2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: Predicate2(Exp2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: Predicate2(Log2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: Predicate2(Sqrt2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$max"), 4), Type: InHead, Proc: Predicate3(Max3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$min"), 4), Type: InHead, Proc: Predicate3(Min3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$^"), 4), Type: InHead, Proc: Predicate3(IntegerPower3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$asin"), 3), Type: InHead, Proc: Predicate2(Asin2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$acos"), 3), Type: InHead, Proc: Predicate2(Acos2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: Predicate3(Atan3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: Predicate2(Tan2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: Predicate1(Pi1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$>>"), 4), Type: InHead, Proc: Predicate3(BitwiseRightShift3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$<<"), 4), Type: InHead, Proc: Predicate3(BitwiseLeftShift3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/\\"), 4), Type: InHead, Proc: Predicate3(BitwiseAnd3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\/"), 4), Type: InHead, Proc: Predicate3(BitwiseOr3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\"), 3), Type: InHead, Proc: Predicate2(BitwiseComplement2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$xor"), 4), Type: InHead, Proc: Predicate3(BitwiseXor3)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: Predicate2(ArithEq2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: Predicate2(ArithDif2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: Predicate2(Less2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: Predicate2(LessEq2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: Predicate2(Greater2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: Predicate2(GreaterEq2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 4), Type: InHead, Proc: Deterministic3(Add3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 4), Type: InHead, Proc: Deterministic3(Sub3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$*"), 4), Type: InHead, Proc: Deterministic3(Mul3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$//"), 4), Type: InHead, Proc: Deterministic3(IntDiv3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/"), 4), Type: InHead, Proc: Deterministic3(Div3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$rem"), 4), Type: InHead, Proc: Deterministic3(Rem3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$mod"), 4), Type: InHead, Proc: Deterministic3(Mod3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$-"), 3), Type: InHead, Proc: Deterministic2(Neg2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$abs"), 3), Type: InHead, Proc: Deterministic2(Abs2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sign"), 3), Type: InHead, Proc: Deterministic2(Sign2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_integer_part"), 3), Type: InHead, Proc: Deterministic2(FloatIntegerPart2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float_fractional_part"), 3), Type: InHead, Proc: Deterministic2(FloatFractionalPart2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$float"), 3), Type: InHead, Proc: Deterministic2(Float2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$floor"), 3), Type: InHead, Proc: Deterministic2(Floor2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$truncate"), 3), Type: InHead, Proc: Deterministic2(Truncate2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$round"), 3), Type: InHead, Proc: Deterministic2(Round2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$ceiling"), 3), Type: InHead, Proc: Deterministic2(Ceiling2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$div"), 4), Type: InHead, Proc: Deterministic3(FloorDiv3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$+"), 3), Type: InHead, Proc: Deterministic2(Pos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$**"), 4), Type: InHead, Proc: Deterministic3(Power3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sin"), 3), Type: InHead, Proc: Deterministic2(Sin2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$cos"), 3), Type: InHead, Proc: Deterministic2(Cos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan"), 3), Type: InHead, Proc: Deterministic2(Atan2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$exp"), 3), Type: InHead, Proc: Deterministic2(Exp2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$log"), 3), Type: InHead, Proc: Deterministic2(Log2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$sqrt"), 3), Type: InHead, Proc: Deterministic2(Sqrt2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$max"), 4), Type: InHead, Proc: Deterministic3(Max3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$min"), 4), Type: InHead, Proc: Deterministic3(Min3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$^"), 4), Type: InHead, Proc: Deterministic3(IntegerPower3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$asin"), 3), Type: InHead, Proc: Deterministic2(Asin2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$acos"), 3), Type: InHead, Proc: Deterministic2(Acos2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$atan2"), 4), Type: InHead, Proc: Deterministic3(Atan3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$tan"), 3), Type: InHead, Proc: Deterministic2(Tan2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$pi"), 2), Type: InHead, Proc: Deterministic1(Pi1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$>>"), 4), Type: InHead, Proc: Deterministic3(BitwiseRightShift3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$<<"), 4), Type: InHead, Proc: Deterministic3(BitwiseLeftShift3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$/\\"), 4), Type: InHead, Proc: Deterministic3(BitwiseAnd3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\/"), 4), Type: InHead, Proc: Deterministic3(BitwiseOr3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$\\"), 3), Type: InHead, Proc: Deterministic2(BitwiseComplement2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$xor"), 4), Type: InHead, Proc: Deterministic3(BitwiseXor3)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_eq"), 3), Type: InHead, Proc: Deterministic2(ArithEq2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$arith_dif"), 3), Type: InHead, Proc: Deterministic2(ArithDif2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less"), 3), Type: InHead, Proc: Deterministic2(Less2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: Deterministic2(LessEq2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: Deterministic2(Greater2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: Deterministic2(GreaterEq2)})
 	return &b
 }
 
@@ -240,20 +240,15 @@ func (b *BuiltinSet) All() iter.Seq2[term.Functor, *Builtin] {
 	}
 }
 
+// Procedure is either [Inline1], [Deterministic1], [Nondeterministic1], and their variants.
 type Procedure interface {
-	Call(ctx context.Context, e *Execution) Promise
-}
-
-type Predicate0 func(ctx context.Context, e *Execution, cont term.Cell) Promise
-
-func (p Predicate0) Call(ctx context.Context, e *Execution) Promise {
-	cont := e.tempVars[1]
-	return p(ctx, e, cont)
+	Call(ctx context.Context, a *Activation) Promise
 }
 
 type Inline1 func(ctx context.Context, e *Execution, t term.Cell) (bool, error)
 
-func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
+func (i Inline1) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	t := e.tempVars[0]
 	ok, err := i(ctx, e, t)
 	if err != nil {
@@ -265,108 +260,184 @@ func (i Inline1) Call(ctx context.Context, e *Execution) Promise {
 	return Promise{ok: ok}
 }
 
-type Predicate1 func(ctx context.Context, e *Execution, arg1, cont term.Cell) Promise
+type Deterministic0 func(ctx context.Context, e *Execution, cont term.Cell) Promise
 
-func (p Predicate1) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic0) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	cont := e.tempVars[1]
+	return p(ctx, e, cont)
+}
+
+type Deterministic1 func(ctx context.Context, e *Execution, arg1, cont term.Cell) Promise
+
+func (p Deterministic1) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, cont := e.tempVars[1], e.tempVars[2]
 	return p(ctx, e, arg1, cont)
 }
 
-type Predicate2 func(ctx context.Context, e *Execution, arg1, arg2, cont term.Cell) Promise
+type Deterministic2 func(ctx context.Context, e *Execution, arg1, arg2, cont term.Cell) Promise
 
-func (p Predicate2) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic2) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
 	return p(ctx, e, arg1, arg2, cont)
 }
 
-type Predicate3 func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont term.Cell) Promise
+type Deterministic3 func(ctx context.Context, e *Execution, arg1, arg2, arg3, cont term.Cell) Promise
 
-func (p Predicate3) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic3) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
 	return p(ctx, e, arg1, arg2, arg3, cont)
 }
 
-type Predicate4 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont term.Cell) Promise
+type Deterministic4 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, cont term.Cell) Promise
 
-func (p Predicate4) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic4) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
 	return p(ctx, e, arg1, arg2, arg3, arg4, cont)
 }
 
-type Predicate5 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont term.Cell) Promise
+type Deterministic5 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, cont term.Cell) Promise
 
-func (p Predicate5) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic5) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, cont)
 }
 
-type Predicate6 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) Promise
+type Deterministic6 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) Promise
 
-func (p Predicate6) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic6) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, cont)
 }
 
-type Predicate7 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) Promise
+type Deterministic7 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) Promise
 
-func (p Predicate7) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic7) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont)
 }
 
-type Predicate8 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Cell) Promise
+type Deterministic8 func(ctx context.Context, e *Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Cell) Promise
 
-func (p Predicate8) Call(ctx context.Context, e *Execution) Promise {
+func (p Deterministic8) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
 	arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
 	return p(ctx, e, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont)
 }
 
-func True0(ctx context.Context, e *Execution, cont term.Cell) Promise {
-	cont = e.Deref(cont)
+type Nondeterministic0 func(ctx context.Context, a *Activation, cont Ref) Promise
 
-	bpi, ok := e.Functor(cont, term.AllowAtom(true))
+func (p Nondeterministic0) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	cont := e.tempVars[1]
+	return p(ctx, a, a.ref(cont))
+}
+
+type Nondeterministic1 func(ctx context.Context, a *Activation, arg1, cont Ref) Promise
+
+func (p Nondeterministic1) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, cont := e.tempVars[1], e.tempVars[2]
+	return p(ctx, a, a.ref(arg1), a.ref(cont))
+}
+
+type Nondeterministic2 func(ctx context.Context, a *Activation, arg1, arg2, cont Ref) Promise
+
+func (p Nondeterministic2) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(cont))
+}
+
+type Nondeterministic3 func(ctx context.Context, a *Activation, arg1, arg2, arg3, cont Ref) Promise
+
+func (p Nondeterministic3) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(cont))
+}
+
+type Nondeterministic4 func(ctx context.Context, a *Activation, arg1, arg2, arg3, arg4, cont Ref) Promise
+
+func (p Nondeterministic4) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, arg4, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(arg4), a.ref(cont))
+}
+
+type Nondeterministic5 func(ctx context.Context, a *Activation, arg1, arg2, arg3, arg4, arg5, cont Ref) Promise
+
+func (p Nondeterministic5) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, arg4, arg5, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(arg4), a.ref(arg5), a.ref(cont))
+}
+
+type Nondeterministic6 func(ctx context.Context, a *Activation, arg1, arg2, arg3, arg4, arg5, arg6, cont Ref) Promise
+
+func (p Nondeterministic6) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, arg4, arg5, arg6, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(arg4), a.ref(arg5), a.ref(arg6), a.ref(cont))
+}
+
+type Nondeterministic7 func(ctx context.Context, a *Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont Ref) Promise
+
+func (p Nondeterministic7) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(arg4), a.ref(arg5), a.ref(arg6), a.ref(arg7), a.ref(cont))
+}
+
+type Nondeterministic8 func(ctx context.Context, a *Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont Ref) Promise
+
+func (p Nondeterministic8) Call(ctx context.Context, a *Activation) Promise {
+	e := a.exec
+	arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont := e.tempVars[1], e.tempVars[2], e.tempVars[3], e.tempVars[4], e.tempVars[5], e.tempVars[6], e.tempVars[7], e.tempVars[8], e.tempVars[9]
+	return p(ctx, a, a.ref(arg1), a.ref(arg2), a.ref(arg3), a.ref(arg4), a.ref(arg5), a.ref(arg6), a.ref(arg7), a.ref(arg8), a.ref(cont))
+}
+
+func True0(ctx context.Context, a *Activation, cont Ref) Promise {
+	cont = a.Deref(cont)
+
+	bpi, ok := a.Functor(cont, term.AllowAtom(true))
 	if !ok {
-		return e.Throw(&TypeError{
+		return a.Throw(&TypeError{
 			ValidType: term.NewAtom("continuation"),
-			Culprit:   syntax.Serialize(e.Arena, cont),
-			Location:  e.location,
+			Culprit:   syntax.Serialize(a.exec.Arena, *cont.cell),
+			Location:  a.exec.location,
 		}, cont)
 	}
 
 	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 
-	p, ok, err := e.Predicate(bpi)
+	p, ok, err := a.exec.Predicate(bpi)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
 
 	if p.Dynamic {
-		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
-		if !ok {
-			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
-			if err != nil {
-				return e.Throw(err, cont)
-			}
-			return Error(&ExistenceError{
-				ObjectType: term.NewAtom("procedure"),
-				Culprit:    syntax.Serialize(e.Arena, c),
-				Location:   e.location,
-			})
-		}
-		args := slices.Collect(e.Args(cont))
-		goal, err := e.PutCompound(pi.Name(), args[:len(args)-1]...)
+		args := slices.Collect(a.Args(cont))
+		goal, err := a.PutCompound(pi.Name(), args[:len(args)-1]...)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 		cont = args[len(args)-1]
-		if err := e.pushSeqStackFrame(func(yield func(Promise) bool) {
-			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
-				ok, err := e.Unify(r.Head, goal)
+		return a.Nondet(func(yield func(Promise) bool) {
+			for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
+				ok, err := a.exec.Unify(r.Head, *goal.cell)
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -376,24 +447,14 @@ func True0(ctx context.Context, e *Execution, cont term.Cell) Promise {
 					continue
 				}
 
-				e.tempVars[1] = r.Body
-				e.tempVars[2] = cont
-				e.programPointer = call.Offset
-
-				if !yield(Promise{ok: true}) {
+				if !yield(Call1(ctx, a, a.ref(r.Body), cont)) {
 					return
 				}
 			}
-		}, 2); err != nil {
-			return e.Throw(err, cont)
-		}
-		return Failure()
+		})
 	}
 
-	e.programPointer = p.Offset
-	for i, arg := range indexed(e.Args(cont)) {
-		e.tempVars[i+1] = arg
-	}
+	a.exec.enter(p.Offset, a.exec.Args(*cont.cell))
 	return Promise{ok: true}
 }
 
@@ -401,55 +462,57 @@ func Fail0(_ context.Context, _ *Execution, _ term.Cell) Promise {
 	return Failure()
 }
 
-func Call1(ctx context.Context, e *Execution, goal, cont term.Cell) Promise {
-	goal = e.Deref(goal)
+func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
+	goal = a.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
-	goal, err := e.rewriteCutForCall(goal)
+	g, err := a.exec.rewriteCutForCall(*goal.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
+	goal = a.ref(g)
 
-	pi, ok := e.Functor(goal, term.AllowAtom(true))
+	pi, ok := a.Functor(goal, term.AllowAtom(true))
 	if !ok {
-		if _, ok := e.Variable(goal); ok {
-			return e.Throw(&InstantiationError{
-				Location: e.location,
+		if _, ok := a.Variable(goal); ok {
+			return a.Throw(&InstantiationError{
+				Location: a.exec.location,
 			}, cont)
 		}
-		return e.Throw(&TypeError{
+		return a.Throw(&TypeError{
 			ValidType: term.NewAtom("callable"),
-			Culprit:   syntax.Serialize(e.Arena, goal),
-			Location:  e.location,
+			Culprit:   syntax.Serialize(a.exec.Arena, *goal.cell),
+			Location:  a.exec.location,
 		}, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok, err := e.Predicate(bpi)
+	p, ok, err := a.exec.Predicate(bpi)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
 	if p.Dynamic {
-		call, ok := e.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
+		call, ok := a.exec.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
 		if !ok {
-			c, err := e.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
+			c, err := a.exec.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
-				return e.Throw(err, cont)
+				return a.Throw(err, cont)
 			}
-			return e.Throw(&ExistenceError{
+			return a.Throw(&ExistenceError{
 				ObjectType: term.NewAtom("procedure"),
-				Culprit:    syntax.Serialize(e.Arena, c),
-				Location:   e.location,
+				Culprit:    syntax.Serialize(a.exec.Arena, c),
+				Location:   a.exec.location,
 			}, cont)
 		}
-		if err := e.pushSeqStackFrame(func(yield func(Promise) bool) {
-			for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
-				ok, err := e.Unify(r.Head, goal)
+
+		return a.Nondet(func(yield func(Promise) bool) {
+			for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
+				ok, err := a.exec.Unify(r.Head, *goal.cell)
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -459,23 +522,15 @@ func Call1(ctx context.Context, e *Execution, goal, cont term.Cell) Promise {
 					continue
 				}
 
-				e.tempVars[1] = r.Body
-				e.tempVars[2] = cont
-				e.programPointer = call.Offset
-
+				a.exec.enter(call.Offset, slices.Values([]term.Cell{r.Body, *cont.cell}))
 				if !yield(Promise{ok: true}) {
 					return
 				}
 			}
-		}, 2); err != nil {
-			return e.Throw(err, cont)
-		}
-		return Failure()
+		})
 	}
-	e.programPointer = p.Offset
-	for i, arg := range indexed(concat(e.Args(goal), singleton(cont))) {
-		e.tempVars[i+1] = arg
-	}
+
+	a.exec.enter(p.Offset, slices.Values(cells(slices.Collect(concat(a.Args(goal), singleton(cont))))))
 	return Promise{ok: true}
 }
 
@@ -563,44 +618,46 @@ func AcyclicTerm1(_ context.Context, e *Execution, t term.Cell) (bool, error) {
 	return e.Acyclic(t), nil
 }
 
-func Throw1(ctx context.Context, e *Execution, ball, cont term.Cell) Promise {
-	ball = e.Deref(ball)
-	if _, ok := e.Variable(ball); ok {
+func Throw1(ctx context.Context, a *Activation, ball, cont Ref) Promise {
+	ball = a.Deref(ball)
+	if _, ok := a.Variable(ball); ok {
 		var err error
 		err = &InstantiationError{
-			Location: e.location,
+			Location: a.exec.location,
 		}
-		ball, err = ErrorTerm(e.Arena, err)
+		b, err := ErrorTerm(a.exec.Arena, err)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
+		ball = a.ref(b)
 	}
 
-	serialized := syntax.Serialize(e.Arena, ball)
+	serialized := syntax.Serialize(a.exec.Arena, *ball.cell)
 
-	for cont := range contChain(e.Arena, cont) {
-		if pi, ok := e.Functor(cont); !ok || pi.Name() != term.NewAtom("$to_catch") || pi.Arity() != 5 {
+	for cont := range contChain(a.exec.Arena, *cont.cell) {
+		if pi, ok := a.exec.Functor(cont); !ok || pi.Name() != term.NewAtom("$to_catch") || pi.Arity() != 5 {
 			continue
 		}
 
-		catcher, recovery, cutB, cont := e.Arg(cont, 0), e.Arg(cont, 1), e.Arg(cont, 2), e.Arg(cont, 3)
+		k := a.ref(cont)
+		catcher, recovery, cutB, cont := a.Arg(k, 0), a.Arg(k, 1), a.Arg(k, 2), a.Arg(k, 3)
 
-		b, _ := e.Integer(cutB)
-		if err := e.unTrailTo(int(b)); err != nil {
-			return e.Throw(err, cont)
+		b, _ := a.MustBeInteger(cutB)
+		if err := a.exec.unTrailTo(int(b)); err != nil {
+			return a.Throw(err, cont)
 		}
 
-		ball, err := syntax.Deserialize(e.Arena, serialized)
+		ball, err := syntax.Deserialize(a.exec.Arena, serialized)
 		if err != nil {
 			return Error(fmt.Errorf("parse serialized ball(%s): %w", serialized, err))
 		}
 
-		ok, err := e.Unify(catcher, ball)
+		ok, err := a.Unify(catcher, a.ref(ball))
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 		if ok {
-			return Call1(ctx, e, recovery, cont)
+			return Call1(ctx, a, recovery, cont)
 		}
 	}
 	return Error(&uncaughtBall{ball: serialized})
@@ -1137,86 +1194,88 @@ func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Cell) Pr
 	return e.Success(cont)
 }
 
-func Clause2(ctx context.Context, e *Execution, head, body, cont term.Cell) Promise {
-	pi, err := e.mustBeCallable(head)
+func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
+	pi, err := a.exec.mustBeCallable(*head.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeCallable(body); err != nil {
-		return e.Throw(err, cont)
+	if _, ok := a.Variable(body); !ok {
+		if _, err := a.exec.mustBeCallable(*body.cell); err != nil {
+			return a.Throw(err, cont)
+		}
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := e.Predicates[bpi]
+	p, ok := a.exec.Predicates[bpi]
 	if !ok {
 		return Failure()
 	}
 
 	if !p.Public {
-		f, err := e.PutFunctor(pi)
+		f, err := a.exec.PutFunctor(pi)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 
-		return e.Throw(&PermissionError{
+		return a.Throw(&PermissionError{
 			Operation:      term.NewAtom("access"),
 			PermissionType: term.NewAtom("private_procedure"),
-			Culprit:        syntax.Serialize(e.Arena, f),
-			Location:       e.location,
+			Culprit:        syntax.Serialize(a.exec.Arena, f),
+			Location:       a.exec.location,
 		}, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
-		for r, err := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
+	return a.Nondet(func(yield func(Promise) bool) {
+		for r, err := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := e.Unify(head, r.Head)
+			ok, err := a.exec.Unify(*head.cell, r.Head)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
-				return
-			}
-			if !ok {
-				continue
-			}
-
-			ok, err = e.Unify(body, r.Body)
-			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
 				continue
 			}
 
-			if !yield(e.Success(cont)) {
+			ok, err = a.exec.Unify(*body.cell, r.Body)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			if !ok {
+				continue
+			}
+
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
 	})
 }
 
-func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term.Cell) Promise {
-	predIndicator = e.Deref(predIndicator)
+func CurrentPredicate1(_ context.Context, a *Activation, predIndicator, cont Ref) Promise {
+	predIndicator = a.Deref(predIndicator)
 
-	switch pi, ok, err := e.canBePredicateIndicator(predIndicator); {
+	switch pi, ok, err := a.exec.canBePredicateIndicator(*predIndicator.cell); {
 	case err != nil:
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	case ok:
 		bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-		p, _ := e.Predicates[bpi]
+		p, _ := a.exec.Predicates[bpi]
 		if p.BuiltIn {
 			return Failure()
 		}
 
-		return e.Success(cont)
+		return a.Success(cont)
 	}
 
 	pis := slices.Collect(func(yield func(pi term.Functor) bool) {
-		for bpi, p := range e.Predicates {
+		for bpi, p := range a.exec.Predicates {
 			if p.BuiltIn {
 				continue
 			}
@@ -1233,17 +1292,17 @@ func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term
 		return a.Arity() - b.Arity()
 	})
 
-	return Delay(func(yield func(Promise) bool) {
+	return a.Nondet(func(yield func(Promise) bool) {
 		for _, pi := range pis {
-			c, err := e.PutFunctor(pi)
+			c, err := a.exec.PutFunctor(pi)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := e.Unify(predIndicator, c)
+			ok, err := a.Unify(predIndicator, a.ref(c))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1253,7 +1312,7 @@ func CurrentPredicate1(_ context.Context, e *Execution, predIndicator, cont term
 				continue
 			}
 
-			if !yield(e.Success(cont)) {
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
@@ -1354,64 +1413,64 @@ func assert1(ctx context.Context, e *Execution, t, cont term.Cell, fn func(db db
 	return e.Success(cont)
 }
 
-func Retract1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
-	t = e.Deref(t)
+func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
+	t = a.Deref(t)
 
-	h, err := e.PutVariable()
+	h, err := a.PutVariable()
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	b, err := e.PutVariable()
+	b, err := a.PutVariable()
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	c, err := e.PutCompound(atomNeck, h, b)
+	c, err := a.PutCompound(atomNeck, h, b)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	ok, err := e.Unify(c, t)
+	ok, err := a.Unify(c, t)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
 		h = t
-		b, err = e.PutAtom(term.NewAtom("true"))
+		b, err = a.PutAtom(term.NewAtom("true"))
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 	}
 
-	h, b = e.Deref(h), e.Deref(b)
+	h, b = a.Deref(h), a.Deref(b)
 
-	pi, err := e.mustBeCallable(h)
+	pi, err := a.exec.mustBeCallable(*h.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	if p, ok := e.Predicates[bpi]; ok && !p.Dynamic {
-		c, err := e.PutFunctor(pi)
+	if p, ok := a.exec.Predicates[bpi]; ok && !p.Dynamic {
+		c, err := a.exec.PutFunctor(pi)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
-		return e.Throw(&PermissionError{
+		return a.Throw(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
-			Culprit:        syntax.Serialize(e.Arena, c),
-			Location:       e.location,
+			Culprit:        syntax.Serialize(a.exec.Arena, c),
+			Location:       a.exec.location,
 		}, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
-		before := e.CurrentTime
-		e.CurrentTime++
-		for r := range e.DB.Select(ctx, e.Arena, pi, before) {
-			ok, err := e.Unify(r.Head, h)
+	return a.Nondet(func(yield func(Promise) bool) {
+		before := a.exec.CurrentTime
+		a.exec.CurrentTime++
+		for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, before) {
+			ok, err := a.exec.Unify(r.Head, *h.cell)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1421,9 +1480,9 @@ func Retract1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
 				continue
 			}
 
-			ok, err = e.Unify(r.Body, b)
+			ok, err = a.exec.Unify(r.Body, *b.cell)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -1433,11 +1492,11 @@ func Retract1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
 				continue
 			}
 
-			if err := e.DB.Delete(ctx, r.ID, before); err != nil {
-				_ = yield(e.Throw(err, cont))
+			if err := a.exec.DB.Delete(ctx, r.ID, before); err != nil {
+				_ = yield(a.Throw(err, cont))
 				return
 			}
-			if !yield(e.Success(cont)) {
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
@@ -1482,6 +1541,9 @@ func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont
 	if _, err := e.canBeList(instances, nil); err != nil {
 		return e.Throw(err, cont)
 	}
+
+	// Everything below outlives the solving, which collects.
+	defer e.pin(&template, &goal, &instances, &cont)()
 
 	var elems []term.Cell
 	if err := e.FindAll(ctx, &elems, template, goal); err != nil {
@@ -1545,12 +1607,27 @@ func collectionOf(ctx context.Context, e *Execution, template, goal, instances, 
 		goal = e.Arg(goal, 1)
 	}
 
+	unpin := e.pin(&witness, &template, &goal, &instances, &cont)
+
 	var s []term.Cell
 	if err := e.FindAll(ctx, &s, template, goal); err != nil {
+		unpin()
 		return e.rethrow(err, cont)
 	}
 
 	return Delay(func(yield func(Promise) bool) {
+		defer unpin()
+
+		// The solutions still to be grouped are held here and nowhere else, and
+		// every yield below hands control back to the engine, which collects.
+		defer e.AddRoots(func(yield func(*term.Cell) bool) {
+			for i := range s {
+				if !yield(&s[i]) {
+					return
+				}
+			}
+		})()
+
 		for len(s) > 0 {
 			var wt term.Cell
 			wt, s = s[0], s[1:]
@@ -1601,6 +1678,10 @@ func collectionOf(ctx context.Context, e *Execution, template, goal, instances, 
 func (e *Execution) FindAll(ctx context.Context, out *[]term.Cell, template term.Cell, goal term.Cell) error {
 	// Resulting instances are not accessible after each run.
 	// So, escape them to a secondary memory arena for a moment, then bring them back.
+
+	// Solving the goal runs the engine, which collects; template is read again
+	// after every solution and goal after the first.
+	defer e.pin(&template, &goal)()
 
 	heapTop := len(e.TempArena.Heap)
 	defer func() {
@@ -2011,51 +2092,39 @@ func FlushOutput1(_ context.Context, e *Execution, sOrA, cont term.Cell) Promise
 	return e.Success(cont)
 }
 
-func StreamProperty2(_ context.Context, e *Execution, stream, property, cont term.Cell) Promise {
-	stream = e.Deref(stream)
+func StreamProperty2(_ context.Context, a *Activation, stream, property, cont Ref) Promise {
+	stream = a.Deref(stream)
 
 	var streams iter.Seq[term.Cell]
-	s, err := e.canBeStream(stream)
+	s, err := a.exec.canBeStream(*stream.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if s == nil {
-		streams = e.OpenStreams()
+		streams = a.exec.OpenStreams()
 	} else {
-		streams = singleton(stream)
+		streams = singleton(*stream.cell)
 	}
 
-	if err := e.canBeStreamProperty(property); err != nil {
-		return e.Throw(err, cont)
+	if err := a.exec.canBeStreamProperty(*property.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
+	return a.Nondet(func(yield func(Promise) bool) {
 		for s := range streams {
-			st, ok := e.Stream(s)
+			st, ok := a.exec.Stream(s)
 			if !ok {
 				continue
 			}
-			for p, err := range e.properties(st) {
+			for p, err := range a.exec.properties(st) {
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 
-				ok, err := e.Unify(stream, s)
+				ok, err := a.exec.Unify(*stream.cell, s)
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
-					return
-				}
-				if !ok {
-					if !yield(Failure()) {
-						return
-					}
-					continue
-				}
-
-				ok, err = e.Unify(property, p)
-				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -2065,7 +2134,19 @@ func StreamProperty2(_ context.Context, e *Execution, stream, property, cont ter
 					continue
 				}
 
-				if !yield(e.Success(cont)) {
+				ok, err = a.exec.Unify(*property.cell, p)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				if !yield(a.Success(cont)) {
 					return
 				}
 			}
@@ -3187,23 +3268,23 @@ func (e *Execution) validateOp(p int64, spec syntax.OperatorSpecifier, op term.C
 	return nil
 }
 
-func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, operator, cont term.Cell) Promise {
-	priority, operatorSpecifier, operator = e.Deref(priority), e.Deref(operatorSpecifier), e.Deref(operator)
+func CurrentOp3(_ context.Context, a *Activation, priority, operatorSpecifier, operator, cont Ref) Promise {
+	priority, operatorSpecifier, operator = a.Deref(priority), a.Deref(operatorSpecifier), a.Deref(operator)
 
-	switch p, ok, err := e.canBeInteger(priority); {
+	switch p, ok, err := a.exec.canBeInteger(*priority.cell); {
 	case err != nil:
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	case ok && (p < 0 || p > 1200):
-		return e.Throw(&DomainError{
+		return a.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_priority"),
-			Culprit:     syntax.Serialize(e.Arena, priority),
-			Location:    e.location,
+			Culprit:     syntax.Serialize(a.exec.Arena, *priority.cell),
+			Location:    a.exec.location,
 		}, cont)
 	}
 
-	switch s, ok, err := e.canBeAtom(operatorSpecifier); {
+	switch s, ok, err := a.exec.canBeAtom(*operatorSpecifier.cell); {
 	case err != nil:
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	case ok && !slices.Contains([]term.Atom{
 		term.NewAtom("fx"),
 		term.NewAtom("fy"),
@@ -3213,47 +3294,29 @@ func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, op
 		term.NewAtom("xfy"),
 		term.NewAtom("yfx"),
 	}, s):
-		return e.Throw(&DomainError{
+		return a.Throw(&DomainError{
 			ValidDomain: term.NewAtom("operator_specifier"),
-			Culprit:     syntax.Serialize(e.Arena, operatorSpecifier),
-			Location:    e.location,
+			Culprit:     syntax.Serialize(a.exec.Arena, *operatorSpecifier.cell),
+			Location:    a.exec.location,
 		}, cont)
 	}
 
-	switch _, _, err := e.canBeAtom(operator); {
+	switch _, _, err := a.exec.canBeAtom(*operator.cell); {
 	case err != nil:
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
-		for _, op := range e.Ops {
-			p, err := e.PutInteger(int64(op.Priority))
+	return a.Nondet(func(yield func(Promise) bool) {
+		for _, op := range a.exec.Ops {
+			p, err := a.PutInteger(int64(op.Priority))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := e.Unify(priority, p)
+			ok, err := a.Unify(priority, p)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
-				return
-			}
-			if !ok {
-				if !yield(Failure()) {
-					return
-				}
-				continue
-			}
-
-			s, err := e.PutAtom(term.NewAtom(op.Specifier.String()))
-			if err != nil {
-				_ = yield(e.Throw(err, cont))
-				return
-			}
-
-			ok, err = e.Unify(operatorSpecifier, s)
-			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3263,15 +3326,15 @@ func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, op
 				continue
 			}
 
-			n, err := e.PutAtom(op.Name)
+			s, err := a.PutAtom(term.NewAtom(op.Specifier.String()))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err = e.Unify(operator, n)
+			ok, err = a.Unify(operatorSpecifier, s)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3281,7 +3344,25 @@ func CurrentOp3(_ context.Context, e *Execution, priority, operatorSpecifier, op
 				continue
 			}
 
-			if !yield(e.Success(cont)) {
+			n, err := a.PutAtom(op.Name)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+
+			ok, err = a.Unify(operator, n)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
@@ -3313,26 +3394,26 @@ func CharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term
 	return e.Success(cont)
 }
 
-func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, cont term.Cell) Promise {
-	if _, _, err := e.canBeChar(inChar); err != nil {
-		return e.Throw(err, cont)
+func CurrentCharConversion2(_ context.Context, a *Activation, inChar, outChar, cont Ref) Promise {
+	if _, _, err := a.exec.canBeChar(*inChar.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeChar(outChar); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeChar(*outChar.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
-		for _, entry := range e.CharConversion.Entries {
-			i, err := e.PutAtom(term.NewAtomRune(entry.In))
+	return a.Nondet(func(yield func(Promise) bool) {
+		for _, entry := range a.exec.CharConversion.Entries {
+			i, err := a.PutAtom(term.NewAtomRune(entry.In))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := e.Unify(inChar, i)
+			ok, err := a.Unify(inChar, i)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3342,15 +3423,15 @@ func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, co
 				continue
 			}
 
-			o, err := e.PutAtom(term.NewAtomRune(entry.Out))
+			o, err := a.PutAtom(term.NewAtomRune(entry.Out))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err = e.Unify(outChar, o)
+			ok, err = a.Unify(outChar, o)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3360,7 +3441,7 @@ func CurrentCharConversion2(_ context.Context, e *Execution, inChar, outChar, co
 				continue
 			}
 
-			if !yield(e.Success(cont)) {
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
@@ -3554,78 +3635,60 @@ func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Cell) 
 	return e.Success(cont)
 }
 
-func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term.Cell) Promise {
-	atom1, atom2 = e.Deref(atom1), e.Deref(atom2)
+func AtomConcat3(_ context.Context, a *Activation, atom1, atom2, atom3, cont Ref) Promise {
+	atom1, atom2 = a.Deref(atom1), a.Deref(atom2)
 
-	a3, ok, err := e.canBeAtom(atom3)
+	a3, ok, err := a.exec.canBeAtom(*atom3.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
-		a1, err := e.MustBeAtom(atom1)
+		a1, err := a.MustBeAtom(atom1)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 
-		a2, err := e.MustBeAtom(atom2)
+		a2, err := a.MustBeAtom(atom2)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 
-		a, err := e.PutAtom(term.NewAtom(a1.String() + a2.String()))
+		atom, err := a.PutAtom(term.NewAtom(a1.String() + a2.String()))
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 
-		ok, err := e.Unify(atom3, a)
+		ok, err := a.Unify(atom3, atom)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
 		if !ok {
 			return Failure()
 		}
 
-		return e.Success(cont)
+		return a.Success(cont)
 	}
 
-	if _, _, err := e.canBeAtom(atom1); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeAtom(*atom1.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeAtom(atom2); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeAtom(*atom2.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
+	return a.Nondet(func(yield func(Promise) bool) {
 		s := a3.String()
 		for i := 0; i <= len(s); i += nextRuneSize(s[i:]) {
-			a1, err := e.PutAtom(term.NewAtom(s[:i]))
+			a1, err := a.PutAtom(term.NewAtom(s[:i]))
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := e.Unify(atom1, a1)
+			ok, err := a.Unify(atom1, a1)
 			if err != nil {
-				_ = yield(e.Throw(err, cont))
-				return
-			}
-			if !ok {
-				if !yield(Failure()) {
-					return
-				}
-				continue
-			}
-
-			a2, err := e.PutAtom(term.NewAtom(s[i:]))
-			if err != nil {
-				_ = yield(e.Throw(err, cont))
-				return
-			}
-
-			ok, err = e.Unify(atom2, a2)
-			if err != nil {
-				_ = yield(e.Throw(err, cont))
+				_ = yield(a.Throw(err, cont))
 				return
 			}
 			if !ok {
@@ -3635,66 +3698,66 @@ func AtomConcat3(_ context.Context, e *Execution, atom1, atom2, atom3, cont term
 				continue
 			}
 
-			if !yield(e.Success(cont)) {
+			a2, err := a.PutAtom(term.NewAtom(s[i:]))
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+
+			ok, err = a.Unify(atom2, a2)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+
+			if !yield(a.Success(cont)) {
 				return
 			}
 		}
 	})
 }
 
-func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subAtom, cont term.Cell) Promise {
-	a, err := e.MustBeAtom(atom)
+func SubAtom5(_ context.Context, a *Activation, atom, before, length, after, subAtom, cont Ref) Promise {
+	at, err := a.MustBeAtom(atom)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeNotLessThanZero(before); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeNotLessThanZero(*before.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeNotLessThanZero(length); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeNotLessThanZero(*length.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeNotLessThanZero(after); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeNotLessThanZero(*after.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	if _, _, err := e.canBeAtom(subAtom); err != nil {
-		return e.Throw(err, cont)
+	if _, _, err := a.exec.canBeAtom(*subAtom.cell); err != nil {
+		return a.Throw(err, cont)
 	}
 
-	return Delay(func(yield func(Promise) bool) {
-		s := a.String()
+	return a.Nondet(func(yield func(Promise) bool) {
+		s := at.String()
 		for i := 0; i <= len(s); i += nextRuneSize(s[i:]) {
 			for j := i; j <= len(s); j += nextRuneSize(s[j:]) {
-				b, err := e.PutInteger(int64(i))
+				b, err := a.PutInteger(int64(i))
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 
-				ok, err := e.Unify(before, b)
+				ok, err := a.Unify(before, b)
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
-					return
-				}
-				if !ok {
-					if !yield(Failure()) {
-						return
-					}
-					continue
-				}
-
-				l, err := e.PutInteger(int64(j - i))
-				if err != nil {
-					_ = yield(e.Throw(err, cont))
-					return
-				}
-
-				ok, err = e.Unify(length, l)
-				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3704,33 +3767,15 @@ func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subA
 					continue
 				}
 
-				a, err := e.PutInteger(int64(len(s) - j))
+				l, err := a.PutInteger(int64(j - i))
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 
-				ok, err = e.Unify(after, a)
+				ok, err = a.Unify(length, l)
 				if err != nil {
-					_ = yield(e.Throw(err, cont))
-					return
-				}
-				if !ok {
-					if !yield(Failure()) {
-						return
-					}
-					continue
-				}
-
-				sub, err := e.PutAtom(term.NewAtom(s[i:j]))
-				if err != nil {
-					_ = yield(e.Throw(err, cont))
-					return
-				}
-
-				ok, err = e.Unify(subAtom, sub)
-				if err != nil {
-					_ = yield(e.Throw(err, cont))
+					_ = yield(a.Throw(err, cont))
 					return
 				}
 				if !ok {
@@ -3740,7 +3785,43 @@ func SubAtom5(_ context.Context, e *Execution, atom, before, length, after, subA
 					continue
 				}
 
-				if !yield(e.Success(cont)) {
+				af, err := a.PutInteger(int64(len(s) - j))
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				ok, err = a.Unify(after, af)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				sub, err := a.PutAtom(term.NewAtom(s[i:j]))
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				ok, err = a.Unify(subAtom, sub)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+				if !ok {
+					if !yield(Failure()) {
+						return
+					}
+					continue
+				}
+
+				if !yield(a.Success(cont)) {
 					return
 				}
 			}
@@ -4236,25 +4317,25 @@ func SetPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Cell
 	return e.Success(cont)
 }
 
-func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.Cell) Promise {
-	f, ok, err := e.canBeAtom(flag)
+func CurrentPrologFlag2(_ context.Context, a *Activation, flag, value, cont Ref) Promise {
+	f, ok, err := a.exec.canBeAtom(*flag.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
-		return Delay(func(yield func(Promise) bool) {
+		return a.Nondet(func(yield func(Promise) bool) {
 			for _, fe := range flags {
-				f, err := e.PutAtom(fe.flag)
+				f, err := a.PutAtom(fe.flag)
 				if err != nil {
-					if !yield(e.Throw(err, cont)) {
+					if !yield(a.Throw(err, cont)) {
 						return
 					}
 					continue
 				}
 
-				ok, err := e.Unify(flag, f)
+				ok, err := a.Unify(flag, f)
 				if err != nil {
-					if !yield(e.Throw(err, cont)) {
+					if !yield(a.Throw(err, cont)) {
 						return
 					}
 					continue
@@ -4266,17 +4347,17 @@ func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.
 					continue
 				}
 
-				v, err := fe.get(e.Engine)
+				v, err := fe.get(a.exec.Engine)
 				if err != nil {
-					if !yield(e.Throw(err, cont)) {
+					if !yield(a.Throw(err, cont)) {
 						return
 					}
 					continue
 				}
 
-				ok, err = e.Unify(value, v)
+				ok, err = a.exec.Unify(*value.cell, v)
 				if err != nil {
-					if !yield(e.Throw(err, cont)) {
+					if !yield(a.Throw(err, cont)) {
 						return
 					}
 					continue
@@ -4288,7 +4369,7 @@ func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.
 					continue
 				}
 
-				if !yield(e.Success(cont)) {
+				if !yield(a.Success(cont)) {
 					return
 				}
 			}
@@ -4298,28 +4379,28 @@ func CurrentPrologFlag2(_ context.Context, e *Execution, flag, value, cont term.
 		return entry.flag == f
 	})
 	if i < 0 {
-		return e.Throw(&DomainError{
+		return a.Throw(&DomainError{
 			ValidDomain: term.NewAtom("flag"),
-			Culprit:     syntax.Serialize(e.Arena, flag),
-			Location:    e.location,
+			Culprit:     syntax.Serialize(a.exec.Arena, *flag.cell),
+			Location:    a.exec.location,
 		}, cont)
 	}
 
 	fe := flags[i]
-	v, err := fe.get(e.Engine)
+	v, err := fe.get(a.exec.Engine)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
-	ok, err = e.Unify(value, v)
+	ok, err = a.exec.Unify(*value.cell, v)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 	if !ok {
 		return Failure()
 	}
 
-	return e.Success(cont)
+	return a.Success(cont)
 }
 
 func Halt1(_ context.Context, e *Execution, x, cont term.Cell) Promise {
@@ -4406,8 +4487,8 @@ func GetCont1(_ context.Context, e *Execution, out, cont term.Cell) Promise {
 	return e.Success(cont)
 }
 
-func CallCont1(ctx context.Context, e *Execution, cont, _ term.Cell) Promise {
-	return True0(ctx, e, cont)
+func CallCont1(ctx context.Context, a *Activation, cont, _ Ref) Promise {
+	return True0(ctx, a, cont)
 }
 
 func Add3(_ context.Context, e *Execution, x, y, out, cont term.Cell) Promise {

@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -66,6 +67,31 @@ func (i *Image) EmbedConstants(t term.Cell) int {
 	}
 	i.Constants = append(i.Constants, t)
 	return len(i.Constants) - 1
+}
+
+// Cells yields every cell the image embeds, so that GC can mark and relocate
+// them. The image outlives every collection, and a constant that isn't
+// immediate — a float, an integer too wide for a cell, a string — holds an
+// address into the heap.
+func (i *Image) Cells() iter.Seq[*term.Cell] {
+	return func(yield func(*term.Cell) bool) {
+		for j := range i.Constants {
+			if !yield(&i.Constants[j]) {
+				return
+			}
+		}
+
+		// Predicate is a map value and so isn't addressable, but FirstArgIndex
+		// is a slice: the copy shares its backing array with the map's value,
+		// so writing through it updates the index the switch reads.
+		for _, p := range i.Predicates {
+			for j := range p.FirstArgIndex {
+				if !yield(&p.FirstArgIndex[j].Term) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (i *Image) EmbedFunctor(f term.Functor) int {

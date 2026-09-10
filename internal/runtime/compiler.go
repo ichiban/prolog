@@ -133,6 +133,22 @@ func (c *Compiler) include(r io.RuneReader) error {
 }
 
 func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
+	// A directive runs on the engine and can collect. The terms still queued and
+	// the module compiled so far are reachable from nowhere else, so they have
+	// to be roots until compilation is over.
+	defer c.AddRoots(func(yield func(*term.Cell) bool) {
+		for i := range c.todo {
+			if !yield(&c.todo[i]) {
+				return
+			}
+		}
+		for t := range out.Cells() {
+			if !yield(t) {
+				return
+			}
+		}
+	})()
+
 	for len(c.todo) > 0 {
 		var (
 			t   term.Cell

@@ -144,9 +144,9 @@ func (i *Interpreter) register(name string, arity int, proc runtime.Procedure) e
 
 // Register0 registers fn as the custom predicate name/0.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Execution) Outcome) error {
-	return i.register(name, 0, runtime.Predicate0(func(ctx context.Context, e *runtime.Execution, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}).promise
+func (i *Interpreter) Register0(name string, fn func(ctx context.Context, a Activation) Outcome) error {
+	return i.register(name, 0, runtime.Nondeterministic0(func(ctx context.Context, a *runtime.Activation, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}).promise
 	}))
 }
 
@@ -154,65 +154,65 @@ func (i *Interpreter) Register0(name string, fn func(ctx context.Context, e Exec
 // fn receives the goal's argument as a [Term], which may be bound or unbound depending on how it's called.
 // Register1 must be called before the first [Interpreter.Load] or [Interpreter.Query] or it'll return an error.
 // Also, it returns an error if name/1 is already taken.
-func (i *Interpreter) Register1(name string, fn func(ctx context.Context, e Execution, arg1 Term) Outcome) error {
-	return i.register(name, 1, runtime.Predicate1(func(ctx context.Context, e *runtime.Execution, arg1, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}).promise
+func (i *Interpreter) Register1(name string, fn func(ctx context.Context, a Activation, arg1 Term) Outcome) error {
+	return i.register(name, 1, runtime.Nondeterministic1(func(ctx context.Context, a *runtime.Activation, arg1, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}).promise
 	}))
 }
 
 // Register2 registers fn as the custom predicate name/2.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register2(name string, fn func(ctx context.Context, e Execution, arg1, arg2 Term) Outcome) error {
-	return i.register(name, 2, runtime.Predicate2(func(ctx context.Context, e *runtime.Execution, arg1, arg2, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}).promise
+func (i *Interpreter) Register2(name string, fn func(ctx context.Context, a Activation, arg1, arg2 Term) Outcome) error {
+	return i.register(name, 2, runtime.Nondeterministic2(func(ctx context.Context, a *runtime.Activation, arg1, arg2, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}).promise
 	}))
 }
 
 // Register3 registers fn as the custom predicate name/3.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register3(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3 Term) Outcome) error {
-	return i.register(name, 3, runtime.Predicate3(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}).promise
+func (i *Interpreter) Register3(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3 Term) Outcome) error {
+	return i.register(name, 3, runtime.Nondeterministic3(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}).promise
 	}))
 }
 
 // Register4 registers fn as the custom predicate name/4.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register4(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4 Term) Outcome) error {
-	return i.register(name, 4, runtime.Predicate4(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}).promise
+func (i *Interpreter) Register4(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4 Term) Outcome) error {
+	return i.register(name, 4, runtime.Nondeterministic4(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}).promise
 	}))
 }
 
 // Register5 registers fn as the custom predicate name/5.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register5(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
-	return i.register(name, 5, runtime.Predicate5(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}).promise
+func (i *Interpreter) Register5(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
+	return i.register(name, 5, runtime.Nondeterministic5(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}).promise
 	}))
 }
 
 // Register6 registers fn as the custom predicate name/6.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register6(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
-	return i.register(name, 6, runtime.Predicate6(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}).promise
+func (i *Interpreter) Register6(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
+	return i.register(name, 6, runtime.Nondeterministic6(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}).promise
 	}))
 }
 
 // Register7 registers fn as the custom predicate name/7.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register7(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
-	return i.register(name, 7, runtime.Predicate7(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}, Term{cell: arg7}).promise
+func (i *Interpreter) Register7(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
+	return i.register(name, 7, runtime.Nondeterministic7(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}).promise
 	}))
 }
 
 // Register8 registers fn as the custom predicate name/8.
 // See [Interpreter.Register1] for details.
-func (i *Interpreter) Register8(name string, fn func(ctx context.Context, e Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
-	return i.register(name, 8, runtime.Predicate8(func(ctx context.Context, e *runtime.Execution, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont term.Cell) runtime.Promise {
-		return fn(ctx, Execution{vm: e, cont: cont}, Term{cell: arg1}, Term{cell: arg2}, Term{cell: arg3}, Term{cell: arg4}, Term{cell: arg5}, Term{cell: arg6}, Term{cell: arg7}, Term{cell: arg8}).promise
+func (i *Interpreter) Register8(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
+	return i.register(name, 8, runtime.Nondeterministic8(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont runtime.Ref) runtime.Promise {
+		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}, Term{ref: arg8}).promise
 	}))
 }
 
@@ -278,6 +278,18 @@ func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...Qu
 				return
 			}
 		}
+
+		// The caller reads each solution through these variables, so they have
+		// to survive every collection the query triggers, and to be rewritten
+		// when the heap moves under them. The parser appends to the slice, so
+		// read it through the pointer rather than capturing it.
+		defer e.AddRoots(func(yield func(*term.Cell) bool) {
+			for i := range *options.variableNames {
+				if !yield(&(*options.variableNames)[i].Variable) {
+					return
+				}
+			}
+		})()
 
 		for v, b := range options.bindings {
 			v, err := syntax.ParseVariable(strings.NewReader(v),

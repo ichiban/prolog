@@ -1886,6 +1886,25 @@ a`},
 			},
 		},
 
+		// A choice point restores the cut barrier that was in effect when it was
+		// created, so a cut inside a retried clause doesn't reach the caller's
+		// alternatives.
+		{
+			loaded: []string{"testdata/cut-barrier.pl"},
+			query:  "(p(0) ; true).",
+			expectations: [][]string{
+				{`true.`},
+				{`true.`},
+			},
+		},
+		{
+			loaded: []string{"testdata/cut-barrier.pl"},
+			query:  "(p(2), fail ; true).",
+			expectations: [][]string{
+				{`true.`},
+			},
+		},
+
 		// catch/3 catches errors raised by built-in predicates, not just those raised by throw/1.
 		{query: `catch(atom_length(1, _), error(type_error(atom, 1), _), true).`, expectations: [][]string{
 			{`true.`},

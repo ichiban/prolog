@@ -2,8 +2,11 @@ package runtime
 
 import (
 	"fmt"
+	"github.com/ichiban/prolog/v2/internal/wam"
+	"slices"
 	"strings"
 	"testing"
+	"weak"
 
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
@@ -362,6 +365,25 @@ func TestEngine_Call(t *testing.T) {
 		},
 	}
 
+	// Collecting before every execute turns a root that is merely missing into a
+	// root that is missing right now, so the same table doubles as the GC test.
+	// Without it a bad root set only shows up when a collection happens to land
+	// between the write and the read.
+	for _, gcEvery := range []bool{false, true} {
+		t.Run(fmt.Sprintf("gcEveryExecute=%v", gcEvery), func(t *testing.T) {
+			gcEveryExecute = gcEvery
+			defer func() { gcEveryExecute = false }()
+			testEngineCall(t, tests)
+		})
+	}
+}
+
+func testEngineCall(t *testing.T, tests []struct {
+	title   string
+	text    string
+	goal    string
+	results []string
+}) {
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			e := Engine{
@@ -395,6 +417,15 @@ func TestEngine_Call(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// The bindings are read after every solution, and solving collects.
+			defer e.AddRoots(func(yield func(*term.Cell) bool) {
+				for i := range vns {
+					if !yield(&vns[i].Variable) {
+						return
+					}
+				}
+			})()
+
 			var results []string
 			for err := range e.Call(t.Context(), g) {
 				if err != nil {
@@ -416,5 +447,138 @@ func TestEngine_Call(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEngine_AddRoots(t *testing.T) {
+	e := Engine{Arena: term.NewArena(64)}
+	a, b := must(e.PutVariable()), must(e.PutVariable())
+
+	removeA := e.AddRoots(slices.Values([]*term.Cell{&a}))
+	removeB := e.AddRoots(slices.Values([]*term.Cell{&b}))
+
+	roots := slices.Collect(e.roots())
+	if !slices.Contains(roots, &a) || !slices.Contains(roots, &b) {
+		t.Errorf("expected both sources to be rooted, got: %v", roots)
+	}
+
+	// Removing one source leaves the other alone.
+	removeA()
+	roots = slices.Collect(e.roots())
+	if slices.Contains(roots, &a) {
+		t.Errorf("expected %v not to be rooted, got: %v", &a, roots)
+	}
+	if !slices.Contains(roots, &b) {
+		t.Errorf("expected %v to be rooted, got: %v", &b, roots)
+	}
+
+	removeB()
+	if roots := slices.Collect(e.roots()); slices.Contains(roots, &b) {
+		t.Errorf("expected %v not to be rooted, got: %v", &b, roots)
+	}
+}
+
+func TestEngine_roots(t *testing.T) {
+	e := Engine{Arena: term.NewArena(64)}
+
+	e.Input = must(e.PutStream(term.Stream{Alias: term.NewAtom("user_input")}))
+	e.Output = must(e.PutStream(term.Stream{Alias: term.NewAtom("user_output")}))
+
+	// The image outlives every collection, and a constant that isn't immediate
+	// holds a heap address.
+	e.Constants = []term.Cell{must(e.PutFloat(3.5))}
+	pi := term.NewFunctor(term.NewAtom("p"), 2)
+	e.Predicates = map[term.Functor]wam.Predicate{
+		pi: {FirstArgIndex: []wam.FirstArg{{FirstArgKey: wam.FirstArgKey{Term: must(e.PutFloat(2.5))}}}},
+	}
+
+	exec := &Execution{Engine: &e, liveRegs: 1}
+	exec.tempVars[1] = must(e.PutVariable())
+	e.executions = []*Execution{exec}
+
+	external := must(e.PutVariable())
+	defer e.AddRoots(slices.Values([]*term.Cell{&external}))()
+
+	roots := slices.Collect(e.roots())
+	for _, want := range []*term.Cell{
+		&e.Input,
+		&e.Output,
+		&e.Constants[0],
+		&e.Predicates[pi].FirstArgIndex[0].Term,
+		&exec.tempVars[1],
+		&external,
+	} {
+		if !slices.Contains(roots, want) {
+			t.Errorf("expected %v to be rooted, got: %v", want, roots)
+		}
+	}
+}
+
+func TestEngine_roots_deduplicates(t *testing.T) {
+	e := Engine{Arena: term.NewArena(64)}
+
+	// Backtracking into a delayed built-in pushes a fresh choice point that
+	// points at the same captured list, so one cell hangs off two frames. GC
+	// relocates whatever it's handed, and relocating a cell twice moves it to an
+	// address that was never its own.
+	held := new(must(e.PutVariable()))
+	captured := []weak.Pointer[term.Cell]{weak.Make(held)}
+	exec := &Execution{Engine: &e}
+	exec.stack = []stackFrame{
+		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured},
+		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured},
+	}
+	e.executions = []*Execution{exec}
+
+	var n int
+	for c := range e.roots() {
+		if c == held {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("expected: %d, got: %d", 1, n)
+	}
+}
+
+func TestEngine_GC(t *testing.T) {
+	e := Engine{Arena: term.NewArena(64)}
+
+	_ = must(e.PutVariable()) // Garbage underneath everything live, so the heap moves.
+
+	e.Constants = []term.Cell{must(e.PutFloat(3.5))}
+
+	v := must(e.PutVariable())
+	tvs := must(e.PutCompound(term.NewAtom("$temp_vars"), v))
+	heapTop := len(e.Heap)
+
+	_ = must(e.PutVariable()) // Garbage the choice point would drop anyway.
+
+	exec := &Execution{Engine: &e, liveRegs: 1}
+	exec.tempVars[1] = v
+	exec.stack = []stackFrame{{tempVars: tvs, heapTop: heapTop}}
+	e.executions = []*Execution{exec}
+
+	e.GC(e.roots(), e.heapTops())
+
+	if got, ok := e.Float(e.Constants[0]); !ok || got != 3.5 {
+		t.Errorf("expected: %v, got: %v", 3.5, got)
+	}
+	if _, ok := e.Variable(e.Deref(exec.tempVars[1])); !ok {
+		t.Errorf("expected an unbound variable, got: %v", e.Deref(exec.tempVars[1]))
+	}
+	// The choice point still names the same variable as the register does.
+	if got, want := e.Arg(exec.stack[0].tempVars, 0), exec.tempVars[1]; got != want {
+		t.Errorf("expected: %v, got: %v", want, got)
+	}
+	// Everything still live was allocated below the choice point, so its saved
+	// heap top comes down to the new end of the heap. Left alone it would name
+	// the pre-collection boundary and backtracking would stretch the heap back
+	// over the cells that were just reclaimed.
+	if got, want := exec.stack[0].heapTop, len(e.Heap); got != want {
+		t.Errorf("expected: %d, got: %d", want, got)
+	}
+	if got, want := len(e.Heap), 4; got != want { // The float's bits, v, and $temp_vars/1.
+		t.Errorf("expected: %d, got: %d", want, got)
 	}
 }

@@ -1217,210 +1217,331 @@ func take[T any](s iter.Seq[T], n int) iter.Seq[T] {
 }
 
 func TestArena_GC(t *testing.T) {
-	t.Run("unreachable cells are reclaimed", func(t *testing.T) {
-		a := NewArena(8)
-		_ = must(a.PutVariable()) // Garbage.
-		v := must(a.PutVariable())
+	tests := []struct {
+		title string
+		setup func(t *testing.T) (*Arena, []*Cell) // Fills the heap and returns the roots.
+		check func(t *testing.T, a *Arena, roots []*Cell)
+	}{
+		{
+			title: "unreachable cells are reclaimed",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(8)
+				_ = must(a.PutVariable()) // Garbage.
+				v := must(a.PutVariable())
+				return a, []*Cell{&v}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				v := *roots[0]
+				if len(a.Heap) != 1 {
+					t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
+				}
+				if _, ok := a.Variable(a.Deref(v)); !ok {
+					t.Errorf("the survivor is no longer an unbound variable: %v", a.Deref(v))
+				}
+			},
+		},
+		{
+			title: "a compound survives with its arguments",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutVariable()) // Garbage.
+				c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(1)), must(a.PutAtom(NewAtom("bar")))))
+				return a, []*Cell{&c}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				c := *roots[0]
+				if len(a.Heap) != 3 {
+					t.Errorf("expected: %d, got: %d", 3, len(a.Heap))
+				}
+				if f, ok := a.Functor(c); !ok || f != NewFunctor(NewAtom("foo"), 2) {
+					t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 2), f)
+				}
+				if i, ok := a.Integer(a.Arg(c, 0)); !ok || i != 1 {
+					t.Errorf("expected: %d, got: %d", 1, i)
+				}
+				if atom, ok := a.Atom(a.Arg(c, 1)); !ok || atom != NewAtom("bar") {
+					t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
+				}
+			},
+		},
+		{
+			title: "a CDR-coded list survives",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(32)
+				_ = must(a.PutVariable()) // Garbage.
+				l := must(a.PutList(must(a.PutInteger(1)), must(a.PutInteger(2)), must(a.PutInteger(3))))
+				return a, []*Cell{&l}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				l := *roots[0]
+				var elems []int64
+				for elem, ok := range a.List(l) {
+					if !ok {
+						t.Fatalf("not a proper list: %v", elem)
+					}
+					i, _ := a.Integer(elem)
+					elems = append(elems, i)
+				}
+				if want := []int64{1, 2, 3}; !slices.Equal(elems, want) {
+					t.Errorf("expected: %v, got: %v", want, elems)
+				}
+				if len(a.Heap) != 7 {
+					t.Errorf("expected: %d, got: %d", 7, len(a.Heap))
+				}
+			},
+		},
+		{
+			title: "an int64 survives",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutVariable()) // Garbage.
+				i := must(a.PutInteger(math.MaxInt32 + 1))
+				return a, []*Cell{&i}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if n, ok := a.Integer(*roots[0]); !ok || n != math.MaxInt32+1 {
+					t.Errorf("expected: %d, got: %d", int64(math.MaxInt32)+1, n)
+				}
+			},
+		},
+		{
+			title: "an int64 whose bits look like a cell isn't relocated",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				i := must(a.PutInteger(cast[Cell, int64](Cell{tag: cellTagReference, value: 5})))
+				return a, []*Cell{&i}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				n := cast[Cell, int64](Cell{tag: cellTagReference, value: 5})
+				if got, ok := a.Integer(*roots[0]); !ok || got != n {
+					t.Errorf("expected: %d, got: %d", n, got)
+				}
+			},
+		},
+		{
+			title: "a float survives",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutVariable()) // Garbage.
+				f := must(a.PutFloat(1.5))
+				return a, []*Cell{&f}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if got, ok := a.Float(*roots[0]); !ok || got != 1.5 {
+					t.Errorf("expected: %f, got: %f", 1.5, got)
+				}
+			},
+		},
+		{
+			title: "an unreachable string is collected",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutCharList("garbage"))
+				s := must(a.PutCharList("hello"))
+				return a, []*Cell{&s}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if got, ok := a.CharList(*roots[0]); !ok || got != "hello" {
+					t.Errorf("expected: %s, got: %s", "hello", got)
+				}
+				var bodies []string
+				for _, s := range a.Strings.All() {
+					bodies = append(bodies, s.Body)
+				}
+				if want := []string{"hello"}; !slices.Equal(bodies, want) {
+					t.Errorf("expected: %v, got: %v", want, bodies)
+				}
+			},
+		},
+		{
+			title: "the tail of a string is relocated",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutVariable()) // Garbage.
+				v := must(a.PutVariable())
+				s := must(a.PutPartialCharList("hello", v))
+				return a, []*Cell{&s}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if len(a.Heap) != 1 {
+					t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
+				}
+				tail := a.Strings.Get(int(roots[0].value)).Tail
+				if want := (Cell{tag: cellTagReference, value: 0}); tail != want {
+					t.Errorf("expected: %v, got: %v", want, tail)
+				}
+			},
+		},
+		{
+			title: "an unreachable closed stream is collected, an open one isn't",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				// Nothing names either of these, but only the closed one is
+				// garbage: an open stream still answers to its alias.
+				_ = must(a.PutStream(Stream{Alias: NewAtom("garbage"), Closed: true}))
+				_ = must(a.PutStream(Stream{Alias: NewAtom("open")}))
+				s := must(a.PutStream(Stream{Alias: NewAtom("hello")}))
+				return a, []*Cell{&s}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if got, ok := a.Stream(*roots[0]); !ok || got.Alias != NewAtom("hello") {
+					t.Errorf("expected: %v, got: %v", NewAtom("hello"), got.Alias)
+				}
+				var aliases []Atom
+				for _, s := range a.Streams.All() {
+					aliases = append(aliases, s.Alias)
+				}
+				if want := []Atom{NewAtom("open"), NewAtom("hello")}; !slices.Equal(aliases, want) {
+					t.Errorf("expected: %v, got: %v", want, aliases)
+				}
+			},
+		},
+		{
+			title: "a bound variable keeps its binding",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutVariable()) // Garbage.
+				v := must(a.PutVariable())
+				c := must(a.PutCompound(NewAtom("foo"), must(a.PutAtom(NewAtom("bar")))))
+				if err := a.Bind(v, c); err != nil {
+					t.Fatal(err)
+				}
+				return a, []*Cell{&v}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				d := a.Deref(*roots[0])
+				if f, ok := a.Functor(d); !ok || f != NewFunctor(NewAtom("foo"), 1) {
+					t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 1), f)
+				}
+				if atom, ok := a.Atom(a.Arg(d, 0)); !ok || atom != NewAtom("bar") {
+					t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
+				}
+			},
+		},
+		{
+			title: "a cyclic term survives",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				v := must(a.PutVariable())
+				c := must(a.PutCompound(NewAtom("f"), v))
+				if err := a.Bind(v, c); err != nil {
+					t.Fatal(err)
+				}
+				return a, []*Cell{&v}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				v := *roots[0]
+				if a.Acyclic(v) {
+					t.Error("the cycle is gone")
+				}
+				if a.Deref(a.Arg(a.Deref(v), 0)) != a.Deref(v) {
+					t.Errorf("expected: %v, got: %v", a.Deref(v), a.Deref(a.Arg(a.Deref(v), 0)))
+				}
+			},
+		},
+		{
+			title: "no roots empties the heap",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				_ = must(a.PutCompound(NewAtom("foo"), must(a.PutVariable())))
+				return a, nil
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				if len(a.Heap) != 0 {
+					t.Errorf("expected: %d, got: %d", 0, len(a.Heap))
+				}
+			},
+		},
+		{
+			title: "collecting an already compact heap changes nothing",
+			setup: func(t *testing.T) (*Arena, []*Cell) {
+				a := NewArena(16)
+				c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(math.MaxInt32+1))))
+				return a, []*Cell{&c}
+			},
+			check: func(t *testing.T, a *Arena, roots []*Cell) {
+				before, heap := *roots[0], slices.Clone(a.Heap)
 
-		a.GC([]*Cell{&v})
+				a.GC(slices.Values(roots), nil)
 
-		if len(a.Heap) != 1 {
-			t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
+				if *roots[0] != before {
+					t.Errorf("expected: %v, got: %v", before, *roots[0])
+				}
+				if !slices.Equal(heap, a.Heap) {
+					t.Errorf("expected: %v, got: %v", heap, a.Heap)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			a, roots := test.setup(t)
+
+			a.GC(slices.Values(roots), nil)
+
+			test.check(t, a, roots)
+		})
+	}
+}
+
+func TestArena_GC_tops(t *testing.T) {
+	// dead, live, dead, live: a saved top of n ends up at the number of
+	// survivors below n, which is what backtracking has to cut the heap back to.
+	a := NewArena(16)
+	_ = must(a.PutVariable())
+	v := must(a.PutVariable())
+	_ = must(a.PutVariable())
+	w := must(a.PutVariable())
+
+	tops := []int{0, 1, 2, 3, 4, len(a.Heap)}
+	want := []int{0, 0, 1, 1, 2, 2}
+
+	roots := []*Cell{&v, &w}
+	a.GC(slices.Values(roots), slices.Values(ptrs(tops)))
+
+	if !slices.Equal(tops, want) {
+		t.Errorf("expected: %v, got: %v", want, tops)
+	}
+	if len(a.Heap) != 2 {
+		t.Errorf("expected: %d, got: %d", 2, len(a.Heap))
+	}
+}
+
+func TestArena_GC_unmarkedRootFails(t *testing.T) {
+	// GC walks roots twice and relies on the two walks agreeing. A sequence that
+	// produces a cell the marking pass never saw has to fail loudly: handing its
+	// holder an address belonging to an unrelated term turns into a wrong answer
+	// a long way from here.
+	a := NewArena(16)
+	_ = must(a.PutVariable()) // Garbage, so that the heap actually moves.
+	v := must(a.PutVariable())
+	late := must(a.PutVariable())
+
+	var pass int
+	roots := func(yield func(*Cell) bool) {
+		pass++
+		if !yield(&v) {
+			return
 		}
-		if _, ok := a.Variable(a.Deref(v)); !ok {
-			t.Errorf("the survivor is no longer an unbound variable: %v", a.Deref(v))
+		if pass > 1 { // Only the relocating pass sees this one.
+			_ = yield(&late)
 		}
-	})
+	}
 
-	t.Run("a compound survives with its arguments", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutVariable()) // Garbage.
-		c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(1)), must(a.PutAtom(NewAtom("bar")))))
-
-		a.GC([]*Cell{&c})
-
-		if len(a.Heap) != 3 {
-			t.Errorf("expected: %d, got: %d", 3, len(a.Heap))
+	defer func() {
+		if recover() == nil {
+			t.Error("expected a panic for a cell that no root marked")
 		}
-		if f, ok := a.Functor(c); !ok || f != NewFunctor(NewAtom("foo"), 2) {
-			t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 2), f)
-		}
-		if i, ok := a.Integer(a.Arg(c, 0)); !ok || i != 1 {
-			t.Errorf("expected: %d, got: %d", 1, i)
-		}
-		if atom, ok := a.Atom(a.Arg(c, 1)); !ok || atom != NewAtom("bar") {
-			t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
-		}
-	})
+	}()
 
-	t.Run("a CDR-coded list survives", func(t *testing.T) {
-		a := NewArena(32)
-		_ = must(a.PutVariable()) // Garbage.
-		l := must(a.PutList(must(a.PutInteger(1)), must(a.PutInteger(2)), must(a.PutInteger(3))))
+	a.GC(roots, nil)
+}
 
-		a.GC([]*Cell{&l})
-
-		var elems []int64
-		for elem, ok := range a.List(l) {
-			if !ok {
-				t.Fatalf("not a proper list: %v", elem)
-			}
-			i, _ := a.Integer(elem)
-			elems = append(elems, i)
-		}
-		if want := []int64{1, 2, 3}; !slices.Equal(elems, want) {
-			t.Errorf("expected: %v, got: %v", want, elems)
-		}
-		if len(a.Heap) != 7 {
-			t.Errorf("expected: %d, got: %d", 7, len(a.Heap))
-		}
-	})
-
-	t.Run("an int64 survives", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutVariable()) // Garbage.
-		i := must(a.PutInteger(math.MaxInt32 + 1))
-
-		a.GC([]*Cell{&i})
-
-		if n, ok := a.Integer(i); !ok || n != math.MaxInt32+1 {
-			t.Errorf("expected: %d, got: %d", int64(math.MaxInt32)+1, n)
-		}
-	})
-
-	t.Run("an int64 whose bits look like a cell isn't relocated", func(t *testing.T) {
-		a := NewArena(16)
-		n := cast[Cell, int64](Cell{tag: cellTagReference, value: 5})
-		i := must(a.PutInteger(n))
-
-		a.GC([]*Cell{&i})
-
-		if got, ok := a.Integer(i); !ok || got != n {
-			t.Errorf("expected: %d, got: %d", n, got)
-		}
-	})
-
-	t.Run("a float survives", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutVariable()) // Garbage.
-		f := must(a.PutFloat(1.5))
-
-		a.GC([]*Cell{&f})
-
-		if got, ok := a.Float(f); !ok || got != 1.5 {
-			t.Errorf("expected: %f, got: %f", 1.5, got)
-		}
-	})
-
-	t.Run("an unreachable string is collected", func(t *testing.T) {
-		a := NewArena(16)
-		garbage := must(a.PutCharList("garbage"))
-		s := must(a.PutCharList("hello"))
-
-		a.GC([]*Cell{&s})
-
-		if got, ok := a.CharList(s); !ok || got != "hello" {
-			t.Errorf("expected: %s, got: %s", "hello", got)
-		}
-		if got := a.Strings.Get(int(garbage.value)); got.Body != "" {
-			t.Errorf("the unreachable string survived: %v", got)
-		}
-	})
-
-	t.Run("the tail of a string is relocated", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutVariable()) // Garbage.
-		v := must(a.PutVariable())
-		s := must(a.PutPartialCharList("hello", v))
-
-		a.GC([]*Cell{&s})
-
-		if len(a.Heap) != 1 {
-			t.Errorf("expected: %d, got: %d", 1, len(a.Heap))
-		}
-		tail := a.Strings.Get(int(s.value)).Tail
-		if want := (Cell{tag: cellTagReference, value: 0}); tail != want {
-			t.Errorf("expected: %v, got: %v", want, tail)
-		}
-	})
-
-	t.Run("an unreachable stream is collected", func(t *testing.T) {
-		a := NewArena(16)
-		garbage := must(a.PutStream(Stream{Alias: NewAtom("garbage")}))
-		s := must(a.PutStream(Stream{Alias: NewAtom("hello")}))
-
-		a.GC([]*Cell{&s})
-
-		if got, ok := a.Stream(s); !ok || got.Alias != NewAtom("hello") {
-			t.Errorf("expected: %v, got: %v", NewAtom("hello"), got.Alias)
-		}
-		if got := a.Streams.Get(int(garbage.value)); got != nil {
-			t.Errorf("the unreachable stream survived: %v", got)
-		}
-	})
-
-	t.Run("a bound variable keeps its binding", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutVariable()) // Garbage.
-		v := must(a.PutVariable())
-		c := must(a.PutCompound(NewAtom("foo"), must(a.PutAtom(NewAtom("bar")))))
-		if err := a.Bind(v, c); err != nil {
-			t.Fatal(err)
-		}
-
-		a.GC([]*Cell{&v})
-
-		d := a.Deref(v)
-		if f, ok := a.Functor(d); !ok || f != NewFunctor(NewAtom("foo"), 1) {
-			t.Errorf("expected: %v, got: %v", NewFunctor(NewAtom("foo"), 1), f)
-		}
-		if atom, ok := a.Atom(a.Arg(d, 0)); !ok || atom != NewAtom("bar") {
-			t.Errorf("expected: %v, got: %v", NewAtom("bar"), atom)
-		}
-	})
-
-	t.Run("a cyclic term survives", func(t *testing.T) {
-		a := NewArena(16)
-		v := must(a.PutVariable())
-		c := must(a.PutCompound(NewAtom("f"), v))
-		if err := a.Bind(v, c); err != nil {
-			t.Fatal(err)
-		}
-
-		a.GC([]*Cell{&v})
-
-		if a.Acyclic(v) {
-			t.Error("the cycle is gone")
-		}
-		if a.Deref(a.Arg(a.Deref(v), 0)) != a.Deref(v) {
-			t.Errorf("expected: %v, got: %v", a.Deref(v), a.Deref(a.Arg(a.Deref(v), 0)))
-		}
-	})
-
-	t.Run("no roots empties the heap", func(t *testing.T) {
-		a := NewArena(16)
-		_ = must(a.PutCompound(NewAtom("foo"), must(a.PutVariable())))
-
-		a.GC(nil)
-
-		if len(a.Heap) != 0 {
-			t.Errorf("expected: %d, got: %d", 0, len(a.Heap))
-		}
-	})
-
-	t.Run("collecting an already compact heap changes nothing", func(t *testing.T) {
-		a := NewArena(16)
-		c := must(a.PutCompound(NewAtom("foo"), must(a.PutInteger(math.MaxInt32+1))))
-
-		a.GC([]*Cell{&c})
-		before, heap := c, slices.Clone(a.Heap)
-		a.GC([]*Cell{&c})
-
-		if c != before {
-			t.Errorf("expected: %v, got: %v", before, c)
-		}
-		if !slices.Equal(heap, a.Heap) {
-			t.Errorf("expected: %v, got: %v", heap, a.Heap)
-		}
-	})
+func ptrs[T any](s []T) []*T {
+	ps := make([]*T, len(s))
+	for i := range s {
+		ps[i] = &s[i]
+	}
+	return ps
 }

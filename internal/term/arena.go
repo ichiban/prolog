@@ -1,6 +1,7 @@
 package term
 
 import (
+	"fmt"
 	"iter"
 	"math"
 	"slices"
@@ -733,13 +734,34 @@ func renamedCopy(from, to *Arena, t Cell, copied map[Cell]Cell) (Cell, error) {
 }
 
 // GC reclaims the cells that are unreachable from the given roots and slides
-// the survivors down to the bottom of the heap. The roots are rewritten in
-// place to point at the new addresses.
-func (a *Arena) GC(roots []*Cell) {
+// the survivors down to the bottom of the heap.
+//
+// roots is iterated twice, once to mark and once to rewrite, so it has to yield
+// pointers to the storage every cell outside the heap actually lives in, and it
+// must not yield the same pointer twice: relocating a cell twice moves it to an
+// address that was never its own. A root left out of the sequence leaves a
+// dangling address behind rather than failing, which is why relocate insists
+// that whatever it rewrites was marked.
+//
+// tops holds the saved heap tops, such as the H of a choice point. Each is
+// rewritten to the number of survivors below it, which is where that boundary
+// lands once the survivors slide down. Either sequence may be nil.
+func (a *Arena) GC(roots iter.Seq[*Cell], tops iter.Seq[*int]) {
 	a.marks.Clear()
 	a.payloads.Clear()
-	for _, r := range roots {
-		a.mark(*r)
+	if roots != nil {
+		for r := range roots {
+			a.mark(*r)
+		}
+	}
+
+	// An open stream stays live whether or not a term still names it: it has an
+	// alias to answer to, buffered data to flush and a handle to close, none of
+	// which are reachable through a cell. Only a closed one is garbage.
+	for id, s := range a.Streams.All() {
+		if !s.Closed {
+			a.Streams.Mark(id)
+		}
 	}
 
 	a.Strings.Sweep()
@@ -764,8 +786,16 @@ func (a *Arena) GC(roots []*Cell) {
 		a.Strings.Set(id, s)
 	}
 
-	for _, r := range roots {
-		*r = a.relocate(*r)
+	if roots != nil {
+		for r := range roots {
+			*r = a.relocate(*r)
+		}
+	}
+
+	if tops != nil {
+		for t := range tops {
+			*t = a.survivorsBelow(*t)
+		}
 	}
 }
 
@@ -807,12 +837,27 @@ func (a *Arena) mark(c Cell) {
 }
 
 // relocate rewrites the address a cell holds to where GC is about to move the
-// cell it points at. A live cell at address i moves to Rank(i)-1 because the
-// survivors keep their relative order.
+// cell it points at.
 func (a *Arena) relocate(c Cell) Cell {
 	if c.tag.Immediate() {
 		return c
 	}
-	c.value = int32(a.marks.Rank(int(c.value)) - 1)
+	if !a.marks.Exists(int(c.value)) {
+		// The cell is reachable, since we are rewriting it, but nothing marked
+		// it. Whoever holds it isn't in the root set, and carrying on would
+		// silently hand them an address belonging to an unrelated term.
+		panic(fmt.Sprintf("term: %s points at an unmarked cell: the root set is missing whoever holds it", c))
+	}
+	c.value = int32(a.survivorsBelow(int(c.value)))
 	return c
+}
+
+// survivorsBelow returns how many live cells sit below addr. Because the
+// survivors keep their relative order, that is both the new address of a live
+// cell at addr and the new value of a saved heap top of addr.
+func (a *Arena) survivorsBelow(addr int) int {
+	if addr == 0 {
+		return 0
+	}
+	return a.marks.Rank(addr - 1)
 }

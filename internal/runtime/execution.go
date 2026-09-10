@@ -11,6 +11,7 @@ import (
 	"iter"
 	"math"
 	"slices"
+	"weak"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
@@ -20,6 +21,12 @@ const (
 	maxRegisters = 1024
 )
 
+// gcEveryExecute makes the engine collect before every execute instead of
+// waiting for the heap to fill. Tests set it: a root the set is missing only
+// misleads once a collection lands between the write and the read, which on the
+// normal schedule almost never happens.
+var gcEveryExecute bool
+
 type stackFrame struct {
 	programPointer int       // P, next clause address
 	heapTop        int       // H, saved top of the heap
@@ -27,8 +34,10 @@ type stackFrame struct {
 	tempVars       term.Cell // The backing array in the form of '$temp_vars'(A1, ..., An) to save An
 	cutB           int       // B0, cut pointer
 
-	next func() (Promise, bool) // for built-in predicates
-	stop func()                 // for built-in predicates
+	// for built-in predicates
+	next     func() (Promise, bool)
+	stop     func()
+	captured *[]weak.Pointer[term.Cell]
 }
 
 type structurePointer struct {
@@ -50,6 +59,11 @@ type Execution struct {
 
 	tempVars [maxRegisters]term.Cell // Xn
 	cutB     int                     // B0
+
+	// liveRegs is how many argument registers hold a term right now, so that GC
+	// roots X1..X_liveRegs and nothing else. Registers above it belong to an
+	// abandoned branch, and the heap they point into has already been cut back.
+	liveRegs int
 
 	mode wam.Mode
 }
@@ -308,6 +322,17 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(errors.New("dynamic call is not implemented yet"))
 					return
 				}
+
+				e.liveRegs = bpi.Arity()
+
+				if e.gcThreshold == 0 {
+					e.setNextGCThreshold()
+				}
+				if gcEveryExecute || e.gcThreshold <= len(e.Heap) {
+					e.Engine.GC(e.Engine.roots(), e.Engine.heapTops())
+					e.setNextGCThreshold()
+				}
+
 				e.location = term.NewFunctor(bpi.Name(), bpi.Arity()-1)
 				e.programPointer = p.Offset
 				e.cutB = len(e.stack)
@@ -335,6 +360,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					heapTop:        len(e.Heap),
 					trailTop:       len(e.trail),
 					tempVars:       tvs,
+					cutB:           e.cutB,
 				}
 				e.stack = append(e.stack, f)
 				e.heapBacktrackPoint = len(e.Heap)
@@ -415,12 +441,15 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				switch p := b.Proc.Call(ctx, e); {
+				a := Activation{
+					exec: e,
+				}
+				switch p := b.Proc.Call(ctx, &a); {
 				case p.err != nil:
 					_ = yield(p.err)
 					return
 				case p.delayed != nil:
-					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity()); err != nil {
+					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), &a.captured); err != nil {
 						_ = yield(err)
 						return
 					}
@@ -440,6 +469,22 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 		_ = yield(errors.New("invalid end of code"))
 		return
 	}
+}
+
+// enter jumps to a predicate and loads its arguments into X1..Xn, which is what
+// a continuation term amounts to once a built-in has decided to run it. Filling
+// the registers and setting liveRegs is one operation because GC roots exactly
+// X1..X_liveRegs: leave liveRegs behind and a register the caller just wrote
+// goes uncollected and unrelocated, leave it ahead and GC follows a register
+// belonging to an abandoned branch.
+func (e *Execution) enter(offset int, args iter.Seq[term.Cell]) {
+	e.programPointer = offset
+	var n int
+	for arg := range args {
+		n++
+		e.tempVars[n] = arg
+	}
+	e.liveRegs = n
 }
 
 func (e *Execution) Next() {
@@ -474,7 +519,7 @@ func (e *Execution) Backtrack() (bool, error) {
 			case p.err != nil:
 				return false, p.err
 			case p.delayed != nil:
-				if err := e.pushSeqStackFrame(p.delayed, 0); err != nil {
+				if err := e.pushSeqStackFrame(p.delayed, 0, f.captured); err != nil {
 					return false, err
 				}
 				fallthrough // Triggers the iterator.
@@ -494,8 +539,14 @@ func (e *Execution) restoreState() error {
 	}
 	tvs := slices.Collect(e.Args(f.tempVars))
 	copy(e.tempVars[1:len(tvs)+1], tvs)
+	e.liveRegs = len(tvs)
 	e.Heap = e.Heap[:f.heapTop]
 	e.cutB = f.cutB
+	// S names a cell that the truncation above may have just discarded. The
+	// clause we resume in re-establishes it with get_structure before any
+	// unify_*, so dropping it here costs nothing and keeps GC from following a
+	// dangling address.
+	e.structurePointer = structurePointer{}
 	return nil
 }
 
@@ -553,7 +604,7 @@ func (e *Execution) Unify(x, y term.Cell) (bool, error) {
 	return true, nil
 }
 
-func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int) error {
+func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int, captured *[]weak.Pointer[term.Cell]) error {
 	next, stop := iter.Pull(seq)
 	tvs, err := e.PutCompound(term.NewAtom("$temp_vars"), e.tempVars[1:arity+1]...)
 	if err != nil {
@@ -564,9 +615,85 @@ func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int) error {
 		heapTop:        len(e.Heap),
 		trailTop:       len(e.trail),
 		tempVars:       tvs,
+		cutB:           e.cutB,
 		next:           next,
 		stop:           stop,
+		captured:       captured,
 	}
 	e.stack = append(e.stack, f)
 	return nil
+}
+
+// pin keeps cells that live in a Go frame rather than in the engine alive, and
+// up to date, across a call that can collect — in practice a call back into the
+// engine. GC rewrites them in place, so pass pointers to the variables the frame
+// goes on to read. Call the returned function once the frame is done with them.
+func (e *Execution) pin(cells ...*term.Cell) (unpin func()) {
+	return e.AddRoots(slices.Values(cells))
+}
+
+func (e *Execution) setNextGCThreshold() {
+	e.gcThreshold = min(max(len(e.Heap)*2, cap(e.Heap)/2), cap(e.Heap))
+}
+
+// roots enumerates the cells this execution holds: the structure pointer, the
+// argument registers that are live right now, the trail, and every choice
+// point's saved registers along with the terms a built-in suspended on it still
+// holds. Engine.roots adds the ones that belong to the engine rather than to a
+// single execution.
+func (e *Execution) roots() iter.Seq[*term.Cell] {
+	return func(yield func(*term.Cell) bool) {
+		if !yield(&e.structurePointer.term) {
+			return
+		}
+
+		for i := range e.tempVars[1 : e.liveRegs+1] {
+			if !yield(&e.tempVars[1+i]) {
+				return
+			}
+		}
+
+		for i := range e.trail {
+			if !yield(&e.trail[i]) {
+				return
+			}
+		}
+
+		for i := range e.stack {
+			f := &e.stack[i]
+
+			if !yield(&f.tempVars) {
+				return
+			}
+
+			if f.captured == nil { // Not a built-in predicate.
+				continue
+			}
+			for _, p := range *f.captured {
+				c := p.Value()
+				if c == nil { // Go GC collected it.
+					continue
+				}
+				if !yield(c) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// heapTops enumerates the saved heap tops this execution will cut the heap back
+// to. GC rewrites each one, since the boundary a choice point saved moves down
+// along with the survivors below it.
+func (e *Execution) heapTops() iter.Seq[*int] {
+	return func(yield func(*int) bool) {
+		if !yield(&e.heapBacktrackPoint) {
+			return
+		}
+		for i := range e.stack {
+			if !yield(&e.stack[i].heapTop) {
+				return
+			}
+		}
+	}
 }
