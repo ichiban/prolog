@@ -85,7 +85,7 @@ Type Ctrl-C or 'halt.' to exit.
 		_ = terminal.Restore(0, oldState)
 		os.Exit(code)
 	})
-	if err := i.Register1("version", func(ctx context.Context, a prolog.Activation, arg1 prolog.Term) prolog.Outcome {
+	if err := i.Register("version", func(ctx context.Context, a prolog.Activation, arg1 prolog.Term) prolog.Outcome {
 		v, err := a.NewInteger(2)
 		if err != nil {
 			return a.Error(err)
@@ -94,7 +94,7 @@ Type Ctrl-C or 'halt.' to exit.
 	}); err != nil {
 		log.Fatalf("failed to register: %v", err)
 	}
-	if err := i.Register1("rps", func(ctx context.Context, a prolog.Activation, out prolog.Term) prolog.Outcome {
+	if err := i.Register("rps", func(ctx context.Context, a prolog.Activation, out prolog.Term) prolog.Outcome {
 		r, err := a.NewAtom("rock")
 		if err != nil {
 			return a.Error(err)

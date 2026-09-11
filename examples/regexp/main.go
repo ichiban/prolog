@@ -13,7 +13,7 @@ func main() {
 	p := prolog.New()
 
 	// Register a Go function as a custom predicate.
-	if err := p.Register3("regexp", func(ctx context.Context, a prolog.Activation, pattern, text, match prolog.Term) prolog.Outcome {
+	if err := p.Register("regexp", func(ctx context.Context, a prolog.Activation, pattern, text, match prolog.Term) prolog.Outcome {
 		// First, check the arguments.
 		p, err := a.String(pattern)
 		if err != nil {

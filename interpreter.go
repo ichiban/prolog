@@ -142,78 +142,64 @@ func (i *Interpreter) register(name string, arity int, proc runtime.Procedure) e
 	return err
 }
 
-// Register0 registers fn as the custom predicate name/0.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register0(name string, fn func(ctx context.Context, a Activation) Outcome) error {
-	return i.register(name, 0, runtime.Nondeterministic0(func(ctx context.Context, a *runtime.Activation, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}).promise
-	}))
+// Predicate constrains the function type [Interpreter.Register] can take.
+type Predicate interface {
+	func(ctx context.Context, a Activation) Outcome |
+		func(ctx context.Context, a Activation, arg1 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome |
+		func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome
 }
 
-// Register1 registers fn as the custom predicate name/1.
-// fn receives the goal's argument as a [Term], which may be bound or unbound depending on how it's called.
-// Register1 must be called before the first [Interpreter.Load] or [Interpreter.Query] or it'll return an error.
-// Also, it returns an error if name/1 is already taken.
-func (i *Interpreter) Register1(name string, fn func(ctx context.Context, a Activation, arg1 Term) Outcome) error {
-	return i.register(name, 1, runtime.Nondeterministic1(func(ctx context.Context, a *runtime.Activation, arg1, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}).promise
-	}))
-}
-
-// Register2 registers fn as the custom predicate name/2.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register2(name string, fn func(ctx context.Context, a Activation, arg1, arg2 Term) Outcome) error {
-	return i.register(name, 2, runtime.Nondeterministic2(func(ctx context.Context, a *runtime.Activation, arg1, arg2, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}).promise
-	}))
-}
-
-// Register3 registers fn as the custom predicate name/3.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register3(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3 Term) Outcome) error {
-	return i.register(name, 3, runtime.Nondeterministic3(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}).promise
-	}))
-}
-
-// Register4 registers fn as the custom predicate name/4.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register4(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4 Term) Outcome) error {
-	return i.register(name, 4, runtime.Nondeterministic4(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}).promise
-	}))
-}
-
-// Register5 registers fn as the custom predicate name/5.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register5(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5 Term) Outcome) error {
-	return i.register(name, 5, runtime.Nondeterministic5(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}).promise
-	}))
-}
-
-// Register6 registers fn as the custom predicate name/6.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register6(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome) error {
-	return i.register(name, 6, runtime.Nondeterministic6(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}).promise
-	}))
-}
-
-// Register7 registers fn as the custom predicate name/7.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register7(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome) error {
-	return i.register(name, 7, runtime.Nondeterministic7(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}).promise
-	}))
-}
-
-// Register8 registers fn as the custom predicate name/8.
-// See [Interpreter.Register1] for details.
-func (i *Interpreter) Register8(name string, fn func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome) error {
-	return i.register(name, 8, runtime.Nondeterministic8(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont runtime.Ref) runtime.Promise {
-		return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}, Term{ref: arg8}).promise
-	}))
+// Register registers fn as the custom predicate name/arity, where the arity is the number of [Term] arguments fn takes, up to 8.
+// fn receives the goal's arguments as [Term]s, which may be bound or unbound depending on how it's called.
+// Register must be called before the first [Interpreter.Load] or [Interpreter.Query] or it'll return an error.
+// Also, it returns an error if name/arity is already taken.
+func (i *Interpreter) Register[T Predicate](name string, fn T) error {
+	switch fn := any(fn).(type) {
+	case func(ctx context.Context, a Activation) Outcome:
+		return i.register(name, 0, runtime.Nondeterministic0(func(ctx context.Context, a *runtime.Activation, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1 Term) Outcome:
+		return i.register(name, 1, runtime.Nondeterministic1(func(ctx context.Context, a *runtime.Activation, arg1, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2 Term) Outcome:
+		return i.register(name, 2, runtime.Nondeterministic2(func(ctx context.Context, a *runtime.Activation, arg1, arg2, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3 Term) Outcome:
+		return i.register(name, 3, runtime.Nondeterministic3(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4 Term) Outcome:
+		return i.register(name, 4, runtime.Nondeterministic4(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5 Term) Outcome:
+		return i.register(name, 5, runtime.Nondeterministic5(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome:
+		return i.register(name, 6, runtime.Nondeterministic6(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome:
+		return i.register(name, 7, runtime.Nondeterministic7(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}).promise
+		}))
+	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome:
+		return i.register(name, 8, runtime.Nondeterministic8(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont runtime.Ref) runtime.Promise {
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}, Term{ref: arg8}).promise
+		}))
+	default:
+		return errors.New("invalid function type")
+	}
 }
 
 // Load loads a Prolog text from file via FS in Config.
