@@ -325,9 +325,25 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					if !ok {
 						return
 					}
+					continue
 				}
 				if p.Dynamic {
-					_ = yield(errors.New("dynamic call is not implemented yet"))
+					g, err := e.PutCompound(bpi.Name(), e.tempVars[1:bpi.Arity()]...)
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					cont := e.tempVars[bpi.Arity()]
+					call, ok, err := e.Predicate(term.NewFunctor(term.NewAtom("call"), 2))
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
+						_ = yield(errors.New("call/2 not defined"))
+						return
+					}
+					e.enter(call.Offset, concat(singleton(g), singleton(cont)))
 					return
 				}
 
