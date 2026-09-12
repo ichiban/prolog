@@ -6332,14 +6332,7 @@ func (e *Execution) unTrailTo(b int) error {
 	// undone, bindings the enclosing clause made before catch/3 are kept.
 	trailTop := e.stack[b].trailTop
 
-	for i := len(e.stack) - 1; i >= b; i-- {
-		f := e.stack[i]
-		if f.stop != nil {
-			f.stop()
-		}
-	}
-
-	e.stack = e.stack[:b]
+	e.closeStackTo(b)
 	return e.unwindTrail(trailTop)
 }
 

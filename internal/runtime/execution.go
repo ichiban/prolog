@@ -11,7 +11,6 @@ import (
 	"iter"
 	"math"
 	"slices"
-	"weak"
 
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
@@ -35,9 +34,18 @@ type stackFrame struct {
 	cutB           int       // B0, cut pointer
 
 	// for built-in predicates
-	next     func() (Promise, bool)
-	stop     func()
-	captured *[]weak.Pointer[term.Cell]
+	next       func() (Promise, bool)
+	stop       func()
+	activation *Activation
+}
+
+func (s *stackFrame) Close() {
+	if s.stop != nil {
+		s.stop()
+	}
+	if s.activation != nil {
+		s.activation.Close()
+	}
 }
 
 type structurePointer struct {
@@ -411,13 +419,13 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				e.Next()
 			case wam.OpPutCut: // put_cut
-				e.stack = e.stack[:e.cutB]
+				e.closeStackTo(e.cutB)
 				e.Next()
 			case wam.OpGetCut: // get_cut
 				t := e.tempVars[1]
 				t = e.Deref(t)
 				n, _ := e.Integer(t)
-				e.stack = e.stack[:n]
+				e.closeStackTo(int(n))
 				e.Next()
 			case wam.OpPushCut: // push_cut
 				if e.cutB > math.MaxInt32 {
@@ -446,15 +454,25 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				switch p := b.Proc.Call(ctx, &a); {
 				case p.err != nil:
+					a.Close()
 					_ = yield(p.err)
 					return
 				case p.delayed != nil:
-					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), &a.captured); err != nil {
+					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), &a); err != nil {
 						_ = yield(err)
 						return
 					}
-					fallthrough // Triggers the iterator.
+
+					ok, err := e.Backtrack() // Triggers the iterator.
+					if err != nil {
+						_ = yield(err)
+						return
+					}
+					if !ok {
+						return
+					}
 				case !p.ok:
+					a.Close()
 					ok, err := e.Backtrack()
 					if err != nil {
 						_ = yield(err)
@@ -463,6 +481,8 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					if !ok {
 						return
 					}
+				case p.ok:
+					a.Close()
 				}
 			}
 		}
@@ -510,7 +530,7 @@ func (e *Execution) Backtrack() (bool, error) {
 			e.stack = e.stack[:len(e.stack)+1]
 			switch p, ok := f.next(); {
 			case !ok:
-				f.stop()
+				f.Close()
 				if len(e.stack) == 0 {
 					return false, nil
 				}
@@ -519,7 +539,7 @@ func (e *Execution) Backtrack() (bool, error) {
 			case p.err != nil:
 				return false, p.err
 			case p.delayed != nil:
-				if err := e.pushSeqStackFrame(p.delayed, 0, f.captured); err != nil {
+				if err := e.pushSeqStackFrame(p.delayed, 0, f.activation); err != nil {
 					return false, err
 				}
 				fallthrough // Triggers the iterator.
@@ -529,6 +549,24 @@ func (e *Execution) Backtrack() (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// closeStackTo discards the choice points above b, closing each frame on the
+// way out so a discarded nondeterministic builtin stops its iterator and its
+// activation is marked closed instead of outliving the frame that rooted it.
+func (e *Execution) closeStackTo(b int) {
+	if b >= len(e.stack) {
+		return
+	}
+	// A barrier below the bottom of the stack means the engine handed us a
+	// corrupt cut pointer. Close everything rather than walk off the end: this
+	// also runs from a defer while the execution is being torn down, where a
+	// panic would bury whatever error got us there.
+	b = max(b, 0)
+	for i := len(e.stack) - 1; i >= b; i-- {
+		e.stack[i].Close()
+	}
+	e.stack = e.stack[:b]
 }
 
 func (e *Execution) restoreState() error {
@@ -604,7 +642,7 @@ func (e *Execution) Unify(x, y term.Cell) (bool, error) {
 	return true, nil
 }
 
-func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int, captured *[]weak.Pointer[term.Cell]) error {
+func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int, activation *Activation) error {
 	next, stop := iter.Pull(seq)
 	tvs, err := e.PutCompound(term.NewAtom("$temp_vars"), e.tempVars[1:arity+1]...)
 	if err != nil {
@@ -618,7 +656,7 @@ func (e *Execution) pushSeqStackFrame(seq iter.Seq[Promise], arity int, captured
 		cutB:           e.cutB,
 		next:           next,
 		stop:           stop,
-		captured:       captured,
+		activation:     activation,
 	}
 	e.stack = append(e.stack, f)
 	return nil
@@ -666,10 +704,10 @@ func (e *Execution) roots() iter.Seq[*term.Cell] {
 				return
 			}
 
-			if f.captured == nil { // Not a built-in predicate.
+			if f.activation == nil { // Not a built-in predicate.
 				continue
 			}
-			for _, p := range *f.captured {
+			for _, p := range f.activation.captured {
 				c := p.Value()
 				if c == nil { // Go GC collected it.
 					continue

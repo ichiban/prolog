@@ -2,11 +2,12 @@ package runtime
 
 import (
 	"fmt"
-	"github.com/ichiban/prolog/v2/internal/wam"
 	"slices"
 	"strings"
 	"testing"
 	"weak"
+
+	"github.com/ichiban/prolog/v2/internal/wam"
 
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
@@ -522,11 +523,13 @@ func TestEngine_roots_deduplicates(t *testing.T) {
 	// relocates whatever it's handed, and relocating a cell twice moves it to an
 	// address that was never its own.
 	held := new(must(e.PutVariable()))
-	captured := []weak.Pointer[term.Cell]{weak.Make(held)}
+	activation := Activation{
+		captured: []weak.Pointer[term.Cell]{weak.Make(held)},
+	}
 	exec := &Execution{Engine: &e}
 	exec.stack = []stackFrame{
-		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured},
-		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured},
+		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), activation: &activation},
+		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), activation: &activation},
 	}
 	e.executions = []*Execution{exec}
 

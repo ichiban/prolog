@@ -116,10 +116,12 @@ func TestExecution_roots(t *testing.T) {
 	// terms live in a Go frame, reachable only through the weak pointers it
 	// registered when it took them.
 	held := new(must(e.PutVariable()))
-	captured := []weak.Pointer[term.Cell]{weak.Make(held)}
+	activation := Activation{
+		captured: []weak.Pointer[term.Cell]{weak.Make(held)},
+	}
 	e.stack = []stackFrame{
 		{tempVars: must(e.PutCompound(term.NewAtom("$temp_vars"), must(e.PutVariable())))},
-		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured},
+		{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), activation: &activation},
 	}
 
 	want := []*term.Cell{
@@ -141,9 +143,10 @@ func TestExecution_roots_droppedRef(t *testing.T) {
 	// A built-in that has let go of a Ref leaves a cleared weak pointer behind.
 	// Skipping it is the point of the weak pointer; dereferencing it is a nil
 	// panic.
-	var captured []weak.Pointer[term.Cell]
-	captured = append(captured, weak.Pointer[term.Cell]{})
-	e.stack = []stackFrame{{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), captured: &captured}}
+	activation := Activation{
+		captured: []weak.Pointer[term.Cell]{},
+	}
+	e.stack = []stackFrame{{tempVars: must(e.PutAtom(term.NewAtom("$temp_vars"))), activation: &activation}}
 
 	want := []*term.Cell{&e.structurePointer.term, &e.stack[0].tempVars}
 	if got := slices.Collect(e.roots()); !slices.Equal(got, want) {

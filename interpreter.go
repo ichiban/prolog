@@ -167,35 +167,35 @@ func (i *Interpreter) Register[T Predicate](name string, fn T) error {
 		}))
 	case func(ctx context.Context, a Activation, arg1 Term) Outcome:
 		return i.register(name, 1, runtime.Nondeterministic1(func(ctx context.Context, a *runtime.Activation, arg1, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2 Term) Outcome:
 		return i.register(name, 2, runtime.Nondeterministic2(func(ctx context.Context, a *runtime.Activation, arg1, arg2, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3 Term) Outcome:
 		return i.register(name, 3, runtime.Nondeterministic3(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4 Term) Outcome:
 		return i.register(name, 4, runtime.Nondeterministic4(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}, Term{activation: a, ref: arg4}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5 Term) Outcome:
 		return i.register(name, 5, runtime.Nondeterministic5(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}, Term{activation: a, ref: arg4}, Term{activation: a, ref: arg5}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6 Term) Outcome:
 		return i.register(name, 6, runtime.Nondeterministic6(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}, Term{activation: a, ref: arg4}, Term{activation: a, ref: arg5}, Term{activation: a, ref: arg6}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7 Term) Outcome:
 		return i.register(name, 7, runtime.Nondeterministic7(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}, Term{activation: a, ref: arg4}, Term{activation: a, ref: arg5}, Term{activation: a, ref: arg6}, Term{activation: a, ref: arg7}).promise
 		}))
 	case func(ctx context.Context, a Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 Term) Outcome:
 		return i.register(name, 8, runtime.Nondeterministic8(func(ctx context.Context, a *runtime.Activation, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cont runtime.Ref) runtime.Promise {
-			return fn(ctx, Activation{activation: a, cont: cont}, Term{ref: arg1}, Term{ref: arg2}, Term{ref: arg3}, Term{ref: arg4}, Term{ref: arg5}, Term{ref: arg6}, Term{ref: arg7}, Term{ref: arg8}).promise
+			return fn(ctx, Activation{activation: a, cont: cont}, Term{activation: a, ref: arg1}, Term{activation: a, ref: arg2}, Term{activation: a, ref: arg3}, Term{activation: a, ref: arg4}, Term{activation: a, ref: arg5}, Term{activation: a, ref: arg6}, Term{activation: a, ref: arg7}, Term{activation: a, ref: arg8}).promise
 		}))
 	default:
 		return errors.New("invalid function type")

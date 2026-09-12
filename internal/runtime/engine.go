@@ -612,8 +612,14 @@ func (e *Engine) Call(ctx context.Context, goal term.Cell) iter.Seq[error] {
 		// terminates; undo them so they don't leak into the caller.
 		trailTop := len(exec.trail)
 		defer func() {
-			e.executions = e.executions[:len(e.executions)-1]
+			// A caller that stops early leaves choice points behind; close them
+			// so their builtins release their iterators and activations.
+			// Stopping an iterator resumes the built-in to unwind it, so exec
+			// has to stay reachable from the engine until the tear-down is done
+			// for the same reason it did while running.
+			exec.closeStackTo(0)
 			_ = exec.unwindTrail(trailTop)
+			e.executions = e.executions[:len(e.executions)-1]
 		}()
 		for err := range exec.run(ctx) {
 			if !yield(err) {

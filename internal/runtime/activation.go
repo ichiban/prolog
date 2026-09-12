@@ -16,6 +16,7 @@ type Ref struct {
 type Activation struct {
 	exec     *Execution
 	captured []weak.Pointer[term.Cell]
+	closed   bool
 }
 
 func (a *Activation) ref(t term.Cell) Ref {
@@ -35,10 +36,14 @@ func cells(refs []Ref) []term.Cell {
 
 // Success reports that the builtin succeeded and execution should continue
 // with cont.
-func (a *Activation) Success(cont Ref) Promise { return a.exec.Success(*cont.cell) }
+func (a *Activation) Success(cont Ref) Promise {
+	return a.exec.Success(*cont.cell)
+}
 
 // Failure reports that the builtin failed.
-func (a *Activation) Failure() Promise { return Failure() }
+func (a *Activation) Failure() Promise {
+	return Failure()
+}
 
 // Throw raises err, unwinding to the nearest catch/3.
 func (a *Activation) Throw(err error, cont Ref) Promise {
@@ -171,4 +176,12 @@ func (a *Activation) PutList(elems ...Ref) (Ref, error) {
 		return Ref{}, err
 	}
 	return a.ref(t), nil
+}
+
+func (a *Activation) Close() {
+	a.closed = true
+}
+
+func (a *Activation) Closed() bool {
+	return a.closed
 }
