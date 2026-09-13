@@ -212,8 +212,9 @@ func (d decoder) decodeSlice(dest reflect.Value, h term.Cell) error {
 	return nil
 }
 
-// decodeAny converts h into the Value that represents it most closely. A term
-// that has no such representation becomes Raw.
+// decodeAny converts h into the Go type that represents it most closely: an
+// unbound variable becomes nil, a list becomes []any, otherwise Atom, int64,
+// float64 or string. A term that has no such representation becomes Raw.
 func (d decoder) decodeAny(h term.Cell) (any, error) {
 	e := &d.i.engine
 

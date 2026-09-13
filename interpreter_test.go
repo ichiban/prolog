@@ -2245,6 +2245,36 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 }
 
+func TestBind(t *testing.T) {
+	i := New()
+
+	tests := []struct {
+		title   string
+		query   string
+		options []QueryOption
+		X       Raw
+	}{
+		{title: "atom", query: `true.`, options: []QueryOption{Bind("X", Atom("foo"))}, X: `foo`},
+		{title: "int", query: `true.`, options: []QueryOption{Bind("X", 1)}, X: `1`},
+		{title: "int64", query: `true.`, options: []QueryOption{Bind("X", int64(1))}, X: `1`},
+		{title: "float64", query: `true.`, options: []QueryOption{Bind("X", 1.0)}, X: `1.0`},
+		{title: "string", query: `true.`, options: []QueryOption{Bind("X", "foo")}, X: `[f,o,o]`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			for r, err := range i.Query[map[string]Raw](t.Context(), test.query, test.options...) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if x := r["X"]; x != test.X {
+					t.Errorf("expected: %v, got: %v", test.X, x)
+				}
+			}
+		})
+	}
+}
+
 func must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)

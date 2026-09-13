@@ -14,14 +14,6 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-// Value is a Go type that can be converted into/from a Prolog type which is either:
-// - Atom, as an atom,
-// - int64, as an integer,
-// - float64, as a float,
-// - string, as a char list, or
-// - Raw, as an arbitrary term
-type Value any
-
 // Atom is a type to annotate the given string represents an atom, not an actual string which is a list of single-character atoms.
 // Type conversion between Go and Prolog respects this annotation.
 type Atom string
@@ -231,17 +223,25 @@ type VariableName = term.VariableName
 
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
-	bindings      map[string]Value
+	bindings      map[string]any
 	variableNames *[]VariableName
 }
 
 // QueryOption is a single option for a query.
 type QueryOption func(*QueryOptions)
 
-// Bindings sets variable values for a query.
-func Bindings(b map[string]Value) QueryOption {
+// Bind sets a variable value for a query.
+// The value can be either:
+// - Atom, as an atom,
+// - int, int64, as an integer,
+// - float64, as a float, or
+// - string, as a char list
+func Bind[T Atom | int | int64 | float64 | string](variable string, value T) QueryOption {
 	return func(o *QueryOptions) {
-		o.bindings = b
+		if o.bindings == nil {
+			o.bindings = map[string]any{}
+		}
+		o.bindings[variable] = value
 	}
 }
 
@@ -252,6 +252,13 @@ func VariableNames(varNames *[]VariableName) QueryOption {
 }
 
 // Query queries an interpreter and returns results.
+// The result type is a struct which field name matches a free variable in the query.
+// Also, the field type must match the term type:
+// - Atom, for an atom,
+// - int64, for an integer,
+// - float64, for a float,
+// - string, for a char list, or
+// - Raw, for an arbitrary term
 func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...QueryOption) iter.Seq2[T, error] {
 	var options QueryOptions
 	for _, o := range opts {
@@ -289,6 +296,7 @@ func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...Qu
 
 		for v, b := range options.bindings {
 			v, err := syntax.ParseVariable(strings.NewReader(v),
+				syntax.Arena(i.engine.Arena),
 				syntax.VariableNames(options.variableNames),
 			)
 			if err != nil {
@@ -349,29 +357,19 @@ func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 	}, origErr)
 }
 
-func (i *Interpreter) encodeTerm(v Value) (term.Cell, error) {
+func (i *Interpreter) encodeTerm(v any) (term.Cell, error) {
 	e := i.engine
 	switch v := v.(type) {
 	case Atom:
 		return e.PutAtom(term.NewAtom(string(v)))
 	case int:
 		return e.PutInteger(int64(v))
-	case int8:
-		return e.PutInteger(int64(v))
-	case int16:
-		return e.PutInteger(int64(v))
-	case int32:
-		return e.PutInteger(int64(v))
 	case int64:
 		return e.PutInteger(v)
-	case float32:
-		return e.PutFloat(float64(v))
 	case float64:
 		return e.PutFloat(v)
 	case string:
 		return e.PutCharList(v)
-	case Raw:
-		return syntax.ParseTerm(strings.NewReader(string(v) + " ."))
 	default:
 		return term.Cell{}, fmt.Errorf("unknown type: %T", v)
 	}
