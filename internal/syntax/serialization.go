@@ -1,0 +1,23 @@
+package syntax
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/ichiban/prolog/v2/internal/term"
+)
+
+type Serialized string
+
+func Serialize(arena *term.Arena, t term.Cell) Serialized {
+	return Serialized(fmt.Sprintf("%s", &Formatter{
+		Arena:  arena,
+		Term:   t,
+		Quoted: true,
+	}))
+}
+
+func Deserialize(arena *term.Arena, s Serialized) (term.Cell, error) {
+	// The parser wants a terminated term; the serialized form doesn't carry one.
+	return ParseTerm(strings.NewReader(string(s)+" ."), Arena(arena))
+}
