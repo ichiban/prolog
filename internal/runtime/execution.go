@@ -344,7 +344,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 						return
 					}
 					e.enter(call.Offset, concat(singleton(g), singleton(cont)))
-					return
+					continue
 				}
 
 				e.liveRegs = bpi.Arity()

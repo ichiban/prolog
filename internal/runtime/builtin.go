@@ -19,7 +19,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
 	"github.com/ichiban/prolog/v2/internal/wam"
@@ -85,10 +84,10 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("term_variables"), 3), Type: InHead, Proc: Deterministic2(TermVariables2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("clause"), 3), Type: InHead, Proc: Nondeterministic2(Clause2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_predicate"), 2), Type: InHead, Proc: Nondeterministic1(CurrentPredicate1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: Deterministic1(AssertA1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: Deterministic1(AssertZ1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("asserta"), 2), Type: InHead, Proc: Nondeterministic1(AssertA1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("assertz"), 2), Type: InHead, Proc: Nondeterministic1(AssertZ1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("retract"), 2), Type: InHead, Proc: Nondeterministic1(Retract1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: Deterministic1(Abolish1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("abolish"), 2), Type: InHead, Proc: Nondeterministic1(Abolish1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("findall"), 4), Type: InHead, Proc: Deterministic3(FindAll3)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("bagof"), 4), Type: InHead, Proc: Deterministic3(BagOf3)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("setof"), 4), Type: InHead, Proc: Deterministic3(SetOf3)})
@@ -433,9 +432,26 @@ func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 			return a.Throw(err, cont)
 		}
 		cont = args[len(args)-1]
+		revision := a.exec.DB.Revision()
 		return a.Nondet(func(yield func(Promise) bool) {
-			for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
-				ok, err := a.exec.Unify(r.Head, *goal.cell)
+			for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				c, err := syntax.Deserialize(a.exec.Arena, syntax.Serialized(r.Payload))
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+				head, body, err := a.exec.Rule(c)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				ok, err := a.exec.Unify(head, *goal.cell)
 				if err != nil {
 					_ = yield(a.Throw(err, cont))
 					return
@@ -447,7 +463,7 @@ func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 					continue
 				}
 
-				if !yield(Call1(ctx, a, a.ref(r.Body), cont)) {
+				if !yield(Call1(ctx, a, a.ref(body), cont)) {
 					return
 				}
 			}
@@ -508,9 +524,26 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 			}, cont)
 		}
 
+		revision := a.exec.DB.Revision()
 		return a.Nondet(func(yield func(Promise) bool) {
-			for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
-				ok, err := a.exec.Unify(r.Head, *goal.cell)
+			for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				c, err := syntax.Deserialize(a.exec.Arena, syntax.Serialized(r.Payload))
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+				head, body, err := a.exec.Rule(c)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+
+				ok, err := a.exec.Unify(head, *goal.cell)
 				if err != nil {
 					_ = yield(a.Throw(err, cont))
 					return
@@ -522,7 +555,7 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 					continue
 				}
 
-				a.exec.enter(call.Offset, slices.Values([]term.Cell{r.Body, *cont.cell}))
+				a.exec.enter(call.Offset, slices.Values([]term.Cell{body, *cont.cell}))
 				if !yield(Promise{ok: true}) {
 					return
 				}
@@ -1226,14 +1259,26 @@ func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
 		}, cont)
 	}
 
+	revision := a.exec.DB.Revision()
 	return a.Nondet(func(yield func(Promise) bool) {
-		for r, err := range a.exec.DB.Select(ctx, a.exec.Arena, pi, a.exec.CurrentTime) {
+		for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
 			}
 
-			ok, err := a.exec.Unify(*head.cell, r.Head)
+			c, err := syntax.Deserialize(a.exec.Arena, syntax.Serialized(r.Payload))
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			h, b, err := a.exec.Rule(c)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+
+			ok, err := a.exec.Unify(*head.cell, h)
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1242,7 +1287,7 @@ func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
 				continue
 			}
 
-			ok, err = a.exec.Unify(*body.cell, r.Body)
+			ok, err = a.exec.Unify(*body.cell, b)
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1319,60 +1364,49 @@ func CurrentPredicate1(_ context.Context, a *Activation, predIndicator, cont Ref
 	})
 }
 
-func AssertA1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
-	return assert1(ctx, e, t, cont, db.DB.InsertBefore)
+func AssertA1(ctx context.Context, a *Activation, t, cont Ref) Promise {
+	return assert1(ctx, a, t, cont, DB.InsertBefore)
 }
 
-func AssertZ1(ctx context.Context, e *Execution, t, cont term.Cell) Promise {
-	return assert1(ctx, e, t, cont, db.DB.InsertAfter)
+func AssertZ1(ctx context.Context, a *Activation, t, cont Ref) Promise {
+	return assert1(ctx, a, t, cont, DB.InsertAfter)
 }
 
-func assert1(ctx context.Context, e *Execution, t, cont term.Cell, fn func(db db.DB, ctx context.Context, arena *term.Arena, record db.Record) error) Promise {
-	t = e.Deref(t)
+func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx context.Context, module, name term.Atom, arity int, payload []byte) error) Promise {
+	e := a.exec
+	t = a.Deref(t)
 
-	if _, ok := e.Variable(t); ok {
-		return e.Throw(&InstantiationError{
+	if _, ok := a.Variable(t); ok {
+		return a.Throw(&InstantiationError{
 			Location: e.location,
 		}, cont)
 	}
 
-	var (
-		pi   term.Functor
-		head term.Cell
-		body term.Cell
-		err  error
-	)
-	pi, ok := e.Functor(t, term.AllowAtom(true))
+	pi, ok := a.Functor(t, term.AllowAtom(true))
 	if !ok {
-		return e.Throw(&TypeError{
+		return a.Throw(&TypeError{
 			ValidType: term.NewAtom("callable"),
-			Culprit:   syntax.Serialize(e.Arena, t),
+			Culprit:   syntax.Serialize(e.Arena, *t.cell),
 			Location:  e.location,
 		}, cont)
 	}
-	if pi == term.NewFunctor(term.NewAtom(":-"), 2) {
-		head, body = e.Arg(t, 0), e.Arg(t, 1)
-		pi, ok = e.Functor(head, term.AllowAtom(true))
+	if pi == term.NewFunctor(atomNeck, 2) {
+		head, body := a.Arg(t, 0), a.Arg(t, 1)
+		pi, ok = a.Functor(head, term.AllowAtom(true))
 		if !ok {
-			return e.Throw(&TypeError{
+			return a.Throw(&TypeError{
 				ValidType: term.NewAtom("callable"),
-				Culprit:   syntax.Serialize(e.Arena, t),
+				Culprit:   syntax.Serialize(e.Arena, *t.cell),
 				Location:  e.location,
 			}, cont)
 		}
 
-		if _, ok := e.Functor(body, term.AllowAtom(true)); !ok {
-			return e.Throw(&TypeError{
+		if _, ok := a.Functor(body, term.AllowAtom(true)); !ok {
+			return a.Throw(&TypeError{
 				ValidType: term.NewAtom("callable"),
-				Culprit:   syntax.Serialize(e.Arena, body),
+				Culprit:   syntax.Serialize(e.Arena, *body.cell),
 				Location:  e.location,
 			}, cont)
-		}
-	} else {
-		head = t
-		body, err = e.PutAtom(term.NewAtom("true"))
-		if err != nil {
-			return e.Throw(err, cont)
 		}
 	}
 
@@ -1391,9 +1425,9 @@ func assert1(ctx context.Context, e *Execution, t, cont term.Cell, fn func(db db
 	if !p.Dynamic {
 		c, err := e.PutFunctor(pi)
 		if err != nil {
-			return e.Throw(err, cont)
+			return a.Throw(err, cont)
 		}
-		return e.Throw(&PermissionError{
+		return a.Throw(&PermissionError{
 			Operation:      term.NewAtom("modify"),
 			PermissionType: term.NewAtom("static_procedure"),
 			Culprit:        syntax.Serialize(e.Arena, c),
@@ -1401,16 +1435,12 @@ func assert1(ctx context.Context, e *Execution, t, cont term.Cell, fn func(db db
 		}, cont)
 	}
 
-	if err := fn(e.DB, ctx, e.Arena, db.Record{
-		Head:      head,
-		Body:      body,
-		CreatedAt: e.CurrentTime,
-	}); err != nil {
-		return e.Throw(err, cont)
+	b := syntax.Serialize(a.exec.Arena, *t.cell)
+	if err := fn(e.DB, ctx, e.Module, pi.Name(), pi.Arity(), []byte(b)); err != nil {
+		return a.Throw(err, cont)
 	}
-	e.CurrentTime++
 
-	return e.Success(cont)
+	return a.Success(cont)
 }
 
 func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
@@ -1464,11 +1494,28 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 		}, cont)
 	}
 
+	// The revision is taken before the first Delete below, so the scan keeps
+	// seeing the clauses this very retract removes.
+	revision := a.exec.DB.Revision()
 	return a.Nondet(func(yield func(Promise) bool) {
-		before := a.exec.CurrentTime
-		a.exec.CurrentTime++
-		for r := range a.exec.DB.Select(ctx, a.exec.Arena, pi, before) {
-			ok, err := a.exec.Unify(r.Head, *h.cell)
+		for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+
+			c, err := syntax.Deserialize(a.exec.Arena, syntax.Serialized(r.Payload))
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			head, body, err := a.exec.Rule(c)
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+
+			ok, err := a.exec.Unify(head, *h.cell)
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1480,7 +1527,7 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 				continue
 			}
 
-			ok, err = a.exec.Unify(r.Body, *b.cell)
+			ok, err = a.exec.Unify(body, *b.cell)
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1492,7 +1539,7 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 				continue
 			}
 
-			if err := a.exec.DB.Delete(ctx, r.ID, before); err != nil {
+			if err := a.exec.DB.Delete(ctx, a.exec.Module, pi.Name(), pi.Arity(), r.ID); err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
 			}
@@ -1503,12 +1550,13 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 	})
 }
 
-func Abolish1(ctx context.Context, e *Execution, pred, cont term.Cell) Promise {
-	pred = e.Deref(pred)
+func Abolish1(ctx context.Context, a *Activation, pred, cont Ref) Promise {
+	e := a.exec
+	pred = a.Deref(pred)
 
-	pi, err := e.mustBePredicateIndicator(pred)
+	pi, err := e.mustBePredicateIndicator(*pred.cell)
 	if err != nil {
-		return e.Throw(err, cont)
+		return a.Throw(err, cont)
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
@@ -1516,25 +1564,29 @@ func Abolish1(ctx context.Context, e *Execution, pred, cont term.Cell) Promise {
 		if !p.Dynamic {
 			c, err := e.PutFunctor(pi)
 			if err != nil {
-				return e.Throw(err, cont)
+				return a.Throw(err, cont)
 			}
-			return e.Throw(&PermissionError{
+			return a.Throw(&PermissionError{
 				Operation:      term.NewAtom("modify"),
 				PermissionType: term.NewAtom("static_procedure"),
 				Culprit:        syntax.Serialize(e.Arena, c),
 				Location:       e.location,
 			}, cont)
 		}
-		for r := range e.DB.Select(ctx, e.Arena, pi, e.CurrentTime) {
-			if err := e.DB.Delete(ctx, r.ID, e.CurrentTime); err != nil {
-				return e.Throw(err, cont)
+
+		revision := e.DB.Revision()
+		for r, err := range e.DB.Select(ctx, e.Module, pi.Name(), pi.Arity(), revision) {
+			if err != nil {
+				return a.Throw(err, cont)
+			}
+			if err := e.DB.Delete(ctx, a.exec.Module, pi.Name(), pi.Arity(), r.ID); err != nil {
+				return a.Throw(err, cont)
 			}
 		}
 		delete(e.Predicates, bpi)
-		e.CurrentTime++
 	}
 
-	return e.Success(cont)
+	return a.Success(cont)
 }
 
 func FindAll3(ctx context.Context, e *Execution, template, goal, instances, cont term.Cell) Promise {

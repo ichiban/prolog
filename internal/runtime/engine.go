@@ -10,7 +10,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -57,8 +56,7 @@ type Engine struct {
 	DoubleQuotes   syntax.DoubleQuotes
 	Ops            syntax.OperatorSet
 	CharConversion syntax.CharConversion
-	DB             db.DB
-	CurrentTime    wam.LogicalTime
+	DB             DB
 
 	Input  term.Cell
 	Output term.Cell

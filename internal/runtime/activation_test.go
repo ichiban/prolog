@@ -176,12 +176,12 @@ func TestActivation_Throw(t *testing.T) {
 		{
 			title: "a host error becomes a system error",
 			err:   errors.New("something went wrong"),
-			goal:  `throw(error(system_error,'something went wrong'),true) .`,
+			goal:  `throw(error(system_error,'something went wrong'),true)`,
 		},
 		{
 			title: "an instantiation error keeps its shape",
 			err:   &InstantiationError{},
-			goal:  `throw(error(instantiation_error,''/0),true) .`,
+			goal:  `throw(error(instantiation_error,''/0),true)`,
 		},
 	}
 
@@ -257,7 +257,7 @@ func TestActivation_Unify(t *testing.T) {
 				return a.ref(must(a.exec.PutVariable())), a.ref(must(a.exec.PutAtom(term.NewAtom("foo"))))
 			},
 			ok:   true,
-			goal: `foo .`,
+			goal: `foo`,
 		},
 		{
 			title: "atoms that differ",
@@ -265,7 +265,7 @@ func TestActivation_Unify(t *testing.T) {
 				return a.ref(must(a.exec.PutAtom(term.NewAtom("foo")))), a.ref(must(a.exec.PutAtom(term.NewAtom("bar"))))
 			},
 			ok:   false,
-			goal: `foo .`,
+			goal: `foo`,
 		},
 		{
 			title: "compounds unify argument-wise",
@@ -275,7 +275,7 @@ func TestActivation_Unify(t *testing.T) {
 				return a.ref(x), a.ref(y)
 			},
 			ok:   true,
-			goal: `foo(1) .`,
+			goal: `foo(1)`,
 		},
 	}
 
@@ -486,7 +486,7 @@ func TestActivation_MustBe(t *testing.T) {
 			term:  putInteger(1),
 			call:  func(a *Activation, t Ref) (any, error) { return a.MustBeAtom(t) },
 			value: term.Atom{},
-			err:   &TypeError{ValidType: term.NewAtom("atom"), Culprit: `1 .`},
+			err:   &TypeError{ValidType: term.NewAtom("atom"), Culprit: `1`},
 		},
 		{
 			title: "MustBeInteger",
@@ -499,7 +499,7 @@ func TestActivation_MustBe(t *testing.T) {
 			term:  putAtom("foo"),
 			call:  func(a *Activation, t Ref) (any, error) { return a.MustBeInteger(t) },
 			value: int64(0),
-			err:   &TypeError{ValidType: term.NewAtom("integer"), Culprit: `foo .`},
+			err:   &TypeError{ValidType: term.NewAtom("integer"), Culprit: `foo`},
 		},
 		{
 			title: "MustBeFloat",
@@ -514,7 +514,7 @@ func TestActivation_MustBe(t *testing.T) {
 			term:  putInteger(1),
 			call:  func(a *Activation, t Ref) (any, error) { return a.MustBeFloat(t) },
 			value: float64(0),
-			err:   &TypeError{ValidType: term.NewAtom("float"), Culprit: `1 .`},
+			err:   &TypeError{ValidType: term.NewAtom("float"), Culprit: `1`},
 		},
 		{
 			title: "MustBeChar",
@@ -542,7 +542,7 @@ func TestActivation_MustBe(t *testing.T) {
 			term:  putAtom("foo"),
 			call:  func(a *Activation, t Ref) (any, error) { return a.MustBeCompound(t) },
 			value: term.Functor{},
-			err:   &TypeError{ValidType: term.NewAtom("compound"), Culprit: `foo .`},
+			err:   &TypeError{ValidType: term.NewAtom("compound"), Culprit: `foo`},
 		},
 	}
 
@@ -609,7 +609,7 @@ func TestActivation_Args(t *testing.T) {
 				return a.ref(must(a.exec.PutCompound(term.NewAtom("foo"), must(a.exec.PutAtom(term.NewAtom("bar"))), must(a.exec.PutInteger(1)))))
 			},
 			stop: -1,
-			args: []syntax.Serialized{`bar .`, `1 .`},
+			args: []syntax.Serialized{`bar`, `1`},
 		},
 		{
 			title: "an atom has no arguments",
@@ -623,7 +623,7 @@ func TestActivation_Args(t *testing.T) {
 				return a.ref(must(a.exec.PutCompound(term.NewAtom("foo"), must(a.exec.PutAtom(term.NewAtom("bar"))), must(a.exec.PutInteger(1)))))
 			},
 			stop: 1,
-			args: []syntax.Serialized{`bar .`},
+			args: []syntax.Serialized{`bar`},
 		},
 	}
 
@@ -661,7 +661,7 @@ func TestActivation_MustBeList(t *testing.T) {
 			term: func(a *Activation) Ref {
 				return a.ref(must(a.exec.PutList(must(a.exec.PutInteger(1)), must(a.exec.PutInteger(2)))))
 			},
-			elems: []syntax.Serialized{`1 .`, `2 .`},
+			elems: []syntax.Serialized{`1`, `2`},
 		},
 		{
 			title: "an empty list",
@@ -673,13 +673,13 @@ func TestActivation_MustBeList(t *testing.T) {
 			term: func(a *Activation) Ref {
 				return a.ref(must(a.exec.PutPartialList(must(a.exec.PutVariable()), must(a.exec.PutInteger(1)))))
 			},
-			elems: []syntax.Serialized{`1 .`},
+			elems: []syntax.Serialized{`1`},
 			err:   &InstantiationError{},
 		},
 		{
 			title: "not a list",
 			term:  putAtom("foo"),
-			err:   &TypeError{ValidType: term.NewAtom("list"), Culprit: `foo .`},
+			err:   &TypeError{ValidType: term.NewAtom("list"), Culprit: `foo`},
 		},
 		{
 			title: "the callback's error is propagated",
@@ -803,7 +803,7 @@ func TestActivation_Put(t *testing.T) {
 				return a.PutCompound(term.NewAtom("foo"), bar)
 			},
 			check: func(t *testing.T, a *Activation, r Ref) {
-				if got, want := syntax.Serialize(a.exec.Arena, *r.cell), syntax.Serialized(`foo(bar) .`); got != want {
+				if got, want := syntax.Serialize(a.exec.Arena, *r.cell), syntax.Serialized(`foo(bar)`); got != want {
 					t.Errorf("expected: %s, got: %s", want, got)
 				}
 			},
@@ -835,7 +835,7 @@ func TestActivation_Put(t *testing.T) {
 				return a.PutList(one, two)
 			},
 			check: func(t *testing.T, a *Activation, r Ref) {
-				if got, want := syntax.Serialize(a.exec.Arena, *r.cell), syntax.Serialized(`[1,2] .`); got != want {
+				if got, want := syntax.Serialize(a.exec.Arena, *r.cell), syntax.Serialized(`[1,2]`); got != want {
 					t.Errorf("expected: %s, got: %s", want, got)
 				}
 			},

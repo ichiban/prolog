@@ -429,6 +429,20 @@ func (a *Arena) WithArgs(t Cell, args ...Cell) (Cell, error) {
 	return a.PutCompound(f.Name(), args...)
 }
 
+func (a *Arena) Rule(t Cell) (Cell, Cell, error) {
+	var (
+		head = t
+		body Cell
+		err  error
+	)
+	if f, ok := a.Functor(head); ok && f == NewFunctor(NewAtom(`:-`), 2) {
+		head, body = a.Arg(head, 0), a.Arg(head, 1)
+	} else {
+		body, err = a.PutAtom(NewAtom(`true`))
+	}
+	return head, body, err
+}
+
 // List returns an iterator iterates over the elements of a list.
 func (a *Arena) List(t Cell, opts ...ListOption) iter.Seq2[Cell, bool] {
 	var o ListOptions

@@ -10,7 +10,7 @@ import (
 type Serialized string
 
 func Serialize(arena *term.Arena, t term.Cell) Serialized {
-	return Serialized(fmt.Sprintf("%s .", &Formatter{
+	return Serialized(fmt.Sprintf("%s", &Formatter{
 		Arena:  arena,
 		Term:   t,
 		Quoted: true,
@@ -18,5 +18,6 @@ func Serialize(arena *term.Arena, t term.Cell) Serialized {
 }
 
 func Deserialize(arena *term.Arena, s Serialized) (term.Cell, error) {
-	return ParseTerm(strings.NewReader(string(s)), Arena(arena))
+	// The parser wants a terminated term; the serialized form doesn't carry one.
+	return ParseTerm(strings.NewReader(string(s)+" ."), Arena(arena))
 }

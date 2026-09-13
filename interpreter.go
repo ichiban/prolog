@@ -9,7 +9,6 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/runtime"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -33,6 +32,7 @@ type Raw string
 type InterpreterOptions struct {
 	heapSize     int32
 	tempHeapSize int32
+	db           DB
 }
 
 type InterpreterOption func(*InterpreterOptions)
@@ -46,6 +46,12 @@ func HeapSize(heapSize int32) InterpreterOption {
 func TempHeapSize(tempHeapSize int32) InterpreterOption {
 	return func(o *InterpreterOptions) {
 		o.tempHeapSize = tempHeapSize
+	}
+}
+
+func Database(db DB) InterpreterOption {
+	return func(o *InterpreterOptions) {
+		o.db = db
 	}
 }
 
@@ -63,13 +69,17 @@ func New(opts ...InterpreterOption) *Interpreter {
 	for _, o := range opts {
 		o(&opt)
 	}
+	db := runtime.DB(&runtime.MemoryDB{})
+	if opt.db != nil {
+		db = adapter{db: opt.db}
+	}
 	return &Interpreter{
 		engine: runtime.Engine{
 			Arena:      term.NewArena(int(opt.heapSize)),
 			TempArena:  term.NewArena(int(opt.tempHeapSize)),
 			BuiltinSet: runtime.NewBuiltinSet(),
 			Ops:        *syntax.NewOperatorSet(),
-			DB:         &db.MemoryDB{},
+			DB:         db,
 		},
 	}
 }

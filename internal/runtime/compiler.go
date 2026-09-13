@@ -16,7 +16,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ichiban/prolog/v2/internal/db"
 	"github.com/ichiban/prolog/v2/internal/ir"
 	"github.com/ichiban/prolog/v2/internal/syntax"
 	"github.com/ichiban/prolog/v2/internal/term"
@@ -229,7 +228,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			continue
 		}
 
-		head, body, err := c.rule(t)
+		head, body, err := c.Rule(t)
 		if err != nil {
 			return err
 		}
@@ -261,11 +260,16 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 
 	bpi, _ := c.Functor(binHead)
 	if p, _ := c.Predicates[bpi]; p.Public {
-		if err := c.DB.InsertAfter(ctx, c.Arena, db.Record{
-			Head:      head,
-			Body:      body,
-			CreatedAt: c.CurrentTime,
-		}); err != nil {
+		cl, err := c.PutCompound(atomNeck, head, body)
+		if err != nil {
+			return err
+		}
+		pi, ok := c.Functor(head, term.AllowAtom(true))
+		if !ok {
+			return errors.New("clause head is not callable")
+		}
+		payload := []byte(syntax.Serialize(c.Arena, cl))
+		if err := c.DB.InsertAfter(ctx, c.Module, pi.Name(), pi.Arity(), payload); err != nil {
 			return err
 		}
 	}
@@ -340,16 +344,6 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Cell
 			c.todo = c.todo[:0]
 		}
 	}
-}
-
-// rule turns a term to a form of H :- B.
-func (c *Compiler) rule(t term.Cell) (head, body term.Cell, err error) {
-	f, ok := c.Functor(t)
-	if ok && f == functorRule {
-		return c.Arg(t, 0), c.Arg(t, 1), nil
-	}
-	b, _ := c.PutAtom(atomTrue) // Always succeeds.
-	return t, b, nil
 }
 
 func (c *Compiler) ReplaceBody(goal, cont term.Cell) (term.Cell, error) {
