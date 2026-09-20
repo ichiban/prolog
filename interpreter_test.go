@@ -2245,6 +2245,57 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 }
 
+// A module file's public predicates are visible in the module that imports it,
+// its private ones only under a module prefix, and what it metacalls -- a
+// goal handed to findall/3, a clause handed to assertz/1 -- lands in the
+// module the clause was written in, not in the one that called it.
+func TestInterpreter_Load_module(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "", "testdata/module_main.pl"); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		query string
+		want  []string
+		err   string
+	}{
+		{query: `p(X).`, want: []string{`[1,2,3]`}},
+		{query: `app([1], [2], X).`, want: []string{`[1,2]`}},
+		{query: `module_lists:app([1], [2], X).`, want: []string{`[1,2]`}},
+		{query: `all_secrets(X).`, want: []string{`[42]`}},
+		{query: `guarded(X).`, want: nil},
+		{query: `module_lists:secret(X).`, want: []string{`42`}},
+		{query: `secret(X).`, err: `existence_error(procedure,secret/1)`},
+		{query: `stash(7), module_lists:stashed(X).`, want: []string{`7`}},
+		{query: `current_module(module_lists).`, want: []string{``}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.query, func(t *testing.T) {
+			var got []string
+			for r, err := range i.Query[map[string]Raw](t.Context(), test.query) {
+				if err != nil {
+					if test.err == "" || !strings.Contains(err.Error(), test.err) {
+						t.Fatalf("got error %v, want %q", err, test.err)
+					}
+					return
+				}
+				got = append(got, string(r["X"]))
+			}
+			if test.err != "" {
+				t.Fatalf("expected error %q", test.err)
+			}
+			if !slices.Equal(got, test.want) {
+				t.Errorf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestBind(t *testing.T) {
 	i := New()
 

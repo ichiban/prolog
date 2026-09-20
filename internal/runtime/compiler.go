@@ -119,6 +119,15 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 		c.Source = atomUserModule
 	}
 	out.Name = c.Source
+
+	// Directives run as the text is compiled, and what they do -- asserting,
+	// declaring a predicate dynamic -- has to land in the module the text is
+	// loaded into. The report does this by changing the type-in module for the
+	// duration of the load.
+	typein := c.Module
+	c.Module = c.Source
+	defer func() { c.Module = typein }()
+
 	if err := c.run(ctx, out); err != nil {
 		return err
 	}
@@ -183,6 +192,22 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 		if f == term.NewFunctor(term.NewAtom(":-"), 1) {
 			d := c.Arg(t, 0)
 			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
+			case term.NewFunctor(term.NewAtom("module"), 2):
+				if err := c.declareModule(out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("use_module"), 1):
+				if err := c.useModule(ctx, c.Arg(d, 0), term.Cell{}); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("use_module"), 2):
+				if err := c.useModule(ctx, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("meta_predicate"), 1):
+				if err := c.declareMeta(c.Arg(d, 0)); err != nil {
+					return err
+				}
 			case term.NewFunctor(term.NewAtom("initialization"), 1):
 				g := c.Arg(d, 0)
 				out.Initialization = append(out.Initialization, g)
@@ -207,7 +232,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
 				fn := c.Arg(d, 0)
 				fn = c.Deref(fn)
-				fsName, filename, err := c.mustBeSourceSink(fn)
+				fsName, filename, err := c.sourceFile(fn)
 				if err != nil {
 					return err
 				}
@@ -217,9 +242,13 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 				}]; ok {
 					break
 				}
-				if err := c.LoadFile(ctx, fsName, filename); err != nil {
+				m, err := c.LoadFile(ctx, fsName, filename)
+				if err != nil {
 					return err
 				}
+				// Loading a module file imports all of its exported
+				// predicates into the module that asked for it.
+				c.Import(m, c.Source, nil)
 			default:
 				for err := range c.Call(ctx, d) {
 					if err != nil {
@@ -261,6 +290,29 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 }
 
 func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, body term.Cell) error {
+	c.headVars = c.headVariables(head)
+	defer func() { c.headVars = nil }()
+
+	pi, ok := c.Functor(head, term.AllowAtom(true))
+	if !ok {
+		return errors.New("clause head is not callable")
+	}
+
+	// The database keeps the clause as it was read. What follows rewrites the
+	// body for the machine -- a cut becomes a barrier, a meta call gets its
+	// module -- and clause/2 and retract/1 have to give back what was written.
+	bpi := term.NewProcedure(c.Source, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	if p, _ := c.Predicates[bpi]; p.Public {
+		cl, err := c.PutCompound(atomNeck, head, body)
+		if err != nil {
+			return err
+		}
+		payload := []byte(syntax.Serialize(c.Arena, cl))
+		if err := c.DB.InsertAfter(ctx, c.Source, pi.Name(), pi.Arity(), payload); err != nil {
+			return err
+		}
+	}
+
 	cont, err := c.PutVariable()
 	if err != nil {
 		return err
@@ -274,22 +326,6 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 	binHead, binBody, err := c.Binarize(head, body, cont)
 	if err != nil {
 		return err
-	}
-
-	bpi, _ := c.Functor(binHead)
-	if p, _ := c.Predicates[term.NewProcedure(c.Source, bpi)]; p.Public {
-		cl, err := c.PutCompound(atomNeck, head, body)
-		if err != nil {
-			return err
-		}
-		pi, ok := c.Functor(head, term.AllowAtom(true))
-		if !ok {
-			return errors.New("clause head is not callable")
-		}
-		payload := []byte(syntax.Serialize(c.Arena, cl))
-		if err := c.DB.InsertAfter(ctx, c.Source, pi.Name(), pi.Arity(), payload); err != nil {
-			return err
-		}
 	}
 
 	return c.CompileBinaryClause(clause, binHead, binBody)
@@ -364,7 +400,56 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Cell
 	}
 }
 
+// ReplaceBody turns a goal of a clause body into the form the binarizer takes,
+// and module name expands the arguments of a meta predicate call.
 func (c *Compiler) ReplaceBody(goal, cont term.Cell) (term.Cell, error) {
+	g, err := c.replaceBody(goal, cont)
+	if err != nil {
+		return term.Cell{}, err
+	}
+	return c.metaExpand(g)
+}
+
+// metaExpand prefixes the meta expandable arguments of a goal with the source
+// module, as 2.6 of the report has the compiler do. An argument that carries a
+// prefix already is left alone, and so is a variable that appears in a meta
+// expandable position of the clause head: the caller has expanded it already.
+func (c *Compiler) metaExpand(goal term.Cell) (term.Cell, error) {
+	goal = c.Deref(goal)
+	f, ok := c.Functor(goal)
+	if !ok {
+		return goal, nil
+	}
+	spec := c.MetaSpec(c.Source, f)
+	if spec == nil {
+		return goal, nil
+	}
+
+	args := slices.Collect(c.Args(goal))
+	var changed bool
+	for i, expand := range spec {
+		if !expand || i >= len(args) {
+			continue
+		}
+		a := c.Deref(args[i])
+		if _, ok := c.Variable(a); ok && slices.Contains(c.headVars, a) {
+			continue
+		}
+		q, err := c.Qualify(c.Source, a)
+		if err != nil {
+			return term.Cell{}, err
+		}
+		if q != args[i] {
+			args[i], changed = q, true
+		}
+	}
+	if !changed {
+		return goal, nil
+	}
+	return c.PutCompound(f.Name(), args...)
+}
+
+func (c *Compiler) replaceBody(goal, cont term.Cell) (term.Cell, error) {
 	if c.makeVariable == nil {
 		c.makeVariable = c.PutVariable
 	}
@@ -1620,4 +1705,98 @@ func rewriteSlice[S ~[]T, T any](s S, fn func(e T, write func(T))) S {
 		fn(e, write)
 	}
 	return s[:j]
+}
+
+// declareModule processes a module declaration. It must come first in a file:
+// the text that follows is loaded into the module it names, and the predicates
+// of the public list are exported.
+func (c *Compiler) declareModule(out *ir.Module, name, publics term.Cell) error {
+	m, err := c.mustBeModule(name)
+	if err != nil {
+		return err
+	}
+
+	switch m {
+	case atomPrologModule, atomUserModule:
+		return fmt.Errorf("cannot redefine the %s module", m)
+	}
+
+	if len(out.Clauses) > 0 {
+		return errors.New("a module declaration must come first in the file")
+	}
+
+	mod := c.module(m)
+	if mod.File != "" && mod.File != c.File {
+		return fmt.Errorf("module %s is already defined in %s", m, mod.File)
+	}
+	mod.File = c.File
+
+	// ponytail: a reload adds to the module rather than replacing it, because
+	// the image is append only. 2.4 of the report erases the module's
+	// predicates first; implement that when the image can drop code.
+	for pi, err := range c.predicateIndicators(publics) {
+		if err != nil {
+			return err
+		}
+		mod.Exports[term.NewFunctor(pi.Name(), pi.Arity()+1)] = struct{}{}
+	}
+
+	// The predicates that follow are this module's, and so is everything its
+	// directives do.
+	c.Source = m
+	c.Module = m
+	out.Name = m
+	return nil
+}
+
+// declareMeta records a meta_predicate declaration: which arguments of the
+// named predicates are module name expanded.
+func (c *Compiler) declareMeta(spec term.Cell) error {
+	mod := c.module(c.Source)
+	for s := range c.listOrSingleton(spec) {
+		s = c.Deref(s)
+		f, ok := c.Functor(s)
+		if !ok {
+			return fmt.Errorf("invalid meta_predicate specification: %s", c.Inspect(s))
+		}
+		args := make([]bool, f.Arity())
+		for i := range args {
+			a := c.Deref(c.Arg(s, i))
+			// ':' and an integer mean expand; anything else, +, - or ? say,
+			// means leave alone.
+			if x, ok := c.Atom(a); ok && x == atomColon {
+				args[i] = true
+			}
+			if _, ok := c.Integer(a); ok {
+				args[i] = true
+			}
+		}
+		mod.Meta[f] = args
+	}
+	return nil
+}
+
+// headVariables collects the variables the head holds in a meta expandable
+// argument position, if the predicate is a meta predicate.
+func (c *Compiler) headVariables(head term.Cell) []term.Cell {
+	head = c.Deref(head)
+	f, ok := c.Functor(head)
+	if !ok {
+		return nil
+	}
+	spec := c.MetaSpec(c.Source, f)
+	if spec == nil {
+		return nil
+	}
+	var vs []term.Cell
+	for i, expand := range spec {
+		if !expand || i >= f.Arity() {
+			continue
+		}
+		a := c.Deref(c.Arg(head, i))
+		if _, ok := c.Variable(a); ok {
+			vs = append(vs, a)
+		}
+	}
+	return vs
 }

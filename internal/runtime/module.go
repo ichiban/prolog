@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strings"
@@ -122,11 +124,21 @@ func (e *Engine) Unqualify(t term.Cell, def term.Atom) (term.Cell, term.Atom) {
 	}
 }
 
-// Qualify prefixes t with the module name, unless it already carries one.
+// Qualify prefixes t with the module name, unless it already carries one. A
+// ^/2 marker isn't a goal but says which variables of one are existentially
+// quantified, so the prefix goes inside it; that's what the report's
+// meta declaration of (^)/2 as (?, :) amounts to.
 func (e *Engine) Qualify(m term.Atom, t term.Cell) (term.Cell, error) {
 	t = e.Deref(t)
 	if f, ok := e.Functor(t); ok && f == term.NewFunctor(atomColon, 2) {
 		return t, nil
+	}
+	if f, ok := e.Functor(t); ok && f == term.NewFunctor(term.NewAtomRune('^'), 2) {
+		g, err := e.Qualify(m, e.Arg(t, 1))
+		if err != nil {
+			return term.Cell{}, err
+		}
+		return e.PutCompound(term.NewAtomRune('^'), e.Arg(t, 0), g)
 	}
 	p, err := e.PutAtom(m)
 	if err != nil {
@@ -215,4 +227,270 @@ func (m *Module) String() string {
 		_, _ = fmt.Fprintf(&sb, " (%s)", m.File)
 	}
 	return sb.String()
+}
+
+// predicateIndicators yields the Name/Arity elements of a list, a conjunction
+// or a single indicator.
+func (e *Engine) predicateIndicators(t term.Cell) iter.Seq2[term.Functor, error] {
+	return func(yield func(term.Functor, error) bool) {
+		for elem := range e.listOrSingleton(t) {
+			pi, err := e.mustBePredicateIndicator(e.Deref(elem))
+			if !yield(pi, err) {
+				return
+			}
+		}
+	}
+}
+
+// listOrSingleton yields the elements of a list, or the term itself if it
+// isn't one. A conjunction counts as a list too, the way a declaration is
+// often written.
+func (e *Engine) listOrSingleton(t term.Cell) iter.Seq[term.Cell] {
+	return func(yield func(term.Cell) bool) {
+		t = e.Deref(t)
+		if a, ok := e.Atom(t); ok && a == term.NewAtom("[]") {
+			return
+		}
+		if f, ok := e.Functor(t); ok && f == term.NewFunctor(term.NewAtomRune('.'), 2) {
+			for elem := range e.List(t) {
+				if !yield(elem) {
+					return
+				}
+			}
+			return
+		}
+		for elem := range e.conjunction(t) {
+			if !yield(elem) {
+				return
+			}
+		}
+	}
+}
+
+// conjunction yields the conjuncts of (A, B, ...), or the term itself.
+func (e *Engine) conjunction(t term.Cell) iter.Seq[term.Cell] {
+	return func(yield func(term.Cell) bool) {
+		for {
+			t = e.Deref(t)
+			if f, ok := e.Functor(t); ok && f == functorAnd {
+				if !yield(e.Arg(t, 0)) {
+					return
+				}
+				t = e.Arg(t, 1)
+				continue
+			}
+			_ = yield(t)
+			return
+		}
+	}
+}
+
+// Colon2 is (:)/2: it calls Goal in Module. A goal handed to a meta predicate
+// comes module name expanded, and this is what executes it.
+func Colon2(ctx context.Context, a *Activation, module, goal, cont Ref) Promise {
+	m, err := a.exec.mustBeModule(*module.cell)
+	if err != nil {
+		return a.Throw(err, cont)
+	}
+	g, m := a.exec.Unqualify(*goal.cell, m)
+	return call(ctx, a, m, a.ref(g), cont)
+}
+
+// Module1 is module/1: it sets the type-in module.
+func Module1(_ context.Context, e *Execution, name, cont term.Cell) Promise {
+	m, err := e.mustBeModule(name)
+	if err != nil {
+		return e.Throw(err, cont)
+	}
+	e.module(m)
+	e.Module = m
+	return e.Success(cont)
+}
+
+// CurrentModule1 is current_module/1: Module is a module defined in the system.
+func CurrentModule1(_ context.Context, a *Activation, module, cont Ref) Promise {
+	return a.modules(cont, func(m *Module) ([]Ref, error) {
+		n, err := a.exec.PutAtom(m.Name)
+		if err != nil {
+			return nil, err
+		}
+		return []Ref{module, a.ref(n)}, nil
+	})
+}
+
+// CurrentModule2 is current_module/2: Module is the module defined in File.
+func CurrentModule2(_ context.Context, a *Activation, module, file, cont Ref) Promise {
+	return a.modules(cont, func(m *Module) ([]Ref, error) {
+		if m.File == "" {
+			return nil, nil
+		}
+		n, err := a.exec.PutAtom(m.Name)
+		if err != nil {
+			return nil, err
+		}
+		f, err := a.exec.PutAtom(term.NewAtom(m.File))
+		if err != nil {
+			return nil, err
+		}
+		return []Ref{module, a.ref(n), file, a.ref(f)}, nil
+	})
+}
+
+// modules backtracks through the modules presently in the system, unifying
+// each against what pairs returns for it. A module pairs says nothing about is
+// skipped.
+func (a *Activation) modules(cont Ref, pairs func(*Module) ([]Ref, error)) Promise {
+	names := slices.SortedFunc(maps.Keys(a.exec.Modules), func(x, y term.Atom) int {
+		return strings.Compare(x.String(), y.String())
+	})
+	return a.Nondet(func(yield func(Promise) bool) {
+		for _, name := range names {
+			ps, err := pairs(a.exec.Modules[name])
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
+			}
+			if ps == nil {
+				continue
+			}
+			ok := true
+			for i := 0; i < len(ps) && ok; i += 2 {
+				ok, err = a.Unify(ps[i], ps[i+1])
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
+			}
+			if !ok {
+				if !yield(Failure()) {
+					return
+				}
+				continue
+			}
+			if !yield(a.Success(cont)) {
+				return
+			}
+		}
+	})
+}
+
+// UseModule1 is use_module/1: it loads the files and imports everything they
+// export into the type-in module.
+func UseModule1(ctx context.Context, e *Execution, files, cont term.Cell) Promise {
+	if err := e.useModule(ctx, files, term.Cell{}); err != nil {
+		return e.Throw(err, cont)
+	}
+	return e.Success(cont)
+}
+
+// UseModule2 is use_module/2: it loads the file and imports the predicates of
+// the list into the type-in module.
+func UseModule2(ctx context.Context, e *Execution, files, publics, cont term.Cell) Promise {
+	if err := e.useModule(ctx, files, publics); err != nil {
+		return e.Throw(err, cont)
+	}
+	return e.Success(cont)
+}
+
+// useModule loads a module file and imports from it: everything it exports, or
+// just the predicates of a list.
+func (e *Engine) useModule(ctx context.Context, files, publics term.Cell) error {
+	var only []term.Functor
+	if publics != (term.Cell{}) {
+		for pi, err := range e.predicateIndicators(publics) {
+			if err != nil {
+				return err
+			}
+			only = append(only, term.NewFunctor(pi.Name(), pi.Arity()+1))
+		}
+		if only == nil {
+			return nil
+		}
+	}
+
+	for file := range e.listOrSingleton(files) {
+		fsName, filename, err := e.sourceFile(e.Deref(file))
+		if err != nil {
+			return err
+		}
+
+		m, ok := e.moduleOf(fsName, filename)
+		if !ok {
+			// use_module/1-2 loads like ensure_loaded/1.
+			m, err = e.LoadFile(ctx, fsName, filename)
+			if err != nil {
+				return err
+			}
+		}
+		e.Import(m, e.TypeIn(), only)
+	}
+	return nil
+}
+
+// sourceFile reads a file specification the way the loading predicates do:
+// 2.12 of the report has them look for the name as given and, failing that,
+// with a '.pl' suffix.
+func (e *Engine) sourceFile(t term.Cell) (term.Atom, string, error) {
+	fsName, filename, err := e.mustBeSourceSink(t)
+	if err != nil {
+		return term.Atom{}, "", err
+	}
+	if fsy, ok := e.FSs.Get(fsName); ok && !strings.HasSuffix(filename, ".pl") {
+		if f, err := fsy.Open(filename); err != nil {
+			filename += ".pl"
+		} else {
+			_ = f.Close()
+		}
+	}
+	return fsName, filename, nil
+}
+
+// unqualifyClause strips a module prefix off the head of a clause, so that
+// what goes to the database is the clause as the module holds it. Both
+// M:(H :- B) and (M:H :- B) name the same clause of M.
+func (e *Engine) unqualifyClause(c term.Cell, module term.Atom) (term.Cell, error) {
+	c = e.Deref(c)
+	f, ok := e.Functor(c)
+	if !ok || f != term.NewFunctor(term.NewAtom(":-"), 2) {
+		t, _ := e.Unqualify(c, module)
+		return t, nil
+	}
+	h, _ := e.Unqualify(e.Arg(c, 0), module)
+	return e.PutCompound(term.NewAtom(":-"), h, e.Arg(c, 1))
+}
+
+// ExpandMeta prefixes the meta expandable arguments of a goal with the module
+// it's called in. 2.6 of the report expands goals at compile time, and also
+// the ones issued at the top level or as a directive, which reach the system
+// unexpanded; doing it on every metacall covers both, and costs nothing for a
+// goal already expanded, whose arguments carry a prefix.
+func (e *Engine) ExpandMeta(m term.Atom, goal term.Cell) (term.Cell, error) {
+	goal = e.Deref(goal)
+	f, ok := e.Functor(goal)
+	if !ok {
+		return goal, nil
+	}
+	spec := e.MetaSpec(m, f)
+	if spec == nil {
+		return goal, nil
+	}
+
+	args := slices.Collect(e.Args(goal))
+	var changed bool
+	for i, expand := range spec {
+		if !expand || i >= len(args) {
+			continue
+		}
+		q, err := e.Qualify(m, args[i])
+		if err != nil {
+			return term.Cell{}, err
+		}
+		if q != args[i] {
+			args[i], changed = q, true
+		}
+	}
+	if !changed {
+		return goal, nil
+	}
+	return e.PutCompound(f.Name(), args...)
 }

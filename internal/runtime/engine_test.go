@@ -400,7 +400,7 @@ func testEngineCall(t *testing.T, tests []struct {
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			e := Engine{
-				Arena: term.NewArena(6 * 1024),
+				Arena: term.NewArena(8 * 1024),
 				Ops:   *syntax.NewOperatorSet(),
 			}
 

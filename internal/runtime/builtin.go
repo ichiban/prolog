@@ -66,6 +66,12 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: Deterministic0(Fail0)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: Nondeterministic1(Call1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: Nondeterministic1(Throw1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(atomColon, 3), Type: InHead, Proc: Nondeterministic2(Colon2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("module"), 2), Type: InHead, Proc: Deterministic1(Module1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_module"), 2), Type: InHead, Proc: Nondeterministic1(CurrentModule1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_module"), 3), Type: InHead, Proc: Nondeterministic2(CurrentModule2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 2), Type: InHead, Proc: Deterministic1(UseModule1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 3), Type: InHead, Proc: Deterministic2(UseModule2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: Deterministic2(SubsumesTerm2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: Inline1(Var1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: Inline1(Atom1)})
@@ -493,22 +499,15 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 	return call(ctx, a, module, a.ref(g), cont)
 }
 
-// Colon2 is (:)/2: it calls Goal in Module. A goal that a meta predicate gets
-// handed comes module name expanded, and this is what executes it.
-func Colon2(ctx context.Context, a *Activation, module, goal, cont Ref) Promise {
-	m, err := a.exec.mustBeModule(*module.cell)
-	if err != nil {
-		return a.Throw(err, cont)
-	}
-	g, m := a.exec.Unqualify(*goal.cell, m)
-	return call(ctx, a, m, a.ref(g), cont)
-}
-
 func call(ctx context.Context, a *Activation, module term.Atom, goal, cont Ref) Promise {
 	goal = a.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
 	g, err := a.exec.rewriteCutForCall(module, *goal.cell)
+	if err != nil {
+		return a.Throw(err, cont)
+	}
+	g, err = a.exec.ExpandMeta(module, g)
 	if err != nil {
 		return a.Throw(err, cont)
 	}
@@ -1450,6 +1449,8 @@ func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx
 	}
 	if pi == term.NewFunctor(atomNeck, 2) {
 		head, body := a.Arg(t, 0), a.Arg(t, 1)
+		h, m := e.Unqualify(*head.cell, module)
+		module, head = m, a.ref(h)
 		pi, ok = a.Functor(head, term.AllowAtom(true))
 		if !ok {
 			return a.Throw(&TypeError{
@@ -1495,7 +1496,11 @@ func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx
 		}, cont)
 	}
 
-	b := syntax.Serialize(a.exec.Arena, *t.cell)
+	c1, err := e.unqualifyClause(*t.cell, module)
+	if err != nil {
+		return a.Throw(err, cont)
+	}
+	b := syntax.Serialize(a.exec.Arena, c1)
 	if err := fn(e.DB, ctx, module, pi.Name(), pi.Arity(), []byte(b)); err != nil {
 		return a.Throw(err, cont)
 	}
@@ -1535,6 +1540,9 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 	}
 
 	h, b = a.Deref(h), a.Deref(b)
+
+	h0, m := a.exec.Unqualify(*h.cell, module)
+	module, h = m, a.ref(h0)
 
 	pi, err := a.exec.mustBeCallable(*h.cell)
 	if err != nil {
@@ -3567,164 +3575,79 @@ func CurrentCharConversion2(_ context.Context, a *Activation, inChar, outChar, c
 }
 
 func Call2(_ context.Context, e *Execution, closure, arg1, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call3(_ context.Context, e *Execution, closure, arg1, arg2, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call4(_ context.Context, e *Execution, closure, arg1, arg2, arg3, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, arg3, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(arg3),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call5(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, arg3, arg4, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(arg3),
-		singleton(arg4),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call6(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, arg3, arg4, arg5, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(arg3),
-		singleton(arg4),
-		singleton(arg5),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call7(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, arg3, arg4, arg5, arg6, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
-
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(arg3),
-		singleton(arg4),
-		singleton(arg5),
-		singleton(arg6),
-		singleton(cont),
-	))...)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-
-	return e.Success(cont)
+	return e.Success(k)
 }
 
 func Call8(_ context.Context, e *Execution, closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont term.Cell) Promise {
-	closure = e.Deref(closure)
-
-	f, err := e.mustBeCallable(closure)
+	k, err := e.closure(closure, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cont)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
+	return e.Success(k)
+}
 
-	cont, err = e.PutCompound(f.Name(), slices.Collect(concat(
-		e.Args(closure),
-		singleton(arg1),
-		singleton(arg2),
-		singleton(arg3),
-		singleton(arg4),
-		singleton(arg5),
-		singleton(arg6),
-		singleton(arg7),
-		singleton(cont),
-	))...)
+// closure appends arguments to a partial goal, giving the continuation that
+// calls it. The goal keeps the module it came qualified with, because the
+// predicate that will execute it has no other way to know where it was
+// written.
+func (e *Execution) closure(c term.Cell, args ...term.Cell) (term.Cell, error) {
+	g, m := e.Unqualify(c, e.TypeIn())
+
+	f, err := e.mustBeCallable(g)
 	if err != nil {
-		return e.Throw(err, cont)
+		return term.Cell{}, err
 	}
 
-	return e.Success(cont)
+	t, err := e.PutCompound(f.Name(), slices.Collect(concat(e.Args(g), slices.Values(args)))...)
+	if err != nil {
+		return term.Cell{}, err
+	}
+
+	return e.Qualify(m, t)
 }
 
 func AtomLength2(_ context.Context, e *Execution, atom, length, cont term.Cell) Promise {

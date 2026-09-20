@@ -1,6 +1,24 @@
 % Ported to Go from BinProlog (github.com/ptarau/binprolog, src/lib.pl, src/extra.pl and related sources), Copyright (C) Paul Tarau, licensed under Apache-2.0.
 % This file has been modified: non-ISO predicates are renamed and missing ISO predicates are added.
 
+% The predicates whose arguments the compiler module name expands. The control
+% constructs are missing on purpose: this machine compiles them into the clause
+% itself, so their goals are already called where they were written, and a
+% prefix on them would turn a direct call into a metacall. (:)/2 distributes
+% over them when one is metacalled instead. The declaration predicates are
+% missing too: they are processed as the text is loaded, when the type-in
+% module is the module the text goes to.
+:- meta_predicate([
+  call(':'), call(':', ?), call(':', ?, ?), call(':', ?, ?, ?),
+  call(':', ?, ?, ?, ?), call(':', ?, ?, ?, ?, ?), call(':', ?, ?, ?, ?, ?, ?),
+  call(':', ?, ?, ?, ?, ?, ?, ?),
+  \+(':'), once(':'), catch(':', ?, ':'),
+  findall(?, ':', ?), bagof(?, ':', ?), setof(?, ':', ?),
+  '$if'(':', ':', ':'), '$or'(':', ':'),
+  asserta(':'), assertz(':'), retract(':'), retractall(':'), abolish(':'),
+  clause(':', ?), current_predicate(':')
+]).
+
 dynamic(PIs) :- '$predicate_indicators'(PIs, '$dynamic').
 multifile(PIs) :- '$predicate_indicators'(PIs, '$multifile').
 discontiguous(PIs) :- '$predicate_indicators'(PIs, '$discontiguous').

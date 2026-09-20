@@ -271,21 +271,23 @@ func (e *Engine) ReadFile(fsName term.Atom, filename string) (string, error) {
 	return string(b), nil
 }
 
-func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string) error {
+// LoadFile loads a Prolog text from a file and reports the module it went to:
+// the module of its module declaration, or the type-in module if it has none.
+func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string) (term.Atom, error) {
 	text, err := e.ReadFile(fsName, filename)
 	if err != nil {
-		return err
+		return term.Atom{}, err
 	}
 
 	var (
-		c = Compiler{Engine: e, Source: e.Module, File: filename}
+		c = Compiler{Engine: e, Source: e.TypeIn(), File: filename}
 		m ir.Module
 	)
 	if err := c.CompileText(ctx, &m, text); err != nil {
-		return err
+		return term.Atom{}, err
 	}
 	if err := e.LoadModule(ctx, &m); err != nil {
-		return err
+		return term.Atom{}, err
 	}
 
 	if e.Loaded == nil {
@@ -295,8 +297,22 @@ func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string
 		fsName:   fsName,
 		filename: filename,
 	}] = struct{}{}
+	e.module(m.Name)
 
-	return nil
+	return m.Name, nil
+}
+
+// moduleOf reports the module a file has already been loaded into, if it has.
+func (e *Engine) moduleOf(fsName term.Atom, filename string) (term.Atom, bool) {
+	if _, ok := e.Loaded[loadedKey{fsName: fsName, filename: filename}]; !ok {
+		return term.Atom{}, false
+	}
+	for name, m := range e.Modules {
+		if m.File == filename {
+			return name, true
+		}
+	}
+	return e.TypeIn(), true
 }
 
 func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
