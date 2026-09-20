@@ -9,14 +9,14 @@
 % missing too: they are processed as the text is loaded, when the type-in
 % module is the module the text goes to.
 :- meta_predicate([
-  call(':'), call(':', ?), call(':', ?, ?), call(':', ?, ?, ?),
-  call(':', ?, ?, ?, ?), call(':', ?, ?, ?, ?, ?), call(':', ?, ?, ?, ?, ?, ?),
-  call(':', ?, ?, ?, ?, ?, ?, ?),
-  \+(':'), once(':'), catch(':', ?, ':'),
-  findall(?, ':', ?), bagof(?, ':', ?), setof(?, ':', ?),
-  '$if'(':', ':', ':'), '$or'(':', ':'),
-  asserta(':'), assertz(':'), retract(':'), retractall(':'), abolish(':'),
-  clause(':', ?), current_predicate(':')
+  call(:), call(:, ?), call(:, ?, ?), call(:, ?, ?, ?),
+  call(:, ?, ?, ?, ?), call(:, ?, ?, ?, ?, ?), call(:, ?, ?, ?, ?, ?, ?),
+  call(:, ?, ?, ?, ?, ?, ?, ?),
+  \+(:), once(:), catch(:, ?, :),
+  findall(?, :, ?), bagof(?, :, ?), setof(?, :, ?),
+  '$if'(:, :, :), '$or'(:, :),
+  asserta(:), assertz(:), retract(:), retractall(:), abolish(:),
+  clause(:, ?), current_predicate(:)
 ]).
 
 dynamic(PIs) :- '$predicate_indicators'(PIs, '$dynamic').
