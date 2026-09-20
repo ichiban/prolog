@@ -494,3 +494,41 @@ func (e *Engine) ExpandMeta(m term.Atom, goal term.Cell) (term.Cell, error) {
 	}
 	return e.PutCompound(f.Name(), args...)
 }
+
+// eraseModule undefines every predicate of a module, as $undefine_all does in
+// the report: a module declaration replaces what its module held rather than
+// adding to it, so that reloading a file doesn't leave the predicates it no
+// longer defines behind, or double the clauses of the ones it does.
+//
+// The code the erased predicates pointed at stays in the image, which is
+// append only. Nothing reaches it any more: a call resolves through the
+// predicate table, and a module that imports this one is redirected to the new
+// definition, which is what 2.5 of the report means by an importation binding
+// surviving a reload of its origin.
+func (e *Engine) eraseModule(ctx context.Context, name term.Atom) error {
+	for proc, p := range e.Predicates {
+		if proc.Module != name {
+			continue
+		}
+		delete(e.Predicates, proc)
+
+		if !p.Public {
+			continue
+		}
+		pi := unbinarize(proc.Functor)
+		for r, err := range e.DB.Select(ctx, name, pi.Name(), pi.Arity(), e.DB.Revision()) {
+			if err != nil {
+				return err
+			}
+			if err := e.DB.Delete(ctx, name, pi.Name(), pi.Arity(), r.ID); err != nil {
+				return err
+			}
+		}
+	}
+
+	m := e.module(name)
+	clear(m.Exports)
+	clear(m.Imports)
+	clear(m.Meta)
+	return nil
+}

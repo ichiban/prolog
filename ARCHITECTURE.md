@@ -75,6 +75,21 @@ body becomes a call to it. When it, or any metacall, is handed a control
 construct, the module is distributed over the branches and the construct itself
 left bare — a clause like `(If -> Then; Else)` matches on the shape.
 
+### A module declaration replaces its module
+
+Processing `:- module/2` erases every predicate the module already held, as
+`$undefine_all` does in the report, so that reloading a file neither doubles
+the clauses of the predicates it still defines nor leaves behind the ones it no
+longer does. That is a matter of dropping entries from `Image.Predicates` and
+the clauses of the dynamic ones from the database.
+
+The *code* those predicates pointed at stays in `Image.Code`, which is append
+only, and simply becomes unreachable: a call resolves through the predicate
+table, and a module that imports this one is redirected to the new definition
+by the same lookup — which is what 2.5 means by an importation binding
+surviving a reload of its origin. Reclaiming the dead chunks would need the
+image to be compactable, which it is not.
+
 ### Meta expansion
 
 `meta_predicate` says which arguments of a call are module name expanded. The
@@ -103,7 +118,6 @@ asserting directive act on the right module without a declaration of their own.
 
 | Report | Why |
 | ------ | --- |
-| Erasing a module's predicates when its file is reloaded (2.4) | The image is append-only; a reload adds to the module. Marked `ponytail:` in `declareModule`. |
 | `predicate_property/2` extensions (2.11) | The predicate itself doesn't exist here yet. |
 | File-to-file compilation, the Emacs interface, delayed goals (2.8, 2.9, 2.13) | No counterpart in this system. |
 

@@ -2296,6 +2296,33 @@ func TestInterpreter_Load_module(t *testing.T) {
 	}
 }
 
+// A module declaration replaces what its module held: reloading its file
+// neither doubles the clauses it still defines nor leaves behind the ones it
+// no longer does. The code of the erased predicates stays in the image, which
+// is append only, and nothing reaches it any more.
+func TestInterpreter_Load_module_reload(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := i.Load(t.Context(), "", "testdata/module_lists.pl"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var got []string
+	for r, err := range i.Query[map[string]Raw](t.Context(), `module_lists:app([1], [2], X).`) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(r["X"]))
+	}
+	if want := []string{`[1,2]`}; !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestBind(t *testing.T) {
 	i := New()
 

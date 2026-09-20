@@ -193,7 +193,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			d := c.Arg(t, 0)
 			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
 			case term.NewFunctor(term.NewAtom("module"), 2):
-				if err := c.declareModule(out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+				if err := c.declareModule(ctx, out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
 					return err
 				}
 			case term.NewFunctor(term.NewAtom("use_module"), 1):
@@ -1710,7 +1710,7 @@ func rewriteSlice[S ~[]T, T any](s S, fn func(e T, write func(T))) S {
 // declareModule processes a module declaration. It must come first in a file:
 // the text that follows is loaded into the module it names, and the predicates
 // of the public list are exported.
-func (c *Compiler) declareModule(out *ir.Module, name, publics term.Cell) error {
+func (c *Compiler) declareModule(ctx context.Context, out *ir.Module, name, publics term.Cell) error {
 	m, err := c.mustBeModule(name)
 	if err != nil {
 		return err
@@ -1729,17 +1729,37 @@ func (c *Compiler) declareModule(out *ir.Module, name, publics term.Cell) error 
 	if mod.File != "" && mod.File != c.File {
 		return fmt.Errorf("module %s is already defined in %s", m, mod.File)
 	}
-	mod.File = c.File
 
-	// ponytail: a reload adds to the module rather than replacing it, because
-	// the image is append only. 2.4 of the report erases the module's
-	// predicates first; implement that when the image can drop code.
+	exports := map[term.Functor]struct{}{}
 	for pi, err := range c.predicateIndicators(publics) {
 		if err != nil {
 			return err
 		}
-		mod.Exports[term.NewFunctor(pi.Name(), pi.Arity()+1)] = struct{}{}
+		exports[term.NewFunctor(pi.Name(), pi.Arity()+1)] = struct{}{}
 	}
+
+	// A predicate that other modules import and this declaration drops from
+	// the public list leaves them importing something that is no longer
+	// exported, which is worth saying out loud.
+	if c.Warn == nil {
+		c.Warn = func(error) {}
+	}
+	for f := range mod.Exports {
+		if _, ok := exports[f]; ok {
+			continue
+		}
+		for _, other := range c.Modules {
+			if from, ok := other.Imports[f]; ok && from == m {
+				c.Warn(fmt.Errorf("%s:%s is imported by %s but no longer exported", m, unbinarize(f), other.Name))
+			}
+		}
+	}
+
+	if err := c.eraseModule(ctx, m); err != nil {
+		return err
+	}
+	mod.File = c.File
+	mod.Exports = exports
 
 	// The predicates that follow are this module's, and so is everything its
 	// directives do.
