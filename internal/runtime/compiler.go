@@ -70,13 +70,29 @@ func (m Mode) Op() ir.OpCode {
 type Compiler struct {
 	*Engine
 
+	// Source is the source module: where the predicates of the text being
+	// compiled are defined and where its goals are called. It's the module of
+	// a module declaration, or the type-in module for a non module file.
+	Source term.Atom
+
+	// File is the name of the file being compiled, recorded with the module it
+	// defines.
+	File string
+
+	// headVars holds the variables that appear in a meta expandable argument
+	// position of the head of the clause being compiled. A goal argument that
+	// is one of them is already expanded by the caller and mustn't be expanded
+	// again.
+	headVars []term.Cell
+
 	counter      int
 	todo         []term.Cell
 	makeVariable func() (term.Cell, error)
 }
 
 func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
-	out.Name = term.NewAtom("prolog")
+	c.Source = atomPrologModule
+	out.Name = atomPrologModule
 	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
@@ -99,13 +115,15 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 		}
 		c.schedule(t)
 	}
+	if c.Source == (term.Atom{}) {
+		c.Source = atomUserModule
+	}
+	out.Name = c.Source
 	if err := c.run(ctx, out); err != nil {
 		return err
 	}
-	if c.Module == (term.Atom{}) {
-		c.Module = term.NewAtom("user")
-	}
-	out.Name = c.Module
+	// A module declaration in the text moves it to the module it declares.
+	out.Name = c.Source
 	return nil
 }
 
@@ -213,7 +231,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			continue
 		}
 
-		bpi := term.NewFunctor(f.Name(), f.Arity()+1)
+		bpi := term.NewProcedure(c.Source, term.NewFunctor(f.Name(), f.Arity()+1))
 		if p, _ := c.Predicates[bpi]; p.Dynamic {
 			a, err := c.PutCompound(term.NewAtom("assertz"), t)
 			if err != nil {
@@ -259,7 +277,7 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 	}
 
 	bpi, _ := c.Functor(binHead)
-	if p, _ := c.Predicates[bpi]; p.Public {
+	if p, _ := c.Predicates[term.NewProcedure(c.Source, bpi)]; p.Public {
 		cl, err := c.PutCompound(atomNeck, head, body)
 		if err != nil {
 			return err
@@ -269,7 +287,7 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 			return errors.New("clause head is not callable")
 		}
 		payload := []byte(syntax.Serialize(c.Arena, cl))
-		if err := c.DB.InsertAfter(ctx, c.Module, pi.Name(), pi.Arity(), payload); err != nil {
+		if err := c.DB.InsertAfter(ctx, c.Source, pi.Name(), pi.Arity(), payload); err != nil {
 			return err
 		}
 	}
@@ -770,6 +788,9 @@ func (c *Compiler) disjunctionSeq(t, cont term.Cell) iter.Seq2[term.Cell, error]
 
 // Binarize turns a clause p :- q, r into p(C) :- q(r(C)).
 func (c *Compiler) Binarize(head, body, cont term.Cell) (neaHead term.Cell, neaBody term.Cell, _ error) {
+	if c.Source == (term.Atom{}) {
+		c.Source = atomUserModule
+	}
 	var err error
 	hf, ok := c.Functor(head, term.AllowAtom(true))
 	if !ok {
@@ -785,6 +806,20 @@ func (c *Compiler) Binarize(head, body, cont term.Cell) (neaHead term.Cell, neaB
 	return head, body, err
 }
 
+// addCont appends the continuation to a goal, turning a conjunction into the
+// chain of goal structures a binarized clause hands on.
+//
+// Every link but the first is prefixed with the source module: a continuation
+// is a term used as a procedure reference, and in a procedure based module
+// system such a term has to carry the module of the clause that built it,
+// because the predicate that eventually executes it -- true/1, an arbitrary
+// number of calls away -- has no other way to know where its name is defined.
+// The first link is the clause's own execute instruction, whose module the
+// image records, so it stays bare.
+//
+// A link of the prolog module stays bare too, and an unprefixed link is read
+// as prolog's: the system's own predicates are the ones every module can see
+// anyway, and they are the bulk of every continuation built.
 func (c *Compiler) addCont(goal, cont term.Cell) (term.Cell, error) {
 	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
@@ -804,6 +839,12 @@ func (c *Compiler) addCont(goal, cont term.Cell) (term.Cell, error) {
 		y, err := c.addCont(y, cont)
 		if err != nil {
 			return term.Cell{}, err
+		}
+		if c.Source != atomPrologModule {
+			y, err = c.Qualify(c.Source, y)
+			if err != nil {
+				return term.Cell{}, err
+			}
 		}
 		f, ok := c.Functor(x, term.AllowAtom(true))
 		if !ok {
@@ -1194,6 +1235,10 @@ func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Cell) err
 }
 
 func (c *Compiler) compileBody(clause *ir.Clause, body term.Cell) (term.Functor, error) {
+	// The link is compiled into this clause, so its prefix says nothing the
+	// image doesn't already record: drop it and compile the goal itself.
+	body, _ = c.Unqualify(body, atomPrologModule)
+
 	if _, ok := c.Variable(body); ok {
 		var err error
 		body, err = c.PutCompound(term.NewAtom("true"), body)

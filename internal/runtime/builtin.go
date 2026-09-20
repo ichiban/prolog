@@ -406,6 +406,11 @@ func (p Nondeterministic8) Call(ctx context.Context, a *Activation) Promise {
 func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 	cont = a.Deref(cont)
 
+	// A continuation carries the module of the clause that built it; a bare
+	// one is the prolog module's, which is what the compiler leaves unprefixed.
+	goal, module := a.exec.Unqualify(*cont.cell, atomPrologModule)
+	cont = a.ref(goal)
+
 	bpi, ok := a.Functor(cont, term.AllowAtom(true))
 	if !ok {
 		return a.Throw(&TypeError{
@@ -415,9 +420,9 @@ func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 		}, cont)
 	}
 
-	pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+	pi := unbinarize(bpi)
 
-	p, ok, err := a.exec.Predicate(bpi)
+	p, ok, err := a.exec.Predicate(term.NewProcedure(module, bpi))
 	if err != nil {
 		return a.Throw(err, cont)
 	}
@@ -434,7 +439,7 @@ func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 		cont = args[len(args)-1]
 		revision := a.exec.DB.Revision()
 		return a.Nondet(func(yield func(Promise) bool) {
-			for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+			for r, err := range a.exec.DB.Select(ctx, module, pi.Name(), pi.Arity(), revision) {
 				if err != nil {
 					_ = yield(a.Throw(err, cont))
 					return
@@ -463,6 +468,11 @@ func True0(ctx context.Context, a *Activation, cont Ref) Promise {
 					continue
 				}
 
+				body, err = a.exec.Qualify(module, body)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
 				if !yield(Call1(ctx, a, a.ref(body), cont)) {
 					return
 				}
@@ -479,10 +489,26 @@ func Fail0(_ context.Context, _ *Execution, _ term.Cell) Promise {
 }
 
 func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
+	g, module := a.exec.Unqualify(*goal.cell, a.exec.TypeIn())
+	return call(ctx, a, module, a.ref(g), cont)
+}
+
+// Colon2 is (:)/2: it calls Goal in Module. A goal that a meta predicate gets
+// handed comes module name expanded, and this is what executes it.
+func Colon2(ctx context.Context, a *Activation, module, goal, cont Ref) Promise {
+	m, err := a.exec.mustBeModule(*module.cell)
+	if err != nil {
+		return a.Throw(err, cont)
+	}
+	g, m := a.exec.Unqualify(*goal.cell, m)
+	return call(ctx, a, m, a.ref(g), cont)
+}
+
+func call(ctx context.Context, a *Activation, module term.Atom, goal, cont Ref) Promise {
 	goal = a.Deref(goal)
 
 	// 7.8.3.1 says "When G contains ! as a subgoal, the effect of ! shall not extend outside G."
-	g, err := a.exec.rewriteCutForCall(*goal.cell)
+	g, err := a.exec.rewriteCutForCall(module, *goal.cell)
 	if err != nil {
 		return a.Throw(err, cont)
 	}
@@ -503,7 +529,7 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok, err := a.exec.Predicate(bpi)
+	p, ok, err := a.exec.Predicate(term.NewProcedure(module, bpi))
 	if err != nil {
 		return a.Throw(err, cont)
 	}
@@ -511,7 +537,7 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 		return Failure()
 	}
 	if p.Dynamic {
-		call, ok := a.exec.Predicates[term.NewFunctor(term.NewAtom("call"), 2)]
+		call, ok := a.exec.Predicates[term.NewProcedure(atomPrologModule, term.NewFunctor(term.NewAtom("call"), 2))]
 		if !ok {
 			c, err := a.exec.PutFunctor(term.NewFunctor(term.NewAtom("call"), 1))
 			if err != nil {
@@ -526,7 +552,7 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 
 		revision := a.exec.DB.Revision()
 		return a.Nondet(func(yield func(Promise) bool) {
-			for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+			for r, err := range a.exec.DB.Select(ctx, module, pi.Name(), pi.Arity(), revision) {
 				if err != nil {
 					_ = yield(a.Throw(err, cont))
 					return
@@ -555,6 +581,11 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 					continue
 				}
 
+				body, err = a.exec.Qualify(module, body)
+				if err != nil {
+					_ = yield(a.Throw(err, cont))
+					return
+				}
 				a.exec.enter(call.Offset, slices.Values([]term.Cell{body, *cont.cell}))
 				if !yield(Promise{ok: true}) {
 					return
@@ -567,18 +598,21 @@ func Call1(ctx context.Context, a *Activation, goal, cont Ref) Promise {
 	return Promise{ok: true}
 }
 
-func (e *Execution) rewriteCutForCall(body term.Cell) (term.Cell, error) {
-	body = e.Deref(body)
+// rewriteCutForCall prepares a metacalled goal: it makes a cut local to the
+// goal, and distributes the module over the control constructs so that each
+// branch is still called where it was written.
+func (e *Execution) rewriteCutForCall(module term.Atom, body term.Cell) (term.Cell, error) {
+	body, module = e.Unqualify(body, module)
 	switch pi, _ := e.Functor(body, term.AllowAtom(true)); pi {
 	case term.NewFunctor(term.NewAtomRune(';'), 2):
 		x := e.Arg(body, 0)
-		if f, _ := e.Functor(x); f == term.NewFunctor(term.NewAtom("->"), 2) {
+		if f, _ := e.Functor(e.Deref(x)); f == term.NewFunctor(term.NewAtom("->"), 2) {
 			i, t := e.Arg(x, 0), e.Arg(x, 1)
-			i, err := e.rewriteCutForCall(i)
+			i, err := e.callBranch(module, i)
 			if err != nil {
 				return term.Cell{}, err
 			}
-			t, err = e.rewriteCutForCall(t)
+			t, err = e.callBranch(module, t)
 			if err != nil {
 				return term.Cell{}, err
 			}
@@ -590,11 +624,11 @@ func (e *Execution) rewriteCutForCall(body term.Cell) (term.Cell, error) {
 		fallthrough
 	case term.NewFunctor(term.NewAtomRune(','), 2):
 		x, y := e.Arg(body, 0), e.Arg(body, 1)
-		x, err := e.rewriteCutForCall(x)
+		x, err := e.callBranch(module, x)
 		if err != nil {
 			return term.Cell{}, err
 		}
-		y, err = e.rewriteCutForCall(y)
+		y, err = e.callBranch(module, y)
 		if err != nil {
 			return term.Cell{}, err
 		}
@@ -608,6 +642,26 @@ func (e *Execution) rewriteCutForCall(body term.Cell) (term.Cell, error) {
 	default:
 		return body, nil
 	}
+}
+
+// callBranch prepares one argument of a control construct. A control construct
+// stays bare, because the clauses that implement one match on its shape; a
+// goal keeps the module it was written in, because the construct that will
+// call it belongs to the prolog module, not to that one.
+func (e *Execution) callBranch(module term.Atom, t term.Cell) (term.Cell, error) {
+	t, m := e.Unqualify(t, module)
+	t, err := e.rewriteCutForCall(m, t)
+	if err != nil {
+		return term.Cell{}, err
+	}
+	switch f, _ := e.Functor(t, term.AllowAtom(true)); f {
+	case term.NewFunctor(term.NewAtomRune(','), 2),
+		term.NewFunctor(term.NewAtomRune(';'), 2),
+		term.NewFunctor(term.NewAtom("->"), 2),
+		term.NewFunctor(term.NewAtom("$cut_to"), 1):
+		return t, nil
+	}
+	return e.Qualify(m, t)
 }
 
 func Var1(_ context.Context, e *Execution, v term.Cell) (bool, error) {
@@ -1228,6 +1282,9 @@ func TermVariables2(_ context.Context, e *Execution, t, vars, cont term.Cell) Pr
 }
 
 func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
+	h, module := a.exec.Unqualify(*head.cell, a.exec.TypeIn())
+	head = a.ref(h)
+
 	pi, err := a.exec.mustBeCallable(*head.cell)
 	if err != nil {
 		return a.Throw(err, cont)
@@ -1240,7 +1297,7 @@ func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := a.exec.Predicates[bpi]
+	p, ok := a.exec.Lookup(term.NewProcedure(module, bpi))
 	if !ok {
 		return Failure()
 	}
@@ -1261,7 +1318,7 @@ func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
 
 	revision := a.exec.DB.Revision()
 	return a.Nondet(func(yield func(Promise) bool) {
-		for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+		for r, err := range a.exec.DB.Select(ctx, module, pi.Name(), pi.Arity(), revision) {
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1304,14 +1361,15 @@ func Clause2(ctx context.Context, a *Activation, head, body, cont Ref) Promise {
 }
 
 func CurrentPredicate1(_ context.Context, a *Activation, predIndicator, cont Ref) Promise {
-	predIndicator = a.Deref(predIndicator)
+	pi0, module := a.exec.Unqualify(*predIndicator.cell, a.exec.TypeIn())
+	predIndicator = a.ref(pi0)
 
 	switch pi, ok, err := a.exec.canBePredicateIndicator(*predIndicator.cell); {
 	case err != nil:
 		return a.Throw(err, cont)
 	case ok:
 		bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-		p, _ := a.exec.Predicates[bpi]
+		p, _ := a.exec.Lookup(term.NewProcedure(module, bpi))
 		if p.BuiltIn {
 			return Failure()
 		}
@@ -1320,12 +1378,11 @@ func CurrentPredicate1(_ context.Context, a *Activation, predIndicator, cont Ref
 	}
 
 	pis := slices.Collect(func(yield func(pi term.Functor) bool) {
-		for bpi, p := range a.exec.Predicates {
-			if p.BuiltIn {
+		for proc, p := range a.exec.Predicates {
+			if p.BuiltIn || proc.Module != module {
 				continue
 			}
-			pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
-			if !yield(pi) {
+			if !yield(unbinarize(proc.Functor)) {
 				return
 			}
 		}
@@ -1374,7 +1431,8 @@ func AssertZ1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 
 func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx context.Context, module, name term.Atom, arity int, payload []byte) error) Promise {
 	e := a.exec
-	t = a.Deref(t)
+	c0, module := e.Unqualify(*t.cell, e.TypeIn())
+	t = a.ref(c0)
 
 	if _, ok := a.Variable(t); ok {
 		return a.Throw(&InstantiationError{
@@ -1410,17 +1468,19 @@ func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx
 		}
 	}
 
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, ok := e.Predicates[bpi]
+	proc := term.NewProcedure(module, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	p, ok := e.Lookup(proc)
 	if !ok {
+		// Asserting to a module that doesn't exist yet defines it.
+		e.module(module)
 		p = wam.Predicate{
 			Public:  true,
 			Dynamic: true,
 		}
 		if e.Predicates == nil {
-			e.Predicates = map[term.Functor]wam.Predicate{}
+			e.Predicates = map[term.Procedure]wam.Predicate{}
 		}
-		e.Predicates[bpi] = p
+		e.Predicates[proc] = p
 	}
 	if !p.Dynamic {
 		c, err := e.PutFunctor(pi)
@@ -1436,7 +1496,7 @@ func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx
 	}
 
 	b := syntax.Serialize(a.exec.Arena, *t.cell)
-	if err := fn(e.DB, ctx, e.Module, pi.Name(), pi.Arity(), []byte(b)); err != nil {
+	if err := fn(e.DB, ctx, module, pi.Name(), pi.Arity(), []byte(b)); err != nil {
 		return a.Throw(err, cont)
 	}
 
@@ -1444,7 +1504,8 @@ func assert1(ctx context.Context, a *Activation, t, cont Ref, fn func(db DB, ctx
 }
 
 func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
-	t = a.Deref(t)
+	c0, module := a.exec.Unqualify(*t.cell, a.exec.TypeIn())
+	t = a.ref(c0)
 
 	h, err := a.PutVariable()
 	if err != nil {
@@ -1481,7 +1542,7 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 	}
 
 	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	if p, ok := a.exec.Predicates[bpi]; ok && !p.Dynamic {
+	if p, ok := a.exec.Lookup(term.NewProcedure(module, bpi)); ok && !p.Dynamic {
 		c, err := a.exec.PutFunctor(pi)
 		if err != nil {
 			return a.Throw(err, cont)
@@ -1498,7 +1559,7 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 	// seeing the clauses this very retract removes.
 	revision := a.exec.DB.Revision()
 	return a.Nondet(func(yield func(Promise) bool) {
-		for r, err := range a.exec.DB.Select(ctx, a.exec.Module, pi.Name(), pi.Arity(), revision) {
+		for r, err := range a.exec.DB.Select(ctx, module, pi.Name(), pi.Arity(), revision) {
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
@@ -1539,7 +1600,7 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 				continue
 			}
 
-			if err := a.exec.DB.Delete(ctx, a.exec.Module, pi.Name(), pi.Arity(), r.ID); err != nil {
+			if err := a.exec.DB.Delete(ctx, module, pi.Name(), pi.Arity(), r.ID); err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
 			}
@@ -1552,15 +1613,16 @@ func Retract1(ctx context.Context, a *Activation, t, cont Ref) Promise {
 
 func Abolish1(ctx context.Context, a *Activation, pred, cont Ref) Promise {
 	e := a.exec
-	pred = a.Deref(pred)
+	p0, module := e.Unqualify(*pred.cell, e.TypeIn())
+	pred = a.ref(p0)
 
 	pi, err := e.mustBePredicateIndicator(*pred.cell)
 	if err != nil {
 		return a.Throw(err, cont)
 	}
 
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	if p, ok := e.Predicates[bpi]; ok {
+	proc := term.NewProcedure(module, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	if p, ok := e.Lookup(proc); ok {
 		if !p.Dynamic {
 			c, err := e.PutFunctor(pi)
 			if err != nil {
@@ -1575,15 +1637,19 @@ func Abolish1(ctx context.Context, a *Activation, pred, cont Ref) Promise {
 		}
 
 		revision := e.DB.Revision()
-		for r, err := range e.DB.Select(ctx, e.Module, pi.Name(), pi.Arity(), revision) {
+		for r, err := range e.DB.Select(ctx, module, pi.Name(), pi.Arity(), revision) {
 			if err != nil {
 				return a.Throw(err, cont)
 			}
-			if err := e.DB.Delete(ctx, a.exec.Module, pi.Name(), pi.Arity(), r.ID); err != nil {
+			if err := e.DB.Delete(ctx, module, pi.Name(), pi.Arity(), r.ID); err != nil {
 				return a.Throw(err, cont)
 			}
 		}
-		delete(e.Predicates, bpi)
+		delete(e.Predicates, proc)
+		// abolish/1 breaks up the importation bindings too.
+		if m, ok := e.Modules[module]; ok {
+			delete(m.Imports, proc.Functor)
+		}
 	}
 
 	return a.Success(cont)
@@ -4472,50 +4538,50 @@ func Halt1(_ context.Context, e *Execution, x, cont term.Cell) Promise {
 }
 
 func Dynamic1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
-	t = e.Deref(t)
+	t, module := e.Unqualify(t, e.TypeIn())
 
 	pi, err := e.mustBePredicateIndicator(t)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, _ := e.Predicates[bpi]
+	proc := term.NewProcedure(module, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	p, _ := e.Predicates[proc]
 	p.Public = true
 	p.Dynamic = true
-	e.Predicates[bpi] = p
+	e.Predicates[proc] = p
 
 	return e.Success(cont)
 }
 
 func Multifile1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
-	t = e.Deref(t)
+	t, module := e.Unqualify(t, e.TypeIn())
 
 	pi, err := e.mustBePredicateIndicator(t)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, _ := e.Predicates[bpi]
+	proc := term.NewProcedure(module, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	p, _ := e.Predicates[proc]
 	p.Multifile = true
-	e.Predicates[bpi] = p
+	e.Predicates[proc] = p
 
 	return e.Success(cont)
 }
 
 func Discontiguous1(_ context.Context, e *Execution, t, cont term.Cell) Promise {
-	t = e.Deref(t)
+	t, module := e.Unqualify(t, e.TypeIn())
 
 	pi, err := e.mustBePredicateIndicator(t)
 	if err != nil {
 		return e.Throw(err, cont)
 	}
 
-	bpi := term.NewFunctor(pi.Name(), pi.Arity()+1)
-	p, _ := e.Predicates[bpi]
+	proc := term.NewProcedure(module, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	p, _ := e.Predicates[proc]
 	p.Discontiguous = true
-	e.Predicates[bpi] = p
+	e.Predicates[proc] = p
 
 	return e.Success(cont)
 }
@@ -6388,9 +6454,17 @@ func (e *Execution) unTrailTo(b int) error {
 	return e.unwindTrail(trailTop)
 }
 
+// contChain walks a continuation, yielding each goal in it with the module
+// prefix a binarized clause puts on its links stripped off.
 func contChain(arena *term.Arena, cont term.Cell) iter.Seq[term.Cell] {
 	return func(yield func(term.Cell) bool) {
 		for {
+			cont = arena.Deref(cont)
+			if f, ok := arena.Functor(cont); ok && f == term.NewFunctor(atomColon, 2) {
+				cont = arena.Arg(cont, 1)
+				continue
+			}
+
 			if !yield(cont) {
 				return
 			}

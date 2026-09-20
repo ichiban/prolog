@@ -29,14 +29,14 @@ p.
 p.
 `,
 			image: `
-   0          true/0: proceed
-   1             p/1: nondet
+   0   prolog:true/0: proceed
+   1        user:p/1: nondet
    2                  try_me_else 4
-   3                  execute true/1
+   3                  execute user:true/1
    4                  retry_me_else 6
-   5                  execute true/1
+   5                  execute user:true/1
    6                  trust_me
-   7                  execute true/1
+   7                  execute user:true/1
 `,
 		},
 		{
@@ -47,20 +47,20 @@ p(b).
 p(c).
 `,
 			image: `
-   0          true/0: proceed
-   1             p/2: switch p/2
+   0   prolog:true/0: proceed
+   1        user:p/2: switch user:p/2
    2                  try_me_else 6
    3             (a): get_constant a, A1
    4                  move X1, X2
-   5                  execute true/1
+   5                  execute user:true/1
    6                  retry_me_else 10
    7             (b): get_constant b, A1
    8                  move X1, X2
-   9                  execute true/1
+   9                  execute user:true/1
   10                  trust_me
   11             (c): get_constant c, A1
   12                  move X1, X2
-  13                  execute true/1
+  13                  execute user:true/1
 `,
 		},
 		{
@@ -71,40 +71,40 @@ p(b).
 p(a).
 `,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  try_me_else 6
    3             (a): get_constant a, A1
    4                  move X1, X2
-   5                  execute true/1
+   5                  execute user:true/1
    6                  retry_me_else 10
    7             (b): get_constant b, A1
    8                  move X1, X2
-   9                  execute true/1
+   9                  execute user:true/1
   10                  trust_me
   11                  get_constant a, A1
   12                  move X1, X2
-  13                  execute true/1
+  13                  execute user:true/1
 `,
 		},
 		{
 			title: "repeated argument variables",
 			text:  `p(X, X).`,
 			image: `
-   0          true/0: proceed
-   1             p/3: nondet
+   0   prolog:true/0: proceed
+   1        user:p/3: nondet
    2                  nop
    3                  get_value X1, A2
    4                  move X1, X3
-   5                  execute true/1
+   5                  execute user:true/1
 `,
 		},
 		{
 			title: "structure in head",
 			text:  `p(f(X, X, a, _)).`,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  nop
    3           (f/4): get_structure f/4, A1
    4                  unify_variable X3
@@ -112,29 +112,29 @@ p(a).
    6                  unify_constant a
    7                  unify_void
    8                  move X1, X2
-   9                  execute true/1
+   9                  execute user:true/1
 `,
 		},
 		{
 			title: "body",
 			text:  `p(X) :- q(X, Y, Y, a, _).`,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  nop
    3                  move X6, X2
    4                  put_variable X3, A2
    5                  put_constant a, A4
    6                  put_variable X5, A5
-   7                  execute q/6
+   7                  execute user:q/6
 `,
 		},
 		{
 			title: "structure in body",
 			text:  `p(X) :- q(f(X, Y, Y, a, _)).`,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  nop
    3                  put_structure f/5, A3
    4                  write_value X1
@@ -143,68 +143,80 @@ p(a).
    7                  write_constant a
    8                  write_void
    9                  move X1, X3
-  10                  execute q/2
+  10                  execute user:q/2
 `,
 		},
 		{
 			title: "simple conjunction",
 			text:  `p(X) :- q(X), r(X), s(X).`,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  nop
-   3                  put_structure r/2, A3
-   4                  write_value X1
+   3                  put_structure :/2, A3
+   4                  write_constant user
    5                  write_variable X4
-   6                  push_structure s/2, A4
+   6                  push_structure r/2, A4
    7                  write_value X1
-   8                  write_value X2
-   9                  move X2, X3
-  10                  execute q/2
+   8                  write_variable X4
+   9                  push_structure :/2, A4
+  10                  write_constant user
+  11                  write_variable X4
+  12                  push_structure s/2, A4
+  13                  write_value X1
+  14                  write_value X2
+  15                  move X2, X3
+  16                  execute user:q/2
 `,
 		},
 		{
 			title: "simple disjunction",
 			text:  `p(X) :- q(X); r(X); s(X).`,
 			image: `
-   0          true/0: proceed
-   1             p/2: nondet
+   0   prolog:true/0: proceed
+   1        user:p/2: nondet
    2                  nop
-   3                  execute $aux1/2
-   4         $aux1/2: nondet
+   3                  execute user:$aux1/2
+   4    user:$aux1/2: nondet
    5                  try_me_else 7
-   6                  execute q/2
+   6                  execute user:q/2
    7                  retry_me_else 9
-   8                  execute r/2
+   8                  execute user:r/2
    9                  trust_me
-  10                  execute s/2
+  10                  execute user:s/2
 `,
 		},
 		{
 			title: "neck cut",
 			text:  `p :- !, q.`,
 			image: `
-   0          true/0: proceed
-   1             p/1: nondet
+   0   prolog:true/0: proceed
+   1        user:p/1: nondet
    2                  nop
    3                  put_cut
-   4                  execute q/1
+   4                  execute user:q/1
 `,
 		},
 		{
 			title: "deep cut",
 			text:  `p :- q, !, r.`,
 			image: `
-   0          true/0: proceed
-   1             p/1: nondet
+   0   prolog:true/0: proceed
+   1        user:p/1: nondet
    2                  nop
-   3                  put_structure $cut_to/2, A2
-   4                  push_cut
+   3                  put_structure :/2, A2
+   4                  write_constant user
    5                  write_variable X3
-   6                  push_structure r/1, A3
-   7                  write_value X1
-   8                  move X1, X2
-   9                  execute q/1
+   6                  push_structure $cut_to/2, A3
+   7                  push_cut
+   8                  write_variable X3
+   9                  push_structure :/2, A3
+  10                  write_constant user
+  11                  write_variable X3
+  12                  push_structure r/1, A3
+  13                  write_value X1
+  14                  move X1, X2
+  15                  execute user:q/1
 `,
 		},
 	}
@@ -270,7 +282,7 @@ func TestEngine_LoadModule_extension(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bpi := term.NewFunctor(term.NewAtom("p"), 2)
+	bpi := term.NewProcedure(atomUserModule, term.NewFunctor(term.NewAtom("p"), 2))
 	p := e.Predicates[bpi]
 	p.Multifile = true
 	e.Predicates[bpi] = p
@@ -284,16 +296,16 @@ func TestEngine_LoadModule_extension(t *testing.T) {
 	}
 
 	want := `
-   0          true/0: proceed
-   1             p/2: switch p/2
+   0   prolog:true/0: proceed
+   1        user:p/2: switch user:p/2
    2                  try_me_else 6
    3             (a): get_constant a, A1
    4                  move X1, X2
-   5                  execute true/1
+   5                  execute user:true/1
    6                  trust_me
    7             (b): get_constant b, A1
    8                  move X1, X2
-   9                  execute true/1
+   9                  execute user:true/1
 `
 	var (
 		got = strings.Split(e.Image.String(), "\n")
@@ -488,8 +500,8 @@ func TestEngine_roots(t *testing.T) {
 	// The image outlives every collection, and a constant that isn't immediate
 	// holds a heap address.
 	e.Constants = []term.Cell{must(e.PutFloat(3.5))}
-	pi := term.NewFunctor(term.NewAtom("p"), 2)
-	e.Predicates = map[term.Functor]wam.Predicate{
+	pi := term.NewProcedure(atomUserModule, term.NewFunctor(term.NewAtom("p"), 2))
+	e.Predicates = map[term.Procedure]wam.Predicate{
 		pi: {FirstArgIndex: []wam.FirstArg{{FirstArgKey: wam.FirstArgKey{Term: must(e.PutFloat(2.5))}}}},
 	}
 

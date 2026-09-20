@@ -29,3 +29,19 @@ func (f Functor) Name() Atom {
 func (f Functor) Arity() int {
 	return f.arity
 }
+
+// Procedure identifies a predicate by the module it's defined in and its
+// functor. The module system is procedure based: atoms and functors are
+// global, only predicates are local to a module.
+type Procedure struct {
+	Module Atom
+	Functor
+}
+
+func NewProcedure(module Atom, f Functor) Procedure {
+	return Procedure{Module: module, Functor: f}
+}
+
+func (p Procedure) String() string {
+	return fmt.Sprintf("%s:%s", p.Module, p.Functor)
+}

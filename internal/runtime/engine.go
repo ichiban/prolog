@@ -52,7 +52,10 @@ type Engine struct {
 
 	Loaded map[loadedKey]struct{}
 
+	// Module is the type-in module: where goals with no module specification
+	// issued at the top level are called.
 	Module         term.Atom
+	Modules        map[term.Atom]*Module
 	DoubleQuotes   syntax.DoubleQuotes
 	Ops            syntax.OperatorSet
 	CharConversion syntax.CharConversion
@@ -161,11 +164,10 @@ func (e *Engine) heapTops() iter.Seq[*int] {
 	}
 }
 
-func (e *Engine) Predicate(bpi term.Functor) (wam.Predicate, bool, error) {
-	p, ok := e.Predicates[bpi]
+func (e *Engine) Predicate(proc term.Procedure) (wam.Predicate, bool, error) {
+	p, ok := e.Lookup(proc)
 	if !ok {
-		pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
-		culprit, err := e.PutFunctor(pi)
+		culprit, err := e.PutFunctor(unbinarize(proc.Functor))
 		if err != nil {
 			return wam.Predicate{}, false, err
 		}
@@ -210,7 +212,7 @@ func (e *Engine) ExpandGoal(_ context.Context, t term.Cell) (term.Cell, error) {
 
 func (e *Engine) LoadSystem(ctx context.Context) error {
 	var (
-		c = Compiler{Engine: e}
+		c = Compiler{Engine: e, Source: atomPrologModule}
 		m ir.Module
 	)
 	if err := c.CompileSystem(ctx, &m); err != nil {
@@ -223,9 +225,19 @@ func (e *Engine) LoadSystem(ctx context.Context) error {
 		return err
 	}
 
-	for pi, p := range e.Predicates {
+	// Every built in predicate is exported, so that it's visible in every
+	// module the way the report has import_builtins make it.
+	prolog := e.module(atomPrologModule)
+	for proc, p := range e.Predicates {
 		p.BuiltIn = true
-		e.Predicates[pi] = p
+		p.Exported = true
+		e.Predicates[proc] = p
+		prolog.Exports[proc.Functor] = struct{}{}
+	}
+
+	e.module(atomUserModule)
+	if e.Module == (term.Atom{}) {
+		e.Module = atomUserModule
 	}
 
 	return nil
@@ -266,7 +278,7 @@ func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string
 	}
 
 	var (
-		c = Compiler{Engine: e}
+		c = Compiler{Engine: e, Source: e.Module, File: filename}
 		m ir.Module
 	)
 	if err := c.CompileText(ctx, &m, text); err != nil {
@@ -289,8 +301,8 @@ func (e *Engine) LoadFile(ctx context.Context, fsName term.Atom, filename string
 
 func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 	if e.Code == nil {
-		e.Predicates = map[term.Functor]wam.Predicate{
-			term.NewFunctor(term.NewAtom("true"), 0): {Offset: 0},
+		e.Predicates = map[term.Procedure]wam.Predicate{
+			term.NewProcedure(atomPrologModule, term.NewFunctor(term.NewAtom("true"), 0)): {Offset: 0},
 		}
 		if err := e.emit(wam.OpProceed, 0, 0); err != nil {
 			return err
@@ -298,12 +310,12 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 	}
 
 	var (
-		current term.Functor
+		current term.Procedure
 		last    int
-		defined = map[term.Functor]struct{}{}
+		defined = map[term.Procedure]struct{}{}
 	)
 	for _, clause := range module.Clauses {
-		bpi := clause.PI
+		bpi := term.NewProcedure(module.Name, clause.PI)
 
 		switch p, _ := e.Predicates[bpi]; {
 		case bpi == current: // A subsequent clause of the current chunk.
@@ -323,11 +335,11 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 			current = bpi
 			p.Offset = len(e.Code)
 			if e.Predicates == nil {
-				e.Predicates = map[term.Functor]wam.Predicate{}
+				e.Predicates = map[term.Procedure]wam.Predicate{}
 			}
 			e.Predicates[bpi] = p
 
-			fid := e.EmbedFunctor(bpi)
+			fid := e.EmbedProcedure(bpi)
 			if err := e.emit(wam.OpSwitch, 0, fid); err != nil {
 				return err
 			}
@@ -343,7 +355,7 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 			if e.Warn == nil {
 				e.Warn = func(error) {}
 			}
-			pi := term.NewFunctor(bpi.Name(), bpi.Arity()-1)
+			pi := unbinarize(bpi.Functor)
 			if _, ok := defined[bpi]; ok {
 				if !p.Discontiguous {
 					e.Warn(fmt.Errorf("discontiguous: %s", pi))
@@ -444,7 +456,7 @@ func (e *Engine) LoadModule(ctx context.Context, module *ir.Module) error {
 			}
 		}
 
-		fid := e.EmbedFunctor(clause.Execute)
+		fid := e.EmbedProcedure(term.NewProcedure(module.Name, clause.Execute))
 		if err := e.emit(wam.OpExecute, 0, fid); err != nil {
 			return err
 		}
@@ -493,7 +505,7 @@ func (e *Engine) rewriteN(addr, n int) error {
 	return nil
 }
 
-func (e *Engine) closePredicate(pi term.Functor, last int) error {
+func (e *Engine) closePredicate(pi term.Procedure, last int) error {
 	if last == 0 {
 		return nil
 	}
@@ -576,7 +588,7 @@ func (e *Engine) DefineBuiltin0(name term.Atom, fn func(context.Context) iter.Se
 
 func (e *Engine) Call(ctx context.Context, goal term.Cell) iter.Seq[error] {
 	// FIXME: iter.Seq[error] is a code smell since each error isn't an element of the sequence but the error of the sequence itself.
-	bpi := term.NewFunctor(term.NewAtom("call"), 2)
+	bpi := term.NewProcedure(atomPrologModule, term.NewFunctor(term.NewAtom("call"), 2))
 	cont, err := e.PutAtom(term.NewAtom("true"))
 	if err != nil {
 		return func(yield func(error) bool) {
