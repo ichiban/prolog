@@ -220,15 +220,6 @@ func unbinarize(f term.Functor) term.Functor {
 	return term.NewFunctor(f.Name(), f.Arity()-1)
 }
 
-func (m *Module) String() string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "module %s", m.Name)
-	if m.File != "" {
-		_, _ = fmt.Fprintf(&sb, " (%s)", m.File)
-	}
-	return sb.String()
-}
-
 // predicateIndicators yields the Name/Arity elements of a list, a conjunction
 // or a single indicator.
 func (e *Engine) predicateIndicators(t term.Cell) iter.Seq2[term.Functor, error] {
@@ -296,70 +287,25 @@ func Colon2(ctx context.Context, a *Activation, module, goal, cont Ref) Promise 
 	return call(ctx, a, m, a.ref(g), cont)
 }
 
-// Module1 is module/1: it sets the type-in module.
-func Module1(_ context.Context, e *Execution, name, cont term.Cell) Promise {
-	m, err := e.mustBeModule(name)
-	if err != nil {
-		return e.Throw(err, cont)
-	}
-	e.module(m)
-	e.Module = m
-	return e.Success(cont)
-}
-
-// CurrentModule1 is current_module/1: Module is a module defined in the system.
+// CurrentModule1 is current_module/1: Module is a module defined in the
+// system. It backtracks through the modules presently there, in name order so
+// that the enumeration doesn't depend on map iteration.
 func CurrentModule1(_ context.Context, a *Activation, module, cont Ref) Promise {
-	return a.modules(cont, func(m *Module) ([]Ref, error) {
-		n, err := a.exec.PutAtom(m.Name)
-		if err != nil {
-			return nil, err
-		}
-		return []Ref{module, a.ref(n)}, nil
-	})
-}
-
-// CurrentModule2 is current_module/2: Module is the module defined in File.
-func CurrentModule2(_ context.Context, a *Activation, module, file, cont Ref) Promise {
-	return a.modules(cont, func(m *Module) ([]Ref, error) {
-		if m.File == "" {
-			return nil, nil
-		}
-		n, err := a.exec.PutAtom(m.Name)
-		if err != nil {
-			return nil, err
-		}
-		f, err := a.exec.PutAtom(term.NewAtom(m.File))
-		if err != nil {
-			return nil, err
-		}
-		return []Ref{module, a.ref(n), file, a.ref(f)}, nil
-	})
-}
-
-// modules backtracks through the modules presently in the system, unifying
-// each against what pairs returns for it. A module pairs says nothing about is
-// skipped.
-func (a *Activation) modules(cont Ref, pairs func(*Module) ([]Ref, error)) Promise {
 	names := slices.SortedFunc(maps.Keys(a.exec.Modules), func(x, y term.Atom) int {
 		return strings.Compare(x.String(), y.String())
 	})
 	return a.Nondet(func(yield func(Promise) bool) {
 		for _, name := range names {
-			ps, err := pairs(a.exec.Modules[name])
+			n, err := a.exec.PutAtom(name)
 			if err != nil {
 				_ = yield(a.Throw(err, cont))
 				return
 			}
-			if ps == nil {
-				continue
-			}
-			ok := true
-			for i := 0; i < len(ps) && ok; i += 2 {
-				ok, err = a.Unify(ps[i], ps[i+1])
-				if err != nil {
-					_ = yield(a.Throw(err, cont))
-					return
-				}
+
+			ok, err := a.Unify(module, a.ref(n))
+			if err != nil {
+				_ = yield(a.Throw(err, cont))
+				return
 			}
 			if !ok {
 				if !yield(Failure()) {
@@ -367,6 +313,7 @@ func (a *Activation) modules(cont Ref, pairs func(*Module) ([]Ref, error)) Promi
 				}
 				continue
 			}
+
 			if !yield(a.Success(cont)) {
 				return
 			}

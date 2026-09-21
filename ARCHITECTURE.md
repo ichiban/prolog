@@ -119,6 +119,8 @@ asserting directive act on the right module without a declaration of their own.
 | Report | Why |
 | ------ | --- |
 | `predicate_property/2` extensions (2.11) | The predicate itself doesn't exist here yet. |
+| `module/1`, which sets the type-in module (2.10) | Nothing called it. `Engine.Module` covers the Go side and `M:G` covers reaching into a module from the top level. If it comes back it belongs in `set_prolog_flag/2` as `typein_module`, the way SICStus has it, which reads as well as writes. |
+| `current_module/2`, which pairs a module with its file (2.10) | Nothing called it. The `Module.File` it read is still recorded, for the check that two files don't declare the same module and to find which module a loaded file went to. |
 | File-to-file compilation, the Emacs interface, delayed goals (2.8, 2.9, 2.13) | No counterpart in this system. |
 
 ## Provenance

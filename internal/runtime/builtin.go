@@ -66,12 +66,6 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("fail"), 1), Type: InHead, Proc: Deterministic0(Fail0)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("call"), 2), Type: InHead, Proc: Nondeterministic1(Call1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("throw"), 2), Type: InHead, Proc: Nondeterministic1(Throw1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(atomColon, 3), Type: InHead, Proc: Nondeterministic2(Colon2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("module"), 2), Type: InHead, Proc: Deterministic1(Module1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_module"), 2), Type: InHead, Proc: Nondeterministic1(CurrentModule1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_module"), 3), Type: InHead, Proc: Nondeterministic2(CurrentModule2)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 2), Type: InHead, Proc: Deterministic1(UseModule1)})
-	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 3), Type: InHead, Proc: Deterministic2(UseModule2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("subsumes_term"), 3), Type: InHead, Proc: Deterministic2(SubsumesTerm2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("var"), 2), Type: InBody, Proc: Inline1(Var1)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("atom"), 2), Type: InBody, Proc: Inline1(Atom1)})
@@ -192,6 +186,12 @@ func NewBuiltinSet() *BuiltinSet {
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$less_eq"), 3), Type: InHead, Proc: Deterministic2(LessEq2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater"), 3), Type: InHead, Proc: Deterministic2(Greater2)})
 	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("$greater_eq"), 3), Type: InHead, Proc: Deterministic2(GreaterEq2)})
+
+	// Module
+	_ = b.Put(Builtin{PI: term.NewFunctor(atomColon, 3), Type: InHead, Proc: Nondeterministic2(Colon2)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("current_module"), 2), Type: InHead, Proc: Nondeterministic1(CurrentModule1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 2), Type: InHead, Proc: Deterministic1(UseModule1)})
+	_ = b.Put(Builtin{PI: term.NewFunctor(term.NewAtom("use_module"), 3), Type: InHead, Proc: Deterministic2(UseModule2)})
 	return &b
 }
 

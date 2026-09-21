@@ -54,8 +54,9 @@ type Engine struct {
 
 	// Module is the type-in module: where goals with no module specification
 	// issued at the top level are called.
-	Module         term.Atom
-	Modules        map[term.Atom]*Module
+	Module  term.Atom
+	Modules map[term.Atom]*Module
+
 	DoubleQuotes   syntax.DoubleQuotes
 	Ops            syntax.OperatorSet
 	CharConversion syntax.CharConversion
