@@ -70,13 +70,29 @@ func (m Mode) Op() ir.OpCode {
 type Compiler struct {
 	*Engine
 
+	// Source is the source module: where the predicates of the text being
+	// compiled are defined and where its goals are called. It's the module of
+	// a module declaration, or the type-in module for a non module file.
+	Source term.Atom
+
+	// File is the name of the file being compiled, recorded with the module it
+	// defines.
+	File string
+
+	// headVars holds the variables that appear in a meta expandable argument
+	// position of the head of the clause being compiled. A goal argument that
+	// is one of them is already expanded by the caller and mustn't be expanded
+	// again.
+	headVars []term.Cell
+
 	counter      int
 	todo         []term.Cell
 	makeVariable func() (term.Cell, error)
 }
 
 func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
-	out.Name = term.NewAtom("prolog")
+	c.Source = atomPrologModule
+	out.Name = atomPrologModule
 	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
@@ -99,13 +115,24 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 		}
 		c.schedule(t)
 	}
+	if c.Source == (term.Atom{}) {
+		c.Source = atomUserModule
+	}
+	out.Name = c.Source
+
+	// Directives run as the text is compiled, and what they do -- asserting,
+	// declaring a predicate dynamic -- has to land in the module the text is
+	// loaded into. The report does this by changing the type-in module for the
+	// duration of the load.
+	typein := c.Module
+	c.Module = c.Source
+	defer func() { c.Module = typein }()
+
 	if err := c.run(ctx, out); err != nil {
 		return err
 	}
-	if c.Module == (term.Atom{}) {
-		c.Module = term.NewAtom("user")
-	}
-	out.Name = c.Module
+	// A module declaration in the text moves it to the module it declares.
+	out.Name = c.Source
 	return nil
 }
 
@@ -165,6 +192,22 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 		if f == term.NewFunctor(term.NewAtom(":-"), 1) {
 			d := c.Arg(t, 0)
 			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
+			case term.NewFunctor(term.NewAtom("module"), 2):
+				if err := c.declareModule(ctx, out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("use_module"), 1):
+				if err := c.useModule(ctx, c.Arg(d, 0), term.Cell{}); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("use_module"), 2):
+				if err := c.useModule(ctx, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+					return err
+				}
+			case term.NewFunctor(term.NewAtom("meta_predicate"), 1):
+				if err := c.declareMeta(c.Arg(d, 0)); err != nil {
+					return err
+				}
 			case term.NewFunctor(term.NewAtom("initialization"), 1):
 				g := c.Arg(d, 0)
 				out.Initialization = append(out.Initialization, g)
@@ -189,7 +232,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
 				fn := c.Arg(d, 0)
 				fn = c.Deref(fn)
-				fsName, filename, err := c.mustBeSourceSink(fn)
+				fsName, filename, err := c.sourceFile(fn)
 				if err != nil {
 					return err
 				}
@@ -199,9 +242,13 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 				}]; ok {
 					break
 				}
-				if err := c.LoadFile(ctx, fsName, filename); err != nil {
+				m, err := c.LoadFile(ctx, fsName, filename)
+				if err != nil {
 					return err
 				}
+				// Loading a module file imports all of its exported
+				// predicates into the module that asked for it.
+				c.Import(m, c.Source, nil)
 			default:
 				for err := range c.Call(ctx, d) {
 					if err != nil {
@@ -213,7 +260,7 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			continue
 		}
 
-		bpi := term.NewFunctor(f.Name(), f.Arity()+1)
+		bpi := term.NewProcedure(c.Source, term.NewFunctor(f.Name(), f.Arity()+1))
 		if p, _ := c.Predicates[bpi]; p.Dynamic {
 			a, err := c.PutCompound(term.NewAtom("assertz"), t)
 			if err != nil {
@@ -243,6 +290,29 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 }
 
 func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, body term.Cell) error {
+	c.headVars = c.headVariables(head)
+	defer func() { c.headVars = nil }()
+
+	pi, ok := c.Functor(head, term.AllowAtom(true))
+	if !ok {
+		return errors.New("clause head is not callable")
+	}
+
+	// The database keeps the clause as it was read. What follows rewrites the
+	// body for the machine -- a cut becomes a barrier, a meta call gets its
+	// module -- and clause/2 and retract/1 have to give back what was written.
+	bpi := term.NewProcedure(c.Source, term.NewFunctor(pi.Name(), pi.Arity()+1))
+	if p, _ := c.Predicates[bpi]; p.Public {
+		cl, err := c.PutCompound(atomNeck, head, body)
+		if err != nil {
+			return err
+		}
+		payload := []byte(syntax.Serialize(c.Arena, cl))
+		if err := c.DB.InsertAfter(ctx, c.Source, pi.Name(), pi.Arity(), payload); err != nil {
+			return err
+		}
+	}
+
 	cont, err := c.PutVariable()
 	if err != nil {
 		return err
@@ -256,22 +326,6 @@ func (c *Compiler) compileClause(ctx context.Context, clause *ir.Clause, head, b
 	binHead, binBody, err := c.Binarize(head, body, cont)
 	if err != nil {
 		return err
-	}
-
-	bpi, _ := c.Functor(binHead)
-	if p, _ := c.Predicates[bpi]; p.Public {
-		cl, err := c.PutCompound(atomNeck, head, body)
-		if err != nil {
-			return err
-		}
-		pi, ok := c.Functor(head, term.AllowAtom(true))
-		if !ok {
-			return errors.New("clause head is not callable")
-		}
-		payload := []byte(syntax.Serialize(c.Arena, cl))
-		if err := c.DB.InsertAfter(ctx, c.Module, pi.Name(), pi.Arity(), payload); err != nil {
-			return err
-		}
 	}
 
 	return c.CompileBinaryClause(clause, binHead, binBody)
@@ -346,7 +400,56 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Cell
 	}
 }
 
+// ReplaceBody turns a goal of a clause body into the form the binarizer takes,
+// and module name expands the arguments of a meta predicate call.
 func (c *Compiler) ReplaceBody(goal, cont term.Cell) (term.Cell, error) {
+	g, err := c.replaceBody(goal, cont)
+	if err != nil {
+		return term.Cell{}, err
+	}
+	return c.metaExpand(g)
+}
+
+// metaExpand prefixes the meta expandable arguments of a goal with the source
+// module, as 2.6 of the report has the compiler do. An argument that carries a
+// prefix already is left alone, and so is a variable that appears in a meta
+// expandable position of the clause head: the caller has expanded it already.
+func (c *Compiler) metaExpand(goal term.Cell) (term.Cell, error) {
+	goal = c.Deref(goal)
+	f, ok := c.Functor(goal)
+	if !ok {
+		return goal, nil
+	}
+	spec := c.MetaSpec(c.Source, f)
+	if spec == nil {
+		return goal, nil
+	}
+
+	args := slices.Collect(c.Args(goal))
+	var changed bool
+	for i, expand := range spec {
+		if !expand || i >= len(args) {
+			continue
+		}
+		a := c.Deref(args[i])
+		if _, ok := c.Variable(a); ok && slices.Contains(c.headVars, a) {
+			continue
+		}
+		q, err := c.Qualify(c.Source, a)
+		if err != nil {
+			return term.Cell{}, err
+		}
+		if q != args[i] {
+			args[i], changed = q, true
+		}
+	}
+	if !changed {
+		return goal, nil
+	}
+	return c.PutCompound(f.Name(), args...)
+}
+
+func (c *Compiler) replaceBody(goal, cont term.Cell) (term.Cell, error) {
 	if c.makeVariable == nil {
 		c.makeVariable = c.PutVariable
 	}
@@ -770,6 +873,9 @@ func (c *Compiler) disjunctionSeq(t, cont term.Cell) iter.Seq2[term.Cell, error]
 
 // Binarize turns a clause p :- q, r into p(C) :- q(r(C)).
 func (c *Compiler) Binarize(head, body, cont term.Cell) (neaHead term.Cell, neaBody term.Cell, _ error) {
+	if c.Source == (term.Atom{}) {
+		c.Source = atomUserModule
+	}
 	var err error
 	hf, ok := c.Functor(head, term.AllowAtom(true))
 	if !ok {
@@ -785,6 +891,20 @@ func (c *Compiler) Binarize(head, body, cont term.Cell) (neaHead term.Cell, neaB
 	return head, body, err
 }
 
+// addCont appends the continuation to a goal, turning a conjunction into the
+// chain of goal structures a binarized clause hands on.
+//
+// Every link but the first is prefixed with the source module: a continuation
+// is a term used as a procedure reference, and in a procedure based module
+// system such a term has to carry the module of the clause that built it,
+// because the predicate that eventually executes it -- true/1, an arbitrary
+// number of calls away -- has no other way to know where its name is defined.
+// The first link is the clause's own execute instruction, whose module the
+// image records, so it stays bare.
+//
+// A link of the prolog module stays bare too, and an unprefixed link is read
+// as prolog's: the system's own predicates are the ones every module can see
+// anyway, and they are the bulk of every continuation built.
 func (c *Compiler) addCont(goal, cont term.Cell) (term.Cell, error) {
 	f, ok := c.Functor(goal, term.AllowAtom(true))
 	if !ok {
@@ -804,6 +924,12 @@ func (c *Compiler) addCont(goal, cont term.Cell) (term.Cell, error) {
 		y, err := c.addCont(y, cont)
 		if err != nil {
 			return term.Cell{}, err
+		}
+		if c.Source != atomPrologModule {
+			y, err = c.Qualify(c.Source, y)
+			if err != nil {
+				return term.Cell{}, err
+			}
 		}
 		f, ok := c.Functor(x, term.AllowAtom(true))
 		if !ok {
@@ -1194,6 +1320,10 @@ func (c *Compiler) compileTerm(clause *ir.Clause, mode Mode, x, t term.Cell) err
 }
 
 func (c *Compiler) compileBody(clause *ir.Clause, body term.Cell) (term.Functor, error) {
+	// The link is compiled into this clause, so its prefix says nothing the
+	// image doesn't already record: drop it and compile the goal itself.
+	body, _ = c.Unqualify(body, atomPrologModule)
+
 	if _, ok := c.Variable(body); ok {
 		var err error
 		body, err = c.PutCompound(term.NewAtom("true"), body)
@@ -1575,4 +1705,118 @@ func rewriteSlice[S ~[]T, T any](s S, fn func(e T, write func(T))) S {
 		fn(e, write)
 	}
 	return s[:j]
+}
+
+// declareModule processes a module declaration. It must come first in a file:
+// the text that follows is loaded into the module it names, and the predicates
+// of the public list are exported.
+func (c *Compiler) declareModule(ctx context.Context, out *ir.Module, name, publics term.Cell) error {
+	m, err := c.mustBeModule(name)
+	if err != nil {
+		return err
+	}
+
+	switch m {
+	case atomPrologModule, atomUserModule:
+		return fmt.Errorf("cannot redefine the %s module", m)
+	}
+
+	if len(out.Clauses) > 0 {
+		return errors.New("a module declaration must come first in the file")
+	}
+
+	mod := c.module(m)
+	if mod.File != "" && mod.File != c.File {
+		return fmt.Errorf("module %s is already defined in %s", m, mod.File)
+	}
+
+	exports := map[term.Functor]struct{}{}
+	for pi, err := range c.predicateIndicators(publics) {
+		if err != nil {
+			return err
+		}
+		exports[term.NewFunctor(pi.Name(), pi.Arity()+1)] = struct{}{}
+	}
+
+	// A predicate that other modules import and this declaration drops from
+	// the public list leaves them importing something that is no longer
+	// exported, which is worth saying out loud.
+	if c.Warn == nil {
+		c.Warn = func(error) {}
+	}
+	for f := range mod.Exports {
+		if _, ok := exports[f]; ok {
+			continue
+		}
+		for _, other := range c.Modules {
+			if from, ok := other.Imports[f]; ok && from == m {
+				c.Warn(fmt.Errorf("%s:%s is imported by %s but no longer exported", m, unbinarize(f), other.Name))
+			}
+		}
+	}
+
+	if err := c.eraseModule(ctx, m); err != nil {
+		return err
+	}
+	mod.File = c.File
+	mod.Exports = exports
+
+	// The predicates that follow are this module's, and so is everything its
+	// directives do.
+	c.Source = m
+	c.Module = m
+	out.Name = m
+	return nil
+}
+
+// declareMeta records a meta_predicate declaration: which arguments of the
+// named predicates are module name expanded.
+func (c *Compiler) declareMeta(spec term.Cell) error {
+	mod := c.module(c.Source)
+	for s := range c.listOrSingleton(spec) {
+		s = c.Deref(s)
+		f, ok := c.Functor(s)
+		if !ok {
+			return fmt.Errorf("invalid meta_predicate specification: %s", c.Inspect(s))
+		}
+		args := make([]bool, f.Arity())
+		for i := range args {
+			a := c.Deref(c.Arg(s, i))
+			// ':' and an integer mean expand; anything else, +, - or ? say,
+			// means leave alone.
+			if x, ok := c.Atom(a); ok && x == atomColon {
+				args[i] = true
+			}
+			if _, ok := c.Integer(a); ok {
+				args[i] = true
+			}
+		}
+		mod.Meta[f] = args
+	}
+	return nil
+}
+
+// headVariables collects the variables the head holds in a meta expandable
+// argument position, if the predicate is a meta predicate.
+func (c *Compiler) headVariables(head term.Cell) []term.Cell {
+	head = c.Deref(head)
+	f, ok := c.Functor(head)
+	if !ok {
+		return nil
+	}
+	spec := c.MetaSpec(c.Source, f)
+	if spec == nil {
+		return nil
+	}
+	var vs []term.Cell
+	for i, expand := range spec {
+		if !expand || i >= f.Arity() {
+			continue
+		}
+		a := c.Deref(c.Arg(head, i))
+		if _, ok := c.Variable(a); ok {
+			vs = append(vs, a)
+		}
+	}
+	return vs
 }

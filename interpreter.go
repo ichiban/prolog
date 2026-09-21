@@ -216,7 +216,8 @@ func (i *Interpreter) Load(ctx context.Context, fsName, filename string) error {
 	if fsName != "" {
 		fsID = term.NewAtom(fsName)
 	}
-	return e.LoadFile(ctx, fsID, filename)
+	_, err := e.LoadFile(ctx, fsID, filename)
+	return err
 }
 
 type VariableName = term.VariableName

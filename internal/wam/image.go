@@ -26,6 +26,13 @@ type Predicate struct {
 	// Offset points to an address in Code to execute this predicate.
 	Offset int
 
+	// ImportedFrom is the module a re-exported predicate was imported from. It
+	// is zero for a predicate the module defines itself.
+	ImportedFrom term.Atom
+
+	// Exported means the predicate is in its module's public list.
+	Exported bool
+
 	// Dynamic means it's not backed by BinWAM code but the clauses in DB.
 	Dynamic bool
 
@@ -51,14 +58,23 @@ type Predicate struct {
 
 // Image is a compiled image of Prolog texts/modules.
 type Image struct {
-	Predicates map[term.Functor]Predicate // TODO: module?
+	Predicates map[term.Procedure]Predicate
 
 	// Code is a sequence of BinWAM instructions.
 	// Its operand may refer to sidecar tables Constants or Functors.
 	// This design choice, instead of holding the value inline, is because Go doesn't support union types.
-	Code      []Instruction
-	Constants []term.Cell
-	Functors  []term.Functor
+	Code       []Instruction
+	Constants  []term.Cell
+	Functors   []term.Functor
+	Procedures []term.Procedure
+}
+
+func (i *Image) EmbedProcedure(p term.Procedure) int {
+	if j := slices.Index(i.Procedures, p); j >= 0 {
+		return j
+	}
+	i.Procedures = append(i.Procedures, p)
+	return len(i.Procedures) - 1
 }
 
 func (i *Image) EmbedConstants(t term.Cell) int {
@@ -136,11 +152,11 @@ func (i *Image) String() string {
 		case OpPutConstant, OpGetConstant:
 			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
 		case OpExecute:
-			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
+			_, _ = fmt.Fprintf(&sb, " %s\n", i.Procedures[inst.N])
 		case OpTryMeElse, OpRetryMeElse:
 			_, _ = fmt.Fprintf(&sb, " %d\n", int(inst.N))
 		case OpSwitch:
-			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
+			_, _ = fmt.Fprintf(&sb, " %s\n", i.Procedures[inst.N])
 		default:
 			_, _ = fmt.Fprintf(&sb, "\n")
 		}

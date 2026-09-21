@@ -23,14 +23,14 @@ func TestCompile(t *testing.T) {
 			title: "empty",
 			text:  ``,
 			result: &ir.Module{
-				Name: term.NewAtom("user"),
+				Name: atomPrologModule,
 			},
 		},
 		{
 			title: "simple",
 			text:  `p :- q.`,
 			result: &ir.Module{
-				Name: term.NewAtom("user"),
+				Name: atomPrologModule,
 				Clauses: []ir.Clause{
 					{
 						PI:      term.NewFunctor(term.NewAtomRune('p'), 1),
@@ -45,7 +45,7 @@ func TestCompile(t *testing.T) {
 			title: "rule",
 			text:  `r(X, Y) :- p(X), q(Y).`,
 			result: &ir.Module{
-				Name: term.NewAtom("user"),
+				Name: atomPrologModule,
 				Clauses: []ir.Clause{
 					{
 						PI:      term.NewFunctor(term.NewAtomRune('r'), 3),
@@ -85,7 +85,7 @@ func TestCompile(t *testing.T) {
 			title: "deep cut",
 			text:  `deep_cut(X) :- p(X), !, q(X).`,
 			result: &ir.Module{
-				Name: term.NewAtom("user"),
+				Name: atomPrologModule,
 				Clauses: []ir.Clause{
 					{
 						PI:      term.NewFunctor(term.NewAtom("deep_cut"), 2),
@@ -141,7 +141,7 @@ func TestCompile(t *testing.T) {
 			title: "equal",
 			text:  `X = Y :- X = Y.`,
 			result: &ir.Module{
-				Name: term.NewAtom("user"),
+				Name: atomPrologModule,
 				Clauses: []ir.Clause{
 					{
 						PI:      term.NewFunctor(term.NewAtomRune('='), 3),
@@ -162,9 +162,10 @@ func TestCompile(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			arena.Heap = arena.Heap[:0]
 			c := Compiler{
+				Source: atomPrologModule,
 				Engine: &Engine{
 					BuiltinSet: &BuiltinSet{},
-					Module:     term.NewAtom("user"),
+					Module:     atomPrologModule,
 					Arena:      arena,
 					Ops:        *syntax.NewOperatorSet(),
 				},
@@ -283,7 +284,7 @@ func TestBinarize(t *testing.T) {
 			head:    `p(X).`,
 			body:    `q(X), r(X).`,
 			newHead: `p(X, Cont).`,
-			newBody: `q(X, r(X, Cont)).`,
+			newBody: `q(X, user:r(X, Cont)).`,
 		},
 		{
 			head:    `p.`,
