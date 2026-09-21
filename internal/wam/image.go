@@ -1,0 +1,150 @@
+package wam
+
+import (
+	"fmt"
+	"iter"
+	"slices"
+	"strings"
+
+	"github.com/ichiban/prolog/v2/internal/syntax"
+	"github.com/ichiban/prolog/v2/internal/term"
+)
+
+type LogicalTime int
+
+type FirstArgKey struct {
+	Term  term.Cell
+	Arity int
+}
+
+type FirstArg struct {
+	FirstArgKey
+	Offset int
+}
+
+type Predicate struct {
+	// Offset points to an address in Code to execute this predicate.
+	Offset int
+
+	// Dynamic means it's not backed by BinWAM code but the clauses in DB.
+	Dynamic bool
+
+	// Public means its clauses appear in DB.
+	Public bool
+
+	// BuiltIn means this predicate is defined by the system i.e. not user-defined.
+	BuiltIn bool
+
+	Multifile bool
+
+	Discontiguous bool
+
+	// LastChoice points to the last choice instruction of the predicate's last
+	// chunk of clauses, so that a later chunk can link itself there.
+	LastChoice int
+
+	LastModifiedAt     LogicalTime
+	LastMaterializedAt LogicalTime
+
+	FirstArgIndex []FirstArg
+}
+
+// Image is a compiled image of Prolog texts/modules.
+type Image struct {
+	Predicates map[term.Functor]Predicate // TODO: module?
+
+	// Code is a sequence of BinWAM instructions.
+	// Its operand may refer to sidecar tables Constants or Functors.
+	// This design choice, instead of holding the value inline, is because Go doesn't support union types.
+	Code      []Instruction
+	Constants []term.Cell
+	Functors  []term.Functor
+}
+
+func (i *Image) EmbedConstants(t term.Cell) int {
+	if j := slices.Index(i.Constants, t); j >= 0 {
+		return j
+	}
+	i.Constants = append(i.Constants, t)
+	return len(i.Constants) - 1
+}
+
+// Cells yields every cell the image embeds, so that GC can mark and relocate
+// them. The image outlives every collection, and a constant that isn't
+// immediate — a float, an integer too wide for a cell, a string — holds an
+// address into the heap.
+func (i *Image) Cells() iter.Seq[*term.Cell] {
+	return func(yield func(*term.Cell) bool) {
+		for j := range i.Constants {
+			if !yield(&i.Constants[j]) {
+				return
+			}
+		}
+
+		// Predicate is a map value and so isn't addressable, but FirstArgIndex
+		// is a slice: the copy shares its backing array with the map's value,
+		// so writing through it updates the index the switch reads.
+		for _, p := range i.Predicates {
+			for j := range p.FirstArgIndex {
+				if !yield(&p.FirstArgIndex[j].Term) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (i *Image) EmbedFunctor(f term.Functor) int {
+	if j := slices.Index(i.Functors, f); j >= 0 {
+		return j
+	}
+	i.Functors = append(i.Functors, f)
+	return len(i.Functors) - 1
+}
+
+func (i *Image) String() string {
+	labels := map[int]string{}
+	for pi, p := range i.Predicates {
+		if p.Dynamic {
+			continue
+		}
+		labels[p.Offset] = pi.String() + ":"
+		for _, i := range p.FirstArgIndex {
+			if i.Arity == 0 {
+				labels[i.Offset] = fmt.Sprintf("(%s):", &syntax.Formatter{Term: i.Term})
+			} else {
+				labels[i.Offset] = fmt.Sprintf("(%s/%d):", &syntax.Formatter{Term: i.Term}, i.Arity)
+			}
+		}
+	}
+
+	var sb strings.Builder
+	for j, inst := range i.Code {
+		l, _ := labels[j]
+		_, _ = fmt.Fprintf(&sb, "%4d %16s %s", j, l, inst.Op)
+		switch inst.Op {
+		case OpWriteValue, OpWriteVariable, OpUnifyValue, OpUnifyVariable:
+			_, _ = fmt.Fprintf(&sb, " X%d\n", inst.I)
+		case OpWriteConstant, OpUnifyConstant:
+			_, _ = fmt.Fprintf(&sb, " %s\n", &syntax.Formatter{Term: i.Constants[inst.N]})
+		case OpPutVariable, OpPutValue, OpGetVariable, OpGetValue:
+			_, _ = fmt.Fprintf(&sb, " X%d, A%d\n", inst.N, inst.I)
+		case OpMove:
+			_, _ = fmt.Fprintf(&sb, " X%d, X%d\n", inst.N, inst.I)
+		case OpPutStructure, OpGetStructure, OpPushStructure:
+			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", i.Functors[inst.N], inst.I)
+		case OpPutConstant, OpGetConstant:
+			_, _ = fmt.Fprintf(&sb, " %s, A%d\n", &syntax.Formatter{Term: i.Constants[inst.N]}, inst.I)
+		case OpExecute:
+			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
+		case OpTryMeElse, OpRetryMeElse:
+			_, _ = fmt.Fprintf(&sb, " %d\n", int(inst.N))
+		case OpSwitch:
+			_, _ = fmt.Fprintf(&sb, " %s\n", i.Functors[inst.N])
+		default:
+			_, _ = fmt.Fprintf(&sb, "\n")
+		}
+	}
+
+	return sb.String()
+}
