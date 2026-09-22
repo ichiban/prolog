@@ -18,8 +18,8 @@ import (
 // Type conversion between Go and Prolog respects this annotation.
 type Atom string
 
-// Raw is a type to annotate the given string represents a term, not an atom nor string.
-type Raw string
+// Expr is a textual representation of an arbitrary Prolog term.
+type Expr string
 
 type InterpreterOptions struct {
 	heapSize     int32
@@ -220,12 +220,10 @@ func (i *Interpreter) Load(ctx context.Context, fsName, filename string) error {
 	return err
 }
 
-type VariableName = term.VariableName
-
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
 	bindings      map[string]any
-	variableNames *[]VariableName
+	variableNames *[]term.VariableName
 }
 
 // QueryOption is a single option for a query.
@@ -246,7 +244,7 @@ func Bind[T Atom | int | int64 | float64 | string](variable string, value T) Que
 	}
 }
 
-func VariableNames(varNames *[]VariableName) QueryOption {
+func variableNames(varNames *[]term.VariableName) QueryOption {
 	return func(o *QueryOptions) {
 		o.variableNames = varNames
 	}
@@ -259,7 +257,7 @@ func VariableNames(varNames *[]VariableName) QueryOption {
 // - int64, for an integer,
 // - float64, for a float,
 // - string, for a char list, or
-// - Raw, for an arbitrary term
+// - Expr, for an arbitrary term
 func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...QueryOption) iter.Seq2[T, error] {
 	var options QueryOptions
 	for _, o := range opts {
@@ -267,7 +265,7 @@ func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...Qu
 	}
 
 	if options.variableNames == nil {
-		options.variableNames = &[]VariableName{}
+		options.variableNames = &[]term.VariableName{}
 	}
 
 	return func(yield func(T, error) bool) {

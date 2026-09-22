@@ -2,7 +2,12 @@ package prolog
 
 import (
 	"context"
+	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/ichiban/prolog/v2/internal/runtime"
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 // The zero Term belongs to no activation and so names no cell: dereferencing it
@@ -161,5 +166,83 @@ func TestActivation_Nondet_abandonedQuery(t *testing.T) {
 	}
 	if _, err := activation.NewAtom("probe"); err != errActivationClosed {
 		t.Errorf("expected: %v, got: %v", errActivationClosed, err)
+	}
+}
+
+// activation returns an Activation backed by a bare execution, without an
+// engine run behind it.
+func activation() Activation {
+	return Activation{activation: runtime.NewActivation(&runtime.Execution{
+		Engine: &runtime.Engine{Arena: term.NewArena(1024)},
+	})}
+}
+
+func TestActivation_Compound(t *testing.T) {
+	tests := []struct {
+		title string
+		setUp func(a Activation) Term
+		close bool
+		name  Atom
+		args  []Atom
+		err   string
+	}{
+		{
+			title: "compound",
+			setUp: func(a Activation) Term {
+				return must(a.NewCompound("f", must(a.NewAtom("a")), must(a.NewAtom("b"))))
+			},
+			name: `f`,
+			args: []Atom{`a`, `b`},
+		},
+		{
+			title: "atom",
+			setUp: func(a Activation) Term { return must(a.NewAtom("a")) },
+			err:   `valid type = compound`,
+		},
+		{
+			title: "variable",
+			setUp: func(a Activation) Term { return must(a.NewVariable()) },
+			err:   `instantiation error`,
+		},
+		{
+			title: "foreign term",
+			setUp: func(a Activation) Term { return must(activation().NewAtom("a")) },
+			err:   errInvalidTerm.Error(),
+		},
+		{
+			title: "closed activation",
+			setUp: func(a Activation) Term { return must(a.NewAtom("a")) },
+			close: true,
+			err:   errActivationClosed.Error(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			a := activation()
+			arg := test.setUp(a)
+			if test.close {
+				a.activation.Close()
+			}
+
+			name, ts, err := a.Compound(arg)
+
+			switch {
+			case test.err == "" && err != nil:
+				t.Errorf("expected: no error, got: %v", err)
+			case test.err != "" && (err == nil || !strings.Contains(err.Error(), test.err)):
+				t.Errorf("expected: %s, got: %v", test.err, err)
+			}
+			if name != test.name {
+				t.Errorf("expected: %v, got: %v", test.name, name)
+			}
+			var args []Atom
+			for _, t := range ts {
+				args = append(args, must(a.Atom(t)))
+			}
+			if !reflect.DeepEqual(args, test.args) {
+				t.Errorf("expected: %v, got: %v", test.args, args)
+			}
+		})
 	}
 }

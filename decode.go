@@ -12,7 +12,7 @@ import (
 
 var (
 	typeAtom = reflect.TypeFor[Atom]()
-	typeRaw  = reflect.TypeFor[Raw]()
+	typeRaw  = reflect.TypeFor[Expr]()
 )
 
 // decoder copies the bindings of one solution into a Go value.
@@ -132,7 +132,7 @@ func (d decoder) decodeTerm(dest reflect.Value, h term.Cell) error {
 	e := &d.i.engine
 	h = e.Deref(h)
 
-	// Atom and Raw are string types, so they're matched before Kind is
+	// Atom and Expr are string types, so they're matched before Kind is
 	// consulted below.
 	switch dest.Type() {
 	case typeAtom:
@@ -214,7 +214,7 @@ func (d decoder) decodeSlice(dest reflect.Value, h term.Cell) error {
 
 // decodeAny converts h into the Go type that represents it most closely: an
 // unbound variable becomes nil, a list becomes []any, otherwise Atom, int64,
-// float64 or string. A term that has no such representation becomes Raw.
+// float64 or string. A term that has no such representation becomes Expr.
 func (d decoder) decodeAny(h term.Cell) (any, error) {
 	e := &d.i.engine
 
@@ -239,7 +239,7 @@ func (d decoder) decodeAny(h term.Cell) (any, error) {
 	if elems, ok := d.anyList(h); ok {
 		return elems, nil
 	}
-	return Raw(d.format(h)), nil
+	return Expr(d.format(h)), nil
 }
 
 func (d decoder) anyList(h term.Cell) ([]any, bool) {
