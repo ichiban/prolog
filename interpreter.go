@@ -18,8 +18,8 @@ import (
 // Type conversion between Go and Prolog respects this annotation.
 type Atom string
 
-// Raw is a type to annotate the given string represents a term, not an atom nor string.
-type Raw string
+// Expr is a textual representation of an arbitrary Prolog term.
+type Expr string
 
 type InterpreterOptions struct {
 	heapSize     int32
@@ -257,7 +257,7 @@ func variableNames(varNames *[]term.VariableName) QueryOption {
 // - int64, for an integer,
 // - float64, for a float,
 // - string, for a char list, or
-// - Raw, for an arbitrary term
+// - Expr, for an arbitrary term
 func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...QueryOption) iter.Seq2[T, error] {
 	var options QueryOptions
 	for _, o := range opts {

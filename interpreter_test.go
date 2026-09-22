@@ -1989,7 +1989,7 @@ a`},
 			}
 
 			for _, p := range test.setup {
-				for _, err := range i.Query[map[string]Raw](t.Context(), p) {
+				for _, err := range i.Query[map[string]Expr](t.Context(), p) {
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1997,7 +1997,7 @@ a`},
 			}
 			defer func() {
 				for _, p := range test.teardown {
-					for _, err := range i.Query[map[string]Raw](t.Context(), p) {
+					for _, err := range i.Query[map[string]Expr](t.Context(), p) {
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -2009,7 +2009,7 @@ a`},
 				j   int
 				vns []term.VariableName
 			)
-			for _, err := range i.Query[map[string]Raw](t.Context(), test.query, variableNames(&vns)) {
+			for _, err := range i.Query[map[string]Expr](t.Context(), test.query, variableNames(&vns)) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)
@@ -2036,7 +2036,7 @@ a`},
 							ok  bool
 							vns = slices.Clone(vns)
 						)
-						for _, err := range i.Query[map[string]Raw](t.Context(), expectation, variableNames(&vns)) {
+						for _, err := range i.Query[map[string]Expr](t.Context(), expectation, variableNames(&vns)) {
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -2087,7 +2087,7 @@ func solutions(t *testing.T, i *Interpreter, query string) []string {
 	t.Helper()
 
 	var got []string
-	for r, err := range i.Query[map[string]Raw](t.Context(), query) {
+	for r, err := range i.Query[map[string]Expr](t.Context(), query) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2236,7 +2236,7 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 
 	var ok bool
-	for _, err := range i.Query[map[string]Raw](t.Context(), `q([a, b, c]).`) {
+	for _, err := range i.Query[map[string]Expr](t.Context(), `q([a, b, c]).`) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2279,7 +2279,7 @@ func TestInterpreter_Load_module(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.query, func(t *testing.T) {
 			var got []string
-			for r, err := range i.Query[map[string]Raw](t.Context(), test.query) {
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query) {
 				if err != nil {
 					if test.err == "" || !strings.Contains(err.Error(), test.err) {
 						t.Fatalf("got error %v, want %q", err, test.err)
@@ -2314,7 +2314,7 @@ func TestInterpreter_Load_module_reload(t *testing.T) {
 	}
 
 	var got []string
-	for r, err := range i.Query[map[string]Raw](t.Context(), `module_lists:app([1], [2], X).`) {
+	for r, err := range i.Query[map[string]Expr](t.Context(), `module_lists:app([1], [2], X).`) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2332,7 +2332,7 @@ func TestBind(t *testing.T) {
 		title   string
 		query   string
 		options []QueryOption
-		X       Raw
+		X       Expr
 	}{
 		{title: "atom", query: `true.`, options: []QueryOption{Bind("X", Atom("foo"))}, X: `foo`},
 		{title: "int", query: `true.`, options: []QueryOption{Bind("X", 1)}, X: `1`},
@@ -2343,7 +2343,7 @@ func TestBind(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			for r, err := range i.Query[map[string]Raw](t.Context(), test.query, test.options...) {
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query, test.options...) {
 				if err != nil {
 					t.Fatal(err)
 				}

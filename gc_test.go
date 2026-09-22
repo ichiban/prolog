@@ -70,7 +70,7 @@ func gcSolution(t *testing.T, heapSize int32, query string) string {
 		t.Fatal(err)
 	}
 
-	for r, err := range i.Query[map[string]Raw](t.Context(), query) {
+	for r, err := range i.Query[map[string]Expr](t.Context(), query) {
 		if err != nil {
 			t.Fatalf("%s: %v", query, err)
 		}
