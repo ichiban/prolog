@@ -12,16 +12,6 @@ import (
 	"github.com/ichiban/prolog/v2/internal/term"
 )
 
-// activation returns an Activation over an execution with a heap of the given
-// size.
-func activation(size int) *Activation {
-	return &Activation{
-		exec: &Execution{
-			Engine: &Engine{Arena: term.NewArena(size)},
-		},
-	}
-}
-
 func TestActivation_ref(t *testing.T) {
 	tests := []struct {
 		title string
@@ -53,7 +43,7 @@ func TestActivation_ref(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 			cells := test.cells(a)
 
 			refs := make([]Ref, len(cells))
@@ -82,7 +72,7 @@ func TestActivation_ref(t *testing.T) {
 }
 
 func TestCells(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 	tests := []struct {
 		title string
@@ -137,7 +127,7 @@ func TestActivation_Success(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 			a.exec.programPointer = 3
 			cont := test.cont(a)
 
@@ -158,7 +148,7 @@ func TestActivation_Success(t *testing.T) {
 }
 
 func TestActivation_Failure(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 	p := a.Failure()
 
@@ -187,7 +177,8 @@ func TestActivation_Throw(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(64)
+
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 			cont := a.ref(must(a.exec.PutAtom(term.NewAtom("true"))))
 
 			p := a.Throw(test.err, cont)
@@ -223,7 +214,7 @@ func TestActivation_Nondet(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 			p := a.Nondet(test.seq)
 
@@ -281,7 +272,7 @@ func TestActivation_Unify(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(32)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 			x, y := test.terms(a)
 
 			ok, err := a.Unify(x, y)
@@ -331,7 +322,7 @@ func TestActivation_Deref(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 			x := test.term(t, a)
 
 			got := a.Deref(x)
@@ -348,7 +339,7 @@ func TestActivation_Deref(t *testing.T) {
 }
 
 func TestActivation_Variable(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 	tests := []struct {
 		title string
@@ -383,7 +374,7 @@ func TestActivation_Variable(t *testing.T) {
 }
 
 func TestActivation_Atom(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 	tests := []struct {
 		title string
@@ -418,7 +409,7 @@ func TestActivation_Atom(t *testing.T) {
 }
 
 func TestActivation_Functor(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 	tests := []struct {
 		title   string
@@ -548,7 +539,7 @@ func TestActivation_MustBe(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 			value, err := test.call(a, test.term(a))
 
@@ -563,7 +554,7 @@ func TestActivation_MustBe(t *testing.T) {
 }
 
 func TestActivation_Arg(t *testing.T) {
-	a := activation(16)
+	a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 	c := a.ref(must(a.exec.PutCompound(term.NewAtom("foo"), must(a.exec.PutAtom(term.NewAtom("bar"))), must(a.exec.PutInteger(1)))))
 
 	tests := []struct {
@@ -629,7 +620,7 @@ func TestActivation_Args(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(16)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(16)}})
 
 			var args []syntax.Serialized
 			for arg := range a.Args(test.term(a)) {
@@ -695,7 +686,7 @@ func TestActivation_MustBeList(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(32)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(32)}})
 
 			var elems []syntax.Serialized
 			err := a.MustBeList(test.term(a), func(elem Ref) error {
@@ -856,7 +847,7 @@ func TestActivation_Put(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			a := activation(test.size)
+			a := NewActivation(&Execution{Engine: &Engine{Arena: term.NewArena(test.size)}})
 
 			r, err := test.put(a)
 

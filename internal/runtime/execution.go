@@ -471,16 +471,14 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				a := Activation{
-					exec: e,
-				}
-				switch p := b.Proc.Call(ctx, &a); {
+				a := NewActivation(e)
+				switch p := b.Proc.Call(ctx, a); {
 				case p.err != nil:
 					a.Close()
 					_ = yield(p.err)
 					return
 				case p.delayed != nil:
-					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), &a); err != nil {
+					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), a); err != nil {
 						_ = yield(err)
 						return
 					}
