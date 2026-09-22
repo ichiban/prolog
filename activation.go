@@ -22,8 +22,8 @@ type Term struct {
 }
 
 // Outcome is the result of a custom builtin predicate.
-// Construct one with [Activation.Success], [Execution.Failure], [Activation.Error],
-// [Execution.Unification], or [Activation.Nondet].
+// Construct one with [Activation.Success], [Activation.Failure], [Activation.Error],
+// [Activation.Unification], or [Activation.Nondet].
 type Outcome struct {
 	promise runtime.Promise
 }
