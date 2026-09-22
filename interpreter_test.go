@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 //go:embed testdata
@@ -2005,9 +2007,9 @@ a`},
 
 			var (
 				j   int
-				vns []VariableName
+				vns []term.VariableName
 			)
-			for _, err := range i.Query[map[string]Raw](t.Context(), test.query, VariableNames(&vns)) {
+			for _, err := range i.Query[map[string]Raw](t.Context(), test.query, variableNames(&vns)) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)
@@ -2034,7 +2036,7 @@ a`},
 							ok  bool
 							vns = slices.Clone(vns)
 						)
-						for _, err := range i.Query[map[string]Raw](t.Context(), expectation, VariableNames(&vns)) {
+						for _, err := range i.Query[map[string]Raw](t.Context(), expectation, variableNames(&vns)) {
 							if err != nil {
 								t.Fatal(err)
 							}

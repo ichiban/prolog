@@ -220,12 +220,10 @@ func (i *Interpreter) Load(ctx context.Context, fsName, filename string) error {
 	return err
 }
 
-type VariableName = term.VariableName
-
 // QueryOptions is a set of options for a query.
 type QueryOptions struct {
 	bindings      map[string]any
-	variableNames *[]VariableName
+	variableNames *[]term.VariableName
 }
 
 // QueryOption is a single option for a query.
@@ -246,7 +244,7 @@ func Bind[T Atom | int | int64 | float64 | string](variable string, value T) Que
 	}
 }
 
-func VariableNames(varNames *[]VariableName) QueryOption {
+func variableNames(varNames *[]term.VariableName) QueryOption {
 	return func(o *QueryOptions) {
 		o.variableNames = varNames
 	}
@@ -267,7 +265,7 @@ func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...Qu
 	}
 
 	if options.variableNames == nil {
-		options.variableNames = &[]VariableName{}
+		options.variableNames = &[]term.VariableName{}
 	}
 
 	return func(yield func(T, error) bool) {
