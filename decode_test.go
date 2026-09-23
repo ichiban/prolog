@@ -38,7 +38,7 @@ func TestInterpreter_Query_mapOfAny(t *testing.T) {
 		{title: "list of integers", query: `X = [1,2,3].`, want: map[string]any{"X": []any{int64(1), int64(2), int64(3)}}},
 		{title: "list of atoms", query: `X = [foo,bar].`, want: map[string]any{"X": []any{Atom("foo"), Atom("bar")}}},
 		{title: "nested list", query: `X = [[1],[2]].`, want: map[string]any{"X": []any{[]any{int64(1)}, []any{int64(2)}}}},
-		{title: "compound", query: `X = f(y).`, want: map[string]any{"X": Raw("f(y)")}},
+		{title: "compound", query: `X = f(y).`, want: map[string]any{"X": Expr("f(y)")}},
 		{title: "several variables", query: `X = foo, Y = 1.`, want: map[string]any{"X": Atom("foo"), "Y": int64(1)}},
 		// Unbound variables have no binding, so they're left out.
 		{title: "unbound variable", query: `X = 1, var(Y).`, want: map[string]any{"X": int64(1)}},
@@ -101,12 +101,12 @@ func TestInterpreter_Query_mapOfTyped(t *testing.T) {
 		}
 	})
 
-	t.Run("Raw", func(t *testing.T) {
-		got, err := decode[map[string]Raw](t, `X = f(y), Y = foo.`)
+	t.Run("Expr", func(t *testing.T) {
+		got, err := decode[map[string]Expr](t, `X = f(y), Y = foo.`)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := (map[string]Raw{"X": "f(y)", "Y": "foo"}); !maps.Equal(got, want) {
+		if want := (map[string]Expr{"X": "f(y)", "Y": "foo"}); !maps.Equal(got, want) {
 			t.Errorf("got: %v, want: %v", got, want)
 		}
 	})
@@ -133,14 +133,14 @@ func TestInterpreter_Query_mapOfTyped(t *testing.T) {
 	})
 }
 
-// map[string]Raw gives every binding as its text, whatever the term is.
+// map[string]Expr gives every binding as its text, whatever the term is.
 func TestInterpreter_Query_raw(t *testing.T) {
-	got, err := decode[map[string]Raw](t, `X = f(y).`)
+	got, err := decode[map[string]Expr](t, `X = f(y).`)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if want := map[string]Raw{"X": "f(y)"}; !maps.Equal(got, want) {
+	if want := map[string]Expr{"X": "f(y)"}; !maps.Equal(got, want) {
 		t.Errorf("got: %v, want: %v", got, want)
 	}
 }

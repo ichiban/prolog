@@ -19,6 +19,11 @@ type Activation struct {
 	closed   bool
 }
 
+// NewActivation creates an Activation.
+func NewActivation(e *Execution) *Activation {
+	return &Activation{exec: e}
+}
+
 func (a *Activation) ref(t term.Cell) Ref {
 	c := new(t)
 	a.captured = append(a.captured, weak.Make(c))

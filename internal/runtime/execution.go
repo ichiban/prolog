@@ -310,8 +310,9 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 					_ = yield(err)
 					return
 				}
-				bpi := e.Functors[n]
-				p, ok, err := e.Predicate(bpi)
+				proc := e.Procedures[n]
+				bpi := proc.Functor
+				p, ok, err := e.Predicate(proc)
 				if err != nil {
 					_ = yield(err)
 					return
@@ -333,8 +334,13 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 						_ = yield(err)
 						return
 					}
+					g, err = e.Qualify(proc.Module, g)
+					if err != nil {
+						_ = yield(err)
+						return
+					}
 					cont := e.tempVars[bpi.Arity()]
-					call, ok, err := e.Predicate(term.NewFunctor(term.NewAtom("call"), 2))
+					call, ok, err := e.Predicate(term.NewProcedure(atomPrologModule, term.NewFunctor(term.NewAtom("call"), 2)))
 					if err != nil {
 						_ = yield(err)
 						return
@@ -407,7 +413,7 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				e.tempVars[n] = e.tempVars[i]
 				e.Next()
 			case wam.OpSwitch: // switch
-				pi := e.Functors[n]
+				pi := e.Procedures[n]
 				var (
 					t     = e.tempVars[1]
 					arity int
@@ -465,16 +471,14 @@ func (e *Execution) run(ctx context.Context) iter.Seq[error] {
 				}
 				bid := int(inst.Op - wam.OpBuiltin0)
 				b := e.BuiltinSet.Get(bid)
-				a := Activation{
-					exec: e,
-				}
-				switch p := b.Proc.Call(ctx, &a); {
+				a := NewActivation(e)
+				switch p := b.Proc.Call(ctx, a); {
 				case p.err != nil:
 					a.Close()
 					_ = yield(p.err)
 					return
 				case p.delayed != nil:
-					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), &a); err != nil {
+					if err := e.pushSeqStackFrame(p.delayed, b.PI.Arity(), a); err != nil {
 						_ = yield(err)
 						return
 					}

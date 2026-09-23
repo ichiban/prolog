@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/ichiban/prolog/v2/internal/term"
 )
 
 //go:embed testdata
@@ -1987,7 +1989,7 @@ a`},
 			}
 
 			for _, p := range test.setup {
-				for _, err := range i.Query[map[string]Raw](t.Context(), p) {
+				for _, err := range i.Query[map[string]Expr](t.Context(), p) {
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1995,7 +1997,7 @@ a`},
 			}
 			defer func() {
 				for _, p := range test.teardown {
-					for _, err := range i.Query[map[string]Raw](t.Context(), p) {
+					for _, err := range i.Query[map[string]Expr](t.Context(), p) {
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -2005,9 +2007,9 @@ a`},
 
 			var (
 				j   int
-				vns []VariableName
+				vns []term.VariableName
 			)
-			for _, err := range i.Query[map[string]Raw](t.Context(), test.query, VariableNames(&vns)) {
+			for _, err := range i.Query[map[string]Expr](t.Context(), test.query, variableNames(&vns)) {
 				if err != nil {
 					if test.err == "" {
 						t.Fatal(err)
@@ -2034,7 +2036,7 @@ a`},
 							ok  bool
 							vns = slices.Clone(vns)
 						)
-						for _, err := range i.Query[map[string]Raw](t.Context(), expectation, VariableNames(&vns)) {
+						for _, err := range i.Query[map[string]Expr](t.Context(), expectation, variableNames(&vns)) {
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -2085,7 +2087,7 @@ func solutions(t *testing.T, i *Interpreter, query string) []string {
 	t.Helper()
 
 	var got []string
-	for r, err := range i.Query[map[string]Raw](t.Context(), query) {
+	for r, err := range i.Query[map[string]Expr](t.Context(), query) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2234,7 +2236,7 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 
 	var ok bool
-	for _, err := range i.Query[map[string]Raw](t.Context(), `q([a, b, c]).`) {
+	for _, err := range i.Query[map[string]Expr](t.Context(), `q([a, b, c]).`) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2245,6 +2247,84 @@ func TestInterpreter_Load_ensure_loaded(t *testing.T) {
 	}
 }
 
+// A module file's public predicates are visible in the module that imports it,
+// its private ones only under a module prefix, and what it metacalls -- a
+// goal handed to findall/3, a clause handed to assertz/1 -- lands in the
+// module the clause was written in, not in the one that called it.
+func TestInterpreter_Load_module(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "", "testdata/module_main.pl"); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		query string
+		want  []string
+		err   string
+	}{
+		{query: `p(X).`, want: []string{`[1,2,3]`}},
+		{query: `app([1], [2], X).`, want: []string{`[1,2]`}},
+		{query: `module_lists:app([1], [2], X).`, want: []string{`[1,2]`}},
+		{query: `all_secrets(X).`, want: []string{`[42]`}},
+		{query: `guarded(X).`, want: nil},
+		{query: `module_lists:secret(X).`, want: []string{`42`}},
+		{query: `secret(X).`, err: `existence_error(procedure,secret/1)`},
+		{query: `stash(7), module_lists:stashed(X).`, want: []string{`7`}},
+		{query: `current_module(module_lists).`, want: []string{``}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.query, func(t *testing.T) {
+			var got []string
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query) {
+				if err != nil {
+					if test.err == "" || !strings.Contains(err.Error(), test.err) {
+						t.Fatalf("got error %v, want %q", err, test.err)
+					}
+					return
+				}
+				got = append(got, string(r["X"]))
+			}
+			if test.err != "" {
+				t.Fatalf("expected error %q", test.err)
+			}
+			if !slices.Equal(got, test.want) {
+				t.Errorf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// A module declaration replaces what its module held: reloading its file
+// neither doubles the clauses it still defines nor leaves behind the ones it
+// no longer does. The code of the erased predicates stays in the image, which
+// is append only, and nothing reaches it any more.
+func TestInterpreter_Load_module_reload(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := i.Load(t.Context(), "", "testdata/module_lists.pl"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var got []string
+	for r, err := range i.Query[map[string]Expr](t.Context(), `module_lists:app([1], [2], X).`) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(r["X"]))
+	}
+	if want := []string{`[1,2]`}; !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestBind(t *testing.T) {
 	i := New()
 
@@ -2252,7 +2332,7 @@ func TestBind(t *testing.T) {
 		title   string
 		query   string
 		options []QueryOption
-		X       Raw
+		X       Expr
 	}{
 		{title: "atom", query: `true.`, options: []QueryOption{Bind("X", Atom("foo"))}, X: `foo`},
 		{title: "int", query: `true.`, options: []QueryOption{Bind("X", 1)}, X: `1`},
@@ -2263,7 +2343,7 @@ func TestBind(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
-			for r, err := range i.Query[map[string]Raw](t.Context(), test.query, test.options...) {
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query, test.options...) {
 				if err != nil {
 					t.Fatal(err)
 				}

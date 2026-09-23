@@ -15,20 +15,21 @@ var (
 )
 
 // Term is a reference to Prolog datum.
-// It is only available while the corresponding [Activation] is open.
+// It is only valid on the associated [Activation], and only while that activation is open.
 type Term struct {
 	activation *runtime.Activation
 	ref        runtime.Ref
 }
 
 // Outcome is the result of a custom builtin predicate.
-// Construct one with [Activation.Success], [Execution.Failure], [Activation.Error],
-// [Execution.Unification], or [Activation.Nondet].
+// Construct one with [Activation.Success], [Activation.Failure], [Activation.Error],
+// [Activation.Unification], or [Activation.Nondet].
 type Outcome struct {
 	promise runtime.Promise
 }
 
 // Activation is an abstraction of the Prolog engine while a custom builtin predicate is active.
+// Once it's closed by the Prolog engine, any operations on it lead to an error.
 type Activation struct {
 	activation *runtime.Activation
 	cont       runtime.Ref
@@ -132,32 +133,20 @@ func (a Activation) Float(t Term) (float64, error) {
 	return a.activation.MustBeFloat(t.ref)
 }
 
-// Functor returns the name and arity of a compound term. It returns an error if it's not a compound term.
-func (a Activation) Functor(t Term) (Atom, int, error) {
+// Compound returns the name and arguments of a compound term. It returns an error if it's not a compound term.
+func (a Activation) Compound(t Term) (Atom, []Term, error) {
 	if err := a.validate(t); err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 	f, err := a.activation.MustBeCompound(t.ref)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
-	return Atom(f.Name().String()), f.Arity(), nil
-}
-
-// Arg returns the N-th argument of a compound term. It returns an error if it's not a compound term or the index is invalid.
-func (a Activation) Arg(t Term, n int) (Term, error) {
-	if err := a.validate(t); err != nil {
-		return Term{}, err
+	args := make([]Term, 0, f.Arity())
+	for arg := range a.activation.Args(t.ref) {
+		args = append(args, Term{activation: a.activation, ref: arg})
 	}
-	f, err := a.activation.MustBeCompound(t.ref)
-	if err != nil {
-		return Term{}, err
-	}
-	if n < 0 || n >= f.Arity() {
-		return Term{}, errors.New("argument out of range")
-	}
-	c := a.activation.Arg(t.ref, n)
-	return Term{activation: a.activation, ref: c}, nil
+	return Atom(f.Name().String()), args, nil
 }
 
 // String returns the string value of a character list. It returns an error if it's not a character list.

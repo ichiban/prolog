@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/ichiban/prolog/v2"
@@ -66,11 +68,8 @@ func (r *repl) solve(ctx context.Context, query string) (complete bool) {
 	}
 	go r.interrupt(ctx, cancel)
 
-	var (
-		names []prolog.VariableName
-		found bool
-	)
-	for solution, err := range r.i.Query[map[string]prolog.Raw](ctx, query, prolog.VariableNames(&names)) {
+	var found bool
+	for solution, err := range r.i.Query[map[string]prolog.Expr](ctx, query) {
 		switch {
 		case err == nil:
 		case ctx.Err() != nil:
@@ -84,7 +83,7 @@ func (r *repl) solve(ctx context.Context, query string) (complete bool) {
 		}
 
 		found = true
-		if !r.show(solution, names) {
+		if !r.show(solution) {
 			return true
 		}
 	}
@@ -97,13 +96,17 @@ func (r *repl) solve(ctx context.Context, query string) (complete bool) {
 
 // show prints one solution and asks whether to look for another, the way a
 // Prolog top level does: ';' or space for the next one, anything else to stop.
-func (r *repl) show(solution map[string]prolog.Raw, names []prolog.VariableName) bool {
+//
+// ponytail: bindings come out in alphabetical order rather than the order the
+// query named its variables, which is what a solution map can offer. Query
+// would have to report the order, and the option that used to carry it was
+// unexported for leaking term.Cell.
+func (r *repl) show(solution map[string]prolog.Expr) bool {
 	var bindings []string
-	for _, n := range names {
-		// A variable the writer named '_' or '_Something' is theirs to ignore,
-		// and one left unbound has nothing to report.
-		if t, ok := solution[n.Name]; ok && !strings.HasPrefix(n.Name, "_") {
-			bindings = append(bindings, fmt.Sprintf("%s = %s", n.Name, t))
+	for _, n := range slices.Sorted(maps.Keys(solution)) {
+		// A variable the writer named '_Something' is theirs to ignore.
+		if !strings.HasPrefix(n, "_") {
+			bindings = append(bindings, fmt.Sprintf("%s = %s", n, solution[n]))
 		}
 	}
 	if len(bindings) == 0 {
