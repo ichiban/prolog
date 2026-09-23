@@ -342,18 +342,39 @@ func (i *Interpreter) Query[T any](ctx context.Context, query string, opts ...Qu
 	}
 }
 
+// wrapError describes err as the ISO error term it stands for, formatted with
+// the names the query gave its variables.
 func (i *Interpreter) wrapError(err error, varNames []term.VariableName) error {
 	origErr := err
 	errTerm, err := runtime.ErrorTerm(i.engine.Arena, err)
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("%s: %w", &syntax.Formatter{
-		Arena:         i.engine.Arena,
-		Term:          errTerm,
-		VariableNames: varNames,
-		Quoted:        true,
-	}, origErr)
+	return &queryError{
+		ball: fmt.Sprintf("%s", &syntax.Formatter{
+			Arena:         i.engine.Arena,
+			Term:          errTerm,
+			VariableNames: varNames,
+			Quoted:        true,
+		}),
+		err: origErr,
+	}
+}
+
+// queryError is an error a query raised. It reads as the error term alone,
+// since the error it came from describes the same thing in less detail, and
+// wraps that error so errors.Is and errors.As still reach it.
+type queryError struct {
+	ball string
+	err  error
+}
+
+func (e *queryError) Error() string {
+	return e.ball
+}
+
+func (e *queryError) Unwrap() error {
+	return e.err
 }
 
 func (i *Interpreter) encodeTerm(v any) (term.Cell, error) {
