@@ -93,40 +93,59 @@ type Compiler struct {
 func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
 	c.Source = atomPrologModule
 	out.Name = atomPrologModule
+
+	// The system's own directives belong to the prolog module, the same way a
+	// loaded text's belong to the module it declares.
+	typein := c.Module
+	c.Module = c.Source
+	defer func() { c.Module = typein }()
+
 	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
 		}
 
-		c.schedule(t)
+		if err := c.read(ctx, out, t); err != nil {
+			return err
+		}
 	}
 	return c.run(ctx, out)
 }
 
 // CompileText compiles a Prolog text into a module.
 func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string) error {
+	if c.Source == (term.Atom{}) {
+		c.Source = atomUserModule
+	}
+
+	// Directives run as the text is read, and what they do -- asserting,
+	// declaring a predicate dynamic -- has to land in the module the text is
+	// loaded into. The report does this by changing the type-in module for the
+	// duration of the load.
+	//
+	// The caller's module has to be saved before the first directive runs: a
+	// module declaration moves the type-in module itself, so a save taken after
+	// the text was read would capture the declared module and restore that
+	// instead of what the caller was in.
+	typein := c.Module
+	c.Module = c.Source
+	defer func() { c.Module = typein }()
+
 	for t, err := range syntax.Parse(strings.NewReader(text),
 		syntax.Arena(c.Arena),
 		syntax.Operators(&c.Ops),
 		syntax.DoubleQuote(&c.DoubleQuotes),
+		syntax.CharConv(&c.CharConversion),
 	) {
 		if err != nil {
 			return err
 		}
-		c.schedule(t)
-	}
-	if c.Source == (term.Atom{}) {
-		c.Source = atomUserModule
+
+		if err := c.read(ctx, out, t); err != nil {
+			return err
+		}
 	}
 	out.Name = c.Source
-
-	// Directives run as the text is compiled, and what they do -- asserting,
-	// declaring a predicate dynamic -- has to land in the module the text is
-	// loaded into. The report does this by changing the type-in module for the
-	// duration of the load.
-	typein := c.Module
-	c.Module = c.Source
-	defer func() { c.Module = typein }()
 
 	if err := c.run(ctx, out); err != nil {
 		return err
@@ -140,21 +159,119 @@ func (c *Compiler) schedule(t term.Cell) {
 	c.todo = append(c.todo, t)
 }
 
-// include schedules the terms of an included text ahead of the ones left in the
-// including text, so that they take the place of the include/1 directive.
-func (c *Compiler) include(r io.RuneReader) error {
-	var ts []term.Cell
+// read takes one term of a Prolog text as it comes off the parser. A directive
+// runs right away, so that what it changes -- the operator table, the character
+// conversions, the type-in module -- is in effect for the terms that follow it
+// in the same text. Anything else is queued for compilation.
+func (c *Compiler) read(ctx context.Context, out *ir.Module, t term.Cell) error {
+	t, err := c.Engine.ExpandGoal(ctx, t)
+	if err != nil {
+		return err
+	}
+	switch ok, err := c.directive(ctx, out, t); {
+	case err != nil:
+		return err
+	case ok:
+		return nil
+	}
+	c.schedule(t)
+	return nil
+}
+
+func (c *Compiler) directive(ctx context.Context, out *ir.Module, t term.Cell) (bool, error) {
+	if f, _ := c.Functor(t); f != term.NewFunctor(term.NewAtom(":-"), 1) {
+		return false, nil
+	}
+
+	d := c.Arg(t, 0)
+	switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
+	case term.NewFunctor(term.NewAtom("module"), 2):
+		if err := c.declareModule(ctx, out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+			return false, err
+		}
+	case term.NewFunctor(term.NewAtom("use_module"), 1):
+		if err := c.useModule(ctx, c.Arg(d, 0), term.Cell{}); err != nil {
+			return false, err
+		}
+	case term.NewFunctor(term.NewAtom("use_module"), 2):
+		if err := c.useModule(ctx, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
+			return false, err
+		}
+	case term.NewFunctor(term.NewAtom("meta_predicate"), 1):
+		if err := c.declareMeta(c.Arg(d, 0)); err != nil {
+			return false, err
+		}
+	case term.NewFunctor(term.NewAtom("initialization"), 1):
+		g := c.Arg(d, 0)
+		out.Initialization = append(out.Initialization, g)
+	case term.NewFunctor(term.NewAtom("include"), 1):
+		fn := c.Arg(d, 0)
+		fn = c.Deref(fn)
+		fsName, filename, err := c.mustBeSourceSink(fn)
+		if err != nil {
+			return false, err
+		}
+		fsy, ok := c.FSs.Get(fsName)
+		if !ok {
+			return false, fs.ErrNotExist
+		}
+		f, err := fsy.Open(filename)
+		if err != nil {
+			return false, err
+		}
+		if err := c.include(ctx, out, bufio.NewReader(f)); err != nil {
+			return false, err
+		}
+	case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
+		fn := c.Arg(d, 0)
+		fn = c.Deref(fn)
+		fsName, filename, err := c.sourceFile(fn)
+		if err != nil {
+			return false, err
+		}
+		if _, ok := c.Loaded[loadedKey{
+			fsName:   fsName,
+			filename: filename,
+		}]; ok {
+			break
+		}
+		m, err := c.LoadFile(ctx, fsName, filename)
+		if err != nil {
+			return false, err
+		}
+		// Loading a module file imports all of its exported
+		// predicates into the module that asked for it.
+		c.Import(m, c.Source, nil)
+	default:
+		for err := range c.Call(ctx, d) {
+			if err != nil {
+				return false, err
+			}
+			break
+		}
+	}
+
+	return true, nil
+}
+
+// include reads an included text where the include/1 directive stands. The
+// caller is midway through reading the including text, so scheduling each term
+// as it arrives is what puts them in the right place.
+func (c *Compiler) include(ctx context.Context, out *ir.Module, r io.RuneReader) error {
 	for t, err := range syntax.Parse(r,
 		syntax.Arena(c.Arena),
 		syntax.Operators(&c.Ops),
 		syntax.DoubleQuote(&c.DoubleQuotes),
+		syntax.CharConv(&c.CharConversion),
 	) {
 		if err != nil {
 			return err
 		}
-		ts = append(ts, t)
+
+		if err := c.read(ctx, out, t); err != nil {
+			return err
+		}
 	}
-	c.todo = append(ts, c.todo...)
 	return nil
 }
 
@@ -181,84 +298,8 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 			err error
 		)
 		t, c.todo = c.todo[0], c.todo[1:]
-		t, err = c.Engine.ExpandGoal(ctx, t) // FIXME: Is this the right place?
-		if err != nil {
-			return err
-		}
 
 		f, _ := c.Functor(t, term.AllowAtom(true))
-
-		// Directive
-		if f == term.NewFunctor(term.NewAtom(":-"), 1) {
-			d := c.Arg(t, 0)
-			switch di, _ := c.Functor(d, term.AllowAtom(true)); di {
-			case term.NewFunctor(term.NewAtom("module"), 2):
-				if err := c.declareModule(ctx, out, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
-					return err
-				}
-			case term.NewFunctor(term.NewAtom("use_module"), 1):
-				if err := c.useModule(ctx, c.Arg(d, 0), term.Cell{}); err != nil {
-					return err
-				}
-			case term.NewFunctor(term.NewAtom("use_module"), 2):
-				if err := c.useModule(ctx, c.Arg(d, 0), c.Arg(d, 1)); err != nil {
-					return err
-				}
-			case term.NewFunctor(term.NewAtom("meta_predicate"), 1):
-				if err := c.declareMeta(c.Arg(d, 0)); err != nil {
-					return err
-				}
-			case term.NewFunctor(term.NewAtom("initialization"), 1):
-				g := c.Arg(d, 0)
-				out.Initialization = append(out.Initialization, g)
-			case term.NewFunctor(term.NewAtom("include"), 1):
-				fn := c.Arg(d, 0)
-				fn = c.Deref(fn)
-				fsName, filename, err := c.mustBeSourceSink(fn)
-				if err != nil {
-					return err
-				}
-				fsy, ok := c.FSs.Get(fsName)
-				if !ok {
-					return fs.ErrNotExist
-				}
-				f, err := fsy.Open(filename)
-				if err != nil {
-					return err
-				}
-				if err := c.include(bufio.NewReader(f)); err != nil {
-					return err
-				}
-			case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
-				fn := c.Arg(d, 0)
-				fn = c.Deref(fn)
-				fsName, filename, err := c.sourceFile(fn)
-				if err != nil {
-					return err
-				}
-				if _, ok := c.Loaded[loadedKey{
-					fsName:   fsName,
-					filename: filename,
-				}]; ok {
-					break
-				}
-				m, err := c.LoadFile(ctx, fsName, filename)
-				if err != nil {
-					return err
-				}
-				// Loading a module file imports all of its exported
-				// predicates into the module that asked for it.
-				c.Import(m, c.Source, nil)
-			default:
-				for err := range c.Call(ctx, d) {
-					if err != nil {
-						return err
-					}
-					break
-				}
-			}
-			continue
-		}
 
 		bpi := term.NewProcedure(c.Source, term.NewFunctor(f.Name(), f.Arity()+1))
 		if p, _ := c.Predicates[bpi]; p.Dynamic {
@@ -373,6 +414,7 @@ func (c *Compiler) clauses(ctx context.Context, text string) iter.Seq2[term.Cell
 			syntax.Arena(c.Arena),
 			syntax.Operators(&c.Ops),
 			syntax.DoubleQuote(&c.DoubleQuotes),
+			syntax.CharConv(&c.CharConversion),
 		) {
 			if err != nil {
 				_ = yield(term.Cell{}, err)

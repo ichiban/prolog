@@ -2355,6 +2355,84 @@ func TestBind(t *testing.T) {
 	}
 }
 
+func TestInterpreter_Load_op(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "", "testdata/op.pl"); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		query string
+		want  []string
+		err   string
+	}{
+		{query: `X === a.`, want: []string{`a`}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.query, func(t *testing.T) {
+			var got []string
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query) {
+				if err != nil {
+					if test.err == "" || !strings.Contains(err.Error(), test.err) {
+						t.Fatalf("got error %v, want %q", err, test.err)
+					}
+					return
+				}
+				got = append(got, string(r["X"]))
+			}
+			if test.err != "" {
+				t.Fatalf("expected error %q", test.err)
+			}
+			if !slices.Equal(got, test.want) {
+				t.Errorf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestInterpreter_Load_char_conversion(t *testing.T) {
+	i := New()
+	if err := i.MountFS("", testdata); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Load(t.Context(), "", "testdata/char_conversion.pl"); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		query string
+		want  []string
+		err   string
+	}{
+		{query: `p(X).`, want: []string{`b`}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.query, func(t *testing.T) {
+			var got []string
+			for r, err := range i.Query[map[string]Expr](t.Context(), test.query) {
+				if err != nil {
+					if test.err == "" || !strings.Contains(err.Error(), test.err) {
+						t.Fatalf("got error %v, want %q", err, test.err)
+					}
+					return
+				}
+				got = append(got, string(r["X"]))
+			}
+			if test.err != "" {
+				t.Fatalf("expected error %q", test.err)
+			}
+			if !slices.Equal(got, test.want) {
+				t.Errorf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)
