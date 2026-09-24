@@ -361,6 +361,14 @@ func TestEngine_Call(t *testing.T) {
 			results: []string{},
 		},
 		{
+			// Directives run as the text is read, before the clauses queued
+			// above them are compiled, and a directive can collect.
+			title:   "clause queued before a directive",
+			text:    "p(f(a), [1,2,3]).\n:- atom_length(abc, _), atom_length(abcd, _).\nq.",
+			goal:    `p(X, Y).`,
+			results: []string{`X = f(a), Y = [1,2,3]`},
+		},
+		{
 			title: "rule and facts",
 			text:  `p(a). p(b). p(c). q(1). q(2). q(3). r(X, Y) :- p(X), q(Y).`,
 			goal:  `r(X, Y).`,
