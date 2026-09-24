@@ -219,7 +219,9 @@ func (c *Compiler) directive(ctx context.Context, out *ir.Module, t term.Cell) (
 		if err != nil {
 			return false, err
 		}
-		if err := c.include(ctx, out, bufio.NewReader(f)); err != nil {
+		err = c.include(ctx, out, bufio.NewReader(f))
+		_ = f.Close()
+		if err != nil {
 			return false, err
 		}
 	case term.NewFunctor(term.NewAtom("ensure_loaded"), 1):
