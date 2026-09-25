@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"io"
+	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -2171,6 +2172,20 @@ func TestInterpreter_Load_include(t *testing.T) {
 		}
 	})
 
+	t.Run("every included file is closed", func(t *testing.T) {
+		fsys := &openCountingFS{FS: testdata}
+		i := New()
+		if err := i.MountFS("", fsys); err != nil {
+			t.Fatal(err)
+		}
+		if err := i.Load(t.Context(), "", "testdata/include-main.pl"); err != nil {
+			t.Fatal(err)
+		}
+		if fsys.open != 0 {
+			t.Errorf("expected every file closed, %d left open", fsys.open)
+		}
+	})
+
 	t.Run("including a file that doesn't exist fails the load", func(t *testing.T) {
 		// The error is a Go error from FS, not a Prolog error term. 7.4.2.7 doesn't
 		// prescribe one, so this only pins that the load doesn't silently succeed.
@@ -2178,6 +2193,31 @@ func TestInterpreter_Load_include(t *testing.T) {
 			t.Error("expected an error, got none")
 		}
 	})
+}
+
+// openCountingFS counts the files opened through it and not closed yet.
+type openCountingFS struct {
+	fs.FS
+	open int
+}
+
+func (o *openCountingFS) Open(name string) (fs.File, error) {
+	f, err := o.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	o.open++
+	return &countedFile{File: f, fs: o}, nil
+}
+
+type countedFile struct {
+	fs.File
+	fs *openCountingFS
+}
+
+func (f *countedFile) Close() error {
+	f.fs.open--
+	return f.File.Close()
 }
 
 // Undeclared discontiguous predicates still load, each with a warning:
