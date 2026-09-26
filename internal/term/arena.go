@@ -561,8 +561,58 @@ func (a *Arena) OpenStreams() iter.Seq[Cell] {
 	}
 }
 
+// Compare reports the standard order of x and y: negative if x precedes y,
+// positive if it follows, 0 if they're identical.
+//
+// Compound terms are walked with an explicit stack rather than recursion, and
+// each pair of compound terms is compared once: meeting a pair again means it's
+// already being compared further up, which for cyclic terms would otherwise
+// never end. It can't decide the order either, so it counts as identical.
 func (a *Arena) Compare(x, y Cell) int {
+	// Most comparisons don't involve two compound terms; settle them without
+	// allocating the stack.
 	x, y = a.Deref(x), a.Deref(y)
+	if o := a.compareHead(x, y); o != 0 {
+		return o
+	}
+	if _, ok := a.Functor(x); !ok || x == y {
+		return 0
+	}
+
+	var (
+		stack   = [][2]Cell{{x, y}}
+		visited map[[2]Cell]struct{}
+	)
+	for len(stack) > 0 {
+		var p [2]Cell
+		p, stack = stack[len(stack)-1], stack[:len(stack)-1]
+		x, y := a.Deref(p[0]), a.Deref(p[1])
+		if o := a.compareHead(x, y); o != 0 {
+			return o
+		}
+
+		f, ok := a.Functor(x)
+		if !ok || x == y {
+			continue
+		}
+		if visited == nil {
+			visited = map[[2]Cell]struct{}{}
+		}
+		if _, ok := visited[[2]Cell{x, y}]; ok {
+			continue
+		}
+		visited[[2]Cell{x, y}] = struct{}{}
+		for i := f.Arity() - 1; i >= 0; i-- {
+			stack = append(stack, [2]Cell{a.Arg(x, i), a.Arg(y, i)})
+		}
+	}
+	return 0
+}
+
+// compareHead orders dereferenced x and y as Compare does, except that two
+// compound terms with the same functor count as identical: their arguments are
+// left to the caller.
+func (a *Arena) compareHead(x, y Cell) int {
 	if x == y {
 		return 0
 	}
@@ -648,38 +698,32 @@ func (a *Arena) Compare(x, y Cell) int {
 		return o
 	}
 
-	if o := strings.Compare(fx.Name().String(), fy.Name().String()); o != 0 {
-		return o
-	}
-
-	for i := range fx.Arity() {
-		x, y := a.Arg(x, i), a.Arg(y, i)
-		if o := a.Compare(x, y); o != 0 {
-			return o
-		}
-	}
-
-	return 0
+	return strings.Compare(fx.Name().String(), fy.Name().String())
 }
 
 func (a *Arena) Acyclic(t Cell) bool {
-	return !a.cyclic(t, map[Cell]struct{}{})
+	return !a.cyclic(t, map[Cell]bool{})
 }
 
-func (a *Arena) cyclic(t Cell, visited map[Cell]struct{}) bool {
+// cyclic reports whether t leads back to a term on the path to it. onPath maps
+// each compound term met so far to whether it's still on that path: a term
+// that's been left is merely shared, and it's already known not to lead to a
+// cycle, so it isn't walked again.
+func (a *Arena) cyclic(t Cell, onPath map[Cell]bool) bool {
 	t = a.Deref(t)
 	if _, ok := a.Functor(t); !ok {
 		return false
 	}
-	if _, ok := visited[t]; ok {
-		return true
+	if p, ok := onPath[t]; ok {
+		return p
 	}
-	visited[t] = struct{}{}
+	onPath[t] = true
 	for t := range a.Args(t) {
-		if a.cyclic(t, visited) {
+		if a.cyclic(t, onPath) {
 			return true
 		}
 	}
+	onPath[t] = false
 	return false
 }
 
@@ -726,20 +770,25 @@ func renamedCopy(from, to *Arena, t Cell, copied map[Cell]Cell) (Cell, error) {
 
 	// TODO: Specialize on list, partial list, and string.
 	if f, ok := from.Functor(t); ok {
-		args := make([]Cell, 0, f.Arity())
-		for arg := range from.Args(t) {
-			arg, err := renamedCopy(from, to, arg, copied)
-			if err != nil {
-				return Cell{}, err
-			}
-			args = append(args, arg)
-		}
-		c, err := to.PutCompound(f.Name(), args...)
+		// The copy is recorded before its arguments are copied, so that a
+		// cyclic term that leads back here gets the copy rather than recursing
+		// forever. Its arguments start as fresh variables and are bound to the
+		// copies as they're made, which leaves each slot holding the copy just
+		// as PutCompound would.
+		c, err := to.PutCompoundWithFreshVars(f)
 		if err != nil {
 			return Cell{}, err
 		}
-
 		copied[t] = c
+		for i := range f.Arity() {
+			arg, err := renamedCopy(from, to, from.Arg(t, i), copied)
+			if err != nil {
+				return Cell{}, err
+			}
+			if err := to.Bind(to.Arg(c, i), arg); err != nil {
+				return Cell{}, err
+			}
+		}
 		return c, nil
 	}
 
