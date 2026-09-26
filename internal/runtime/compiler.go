@@ -100,6 +100,8 @@ func (c *Compiler) CompileSystem(ctx context.Context, out *ir.Module) error {
 	c.Module = c.Source
 	defer func() { c.Module = typein }()
 
+	defer c.keepAlive(out)()
+
 	for t, err := range c.builtinClauses() {
 		if err != nil {
 			return err
@@ -130,6 +132,8 @@ func (c *Compiler) CompileText(ctx context.Context, out *ir.Module, text string)
 	typein := c.Module
 	c.Module = c.Source
 	defer func() { c.Module = typein }()
+
+	defer c.keepAlive(out)()
 
 	for t, err := range syntax.Parse(strings.NewReader(text),
 		syntax.Arena(c.Arena),
@@ -277,11 +281,12 @@ func (c *Compiler) include(ctx context.Context, out *ir.Module, r io.RuneReader)
 	return nil
 }
 
-func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
-	// A directive runs on the engine and can collect. The terms still queued and
-	// the module compiled so far are reachable from nowhere else, so they have
-	// to be roots until compilation is over.
-	defer c.AddRoots(func(yield func(*term.Cell) bool) {
+// keepAlive makes the terms still queued and the module compiled so far GC
+// roots. A directive runs on the engine and can collect, and directives run as
+// the text is read, so this has to be in place before the first term is read
+// and stay until compilation is over.
+func (c *Compiler) keepAlive(out *ir.Module) (remove func()) {
+	return c.AddRoots(func(yield func(*term.Cell) bool) {
 		for i := range c.todo {
 			if !yield(&c.todo[i]) {
 				return
@@ -292,8 +297,10 @@ func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 				return
 			}
 		}
-	})()
+	})
+}
 
+func (c *Compiler) run(ctx context.Context, out *ir.Module) error {
 	for len(c.todo) > 0 {
 		var (
 			t   term.Cell
