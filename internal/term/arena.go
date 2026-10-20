@@ -705,10 +705,16 @@ func (a *Arena) Acyclic(t Cell) bool {
 	return !a.cyclic(t, map[Cell]bool{})
 }
 
-// cyclic reports whether t leads back to a term on the path to it. onPath maps
-// each compound term met so far to whether it's still on that path: a term
-// that's been left is merely shared, and it's already known not to lead to a
-// cycle, so it isn't walked again.
+// cyclic reports whether t leads back to a term on the path to it. onPath
+// holds three states for each compound term:
+//
+//   - absent: not visited yet.
+//   - true: on the current path; meeting it again means a cycle.
+//   - false: visited and left; it's merely shared and already known not to
+//     lead to a cycle, so it isn't walked again.
+//
+// A set can't tell the last two apart: deleting on leave re-walks shared
+// subterms (exponential on DAGs), and keeping them reports f(A, A) as cyclic.
 func (a *Arena) cyclic(t Cell, onPath map[Cell]bool) bool {
 	t = a.Deref(t)
 	if _, ok := a.Functor(t); !ok {
