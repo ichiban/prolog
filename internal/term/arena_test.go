@@ -1047,7 +1047,7 @@ func TestArena_CharList(t *testing.T) {
 }
 
 func TestArena_Compare(t *testing.T) {
-	arena := NewArena(40)
+	arena := NewArena(64)
 
 	w := must(arena.PutVariable())
 	x := must(arena.PutVariable())
@@ -1067,6 +1067,15 @@ func TestArena_Compare(t *testing.T) {
 	ea := must(arena.PutCompound(NewAtom("e"), a))
 	ga := must(arena.PutCompound(NewAtom("g"), a))
 	fab := must(arena.PutCompound(NewAtom("f"), a, b))
+
+	// C = f(C), D = f(D), E = g(E)
+	cv, dv, ev := must(arena.PutVariable()), must(arena.PutVariable()), must(arena.PutVariable())
+	fc := must(arena.PutCompound(NewAtom("f"), cv))
+	fd := must(arena.PutCompound(NewAtom("f"), dv))
+	ge := must(arena.PutCompound(NewAtom("g"), ev))
+	_ = arena.Bind(cv, fc)
+	_ = arena.Bind(dv, fd)
+	_ = arena.Bind(ev, ge)
 
 	tests := []struct {
 		title    string
@@ -1117,6 +1126,9 @@ func TestArena_Compare(t *testing.T) {
 		{title: `f(a) < g(a)`, lhs: fa, rhs: ga, o: -1},
 		{title: `f(a) < f(a,b)`, lhs: fa, rhs: fab, o: -1},
 		{title: `f(a) < f(b)`, lhs: fa, rhs: fb, o: -1},
+		{title: `C = D where C = f(C), D = f(D)`, lhs: fc, rhs: fd, o: 0},
+		{title: `C < E where C = f(C), E = g(E)`, lhs: fc, rhs: ge, o: -1},
+		{title: `C > f(a) where C = f(C)`, lhs: fc, rhs: fa, o: 1},
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
@@ -1129,13 +1141,20 @@ func TestArena_Compare(t *testing.T) {
 }
 
 func TestArena_Acyclic(t *testing.T) {
-	arena := NewArena(40)
+	arena := NewArena(256)
 
 	a, _ := arena.PutAtom(NewAtomRune('a'))
 	fa, _ := arena.PutCompound(NewAtomRune('f'), a)
 	x, _ := arena.PutVariable()
 	fx, _ := arena.PutCompound(NewAtomRune('f'), x)
 	_ = arena.Bind(x, fx)
+	gfafa, _ := arena.PutCompound(NewAtomRune('g'), fa, fa)
+
+	// X0 = a, Xn = g(Xn-1, Xn-1): 2^64 paths if shared subterms were walked again.
+	deep := a
+	for range 64 {
+		deep, _ = arena.PutCompound(NewAtomRune('g'), deep, deep)
+	}
 
 	tests := []struct {
 		title  string
@@ -1144,6 +1163,8 @@ func TestArena_Acyclic(t *testing.T) {
 	}{
 		{title: "atom", term: a, result: true},
 		{title: "compound", term: fa, result: true},
+		{title: "shared subterm", term: gfafa, result: true},
+		{title: "deeply shared subterms", term: deep, result: true},
 		{title: "cyclic", term: fx, result: false},
 	}
 	for _, test := range tests {
@@ -1156,7 +1177,7 @@ func TestArena_Acyclic(t *testing.T) {
 }
 
 func TestArena_RenamedCopy(t *testing.T) {
-	arena := NewArena(40)
+	arena := NewArena(64)
 
 	a := must(arena.PutAtom(NewAtomRune('a')))
 	b := must(arena.PutAtom(NewAtomRune('b')))
@@ -1169,6 +1190,11 @@ func TestArena_RenamedCopy(t *testing.T) {
 
 	abc := must(arena.PutList(a, b, c))
 
+	// X = f(X, a)
+	x := must(arena.PutVariable())
+	fxa := must(arena.PutCompound(NewAtomRune('f'), x, a))
+	_ = arena.Bind(x, fxa)
+
 	tests := []struct {
 		title  string
 		term   Cell
@@ -1180,6 +1206,7 @@ func TestArena_RenamedCopy(t *testing.T) {
 		{title: "float", term: threePointThree, result: threePointThree},
 		{title: "compound", term: fa, result: fa},
 		{title: "list", term: abc, result: abc},
+		{title: "cyclic", term: fxa, result: fxa},
 	}
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {

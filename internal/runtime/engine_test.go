@@ -361,6 +361,12 @@ func TestEngine_Call(t *testing.T) {
 			results: []string{},
 		},
 		{
+			title:   "cyclic terms compare and copy",
+			text:    `p :- X = f(X), Y = f(Y), X == Y, copy_term(X, Z), Z == X.`,
+			goal:    `p.`,
+			results: []string{``},
+		},
+		{
 			title: "rule and facts",
 			text:  `p(a). p(b). p(c). q(1). q(2). q(3). r(X, Y) :- p(X), q(Y).`,
 			goal:  `r(X, Y).`,
